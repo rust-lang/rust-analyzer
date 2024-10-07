@@ -9,6 +9,7 @@ use base_db::CrateId;
 use either::Either;
 use hir_expand::{
     name::{AsName, Name},
+    span_map::{ExpansionSpanMap, SpanMap},
     InFile,
 };
 use intern::{sym, Interned, Symbol};
@@ -22,10 +23,11 @@ use syntax::{
     },
     AstNode, AstPtr, AstToken as _, SyntaxNodePtr,
 };
+use text_size::TextSize;
 use triomphe::Arc;
 
 use crate::{
-    body::{Body, BodyDiagnostic, BodySourceMap, ExprPtr, LabelPtr, PatPtr},
+    body::{Body, BodyDiagnostic, BodySourceMap, ExprPtr, HygieneId, LabelPtr, PatPtr},
     builtin_type::BuiltinUint,
     data::adt::StructKind,
     db::DefDatabase,
@@ -60,6 +62,13 @@ pub(super) fn lower(
     krate: CrateId,
     is_async_fn: bool,
 ) -> (Body, BodySourceMap) {
+    // We cannot leave the root span map empty and let any identifier from it be treated as root,
+    // because when inside nested macros `SyntaxContextId`s from the outer macro will be interleaved
+    // with the inner macro, and that will cause confusion because they won't be the same as `ROOT`
+    // even though they should be the same. Also, when the body comes from multiple expansions, their
+    // hygiene is different.
+    let span_map =
+        expander.current_file_id().macro_file().map(|file_id| db.expansion_span_map(file_id));
     ExprCollector {
         db,
         owner,
@@ -75,6 +84,7 @@ pub(super) fn lower(
         label_ribs: Vec::new(),
         current_binding_owner: None,
         awaitable_context: None,
+        current_span_map: span_map,
     }
     .collect(params, body, is_async_fn)
 }
@@ -91,6 +101,8 @@ struct ExprCollector<'a> {
 
     is_lowering_assignee_expr: bool,
     is_lowering_coroutine: bool,
+
+    current_span_map: Option<Arc<ExpansionSpanMap>>,
 
     current_try_block_label: Option<LabelId>,
     // points to the expression that a try expression will target (replaces current_try_block_label)
@@ -111,14 +123,14 @@ struct ExprCollector<'a> {
 struct LabelRib {
     kind: RibKind,
     // Once we handle macro hygiene this will need to be a map
-    label: Option<(Name, LabelId)>,
+    label: Option<(Name, LabelId, HygieneId)>,
 }
 
 impl LabelRib {
     fn new(kind: RibKind) -> Self {
         LabelRib { kind, label: None }
     }
-    fn new_normal(label: (Name, LabelId)) -> Self {
+    fn new_normal(label: (Name, LabelId, HygieneId)) -> Self {
         LabelRib { kind: RibKind::Normal, label: Some(label) }
     }
 }
@@ -147,7 +159,7 @@ enum Awaitable {
 
 #[derive(Debug, Default)]
 struct BindingList {
-    map: FxHashMap<Name, BindingId>,
+    map: FxHashMap<(Name, HygieneId), BindingId>,
     is_used: FxHashMap<BindingId, bool>,
     reject_new: bool,
 }
@@ -157,9 +169,16 @@ impl BindingList {
         &mut self,
         ec: &mut ExprCollector<'_>,
         name: Name,
+        hygiene: HygieneId,
         mode: BindingAnnotation,
     ) -> BindingId {
-        let id = *self.map.entry(name).or_insert_with_key(|n| ec.alloc_binding(n.clone(), mode));
+        let id = *self.map.entry((name, hygiene)).or_insert_with_key(|(name, _)| {
+            let id = ec.alloc_binding(name.clone(), mode);
+            if !hygiene.is_root() {
+                ec.body.binding_hygiene.insert(id, hygiene);
+            }
+            id
+        });
         if ec.body.bindings[id].mode != mode {
             ec.body.bindings[id].problems = Some(BindingProblems::BoundInconsistently);
         }
@@ -213,6 +232,13 @@ impl ExprCollector<'_> {
                     Name::new_symbol_root(sym::self_.clone()),
                     BindingAnnotation::new(is_mutable, false),
                 );
+                let hygiene = self_param
+                    .name()
+                    .map(|name| self.hygiene_id_for(name.syntax().text_range().start()))
+                    .unwrap_or(HygieneId::ROOT);
+                if !hygiene.is_root() {
+                    self.body.binding_hygiene.insert(binding_id, hygiene);
+                }
                 self.body.self_param = Some(binding_id);
                 self.source_map.self_param = Some(self.expander.in_file(AstPtr::new(&self_param)));
             }
@@ -290,13 +316,14 @@ impl ExprCollector<'_> {
                     })
                 }
                 Some(ast::BlockModifier::Label(label)) => {
-                    let label = self.collect_label(label);
-                    self.with_labeled_rib(label, |this| {
+                    let label_hygiene = self.hygiene_id_for(label.syntax().text_range().start());
+                    let label_id = self.collect_label(label);
+                    self.with_labeled_rib(label_id, label_hygiene, |this| {
                         this.collect_block_(e, |id, statements, tail| Expr::Block {
                             id,
                             statements,
                             tail,
-                            label: Some(label),
+                            label: Some(label_id),
                         })
                     })
                 }
@@ -338,9 +365,14 @@ impl ExprCollector<'_> {
                 None => self.collect_block(e),
             },
             ast::Expr::LoopExpr(e) => {
-                let label = e.label().map(|label| self.collect_label(label));
+                let label = e.label().map(|label| {
+                    (
+                        self.hygiene_id_for(label.syntax().text_range().start()),
+                        self.collect_label(label),
+                    )
+                });
                 let body = self.collect_labelled_block_opt(label, e.loop_body());
-                self.alloc_expr(Expr::Loop { body, label }, syntax_ptr)
+                self.alloc_expr(Expr::Loop { body, label: label.map(|it| it.1) }, syntax_ptr)
             }
             ast::Expr::WhileExpr(e) => self.collect_while_loop(syntax_ptr, e),
             ast::Expr::ForExpr(e) => self.collect_for_loop(syntax_ptr, e),
@@ -407,12 +439,29 @@ impl ExprCollector<'_> {
                 self.alloc_expr(Expr::Match { expr, arms }, syntax_ptr)
             }
             ast::Expr::PathExpr(e) => {
-                let path = e
+                let (path, hygiene) = e
                     .path()
-                    .and_then(|path| self.expander.parse_path(self.db, path))
-                    .map(Expr::Path)
-                    .unwrap_or(Expr::Missing);
-                self.alloc_expr(path, syntax_ptr)
+                    .and_then(|path| {
+                        let path = self.expander.parse_path(self.db, path)?;
+                        let Path::Normal { type_anchor, mod_path, generic_args } = &path else {
+                            panic!("path parsing produced a non-normal path");
+                        };
+                        // Need to enable `mod_path.len() < 1` for `self`.
+                        let may_be_variable =
+                            type_anchor.is_none() && mod_path.len() <= 1 && generic_args.is_none();
+                        let hygiene = if may_be_variable {
+                            self.hygiene_id_for(e.syntax().text_range().start())
+                        } else {
+                            HygieneId::ROOT
+                        };
+                        Some((Expr::Path(path), hygiene))
+                    })
+                    .unwrap_or((Expr::Missing, HygieneId::ROOT));
+                let expr_id = self.alloc_expr(path, syntax_ptr);
+                if !hygiene.is_root() {
+                    self.body.expr_hygiene.insert(expr_id, hygiene);
+                }
+                expr_id
             }
             ast::Expr::ContinueExpr(e) => {
                 let label = self.resolve_label(e.lifetime()).unwrap_or_else(|e| {
@@ -744,7 +793,7 @@ impl ExprCollector<'_> {
         let old_label = self.current_try_block_label.replace(label);
 
         let ptr = AstPtr::new(&e).upcast();
-        let (btail, expr_id) = self.with_labeled_rib(label, |this| {
+        let (btail, expr_id) = self.with_labeled_rib(label, HygieneId::ROOT, |this| {
             let mut btail = None;
             let block = this.collect_block_(e, |id, statements, tail| {
                 btail = tail;
@@ -792,7 +841,9 @@ impl ExprCollector<'_> {
     /// FIXME: Rustc wraps the condition in a construct equivalent to `{ let _t = <cond>; _t }`
     /// to preserve drop semantics. We should probably do the same in future.
     fn collect_while_loop(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::WhileExpr) -> ExprId {
-        let label = e.label().map(|label| self.collect_label(label));
+        let label = e.label().map(|label| {
+            (self.hygiene_id_for(label.syntax().text_range().start()), self.collect_label(label))
+        });
         let body = self.collect_labelled_block_opt(label, e.loop_body());
 
         // Labels can also be used in the condition expression, like this:
@@ -809,9 +860,9 @@ impl ExprCollector<'_> {
         // }
         // ```
         let condition = match label {
-            Some(label) => {
-                self.with_labeled_rib(label, |this| this.collect_expr_opt(e.condition()))
-            }
+            Some((label_hygiene, label)) => self.with_labeled_rib(label, label_hygiene, |this| {
+                this.collect_expr_opt(e.condition())
+            }),
             None => self.collect_expr_opt(e.condition()),
         };
 
@@ -820,7 +871,7 @@ impl ExprCollector<'_> {
             Expr::If { condition, then_branch: body, else_branch: Some(break_expr) },
             syntax_ptr,
         );
-        self.alloc_expr(Expr::Loop { body: if_expr, label }, syntax_ptr)
+        self.alloc_expr(Expr::Loop { body: if_expr, label: label.map(|it| it.1) }, syntax_ptr)
     }
 
     /// Desugar `ast::ForExpr` from: `[opt_ident]: for <pat> in <head> <body>` into:
@@ -868,7 +919,9 @@ impl ExprCollector<'_> {
             args: Box::new([self.collect_pat_top(e.pat())]),
             ellipsis: None,
         };
-        let label = e.label().map(|label| self.collect_label(label));
+        let label = e.label().map(|label| {
+            (self.hygiene_id_for(label.syntax().text_range().start()), self.collect_label(label))
+        });
         let some_arm = MatchArm {
             pat: self.alloc_pat_desugared(some_pat),
             guard: None,
@@ -904,7 +957,8 @@ impl ExprCollector<'_> {
             },
             syntax_ptr,
         );
-        let loop_outer = self.alloc_expr(Expr::Loop { body: loop_inner, label }, syntax_ptr);
+        let loop_outer = self
+            .alloc_expr(Expr::Loop { body: loop_inner, label: label.map(|it| it.1) }, syntax_ptr);
         let iter_binding = self.alloc_binding(iter_name, BindingAnnotation::Mutable);
         let iter_pat = self.alloc_pat_desugared(Pat::Bind { id: iter_binding, subpat: None });
         self.add_definition_to_binding(iter_binding, iter_pat);
@@ -1065,7 +1119,13 @@ impl ExprCollector<'_> {
                     // FIXME: Report parse errors here
                 }
 
+                let Some(SpanMap::ExpansionSpanMap(new_span_map)) = self.expander.span_map() else {
+                    panic!("just expanded a macro, ExpansionSpanMap should be available");
+                };
+                let old_span_map =
+                    mem::replace(&mut self.current_span_map, Some(new_span_map.clone()));
                 let id = collector(self, Some(expansion.tree()));
+                self.current_span_map = old_span_map;
                 self.ast_id_map = prev_ast_id_map;
                 self.expander.exit(mark);
                 id
@@ -1228,11 +1288,13 @@ impl ExprCollector<'_> {
 
     fn collect_labelled_block_opt(
         &mut self,
-        label: Option<LabelId>,
+        label: Option<(HygieneId, LabelId)>,
         expr: Option<ast::BlockExpr>,
     ) -> ExprId {
         match label {
-            Some(label) => self.with_labeled_rib(label, |this| this.collect_block_opt(expr)),
+            Some((hygiene, label)) => {
+                self.with_labeled_rib(label, hygiene, |this| this.collect_block_opt(expr))
+            }
             None => self.collect_block_opt(expr),
         }
     }
@@ -1250,6 +1312,10 @@ impl ExprCollector<'_> {
         let pattern = match &pat {
             ast::Pat::IdentPat(bp) => {
                 let name = bp.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
+                let hygiene = bp
+                    .name()
+                    .map(|name| self.hygiene_id_for(name.syntax().text_range().start()))
+                    .unwrap_or(HygieneId::ROOT);
 
                 let annotation =
                     BindingAnnotation::new(bp.mut_token().is_some(), bp.ref_token().is_some());
@@ -1285,12 +1351,12 @@ impl ExprCollector<'_> {
                         }
                         // shadowing statics is an error as well, so we just ignore that case here
                         _ => {
-                            let id = binding_list.find(self, name, annotation);
+                            let id = binding_list.find(self, name, hygiene, annotation);
                             (Some(id), Pat::Bind { id, subpat })
                         }
                     }
                 } else {
-                    let id = binding_list.find(self, name, annotation);
+                    let id = binding_list.find(self, name, hygiene, annotation);
                     (Some(id), Pat::Bind { id, subpat })
                 };
 
@@ -1569,11 +1635,12 @@ impl ExprCollector<'_> {
         lifetime: Option<ast::Lifetime>,
     ) -> Result<Option<LabelId>, BodyDiagnostic> {
         let Some(lifetime) = lifetime else { return Ok(None) };
+        let hygiene = self.hygiene_id_for(lifetime.syntax().text_range().start());
         let name = Name::new_lifetime(&lifetime);
 
         for (rib_idx, rib) in self.label_ribs.iter().enumerate().rev() {
-            if let Some((label_name, id)) = &rib.label {
-                if *label_name == name {
+            if let Some((label_name, id, label_hygiene)) = &rib.label {
+                if *label_name == name && *label_hygiene == hygiene {
                     return if self.is_label_valid_from_rib(rib_idx) {
                         Ok(Some(*id))
                     } else {
@@ -1603,8 +1670,13 @@ impl ExprCollector<'_> {
         res
     }
 
-    fn with_labeled_rib<T>(&mut self, label: LabelId, f: impl FnOnce(&mut Self) -> T) -> T {
-        self.label_ribs.push(LabelRib::new_normal((self.body[label].name.clone(), label)));
+    fn with_labeled_rib<T>(
+        &mut self,
+        label: LabelId,
+        hygiene: HygieneId,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        self.label_ribs.push(LabelRib::new_normal((self.body[label].name.clone(), label, hygiene)));
         let res = f(self);
         self.label_ribs.pop();
         res
@@ -1612,12 +1684,12 @@ impl ExprCollector<'_> {
 
     fn with_opt_labeled_rib<T>(
         &mut self,
-        label: Option<LabelId>,
+        label: Option<(HygieneId, LabelId)>,
         f: impl FnOnce(&mut Self) -> T,
     ) -> T {
         match label {
             None => f(self),
-            Some(label) => self.with_labeled_rib(label, f),
+            Some((hygiene, label)) => self.with_labeled_rib(label, hygiene, f),
         }
     }
     // endregion: labels
@@ -1666,28 +1738,39 @@ impl ExprCollector<'_> {
             _ => None,
         });
         let mut mappings = vec![];
-        let fmt = match template.and_then(|it| self.expand_macros_to_string(it)) {
+        let (fmt, hygiene) = match template.and_then(|it| self.expand_macros_to_string(it)) {
             Some((s, is_direct_literal)) => {
                 let call_ctx = self.expander.syntax_context();
-                format_args::parse(
+                let hygiene = self.hygiene_id_for(s.syntax().text_range().start());
+                let fmt = format_args::parse(
                     &s,
                     fmt_snippet,
                     args,
                     is_direct_literal,
-                    |name| self.alloc_expr_desugared(Expr::Path(Path::from(name))),
+                    |name| {
+                        let expr_id = self.alloc_expr_desugared(Expr::Path(Path::from(name)));
+                        if !hygiene.is_root() {
+                            self.body.expr_hygiene.insert(expr_id, hygiene);
+                        }
+                        expr_id
+                    },
                     |name, span| {
                         if let Some(span) = span {
                             mappings.push((span, name))
                         }
                     },
                     call_ctx,
-                )
+                );
+                (fmt, hygiene)
             }
-            None => FormatArgs {
-                template: Default::default(),
-                arguments: args.finish(),
-                orphans: Default::default(),
-            },
+            None => (
+                FormatArgs {
+                    template: Default::default(),
+                    arguments: args.finish(),
+                    orphans: Default::default(),
+                },
+                HygieneId::ROOT,
+            ),
         };
 
         // Create a list of all _unique_ (argument, format trait) combinations.
@@ -1847,7 +1930,11 @@ impl ExprCollector<'_> {
             },
             syntax_ptr,
         );
-        self.source_map.template_map.get_or_insert_with(Default::default).0.insert(idx, mappings);
+        self.source_map
+            .template_map
+            .get_or_insert_with(Default::default)
+            .0
+            .insert(idx, (hygiene, mappings));
         idx
     }
 
@@ -2150,6 +2237,17 @@ impl ExprCollector<'_> {
         let res = f(self);
         self.awaitable_context = orig;
         res
+    }
+
+    /// If this returns `HygieneId::ROOT`, do not allocate to save space.
+    fn hygiene_id_for(&self, span_start: TextSize) -> HygieneId {
+        match &self.current_span_map {
+            None => HygieneId::ROOT,
+            Some(span_map) => {
+                let ctx = span_map.span_at(span_start).ctx;
+                HygieneId(self.db.lookup_intern_syntax_context(ctx).opaque_and_semitransparent)
+            }
+        }
     }
 }
 

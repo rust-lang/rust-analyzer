@@ -513,8 +513,8 @@ impl InferenceContext<'_> {
         match &self.body[tgt_expr] {
             Expr::Path(p) => {
                 let resolver = resolver_for_expr(self.db.upcast(), self.owner, tgt_expr);
-                if let Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(b), _)) =
-                    resolver.resolve_path_in_value_ns(self.db.upcast(), p)
+                if let Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(b), _)) = resolver
+                    .resolve_path_in_value_ns(self.db.upcast(), p, self.body.path_hygiene(tgt_expr))
                 {
                     self.current_capture_span_stack.push(MirSpan::ExprId(tgt_expr));
                     return Some(HirPlace { local: b, projections: vec![] });
