@@ -1,6 +1,6 @@
 //! MIR lowering for patterns
 
-use hir_def::{hir::LiteralOrConst, resolver::HasResolver, AssocItemId};
+use hir_def::{body::HygieneId, hir::LiteralOrConst, resolver::HasResolver, AssocItemId};
 
 use crate::{
     mir::{
@@ -351,7 +351,7 @@ impl MirLowerCtx<'_> {
                         || MirLowerError::unresolved_path(self.db, p, self.edition());
                     let resolver = self.owner.resolver(self.db.upcast());
                     let pr = resolver
-                        .resolve_path_in_value_ns(self.db.upcast(), p)
+                        .resolve_path_in_value_ns(self.db.upcast(), p, HygieneId::ROOT)
                         .ok_or_else(unresolved_name)?;
                     let (c, subst) = 'b: {
                         if let Some(x) = self.infer.assoc_resolutions_for_pat(pattern) {
