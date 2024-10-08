@@ -33,7 +33,7 @@ use crate::{
 
 /// A wrapper around [`span::SyntaxContextId`] that is intended only for comparisons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HygieneId(span::SyntaxContextId);
+pub struct HygieneId(pub(crate) span::SyntaxContextId);
 
 impl HygieneId {
     pub const ROOT: Self = Self(span::SyntaxContextId::ROOT);
@@ -42,7 +42,7 @@ impl HygieneId {
         Self(ctx)
     }
 
-    fn is_root(self) -> bool {
+    pub(crate) fn is_root(self) -> bool {
         self.0.is_root()
     }
 }

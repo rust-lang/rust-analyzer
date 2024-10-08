@@ -205,6 +205,23 @@ macro_rules! impl_loc {
     };
 }
 
+macro_rules! impl_from_field {
+    ($a:ty, $b:ty) => {
+        impl From<$a> for $b {
+            #[inline]
+            fn from(v: $a) -> Self {
+                Self(v.0)
+            }
+        }
+        impl From<$b> for $a {
+            #[inline]
+            fn from(v: $b) -> Self {
+                Self(v.0)
+            }
+        }
+    };
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionId(salsa::InternId);
 type FunctionLoc = AssocItemLoc<Function>;
@@ -307,6 +324,7 @@ pub struct Macro2Loc {
 }
 impl_intern!(Macro2Id, Macro2Loc, intern_macro2, lookup_intern_macro2);
 impl_loc!(Macro2Loc, id: Macro2, container: ModuleId);
+impl_from_field!(Macro2Id, hir_expand::Macro2Id);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct MacroRulesId(salsa::InternId);
@@ -320,6 +338,7 @@ pub struct MacroRulesLoc {
 }
 impl_intern!(MacroRulesId, MacroRulesLoc, intern_macro_rules, lookup_intern_macro_rules);
 impl_loc!(MacroRulesLoc, id: MacroRules, container: ModuleId);
+impl_from_field!(MacroRulesId, hir_expand::MacroRulesId);
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -349,6 +368,7 @@ pub struct ProcMacroLoc {
 }
 impl_intern!(ProcMacroId, ProcMacroLoc, intern_proc_macro, lookup_intern_proc_macro);
 impl_loc!(ProcMacroLoc, id: Function, container: CrateRootModuleId);
+impl_from_field!(ProcMacroId, hir_expand::ProcMacroId);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct BlockId(salsa::InternId);
@@ -623,6 +643,26 @@ pub enum MacroId {
     ProcMacroId(ProcMacroId),
 }
 impl_from!(Macro2Id, MacroRulesId, ProcMacroId for MacroId);
+impl From<MacroId> for hir_expand::MacroId {
+    #[inline]
+    fn from(value: MacroId) -> Self {
+        match value {
+            MacroId::Macro2Id(id) => hir_expand::MacroId::Macro2Id(id.into()),
+            MacroId::MacroRulesId(id) => hir_expand::MacroId::MacroRulesId(id.into()),
+            MacroId::ProcMacroId(id) => hir_expand::MacroId::ProcMacroId(id.into()),
+        }
+    }
+}
+impl From<hir_expand::MacroId> for MacroId {
+    #[inline]
+    fn from(value: hir_expand::MacroId) -> Self {
+        match value {
+            hir_expand::MacroId::Macro2Id(id) => MacroId::Macro2Id(id.into()),
+            hir_expand::MacroId::MacroRulesId(id) => MacroId::MacroRulesId(id.into()),
+            hir_expand::MacroId::ProcMacroId(id) => MacroId::ProcMacroId(id.into()),
+        }
+    }
+}
 
 impl MacroId {
     pub fn is_attribute(self, db: &dyn DefDatabase) -> bool {

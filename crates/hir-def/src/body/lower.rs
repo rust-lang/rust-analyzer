@@ -39,8 +39,8 @@ use crate::{
             FormatPlaceholder, FormatSign, FormatTrait,
         },
         Array, Binding, BindingAnnotation, BindingId, BindingProblems, CaptureBy, ClosureKind,
-        Expr, ExprId, Label, LabelId, Literal, LiteralOrConst, MatchArm, Movability, OffsetOf, Pat,
-        PatId, RecordFieldPat, RecordLitField, Statement,
+        Expr, ExprId, Item, Label, LabelId, Literal, LiteralOrConst, MatchArm, Movability,
+        OffsetOf, Pat, PatId, RecordFieldPat, RecordLitField, Statement,
     },
     item_scope::BuiltinShadowMode,
     lang_item::LangItem,
@@ -48,7 +48,7 @@ use crate::{
     nameres::{DefMap, MacroSubNs},
     path::{GenericArgs, Path},
     type_ref::{Mutability, Rawness, TypeRef},
-    AdtId, BlockId, BlockLoc, ConstBlockLoc, DefWithBodyId, ModuleDefId, UnresolvedMacro,
+    AdtId, BlockId, BlockLoc, ConstBlockLoc, DefWithBodyId, MacroId, ModuleDefId, UnresolvedMacro,
 };
 
 type FxIndexSet<K> = indexmap::IndexSet<K, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
@@ -85,6 +85,7 @@ pub(super) fn lower(
         current_binding_owner: None,
         awaitable_context: None,
         current_span_map: span_map,
+        current_block_legacy_macro_defs_count: FxHashMap::default(),
     }
     .collect(params, body, is_async_fn)
 }
@@ -101,6 +102,10 @@ struct ExprCollector<'a> {
 
     is_lowering_assignee_expr: bool,
     is_lowering_coroutine: bool,
+
+    /// Legacy (`macro_rules!`) macros can have multiple definitions and shadow each other,
+    /// and we need to find the current definition. So we track the number of definitions we saw.
+    current_block_legacy_macro_defs_count: FxHashMap<Name, usize>,
 
     current_span_map: Option<Arc<ExpansionSpanMap>>,
 
@@ -122,31 +127,27 @@ struct ExprCollector<'a> {
 #[derive(Clone, Debug)]
 struct LabelRib {
     kind: RibKind,
-    // Once we handle macro hygiene this will need to be a map
-    label: Option<(Name, LabelId, HygieneId)>,
 }
 
 impl LabelRib {
     fn new(kind: RibKind) -> Self {
-        LabelRib { kind, label: None }
-    }
-    fn new_normal(label: (Name, LabelId, HygieneId)) -> Self {
-        LabelRib { kind: RibKind::Normal, label: Some(label) }
+        LabelRib { kind }
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum RibKind {
-    Normal,
+    Normal(Name, LabelId, HygieneId),
     Closure,
     Constant,
+    MacroDef(hir_expand::MacroId),
 }
 
 impl RibKind {
     /// This rib forbids referring to labels defined in upwards ribs.
-    fn is_label_barrier(self) -> bool {
+    fn is_label_barrier(&self) -> bool {
         match self {
-            RibKind::Normal => false,
+            RibKind::Normal(..) | RibKind::MacroDef(_) => false,
             RibKind::Closure | RibKind::Constant => true,
         }
     }
@@ -1205,8 +1206,42 @@ impl ExprCollector<'_> {
                     statements.push(Statement::Expr { expr, has_semi });
                 }
             }
-            ast::Stmt::Item(_item) => statements.push(Statement::Item),
+            ast::Stmt::Item(ast::Item::MacroDef(macro_)) => {
+                let Some(name) = macro_.name() else {
+                    statements.push(Statement::Item(Item::Other));
+                    return;
+                };
+                let name = name.as_name();
+                let macro_id = self.def_map.modules[DefMap::ROOT]
+                    .scope
+                    .get(&name)
+                    .take_macros()
+                    .expect("def map should have macro definition, but it doesn't");
+                self.collect_macro_def(statements, macro_id);
+            }
+            ast::Stmt::Item(ast::Item::MacroRules(macro_)) => {
+                let Some(name) = macro_.name() else {
+                    statements.push(Statement::Item(Item::Other));
+                    return;
+                };
+                let name = name.as_name();
+                let macro_defs_count =
+                    self.current_block_legacy_macro_defs_count.entry(name.clone()).or_insert(0);
+                let macro_id = *self.def_map.modules[DefMap::ROOT]
+                    .scope
+                    .get_legacy_macro(&name)
+                    .and_then(|it| it.get(*macro_defs_count))
+                    .expect("def map should have macro definition, but it doesn't");
+                *macro_defs_count += 1;
+                self.collect_macro_def(statements, macro_id);
+            }
+            ast::Stmt::Item(_item) => statements.push(Statement::Item(Item::Other)),
         }
+    }
+
+    fn collect_macro_def(&mut self, statements: &mut Vec<Statement>, macro_id: MacroId) {
+        statements.push(Statement::Item(Item::MacroDef(macro_id.into())));
+        self.label_ribs.push(LabelRib::new(RibKind::MacroDef(macro_id.into())));
     }
 
     fn collect_block(&mut self, block: ast::BlockExpr) -> ExprId {
@@ -1254,6 +1289,7 @@ impl ExprCollector<'_> {
             };
         let prev_def_map = mem::replace(&mut self.def_map, def_map);
         let prev_local_module = mem::replace(&mut self.expander.module, module);
+        let prev_legacy_macros_count = mem::take(&mut self.current_block_legacy_macro_defs_count);
 
         let mut statements = Vec::new();
         block.statements().for_each(|s| self.collect_stmt(&mut statements, s));
@@ -1276,6 +1312,7 @@ impl ExprCollector<'_> {
 
         self.def_map = prev_def_map;
         self.expander.module = prev_local_module;
+        self.current_block_legacy_macro_defs_count = prev_legacy_macros_count;
         expr_id
     }
 
@@ -1635,21 +1672,51 @@ impl ExprCollector<'_> {
         lifetime: Option<ast::Lifetime>,
     ) -> Result<Option<LabelId>, BodyDiagnostic> {
         let Some(lifetime) = lifetime else { return Ok(None) };
-        let hygiene = self.hygiene_id_for(lifetime.syntax().text_range().start());
+        let (mut hygiene_id, mut hygiene_info) = match &self.current_span_map {
+            None => (HygieneId::ROOT, None),
+            Some(span_map) => {
+                let span = span_map.span_at(lifetime.syntax().text_range().start());
+                let ctx = self.db.lookup_intern_syntax_context(span.ctx);
+                let hygiene_id = HygieneId::new(ctx.opaque_and_semitransparent);
+                let hygiene_info = ctx
+                    .outer_expn
+                    .map(|expansion| self.db.lookup_intern_macro_call(expansion))
+                    .map(|expansion| (ctx.parent, expansion.def.id));
+                (hygiene_id, hygiene_info)
+            }
+        };
         let name = Name::new_lifetime(&lifetime);
 
         for (rib_idx, rib) in self.label_ribs.iter().enumerate().rev() {
-            if let Some((label_name, id, label_hygiene)) = &rib.label {
-                if *label_name == name && *label_hygiene == hygiene {
-                    return if self.is_label_valid_from_rib(rib_idx) {
-                        Ok(Some(*id))
-                    } else {
-                        Err(BodyDiagnostic::UnreachableLabel {
-                            name,
-                            node: self.expander.in_file(AstPtr::new(&lifetime)),
-                        })
-                    };
+            match &rib.kind {
+                RibKind::Normal(label_name, id, label_hygiene) => {
+                    if *label_name == name && *label_hygiene == hygiene_id {
+                        return if self.is_label_valid_from_rib(rib_idx) {
+                            Ok(Some(*id))
+                        } else {
+                            Err(BodyDiagnostic::UnreachableLabel {
+                                name,
+                                node: self.expander.in_file(AstPtr::new(&lifetime)),
+                            })
+                        };
+                    }
                 }
+                &RibKind::MacroDef(macro_id) => {
+                    if let Some((parent_ctx, label_macro_id)) = hygiene_info {
+                        if label_macro_id == macro_id {
+                            // A macro is allowed to refer to labels from before its declaration.
+                            // Therefore, if we got to the rib of its declaration, give up its hygiene
+                            // and use its parent expansion.
+                            let parent_ctx = self.db.lookup_intern_syntax_context(parent_ctx);
+                            hygiene_id = HygieneId::new(parent_ctx.opaque_and_semitransparent);
+                            hygiene_info = parent_ctx
+                                .outer_expn
+                                .map(|expansion| self.db.lookup_intern_macro_call(expansion))
+                                .map(|expansion| (parent_ctx.parent, expansion.def.id));
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -1663,10 +1730,17 @@ impl ExprCollector<'_> {
         !self.label_ribs[rib_index + 1..].iter().any(|rib| rib.kind.is_label_barrier())
     }
 
+    fn pop_label_rib(&mut self) {
+        // We need to pop all macro defs, plus one rib.
+        while let Some(LabelRib { kind: RibKind::MacroDef(_) }) = self.label_ribs.pop() {
+            // Do nothing.
+        }
+    }
+
     fn with_label_rib<T>(&mut self, kind: RibKind, f: impl FnOnce(&mut Self) -> T) -> T {
         self.label_ribs.push(LabelRib::new(kind));
         let res = f(self);
-        self.label_ribs.pop();
+        self.pop_label_rib();
         res
     }
 
@@ -1676,9 +1750,13 @@ impl ExprCollector<'_> {
         hygiene: HygieneId,
         f: impl FnOnce(&mut Self) -> T,
     ) -> T {
-        self.label_ribs.push(LabelRib::new_normal((self.body[label].name.clone(), label, hygiene)));
+        self.label_ribs.push(LabelRib::new(RibKind::Normal(
+            self.body[label].name.clone(),
+            label,
+            hygiene,
+        )));
         let res = f(self);
-        self.label_ribs.pop();
+        self.pop_label_rib();
         res
     }
 

@@ -714,7 +714,7 @@ impl InferenceContext<'_> {
                         Statement::Expr { expr, has_semi: _ } => {
                             self.consume_expr(*expr);
                         }
-                        Statement::Item => (),
+                        Statement::Item(_) => (),
                     }
                 }
                 if let Some(tail) = tail {

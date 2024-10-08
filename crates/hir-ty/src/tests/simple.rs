@@ -3737,3 +3737,20 @@ fn foo() {
         "#,
     );
 }
+
+#[test]
+fn macro_expansion_can_refer_variables_defined_before_macro_definition() {
+    check_types(
+        r#"
+fn foo() {
+    let v: i32 = 0;
+    macro_rules! m {
+        () => { v };
+    }
+    let v: bool = true;
+    m!();
+ // ^^^^ i32
+}
+        "#,
+    );
+}
