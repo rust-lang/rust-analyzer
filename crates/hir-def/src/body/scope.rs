@@ -1,12 +1,12 @@
 //! Name resolution for expressions.
-use hir_expand::name::Name;
+use hir_expand::{name::Name, MacroId};
 use la_arena::{Arena, ArenaMap, Idx, IdxRange, RawIdx};
 use triomphe::Arc;
 
 use crate::{
     body::{Body, HygieneId},
     db::DefDatabase,
-    hir::{Binding, BindingId, Expr, ExprId, LabelId, Pat, PatId, Statement},
+    hir::{Binding, BindingId, Expr, ExprId, Item, LabelId, Pat, PatId, Statement},
     BlockId, ConstBlockId, DefWithBodyId,
 };
 
@@ -45,6 +45,8 @@ pub struct ScopeData {
     parent: Option<ScopeId>,
     block: Option<BlockId>,
     label: Option<(LabelId, Name)>,
+    // FIXME: We can compress this with an enum for this and `label`/`block` if memory usage matters.
+    macro_def: Option<MacroId>,
     entries: IdxRange<ScopeEntry>,
 }
 
@@ -65,6 +67,11 @@ impl ExprScopes {
     /// If `scope` refers to a block expression scope, returns the corresponding `BlockId`.
     pub fn block(&self, scope: ScopeId) -> Option<BlockId> {
         self.scopes[scope].block
+    }
+
+    /// If `scope` refers to a macro def scope, returns the corresponding `MacroId`.
+    pub fn macro_def(&self, scope: ScopeId) -> Option<MacroId> {
+        self.scopes[scope].macro_def
     }
 
     /// If `scope` refers to a labeled expression scope, returns the corresponding `Label`.
@@ -119,6 +126,7 @@ impl ExprScopes {
             parent: None,
             block: None,
             label: None,
+            macro_def: None,
             entries: empty_entries(self.scope_entries.len()),
         })
     }
@@ -128,6 +136,7 @@ impl ExprScopes {
             parent: Some(parent),
             block: None,
             label: None,
+            macro_def: None,
             entries: empty_entries(self.scope_entries.len()),
         })
     }
@@ -137,6 +146,7 @@ impl ExprScopes {
             parent: Some(parent),
             block: None,
             label,
+            macro_def: None,
             entries: empty_entries(self.scope_entries.len()),
         })
     }
@@ -151,6 +161,17 @@ impl ExprScopes {
             parent: Some(parent),
             block,
             label,
+            macro_def: None,
+            entries: empty_entries(self.scope_entries.len()),
+        })
+    }
+
+    fn new_macro_def_scope(&mut self, parent: ScopeId, macro_id: MacroId) -> ScopeId {
+        self.scopes.alloc(ScopeData {
+            parent: Some(parent),
+            block: None,
+            label: None,
+            macro_def: Some(macro_id),
             entries: empty_entries(self.scope_entries.len()),
         })
     }
@@ -217,7 +238,10 @@ fn compute_block_scopes(
             Statement::Expr { expr, .. } => {
                 compute_expr_scopes(*expr, body, scopes, scope, resolve_const_block);
             }
-            Statement::Item => (),
+            Statement::Item(Item::MacroDef(macro_id)) => {
+                *scope = scopes.new_macro_def_scope(*scope, *macro_id);
+            }
+            Statement::Item(Item::Other) => (),
         }
     }
     if let Some(expr) = tail {
