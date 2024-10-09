@@ -40,7 +40,7 @@ debug = 2
 # chalk-ir = { path = "../chalk/chalk-ir" }
 # chalk-recursive = { path = "../chalk/chalk-recursive" }
 # chalk-derive = { path = "../chalk/chalk-derive" }
-# line-index = { path = "lib/line-index" }
+line-index = { path = "lib/line-index" }
 # la-arena = { path = "lib/la-arena" }
 # lsp-server = { path = "lib/lsp-server" }
 
@@ -96,7 +96,7 @@ test-fixture = { path = "./crates/test-fixture" }
 test-utils = { path = "./crates/test-utils" }
 
 # In-tree crates that are published separately and follow semver. See lib/README.md
-line-index = { version = "0.1.1" }
+line-index = { version = "0.1.2" }
 la-arena = { version = "0.3.1" }
 lsp-server = { version = "0.7.6" }
 

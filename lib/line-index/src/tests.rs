@@ -195,3 +195,21 @@ fn test_every_chars() {
         }
     }
 }
+
+#[test]
+fn test_offset_clamped() {
+    macro_rules! validate {
+        ($text:expr, $line:expr, $col:expr, $expected:expr) => {
+            let line_index = LineIndex::new($text);
+            let line_col = LineCol { line: $line, col: $col };
+            assert_eq!(line_index.offset_clamped(line_col), $expected);
+        };
+    }
+
+    validate!("", 0, 0, Some((TextSize::new(0), None)));
+    validate!("", 0, 1, Some((TextSize::new(0), Some(TextSize::new(0)))));
+    validate!("\n", 1, 0, Some((TextSize::new(1), None)));
+    validate!("\nabc", 1, 1, Some((TextSize::new(2), None)));
+    validate!("\nabc", 1, 3, Some((TextSize::new(4), None)));
+    validate!("\nabc", 1, 4, Some((TextSize::new(4), Some(TextSize::new(3)))));
+}
