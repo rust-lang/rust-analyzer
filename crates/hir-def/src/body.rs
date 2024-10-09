@@ -28,6 +28,7 @@ use crate::{
     nameres::DefMap,
     path::{ModPath, Path},
     src::HasSource,
+    type_ref::{TypeRef, TypeRefId, TypesMap, TypesSourceMap},
     BlockId, DefWithBodyId, HasModule, Lookup,
 };
 
@@ -51,6 +52,7 @@ pub struct Body {
     pub self_param: Option<BindingId>,
     /// The `ExprId` of the actual body expression.
     pub body_expr: ExprId,
+    pub types: TypesMap,
     /// Block expressions in this body that may contain inner items.
     block_scopes: Vec<BlockId>,
 }
@@ -99,6 +101,8 @@ pub struct BodySourceMap {
     /// Instead, we use id of expression (`92`) to identify the field.
     field_map_back: FxHashMap<ExprId, FieldSource>,
     pat_field_map_back: FxHashMap<PatId, PatFieldSource>,
+
+    types: TypesSourceMap,
 
     template_map: Option<
         Box<(
@@ -261,6 +265,7 @@ impl Body {
             pats,
             bindings,
             binding_owners,
+            types,
         } = self;
         block_scopes.shrink_to_fit();
         exprs.shrink_to_fit();
@@ -268,6 +273,7 @@ impl Body {
         pats.shrink_to_fit();
         bindings.shrink_to_fit();
         binding_owners.shrink_to_fit();
+        types.shrink_to_fit();
     }
 
     pub fn walk_bindings_in_pat(&self, pat_id: PatId, mut f: impl FnMut(BindingId)) {
@@ -336,6 +342,7 @@ impl Default for Body {
             block_scopes: Default::default(),
             binding_owners: Default::default(),
             self_param: Default::default(),
+            types: Default::default(),
         }
     }
 }
@@ -369,6 +376,14 @@ impl Index<BindingId> for Body {
 
     fn index(&self, b: BindingId) -> &Binding {
         &self.bindings[b]
+    }
+}
+
+impl Index<TypeRefId> for Body {
+    type Output = TypeRef;
+
+    fn index(&self, b: TypeRefId) -> &TypeRef {
+        &self.types[b]
     }
 }
 
@@ -476,6 +491,7 @@ impl BodySourceMap {
             template_map,
             diagnostics,
             binding_definitions,
+            types,
         } = self;
         if let Some(template_map) = template_map {
             template_map.0.shrink_to_fit();
@@ -492,6 +508,7 @@ impl BodySourceMap {
         expansions.shrink_to_fit();
         diagnostics.shrink_to_fit();
         binding_definitions.shrink_to_fit();
+        types.shrink_to_fit();
     }
 
     pub fn template_map(

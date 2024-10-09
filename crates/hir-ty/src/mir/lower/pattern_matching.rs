@@ -347,8 +347,9 @@ impl MirLowerCtx<'_> {
                         // A const don't bind anything. Only needs check.
                         return Ok((current, current_else));
                     }
-                    let unresolved_name =
-                        || MirLowerError::unresolved_path(self.db, p, self.edition());
+                    let unresolved_name = || {
+                        MirLowerError::unresolved_path(self.db, p, self.edition(), &self.body.types)
+                    };
                     let resolver = self.owner.resolver(self.db.upcast());
                     let pr = resolver
                         .resolve_path_in_value_ns(self.db.upcast(), p)
