@@ -258,6 +258,8 @@ fn import_on_the_fly(
 
     let import_cfg = ctx.config.import_path_config();
 
+    let completed_name = ctx.token.to_string();
+
     import_assets
         .search_for_imports(&ctx.sema, import_cfg, ctx.config.insert_use.prefix_kind)
         .filter(ns_filter)
@@ -266,6 +268,21 @@ fn import_on_the_fly(
             !ctx.is_item_hidden(&import.item_to_import)
                 && !ctx.is_item_hidden(original_item)
                 && ctx.check_stability(original_item.attrs(ctx.db).as_deref())
+        })
+        .filter(|import| {
+            if let Some(ModuleDef::Trait(trait_)) = import.item_to_import.as_module_def() {
+                let excluded = ctx.exclude_flyimport_traits.contains(&trait_);
+                let trait_itself_imported = import.item_to_import == import.original_item;
+                if !excluded || trait_itself_imported {
+                    return true;
+                }
+
+                let Some(item) = import.original_item.as_module_def() else { return true };
+                // Filter that item out, unless its name matches the name the user wrote exactly - in which case preserve it.
+                item.name(ctx.db).is_some_and(|name| name.eq_ident(&completed_name))
+            } else {
+                true
+            }
         })
         .sorted_by(|a, b| {
             let key = |import_path| {
@@ -346,11 +363,26 @@ fn import_on_the_fly_method(
 
     let cfg = ctx.config.import_path_config();
 
+    let completed_name = ctx.token.to_string();
+
     import_assets
         .search_for_imports(&ctx.sema, cfg, ctx.config.insert_use.prefix_kind)
         .filter(|import| {
             !ctx.is_item_hidden(&import.item_to_import)
                 && !ctx.is_item_hidden(&import.original_item)
+        })
+        .filter(|import| {
+            if let Some(ModuleDef::Trait(trait_)) = import.item_to_import.as_module_def() {
+                if !ctx.exclude_flyimport_traits.contains(&trait_) {
+                    return true;
+                }
+
+                let Some(item) = import.original_item.as_module_def() else { return true };
+                // Filter that method out, unless its name matches the name the user wrote exactly - in which case preserve it.
+                item.name(ctx.db).is_some_and(|name| name.eq_ident(&completed_name))
+            } else {
+                true
+            }
         })
         .sorted_by(|a, b| {
             let key = |import_path| {
