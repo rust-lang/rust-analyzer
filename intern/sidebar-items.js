@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["sym"],"struct":["InternStorage","Interned","Symbol"],"trait":["Internable"]};

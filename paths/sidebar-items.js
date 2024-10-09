@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Utf8Component","Utf8Prefix"],"struct":["AbsPath","AbsPathBuf","RelPath","RelPathBuf","Utf8Components","Utf8Path","Utf8PathBuf"]};

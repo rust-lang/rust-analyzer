@@ -1,0 +1,53 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Indicates a database that also supports parallel query evaluation. All of Salsa’s base query support is capable of parallel execution, but for it to work, your query key/value types must also be `Send`, as must any additional data in your database."><title>ParallelDatabase in salsa - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="salsa" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../salsa/index.html">salsa</a><span class="version">0.0.0</span></h2></div><h2 class="location"><a href="#">ParallelDatabase</a></h2><div class="sidebar-elems"><section><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.snapshot">snapshot</a></li></ul><h3><a href="#object-safety">Object Safety</a></h3><h3><a href="#implementors">Implementors</a></h3></section><h2><a href="index.html">In crate salsa</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Trait <a href="index.html">salsa</a>::<wbr><a class="trait" href="#">ParallelDatabase</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/salsa/lib.rs.html#273-333">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub trait ParallelDatabase: <a class="trait" href="trait.Database.html" title="trait salsa::Database">Database</a> + <a class="trait" href="https://doc.rust-lang.org/1.81.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> {
+    // Required method
+    fn <a href="#tymethod.snapshot" class="fn">snapshot</a>(&amp;self) -&gt; <a class="struct" href="struct.Snapshot.html" title="struct salsa::Snapshot">Snapshot</a>&lt;Self&gt;;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Indicates a database that also supports parallel query
+evaluation. All of Salsa’s base query support is capable of
+parallel execution, but for it to work, your query key/value types
+must also be <code>Send</code>, as must any additional data in your database.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.snapshot" class="method"><a class="src rightside" href="../src/salsa/lib.rs.html#332">source</a><h4 class="code-header">fn <a href="#tymethod.snapshot" class="fn">snapshot</a>(&amp;self) -&gt; <a class="struct" href="struct.Snapshot.html" title="struct salsa::Snapshot">Snapshot</a>&lt;Self&gt;</h4></section></summary><div class="docblock"><p>Creates a second handle to the database that holds the
+database fixed at a particular revision. So long as this
+“frozen” handle exists, any attempt to <a href="struct.QueryTable.html#method.set"><code>set</code></a> an input will
+block.</p>
+<p>This is the method you are meant to use most of the time in a
+parallel setting where modifications may arise asynchronously
+(e.g., a language server). In this context, it is common to
+wish to “fork off” a snapshot of the database performing some
+series of queries in parallel and arranging the results. Using
+this method for that purpose ensures that those queries will
+see a consistent view of the database (it is also advisable
+for those queries to use the <a href="trait.Database.html#method.unwind_if_cancelled" title="method salsa::Database::unwind_if_cancelled"><code>Database::unwind_if_cancelled</code></a>
+method to check for cancellation).</p>
+<h5 id="panics"><a class="doc-anchor" href="#panics">§</a>Panics</h5>
+<p>It is not permitted to create a snapshot from inside of a
+query. Attepting to do so will panic.</p>
+<h5 id="deadlock-warning"><a class="doc-anchor" href="#deadlock-warning">§</a>Deadlock warning</h5>
+<p>The intended pattern for snapshots is that, once created, they
+are sent to another thread and used from there. As such, the
+<code>snapshot</code> acquires a “read lock” on the database –
+therefore, so long as the <code>snapshot</code> is not dropped, any
+attempt to <code>set</code> a value in the database will block. If the
+<code>snapshot</code> is owned by the same thread that is attempting to
+<code>set</code>, this will cause a problem.</p>
+<h5 id="how-to-implement-this"><a class="doc-anchor" href="#how-to-implement-this">§</a>How to implement this</h5>
+<p>Typically, this method will create a second copy of your
+database type (<code>MyDatabaseType</code>, in the example below),
+cloning over each of the fields from <code>self</code> into this new
+copy. For the field that stores the salsa runtime, you should
+use <a href="struct.Runtime.html#method.snapshot">the <code>Runtime::snapshot</code> method</a> to create a snapshot of the
+runtime. Finally, package up the result using <code>Snapshot::new</code>,
+which is a simple wrapper type that only gives <code>&amp;self</code> access
+to the database within (thus preventing the use of methods
+that may mutate the inputs):</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>ParallelDatabase <span class="kw">for </span>MyDatabaseType {
+    <span class="kw">fn </span>snapshot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Snapshot&lt;<span class="self">Self</span>&gt; {
+        Snapshot::new(
+            MyDatabaseType {
+                runtime: <span class="self">self</span>.runtime.snapshot(<span class="self">self</span>),
+                other_field: <span class="self">self</span>.other_field.clone(),
+            }
+        )
+    }
+}</code></pre></div>
+</div></details></div><h2 id="object-safety" class="section-header">Object Safety<a href="#object-safety" class="anchor">§</a></h2><div class="object-safety-info">This trait is <b>not</b> <a href="https://doc.rust-lang.org/1.81.0/reference/items/traits.html#object-safety">object safe</a>.</div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../trait.impl/salsa/trait.ParallelDatabase.js" async></script></section></div></main></body></html>
