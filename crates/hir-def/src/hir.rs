@@ -475,9 +475,13 @@ pub enum Statement {
         expr: ExprId,
         has_semi: bool,
     },
-    // At the moment, we only use this to figure out if a return expression
-    // is really the last statement of a block. See #16566
-    Item,
+    Item(Item),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Item {
+    MacroDef(hir_expand::MacroId),
+    Other,
 }
 
 impl Expr {
@@ -525,7 +529,7 @@ impl Expr {
                             }
                         }
                         Statement::Expr { expr: expression, .. } => f(*expression),
-                        Statement::Item => (),
+                        Statement::Item(_) => (),
                     }
                 }
                 if let &Some(expr) = tail {

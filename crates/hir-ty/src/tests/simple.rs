@@ -3720,3 +3720,37 @@ fn test() -> bool {
         "#]],
     );
 }
+
+#[test]
+fn macro_semitransparent_hygiene() {
+    check_types(
+        r#"
+macro_rules! m {
+    () => { let bar: i32; };
+}
+fn foo() {
+    let bar: bool;
+    m!();
+    bar;
+ // ^^^ bool
+}
+        "#,
+    );
+}
+
+#[test]
+fn macro_expansion_can_refer_variables_defined_before_macro_definition() {
+    check_types(
+        r#"
+fn foo() {
+    let v: i32 = 0;
+    macro_rules! m {
+        () => { v };
+    }
+    let v: bool = true;
+    m!();
+ // ^^^^ i32
+}
+        "#,
+    );
+}

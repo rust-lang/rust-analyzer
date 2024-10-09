@@ -25,12 +25,15 @@ mod prettify_macro_expansion_;
 
 use attrs::collect_attrs;
 use rustc_hash::FxHashMap;
-use stdx::TupleExt;
+use stdx::{impl_from, TupleExt};
 use triomphe::Arc;
 
 use std::hash::Hash;
 
-use base_db::{salsa::InternValueTrivial, CrateId};
+use base_db::{
+    salsa::{self, InternValueTrivial},
+    CrateId,
+};
 use either::Either;
 use span::{
     Edition, EditionedFileId, ErasedFileAstId, FileAstId, HirFileIdRepr, Span, SpanAnchor,
@@ -217,8 +220,27 @@ pub struct MacroCallLoc {
 }
 impl InternValueTrivial for MacroCallLoc {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct Macro2Id(pub salsa::InternId);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct MacroRulesId(pub salsa::InternId);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct ProcMacroId(pub salsa::InternId);
+
+/// A macro
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum MacroId {
+    Macro2Id(Macro2Id),
+    MacroRulesId(MacroRulesId),
+    ProcMacroId(ProcMacroId),
+}
+impl_from!(Macro2Id, MacroRulesId, ProcMacroId for MacroId);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MacroDefId {
+    pub id: MacroId,
     pub krate: CrateId,
     pub edition: Edition,
     pub kind: MacroDefKind,
