@@ -65,7 +65,7 @@ impl InferenceContext<'_> {
         }
 
         // Deduction from where-clauses in scope, as well as fn-pointer coercion are handled here.
-        let _ = self.coerce(Some(closure_expr), closure_ty, &expected_ty);
+        let _ = self.coerce(Some(closure_expr), closure_ty, &expected_ty, true);
 
         // Coroutines are not Fn* so return early.
         if matches!(closure_ty.kind(Interner), TyKind::Coroutine(..)) {

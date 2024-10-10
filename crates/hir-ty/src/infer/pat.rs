@@ -361,7 +361,7 @@ impl InferenceContext<'_> {
                 None => self.err_ty(),
             },
             Pat::ConstBlock(expr) => {
-                self.infer_expr(*expr, &Expectation::has_type(expected.clone()))
+                self.infer_expr(*expr, &Expectation::has_type(expected.clone()), true)
             }
             Pat::Missing => self.err_ty(),
         };
@@ -497,7 +497,7 @@ impl InferenceContext<'_> {
             }
         }
 
-        self.infer_expr(expr, &Expectation::has_type(expected.clone()))
+        self.infer_expr(expr, &Expectation::has_type(expected.clone()), true)
     }
 
     fn is_non_ref_pat(&mut self, body: &hir_def::body::Body, pat: PatId) -> bool {
