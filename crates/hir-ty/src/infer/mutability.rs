@@ -164,7 +164,7 @@ impl InferenceContext<'_> {
                                         if let Some(ty) = self.result.type_of_expr.get(index) {
                                             ty.clone()
                                         } else {
-                                            self.infer_expr(index, &Expectation::none())
+                                            self.infer_expr(index, &Expectation::none(), true)
                                         };
                                     let trait_ref = TyBuilder::trait_ref(self.db, index_trait)
                                         .push(base_ty)

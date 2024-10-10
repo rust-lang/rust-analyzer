@@ -1154,6 +1154,7 @@ impl<'a> InferenceContext<'a> {
                 _ = self.infer_expr_coerce(
                     self.body.body_expr,
                     &Expectation::has_type(self.return_ty.clone()),
+                    true,
                 )
             }
         }
