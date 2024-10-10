@@ -890,23 +890,33 @@ impl GlobalState {
             .expect("No title could be found; this is a bug");
         match message {
             DiscoverProjectMessage::Finished { project, buildfile } => {
-                self.discover_handle = None;
                 self.report_progress(&title, Progress::End, None, None, None);
                 self.discover_workspace_queue.op_completed(());
 
                 let mut config = Config::clone(&*self.config);
                 config.add_discovered_project_from_command(project, buildfile);
                 self.update_configuration(config);
+
+                let discover_handle = self
+                    .discover_handle
+                    .take()
+                    .expect("no project discovery command set; this is a bug.");
+                let _ = discover_handle.join();
             }
             DiscoverProjectMessage::Progress { message } => {
                 self.report_progress(&title, Progress::Report, Some(message), None, None)
             }
             DiscoverProjectMessage::Error { error, source } => {
-                self.discover_handle = None;
                 let message = format!("Project discovery failed: {error}");
                 self.discover_workspace_queue.op_completed(());
                 self.show_and_log_error(message.clone(), source);
-                self.report_progress(&title, Progress::End, Some(message), None, None)
+                self.report_progress(&title, Progress::End, Some(message), None, None);
+
+                let discover_handle = self
+                    .discover_handle
+                    .take()
+                    .expect("no project discovery command set; this is a bug.");
+                let _ = discover_handle.join();
             }
         }
     }
