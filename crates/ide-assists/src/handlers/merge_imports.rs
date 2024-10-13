@@ -6,8 +6,8 @@ use ide_db::imports::{
 use itertools::Itertools;
 use syntax::{
     algo::neighbor,
-    ast::{self, edit_in_place::Removable},
-    match_ast, ted, AstNode, SyntaxElement, SyntaxNode,
+    ast::{self, edit_in_place::Removable, syntax_factory::SyntaxFactory},
+    match_ast, AstNode, SyntaxElement, SyntaxNode,
 };
 
 use crate::{
@@ -68,11 +68,19 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
         (selection_range, edits?)
     };
 
+    // FIXME: Is this the best to get a `SyntaxNode` object? We need one for `SourceChangeBuilder::make_editor`.
+    let parent_node = match ctx.covering_element() {
+        SyntaxElement::Node(n) => n,
+        SyntaxElement::Token(t) => t.parent()?,
+    };
+    let make = SyntaxFactory::new();
+
     acc.add(
         AssistId("merge_imports", AssistKind::RefactorRewrite),
         "Merge imports",
         target,
         |builder| {
+            let mut editor = builder.make_editor(&parent_node);
             let edits_mut: Vec<Edit> = edits
                 .into_iter()
                 .map(|it| match it {
@@ -85,7 +93,7 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
                 match edit {
                     Remove(it) => it.as_ref().either(Removable::remove, Removable::remove),
                     Replace(old, new) => {
-                        ted::replace(old, &new);
+                        editor.replace(old, &new);
 
                         // If there's a selection and we're replacing a use tree in a tree list,
                         // normalize the parent use tree if it only contains the merged subtree.
@@ -109,12 +117,14 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
                                 });
                             if let Some((old_tree, new_tree)) = normalized_use_tree {
                                 cov_mark::hit!(replace_parent_with_normalized_use_tree);
-                                ted::replace(old_tree.syntax(), new_tree.syntax());
+                                editor.replace(old_tree.syntax(), new_tree.syntax());
                             }
                         }
                     }
                 }
             }
+            editor.add_mappings(make.finish_with_mappings());
+            builder.add_file_edits(ctx.file_id(), editor);
         },
     )
 }
