@@ -661,7 +661,7 @@ impl Analysis {
     /// Computes completions at the given position.
     pub fn completions(
         &self,
-        config: &CompletionConfig,
+        config: &CompletionConfig<'_>,
         position: FilePosition,
         trigger_character: Option<char>,
     ) -> Cancellable<Option<Vec<CompletionItem>>> {
@@ -673,7 +673,7 @@ impl Analysis {
     /// Resolves additional completion data at the position given.
     pub fn resolve_completion_edits(
         &self,
-        config: &CompletionConfig,
+        config: &CompletionConfig<'_>,
         position: FilePosition,
         imports: impl IntoIterator<Item = (String, String)> + std::panic::UnwindSafe,
     ) -> Cancellable<Vec<TextEdit>> {
