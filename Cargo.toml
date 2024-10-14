@@ -137,6 +137,7 @@ pulldown-cmark-to-cmark = "10.0.4"
 pulldown-cmark = { version = "0.9.0", default-features = false }
 rayon = "1.8.0"
 rustc-hash = "1.1.0"
+salsa = { git = "https://github.com/salsa-rs/salsa.git", rev = "c3de24ce12b28ad5f125cf1e30e5d2c26124d812" }
 semver = "1.0.14"
 serde = { version = "1.0.192", features = ["derive"] }
 serde_json = "1.0.108"

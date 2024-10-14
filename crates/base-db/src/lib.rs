@@ -2,6 +2,7 @@
 // FIXME: Rename this crate, base db is non descriptive
 mod change;
 mod input;
+pub mod new_db;
 
 use std::panic;
 
