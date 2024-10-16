@@ -956,7 +956,7 @@ impl GlobalState {
 
     fn handle_flycheck_msg(&mut self, message: FlycheckMessage) {
         match message {
-            FlycheckMessage::AddDiagnostic { id, workspace_root, diagnostic } => {
+            FlycheckMessage::AddDiagnostic { id, generation, workspace_root, diagnostic } => {
                 let snap = self.snapshot();
                 let diagnostics = crate::diagnostics::to_proto::map_rust_diagnostic_to_lsp(
                     &self.config.diagnostics_map(None),
@@ -968,6 +968,7 @@ impl GlobalState {
                     match url_to_file_id(&self.vfs.read().0, &diag.url) {
                         Ok(file_id) => self.diagnostics.add_check_diagnostic(
                             id,
+                            generation,
                             file_id,
                             diag.diagnostic,
                             diag.fix,
@@ -982,7 +983,9 @@ impl GlobalState {
                 }
             }
 
-            FlycheckMessage::ClearDiagnostics { id } => self.diagnostics.clear_check(id),
+            FlycheckMessage::ClearDiagnostics { id, generation } => {
+                self.diagnostics.clear_previous_check(id, generation)
+            }
 
             FlycheckMessage::Progress { id, progress } => {
                 let (state, message) = match progress {
@@ -1018,6 +1021,19 @@ impl GlobalState {
                     None,
                     Some(format!("rust-analyzer/flycheck/{id}")),
                 );
+            }
+            FlycheckMessage::ClearCrateDiagnostics { id, generation, crate_name } => {
+                let snap = self.snapshot();
+                let Ok(Some(crate_id)) = snap.analysis.crate_with_name(&crate_name) else {
+                    tracing::info!("Flycheck: could not find crate '{crate_name}'");
+                    return;
+                };
+                let Ok(files) = snap.analysis.files_for(crate_id) else {
+                    return;
+                };
+                for file in files {
+                    self.diagnostics.clear_file_previous_check(id, generation, file);
+                }
             }
         }
     }

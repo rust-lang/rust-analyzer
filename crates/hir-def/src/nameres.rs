@@ -439,6 +439,13 @@ impl DefMap {
             .map(|(id, _data)| id)
     }
 
+    pub fn files(&self) -> impl Iterator<Item = FileId> + '_ {
+        self.modules
+            .iter()
+            .filter_map(|(_id, data)| data.origin.file_id())
+            .map(EditionedFileId::file_id)
+    }
+
     pub fn modules(&self) -> impl Iterator<Item = (LocalModuleId, &ModuleData)> + '_ {
         self.modules.iter()
     }
