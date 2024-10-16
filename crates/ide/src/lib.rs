@@ -61,7 +61,7 @@ use std::{iter, panic::UnwindSafe};
 
 use cfg::CfgOptions;
 use fetch_crates::CrateInfo;
-use hir::{sym, ChangeWithProcMacros};
+use hir::{db::DefDatabase, sym, ChangeWithProcMacros};
 use ide_db::{
     base_db::{
         ra_salsa::{self, ParallelDatabase},
@@ -591,6 +591,29 @@ impl Analysis {
     /// Returns crates this file belongs too.
     pub fn crates_for(&self, file_id: FileId) -> Cancellable<Vec<CrateId>> {
         self.with_db(|db| parent_module::crates_for(db, file_id))
+    }
+
+    /// Returns files that belong to this crate
+    pub fn files_for(&self, crate_id: CrateId) -> Cancellable<Vec<FileId>> {
+        self.with_db(|db| db.crate_def_map(crate_id).files().collect())
+    }
+
+    /// Returns the crate with the given name
+    pub fn crate_with_name(&self, crate_name: &str) -> Cancellable<Option<CrateId>> {
+        self.with_db(|db| {
+            let graph = db.crate_graph();
+            let id = graph.iter().find(|id| {
+                let crate_data = &graph[*id];
+                match &crate_data.origin {
+                    CrateOrigin::Local { name: Some(name), .. } if name.as_str() == crate_name => {
+                        true
+                    }
+                    CrateOrigin::Library { name, .. } if name.as_str() == crate_name => true,
+                    _ => false,
+                }
+            });
+            id
+        })
     }
 
     /// Returns crates this file belongs too.

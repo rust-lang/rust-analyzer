@@ -150,10 +150,18 @@ impl FlycheckHandle {
 
 pub(crate) enum FlycheckMessage {
     /// Request adding a diagnostic with fixes included to a file
-    AddDiagnostic { id: usize, workspace_root: AbsPathBuf, diagnostic: Diagnostic },
+    AddDiagnostic {
+        id: usize,
+        generation: usize,
+        workspace_root: AbsPathBuf,
+        diagnostic: Diagnostic,
+    },
 
-    /// Request clearing all previous diagnostics
-    ClearDiagnostics { id: usize },
+    /// Request clearing all outdated diagnostics
+    ClearDiagnostics { id: usize, generation: usize },
+
+    /// Request clearing outdated for a specific crate
+    ClearCrateDiagnostics { id: usize, generation: usize, crate_name: String },
 
     /// Request check progress notification to client
     Progress {
@@ -166,15 +174,24 @@ pub(crate) enum FlycheckMessage {
 impl fmt::Debug for FlycheckMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FlycheckMessage::AddDiagnostic { id, workspace_root, diagnostic } => f
+            FlycheckMessage::AddDiagnostic { id, generation, workspace_root, diagnostic } => f
                 .debug_struct("AddDiagnostic")
                 .field("id", id)
+                .field("generation", generation)
                 .field("workspace_root", workspace_root)
                 .field("diagnostic_code", &diagnostic.code.as_ref().map(|it| &it.code))
                 .finish(),
-            FlycheckMessage::ClearDiagnostics { id } => {
-                f.debug_struct("ClearDiagnostics").field("id", id).finish()
-            }
+            FlycheckMessage::ClearDiagnostics { id, generation } => f
+                .debug_struct("ClearDiagnostics")
+                .field("id", id)
+                .field("generation", generation)
+                .finish(),
+            FlycheckMessage::ClearCrateDiagnostics { id, generation, crate_name } => f
+                .debug_struct("ClearDiagnostics")
+                .field("id", id)
+                .field("generation", generation)
+                .field("crate_name", crate_name)
+                .finish(),
             FlycheckMessage::Progress { id, progress } => {
                 f.debug_struct("Progress").field("id", id).field("progress", progress).finish()
             }
@@ -200,6 +217,10 @@ enum StateChange {
 struct FlycheckActor {
     /// The workspace id of this flycheck instance.
     id: usize,
+
+    /// Differentiator for multiple runs of the flycheck
+    generation: usize,
+
     sender: Sender<FlycheckMessage>,
     config: FlycheckConfig,
     manifest_path: Option<AbsPathBuf>,
@@ -215,21 +236,12 @@ struct FlycheckActor {
     command_handle: Option<CommandHandle<CargoCheckMessage>>,
     /// The receiver side of the channel mentioned above.
     command_receiver: Option<Receiver<CargoCheckMessage>>,
-
-    status: FlycheckStatus,
 }
 
 #[allow(clippy::large_enum_variant)]
 enum Event {
     RequestStateChange(StateChange),
     CheckEvent(Option<CargoCheckMessage>),
-}
-
-#[derive(PartialEq)]
-enum FlycheckStatus {
-    Started,
-    DiagnosticSent,
-    Finished,
 }
 
 pub(crate) const SAVED_FILE_PLACEHOLDER: &str = "$saved_file";
@@ -253,7 +265,7 @@ impl FlycheckActor {
             manifest_path,
             command_handle: None,
             command_receiver: None,
-            status: FlycheckStatus::Finished,
+            generation: 0,
         }
     }
 
@@ -306,13 +318,12 @@ impl FlycheckActor {
                             self.command_handle = Some(command_handle);
                             self.command_receiver = Some(receiver);
                             self.report_progress(Progress::DidStart);
-                            self.status = FlycheckStatus::Started;
+                            self.generation += 1;
                         }
                         Err(error) => {
                             self.report_progress(Progress::DidFailToRestart(format!(
                                 "Failed to run the following command: {formatted_command} error={error}"
                             )));
-                            self.status = FlycheckStatus::Finished;
                         }
                     }
                 }
@@ -332,11 +343,11 @@ impl FlycheckActor {
                             error
                         );
                     }
-                    if self.status == FlycheckStatus::Started {
-                        self.send(FlycheckMessage::ClearDiagnostics { id: self.id });
-                    }
+                    self.send(FlycheckMessage::ClearDiagnostics {
+                        id: self.id,
+                        generation: self.generation,
+                    });
                     self.report_progress(Progress::DidFinish(res));
-                    self.status = FlycheckStatus::Finished;
                 }
                 Event::CheckEvent(Some(message)) => match message {
                     CargoCheckMessage::CompilerArtifact(msg) => {
@@ -345,6 +356,11 @@ impl FlycheckActor {
                             artifact = msg.target.name,
                             "artifact received"
                         );
+                        self.send(FlycheckMessage::ClearCrateDiagnostics {
+                            id: self.id,
+                            generation: self.generation,
+                            crate_name: msg.target.name.clone(),
+                        });
                         self.report_progress(Progress::DidCheckCrate(msg.target.name));
                     }
 
@@ -354,15 +370,12 @@ impl FlycheckActor {
                             message = msg.message,
                             "diagnostic received"
                         );
-                        if self.status == FlycheckStatus::Started {
-                            self.send(FlycheckMessage::ClearDiagnostics { id: self.id });
-                        }
                         self.send(FlycheckMessage::AddDiagnostic {
                             id: self.id,
+                            generation: self.generation,
                             workspace_root: self.root.clone(),
                             diagnostic: msg,
                         });
-                        self.status = FlycheckStatus::DiagnosticSent;
                     }
                 },
             }
@@ -380,7 +393,6 @@ impl FlycheckActor {
             command_handle.cancel();
             self.command_receiver.take();
             self.report_progress(Progress::DidCancel);
-            self.status = FlycheckStatus::Finished;
         }
     }
 
