@@ -1425,7 +1425,20 @@ impl DefCollector<'_> {
             tracing::warn!("macro expansion is too deep");
             return;
         }
-        let file_id = macro_call_id.as_file();
+
+        let loc = macro_call_id.lookup(self.db.upcast());
+        let file_id = if loc.def.is_include() {
+            // If the given macro is an builtin `include!` macro, we expand into the included file.
+            // So we should collect items within it.
+            if let Some(it) = loc.include_file_id(self.db.upcast(), macro_call_id) {
+                it.into()
+            } else {
+                // This case the file is not exist. Do not collect items
+                return;
+            }
+        } else {
+            macro_call_id.as_file()
+        };
 
         let item_tree = self.db.file_item_tree(file_id);
 
