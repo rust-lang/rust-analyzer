@@ -596,7 +596,8 @@ impl FlycheckActor {
                                     .unwrap()
                                     .to_str()
                                     .unwrap()
-                                    .replace("/", "::")
+                                    .replace("/", "::") // for *nix
+                                    .replace("\\", "::") // for Windows
                                     .replace(".rs", ""),
                             );
                         } else if ans.join("src/lib.rs").exists() {
@@ -606,7 +607,8 @@ impl FlycheckActor {
                                     .unwrap()
                                     .to_str()
                                     .unwrap()
-                                    .replace("/", "::")
+                                    .replace("/", "::") // for *nix
+                                    .replace("\\", "::") // for Windows
                                     .replace(".rs", ""),
                             );
                         } else {
