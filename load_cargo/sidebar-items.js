@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProcMacroServerChoice"],"fn":["load_proc_macro","load_workspace","load_workspace_at"],"struct":["LoadCargoConfig","ProjectFolders","SourceRootConfig"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BodyDiagnostic"],"mod":["scope"],"struct":["Body","BodySourceMap","SyntheticSyntax"],"type":["ExprPtr","ExprSource","FieldPtr","FieldSource","LabelPtr","LabelSource","PatFieldPtr","PatFieldSource","PatPtr","PatSource"]};
