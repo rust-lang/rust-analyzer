@@ -21,7 +21,7 @@ fn lsif_contains_generated_constant() {
     eprintln!("{stdout}");
 
     // Assert
-    assert!(stdout.contains("REQ_001"));
+    assert!(stdout.contains("REQ_001"), "{stdout}");
     assert!(stdout.contains("lsif_test_crate"));
 
     assert!(stdout.contains("REQ_002"));
