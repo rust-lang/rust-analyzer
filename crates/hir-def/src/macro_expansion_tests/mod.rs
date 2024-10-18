@@ -41,7 +41,7 @@ use crate::{
     resolver::HasResolver,
     src::HasSource,
     test_db::TestDB,
-    tt::Subtree,
+    tt::TopSubtree,
     AdtId, AsMacroCall, Lookup, ModuleDefId,
 };
 
@@ -314,14 +314,14 @@ struct IdentityWhenValidProcMacroExpander;
 impl ProcMacroExpander for IdentityWhenValidProcMacroExpander {
     fn expand(
         &self,
-        subtree: &Subtree,
-        _: Option<&Subtree>,
+        subtree: &TopSubtree,
+        _: Option<&TopSubtree>,
         _: &base_db::Env,
         _: Span,
         _: Span,
         _: Span,
         _: Option<String>,
-    ) -> Result<Subtree, ProcMacroExpansionError> {
+    ) -> Result<TopSubtree, ProcMacroExpansionError> {
         let (parse, _) = syntax_bridge::token_tree_to_syntax_node(
             subtree,
             syntax_bridge::TopEntryPoint::MacroItems,

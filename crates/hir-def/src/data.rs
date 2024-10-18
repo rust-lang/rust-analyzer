@@ -11,6 +11,7 @@ use la_arena::{Idx, RawIdx};
 use smallvec::SmallVec;
 use syntax::{ast, Parse};
 use triomphe::Arc;
+use tt::iter::TtElement;
 
 use crate::{
     attr::Attrs,
@@ -153,20 +154,21 @@ impl FunctionData {
     }
 }
 
-fn parse_rustc_legacy_const_generics(tt: &crate::tt::Subtree) -> Box<[u32]> {
+fn parse_rustc_legacy_const_generics(tt: &crate::tt::TopSubtree) -> Box<[u32]> {
     let mut indices = Vec::new();
-    for args in tt.token_trees.chunks(2) {
-        match &args[0] {
-            tt::TokenTree::Leaf(tt::Leaf::Literal(lit)) => match lit.symbol.as_str().parse() {
+    let mut iter = tt.iter();
+    while let (Some(first), second) = (iter.next(), iter.next()) {
+        match first {
+            TtElement::Leaf(tt::Leaf::Literal(lit)) => match lit.symbol.as_str().parse() {
                 Ok(index) => indices.push(index),
                 Err(_) => break,
             },
             _ => break,
         }
 
-        if let Some(comma) = args.get(1) {
+        if let Some(comma) = second {
             match comma {
-                tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if punct.char == ',' => {}
+                TtElement::Leaf(tt::Leaf::Punct(punct)) if punct.char == ',' => {}
                 _ => break,
             }
         }
@@ -262,8 +264,8 @@ impl TraitData {
             attrs.by_key(&sym::rustc_skip_array_during_method_dispatch).exists();
         let mut skip_boxed_slice_during_method_dispatch = false;
         for tt in attrs.by_key(&sym::rustc_skip_during_method_dispatch).tt_values() {
-            for tt in tt.token_trees.iter() {
-                if let crate::tt::TokenTree::Leaf(tt::Leaf::Ident(ident)) = tt {
+            for tt in tt.iter() {
+                if let tt::iter::TtElement::Leaf(tt::Leaf::Ident(ident)) = tt {
                     skip_array_during_method_dispatch |= ident.sym == sym::array;
                     skip_boxed_slice_during_method_dispatch |= ident.sym == sym::boxed_slice;
                 }
@@ -414,7 +416,7 @@ impl Macro2Data {
             .by_key(&sym::rustc_builtin_macro)
             .tt_values()
             .next()
-            .and_then(|attr| parse_macro_name_and_helper_attrs(&attr.token_trees))
+            .and_then(parse_macro_name_and_helper_attrs)
             .map(|(_, helpers)| helpers);
 
         Arc::new(Macro2Data {

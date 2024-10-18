@@ -146,14 +146,14 @@ impl ProcMacro {
 
     pub fn expand(
         &self,
-        subtree: &tt::Subtree<Span>,
-        attr: Option<&tt::Subtree<Span>>,
+        subtree: tt::SubtreeView<'_, Span>,
+        attr: Option<tt::SubtreeView<'_, Span>>,
         env: Env,
         def_site: Span,
         call_site: Span,
         mixed_site: Span,
         current_dir: Option<String>,
-    ) -> Result<Result<tt::Subtree<Span>, PanicMessage>, ServerError> {
+    ) -> Result<Result<Vec<tt::TokenTree<Span>>, PanicMessage>, ServerError> {
         let version = self.process.version();
 
         let mut span_data_table = SpanDataIndexMap::default();
