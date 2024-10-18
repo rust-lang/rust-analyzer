@@ -11,6 +11,7 @@ use object::Object;
 use paths::{AbsPath, Utf8Path, Utf8PathBuf};
 use proc_macro_api::ProcMacroKind;
 
+use crate::server_impl::TopSubtree;
 use crate::ProcMacroSrvSpan;
 
 const NEW_REGISTRAR_SYMBOL: &str = "_rustc_proc_macro_decls_";
@@ -162,12 +163,12 @@ impl Expander {
     pub(crate) fn expand<S: ProcMacroSrvSpan>(
         &self,
         macro_name: &str,
-        macro_body: tt::Subtree<S>,
-        attributes: Option<tt::Subtree<S>>,
+        macro_body: TopSubtree<S>,
+        attributes: Option<TopSubtree<S>>,
         def_site: S,
         call_site: S,
         mixed_site: S,
-    ) -> Result<tt::Subtree<S>, String>
+    ) -> Result<TopSubtree<S>, String>
     where
         <S::Server as bridge::server::Types>::TokenStream: Default,
     {

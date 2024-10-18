@@ -492,24 +492,24 @@ struct Expander(proc_macro_api::ProcMacro);
 impl ProcMacroExpander for Expander {
     fn expand(
         &self,
-        subtree: &tt::Subtree<Span>,
-        attrs: Option<&tt::Subtree<Span>>,
+        subtree: &tt::TopSubtree<Span>,
+        attrs: Option<&tt::TopSubtree<Span>>,
         env: &Env,
         def_site: Span,
         call_site: Span,
         mixed_site: Span,
         current_dir: Option<String>,
-    ) -> Result<tt::Subtree<Span>, ProcMacroExpansionError> {
+    ) -> Result<tt::TopSubtree<Span>, ProcMacroExpansionError> {
         match self.0.expand(
-            subtree,
-            attrs,
+            subtree.view(),
+            attrs.map(|attrs| attrs.view()),
             env.clone(),
             def_site,
             call_site,
             mixed_site,
             current_dir,
         ) {
-            Ok(Ok(subtree)) => Ok(subtree),
+            Ok(Ok(subtree)) => Ok(tt::TopSubtree(subtree.into_boxed_slice())),
             Ok(Err(err)) => Err(ProcMacroExpansionError::Panic(err.0)),
             Err(err) => Err(ProcMacroExpansionError::System(err.to_string())),
         }
