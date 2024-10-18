@@ -168,8 +168,15 @@ fn expand_id(
             .name(macro_name.clone())
             .spawn_scoped(s, || {
                 expander
-                    .expand(&macro_name, macro_body, attributes, def_site, call_site, mixed_site)
-                    .map(|it| msg::FlatTree::new_raw(&it, CURRENT_API_VERSION))
+                    .expand(
+                        &macro_name,
+                        server_impl::TopSubtree(macro_body),
+                        attributes.map(server_impl::TopSubtree),
+                        def_site,
+                        call_site,
+                        mixed_site,
+                    )
+                    .map(|it| msg::FlatTree::new_raw(it.view(), CURRENT_API_VERSION))
             });
         let res = match thread {
             Ok(handle) => handle.join(),
@@ -211,10 +218,21 @@ fn expand_ra_span(
             .name(macro_name.clone())
             .spawn_scoped(s, || {
                 expander
-                    .expand(&macro_name, macro_body, attributes, def_site, call_site, mixed_site)
+                    .expand(
+                        &macro_name,
+                        server_impl::TopSubtree(macro_body),
+                        attributes.map(server_impl::TopSubtree),
+                        def_site,
+                        call_site,
+                        mixed_site,
+                    )
                     .map(|it| {
                         (
-                            msg::FlatTree::new(&it, CURRENT_API_VERSION, &mut span_data_table),
+                            msg::FlatTree::new(
+                                it.view(),
+                                CURRENT_API_VERSION,
+                                &mut span_data_table,
+                            ),
                             serialize_span_data_index_map(&span_data_table),
                         )
                     })

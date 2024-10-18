@@ -5,6 +5,7 @@ use proc_macro_api::ProcMacroKind;
 
 use libloading::Library;
 
+use crate::server_impl::TopSubtree;
 use crate::{dylib::LoadProcMacroDylibError, ProcMacroSrvSpan};
 
 pub(crate) struct ProcMacros {
@@ -44,12 +45,12 @@ impl ProcMacros {
     pub(crate) fn expand<S: ProcMacroSrvSpan>(
         &self,
         macro_name: &str,
-        macro_body: tt::Subtree<S>,
-        attributes: Option<tt::Subtree<S>>,
+        macro_body: TopSubtree<S>,
+        attributes: Option<TopSubtree<S>>,
         def_site: S,
         call_site: S,
         mixed_site: S,
-    ) -> Result<tt::Subtree<S>, crate::PanicMessage> {
+    ) -> Result<TopSubtree<S>, crate::PanicMessage> {
         let parsed_body = crate::server_impl::TokenStream::with_subtree(macro_body);
 
         let parsed_attributes = attributes
