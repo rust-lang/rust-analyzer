@@ -18,15 +18,16 @@ pub mod type_ref;
 use std::fmt;
 
 use hir_expand::name::Name;
-use intern::{Interned, Symbol};
+use intern::Symbol;
 use la_arena::{Idx, RawIdx};
 use rustc_apfloat::ieee::{Half as f16, Quad as f128};
 use syntax::ast;
+use type_ref::TypeRefId;
 
 use crate::{
     builtin_type::{BuiltinFloat, BuiltinInt, BuiltinUint},
     path::{GenericArgs, Path},
-    type_ref::{Mutability, Rawness, TypeRef},
+    type_ref::{Mutability, Rawness},
     BlockId, ConstBlockId,
 };
 
@@ -251,7 +252,7 @@ pub enum Expr {
     },
     Cast {
         expr: ExprId,
-        type_ref: Interned<TypeRef>,
+        type_ref: TypeRefId,
     },
     Ref {
         expr: ExprId,
@@ -282,8 +283,8 @@ pub enum Expr {
     },
     Closure {
         args: Box<[PatId]>,
-        arg_types: Box<[Option<Interned<TypeRef>>]>,
-        ret_type: Option<Interned<TypeRef>>,
+        arg_types: Box<[Option<TypeRefId>]>,
+        ret_type: Option<TypeRefId>,
         body: ExprId,
         closure_kind: ClosureKind,
         capture_by: CaptureBy,
@@ -301,7 +302,7 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OffsetOf {
-    pub container: Interned<TypeRef>,
+    pub container: TypeRefId,
     pub fields: Box<[Name]>,
 }
 
@@ -467,7 +468,7 @@ pub struct RecordLitField {
 pub enum Statement {
     Let {
         pat: PatId,
-        type_ref: Option<Interned<TypeRef>>,
+        type_ref: Option<TypeRefId>,
         initializer: Option<ExprId>,
         else_branch: Option<ExprId>,
     },
