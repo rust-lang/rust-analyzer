@@ -104,7 +104,7 @@ use hir_expand::{
 };
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use span::{FileId, MacroFileId};
+use span::{EditionedFileId, FileId, MacroFileId};
 use stdx::impl_from;
 use syntax::{
     ast::{self, HasName},
@@ -118,6 +118,7 @@ pub(super) struct SourceToDefCache {
     pub(super) dynmap_cache: FxHashMap<(ChildContainer, HirFileId), DynMap>,
     expansion_info_cache: FxHashMap<MacroFileId, ExpansionInfo>,
     pub(super) file_to_def_cache: FxHashMap<FileId, SmallVec<[ModuleId; 1]>>,
+    included_file_cache: FxHashMap<EditionedFileId, MacroFileId>,
 }
 
 impl SourceToDefCache {
@@ -163,7 +164,11 @@ impl SourceToDefCtx<'_, '_> {
                             .include_macro_invoc(crate_id)
                             .iter()
                             .filter(|&&(_, file_id)| file_id == file)
-                            .flat_map(|(call, _)| {
+                            .flat_map(|(call, file_id)| {
+                                self.cache
+                                    .included_file_cache
+                                    .insert(*file_id, MacroFileId { macro_call_id: *call });
+
                                 modules(
                                     call.lookup(self.db.upcast())
                                         .kind
@@ -499,7 +504,12 @@ impl SourceToDefCtx<'_, '_> {
         let parent = |this: &mut Self, node: InFile<&SyntaxNode>| match node.value.parent() {
             Some(parent) => Some(node.with_value(parent)),
             None => {
-                let macro_file = node.file_id.macro_file()?;
+                let macro_file = if let Some(macro_file) = node.file_id.macro_file() {
+                    macro_file
+                } else {
+                    let file_id = node.file_id.file_id()?;
+                    *this.cache.included_file_cache.get(&file_id)?
+                };
 
                 let expansion_info = this
                     .cache
