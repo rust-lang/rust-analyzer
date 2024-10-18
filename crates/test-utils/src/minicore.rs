@@ -199,8 +199,12 @@ pub mod hash {
     }
 
     // region:derive
-    #[rustc_builtin_macro]
-    pub macro Hash($item:item) {}
+    pub(crate) mod macros {
+        #[rustc_builtin_macro]
+        pub macro Hash($item:item) {}
+    }
+
+    pub use macros::Hash;
     // endregion:derive
 }
 // endregion:hash
@@ -1678,6 +1682,7 @@ pub mod prelude {
             convert::AsRef,                          // :as_ref
             convert::{From, Into},                   // :from
             default::Default,                        // :default
+            hash::macros::Hash,                      // :hash, derive
             iter::{IntoIterator, Iterator},          // :iterator
             macros::builtin::{derive, derive_const}, // :derive
             marker::Copy,                            // :copy
