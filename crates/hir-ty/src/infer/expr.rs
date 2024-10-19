@@ -195,7 +195,7 @@ impl InferenceContext<'_> {
         match &self.body[expr] {
             // Lang item paths cannot currently be local variables or statics.
             Expr::Path(Path::LangItem(_, _)) => false,
-            Expr::Path(Path::Normal { type_anchor: Some(_), .. }) => false,
+            Expr::Path(Path::Normal(path)) => path.type_anchor().is_none(),
             Expr::Path(path) => self
                 .resolver
                 .resolve_path_in_value_ns_fully(self.db.upcast(), path)
@@ -614,7 +614,8 @@ impl InferenceContext<'_> {
                 let ty = match self.infer_path(p, tgt_expr.into()) {
                     Some(ty) => ty,
                     None => {
-                        if matches!(p, Path::Normal { mod_path, .. } if mod_path.is_ident() || mod_path.is_self())
+                        if p.mod_path()
+                            .is_some_and(|mod_path| mod_path.is_ident() || mod_path.is_self())
                         {
                             self.push_diagnostic(InferenceDiagnostic::UnresolvedIdent {
                                 expr: tgt_expr,

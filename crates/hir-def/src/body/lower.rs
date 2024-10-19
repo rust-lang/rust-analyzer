@@ -859,7 +859,7 @@ impl ExprCollector<'_> {
             syntax_ptr,
         );
         let none_arm = MatchArm {
-            pat: self.alloc_pat_desugared(Pat::Path(Box::new(option_none))),
+            pat: self.alloc_pat_desugared(Pat::Path(option_none)),
             guard: None,
             expr: self.alloc_expr(Expr::Break { expr: None, label: None }, syntax_ptr),
         };
@@ -1315,7 +1315,7 @@ impl ExprCollector<'_> {
                 Pat::Ref { pat, mutability }
             }
             ast::Pat::PathPat(p) => {
-                let path = p.path().and_then(|path| self.parse_path(path)).map(Box::new);
+                let path = p.path().and_then(|path| self.parse_path(path));
                 path.map(Pat::Path).unwrap_or(Pat::Missing)
             }
             ast::Pat::OrPat(p) => 'b: {
