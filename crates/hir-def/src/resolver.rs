@@ -162,7 +162,8 @@ impl Resolver {
         path: &Path,
     ) -> Option<(TypeNs, Option<usize>, Option<ImportOrExternCrate>)> {
         let path = match path {
-            Path::Normal { mod_path, .. } => mod_path,
+            Path::BarePath(mod_path) => mod_path,
+            Path::Normal(it) => it.mod_path(),
             Path::LangItem(l, seg) => {
                 let type_ns = match *l {
                     LangItemTarget::Union(it) => TypeNs::AdtId(it.into()),
@@ -259,7 +260,8 @@ impl Resolver {
         path: &Path,
     ) -> Option<ResolveValueResult> {
         let path = match path {
-            Path::Normal { mod_path, .. } => mod_path,
+            Path::BarePath(mod_path) => mod_path,
+            Path::Normal(it) => it.mod_path(),
             Path::LangItem(l, None) => {
                 return Some(ResolveValueResult::ValueNs(
                     match *l {

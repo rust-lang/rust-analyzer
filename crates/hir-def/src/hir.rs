@@ -579,7 +579,7 @@ pub enum Pat {
         suffix: Box<[PatId]>,
     },
     /// This might refer to a variable if a single segment path (specifically, on destructuring assignment).
-    Path(Box<Path>),
+    Path(Path),
     Lit(ExprId),
     Bind {
         id: BindingId,
