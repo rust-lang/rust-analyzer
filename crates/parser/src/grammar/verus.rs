@@ -28,7 +28,7 @@ pub(crate) fn verus_ret_type(p: &mut Parser<'_>) -> () {
             // verus named param
             p.bump(T!['(']);
             patterns::pattern(p);
-            p.bump(T![:]);
+            p.expect(T![:]);
             types::type_no_bounds(p);
             p.expect(T![')']);
         } else {
@@ -131,7 +131,7 @@ pub(crate) fn broadcast_group(p: &mut Parser<'_>, m: Marker) -> CompletedMarker 
 }
 
 pub(crate) fn broadcast_use_list(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
-    p.bump(T![use]);
+    p.expect(T![use]);
     while !p.at(EOF) && !p.at(T![;]) {
         paths::use_path(p);
 
