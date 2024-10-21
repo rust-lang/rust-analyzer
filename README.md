@@ -62,7 +62,7 @@ TODO
 
 You will need to install the `rust-analyzer` extension
 ```
-ext install rust-lang.rust-analyzer
+code --install-extension rust-lang.rust-analyzer
 ```
 
 Then you can configure the `rust-analyzer` extensions to use the `verus-analyzer` binary that you compiled. You can do so by either
