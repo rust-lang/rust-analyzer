@@ -10,9 +10,10 @@ use hir::{
 use ide_db::{
     base_db::SourceDatabase,
     defs::Definition,
-    documentation::HasDocs,
+    documentation::{Documentation, HasDocs},
     famous_defs::FamousDefs,
     generated::lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
+    helpers::get_definition,
     syntax_helpers::prettify_macro_expansion,
     RootDatabase,
 };
@@ -414,7 +415,7 @@ pub(super) fn path(
 }
 
 pub(super) fn definition(
-    db: &RootDatabase,
+    sema @ &Semantics { db, .. }: &Semantics<'_, RootDatabase>,
     def: Definition,
     famous_defs: Option<&FamousDefs<'_, '_>>,
     notable_traits: &[(Trait, Vec<(Option<Type>, Name)>)],
@@ -455,7 +456,7 @@ pub(super) fn definition(
         }
         _ => def.label(db, edition),
     };
-    let docs = def.docs(db, famous_defs, edition);
+    let docs = get_docs(sema, def, famous_defs, edition);
     let value = (|| match def {
         Definition::Variant(it) => {
             if !it.parent_enum(db).is_data_carrying(db) {
@@ -822,6 +823,49 @@ fn definition_mod_path(db: &RootDatabase, def: &Definition, edition: Edition) ->
         .unwrap_or(*def)
         .module(db)
         .map(|module| path(db, module, definition_owner_name(db, def, edition), edition))
+}
+
+fn get_docs(
+    sema @ &Semantics { db, .. }: &Semantics<'_, RootDatabase>,
+    def: Definition,
+    famous_defs: Option<&FamousDefs<'_, '_>>,
+    edition: Edition,
+) -> Option<Documentation> {
+    let mut docs = def.docs(db, famous_defs, edition);
+    let mut def = def;
+    let mut docs_changed = false;
+
+    // Searching for type alias without docs attr.
+    while let Definition::TypeAlias(type_alias) = def {
+        if docs.is_some() {
+            break;
+        }
+
+        let source = sema.source(type_alias)?;
+        let type_alias = source.value.ty()?;
+
+        // Only take the first token, avoid searching docs for type parameters.
+        // E.g. `type Y = Box<X>`
+        let token = type_alias.syntax().first_token()?;
+
+        def = get_definition(sema, token)?;
+        docs = def.docs(db, famous_defs, edition);
+        docs_changed = true;
+    }
+
+    if docs_changed {
+        // Notify user that we are showing the docs for different def.
+        docs = docs.map(|docs| {
+            let new_docs = format!(
+                "*This is the documentation for* `{}`.\n\n{}",
+                def.label(db, edition),
+                docs.as_str()
+            );
+            Documentation::new(new_docs)
+        })
+    }
+
+    docs
 }
 
 fn markup(docs: Option<String>, desc: String, mod_path: Option<String>) -> Markup {

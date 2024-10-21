@@ -406,7 +406,7 @@ pub(crate) fn hover_for_definition(
     let notable_traits = def_ty.map(|ty| notable_traits(db, &ty)).unwrap_or_default();
 
     let markup = render::definition(
-        sema.db,
+        sema,
         def,
         famous_defs.as_ref(),
         &notable_traits,
