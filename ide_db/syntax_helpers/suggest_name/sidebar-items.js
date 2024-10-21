@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["for_variable"],"struct":["NameGenerator"]};
