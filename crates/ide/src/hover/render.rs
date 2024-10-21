@@ -833,6 +833,7 @@ fn get_docs(
 ) -> Option<Documentation> {
     let mut docs = def.docs(db, famous_defs, edition);
     let mut def = def;
+    let mut docs_changed = false;
 
     // Searching for type alias without docs attr.
     while let Definition::TypeAlias(type_alias) = def {
@@ -849,6 +850,19 @@ fn get_docs(
 
         def = get_definition(sema, token)?;
         docs = def.docs(db, famous_defs, edition);
+        docs_changed = true;
+    }
+
+    if docs_changed {
+        // Notify user that we are showing the docs for different def.
+        docs = docs.map(|docs| {
+            let new_docs = format!(
+                "*This is the documentation for* `{}`.\n\n{}",
+                def.label(db, edition),
+                docs.as_str()
+            );
+            Documentation::new(new_docs)
+        })
     }
 
     docs

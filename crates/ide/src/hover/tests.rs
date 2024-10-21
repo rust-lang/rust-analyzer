@@ -9043,6 +9043,8 @@ type A$0 = B;
 
             ---
 
+            *This is the documentation for* `struct B`.
+
             Docs for B
         "#]],
     );
@@ -9070,6 +9072,8 @@ type A$0 = B;
             ```
 
             ---
+
+            *This is the documentation for* `struct C`.
 
             Docs for C
         "#]],
@@ -9099,6 +9103,8 @@ type A$0 = B;
             ```
 
             ---
+
+            *This is the documentation for* `type B = C`.
 
             Docs for B
         "#]],
@@ -9158,6 +9164,8 @@ use a::A$0;
             ```
 
             ---
+
+            *This is the documentation for* `pub struct C`.
 
             Docs for C
         "#]],
