@@ -316,6 +316,7 @@ fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
             let item_tree = loc.id.item_tree(db);
             let makro = &item_tree[loc.id.value];
             MacroDefId {
+                id: id.into(),
                 krate: loc.container.krate,
                 kind: kind(loc.expander, loc.id.file_id(), makro.ast_id.upcast()),
                 local_inner: false,
@@ -329,6 +330,7 @@ fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
             let item_tree = loc.id.item_tree(db);
             let makro = &item_tree[loc.id.value];
             MacroDefId {
+                id: id.into(),
                 krate: loc.container.krate,
                 kind: kind(loc.expander, loc.id.file_id(), makro.ast_id.upcast()),
                 local_inner: loc.flags.contains(MacroRulesLocFlags::LOCAL_INNER),
@@ -344,6 +346,7 @@ fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
             let item_tree = loc.id.item_tree(db);
             let makro = &item_tree[loc.id.value];
             MacroDefId {
+                id: id.into(),
                 krate: loc.container.krate,
                 kind: MacroDefKind::ProcMacro(
                     InFile::new(loc.id.file_id(), makro.ast_id),

@@ -49,6 +49,10 @@ impl Expander {
         }
     }
 
+    pub(crate) fn span_map(&self) -> Option<&SpanMap> {
+        self.span_map.get()
+    }
+
     pub fn krate(&self) -> CrateId {
         self.module.krate
     }
