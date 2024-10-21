@@ -427,10 +427,12 @@ impl MiniCore {
                 continue;
             }
 
-            let mut line_region = false;
+            let mut line_regions = 0;
             if let Some(idx) = trimmed.find("// :") {
-                line_region = true;
-                active_regions.push(&trimmed[idx + "// :".len()..]);
+                for region in trimmed[idx + "// :".len()..].split(", ") {
+                    active_regions.push(region);
+                    line_regions += 1;
+                }
             }
 
             let mut keep = true;
@@ -444,9 +446,8 @@ impl MiniCore {
             if keep {
                 buf.push_str(line);
             }
-            if line_region {
-                active_regions.pop().unwrap();
-            }
+
+            active_regions.truncate(active_regions.len() - line_regions);
         }
 
         if !active_regions.is_empty() {

@@ -76,12 +76,14 @@ pub(crate) fn with_single_file(text: &str) -> (RootDatabase, EditionedFileId) {
     RootDatabase::with_single_file(text)
 }
 
+/// Note that files from [`ra_fixture_before`] that aren't changed should be omitted in [`ra_fixture_after`].
 #[track_caller]
 pub(crate) fn check_assist(assist: Handler, ra_fixture_before: &str, ra_fixture_after: &str) {
     let ra_fixture_after = trim_indent(ra_fixture_after);
     check(assist, ra_fixture_before, ExpectedResult::After(&ra_fixture_after), None);
 }
 
+/// Note that files from [`ra_fixture_before`] that aren't changed should be omitted in [`ra_fixture_after`].
 #[track_caller]
 pub(crate) fn check_assist_no_snippet_cap(
     assist: Handler,
@@ -98,6 +100,7 @@ pub(crate) fn check_assist_no_snippet_cap(
     );
 }
 
+/// Note that files from [`ra_fixture_before`] that aren't changed should be omitted in [`ra_fixture_after`].
 #[track_caller]
 pub(crate) fn check_assist_import_one(
     assist: Handler,
@@ -116,6 +119,7 @@ pub(crate) fn check_assist_import_one(
 
 // There is no way to choose what assist within a group you want to test against,
 // so this is here to allow you choose.
+/// Note that files from [`ra_fixture_before`] that aren't changed should be omitted in [`ra_fixture_after`].
 pub(crate) fn check_assist_by_label(
     assist: Handler,
     ra_fixture_before: &str,
@@ -161,6 +165,7 @@ pub(crate) fn check_assist_unresolved(assist: Handler, ra_fixture: &str) {
     check(assist, ra_fixture, ExpectedResult::Unresolved, None);
 }
 
+/// Note that files from [`before`] that aren't changed should be omitted in [`after`].
 #[track_caller]
 fn check_doc_test(assist_id: &str, before: &str, after: &str) {
     let after = trim_indent(after);
