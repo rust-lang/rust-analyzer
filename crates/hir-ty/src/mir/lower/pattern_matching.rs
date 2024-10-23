@@ -349,8 +349,9 @@ impl MirLowerCtx<'_> {
                     mode,
                 )?,
                 None => {
-                    let unresolved_name =
-                        || MirLowerError::unresolved_path(self.db, p, self.edition());
+                    let unresolved_name = || {
+                        MirLowerError::unresolved_path(self.db, p, self.edition(), &self.body.types)
+                    };
                     let pr = self
                         .resolver
                         .resolve_path_in_value_ns(self.db.upcast(), p)
