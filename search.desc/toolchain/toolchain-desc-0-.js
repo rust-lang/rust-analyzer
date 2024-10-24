@@ -1,0 +1,1 @@
+searchState.loadedDescShard("toolchain", 0, "Discovery of <code>cargo</code> &amp; <code>rustc</code> executables.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nReturn a <code>PathBuf</code> to use for the given executable.\nReturn a <code>PathBuf</code> to use for the given executable.")
