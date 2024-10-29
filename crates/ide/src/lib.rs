@@ -248,6 +248,7 @@ impl Analysis {
             Edition::CURRENT,
             None,
             None,
+            None,
             Arc::new(cfg_options),
             None,
             Env::default(),
@@ -598,19 +599,13 @@ impl Analysis {
         self.with_db(|db| db.crate_def_map(crate_id).files().collect())
     }
 
-    /// Returns the crate with the given name
-    pub fn crate_with_name(&self, crate_name: &str) -> Cancellable<Option<CrateId>> {
+    /// Returns the crate with the given package id
+    pub fn crate_with_id(&self, package_id: &str) -> Cancellable<Option<CrateId>> {
         self.with_db(|db| {
             let graph = db.crate_graph();
             let id = graph.iter().find(|id| {
                 let crate_data = &graph[*id];
-                match &crate_data.origin {
-                    CrateOrigin::Local { name: Some(name), .. } if name.as_str() == crate_name => {
-                        true
-                    }
-                    CrateOrigin::Library { name, .. } if name.as_str() == crate_name => true,
-                    _ => false,
-                }
+                crate_data.package_id.as_deref() == Some(package_id)
             });
             id
         })

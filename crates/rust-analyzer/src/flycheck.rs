@@ -161,7 +161,7 @@ pub(crate) enum FlycheckMessage {
     ClearDiagnostics { id: usize, generation: usize },
 
     /// Request clearing outdated for a specific crate
-    ClearCrateDiagnostics { id: usize, generation: usize, crate_name: String },
+    ClearCrateDiagnostics { id: usize, generation: usize, package_id: String },
 
     /// Request check progress notification to client
     Progress {
@@ -186,7 +186,7 @@ impl fmt::Debug for FlycheckMessage {
                 .field("id", id)
                 .field("generation", generation)
                 .finish(),
-            FlycheckMessage::ClearCrateDiagnostics { id, generation, crate_name } => f
+            FlycheckMessage::ClearCrateDiagnostics { id, generation, package_id: crate_name } => f
                 .debug_struct("ClearDiagnostics")
                 .field("id", id)
                 .field("generation", generation)
@@ -359,7 +359,7 @@ impl FlycheckActor {
                         self.send(FlycheckMessage::ClearCrateDiagnostics {
                             id: self.id,
                             generation: self.generation,
-                            crate_name: msg.target.name.clone(),
+                            package_id: msg.package_id.repr.clone(),
                         });
                         self.report_progress(Progress::DidCheckCrate(msg.target.name));
                     }

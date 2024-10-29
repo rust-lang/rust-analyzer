@@ -1022,10 +1022,10 @@ impl GlobalState {
                     Some(format!("rust-analyzer/flycheck/{id}")),
                 );
             }
-            FlycheckMessage::ClearCrateDiagnostics { id, generation, crate_name } => {
+            FlycheckMessage::ClearCrateDiagnostics { id, generation, package_id } => {
                 let snap = self.snapshot();
-                let Ok(Some(crate_id)) = snap.analysis.crate_with_name(&crate_name) else {
-                    tracing::info!("Flycheck: could not find crate '{crate_name}'");
+                let Ok(Some(crate_id)) = snap.analysis.crate_with_id(&package_id) else {
+                    tracing::info!("Flycheck: could not find crate '{package_id}'");
                     return;
                 };
                 let Ok(files) = snap.analysis.files_for(crate_id) else {
