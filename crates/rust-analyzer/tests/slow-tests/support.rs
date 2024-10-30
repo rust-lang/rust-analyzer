@@ -1,7 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     env, fs,
-    sync::Once,
+    sync::{Once, OnceLock},
     time::Duration,
 };
 
@@ -141,12 +141,17 @@ impl Project<'_> {
     /// file in the config dir after server is run, something where our naive approach comes short.
     /// Using a `prelock` allows us to force a lock when we know we need it.
     pub(crate) fn server_with_lock(self, prelock: bool) -> Server {
-        static CONFIG_DIR_LOCK: Mutex<()> = Mutex::new(());
+        static CONFIG_DIR_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
         let mut config_dir_guard = if prelock {
-            let v = Some(CONFIG_DIR_LOCK.lock());
-            env::set_var("__TEST_RA_USER_CONFIG_DIR", TestDir::new().path());
-            v
+            Some(
+                CONFIG_DIR_LOCK
+                    .get_or_init(|| {
+                        env::set_var("__TEST_RA_USER_CONFIG_DIR", TestDir::new().keep().path());
+                        Mutex::new(())
+                    })
+                    .lock(),
+            )
         } else {
             None
         };
@@ -185,10 +190,7 @@ impl Project<'_> {
 
         for entry in fixture {
             if let Some(pth) = entry.path.strip_prefix("/$$CONFIG_DIR$$") {
-                if config_dir_guard.is_none() {
-                    config_dir_guard = Some(CONFIG_DIR_LOCK.lock());
-                    env::set_var("__TEST_RA_USER_CONFIG_DIR", TestDir::new().path());
-                }
+                assert!(config_dir_guard.is_some(), "this test requires prelock to be set to true");
 
                 let path = Config::user_config_dir_path().unwrap().join(&pth['/'.len_utf8()..]);
                 fs::create_dir_all(path.parent().unwrap()).unwrap();

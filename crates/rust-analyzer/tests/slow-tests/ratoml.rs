@@ -20,6 +20,7 @@ struct RatomlTest {
     urls: Vec<Url>,
     server: Server,
     tmp_path: Utf8PathBuf,
+    config_locked: bool,
 }
 
 impl RatomlTest {
@@ -65,13 +66,14 @@ impl RatomlTest {
 
         let server = project.server_with_lock(prelock).wait_until_workspace_is_loaded();
 
-        let mut case = Self { urls: vec![], server, tmp_path };
-        let urls = fixtures.iter().map(|fixture| case.fixture_path(fixture)).collect::<Vec<_>>();
+        let mut case = Self { urls: vec![], server, tmp_path, config_locked: prelock };
+        let urls =
+            fixtures.iter().map(|fixture| case.fixture_path(fixture, prelock)).collect::<Vec<_>>();
         case.urls = urls;
         case
     }
 
-    fn fixture_path(&self, fixture: &str) -> Url {
+    fn fixture_path(&self, fixture: &str, prelock: bool) -> Url {
         let mut lines = fixture.trim().split('\n');
 
         let mut path =
@@ -89,6 +91,7 @@ impl RatomlTest {
         let mut spl = spl.into_iter();
         if let Some(first) = spl.next() {
             if first == "$$CONFIG_DIR$$" {
+                assert!(prelock, "this test requires prelock to be set");
                 path = Config::user_config_dir_path().unwrap().to_path_buf().into();
             } else {
                 path = path.join(first);
@@ -109,7 +112,7 @@ impl RatomlTest {
     }
 
     fn create(&mut self, fixture_path: &str, text: String) {
-        let url = self.fixture_path(fixture_path);
+        let url = self.fixture_path(fixture_path, self.config_locked);
 
         self.server.notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
