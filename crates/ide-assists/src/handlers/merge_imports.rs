@@ -6,7 +6,7 @@ use ide_db::imports::{
 use itertools::Itertools;
 use syntax::{
     algo::neighbor,
-    ast::{self, edit_in_place::Removable, syntax_factory::SyntaxFactory},
+    ast::{self, edit_in_place::EditorRemovable, syntax_factory::SyntaxFactory},
     match_ast, AstNode, SyntaxElement, SyntaxNode,
 };
 
@@ -81,17 +81,16 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
         target,
         |builder| {
             let mut editor = builder.make_editor(&parent_node);
-            let edits_mut: Vec<Edit> = edits
-                .into_iter()
-                .map(|it| match it {
-                    Remove(Either::Left(it)) => Remove(Either::Left(builder.make_mut(it))),
-                    Remove(Either::Right(it)) => Remove(Either::Right(builder.make_mut(it))),
-                    Replace(old, new) => Replace(builder.make_syntax_mut(old), new),
-                })
-                .collect();
-            for edit in edits_mut {
+            for edit in edits {
                 match edit {
-                    Remove(it) => it.as_ref().either(Removable::remove, Removable::remove),
+                    Remove(it) => {
+                        let node = it.as_ref();
+                        if let Some(left) = node.left() {
+                            left.remove(&mut editor);
+                        } else if let Some(right) = node.right() {
+                            right.remove(&mut editor);
+                        }
+                    }
                     Replace(old, new) => {
                         editor.replace(old, &new);
 

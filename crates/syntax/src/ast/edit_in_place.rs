@@ -6,7 +6,11 @@ use parser::{SyntaxKind, T};
 
 use crate::{
     algo::{self, neighbor},
-    ast::{self, edit::IndentLevel, make, HasGenericArgs, HasGenericParams},
+    ast::{
+        self, edit::IndentLevel, make, syntax_factory::SyntaxFactory, HasGenericArgs,
+        HasGenericParams,
+    },
+    syntax_editor::SyntaxEditor,
     ted::{self, Position},
     AstNode, AstToken, Direction, SyntaxElement,
     SyntaxKind::{ATTR, COMMENT, WHITESPACE},
@@ -385,6 +389,10 @@ pub trait Removable: AstNode {
     fn remove(&self);
 }
 
+pub trait EditorRemovable: AstNode {
+    fn remove(&self, editor: &mut SyntaxEditor);
+}
+
 impl Removable for ast::TypeBoundList {
     fn remove(&self) {
         match self.syntax().siblings_with_tokens(Direction::Prev).find(|it| it.kind() == T![:]) {
@@ -439,16 +447,35 @@ impl Removable for ast::UseTree {
     }
 }
 
+impl EditorRemovable for ast::UseTree {
+    fn remove(&self, editor: &mut SyntaxEditor) {
+        for dir in [Direction::Next, Direction::Prev] {
+            if let Some(next_use_tree) = neighbor(self, dir) {
+                let separators = self
+                    .syntax()
+                    .siblings_with_tokens(dir)
+                    .skip(1)
+                    .take_while(|it| it.as_node() != Some(next_use_tree.syntax()));
+                for sep in separators {
+                    editor.delete(sep);
+                }
+                break;
+            }
+        }
+        editor.delete(self.syntax());
+    }
+}
+
 impl ast::UseTree {
     /// Deletes the usetree node represented by the input. Recursively removes parents, including use nodes that become empty.
     pub fn remove_recursive(self) {
         let parent = self.syntax().parent();
 
-        self.remove();
+        Removable::remove(&self);
 
         if let Some(u) = parent.clone().and_then(ast::Use::cast) {
             if u.use_tree().is_none() {
-                u.remove();
+                Removable::remove(&u);
             }
         } else if let Some(u) = parent.and_then(ast::UseTreeList::cast) {
             if u.use_trees().next().is_none() {
@@ -613,6 +640,45 @@ impl Removable for ast::Use {
         }
 
         ted::remove(self.syntax());
+    }
+}
+
+impl EditorRemovable for ast::Use {
+    fn remove(&self, editor: &mut SyntaxEditor) {
+        let make = SyntaxFactory::new();
+
+        let next_ws = self
+            .syntax()
+            .next_sibling_or_token()
+            .and_then(|it| it.into_token())
+            .and_then(ast::Whitespace::cast);
+        if let Some(next_ws) = next_ws {
+            let ws_text = next_ws.syntax().text();
+            if let Some(rest) = ws_text.strip_prefix('\n') {
+                if rest.is_empty() {
+                    editor.delete(next_ws.syntax());
+                } else {
+                    editor.replace(next_ws.syntax(), make.whitespace(rest));
+                }
+            }
+        }
+        let prev_ws = self
+            .syntax()
+            .prev_sibling_or_token()
+            .and_then(|it| it.into_token())
+            .and_then(ast::Whitespace::cast);
+        if let Some(prev_ws) = prev_ws {
+            let ws_text = prev_ws.syntax().text();
+            let prev_newline = ws_text.rfind('\n').map(|x| x + 1).unwrap_or(0);
+            let rest = &ws_text[0..prev_newline];
+            if rest.is_empty() {
+                editor.delete(prev_ws.syntax());
+            } else {
+                editor.replace(prev_ws.syntax(), make.whitespace(rest));
+            }
+        }
+
+        editor.delete(self.syntax());
     }
 }
 
