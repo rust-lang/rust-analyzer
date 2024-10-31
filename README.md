@@ -1,11 +1,14 @@
-# Verus-Analyzer
+# <a href="https://verus-lang.github.io/verus/verus/logo.html"><img height="30px" src="https://verus-lang.github.io/verus/verus/assets/verus-color.svg" alt="Verus" /></a> Verus-Analyzer
+Verus-analyzer is a version of [rust-analyzer](https://github.com/rust-lang/rust-analyzer) that has
+been modified to provide IDE support for writing [Verus](https://github.com/verus-lang/verus) code 
+and proofs, including syntax support and various IDE features.
 
-**WARNING: This software is experimental and subject to change; some features might be broken**
-
-Verus-analyzer is a modified version of the [rust-analyzer](https://github.com/rust-lang/rust-analyzer)
-to provide IDE support for writing Verus code and proofs including syntax support and several IDE
-functionalities.
-
+## WARNING!
+This software is **experimental** and subject to change; some features are likely broken.
+At present, it works best on small, self-contained Verus projects.  Anything more complex
+will likely fail.  You may file issues, but we do not currently have dedicated engineering
+support for `verus-analyzer`, so **your issue may not be addressed**.  Pull requests with
+fixes are always welcome, although it is unlikely they will be reviewed immediately.
 
 ## Quick Start
 
