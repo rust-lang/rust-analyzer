@@ -1,6 +1,6 @@
 # <a href="https://verus-lang.github.io/verus/verus/logo.html"><img height="30px" src="https://verus-lang.github.io/verus/verus/assets/verus-color.svg" alt="Verus" /></a> Verus-Analyzer
 Verus-analyzer is a version of [rust-analyzer](https://github.com/rust-lang/rust-analyzer) that has
-been modified to provide IDE support for writing [Verus](https://github.com/verus-lang/verus) code 
+been modified to provide IDE support for writing [Verus](https://github.com/verus-lang/verus) code
 and proofs, including syntax support and various IDE features.
 
 ## WARNING!
@@ -17,106 +17,109 @@ The intended use of `verus-analyzer` is as a drop-in replacement for `rust-analy
 
 ### 1. Compile binary
 
-**1. Obtain the verus-analyzer source**
+**1a. Obtain the verus-analyzer source**
 ```bash
 $ git clone https://github.com/verus-lang/verus-analyzer.git
 $ cd verus-analyzer
 ```
 
-**2. Compiler the verus-analyzer binary**
+**1b. Compiler the verus-analyzer binary**
 ```bash
 $ cargo xtask dist
 ```
 
-**3. Unzip and make the binary executable**
+**1c. Unzip and make the binary executable**
 This step is dependent on your operating system.
 
-#### MacOS:
+#### 1c1. MacOS:
 ```bash
 $ gunzip ./dist/verus-analyzer-aarch64-apple-darwin.gz
 $ chmod +x ./dist/verus-analyzer-aarch64-apple-darwin
 ```
 
-#### Linux:
+#### 1c2. Linux:
 ```bash
 $ gunzip dist/verus-analyzer-x86_64-unknown-linux-gnu.gz
 $ chmod +x dist/verus-analyzer-x86_64-unknown-linux-gnu
 ```
 
-#### Windows:
+#### 1c3. Windows:
 
 Locate the generated zip file `dist\verus-analyzer-x86_64-pc-windows-msvc.zip` and extract it (e.g.,
 through right-click + extract all). Then you should see the file `dist\verus-analyzer-x86_64-pc-windows-msvc\rust-analyzer.exe`
 that you are going to use as the verus-analyzer binary.
 
-### 2. IDE Setup
+### 2. Project setup
+
+`rust-analyzer` expects a standard Rust project layout and the metadata(`Cargo.toml`) file. For this quick start, run `cargo new demo`.
+
+### 3. IDE Setup
 
 To use `verus-analyzer` in your IDE (e.g., VS Code, EMACS or VIM) you need to configure your IDE to use the compiled `verus-analyzer` binary instead of `rust-analyzer` for `*.rs` files.
 
-#### EMACS Setup
+#### 3a. EMACS Setup
 
 TODO
 
-#### VIM Setup
+#### 3b. VIM Setup
 
 TODO
 
-#### VS Code Setup
+#### 3c. VS Code Setup
 
-You will need to install the `rust-analyzer` extension
+Install the `rust-analyzer` extension into VSCode:
 ```
 code --install-extension rust-lang.rust-analyzer
 ```
 
-Then you can configure the `rust-analyzer` extensions to use the `verus-analyzer` binary that you compiled. You can do so by either
-
-1. Use a new  [VS Code Workspace](https://code.visualstudio.com/docs/editor/workspaces) and specify the settings, or
-2. Adding the settings of your existing workspace through the `.vscode/settings.json` files.
-
-You will need to add the following settings:
-```json
+Configure the `rust-analyzer` extension to use the `verus-analyzer` binary that
+you compiled. In this example, we'll configure it for the single `demo` workspace
+we created in the previous step.
+Create a vscode workspace configuration file in that directory `demo/demo.code-workspace` containing:
+```
 {
-  "rust-analyzer.server.path": "FULL-PATH-TO-THE-VERUS-ANALYZER-BINARY",
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+        "rust-analyzer.server.path": "<absolute-path-to-verus-analyzer-build>/dist/verus-analyzer-x86_64-unknown-linux-gnu",
+          "rust-analyzer.checkOnSave.overrideCommand": [ "<absolute-path-to-verus-executable>"]
+	}
+}
+```
+
+The `server.path' configuration enables Verus-specifc syntax coloring.
+The `checkOnSave` parameter runs Verus on every File->Save operation,
+providing Verus errors in the source code with squiggles and hovertext.
+
+Alternatively, to enable only syntax coloring and not Verus verification on save,
+replace the `checkOnSave.overrideCommand` line with
+```
   "rust-analyzer.checkOnSave": false
+```
+
+Open VSCode. Use "File->Open Workspace from File..." and select
+the "demo.code-workspace" file you created above. Paste a Verus program
+into `main.rs`:
+```rust
+use vstd::prelude::*;
+
+verus!{
+    pub open spec fn fib(x: int) -> int
+    decreases x
+    {
+        if x <= 1 { 1 } else {
+          fib(x-2) + fib(x-1)
+        }
+    }
+}
+
+fn main() {
+    // println!("Hello, world!");
 }
 ```
-Note: the path must be the absolute path to the generated binary. We disable `cargo-check` by setting `rust-analyzer.checkOnSave` to false.
-
-When saving the file, you may get prompted to reload the `rust-analyzer` server.
-
-When opening a Verus project with the created workspace settings or open a folder with the `.vscode/settings.json`, it will use the custom binary. Otherwise, it will keep using the original `rust-analyzer` binary.
-
-**[Remote - SSH]((https://code.visualstudio.com/docs/remote/ssh))** If you are using VS code on a remote machine make sure to setup `verus-analyzer` on the remote machine and configure the settings as mentioned above with the paths on the remote machine.
-
-
-### 3. Requirements for IDE functionalities
-
-There is a requirement for the IDE functionalities to work. The requirement is that `rust-analyzer` expects a standard Rust project layout and the metadata(`Cargo.toml`) file.
-
-Rust-analyzer scans the project root(`lib.rs` or `main.rs`) and all files that are reachable from the root. If the file you are working on is not reachable from the project root, most of the IDE functionalities like "goto definition" will not work. For example, when you have a file named `foo.rs` next to `main.rs`, and did not import `foo.rs` in `main.rs`(i.e., did not add `mod foo` on top of `main.rs`), the IDE functionalities will not work for `foo.rs`.
-
-We also need `Cargo.toml` files as in standard Rust projects. For a small project, you could start with `cargo new`, and it automatically generated the `Cargo.toml` file. For a larger project, you could use [workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) to manage multiple crates.
-
-
-### 4. Running Verus in VS Code (optional)
-This is an experimental feature that allows you to run Verus inside VS Code by saving a file.  To run Verus inside VS Code, please remove `"rust-analyzer.checkOnSave": false` from the `.code-workspace` file, and add `"rust-analyzer.checkOnSave.overrideCommand"`.  The value of `"rust-analyzer.checkOnSave.overrideCommand"` should be a list that contains the Verus binary.  Please use the absolute path to the Verus binary that is built by `vargo`.
-
-For example, add the following entries to your workspace settings or the `.vscode/settings.json` file.
-```json
-"rust-analyzer.server.path": "ABSOLUTE-PATH-TO-THE-VERUS-ANALYZER-BINARY",
-"rust-analyzer.checkOnSave.overrideCommand": [
-    "ABSOLUTE-PATH-TO-VERUS-BINARY", //  e.g., /home/verus-username/verus/source/target-verus/(debug|release)/verus
-]
-}
-```
-
-To provide extra arguments, add `extra_args` at `[package.metadata.verus.ide]` inside your `Cargo.toml` file. For example, if you want to run Verus with `--crate-type=dylib --expand-errors`, you could add the following at the bottom of your `Cargo.toml` file.
-```toml
-[package.metadata.verus.ide]
-extra_args = "--crate-type=dylib --expand-errors"
-```
-
-Please set only one of `rust-analyzer.checkOnSave.overrideCommand` and `rust-analyzer.checkOnSave` in the `.code-workspace` file, depending as to whether you want to run Verus inside VS Code or not.
 
 ---
 ## Functionalities and Details
