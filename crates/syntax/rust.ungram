@@ -321,7 +321,7 @@ Visibility =
   'pub' ('(' 'in'? Path ')')?
 
 Attr =
-  '#' '!'? '[' Meta ']'
+  '#' '!'? '[' (TriggerAttribute | Meta) ']'
 
 Meta =
   'unsafe' '(' Path ('=' Expr | TokenTree)? ')'
@@ -782,7 +782,7 @@ Prover =
   'by' '(' Name ')'
 
 TriggerAttribute =
- '#' '!' '[' 'trigger' (Expr (',' Expr)* ','?) ']'
+ 'trigger' (Expr (',' Expr)* ','?)?
 
 VerusGlobal =
   Attr*

@@ -1,0 +1,10 @@
+[package]
+name = "vstd-dep"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+vstd = { path = "../vstd" }
+#vstd = { path = "../../../../../verus/source/vstd" }

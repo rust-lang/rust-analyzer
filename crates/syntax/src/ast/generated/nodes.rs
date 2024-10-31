@@ -149,6 +149,7 @@ pub struct Attr {
 }
 impl Attr {
     pub fn meta(&self) -> Option<Meta> { support::child(&self.syntax) }
+    pub fn trigger_attribute(&self) -> Option<TriggerAttribute> { support::child(&self.syntax) }
     pub fn excl_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![!]) }
     pub fn pound_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![#]) }
     pub fn l_brack_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T!['[']) }
@@ -1612,10 +1613,6 @@ pub struct TriggerAttribute {
 }
 impl TriggerAttribute {
     pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
-    pub fn excl_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![!]) }
-    pub fn pound_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![#]) }
-    pub fn l_brack_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T!['[']) }
-    pub fn r_brack_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![']']) }
     pub fn trigger_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![trigger]) }
 }
 

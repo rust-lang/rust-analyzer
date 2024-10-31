@@ -111,7 +111,8 @@ pub struct Attr {
     pub pound_token: bool,
     pub excl_token: bool,
     pub l_brack_token: bool,
-    pub meta: Box<Meta>,
+    pub trigger_attribute: Option<Box<TriggerAttribute>>,
+    pub meta: Option<Box<Meta>>,
     pub r_brack_token: bool,
     pub cst: Option<super::nodes::Attr>,
 }
@@ -1130,12 +1131,8 @@ pub struct TraitAlias {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TriggerAttribute {
-    pub pound_token: bool,
-    pub excl_token: bool,
-    pub l_brack_token: bool,
     pub trigger_token: bool,
     pub exprs: Vec<Expr>,
-    pub r_brack_token: bool,
     pub cst: Option<super::nodes::TriggerAttribute>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1756,11 +1753,14 @@ impl TryFrom<super::nodes::Attr> for Attr {
             pound_token: item.pound_token().is_some(),
             excl_token: item.excl_token().is_some(),
             l_brack_token: item.l_brack_token().is_some(),
-            meta: Box::new(
-                item.meta()
-                    .ok_or(format!("{}", stringify!(meta)))
-                    .map(|it| Meta::try_from(it))??,
-            ),
+            trigger_attribute: match item.trigger_attribute() {
+                Some(it) => Some(Box::new(TriggerAttribute::try_from(it)?)),
+                None => None,
+            },
+            meta: match item.meta() {
+                Some(it) => Some(Box::new(Meta::try_from(it)?)),
+                None => None,
+            },
             r_brack_token: item.r_brack_token().is_some(),
             cst: Some(item.clone()),
         })
@@ -4276,16 +4276,12 @@ impl TryFrom<super::nodes::TriggerAttribute> for TriggerAttribute {
     type Error = String;
     fn try_from(item: super::nodes::TriggerAttribute) -> Result<Self, Self::Error> {
         Ok(Self {
-            pound_token: item.pound_token().is_some(),
-            excl_token: item.excl_token().is_some(),
-            l_brack_token: item.l_brack_token().is_some(),
             trigger_token: item.trigger_token().is_some(),
             exprs: item
                 .exprs()
                 .into_iter()
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
-            r_brack_token: item.r_brack_token().is_some(),
             cst: Some(item.clone()),
         })
     }
@@ -5388,8 +5384,14 @@ impl std::fmt::Display for Attr {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.meta.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.trigger_attribute {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.meta {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.r_brack_token {
             let mut tmp = stringify!(r_brack_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -8289,24 +8291,6 @@ impl std::fmt::Display for TraitAlias {
 impl std::fmt::Display for TriggerAttribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        if self.pound_token {
-            let mut tmp = stringify!(pound_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        if self.excl_token {
-            let mut tmp = stringify!(excl_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        if self.l_brack_token {
-            let mut tmp = stringify!(l_brack_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
         if self.trigger_token {
             let mut tmp = stringify!(trigger_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -8314,12 +8298,6 @@ impl std::fmt::Display for TriggerAttribute {
             s.push_str(" ");
         }
         s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
-        if self.r_brack_token {
-            let mut tmp = stringify!(r_brack_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
         write!(f, "{s}")
     }
 }
@@ -9925,12 +9903,13 @@ impl AssumeExpr {
     }
 }
 impl Attr {
-    pub fn new(meta: Meta) -> Self {
+    pub fn new() -> Self {
         Self {
             pound_token: true,
             excl_token: false,
             l_brack_token: true,
-            meta: Box::new(meta),
+            trigger_attribute: None,
+            meta: None,
             r_brack_token: true,
             cst: None,
         }
@@ -11021,17 +11000,7 @@ impl TraitAlias {
     }
 }
 impl TriggerAttribute {
-    pub fn new() -> Self {
-        Self {
-            pound_token: true,
-            excl_token: true,
-            l_brack_token: true,
-            trigger_token: true,
-            exprs: vec![],
-            r_brack_token: true,
-            cst: None,
-        }
-    }
+    pub fn new() -> Self { Self { trigger_token: true, exprs: vec![], cst: None } }
 }
 impl TryExpr {
     pub fn new<ET0>(expr: ET0) -> Self

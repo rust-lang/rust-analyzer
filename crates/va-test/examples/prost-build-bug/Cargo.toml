@@ -1,0 +1,9 @@
+[package]
+name = "prost-build-bug"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+prost-build = "0.13.0"
