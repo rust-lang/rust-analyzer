@@ -479,7 +479,7 @@ pub(crate) fn trigger_attribute(p: &mut Parser<'_>, inner:bool) -> CompletedMark
     if inner {
         expressions::expr_no_struct(p);
         while !p.at(EOF) && !p.at(T![']']) {
-            if !p.at(T![,])
+            if !p.at(T![,]) {
                 break;
             }
             p.expect(T![,]);
