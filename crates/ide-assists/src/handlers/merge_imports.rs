@@ -802,4 +802,36 @@ use top::{a::A, b::{B as D, B as C}};
 ",
         );
     }
+
+    #[test]
+    fn test_doesnt_convert_function_to_module() {
+        // FIXME(18347): import of `bar` should not be converted
+        // to `bar::{self}`. The former is a function, the latter is a module.
+        check_assist(
+            merge_imports,
+            r"
+mod foo {
+    pub fn bar() {}
+
+    pub mod bar {
+        pub fn baz() {}
+    }
+}
+
+use foo::bar;
+use $0foo::bar::baz;
+",
+            r"
+mod foo {
+    pub fn bar() {}
+
+    pub mod bar {
+        pub fn baz() {}
+    }
+}
+
+use foo::bar::{self, baz};
+",
+        );
+    }
 }

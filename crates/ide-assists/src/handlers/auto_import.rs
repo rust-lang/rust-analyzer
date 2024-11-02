@@ -1722,4 +1722,39 @@ mod foo {
             ",
         );
     }
+
+    #[test]
+    fn check_understands_function_and_module_imports() {
+        // FIXME(18347): import of `bar` should not be converted
+        // to `bar::{self}`. The former is a function, the latter is a module.
+        check_assist(
+            auto_import,
+            r"
+            use foo::bar;
+
+            mod foo {
+                pub fn bar() {}
+
+                pub mod bar {
+                    pub fn baz() {}
+                }
+            }
+
+            baz$0();
+            ",
+            r"
+            use foo::bar::{self, baz};
+
+            mod foo {
+                pub fn bar() {}
+
+                pub mod bar {
+                    pub fn baz() {}
+                }
+            }
+
+            baz();
+            ",
+        );
+    }
 }
