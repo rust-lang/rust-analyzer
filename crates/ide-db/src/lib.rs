@@ -50,6 +50,7 @@ pub use hir::ChangeWithProcMacros;
 use std::{fmt, mem::ManuallyDrop};
 
 use base_db::{
+    db_ext_macro::{self},
     ra_salsa::{self, Durability},
     AnchoredPath, CrateId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
     DEFAULT_FILE_TEXT_LRU_CAP,
@@ -212,6 +213,16 @@ pub trait LineIndexDatabase: base_db::SourceDatabase {
 
 fn line_index(db: &dyn LineIndexDatabase, file_id: FileId) -> Arc<LineIndex> {
     let text = db.file_text(file_id);
+    Arc::new(LineIndex::new(&text))
+}
+
+#[db_ext_macro::query_group]
+pub trait LineIndexDatabase2: base_db::RootQueryDb {
+    fn line_index_query(&self, file_id: FileId) -> Arc<LineIndex>;
+}
+
+fn line_index_query(db: &dyn LineIndexDatabase2, file_id: FileId) -> Arc<LineIndex> {
+    let text = db.file_text(file_id).text(db);
     Arc::new(LineIndex::new(&text))
 }
 
