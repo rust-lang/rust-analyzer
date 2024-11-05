@@ -530,6 +530,13 @@ impl GlobalState {
                 .filter(|it| it.is_local)
                 .map(|it| it.include);
 
+            let additional_filters = self
+                .config
+                .discover_workspace_config()
+                .into_iter()
+                .flat_map(|cfg| cfg.files_to_watch.iter())
+                .flat_map(|pat| self.workspaces.iter().map(move |ws| (ws.workspace_root(), pat)));
+
             let mut watchers: Vec<FileSystemWatcher> =
                 if self.config.did_change_watched_files_relative_pattern_support() {
                     // When relative patterns are supported by the client, prefer using them
@@ -537,19 +544,23 @@ impl GlobalState {
                         .flat_map(|include| {
                             include.into_iter().flat_map(|base| {
                                 [
-                                    (base.clone(), "**/*.rs"),
-                                    (base.clone(), "**/Cargo.{lock,toml}"),
-                                    (base, "**/rust-analyzer.toml"),
+                                    (base.clone(), "**/*.rs".to_owned()),
+                                    (base.clone(), "**/Cargo.{lock,toml}".to_owned()),
+                                    (base.clone(), "**/rust-analyzer.toml".to_owned()),
                                 ]
                             })
                         })
-                        .map(|(base, pat)| lsp_types::FileSystemWatcher {
+                        .chain(
+                            additional_filters
+                                .map(|(base, pat)| (base.to_owned(), format!("**/{pat}"))),
+                        )
+                        .map(|(base, pattern)| lsp_types::FileSystemWatcher {
                             glob_pattern: lsp_types::GlobPattern::Relative(
                                 lsp_types::RelativePattern {
                                     base_uri: lsp_types::OneOf::Right(
                                         lsp_types::Url::from_file_path(base).unwrap(),
                                     ),
-                                    pattern: pat.to_owned(),
+                                    pattern,
                                 },
                             ),
                             kind: None,
@@ -567,29 +578,13 @@ impl GlobalState {
                                 ]
                             })
                         })
+                        .chain(additional_filters.map(|(base, pat)| format!("{base}/**/{pat}")))
                         .map(|glob_pattern| lsp_types::FileSystemWatcher {
                             glob_pattern: lsp_types::GlobPattern::String(glob_pattern),
                             kind: None,
                         })
                         .collect()
                 };
-
-            // Also explicitly watch any build files configured in JSON project files.
-            for ws in self.workspaces.iter() {
-                if let ProjectWorkspaceKind::Json(project_json) = &ws.kind {
-                    for (_, krate) in project_json.crates() {
-                        let Some(build) = &krate.build else {
-                            continue;
-                        };
-                        watchers.push(lsp_types::FileSystemWatcher {
-                            glob_pattern: lsp_types::GlobPattern::String(
-                                build.build_file.to_string(),
-                            ),
-                            kind: None,
-                        });
-                    }
-                }
-            }
 
             watchers.extend(
                 iter::once(Config::user_config_path())
@@ -608,6 +603,7 @@ impl GlobalState {
                 method: "workspace/didChangeWatchedFiles".to_owned(),
                 register_options: Some(serde_json::to_value(registration_options).unwrap()),
             };
+
             self.send_request::<lsp_types::request::RegisterCapability>(
                 lsp_types::RegistrationParams { registrations: vec![registration] },
                 |_, _| (),
