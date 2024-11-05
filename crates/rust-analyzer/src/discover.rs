@@ -43,14 +43,17 @@ impl DiscoverCommand {
     }
 
     /// Spawn the command inside [Discover] and report progress, if any.
-    pub(crate) fn spawn(&self, discover_arg: DiscoverArgument) -> io::Result<DiscoverHandle> {
+    pub(crate) fn spawn(
+        &self,
+        discover_arg: Option<DiscoverArgument>,
+    ) -> io::Result<DiscoverHandle> {
         let command = &self.command[0];
         let args = &self.command[1..];
 
         let args: Vec<String> = args
             .iter()
             .map(|arg| {
-                if arg == ARG_PLACEHOLDER {
+                if arg == ARG_PLACEHOLDER && discover_arg.is_some() {
                     serde_json::to_string(&discover_arg).expect("Unable to serialize args")
                 } else {
                     arg.to_owned()

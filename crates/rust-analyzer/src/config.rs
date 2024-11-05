@@ -319,6 +319,9 @@ config_data! {
         /// is used to determine which build system-specific files should be watched in order to
         /// reload rust-analyzer.
         ///
+        /// Optionally, `run_at_startup` can be set so that project discovery runs when the workspace
+        /// is opened. Note that at startup no `DiscoverArgument` (described below) gets passed.
+        ///
         /// Below is an example of a valid configuration:
         /// ```json
         /// "rust-analyzer.workspace.discoverConfig": {
@@ -329,7 +332,8 @@ config_data! {
         ///     "progressLabel": "rust-analyzer",
         ///     "filesToWatch": [
         ///         "BUCK"
-        ///     ]
+        ///     ],
+        ///     "runAtStartup": true
         /// }
         /// ```
         ///
@@ -399,6 +403,9 @@ config_data! {
         ///     "buildfile": "BUILD"
         /// }
         /// ```
+        ///
+        /// This argument is not passed to the startup discovery which is enabled by the
+        /// `runAtStartup` setting.
         ///
         /// `DiscoverArgument::Path` is used to find and generate a `rust-project.json`,
         /// and therefore, a workspace, whereas `DiscoverArgument::buildfile` is used to
@@ -1138,6 +1145,8 @@ pub struct DiscoverWorkspaceConfig {
     pub command: Vec<String>,
     pub progress_label: String,
     pub files_to_watch: Vec<String>,
+    #[serde(default)]
+    pub run_at_startup: bool,
 }
 
 pub struct CallInfoConfig {

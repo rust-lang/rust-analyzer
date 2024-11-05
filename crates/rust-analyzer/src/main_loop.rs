@@ -176,7 +176,28 @@ impl GlobalState {
             self.register_did_save_capability(additional_patterns);
         }
 
-        if self.config.discover_workspace_config().is_none() {
+        let mut ran_startup_discovery = false;
+
+        if let Some(cfg) = self.config.discover_workspace_config() {
+            if cfg.run_at_startup && !self.discover_workspace_queue.op_in_progress() {
+                // the clone is unfortunately necessary to avoid a borrowck error when
+                // `self.report_progress` is called later
+                let title = &cfg.progress_label.clone();
+                let command = cfg.command.clone();
+                let discover = DiscoverCommand::new(self.discover_sender.clone(), command);
+
+                self.report_progress(title, Progress::Begin, None, None, None);
+                self.discover_workspace_queue.request_op("startup discovery".to_owned(), ());
+                let _ = self.discover_workspace_queue.should_start_op();
+
+                let handle = discover.spawn(None).unwrap();
+                self.discover_handle = Some(handle);
+
+                ran_startup_discovery = true;
+            }
+        }
+
+        if self.config.discover_workspace_config().is_none() || ran_startup_discovery {
             self.fetch_workspaces_queue.request_op(
                 "startup".to_owned(),
                 FetchWorkspaceRequest { path: None, force_crate_graph_reload: false },
@@ -740,7 +761,7 @@ impl GlobalState {
                             DiscoverProjectParam::Path(it) => DiscoverArgument::Path(it),
                         };
 
-                        let handle = discover.spawn(arg).unwrap();
+                        let handle = discover.spawn(Some(arg)).unwrap();
                         self.discover_handle = Some(handle);
                     }
                 }
