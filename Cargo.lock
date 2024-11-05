@@ -18,6 +18,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
+name = "ahash"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
+dependencies = [
+ "cfg-if",
+ "once_cell",
+ "version_check",
+ "zerocopy",
+]
+
+[[package]]
 name = "always-assert"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -33,10 +45,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
+name = "append-only-vec"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7992085ec035cfe96992dd31bfd495a2ebd31969bb95f624471cb6c0b349e571"
+
+[[package]]
 name = "arbitrary"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d5a26814d8dcb93b0e5a0ff3c6d80a8843bafb21b39e8e18a6f05471870e110"
+
+[[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
 name = "arrayvec"
@@ -70,11 +94,14 @@ name = "base-db"
 version = "0.0.0"
 dependencies = [
  "cfg",
+ "dashmap 5.5.3",
+ "db-ext-macro",
  "intern",
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lz4_flex",
  "rustc-hash 2.0.0",
- "salsa",
+ "salsa 0.0.0",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
  "semver",
  "span",
  "stdx",
@@ -265,6 +292,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -288,6 +328,15 @@ name = "crossbeam-epoch"
 version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-queue"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df0346b5d5e76ac2fe4e327c5fd1118d6be7c51dfb18f9b7922923f287471e35"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -319,6 +368,33 @@ dependencies = [
  "lock_api",
  "once_cell",
  "parking_lot_core",
+]
+
+[[package]]
+name = "dashmap"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "db-ext-macro"
+version = "0.1.0"
+source = "git+https://github.com/davidbarsky/db-ext-macro.git?rev=7626cf9793c5e079c9d9ad122be52#7626cf9793c5e079c9d9ad122be52d020593c81b"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?rev=d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174)",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]
@@ -498,12 +574,30 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
+name = "hashlink"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af"
+dependencies = [
+ "hashbrown",
+]
 
 [[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hermit-abi"
@@ -548,7 +642,7 @@ dependencies = [
  "bitflags 2.7.0",
  "cfg",
  "cov-mark",
- "dashmap",
+ "dashmap 5.5.3",
  "drop_bomb",
  "either",
  "expect-test",
@@ -585,6 +679,7 @@ dependencies = [
  "base-db",
  "cfg",
  "cov-mark",
+ "db-ext-macro",
  "either",
  "expect-test",
  "hashbrown",
@@ -595,6 +690,7 @@ dependencies = [
  "mbe",
  "parser",
  "rustc-hash 2.0.0",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
  "smallvec",
  "span",
  "stdx",
@@ -752,6 +848,7 @@ dependencies = [
  "profile",
  "rayon",
  "rustc-hash 2.0.0",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
  "span",
  "stdx",
  "syntax",
@@ -843,7 +940,7 @@ dependencies = [
 name = "intern"
 version = "0.0.0"
 dependencies = [
- "dashmap",
+ "dashmap 5.5.3",
  "hashbrown",
  "rustc-hash 2.0.0",
  "triomphe",
@@ -1773,20 +1870,96 @@ dependencies = [
  "parking_lot",
  "rand",
  "rustc-hash 2.0.0",
- "salsa-macros",
+ "salsa-macros 0.0.0",
  "smallvec",
  "tracing",
  "triomphe",
 ]
 
 [[package]]
+name = "salsa"
+version = "0.18.0"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra#01ea2493c3c0e6f0fc246c5749b6557988c8d65d"
+dependencies = [
+ "append-only-vec",
+ "arc-swap",
+ "crossbeam",
+ "dashmap 6.1.0",
+ "hashlink",
+ "indexmap",
+ "lazy_static",
+ "parking_lot",
+ "rayon",
+ "rustc-hash 2.0.0",
+ "salsa-macro-rules 0.1.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa-macros 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "salsa"
+version = "0.18.0"
+source = "git+https://github.com/davidbarsky/salsa.git?rev=d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174#d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174"
+dependencies = [
+ "append-only-vec",
+ "arc-swap",
+ "crossbeam",
+ "dashmap 6.1.0",
+ "hashlink",
+ "indexmap",
+ "lazy_static",
+ "parking_lot",
+ "rayon",
+ "rustc-hash 2.0.0",
+ "salsa-macro-rules 0.1.0 (git+https://github.com/davidbarsky/salsa.git?rev=d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174)",
+ "salsa-macros 0.18.0 (git+https://github.com/davidbarsky/salsa.git?rev=d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174)",
+ "smallvec",
+ "tracing",
+]
+
+[[package]]
+name = "salsa-macro-rules"
+version = "0.1.0"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra#01ea2493c3c0e6f0fc246c5749b6557988c8d65d"
+
+[[package]]
+name = "salsa-macro-rules"
+version = "0.1.0"
+source = "git+https://github.com/davidbarsky/salsa.git?rev=d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174#d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174"
+
+[[package]]
 name = "salsa-macros"
 version = "0.0.0"
 dependencies = [
- "heck",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "salsa-macros"
+version = "0.18.0"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra#01ea2493c3c0e6f0fc246c5749b6557988c8d65d"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
+]
+
+[[package]]
+name = "salsa-macros"
+version = "0.18.0"
+source = "git+https://github.com/davidbarsky/salsa.git?rev=d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174#d609b9ba7c61a1ed7c09142fa5ded6e0ceddb174"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]
@@ -1919,7 +2092,7 @@ dependencies = [
  "hashbrown",
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 2.0.0",
- "salsa",
+ "salsa 0.0.0",
  "stdx",
  "syntax",
  "text-size",

@@ -2,6 +2,7 @@
 // FIXME: Rename this crate, base db is non descriptive
 mod change;
 mod input;
+mod new_db;
 
 use std::panic;
 
@@ -19,7 +20,9 @@ pub use crate::{
         LangCrateOrigin, ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId,
         TargetLayoutLoadResult,
     },
+    new_db::{Db, RootQueryDb, SourceDb},
 };
+pub use db_ext_macro::{self};
 pub use ra_salsa::{self, Cancelled};
 pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
 
