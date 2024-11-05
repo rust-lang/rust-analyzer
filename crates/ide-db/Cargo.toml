@@ -24,6 +24,7 @@ itertools.workspace = true
 arrayvec.workspace = true
 indexmap.workspace = true
 memchr = "2.6.4"
+salsa.workspace = true
 triomphe.workspace = true
 nohash-hasher.workspace = true
 bitflags.workspace = true
