@@ -176,8 +176,6 @@ impl GlobalState {
             self.register_did_save_capability(additional_patterns);
         }
 
-        let mut ran_startup_discovery = false;
-
         if let Some(cfg) = self.config.discover_workspace_config() {
             if cfg.run_at_startup && !self.discover_workspace_queue.op_in_progress() {
                 // the clone is unfortunately necessary to avoid a borrowck error when
@@ -192,12 +190,10 @@ impl GlobalState {
 
                 let handle = discover.spawn(None).unwrap();
                 self.discover_handle = Some(handle);
-
-                ran_startup_discovery = true;
             }
         }
 
-        if self.config.discover_workspace_config().is_none() || ran_startup_discovery {
+        if self.config.discover_workspace_config().is_none() {
             self.fetch_workspaces_queue.request_op(
                 "startup".to_owned(),
                 FetchWorkspaceRequest { path: None, force_crate_graph_reload: false },
