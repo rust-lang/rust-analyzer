@@ -2,7 +2,7 @@ use std::hash::BuildHasherDefault;
 
 use dashmap::DashMap;
 use rustc_hash::{FxHashMap, FxHasher};
-use salsa::{Durability, Setter};
+use salsa::Durability;
 use span::EditionedFileId;
 use syntax::{ast, Parse, SyntaxError};
 use triomphe::Arc;
@@ -85,6 +85,16 @@ pub struct Db {
     storage: salsa::Storage<Self>,
     files: DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>,
     source_roots: DashMap<vfs::FileId, SourceRootInput, BuildHasherDefault<FxHasher>>,
+}
+
+impl Clone for Db {
+    fn clone(&self) -> Self {
+        Self {
+            storage: self.storage.clone(),
+            files: self.files.clone(),
+            source_roots: self.source_roots.clone(),
+        }
+    }
 }
 
 #[salsa::db]
