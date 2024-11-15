@@ -685,10 +685,6 @@ impl FnPtrType {
     #[inline]
     pub fn ret_type(&self) -> Option<RetType> { support::child(&self.syntax) }
     #[inline]
-    pub fn async_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![async]) }
-    #[inline]
-    pub fn const_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![const]) }
-    #[inline]
     pub fn fn_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![fn]) }
     #[inline]
     pub fn unsafe_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![unsafe]) }

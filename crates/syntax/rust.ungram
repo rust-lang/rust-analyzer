@@ -640,7 +640,7 @@ InferType =
   '_'
 
 FnPtrType =
-  'const'? 'async'? 'unsafe'? Abi? 'fn' ParamList RetType?
+  'unsafe'? Abi? 'fn' ParamList RetType?
 
 ForType =
   'for' GenericParamList Type
