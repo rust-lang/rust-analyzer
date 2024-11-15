@@ -52,6 +52,10 @@ fn type_with_bounds_cond(p: &mut Parser<'_>, allow_bounds: bool) {
         T![ident] if !p.edition().at_least_2018() && is_dyn_weak(p) => dyn_trait_type_weak(p),
         _ if paths::is_path_start(p) => path_or_macro_type_(p, allow_bounds),
         LIFETIME_IDENT if p.nth_at(1, T![+]) => bare_dyn_trait_type(p),
+        // Function pointers actually can't be `const` or `async`,
+        // but we parse these anyway since rustc produces nice diagnostics for this
+        // and we don't want to flood the user with syntax errors
+        T![const] | T![async] => fn_ptr_type(p),
         _ => {
             p.err_recover("expected type", TYPE_RECOVERY_SET);
         }
@@ -221,6 +225,8 @@ fn infer_type(p: &mut Parser<'_>) {
 // type D = extern "C" fn ( u8 , ... ) -> u8;
 fn fn_ptr_type(p: &mut Parser<'_>) {
     let m = p.start();
+    p.eat(T![async]);
+    p.eat(T![const]);
     p.eat(T![unsafe]);
     if p.at(T![extern]) {
         abi(p);
@@ -262,7 +268,7 @@ pub(super) fn for_type(p: &mut Parser<'_>, allow_bounds: bool) {
     let m = p.start();
     for_binder(p);
     match p.current() {
-        T![fn] | T![unsafe] | T![extern] => {}
+        T![fn] | T![unsafe] | T![extern] | T![async] | T![const] => {}
         // OK: legacy trait object format
         _ if paths::is_use_path_start(p) => {}
         _ => {
