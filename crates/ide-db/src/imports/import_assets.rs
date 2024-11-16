@@ -288,28 +288,42 @@ impl ImportAssets {
                     };
                     fn will_shadow(db: &dyn HirDatabase, cur: ModuleDef, other: ModuleDef) -> bool {
                         match (cur, other) {
-                            (ModuleDef::Module(a), ModuleDef::Module(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::Function(a), ModuleDef::Function(b)) => a.name(db) == b.name(db),
+                            (ModuleDef::Module(a), ModuleDef::Module(b)) => {
+                                a.name(db) == b.name(db)
+                            }
+                            (ModuleDef::Function(a), ModuleDef::Function(b)) => {
+                                a.name(db) == b.name(db)
+                            }
                             (ModuleDef::Adt(a), ModuleDef::Adt(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::Variant(a), ModuleDef::Variant(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::Variant(a), ModuleDef::Function(b)) => a.name(db) == b.name(db),
+                            (ModuleDef::Variant(a), ModuleDef::Variant(b)) => {
+                                a.name(db) == b.name(db)
+                            }
+                            (ModuleDef::Variant(a), ModuleDef::Function(b)) => {
+                                a.name(db) == b.name(db)
+                            }
                             (ModuleDef::Const(a), ModuleDef::Const(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::Static(a), ModuleDef::Static(b)) => a.name(db) == b.name(db),
+                            (ModuleDef::Static(a), ModuleDef::Static(b)) => {
+                                a.name(db) == b.name(db)
+                            }
                             (ModuleDef::Trait(a), ModuleDef::Trait(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::TraitAlias(a), ModuleDef::TraitAlias(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::TypeAlias(a), ModuleDef::TypeAlias(b)) => a.name(db) == b.name(db),
+                            (ModuleDef::TraitAlias(a), ModuleDef::TraitAlias(b)) => {
+                                a.name(db) == b.name(db)
+                            }
+                            (ModuleDef::TypeAlias(a), ModuleDef::TypeAlias(b)) => {
+                                a.name(db) == b.name(db)
+                            }
                             (ModuleDef::Macro(a), ModuleDef::Macro(b)) => a.name(db) == b.name(db),
                             (_, _) => false,
                         }
                     }
 
                     !scope_definitions.contains(&ScopeDef::from(item_to_import))
-                        && scope_definitions.iter().find(|&&scope_def| match scope_def {
+                        && !scope_definitions.iter().any(|&scope_def| match scope_def {
                             ScopeDef::ModuleDef(module_def) => {
                                 will_shadow(sema.db, module_def, import_def)
-                            },
-                            _ => false
-                    }).is_none()
+                            }
+                            _ => false,
+                        })
                 })
             }
             ImportCandidate::TraitAssocItem(trait_candidate)

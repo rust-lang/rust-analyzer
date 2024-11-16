@@ -1460,7 +1460,8 @@ enum Foo {
 
 #[test]
 fn flyimport_enum_variant_not_shadow_by_fn() {
-    check(r#"
+    check(
+        r#"
 //- /std.rs crate:std
 pub enum Result<T, E> {
     Ok(T),
@@ -1477,7 +1478,8 @@ fn main() -> Result<(), ()> {
     Ok$0
 }
 "#,
-    expect![[r#""#]])
+        expect![[r#""#]],
+    )
 }
 
 #[test]
