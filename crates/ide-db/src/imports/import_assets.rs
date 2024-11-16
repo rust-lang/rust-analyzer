@@ -251,7 +251,6 @@ impl ImportAssets {
             *to_import = NameToImport::Exact(name, case_sensitive);
         }
     }
-
     fn search_for(
         &self,
         sema: &Semantics<'_, RootDatabase>,
@@ -277,6 +276,19 @@ impl ImportAssets {
             )
             .filter(|path| path.len() > 1)
         };
+        let current_def_names: FxHashSet<Name> = scope_definitions
+            .iter()
+            .filter_map(|&scope_def| match scope_def {
+                ScopeDef::ModuleDef(module_def) => {
+                    match module_def {
+                        // Built in types can coexist with modules of the same name
+                        ModuleDef::BuiltinType(_) => None,
+                        def => def.name(sema.db),
+                    }
+                }
+                _ => None,
+            })
+            .collect();
 
         match &self.import_candidate {
             ImportCandidate::Path(path_candidate) => {
@@ -286,44 +298,11 @@ impl ImportAssets {
                         ItemInNs::Values(def) => def,
                         ItemInNs::Macros(def) => ModuleDef::Macro(def),
                     };
-                    fn will_shadow(db: &dyn HirDatabase, cur: ModuleDef, other: ModuleDef) -> bool {
-                        match (cur, other) {
-                            (ModuleDef::Module(a), ModuleDef::Module(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::Function(a), ModuleDef::Function(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::Adt(a), ModuleDef::Adt(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::Variant(a), ModuleDef::Variant(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::Variant(a), ModuleDef::Function(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::Const(a), ModuleDef::Const(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::Static(a), ModuleDef::Static(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::Trait(a), ModuleDef::Trait(b)) => a.name(db) == b.name(db),
-                            (ModuleDef::TraitAlias(a), ModuleDef::TraitAlias(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::TypeAlias(a), ModuleDef::TypeAlias(b)) => {
-                                a.name(db) == b.name(db)
-                            }
-                            (ModuleDef::Macro(a), ModuleDef::Macro(b)) => a.name(db) == b.name(db),
-                            (_, _) => false,
-                        }
-                    }
 
                     !scope_definitions.contains(&ScopeDef::from(item_to_import))
-                        && !scope_definitions.iter().any(|&scope_def| match scope_def {
-                            ScopeDef::ModuleDef(module_def) => {
-                                will_shadow(sema.db, module_def, import_def)
-                            }
-                            _ => false,
-                        })
+                        && !import_def
+                            .name(sema.db)
+                            .is_some_and(|name| current_def_names.contains(&name))
                 })
             }
             ImportCandidate::TraitAssocItem(trait_candidate)
