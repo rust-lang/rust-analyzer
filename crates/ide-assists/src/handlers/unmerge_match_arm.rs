@@ -55,12 +55,8 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
                 .siblings_with_tokens(Direction::Next)
                 .filter_map(|it| ast::Pat::cast(it.into_node()?));
             // FIXME: We should add a leading pipe if the original arm has one.
-            let new_match_arm = make::match_arm(
-                pats_after,
-                match_arm.guard().and_then(|guard| guard.condition()),
-                match_arm_body,
-            )
-            .clone_for_update();
+            let new_match_arm =
+                make::match_arm(pats_after, match_arm.guard(), match_arm_body).clone_for_update();
 
             let mut pipe_index = pipe_token.index();
             if pipe_token

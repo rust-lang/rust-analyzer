@@ -90,7 +90,7 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
             }
             // Multiple `let`, unsupported.
             None if is_pattern_cond(cond.clone()) => return None,
-            None => Either::Right(cond),
+            None => Either::Right(make::match_guard(cond)),
         };
         let body = if_expr.then_branch()?;
         cond_bodies.push((cond, body));
@@ -150,7 +150,7 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
 fn make_else_arm(
     ctx: &AssistContext<'_>,
     else_block: Option<ast::BlockExpr>,
-    conditionals: &[(Either<ast::Pat, ast::Expr>, ast::BlockExpr)],
+    conditionals: &[(Either<ast::Pat, ast::MatchGuard>, ast::BlockExpr)],
 ) -> ast::MatchArm {
     let (pattern, expr) = if let Some(else_block) = else_block {
         let pattern = match conditionals {
