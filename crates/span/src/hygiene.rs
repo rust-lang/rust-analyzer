@@ -30,7 +30,7 @@ use crate::{Edition, MacroCallId};
 
 /// Interned [`SyntaxContextData`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SyntaxContextId(InternId);
+pub struct SyntaxContextId(ra_salsa::InternId);
 
 impl fmt::Debug for SyntaxContextId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -84,7 +84,7 @@ impl SyntaxContextId {
     /// Constructs a `SyntaxContextId` from a raw `u32`.
     /// This should only be used for serialization purposes for the proc-macro server.
     pub fn from_u32(u32: u32) -> Self {
-        Self(InternId::from(u32))
+        Self(ra_salsa::InternId::from(u32))
     }
 }
 
@@ -111,7 +111,12 @@ impl InternValue for SyntaxContextData {
     type Key = (SyntaxContextId, Option<MacroCallId>, Transparency, Edition);
 
     fn into_key(&self) -> Self::Key {
-        (self.parent, self.outer_expn, self.outer_transparency, self.edition)
+        (
+            self.parent,
+            self.outer_expn,
+            self.outer_transparency,
+            self.edition,
+        )
     }
 }
 
@@ -122,7 +127,10 @@ impl std::fmt::Debug for SyntaxContextData {
             .field("outer_transparency", &self.outer_transparency)
             .field("parent", &self.parent)
             .field("opaque", &self.opaque)
-            .field("opaque_and_semitransparent", &self.opaque_and_semitransparent)
+            .field(
+                "opaque_and_semitransparent",
+                &self.opaque_and_semitransparent,
+            )
             .finish()
     }
 }
