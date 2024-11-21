@@ -104,7 +104,10 @@ pub struct SpanAnchor {
 
 impl fmt::Debug for SpanAnchor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("SpanAnchor").field(&self.file_id).field(&self.ast_id.into_raw()).finish()
+        f.debug_tuple("SpanAnchor")
+            .field(&self.file_id)
+            .field(&self.ast_id.into_raw())
+            .finish()
     }
 }
 
@@ -115,7 +118,10 @@ pub struct EditionedFileId(u32);
 
 impl fmt::Debug for EditionedFileId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("EditionedFileId").field(&self.file_id()).field(&self.edition()).finish()
+        f.debug_tuple("EditionedFileId")
+            .field(&self.file_id())
+            .field(&self.edition())
+            .finish()
     }
 }
 
@@ -278,11 +284,16 @@ impl MacroCallId {
     pub const MAX_ID: u32 = 0x7fff_ffff;
 
     pub fn as_file(self) -> HirFileId {
-        MacroFileId { macro_call_id: self }.into()
+        MacroFileId {
+            macro_call_id: self,
+        }
+        .into()
     }
 
     pub fn as_macro_file(self) -> MacroFileId {
-        MacroFileId { macro_call_id: self }
+        MacroFileId {
+            macro_call_id: self,
+        }
     }
 }
 
@@ -296,9 +307,10 @@ impl fmt::Debug for HirFileIdRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::FileId(arg0) => arg0.fmt(f),
-            Self::MacroFile(arg0) => {
-                f.debug_tuple("MacroFile").field(&arg0.macro_call_id.0).finish()
-            }
+            Self::MacroFile(arg0) => f
+                .debug_tuple("MacroFile")
+                .field(&arg0.macro_call_id.0)
+                .finish(),
         }
     }
 }
@@ -306,17 +318,28 @@ impl fmt::Debug for HirFileIdRepr {
 impl From<EditionedFileId> for HirFileId {
     #[allow(clippy::let_unit_value)]
     fn from(id: EditionedFileId) -> Self {
-        assert!(id.as_u32() <= Self::MAX_HIR_FILE_ID, "FileId index {} is too large", id.as_u32());
-        HirFileId(id.as_u32())
+        assert!(
+            id.as_u32() <= Self::MAX_HIR_FILE_ID,
+            "FileId index {} is too large",
+            id.as_u32()
+        );
+        HirFileId(salsa::Id::from_u32(id.0))
     }
 }
 
 impl From<MacroFileId> for HirFileId {
     #[allow(clippy::let_unit_value)]
-    fn from(MacroFileId { macro_call_id: MacroCallId(id) }: MacroFileId) -> Self {
-        let id = id.as_u32();
-        assert!(id <= Self::MAX_HIR_FILE_ID, "MacroCallId index {id} is too large");
-        HirFileId(id | Self::MACRO_FILE_TAG_MASK)
+    fn from(
+        MacroFileId {
+            macro_call_id: MacroCallId(id),
+        }: MacroFileId,
+    ) -> Self {
+        let id: u32 = id.as_u32();
+        assert!(
+            id <= Self::MAX_HIR_FILE_ID,
+            "MacroCallId index {id} is too large"
+        );
+        HirFileId(salsa::Id::from_u32(id | Self::MACRO_FILE_TAG_MASK))
     }
 }
 
@@ -334,7 +357,9 @@ impl HirFileId {
         match self.0 & Self::MACRO_FILE_TAG_MASK {
             0 => None,
             _ => Some(MacroFileId {
-                macro_call_id: MacroCallId(InternId::from(self.0 ^ Self::MACRO_FILE_TAG_MASK)),
+                macro_call_id: MacroCallId(ra_salsa::InternId::from(
+                    self.0 ^ Self::MACRO_FILE_TAG_MASK,
+                )),
             }),
         }
     }
@@ -352,7 +377,9 @@ impl HirFileId {
         match self.0 & Self::MACRO_FILE_TAG_MASK {
             0 => HirFileIdRepr::FileId(EditionedFileId(self.0)),
             _ => HirFileIdRepr::MacroFile(MacroFileId {
-                macro_call_id: MacroCallId(InternId::from(self.0 ^ Self::MACRO_FILE_TAG_MASK)),
+                macro_call_id: MacroCallId(ra_salsa::InternId::from(
+                    self.0 ^ Self::MACRO_FILE_TAG_MASK,
+                )),
             }),
         }
     }
