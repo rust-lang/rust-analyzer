@@ -9,8 +9,9 @@ use span::{
 use syntax::{AstNode, AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize};
 
 use crate::{
+    MacroFileIdExt,
     db::{self, ExpandDatabase},
-    map_node_range_up, map_node_range_up_rooted, span_for_offset, MacroFileIdExt,
+    map_node_range_up, map_node_range_up_rooted, span_for_offset,
 };
 
 /// `InFile<T>` stores a value of `T` inside a particular file/syntax tree.
@@ -40,7 +41,10 @@ pub type FilePosition = FilePositionWrapper<EditionedFileId>;
 
 impl From<FilePositionWrapper<EditionedFileId>> for FilePositionWrapper<span::FileId> {
     fn from(value: FilePositionWrapper<EditionedFileId>) -> Self {
-        FilePositionWrapper { file_id: value.file_id.into(), offset: value.offset }
+        FilePositionWrapper {
+            file_id: value.file_id.into(),
+            offset: value.offset,
+        }
     }
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -54,7 +58,10 @@ pub type FileRange = FileRangeWrapper<EditionedFileId>;
 
 impl From<FileRangeWrapper<EditionedFileId>> for FileRangeWrapper<span::FileId> {
     fn from(value: FileRangeWrapper<EditionedFileId>) -> Self {
-        FileRangeWrapper { file_id: value.file_id.into(), range: value.range }
+        FileRangeWrapper {
+            file_id: value.file_id.into(),
+            range: value.range,
+        }
     }
 }
 
@@ -71,7 +78,10 @@ impl<N: AstIdNode> AstId<N> {
         self.to_ptr(db).text_range()
     }
     pub fn to_in_file_node(&self, db: &dyn ExpandDatabase) -> crate::InFile<N> {
-        crate::InFile::new(self.file_id, self.to_ptr(db).to_node(&db.parse_or_expand(self.file_id)))
+        crate::InFile::new(
+            self.file_id,
+            self.to_ptr(db).to_node(&db.parse_or_expand(self.file_id)),
+        )
     }
     pub fn to_ptr(&self, db: &dyn ExpandDatabase) -> AstPtr<N> {
         db.ast_id_map(self.file_id).get(self.value)
@@ -124,13 +134,19 @@ impl<FileKind: Copy, T: Clone> InFileWrapper<FileKind, &T> {
 
 impl<T> From<InMacroFile<T>> for InFile<T> {
     fn from(InMacroFile { file_id, value }: InMacroFile<T>) -> Self {
-        InFile { file_id: file_id.into(), value }
+        InFile {
+            file_id: file_id.into(),
+            value,
+        }
     }
 }
 
 impl<T> From<InRealFile<T>> for InFile<T> {
     fn from(InRealFile { file_id, value }: InRealFile<T>) -> Self {
-        InFile { file_id: file_id.into(), value }
+        InFile {
+            file_id: file_id.into(),
+            value,
+        }
     }
 }
 
@@ -203,7 +219,10 @@ impl<FileId: Copy, N: AstNode> InFileWrapper<FileId, &N> {
 // region:specific impls
 impl<SN: Borrow<SyntaxNode>> InRealFile<SN> {
     pub fn file_range(&self) -> FileRange {
-        FileRange { file_id: self.file_id, range: self.value.borrow().text_range() }
+        FileRange {
+            file_id: self.file_id,
+            range: self.value.borrow().text_range(),
+        }
     }
 }
 
@@ -255,7 +274,9 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
     /// For attributes and derives, this will point back to the attribute only.
     /// For the entire item use [`InFile::original_file_range_full`].
     pub fn original_file_range_rooted(self, db: &dyn db::ExpandDatabase) -> FileRange {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_rooted(db)
+        self.borrow()
+            .map(SyntaxNode::text_range)
+            .original_node_file_range_rooted(db)
     }
 
     /// Falls back to the macro call range if the node cannot be mapped up fully.
@@ -263,7 +284,9 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
         self,
         db: &dyn db::ExpandDatabase,
     ) -> FileRange {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_with_macro_call_body(db)
+        self.borrow()
+            .map(SyntaxNode::text_range)
+            .original_node_file_range_with_macro_call_body(db)
     }
 
     pub fn original_syntax_node_rooted(
@@ -274,7 +297,10 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
         // as we don't have node inputs otherwise and therefore can't find an `N` node in the input
         let file_id = match self.file_id.repr() {
             HirFileIdRepr::FileId(file_id) => {
-                return Some(InRealFile { file_id, value: self.value.borrow().clone() })
+                return Some(InRealFile {
+                    file_id,
+                    value: self.value.borrow().clone(),
+                });
             }
             HirFileIdRepr::MacroFile(m) if m.is_attr_macro(db) => m,
             _ => return None,
@@ -304,7 +330,9 @@ impl InFile<&SyntaxNode> {
         self,
         db: &dyn db::ExpandDatabase,
     ) -> Option<(FileRange, SyntaxContextId)> {
-        self.borrow().map(SyntaxNode::text_range).original_node_file_range_opt(db)
+        self.borrow()
+            .map(SyntaxNode::text_range)
+            .original_node_file_range_opt(db)
     }
 }
 
@@ -313,7 +341,9 @@ impl InMacroFile<SyntaxToken> {
         self,
         db: &dyn db::ExpandDatabase,
     ) -> InFile<smallvec::SmallVec<[TextRange; 1]>> {
-        self.file_id.expansion_info(db).map_range_up_once(db, self.value.text_range())
+        self.file_id
+            .expansion_info(db)
+            .map_range_up_once(db, self.value.text_range())
     }
 }
 
@@ -321,7 +351,10 @@ impl InFile<SyntaxToken> {
     /// Falls back to the macro call range if the node cannot be mapped up fully.
     pub fn original_file_range(self, db: &dyn db::ExpandDatabase) -> FileRange {
         match self.file_id.repr() {
-            HirFileIdRepr::FileId(file_id) => FileRange { file_id, range: self.value.text_range() },
+            HirFileIdRepr::FileId(file_id) => FileRange {
+                file_id,
+                range: self.value.text_range(),
+            },
             HirFileIdRepr::MacroFile(mac_file) => {
                 let (range, ctxt) = span_for_offset(
                     db,
@@ -345,9 +378,10 @@ impl InFile<SyntaxToken> {
     /// Attempts to map the syntax node back up its macro calls.
     pub fn original_file_range_opt(self, db: &dyn db::ExpandDatabase) -> Option<FileRange> {
         match self.file_id.repr() {
-            HirFileIdRepr::FileId(file_id) => {
-                Some(FileRange { file_id, range: self.value.text_range() })
-            }
+            HirFileIdRepr::FileId(file_id) => Some(FileRange {
+                file_id,
+                range: self.value.text_range(),
+            }),
             HirFileIdRepr::MacroFile(mac_file) => {
                 let (range, ctxt) = span_for_offset(
                     db,
@@ -357,11 +391,7 @@ impl InFile<SyntaxToken> {
 
                 // FIXME: Figure out an API that makes proper use of ctx, this only exists to
                 // keep pre-token map rewrite behaviour.
-                if ctxt.is_root() {
-                    Some(range)
-                } else {
-                    None
-                }
+                if ctxt.is_root() { Some(range) } else { None }
             }
         }
     }
@@ -379,15 +409,22 @@ impl InFile<TextRange> {
         db: &dyn db::ExpandDatabase,
     ) -> (FileRange, SyntaxContextId) {
         match self.file_id.repr() {
-            HirFileIdRepr::FileId(file_id) => {
-                (FileRange { file_id, range: self.value }, SyntaxContextId::root(file_id.edition()))
-            }
+            HirFileIdRepr::FileId(file_id) => (
+                FileRange {
+                    file_id,
+                    range: self.value,
+                },
+                SyntaxContextId::root(file_id.edition()),
+            ),
             HirFileIdRepr::MacroFile(mac_file) => {
                 match map_node_range_up(db, &db.expansion_span_map(mac_file), self.value) {
                     Some(it) => it,
                     None => {
                         let loc = db.lookup_intern_macro_call(mac_file.macro_call_id);
-                        (loc.kind.original_call_range(db), SyntaxContextId::root(loc.def.edition))
+                        (
+                            loc.kind.original_call_range(db),
+                            SyntaxContextId::root(loc.def.edition),
+                        )
                     }
                 }
             }
@@ -396,7 +433,10 @@ impl InFile<TextRange> {
 
     pub fn original_node_file_range_rooted(self, db: &dyn db::ExpandDatabase) -> FileRange {
         match self.file_id.repr() {
-            HirFileIdRepr::FileId(file_id) => FileRange { file_id, range: self.value },
+            HirFileIdRepr::FileId(file_id) => FileRange {
+                file_id,
+                range: self.value,
+            },
             HirFileIdRepr::MacroFile(mac_file) => {
                 match map_node_range_up_rooted(db, &db.expansion_span_map(mac_file), self.value) {
                     Some(it) => it,
@@ -414,7 +454,10 @@ impl InFile<TextRange> {
         db: &dyn db::ExpandDatabase,
     ) -> FileRange {
         match self.file_id.repr() {
-            HirFileIdRepr::FileId(file_id) => FileRange { file_id, range: self.value },
+            HirFileIdRepr::FileId(file_id) => FileRange {
+                file_id,
+                range: self.value,
+            },
             HirFileIdRepr::MacroFile(mac_file) => {
                 match map_node_range_up_rooted(db, &db.expansion_span_map(mac_file), self.value) {
                     Some(it) => it,
@@ -433,7 +476,10 @@ impl InFile<TextRange> {
     ) -> Option<(FileRange, SyntaxContextId)> {
         match self.file_id.repr() {
             HirFileIdRepr::FileId(file_id) => Some((
-                FileRange { file_id, range: self.value },
+                FileRange {
+                    file_id,
+                    range: self.value,
+                },
                 SyntaxContextId::root(file_id.edition()),
             )),
             HirFileIdRepr::MacroFile(mac_file) => {
@@ -449,7 +495,10 @@ impl<N: AstNode> InFile<N> {
         // as we don't have node inputs otherwise and therefore can't find an `N` node in the input
         let file_id = match self.file_id.repr() {
             HirFileIdRepr::FileId(file_id) => {
-                return Some(InRealFile { file_id, value: self.value })
+                return Some(InRealFile {
+                    file_id,
+                    value: self.value,
+                });
             }
             HirFileIdRepr::MacroFile(m) => m,
         };
@@ -473,7 +522,10 @@ impl<N: AstNode> InFile<N> {
 impl<T> InFile<T> {
     pub fn into_real_file(self) -> Result<InRealFile<T>, InFile<T>> {
         match self.file_id.repr() {
-            HirFileIdRepr::FileId(file_id) => Ok(InRealFile { file_id, value: self.value }),
+            HirFileIdRepr::FileId(file_id) => Ok(InRealFile {
+                file_id,
+                value: self.value,
+            }),
             HirFileIdRepr::MacroFile(_) => Err(self),
         }
     }
