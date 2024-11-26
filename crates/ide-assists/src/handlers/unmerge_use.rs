@@ -1,6 +1,6 @@
 use syntax::{
-    ast::{self, edit_in_place::Removable, make, HasVisibility},
-    ted::{self, Position},
+    ast::{self, edit_in_place::Removable, make, HasVisibility, syntax_factory::SyntaxFactory}, syntax_editor::SyntaxEditor,
+    syntax_editor::Position,
     AstNode, SyntaxKind,
 };
 
@@ -44,16 +44,24 @@ pub(crate) fn unmerge_use(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let target = tree.syntax().text_range();
     acc.add(AssistId("unmerge_use", AssistKind::RefactorRewrite), label, target, |builder| {
-        let new_use = make::use_(
+
+        let make = SyntaxFactory::new();
+
+        let mut editor = builder.make_editor(&new_parent);
+
+        let new_use = make.use_(
             use_.visibility(),
-            make::use_tree(path, tree.use_tree_list(), tree.rename(), tree.star_token().is_some()),
+            make.use_tree(path, tree.use_tree_list(), tree.rename(), tree.star_token().is_some()),
         )
         .clone_for_update();
 
         tree.remove();
-        ted::insert(Position::after(use_.syntax()), new_use.syntax());
+        editor.insert(Position::after(use_.syntax()), new_use.syntax());
 
         builder.replace(old_parent_range, new_parent.to_string());
+
+        editor.add_mappings(make.finish_with_mappings());
+        builder.add_file_edits(ctx.file_id(), editor);
     })
 }
 

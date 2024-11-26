@@ -2,7 +2,7 @@
 use itertools::Itertools;
 
 use crate::{
-    ast::{self, make, HasName},
+    ast::{self, make, HasName, HasVisibility, Use, UseTree},
     syntax_editor::SyntaxMappingBuilder,
     AstNode,
 };
@@ -106,5 +106,13 @@ impl SyntaxFactory {
         }
 
         ast
+    }
+
+    pub fn use_(&self, visibility: Option<ast::Visibility>, use_tree: ast::UseTree) -> ast::Use {
+        make::use_(visibility, use_tree)
+    }
+
+    pub fn use_tree(&self, path: ast::Path, use_tree_list: Option<ast::UseTreeList>, alias: Option<ast::Rename>, add_star: bool) -> ast::UseTree {
+        make::use_tree(path, use_tree_list, alias, add_star)
     }
 }
