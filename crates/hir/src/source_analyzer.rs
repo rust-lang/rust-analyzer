@@ -31,7 +31,7 @@ use hir_def::{
 use hir_expand::{
     mod_path::path,
     name::{AsName, Name},
-    HirFileId, InFile, InMacroFile, MacroFileId, MacroFileIdExt,
+    HirFileId, InFile, InMacroFile, MacroFile, MacroFileIdExt,
 };
 use hir_ty::{
     diagnostics::{

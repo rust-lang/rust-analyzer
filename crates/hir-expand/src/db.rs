@@ -1,20 +1,22 @@
 //! Defines database & queries for macro expansion.
 
-use base_db::{CrateId, SourceDatabase, ra_salsa};
+use base_db::{CrateId, RootQueryDb};
 use either::Either;
 use limit::Limit;
 use mbe::MatchedArmIndex;
 use rustc_hash::FxHashSet;
-use span::{AstIdMap, Edition, EditionedFileId, Span, SyntaxContextData, SyntaxContextId};
+use salsa::{interned_sans_lifetime, plumbing::AsId};
+use span::{AstIdMap, Edition, EditionedFileId, HirFileId, HirFileIdRepr, MacroFileId, Span};
 use syntax::{AstNode, Parse, SyntaxElement, SyntaxError, SyntaxNode, SyntaxToken, T, ast};
 use syntax_bridge::{DocCommentDesugarMode, syntax_node_to_token_tree};
 use triomphe::Arc;
 
 use crate::{
-    AstId, BuiltinAttrExpander, BuiltinDeriveExpander, BuiltinFnLikeExpander,
-    CustomProcMacroExpander, EagerCallInfo, EagerExpander, ExpandError, ExpandResult, ExpandTo,
-    ExpansionSpanMap, HirFileId, HirFileIdRepr, Lookup, MacroCallId, MacroCallKind, MacroCallLoc,
-    MacroDefId, MacroDefKind, MacroFileId,
+    AstId, BuiltinAttrExpander, BuiltinDeriveExpander,
+    BuiltinFnLikeExpander,
+    EagerCallInfo, EagerExpander,
+    ExpandError, ExpandResult, ExpandTo, MacroCallKind,
+    MacroCallLoc, MacroDefId, MacroDefKind,
     attrs::{AttrId, collect_attrs},
     builtin::pseudo_derive_attr_expansion,
     cfg_process,
@@ -54,32 +56,32 @@ pub enum TokenExpander {
     ProcMacro(CustomProcMacroExpander),
 }
 
-#[ra_salsa::query_group(ExpandDatabaseStorage)]
-pub trait ExpandDatabase: SourceDatabase {
+#[db_ext_macro::query_group]
+pub trait ExpandDatabase: RootQueryDb {
     /// The proc macros.
-    #[ra_salsa::input]
+    #[db_ext_macro::input]
     fn proc_macros(&self) -> Arc<ProcMacros>;
 
     fn ast_id_map(&self, file_id: HirFileId) -> Arc<AstIdMap>;
 
-    /// Main public API -- parses a hir file, not caring whether it's a real
-    /// file or a macro expansion.
-    #[ra_salsa::transparent]
+    #[db_ext_macro::transparent]
     fn parse_or_expand(&self, file_id: HirFileId) -> SyntaxNode;
+
     /// Implementation for the macro case.
-    #[ra_salsa::lru]
+    #[db_ext_macro::lru]
     fn parse_macro_expansion(
         &self,
-        macro_file: MacroFileId,
+        macro_file: span::MacroFileId,
     ) -> ExpandResult<(Parse<SyntaxNode>, Arc<ExpansionSpanMap>)>;
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(SpanMap::new)]
+
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(SpanMap::new)]
     fn span_map(&self, file_id: HirFileId) -> SpanMap;
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(crate::span_map::expansion_span_map)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(crate::span_map::expansion_span_map)]
     fn expansion_span_map(&self, file_id: MacroFileId) -> Arc<ExpansionSpanMap>;
-    #[ra_salsa::invoke(crate::span_map::real_span_map)]
+    #[db_ext_macro::invoke(crate::span_map::real_span_map)]
     fn real_span_map(&self, file_id: EditionedFileId) -> Arc<RealSpanMap>;
 
     /// Macro ids. That's probably the tricksiest bit in rust-analyzer, and the
@@ -87,15 +89,17 @@ pub trait ExpandDatabase: SourceDatabase {
     ///
     /// We encode macro definitions into ids of macro calls, this what allows us
     /// to be incremental.
-    #[ra_salsa::interned]
+    #[db_ext_macro::interned(MacroCallWrapper)]
     fn intern_macro_call(&self, macro_call: MacroCallLoc) -> MacroCallId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(SyntaxContextWrapper)]
     fn intern_syntax_context(&self, ctx: SyntaxContextData) -> SyntaxContextId;
 
-    #[ra_salsa::transparent]
-    fn setup_syntax_context_root(&self) -> ();
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(crate::hygiene::dump_syntax_contexts)]
+    // #[db_ext_macro::transparent]
+    // fn setup_syntax_context_root(&self) -> ();
+
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(crate::hygiene::dump_syntax_contexts)]
     fn dump_syntax_contexts(&self) -> String;
 
     /// Lowers syntactic macro call to a token tree representation. That's a firewall
@@ -103,23 +107,27 @@ pub trait ExpandDatabase: SourceDatabase {
     /// subtree.
     #[deprecated = "calling this is incorrect, call `macro_arg_considering_derives` instead"]
     fn macro_arg(&self, id: MacroCallId) -> MacroArgResult;
-    #[ra_salsa::transparent]
+
+    #[db_ext_macro::transparent]
     fn macro_arg_considering_derives(
         &self,
         id: MacroCallId,
         kind: &MacroCallKind,
     ) -> MacroArgResult;
+
     /// Fetches the expander for this macro.
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(TokenExpander::macro_expander)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(TokenExpander::macro_expander)]
     fn macro_expander(&self, id: MacroDefId) -> TokenExpander;
+
     /// Fetches (and compiles) the expander of this decl macro.
-    #[ra_salsa::invoke(DeclarativeMacroExpander::expander)]
+    #[db_ext_macro::invoke(DeclarativeMacroExpander::expander)]
     fn decl_macro_expander(
         &self,
         def_crate: CrateId,
         id: AstId<ast::Macro>,
     ) -> Arc<DeclarativeMacroExpander>;
+
     /// Special case of the previous query for procedural macros. We can't LRU
     /// proc macros, since they are not deterministic in general, and
     /// non-determinism breaks salsa in a very, very, very bad way.
@@ -131,20 +139,33 @@ pub trait ExpandDatabase: SourceDatabase {
     /// parse queries being LRU cached. If they weren't the invalidations would only happen if the
     /// user wrote in the file that defines the proc-macro.
     fn proc_macro_span(&self, fun: AstId<ast::Fn>) -> Span;
+
     /// Firewall query that returns the errors from the `parse_macro_expansion` query.
     fn parse_macro_expansion_error(
         &self,
         macro_call: MacroCallId,
     ) -> Option<Arc<ExpandResult<Arc<[SyntaxError]>>>>;
-    #[ra_salsa::transparent]
+
+    #[db_ext_macro::transparent]
     fn syntax_context(&self, file: HirFileId, edition: Edition) -> SyntaxContextId;
+}
+
+#[salsa::interned_sans_lifetime(id = span::MacroCallId)]
+pub struct MacroCallWrapper {
+    pub loc: MacroCallLoc,
+}
+
+#[salsa::interned_sans_lifetime(id = span::SyntaxContextId)]
+pub struct SyntaxContextWrapper {
+    pub data: SyntaxContextData,
 }
 
 fn syntax_context(db: &dyn ExpandDatabase, file: HirFileId, edition: Edition) -> SyntaxContextId {
     match file.repr() {
         HirFileIdRepr::FileId(_) => SyntaxContextId::root(edition),
         HirFileIdRepr::MacroFile(m) => {
-            db.macro_arg_considering_derives(m.macro_call_id, &m.macro_call_id.lookup(db).kind)
+            let kind = db.lookup_intern_macro_call(m.macro_call_id).kind;
+            db.macro_arg_considering_derives(m.macro_call_id, &kind)
                 .2
                 .ctx
         }
@@ -338,6 +359,8 @@ fn ast_id_map(db: &dyn ExpandDatabase, file_id: span::HirFileId) -> triomphe::Ar
     triomphe::Arc::new(AstIdMap::from_source(&db.parse_or_expand(file_id)))
 }
 
+/// Main public API -- parses a hir file, not caring whether it's a real
+/// file or a macro expansion.
 fn parse_or_expand(db: &dyn ExpandDatabase, file_id: HirFileId) -> SyntaxNode {
     match file_id.repr() {
         HirFileIdRepr::FileId(file_id) => db.parse(file_id).syntax_node(),

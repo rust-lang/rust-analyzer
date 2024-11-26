@@ -116,7 +116,7 @@ fn assoc_func_fix(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall) -
         let db = ctx.sema.db;
 
         let expr_ptr = &d.expr;
-        let root = db.parse_or_expand(expr_ptr.file_id);
+        let root = ctx.sema.db.parse_or_expand(expr_ptr.file_id);
         let expr: ast::Expr = expr_ptr.value.to_node(&root);
 
         let call = ast::MethodCallExpr::cast(expr.syntax().clone())?;

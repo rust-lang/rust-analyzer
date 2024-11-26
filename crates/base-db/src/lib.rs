@@ -108,6 +108,7 @@ fn parse(db: &dyn SourceDatabase, file_id: EditionedFileId) -> Parse<ast::Source
     let _p = tracing::info_span!("parse", ?file_id).entered();
     let (file_id, edition) = file_id.unpack();
     let text = db.file_text(file_id);
+
     SourceFile::parse(&text, edition)
 }
 

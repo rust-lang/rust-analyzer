@@ -33,8 +33,31 @@ use crate::{
     UseId, UseLoc, VariantId,
 };
 
-#[ra_salsa::query_group(InternDatabaseStorage)]
-pub trait InternDatabase: SourceDatabase {
+use salsa::plumbing::AsId;
+
+impl_wrapper!(UseId, UseLoc, UseLocWrapper);
+impl_wrapper!(ExternCrateId, ExternCrateLoc, ExternCrateLocWrapper);
+impl_wrapper!(FunctionId, FunctionLoc, FunctionLocWrapper);
+impl_wrapper!(StructId, StructLoc, StructLocWrapper);
+impl_wrapper!(UnionId, UnionLoc, UnionLocWrapper);
+impl_wrapper!(EnumId, EnumLoc, EnumLocWrapper);
+impl_wrapper!(EnumVariantId, EnumVariantLoc, EnumVariantWrapper);
+impl_wrapper!(ConstId, ConstLoc, ConstWrapper);
+impl_wrapper!(StaticId, StaticLoc, StaticWrapper);
+impl_wrapper!(TraitId, TraitLoc, TraitWrapper);
+impl_wrapper!(TraitAliasId, TraitAliasLoc, TraitAliasWrapper);
+impl_wrapper!(TypeAliasId, TypeAliasLoc, TypeAliasWrapper);
+impl_wrapper!(ImplId, ImplLoc, ImplWrapper);
+impl_wrapper!(ExternBlockId, ExternBlockLoc, ExternBlockWrapper);
+impl_wrapper!(Macro2Id, Macro2Loc, Macro2Wrapper);
+impl_wrapper!(ProcMacroId, ProcMacroLoc, ProcMacroWrapper);
+impl_wrapper!(MacroRulesId, MacroRulesLoc, MacroRulesWrapper);
+impl_wrapper!(BlockId, BlockLoc, BlockWrapper);
+impl_wrapper!(ConstBlockId, ConstBlockLoc, AnonymousConstWrapper);
+impl_wrapper!(InTypeConstId, InTypeConstLoc, InTypeConstWrapper);
+
+#[db_ext_macro::query_group(InternDatabaseStorage)]
+pub trait InternDatabase: RootQueryDb {
     // region: items
     #[ra_salsa::interned]
     fn intern_use(&self, loc: UseLoc) -> UseId;
@@ -74,7 +97,8 @@ pub trait InternDatabase: SourceDatabase {
 
     #[ra_salsa::interned]
     fn intern_block(&self, loc: BlockLoc) -> BlockId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(AnonymousConstWrapper)]
     fn intern_anonymous_const(&self, id: ConstBlockLoc) -> ConstBlockId;
     #[ra_salsa::interned]
     fn intern_in_type_const(&self, id: InTypeConstLoc) -> InTypeConstId;

@@ -30,31 +30,33 @@ use crate::{Edition, MacroCallId};
 
 /// Interned [`SyntaxContextData`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SyntaxContextId(ra_salsa::InternId);
+pub struct SyntaxContextId(pub salsa::Id);
+
+impl salsa::plumbing::AsId for SyntaxContextId {
+    fn as_id(&self) -> salsa::Id {
+        self.0
+    }
+}
+
+impl salsa::plumbing::FromId for SyntaxContextId {
+    fn from_id(id: salsa::Id) -> Self {
+        SyntaxContextId(id)
+    }
+}
 
 impl fmt::Debug for SyntaxContextId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if f.alternate() {
-            write!(f, "{}", self.0.as_u32())
+            write!(f, "{:?}", self.0)
         } else {
             f.debug_tuple("SyntaxContextId").field(&self.0).finish()
         }
     }
 }
 
-#[cfg(feature = "ra-salsa")]
-impl ra_salsa::InternKey for SyntaxContextId {
-    fn from_intern_id(v: ra_salsa::InternId) -> Self {
-        SyntaxContextId(v)
-    }
-    fn as_intern_id(&self) -> ra_salsa::InternId {
-        self.0
-    }
-}
-
 impl fmt::Display for SyntaxContextId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.as_u32())
+        write!(f, "{:?}", self.0)
     }
 }
 
@@ -68,7 +70,7 @@ impl SyntaxContextId {
 
     /// The root context, which is the parent of all other contexts. All [`FileId`]s have this context.
     pub const fn root(edition: Edition) -> Self {
-        SyntaxContextId(unsafe { InternId::new_unchecked(edition as u32) })
+        SyntaxContextId(salsa::Id::from_u32(edition as u32))
     }
 
     pub fn is_root(self) -> bool {
@@ -84,7 +86,7 @@ impl SyntaxContextId {
     /// Constructs a `SyntaxContextId` from a raw `u32`.
     /// This should only be used for serialization purposes for the proc-macro server.
     pub fn from_u32(u32: u32) -> Self {
-        Self(ra_salsa::InternId::from(u32))
+        Self(salsa::Id::from_u32(u32))
     }
 }
 
