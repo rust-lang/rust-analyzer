@@ -1405,7 +1405,7 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags 2.7.0",
  "cfg-if",
  "cfg_aliases 0.2.1",
  "libc",
@@ -2012,7 +2012,7 @@ version = "0.2.2+llvm-462a31f5a5ab"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "121e2195ff969977a4e2b5c9965ea867fce7e4cb5aee5b09dee698a7932d574f"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags 2.7.0",
  "smallvec",
 ]
 
@@ -2259,6 +2259,7 @@ dependencies = [
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 2.1.0",
  "salsa 0.0.0",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
  "stdx",
  "syntax",
  "text-size",

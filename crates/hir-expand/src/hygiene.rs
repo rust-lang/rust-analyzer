@@ -26,7 +26,7 @@ use std::iter;
 
 use span::{Edition, MacroCallId, Span, SyntaxContextData, SyntaxContextId};
 
-use crate::db::{ExpandDatabase, InternSyntaxContextQuery};
+use crate::db::ExpandDatabase;
 
 pub use span::Transparency;
 
@@ -65,15 +65,21 @@ fn span_with_ctxt_from_mark(
     edition: Edition,
 ) -> Span {
     Span {
-        ctx: apply_mark(db, SyntaxContextId::root(edition), expn_id, transparency, edition),
+        ctx: apply_mark(
+            db,
+            SyntaxContextId::root(edition),
+            expn_id,
+            transparency,
+            edition,
+        ),
         ..span
     }
 }
 
 pub(super) fn apply_mark(
     db: &dyn ExpandDatabase,
-    ctxt: SyntaxContextId,
-    call_id: MacroCallId,
+    ctxt: span::SyntaxContextId,
+    call_id: span::MacroCallId,
     transparency: Transparency,
     edition: Edition,
 ) -> SyntaxContextId {
@@ -114,92 +120,102 @@ fn apply_mark_internal(
     transparency: Transparency,
     edition: Edition,
 ) -> SyntaxContextId {
-    use base_db::ra_salsa;
+    todo!()
+    // use base_db::ra_salsa;
 
-    let call_id = Some(call_id);
+    // let call_id = Some(call_id);
 
-    let syntax_context_data = db.lookup_intern_syntax_context(ctxt);
-    let mut opaque = syntax_context_data.opaque;
-    let mut opaque_and_semitransparent = syntax_context_data.opaque_and_semitransparent;
+    // let syntax_context_data = lookup_intern_syntax_context(db, ctxt);
+    // let mut opaque = syntax_context_data.opaque;
+    // let mut opaque_and_semitransparent = syntax_context_data.opaque_and_semitransparent;
 
-    if transparency >= Transparency::Opaque {
-        let parent = opaque;
-        opaque = ra_salsa::plumbing::get_query_table::<InternSyntaxContextQuery>(db).get_or_insert(
-            (parent, call_id, transparency, edition),
-            |new_opaque| SyntaxContextData {
-                outer_expn: call_id,
-                outer_transparency: transparency,
-                parent,
-                opaque: new_opaque,
-                opaque_and_semitransparent: new_opaque,
-                edition,
-            },
-        );
-    }
+    // if transparency >= Transparency::Opaque {
+    //     let parent = opaque;
+    //     opaque = ra_salsa::plumbing::get_query_table::<InternSyntaxContextQuery>(db).get_or_insert(
+    //         (parent, call_id, transparency),
+    //         |new_opaque| SyntaxContextData {
+    //             outer_expn: call_id,
+    //             outer_transparency: transparency,
+    //             parent,
+    //             opaque: new_opaque,
+    //             opaque_and_semitransparent: new_opaque,
+    //         },
+    //     );
+    // }
 
-    if transparency >= Transparency::SemiTransparent {
-        let parent = opaque_and_semitransparent;
-        opaque_and_semitransparent =
-            ra_salsa::plumbing::get_query_table::<InternSyntaxContextQuery>(db).get_or_insert(
-                (parent, call_id, transparency, edition),
-                |new_opaque_and_semitransparent| SyntaxContextData {
-                    outer_expn: call_id,
-                    outer_transparency: transparency,
-                    parent,
-                    opaque,
-                    opaque_and_semitransparent: new_opaque_and_semitransparent,
-                    edition,
-                },
-            );
-    }
+    // if transparency >= Transparency::SemiTransparent {
+    //     let parent = opaque_and_semitransparent;
+    //     opaque_and_semitransparent =
+    //         ra_salsa::plumbing::get_query_table::<InternSyntaxContextQuery>(db).get_or_insert(
+    //             (parent, call_id, transparency),
+    //             |new_opaque_and_semitransparent| SyntaxContextData {
+    //                 outer_expn: call_id,
+    //                 outer_transparency: transparency,
+    //                 parent,
+    //                 opaque,
+    //                 opaque_and_semitransparent: new_opaque_and_semitransparent,
+    //             },
+    //         );
+    // }
 
-    let parent = ctxt;
-    db.intern_syntax_context(SyntaxContextData {
-        outer_expn: call_id,
-        outer_transparency: transparency,
-        parent,
-        opaque,
-        opaque_and_semitransparent,
-        edition,
-    })
+    // let parent = ctxt;
+    // intern_syntax_context(
+    //     db,
+    //     SyntaxContextData {
+    //         outer_expn: call_id,
+    //         outer_transparency: transparency,
+    //         parent,
+    //         opaque,
+    //         opaque_and_semitransparent,
+    //     },
+    // )
 }
 
 pub trait SyntaxContextExt {
-    fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> Self;
-    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> Self;
-    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> Self;
-    fn remove_mark(&mut self, db: &dyn ExpandDatabase) -> (Option<MacroCallId>, Transparency);
-    fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<MacroCallId>, Transparency);
-    fn marks(self, db: &dyn ExpandDatabase) -> Vec<(MacroCallId, Transparency)>;
+    fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId;
+    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId;
+    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId;
+    fn remove_mark(&mut self, db: &dyn ExpandDatabase)
+    -> (Option<span::MacroCallId>, Transparency);
+    fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<span::MacroCallId>, Transparency);
+    fn marks(self, db: &dyn ExpandDatabase) -> Vec<(span::MacroCallId, Transparency)>;
     fn is_opaque(self, db: &dyn ExpandDatabase) -> bool;
 }
 
 impl SyntaxContextExt for SyntaxContextId {
-    fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> Self {
-        db.lookup_intern_syntax_context(self).opaque_and_semitransparent
+    fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
+        db.lookup_intern_syntax_context(self)
+            .opaque_and_semitransparent
     }
-    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> Self {
+    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
         db.lookup_intern_syntax_context(self).opaque
     }
-    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> Self {
+    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
         db.lookup_intern_syntax_context(self).parent
     }
-    fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<MacroCallId>, Transparency) {
+    fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<span::MacroCallId>, Transparency) {
         let data = db.lookup_intern_syntax_context(self);
         (data.outer_expn, data.outer_transparency)
     }
-    fn remove_mark(&mut self, db: &dyn ExpandDatabase) -> (Option<MacroCallId>, Transparency) {
+    fn remove_mark(
+        &mut self,
+        db: &dyn ExpandDatabase,
+    ) -> (Option<span::MacroCallId>, Transparency) {
         let data = db.lookup_intern_syntax_context(*self);
         *self = data.parent;
         (data.outer_expn, data.outer_transparency)
     }
-    fn marks(self, db: &dyn ExpandDatabase) -> Vec<(MacroCallId, Transparency)> {
+    fn marks(self, db: &dyn ExpandDatabase) -> Vec<(span::MacroCallId, Transparency)> {
         let mut marks = marks_rev(self, db).collect::<Vec<_>>();
         marks.reverse();
         marks
     }
     fn is_opaque(self, db: &dyn ExpandDatabase) -> bool {
-        !self.is_root() && db.lookup_intern_syntax_context(self).outer_transparency.is_opaque()
+        !self.is_root()
+            && db
+                .lookup_intern_syntax_context(self)
+                .outer_transparency
+                .is_opaque()
     }
 }
 
@@ -207,7 +223,7 @@ impl SyntaxContextExt for SyntaxContextId {
 pub fn marks_rev(
     ctxt: SyntaxContextId,
     db: &dyn ExpandDatabase,
-) -> impl Iterator<Item = (MacroCallId, Transparency)> + '_ {
+) -> impl Iterator<Item = (span::MacroCallId, Transparency)> + '_ {
     iter::successors(Some(ctxt), move |&mark| Some(mark.parent_ctxt(db)))
         .take_while(|&it| !it.is_root())
         .map(|ctx| {
@@ -219,57 +235,57 @@ pub fn marks_rev(
 }
 
 pub(crate) fn dump_syntax_contexts(db: &dyn ExpandDatabase) -> String {
-    use crate::db::{InternMacroCallLookupQuery, InternSyntaxContextLookupQuery};
-    use base_db::ra_salsa::debug::DebugQueryTable;
+    todo!()
+    // use base_db::ra_salsa::debug::DebugQueryTable;
 
-    let mut s = String::from("Expansions:");
-    let mut entries = InternMacroCallLookupQuery.in_db(db).entries::<Vec<_>>();
-    entries.sort_by_key(|e| e.key);
-    for e in entries {
-        let id = e.key;
-        let expn_data = e.value.as_ref().unwrap();
-        s.push_str(&format!(
-            "\n{:?}: parent: {:?}, call_site_ctxt: {:?}, kind: {:?}",
-            id,
-            expn_data.kind.file_id(),
-            expn_data.ctxt,
-            expn_data.kind.descr(),
-        ));
-    }
+    // let mut s = String::from("Expansions:");
+    // let mut entries = InternMacroCallLookupQuery.in_db(db).entries::<Vec<_>>();
+    // entries.sort_by_key(|e| e.key);
+    // for e in entries {
+    //     let id = e.key;
+    //     let expn_data = e.value.as_ref().unwrap();
+    //     s.push_str(&format!(
+    //         "\n{:?}: parent: {:?}, call_site_ctxt: {:?}, kind: {:?}",
+    //         id,
+    //         expn_data.kind.file_id(),
+    //         expn_data.ctxt,
+    //         expn_data.kind.descr(),
+    //     ));
+    // }
 
-    s.push_str("\n\nSyntaxContexts:\n");
-    let mut entries = InternSyntaxContextLookupQuery.in_db(db).entries::<Vec<_>>();
-    entries.sort_by_key(|e| e.key);
-    for e in entries {
-        struct SyntaxContextDebug<'a>(
-            &'a dyn ExpandDatabase,
-            SyntaxContextId,
-            &'a SyntaxContextData,
-        );
+    // s.push_str("\n\nSyntaxContexts:\n");
+    // let mut entries = InternSyntaxContextLookupQuery.in_db(db).entries::<Vec<_>>();
+    // entries.sort_by_key(|e| e.key);
+    // for e in entries {
+    //     struct SyntaxContextDebug<'a>(
+    //         &'a dyn ExpandDatabase,
+    //         SyntaxContextId,
+    //         &'a SyntaxContextData,
+    //     );
 
-        impl std::fmt::Debug for SyntaxContextDebug<'_> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                fancy_debug(self.2, self.1, self.0, f)
-            }
-        }
+    //     impl std::fmt::Debug for SyntaxContextDebug<'_> {
+    //         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    //             fancy_debug(self.2, self.1, self.0, f)
+    //         }
+    //     }
 
-        fn fancy_debug(
-            this: &SyntaxContextData,
-            self_id: SyntaxContextId,
-            db: &dyn ExpandDatabase,
-            f: &mut std::fmt::Formatter<'_>,
-        ) -> std::fmt::Result {
-            write!(f, "#{self_id} parent: #{}, outer_mark: (", this.parent)?;
-            match this.outer_expn {
-                Some(id) => {
-                    write!(f, "{:?}::{{{{expn{:?}}}}}", db.lookup_intern_macro_call(id).krate, id)?
-                }
-                None => write!(f, "root")?,
-            }
-            write!(f, ", {:?})", this.outer_transparency)
-        }
+    //     fn fancy_debug(
+    //         this: &SyntaxContextData,
+    //         self_id: SyntaxContextId,
+    //         db: &dyn ExpandDatabase,
+    //         f: &mut std::fmt::Formatter<'_>,
+    //     ) -> std::fmt::Result {
+    //         write!(f, "#{self_id} parent: #{}, outer_mark: (", this.parent)?;
+    //         match this.outer_expn {
+    //             Some(id) => {
+    //                 write!(f, "{:?}::{{{{expn{:?}}}}}", lookup_intern_macro_call(db, id).krate, id)?
+    //             }
+    //             None => write!(f, "root")?,
+    //         }
+    //         write!(f, ", {:?})", this.outer_transparency)
+    //     }
 
-        stdx::format_to!(s, "{:?}\n", SyntaxContextDebug(db, e.key, &e.value.unwrap()));
-    }
-    s
+    //     stdx::format_to!(s, "{:?}\n", SyntaxContextDebug(db, e.key, &e.value.unwrap()));
+    // }
+    // s
 }
