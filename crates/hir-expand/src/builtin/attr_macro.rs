@@ -2,7 +2,10 @@
 use intern::sym;
 use span::{MacroCallId, Span};
 
-use crate::{db::ExpandDatabase, name, tt, ExpandResult, MacroCallKind};
+use crate::{
+    db::{ExpandDatabase},
+    name, tt, ExpandResult, MacroCallKind,
+};
 
 use super::quote;
 
@@ -133,7 +136,7 @@ fn derive_expand(
             }))
         }
     };
-    pseudo_derive_attr_expansion(tt, derives, span)
+    pseudo_derive_attr_expansion(tt, &derives, span)
 }
 
 pub fn pseudo_derive_attr_expansion(

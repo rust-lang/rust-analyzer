@@ -12,7 +12,7 @@ use crate::{
     attrs::RawAttrs,
     db::ExpandDatabase,
     hygiene::{apply_mark, Transparency},
-    tt, AstId, ExpandError, ExpandErrorKind, ExpandResult, Lookup,
+    tt, AstId, ExpandError, ExpandErrorKind, ExpandResult,
 };
 
 /// Old-style `macro_rules` or the new macros 2.0
@@ -102,12 +102,14 @@ impl DeclarativeMacroExpander {
         };
         let ctx_edition = |ctx: SyntaxContextId| {
             let crate_graph = db.crate_graph();
+
             if ctx.is_root() {
                 crate_graph[def_crate].edition
             } else {
                 let data = db.lookup_intern_syntax_context(ctx);
                 // UNWRAP-SAFETY: Only the root context has no outer expansion
-                crate_graph[data.outer_expn.unwrap().lookup(db).def.krate].edition
+                let krate = db.lookup_intern_macro_call(data.outer_expn.unwrap()).def.krate;
+                crate_graph[krate].edition
             }
         };
         let (mac, transparency) = match id.to_ptr(db).to_node(&root) {
