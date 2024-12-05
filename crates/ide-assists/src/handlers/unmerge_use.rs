@@ -22,7 +22,7 @@ use crate::{
 // use std::fmt::Display;
 // ```
 pub(crate) fn unmerge_use(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let tree: ast::UseTree = ctx.find_node_at_offset::<ast::UseTree>()?.clone_for_update();
+    let tree: ast::UseTree = ctx.find_node_at_offset::<ast::UseTree>()?;
 
     let tree_list = tree.syntax().parent().and_then(ast::UseTreeList::cast)?;
     if tree_list.use_trees().count() < 2 {
@@ -33,7 +33,6 @@ pub(crate) fn unmerge_use(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     let use_: ast::Use = tree_list.syntax().ancestors().find_map(ast::Use::cast)?;
     let path = resolve_full_path(&tree)?;
 
-    let old_parent_range = use_.syntax().parent()?.text_range();
     let new_parent = use_.syntax().parent()?;
 
     // If possible, explain what is going to be done.
@@ -52,13 +51,12 @@ pub(crate) fn unmerge_use(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         let new_use = make.use_(
             use_.visibility(),
             make.use_tree(path, tree.use_tree_list(), tree.rename(), tree.star_token().is_some()),
-        )
-        .clone_for_update();
+        );
 
-        tree.remove();
+        editor.delete(tree.syntax());
         editor.insert(Position::after(use_.syntax()), new_use.syntax());
 
-        builder.replace(old_parent_range, new_parent.to_string());
+        // editor.replace(use_.syntax().parent().unwrap(), new_parent);
 
         editor.add_mappings(make.finish_with_mappings());
         builder.add_file_edits(ctx.file_id(), editor);
