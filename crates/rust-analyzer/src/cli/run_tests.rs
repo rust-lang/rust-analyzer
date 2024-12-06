@@ -2,7 +2,7 @@
 
 use hir::{Crate, Module};
 use hir_ty::db::HirDatabase;
-use ide_db::{base_db::SourceRootDatabase, LineIndexDatabase};
+use ide_db::{base_db::SourceDatabase, LineIndexDatabase};
 use profile::StopWatch;
 use project_model::{CargoConfig, RustLibSource};
 use syntax::TextRange;
@@ -41,7 +41,8 @@ impl flags::RunTests {
                 Some(x) => format!("#{}:{}", x.line + 1, x.col),
             };
             let path = &db
-                .source_root(db.file_source_root(file_id))
+                .source_root(file_id)
+                .source_root(db)
                 .path_for_file(&file_id)
                 .map(|x| x.to_string());
             let path = path.as_deref().unwrap_or("<unknown file>");

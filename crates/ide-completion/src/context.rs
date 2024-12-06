@@ -6,13 +6,14 @@ mod tests;
 
 use std::{iter, ops::ControlFlow};
 
+use base_db::RootQueryDb as _;
 use hir::{
     HasAttrs, Local, ModPath, ModuleDef, ModuleSource, Name, PathResolution, ScopeDef, Semantics,
     SemanticsScope, Symbol, Type, TypeInfo,
 };
 use ide_db::{
-    base_db::SourceDatabase, famous_defs::FamousDefs, helpers::is_editable_crate, FilePosition,
-    FxHashMap, FxHashSet, RootDatabase,
+    famous_defs::FamousDefs, helpers::is_editable_crate, FilePosition, FxHashMap, FxHashSet,
+    RootDatabase,
 };
 use syntax::{
     ast::{self, AttrKind, NameOrNameRef},

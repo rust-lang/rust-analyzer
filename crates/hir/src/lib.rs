@@ -132,6 +132,7 @@ pub use {
     hir_expand::{
         attrs::{Attr, AttrId},
         change::ChangeWithProcMacros,
+        db::setup_syntax_context_root,
         files::{
             FilePosition, FilePositionWrapper, FileRange, FileRangeWrapper, HirFilePosition,
             HirFileRange, InFile, InFileWrapper, InMacroFile, InRealFile, MacroFilePosition,
@@ -635,6 +636,7 @@ impl Module {
                                 db.field_types_with_diagnostics(s.id.into()).1,
                                 tree_source_maps.strukt(tree_id.value).item(),
                             );
+
                             for diag in db.struct_data_with_diagnostics(s.id).1.iter() {
                                 emit_def_diagnostic(db, acc, diag, edition);
                             }
@@ -648,6 +650,7 @@ impl Module {
                                 db.field_types_with_diagnostics(u.id.into()).1,
                                 tree_source_maps.union(tree_id.value).item(),
                             );
+
                             for diag in db.union_data_with_diagnostics(u.id).1.iter() {
                                 emit_def_diagnostic(db, acc, diag, edition);
                             }
@@ -1879,6 +1882,7 @@ impl DefWithBody {
         let krate = self.module(db).id.krate();
 
         let (body, source_map) = db.body_with_source_map(self.into());
+
         let item_tree_source_maps;
         let outer_types_source_map = match self {
             DefWithBody::Function(function) => {
@@ -1928,7 +1932,7 @@ impl DefWithBody {
                         None
                     };
                     MacroError {
-                        node: (*node).map(|it| it.into()),
+                        node: (node).map(|it| it.into()),
                         precise_location,
                         message,
                         error,
@@ -3316,7 +3320,7 @@ fn as_assoc_item<'db, ID, DEF, LOC>(
     id: ID,
 ) -> Option<AssocItem>
 where
-    ID: Lookup<Database<'db> = dyn DefDatabase + 'db, Data = AssocItemLoc<LOC>>,
+    ID: Lookup<Database = dyn DefDatabase, Data = AssocItemLoc<LOC>>,
     DEF: From<ID>,
     LOC: ItemTreeNode,
 {
@@ -3332,7 +3336,7 @@ fn as_extern_assoc_item<'db, ID, DEF, LOC>(
     id: ID,
 ) -> Option<ExternAssocItem>
 where
-    ID: Lookup<Database<'db> = dyn DefDatabase + 'db, Data = AssocItemLoc<LOC>>,
+    ID: Lookup<Database = dyn DefDatabase, Data = AssocItemLoc<LOC>>,
     DEF: From<ID>,
     LOC: ItemTreeNode,
 {
@@ -4622,6 +4626,7 @@ pub struct CaptureUsages {
 impl CaptureUsages {
     pub fn sources(&self, db: &dyn HirDatabase) -> Vec<CaptureUsageSource> {
         let (body, source_map) = db.body_with_source_map(self.parent);
+
         let mut result = Vec::with_capacity(self.spans.len());
         for &span in self.spans.iter() {
             let is_ref = span.is_ref_span(&body);

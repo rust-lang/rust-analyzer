@@ -346,7 +346,7 @@ impl<'a> SymbolCollector<'a> {
 
     fn push_decl<'db, L>(&mut self, id: L, name: &Name, is_assoc: bool)
     where
-        L: Lookup<Database<'db> = dyn DefDatabase + 'db> + Into<ModuleDefId>,
+        L: Lookup<Database = dyn DefDatabase> + Into<ModuleDefId>,
         <L as Lookup>::Data: HasSource,
         <<L as Lookup>::Data as HasSource>::Value: HasName,
     {

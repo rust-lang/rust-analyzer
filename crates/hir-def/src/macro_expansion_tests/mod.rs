@@ -16,7 +16,7 @@ mod proc_macros;
 
 use std::{iter, ops::Range, sync};
 
-use base_db::SourceDatabase;
+use base_db::RootQueryDb;
 use expect_test::Expect;
 use hir_expand::{
     db::ExpandDatabase,

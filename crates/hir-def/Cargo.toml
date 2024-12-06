@@ -29,6 +29,8 @@ hashbrown.workspace = true
 triomphe.workspace = true
 rustc_apfloat = "0.2.0"
 text-size.workspace = true
+salsa.workspace = true
+db-ext-macro.workspace = true
 
 ra-ap-rustc_hashes.workspace = true
 ra-ap-rustc_parse_format.workspace = true
@@ -44,6 +46,7 @@ mbe.workspace = true
 cfg.workspace = true
 tt.workspace = true
 span.workspace = true
+vfs.workspace = true
 
 
 [dev-dependencies]

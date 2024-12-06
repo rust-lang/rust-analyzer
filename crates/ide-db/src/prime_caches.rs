@@ -6,16 +6,14 @@ mod topologic_sort;
 
 use std::time::Duration;
 
-use hir::{db::DefDatabase, Symbol};
+use hir::{Symbol, db::DefDatabase};
 use itertools::Itertools;
+use salsa::{Cancelled, Database};
 
 use crate::{
-    base_db::{
-        ra_salsa::{Database, ParallelDatabase, Snapshot},
-        Cancelled, CrateId, SourceDatabase,
-    },
-    symbol_index::SymbolsDatabase,
     FxIndexMap, RootDatabase,
+    base_db::{CrateId, CrateId, RootQueryDb, SourceDatabase, SourceDatabase},
+    symbol_index::SymbolsDatabase,
 };
 
 /// We're indexing many crates.
@@ -42,15 +40,23 @@ pub fn parallel_prime_caches(
         let mut builder = topologic_sort::TopologicalSortIter::builder();
 
         for crate_id in graph.iter() {
-            builder.add(crate_id, graph[crate_id].dependencies.iter().map(|d| d.crate_id));
+            builder.add(
+                crate_id,
+                graph[crate_id].dependencies.iter().map(|d| d.crate_id),
+            );
         }
 
         builder.build()
     };
 
     enum ParallelPrimeCacheWorkerProgress {
-        BeginCrate { crate_id: CrateId, crate_name: Symbol },
-        EndCrate { crate_id: CrateId },
+        BeginCrate {
+            crate_id: CrateId,
+            crate_name: Symbol,
+        },
+        EndCrate {
+            crate_id: CrateId,
+        },
     }
 
     // We split off def map computation from other work,
@@ -66,10 +72,14 @@ pub fn parallel_prime_caches(
     let (work_sender, progress_receiver) = {
         let (progress_sender, progress_receiver) = crossbeam_channel::unbounded();
         let (work_sender, work_receiver) = crossbeam_channel::unbounded();
+        let graph = graph.clone();
+        let local_roots = db.local_roots();
         let prime_caches_worker = move |db: Snapshot<RootDatabase>| {
-            while let Ok((crate_id, crate_name, kind)) = work_receiver.recv() {
-                progress_sender
-                    .send(ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name })?;
+            while let Ok((crate_id, crate_name)) = work_receiver.recv() {
+                progress_sender.send(ParallelPrimeCacheWorkerProgress::BeginCrate {
+                    crate_id,
+                    crate_name,
+                })?;
 
                 match kind {
                     PrimingPhase::DefMap => _ = db.crate_def_map(crate_id),
@@ -85,13 +95,13 @@ pub fn parallel_prime_caches(
 
         for id in 0..num_worker_threads {
             let worker = prime_caches_worker.clone();
-            let db = db.snapshot();
+            // let db = db.snapshot();
 
-            stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
-                .allow_leak(true)
-                .name(format!("PrimeCaches#{id}"))
-                .spawn(move || Cancelled::catch(|| worker(db)))
-                .expect("failed to spawn thread");
+            // stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
+            //     .allow_leak(true)
+            //     .name(format!("PrimeCaches#{id}"))
+            //     .spawn(move || Cancelled::catch(|| worker(db.clone())))
+            //     .expect("failed to spawn thread");
         }
 
         (work_sender, progress_receiver)
@@ -108,7 +118,7 @@ pub fn parallel_prime_caches(
     let mut additional_phases = vec![];
 
     while crates_done < crates_total {
-        db.unwind_if_cancelled();
+        // db.unwind_if_cancelled();
 
         for crate_id in &mut crates_to_prime {
             let krate = &graph[crate_id];
@@ -132,7 +142,9 @@ pub fn parallel_prime_caches(
                 additional_phases.push((crate_id, name.clone(), PrimingPhase::CrateSymbols));
             }
 
-            work_sender.send((crate_id, name, PrimingPhase::DefMap)).ok();
+            work_sender
+                .send((crate_id, name, PrimingPhase::DefMap))
+                .ok();
         }
 
         // recv_timeout is somewhat a hack, we need a way to from this thread check to see if the current salsa revision
@@ -145,12 +157,15 @@ pub fn parallel_prime_caches(
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                 // our workers may have died from a cancelled task, so we'll check and re-raise here.
-                db.unwind_if_cancelled();
+                // db.unwind_if_cancelled();
                 break;
             }
         };
         match worker_progress {
-            ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name } => {
+            ParallelPrimeCacheWorkerProgress::BeginCrate {
+                crate_id,
+                crate_name,
+            } => {
                 crates_currently_indexing.insert(crate_id, crate_name);
             }
             ParallelPrimeCacheWorkerProgress::EndCrate { crate_id } => {
@@ -172,7 +187,10 @@ pub fn parallel_prime_caches(
 
     let mut crates_done = 0;
     let crates_total = additional_phases.len();
-    for w in additional_phases.into_iter().sorted_by_key(|&(_, _, phase)| phase) {
+    for w in additional_phases
+        .into_iter()
+        .sorted_by_key(|&(_, _, phase)| phase)
+    {
         work_sender.send(w).ok();
     }
 
@@ -194,7 +212,10 @@ pub fn parallel_prime_caches(
             }
         };
         match worker_progress {
-            ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name } => {
+            ParallelPrimeCacheWorkerProgress::BeginCrate {
+                crate_id,
+                crate_name,
+            } => {
                 crates_currently_indexing.insert(crate_id, crate_name);
             }
             ParallelPrimeCacheWorkerProgress::EndCrate { crate_id } => {
