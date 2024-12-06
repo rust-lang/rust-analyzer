@@ -28,10 +28,7 @@ use std::{
     ops::ControlFlow,
 };
 
-use base_db::{
-    ra_salsa::{self, ParallelDatabase},
-    SourceRootDatabase, SourceRootId, Upcast,
-};
+use base_db::{RootQueryDb, SourceDatabase, SourceRootId, Upcast};
 use fst::{raw::IndexedValue, Automaton, Streamer};
 use hir::{
     db::HirDatabase,
@@ -100,8 +97,8 @@ impl Query {
     }
 }
 
-#[ra_salsa::query_group(SymbolsDatabaseStorage)]
-pub trait SymbolsDatabase: HirDatabase + SourceRootDatabase + Upcast<dyn HirDatabase> {
+#[db_ext_macro::query_group]
+pub trait SymbolsDatabase: HirDatabase + SourceDatabase + Upcast<dyn HirDatabase> {
     /// The symbol index for a given module. These modules should only be in source roots that
     /// are inside local_roots.
     fn module_symbols(&self, module: Module) -> Arc<SymbolIndex>;
@@ -109,18 +106,18 @@ pub trait SymbolsDatabase: HirDatabase + SourceRootDatabase + Upcast<dyn HirData
     /// The symbol index for a given source root within library_roots.
     fn library_symbols(&self, source_root_id: SourceRootId) -> Arc<SymbolIndex>;
 
-    #[ra_salsa::transparent]
+    #[db_ext_macro::transparent]
     /// The symbol indices of modules that make up a given crate.
     fn crate_symbols(&self, krate: Crate) -> Box<[Arc<SymbolIndex>]>;
 
     /// The set of "local" (that is, from the current workspace) roots.
     /// Files in local roots are assumed to change frequently.
-    #[ra_salsa::input]
+    #[db_ext_macro::input]
     fn local_roots(&self) -> Arc<FxHashSet<SourceRootId>>;
 
     /// The set of roots for crates.io libraries.
     /// Files in libraries are assumed to never change.
-    #[ra_salsa::input]
+    #[db_ext_macro::input]
     fn library_roots(&self) -> Arc<FxHashSet<SourceRootId>>;
 }
 
@@ -153,16 +150,17 @@ pub fn crate_symbols(db: &dyn SymbolsDatabase, krate: Crate) -> Box<[Arc<SymbolI
 
 /// Need to wrap Snapshot to provide `Clone` impl for `map_with`
 struct Snap<DB>(DB);
-impl<DB: ParallelDatabase> Snap<ra_salsa::Snapshot<DB>> {
+impl<DB> Snap<DB> {
     fn new(db: &DB) -> Self {
-        Self(db.snapshot())
+        todo!()
+        // Self(db.clone())
     }
 }
-impl<DB: ParallelDatabase> Clone for Snap<ra_salsa::Snapshot<DB>> {
-    fn clone(&self) -> Snap<ra_salsa::Snapshot<DB>> {
-        Snap(self.0.snapshot())
-    }
-}
+// impl<DB: ParallelDatabase> Clone for Snap<ra_salsa::Snapshot<DB>> {
+//     fn clone(&self) -> Snap<ra_salsa::Snapshot<DB>> {
+//         Snap(self.0.snapshot())
+//     }
+// }
 impl<DB> std::ops::Deref for Snap<DB> {
     type Target = DB;
 
@@ -202,7 +200,7 @@ pub fn world_symbols(db: &RootDatabase, query: Query) -> Vec<FileSymbol> {
     let indices: Vec<_> = if query.libs {
         db.library_roots()
             .par_iter()
-            .map_with(Snap::new(db), |snap, &root| snap.library_symbols(root))
+            .map_with(*db, |snap, &root| snap.library_symbols(root))
             .collect()
     } else {
         let mut crates = Vec::new();
@@ -212,7 +210,7 @@ pub fn world_symbols(db: &RootDatabase, query: Query) -> Vec<FileSymbol> {
         }
         let indices: Vec<_> = crates
             .into_par_iter()
-            .map_with(Snap::new(db), |snap, krate| snap.crate_symbols(krate.into()))
+            .map_with(*db, |snap, krate| snap.crate_symbols(krate.into()))
             .collect();
         indices.iter().flat_map(|indices| indices.iter().cloned()).collect()
     };

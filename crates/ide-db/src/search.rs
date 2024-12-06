@@ -7,7 +7,7 @@
 use std::mem;
 use std::{cell::LazyCell, cmp::Reverse};
 
-use base_db::{ra_salsa::Database, SourceDatabase, SourceRootDatabase};
+use base_db::{RootQueryDb, SourceDatabase};
 use either::Either;
 use hir::{
     sym, Adt, AsAssocItem, DefWithBody, FileRange, FileRangeWrapper, HasAttrs, HasContainer,
@@ -164,8 +164,7 @@ impl SearchScope {
         let graph = db.crate_graph();
         for krate in graph.iter() {
             let root_file = graph[krate].root_file_id;
-            let source_root_id = db.file_source_root(root_file);
-            let source_root = db.source_root(source_root_id);
+            let source_root = db.source_root(root_file).source_root(db);
             entries.extend(
                 source_root.iter().map(|id| (EditionedFileId::new(id, graph[krate].edition), None)),
             );
@@ -178,8 +177,7 @@ impl SearchScope {
         let mut entries = FxHashMap::default();
         for rev_dep in of.transitive_reverse_dependencies(db) {
             let root_file = rev_dep.root_file(db);
-            let source_root_id = db.file_source_root(root_file);
-            let source_root = db.source_root(source_root_id);
+            let source_root = db.source_root(root_file).source_root(db);
             entries.extend(
                 source_root.iter().map(|id| (EditionedFileId::new(id, rev_dep.edition(db)), None)),
             );
@@ -190,8 +188,7 @@ impl SearchScope {
     /// Build a search scope spanning the given crate.
     fn krate(db: &RootDatabase, of: hir::Crate) -> SearchScope {
         let root_file = of.root_file(db);
-        let source_root_id = db.file_source_root(root_file);
-        let source_root = db.source_root(source_root_id);
+        let source_root = db.source_root(root_file).source_root(db);
         SearchScope {
             entries: source_root
                 .iter()
@@ -481,7 +478,7 @@ impl<'a> FindUsages<'a> {
         scope: &'b SearchScope,
     ) -> impl Iterator<Item = (Arc<str>, EditionedFileId, TextRange)> + 'b {
         scope.entries.iter().map(|(&file_id, &search_range)| {
-            let text = db.file_text(file_id.file_id());
+            let text = db.file_text(file_id.file_id()).text(db);
             let search_range =
                 search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&*text)));
 
@@ -851,7 +848,7 @@ impl<'a> FindUsages<'a> {
                 name,
                 is_possibly_self.into_iter().map(|position| {
                     (
-                        self.sema.db.file_text(position.file_id.file_id()),
+                        self.sema.db.file_text(position.file_id.file_id()).text(self.sema.db),
                         position.file_id,
                         position.range,
                     )
@@ -945,7 +942,7 @@ impl<'a> FindUsages<'a> {
         let include_self_kw_refs =
             self.include_self_kw_refs.as_ref().map(|ty| (ty, Finder::new("Self")));
         for (text, file_id, search_range) in Self::scope_files(sema.db, &search_scope) {
-            self.sema.db.unwind_if_cancelled();
+            // self.sema.db.unwind_if_cancelled();
             let tree = LazyCell::new(move || sema.parse(file_id).syntax().clone());
 
             // Search for occurrences of the items name
@@ -999,7 +996,7 @@ impl<'a> FindUsages<'a> {
             let finder = &Finder::new("super");
 
             for (text, file_id, search_range) in Self::scope_files(sema.db, &scope) {
-                self.sema.db.unwind_if_cancelled();
+                // self.sema.db.unwind_if_cancelled();
                 let tree = LazyCell::new(move || sema.parse(file_id).syntax().clone());
 
                 for offset in Self::match_indices(&text, finder, search_range) {
@@ -1048,7 +1045,7 @@ impl<'a> FindUsages<'a> {
                     return;
                 };
 
-                let text = sema.db.file_text(file_id.file_id());
+                let text = sema.db.file_text(file_id.file_id()).text(sema.db);
                 let search_range =
                     search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&*text)));
 

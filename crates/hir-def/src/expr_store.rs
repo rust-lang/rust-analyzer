@@ -49,8 +49,8 @@ impl HygieneId {
         Self(ctx)
     }
 
-    pub(crate) fn lookup(self, db: &dyn DefDatabase) -> SyntaxContextData {
-        db.lookup_intern_syntax_context(self.0)
+    pub(crate) fn lookup(self) -> SyntaxContextData {
+        self.0
     }
 
     pub(crate) fn is_root(self) -> bool {

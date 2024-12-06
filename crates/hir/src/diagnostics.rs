@@ -14,8 +14,6 @@ use hir_def::{
 };
 use hir_expand::{name::Name, HirFileId, InFile};
 use hir_ty::{
-    db::HirDatabase,
-    diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
     CastError, InferenceDiagnostic, InferenceTyDiagnosticSource, PathLoweringDiagnostic,
     TyLoweringDiagnostic, TyLoweringDiagnosticKind,
 };
@@ -28,10 +26,7 @@ use triomphe::Arc;
 use crate::{AssocItem, Field, Function, Local, Trait, Type};
 
 pub use hir_def::VariantId;
-pub use hir_ty::{
-    diagnostics::{CaseType, IncorrectCase},
-    GenericArgsProhibitedReason,
-};
+pub use hir_ty::GenericArgsProhibitedReason;
 
 macro_rules! diagnostics {
     ($($diag:ident,)*) => {
@@ -509,7 +504,6 @@ impl AnyDiagnostic {
                             }
                         }
                     }
-                    Err(SyntheticSyntax) => (),
                 }
             }
             BodyValidationDiagnostic::NonExhaustiveLet { pat, uncovered_patterns } => {
@@ -525,7 +519,6 @@ impl AnyDiagnostic {
                             );
                         }
                     }
-                    Err(SyntheticSyntax) => {}
                 }
             }
             BodyValidationDiagnostic::RemoveTrailingReturn { return_expr } => {

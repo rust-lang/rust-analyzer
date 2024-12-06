@@ -34,7 +34,7 @@ impl flags::Ssr {
         let edits = match_finder.edits();
         for (file_id, edit) in edits {
             if let Some(path) = vfs.file_path(file_id).as_path() {
-                let mut contents = db.file_text(file_id).to_string();
+                let mut contents = db.file_text(file_id).text(db).to_string();
                 edit.apply(&mut contents);
                 std::fs::write(path, contents)
                     .with_context(|| format!("failed to write {path}"))?;
@@ -49,7 +49,7 @@ impl flags::Search {
     /// `debug_snippet`. This is intended for debugging and probably isn't in it's current form useful
     /// for much else.
     pub fn run(self) -> anyhow::Result<()> {
-        use ide_db::base_db::SourceRootDatabase;
+        use ide_db::base_db::SourceDatabase;
         use ide_db::symbol_index::SymbolsDatabase;
         let cargo_config =
             CargoConfig { all_targets: true, set_test: true, ..CargoConfig::default() };
@@ -68,25 +68,25 @@ impl flags::Search {
         for pattern in self.pattern {
             match_finder.add_search_pattern(pattern)?;
         }
-        if let Some(debug_snippet) = &self.debug {
-            for &root in db.local_roots().iter() {
-                let sr = db.source_root(root);
-                for file_id in sr.iter() {
-                    for debug_info in match_finder.debug_where_text_equal(
-                        EditionedFileId::current_edition(file_id),
-                        debug_snippet,
-                    ) {
-                        println!("{debug_info:#?}");
-                    }
-                }
-            }
-        } else {
-            for m in match_finder.matches().flattened().matches {
-                // We could possibly at some point do something more useful than just printing
-                // the matched text. For now though, that's the easiest thing to do.
-                println!("{}", m.matched_text());
-            }
-        }
+        // if let Some(debug_snippet) = &self.debug {
+        //     for &root in db.local_roots().iter() {
+        //         let sr = db.source_root(root);
+        //         for file_id in sr.iter() {
+        //             for debug_info in match_finder.debug_where_text_equal(
+        //                 EditionedFileId::current_edition(file_id),
+        //                 debug_snippet,
+        //             ) {
+        //                 println!("{debug_info:#?}");
+        //             }
+        //         }
+        //     }
+        // } else {
+        //     for m in match_finder.matches().flattened().matches {
+        //         // We could possibly at some point do something more useful than just printing
+        //         // the matched text. For now though, that's the easiest thing to do.
+        //         println!("{}", m.matched_text());
+        //     }
+        // }
         Ok(())
     }
 }
