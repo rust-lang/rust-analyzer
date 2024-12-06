@@ -1,5 +1,4 @@
-use base_db::SourceDatabaseFileInputExt as _;
-use hir_def::ModuleDefId;
+use base_db::SourceDatabase;
 use test_fixture::WithFixture;
 
 use crate::{db::HirDatabase, test_db::TestDB};

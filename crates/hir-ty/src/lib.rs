@@ -54,7 +54,7 @@ mod variance;
 
 use std::hash::Hash;
 
-use base_db::ra_salsa::InternValueTrivial;
+use base_db::InternValueTrivial;
 use chalk_ir::{
     fold::{Shift, TypeFoldable},
     interner::HasInterner,
