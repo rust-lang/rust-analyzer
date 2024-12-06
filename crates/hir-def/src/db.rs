@@ -1,5 +1,5 @@
 //! Defines database & queries for name resolution.
-use base_db::{ra_salsa, CrateId, SourceDatabase, Upcast};
+use base_db::{impl_wrapper, CrateId, RootQueryDb, SourceDatabase, Upcast};
 use either::Either;
 use hir_expand::{db::ExpandDatabase, HirFileId, MacroDefId};
 use intern::sym;
@@ -53,87 +53,109 @@ impl_wrapper!(Macro2Id, Macro2Loc, Macro2Wrapper);
 impl_wrapper!(ProcMacroId, ProcMacroLoc, ProcMacroWrapper);
 impl_wrapper!(MacroRulesId, MacroRulesLoc, MacroRulesWrapper);
 impl_wrapper!(BlockId, BlockLoc, BlockWrapper);
-impl_wrapper!(ConstBlockId, ConstBlockLoc, AnonymousConstWrapper);
+impl_wrapper!(ConstBlockId, ConstBlockLoc, AnonymusConstWrapper);
 impl_wrapper!(InTypeConstId, InTypeConstLoc, InTypeConstWrapper);
 
 #[db_ext_macro::query_group(InternDatabaseStorage)]
 pub trait InternDatabase: RootQueryDb {
     // region: items
-    #[ra_salsa::interned]
+    #[db_ext_macro::interned(UseLocWrapper)]
     fn intern_use(&self, loc: UseLoc) -> UseId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(ExternCrateLocWrapper)]
     fn intern_extern_crate(&self, loc: ExternCrateLoc) -> ExternCrateId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(FunctionLocWrapper)]
     fn intern_function(&self, loc: FunctionLoc) -> FunctionId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(StructLocWrapper)]
     fn intern_struct(&self, loc: StructLoc) -> StructId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(UnionLocWrapper)]
     fn intern_union(&self, loc: UnionLoc) -> UnionId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(EnumLocWrapper)]
     fn intern_enum(&self, loc: EnumLoc) -> EnumId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(EnumVariantWrapper)]
     fn intern_enum_variant(&self, loc: EnumVariantLoc) -> EnumVariantId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(ConstWrapper)]
     fn intern_const(&self, loc: ConstLoc) -> ConstId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(StaticWrapper)]
     fn intern_static(&self, loc: StaticLoc) -> StaticId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(TraitWrapper)]
     fn intern_trait(&self, loc: TraitLoc) -> TraitId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(TraitAliasWrapper)]
     fn intern_trait_alias(&self, loc: TraitAliasLoc) -> TraitAliasId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(TypeAliasWrapper)]
     fn intern_type_alias(&self, loc: TypeAliasLoc) -> TypeAliasId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(ImplWrapper)]
     fn intern_impl(&self, loc: ImplLoc) -> ImplId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(ExternBlockWrapper)]
     fn intern_extern_block(&self, loc: ExternBlockLoc) -> ExternBlockId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(Macro2Wrapper)]
     fn intern_macro2(&self, loc: Macro2Loc) -> Macro2Id;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(ProcMacroWrapper)]
     fn intern_proc_macro(&self, loc: ProcMacroLoc) -> ProcMacroId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(MacroRulesWrapper)]
     fn intern_macro_rules(&self, loc: MacroRulesLoc) -> MacroRulesId;
-    // endregion: items
+    // // endregion: items
 
-    #[ra_salsa::interned]
+    #[db_ext_macro::interned(BlockWrapper)]
     fn intern_block(&self, loc: BlockLoc) -> BlockId;
-
-    #[db_ext_macro::interned(AnonymousConstWrapper)]
+    #[db_ext_macro::interned(AnonymusConstWrapper)]
     fn intern_anonymous_const(&self, id: ConstBlockLoc) -> ConstBlockId;
-    #[ra_salsa::interned]
+
+    #[db_ext_macro::interned(InTypeConstWrapper)]
     fn intern_in_type_const(&self, id: InTypeConstLoc) -> InTypeConstId;
 }
 
-#[ra_salsa::query_group(DefDatabaseStorage)]
-pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDatabase> {
+#[db_ext_macro::query_group]
+pub trait DefDatabase:
+    InternDatabase
+    + ExpandDatabase
+    + SourceDatabase
+    + Upcast<dyn ExpandDatabase>
+    + Upcast<dyn RootQueryDb>
+{
     /// Whether to expand procedural macros during name resolution.
-    #[ra_salsa::input]
+    #[db_ext_macro::input]
     fn expand_proc_attr_macros(&self) -> bool;
 
     /// Computes an [`ItemTree`] for the given file or macro expansion.
-    #[ra_salsa::invoke(ItemTree::file_item_tree_query)]
+    #[db_ext_macro::invoke(ItemTree::file_item_tree_query)]
     fn file_item_tree(&self, file_id: HirFileId) -> Arc<ItemTree>;
 
-    #[ra_salsa::invoke(ItemTree::block_item_tree_query)]
+    #[db_ext_macro::invoke(ItemTree::block_item_tree_query)]
     fn block_item_tree(&self, block_id: BlockId) -> Arc<ItemTree>;
 
-    #[ra_salsa::invoke(ItemTree::file_item_tree_with_source_map_query)]
+    #[db_ext_macro::invoke(ItemTree::file_item_tree_with_source_map_query)]
     fn file_item_tree_with_source_map(
         &self,
         file_id: HirFileId,
     ) -> (Arc<ItemTree>, Arc<ItemTreeSourceMaps>);
 
-    #[ra_salsa::invoke(ItemTree::block_item_tree_with_source_map_query)]
+    #[db_ext_macro::invoke(ItemTree::block_item_tree_with_source_map_query)]
     fn block_item_tree_with_source_map(
         &self,
         block_id: BlockId,
     ) -> (Arc<ItemTree>, Arc<ItemTreeSourceMaps>);
 
-    #[ra_salsa::invoke(DefMap::crate_def_map_query)]
+    #[db_ext_macro::invoke(DefMap::crate_def_map_query)]
     fn crate_def_map(&self, krate: CrateId) -> Arc<DefMap>;
 
     /// Computes the block-level `DefMap`.
-    #[ra_salsa::invoke(DefMap::block_def_map_query)]
+    #[db_ext_macro::invoke(DefMap::block_def_map_query)]
     fn block_def_map(&self, block: BlockId) -> Arc<DefMap>;
 
     /// Turns a MacroId into a MacroDefId, describing the macro's definition post name resolution.
@@ -141,94 +163,94 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     // region:data
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(StructData::struct_data_query)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(StructData::struct_data_query)]
     fn struct_data(&self, id: StructId) -> Arc<StructData>;
 
-    #[ra_salsa::invoke(StructData::struct_data_with_diagnostics_query)]
+    #[db_ext_macro::invoke(StructData::struct_data_with_diagnostics_query)]
     fn struct_data_with_diagnostics(&self, id: StructId) -> (Arc<StructData>, DefDiagnostics);
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(StructData::union_data_query)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(StructData::union_data_query)]
     fn union_data(&self, id: UnionId) -> Arc<StructData>;
 
-    #[ra_salsa::invoke(StructData::union_data_with_diagnostics_query)]
+    #[db_ext_macro::invoke(StructData::union_data_with_diagnostics_query)]
     fn union_data_with_diagnostics(&self, id: UnionId) -> (Arc<StructData>, DefDiagnostics);
 
-    #[ra_salsa::invoke(EnumData::enum_data_query)]
+    #[db_ext_macro::invoke(EnumData::enum_data_query)]
     fn enum_data(&self, e: EnumId) -> Arc<EnumData>;
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(EnumVariantData::enum_variant_data_query)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(EnumVariantData::enum_variant_data_query)]
     fn enum_variant_data(&self, id: EnumVariantId) -> Arc<EnumVariantData>;
 
-    #[ra_salsa::invoke(EnumVariantData::enum_variant_data_with_diagnostics_query)]
+    #[db_ext_macro::invoke(EnumVariantData::enum_variant_data_with_diagnostics_query)]
     fn enum_variant_data_with_diagnostics(
         &self,
         id: EnumVariantId,
     ) -> (Arc<EnumVariantData>, DefDiagnostics);
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(VariantData::variant_data)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(VariantData::variant_data)]
     fn variant_data(&self, id: VariantId) -> Arc<VariantData>;
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(ImplData::impl_data_query)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(ImplData::impl_data_query)]
     fn impl_data(&self, e: ImplId) -> Arc<ImplData>;
 
-    #[ra_salsa::invoke(ImplData::impl_data_with_diagnostics_query)]
+    #[db_ext_macro::invoke(ImplData::impl_data_with_diagnostics_query)]
     fn impl_data_with_diagnostics(&self, e: ImplId) -> (Arc<ImplData>, DefDiagnostics);
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(TraitData::trait_data_query)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(TraitData::trait_data_query)]
     fn trait_data(&self, e: TraitId) -> Arc<TraitData>;
 
-    #[ra_salsa::invoke(TraitData::trait_data_with_diagnostics_query)]
+    #[db_ext_macro::invoke(TraitData::trait_data_with_diagnostics_query)]
     fn trait_data_with_diagnostics(&self, tr: TraitId) -> (Arc<TraitData>, DefDiagnostics);
 
-    #[ra_salsa::invoke(TraitAliasData::trait_alias_query)]
+    #[db_ext_macro::invoke(TraitAliasData::trait_alias_query)]
     fn trait_alias_data(&self, e: TraitAliasId) -> Arc<TraitAliasData>;
 
-    #[ra_salsa::invoke(TypeAliasData::type_alias_data_query)]
+    #[db_ext_macro::invoke(TypeAliasData::type_alias_data_query)]
     fn type_alias_data(&self, e: TypeAliasId) -> Arc<TypeAliasData>;
 
-    #[ra_salsa::invoke(FunctionData::fn_data_query)]
+    #[db_ext_macro::invoke(FunctionData::fn_data_query)]
     fn function_data(&self, func: FunctionId) -> Arc<FunctionData>;
 
-    #[ra_salsa::invoke(ConstData::const_data_query)]
+    #[db_ext_macro::invoke(ConstData::const_data_query)]
     fn const_data(&self, konst: ConstId) -> Arc<ConstData>;
 
-    #[ra_salsa::invoke(StaticData::static_data_query)]
+    #[db_ext_macro::invoke(StaticData::static_data_query)]
     fn static_data(&self, statik: StaticId) -> Arc<StaticData>;
 
-    #[ra_salsa::invoke(Macro2Data::macro2_data_query)]
+    #[db_ext_macro::invoke(Macro2Data::macro2_data_query)]
     fn macro2_data(&self, makro: Macro2Id) -> Arc<Macro2Data>;
 
-    #[ra_salsa::invoke(MacroRulesData::macro_rules_data_query)]
+    #[db_ext_macro::invoke(MacroRulesData::macro_rules_data_query)]
     fn macro_rules_data(&self, makro: MacroRulesId) -> Arc<MacroRulesData>;
 
-    #[ra_salsa::invoke(ProcMacroData::proc_macro_data_query)]
+    #[db_ext_macro::invoke(ProcMacroData::proc_macro_data_query)]
     fn proc_macro_data(&self, makro: ProcMacroId) -> Arc<ProcMacroData>;
 
-    #[ra_salsa::invoke(ExternCrateDeclData::extern_crate_decl_data_query)]
+    #[db_ext_macro::invoke(ExternCrateDeclData::extern_crate_decl_data_query)]
     fn extern_crate_decl_data(&self, extern_crate: ExternCrateId) -> Arc<ExternCrateDeclData>;
 
     // endregion:data
 
-    #[ra_salsa::invoke(Body::body_with_source_map_query)]
-    #[ra_salsa::lru]
+    #[db_ext_macro::invoke(Body::body_with_source_map_query)]
+    #[db_ext_macro::lru]
     fn body_with_source_map(&self, def: DefWithBodyId) -> (Arc<Body>, Arc<BodySourceMap>);
 
-    #[ra_salsa::invoke(Body::body_query)]
+    #[db_ext_macro::invoke(Body::body_query)]
     fn body(&self, def: DefWithBodyId) -> Arc<Body>;
 
-    #[ra_salsa::invoke(ExprScopes::expr_scopes_query)]
+    #[db_ext_macro::invoke(ExprScopes::expr_scopes_query)]
     fn expr_scopes(&self, def: DefWithBodyId) -> Arc<ExprScopes>;
 
-    #[ra_salsa::invoke(GenericParams::generic_params_query)]
+    #[db_ext_macro::invoke(GenericParams::generic_params_query)]
     fn generic_params(&self, def: GenericDefId) -> Arc<GenericParams>;
 
     /// If this returns `None` for the source map, that means it is the same as with the item tree.
-    #[ra_salsa::invoke(GenericParams::generic_params_with_source_map_query)]
+    #[db_ext_macro::invoke(GenericParams::generic_params_with_source_map_query)]
     fn generic_params_with_source_map(
         &self,
         def: GenericDefId,
@@ -236,51 +258,51 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     // region:attrs
 
-    #[ra_salsa::invoke(Attrs::fields_attrs_query)]
+    #[db_ext_macro::invoke(Attrs::fields_attrs_query)]
     fn fields_attrs(&self, def: VariantId) -> Arc<ArenaMap<LocalFieldId, Attrs>>;
 
     // should this really be a query?
-    #[ra_salsa::invoke(crate::attr::fields_attrs_source_map)]
+    #[db_ext_macro::invoke(crate::attr::fields_attrs_source_map)]
     fn fields_attrs_source_map(
         &self,
         def: VariantId,
     ) -> Arc<ArenaMap<LocalFieldId, AstPtr<Either<ast::TupleField, ast::RecordField>>>>;
 
-    #[ra_salsa::invoke(AttrsWithOwner::attrs_query)]
+    #[db_ext_macro::invoke(AttrsWithOwner::attrs_query)]
     fn attrs(&self, def: AttrDefId) -> Attrs;
 
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(lang_item::lang_attr)]
+    #[db_ext_macro::transparent]
+    #[db_ext_macro::invoke(lang_item::lang_attr)]
     fn lang_attr(&self, def: AttrDefId) -> Option<LangItem>;
 
     // endregion:attrs
 
-    #[ra_salsa::invoke(LangItems::lang_item_query)]
+    #[db_ext_macro::invoke(LangItems::lang_item_query)]
     fn lang_item(&self, start_crate: CrateId, item: LangItem) -> Option<LangItemTarget>;
 
-    #[ra_salsa::invoke(ImportMap::import_map_query)]
+    #[db_ext_macro::invoke(ImportMap::import_map_query)]
     fn import_map(&self, krate: CrateId) -> Arc<ImportMap>;
 
     // region:visibilities
 
-    #[ra_salsa::invoke(visibility::field_visibilities_query)]
+    #[db_ext_macro::invoke(visibility::field_visibilities_query)]
     fn field_visibilities(&self, var: VariantId) -> Arc<ArenaMap<LocalFieldId, Visibility>>;
 
     // FIXME: unify function_visibility and const_visibility?
-    #[ra_salsa::invoke(visibility::function_visibility_query)]
+    #[db_ext_macro::invoke(visibility::function_visibility_query)]
     fn function_visibility(&self, def: FunctionId) -> Visibility;
 
-    #[ra_salsa::invoke(visibility::const_visibility_query)]
+    #[db_ext_macro::invoke(visibility::const_visibility_query)]
     fn const_visibility(&self, def: ConstId) -> Visibility;
 
     // endregion:visibilities
 
-    #[ra_salsa::invoke(LangItems::crate_lang_items_query)]
+    #[db_ext_macro::invoke(LangItems::crate_lang_items_query)]
     fn crate_lang_items(&self, krate: CrateId) -> Option<Arc<LangItems>>;
 
-    #[ra_salsa::invoke(crate::lang_item::notable_traits_in_deps)]
+    #[db_ext_macro::invoke(crate::lang_item::notable_traits_in_deps)]
     fn notable_traits_in_deps(&self, krate: CrateId) -> Arc<[Arc<[TraitId]>]>;
-    #[ra_salsa::invoke(crate::lang_item::crate_notable_traits)]
+    #[db_ext_macro::invoke(crate::lang_item::crate_notable_traits)]
     fn crate_notable_traits(&self, krate: CrateId) -> Option<Arc<[TraitId]>>;
 
     fn crate_supports_no_std(&self, crate_id: CrateId) -> bool;

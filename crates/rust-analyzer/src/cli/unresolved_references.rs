@@ -2,9 +2,7 @@
 use hir::{db::HirDatabase, AnyDiagnostic, Crate, HirFileIdExt as _, Module, Semantics};
 use ide::{AnalysisHost, RootDatabase, TextRange};
 use ide_db::{
-    base_db::{SourceDatabase, SourceRootDatabase},
-    defs::NameRefClass,
-    EditionedFileId, FxHashSet, LineIndexDatabase as _,
+    base_db::SourceDatabase, defs::NameRefClass, EditionedFileId, FxHashSet, LineIndexDatabase as _,
 };
 use load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice};
 use parser::SyntaxKind;
@@ -57,8 +55,8 @@ impl flags::UnresolvedReferences {
 
         let work = all_modules(db).into_iter().filter(|module| {
             let file_id = module.definition_source_file_id(db).original_file(db);
-            let source_root = db.file_source_root(file_id.into());
-            let source_root = db.source_root(source_root);
+            let source_root = db.source_root(file_id.into()).source_root(db);
+
             !source_root.is_library
         });
 
@@ -77,7 +75,7 @@ impl flags::UnresolvedReferences {
                     let line_col = line_index.line_col(range.start());
                     let line = line_col.line + 1;
                     let col = line_col.col + 1;
-                    let text = &file_text[range];
+                    let text = &file_text.text(db)[range];
                     println!("{file_path}:{line}:{col}: {text}");
                 }
 

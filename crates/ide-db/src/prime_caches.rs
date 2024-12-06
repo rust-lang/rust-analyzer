@@ -7,12 +7,10 @@ mod topologic_sort;
 use std::time::Duration;
 
 use hir::db::DefDatabase;
+use salsa::{Cancelled, Database};
 
 use crate::{
-    base_db::{
-        ra_salsa::{Database, ParallelDatabase, Snapshot},
-        Cancelled, CrateId, SourceDatabase, SourceRootDatabase,
-    },
+    base_db::{CrateId, RootQueryDb, SourceDatabase},
     symbol_index::SymbolsDatabase,
     FxIndexMap, RootDatabase,
 };
@@ -56,15 +54,17 @@ pub fn parallel_prime_caches(
         let (work_sender, work_receiver) = crossbeam_channel::unbounded();
         let graph = graph.clone();
         let local_roots = db.local_roots();
-        let prime_caches_worker = move |db: Snapshot<RootDatabase>| {
+        let prime_caches_worker = move |db: RootDatabase| {
             while let Ok((crate_id, crate_name)) = work_receiver.recv() {
                 progress_sender
                     .send(ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name })?;
 
                 // Compute the DefMap and possibly ImportMap
                 let file_id = graph[crate_id].root_file_id;
-                let root_id = db.file_source_root(file_id);
-                if db.source_root(root_id).is_library {
+                let source_root_input = db.source_root(file_id);
+                let source_root = source_root_input.source_root(&db);
+                let source_root_id = source_root_input.source_root_id(&db);
+                if source_root.is_library {
                     db.crate_def_map(crate_id);
                 } else {
                     // This also computes the DefMap
@@ -80,7 +80,7 @@ pub fn parallel_prime_caches(
                 // FIXME: We should do it unconditionally if the configuration is set to default to
                 // searching dependencies (rust-analyzer.workspace.symbol.search.scope), but we
                 // would need to pipe that configuration information down here.
-                if local_roots.contains(&root_id) {
+                if local_roots.contains(&source_root_id) {
                     db.crate_symbols(crate_id.into());
                 }
 
@@ -92,13 +92,13 @@ pub fn parallel_prime_caches(
 
         for id in 0..num_worker_threads {
             let worker = prime_caches_worker.clone();
-            let db = db.snapshot();
+            // let db = db.snapshot();
 
-            stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
-                .allow_leak(true)
-                .name(format!("PrimeCaches#{id}"))
-                .spawn(move || Cancelled::catch(|| worker(db)))
-                .expect("failed to spawn thread");
+            // stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
+            //     .allow_leak(true)
+            //     .name(format!("PrimeCaches#{id}"))
+            //     .spawn(move || Cancelled::catch(|| worker(db.clone())))
+            //     .expect("failed to spawn thread");
         }
 
         (work_sender, progress_receiver)
@@ -113,7 +113,7 @@ pub fn parallel_prime_caches(
         FxIndexMap::with_capacity_and_hasher(num_worker_threads, Default::default());
 
     while crates_done < crates_total {
-        db.unwind_if_cancelled();
+        // db.unwind_if_cancelled();
 
         for crate_id in &mut crates_to_prime {
             work_sender
@@ -134,7 +134,7 @@ pub fn parallel_prime_caches(
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                 // our workers may have died from a cancelled task, so we'll check and re-raise here.
-                db.unwind_if_cancelled();
+                // db.unwind_if_cancelled();
                 break;
             }
         };

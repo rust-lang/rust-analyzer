@@ -1315,7 +1315,7 @@ impl HasResolver for MacroRulesId {
 fn lookup_resolver<'db>(
     db: &(dyn DefDatabase + 'db),
     lookup: impl Lookup<
-        Database<'db> = dyn DefDatabase + 'db,
+        Database = dyn DefDatabase,
         Data = impl ItemTreeLoc<Container = impl HasResolver>,
     >,
 ) -> Resolver {

@@ -1,5 +1,6 @@
 mod block;
 
+use base_db::RootQueryDb;
 use expect_test::{expect, Expect};
 use test_fixture::WithFixture;
 
@@ -343,7 +344,7 @@ fn f(a: i32, b: u32) -> String {
 "#,
     );
 
-    let (_, source_map) = db.body_with_source_map(def);
+    let source_map = db.body_with_source_map(def).1;
     assert_eq!(source_map.diagnostics(), &[]);
 
     for (_, def_map) in body.blocks(&db) {
@@ -390,7 +391,7 @@ fn foo() {
 "#,
     );
 
-    let (_, source_map) = db.body_with_source_map(def);
+    let source_map = db.body_with_source_map(def).1;
     assert_eq!(source_map.diagnostics(), &[]);
 
     for (_, def_map) in body.blocks(&db) {

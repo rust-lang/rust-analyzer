@@ -22,13 +22,7 @@ use ide::{
     Analysis, AnalysisHost, AnnotationConfig, DiagnosticsConfig, Edition, InlayFieldsToResolve,
     InlayHintsConfig, LineCol, RootDatabase,
 };
-use ide_db::{
-    base_db::{
-        ra_salsa::{self, debug::DebugQueryTable, ParallelDatabase},
-        SourceDatabase, SourceRootDatabase,
-    },
-    EditionedFileId, LineIndexDatabase, SnippetCap,
-};
+use ide_db::{base_db::SourceDatabase, EditionedFileId, LineIndexDatabase, SnippetCap};
 use itertools::Itertools;
 use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};
 use oorandom::Rand32;
@@ -48,9 +42,10 @@ use crate::cli::{
 
 /// Need to wrap Snapshot to provide `Clone` impl for `map_with`
 struct Snap<DB>(DB);
-impl<DB: ParallelDatabase> Clone for Snap<ra_salsa::Snapshot<DB>> {
-    fn clone(&self) -> Snap<ra_salsa::Snapshot<DB>> {
-        Snap(self.0.snapshot())
+impl<DB> Clone for Snap<DB> {
+    fn clone(&self) -> Snap<DB> {
+        todo!()
+        // Snap(self.0.snapshot())
     }
 }
 
@@ -129,10 +124,16 @@ impl flags::AnalysisStats {
 
         let mut item_tree_sw = self.stop_watch();
         let mut num_item_trees = 0;
-        let source_roots =
-            krates.iter().cloned().map(|krate| db.file_source_root(krate.root_file(db))).unique();
-        for source_root_id in source_roots {
-            let source_root = db.source_root(source_root_id);
+        let source_roots = krates
+            .iter()
+            .cloned()
+            .map(|krate| {
+                let source_root = db.source_root(krate.root_file(db));
+                source_root
+            })
+            .unique();
+        for source_root_input in source_roots {
+            let source_root = source_root_input.source_root(db);
             if !source_root.is_library || self.with_deps {
                 for file_id in source_root.iter() {
                     if let Some(p) = source_root.path_for_file(&file_id) {
@@ -157,8 +158,8 @@ impl flags::AnalysisStats {
             let module = krate.root_module();
             let file_id = module.definition_source_file_id(db);
             let file_id = file_id.original_file(db);
-            let source_root = db.file_source_root(file_id.into());
-            let source_root = db.source_root(source_root);
+
+            let source_root = db.source_root(file_id.into()).source_root(db);
             if !source_root.is_library || self.with_deps {
                 num_crates += 1;
                 visit_queue.push(module);
@@ -269,15 +270,15 @@ impl flags::AnalysisStats {
 
         if self.source_stats {
             let mut total_file_size = Bytes::default();
-            for e in ide_db::base_db::ParseQuery.in_db(db).entries::<Vec<_>>() {
-                total_file_size += syntax_len(db.parse(e.key).syntax_node())
-            }
+            // for e in ide_db::base_db::ParseQuery.in_db(db).entries::<Vec<_>>() {
+            //     total_file_size += syntax_len(db.parse(e.key).syntax_node())
+            // }
 
             let mut total_macro_file_size = Bytes::default();
-            for e in hir::db::ParseMacroExpansionQuery.in_db(db).entries::<Vec<_>>() {
-                let val = db.parse_macro_expansion(e.key).value.0;
-                total_macro_file_size += syntax_len(val.syntax_node())
-            }
+            // for e in hir::db::ParseMacroExpansionQuery.in_db(db).entries::<Vec<_>>() {
+            //     let val = db.parse_macro_expansion(e.key).value.0;
+            //     total_macro_file_size += syntax_len(val.syntax_node())
+            // }
             eprintln!("source files: {total_file_size}, macro files: {total_macro_file_size}");
         }
 
@@ -421,6 +422,7 @@ impl flags::AnalysisStats {
                 let range = sema.original_range(expected_tail.syntax()).range;
                 let original_text: String = db
                     .file_text(file_id.into())
+                    .text(db)
                     .chars()
                     .skip(usize::from(range.start()))
                     .take(usize::from(range.end()) - usize::from(range.start()))
@@ -472,7 +474,7 @@ impl flags::AnalysisStats {
                     syntax_hit_found |= trim(&original_text) == trim(&generated);
 
                     // Validate if type-checks
-                    let mut txt = file_txt.to_string();
+                    let mut txt = file_txt.text(db).to_string();
 
                     let edit = ide::TextEdit::replace(range, generated.clone());
                     edit.apply(&mut txt);
@@ -527,7 +529,7 @@ impl flags::AnalysisStats {
             }
             // Revert file back to original state
             if self.validate_term_search {
-                std::fs::write(path, file_txt.to_string()).unwrap();
+                std::fs::write(path, file_txt.text(db).to_string()).unwrap();
             }
 
             bar.inc(1);

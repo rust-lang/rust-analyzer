@@ -1,5 +1,5 @@
 use hir::{ConstEvalError, DefWithBody, Semantics};
-use ide_db::{base_db::SourceRootDatabase, FilePosition, LineIndexDatabase, RootDatabase};
+use ide_db::{base_db::SourceDatabase, FilePosition, LineIndexDatabase, RootDatabase};
 use span::Edition;
 use std::time::{Duration, Instant};
 use stdx::format_to;
@@ -37,6 +37,36 @@ fn find_and_interpret(db: &RootDatabase, position: FilePosition) -> Option<(Dura
         ast::Item::Static(it) => sema.to_def(&it)?.into(),
         _ => return None,
     };
+    let span_formatter = |file_id, text_range: TextRange| {
+        let path = &db
+            .source_root(file_id)
+            .source_root(db)
+            .path_for_file(&file_id)
+            .map(|x| x.to_string());
+        let path = path.as_deref().unwrap_or("<unknown file>");
+        match db.line_index(file_id).try_line_col(text_range.start()) {
+            Some(line_col) => format!("file://{path}:{}:{}", line_col.line + 1, line_col.col),
+            None => format!("file://{path} range {text_range:?}"),
+        }
+    };
+    let edition = def.module(db).krate().edition(db);
+    let start_time = Instant::now();
+    let res = match def {
+        DefWithBody::Function(it) => it.eval(db, span_formatter),
+        DefWithBody::Static(it) => it.eval(db).map(|it| it.render(db, edition)),
+        DefWithBody::Const(it) => it.eval(db).map(|it| it.render(db, edition)),
+        _ => unreachable!(),
+    };
+    let res = res.unwrap_or_else(|e| render_const_eval_error(db, e, edition));
+    let duration = Instant::now() - start_time;
+    Some((duration, res))
+}
+
+pub(crate) fn render_const_eval_error(
+    db: &RootDatabase,
+    e: ConstEvalError,
+    edition: Edition,
+) -> String {
     let span_formatter = |file_id, text_range: TextRange| {
         let path = &db
             .source_root(db.file_source_root(file_id))

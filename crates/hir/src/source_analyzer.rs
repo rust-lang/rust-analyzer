@@ -15,7 +15,6 @@ use crate::{
 use either::Either;
 use hir_def::{
     body::{
-        scope::{ExprScopes, ScopeId},
         Body, BodySourceMap, HygieneId,
     },
     hir::{BindingId, Expr, ExprId, ExprOrPatId, Pat, PatId},
@@ -25,13 +24,10 @@ use hir_def::{
     path::{ModPath, Path, PathKind},
     resolver::{resolver_for_scope, Resolver, TypeNs, ValueNs},
     type_ref::{Mutability, TypesMap, TypesSourceMap},
-    AsMacroCall, AssocItemId, CallableDefId, ConstId, DefWithBodyId, FieldId, FunctionId,
-    ItemContainerId, LocalFieldId, Lookup, ModuleDefId, StructId, TraitId, VariantId,
 };
 use hir_expand::{
     mod_path::path,
     name::{AsName, Name},
-    HirFileId, InFile, InMacroFile, MacroFile, MacroFileIdExt,
 };
 use hir_ty::{
     diagnostics::{
@@ -48,7 +44,6 @@ use itertools::Itertools;
 use smallvec::SmallVec;
 use syntax::ast::{RangeItem, RangeOp};
 use syntax::{
-    ast::{self, AstNode},
     SyntaxKind, SyntaxNode, TextRange, TextSize,
 };
 use triomphe::Arc;

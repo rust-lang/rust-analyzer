@@ -1,36 +1,40 @@
 //! Database used for testing `hir`.
 
-use std::{fmt, panic, sync::Mutex};
+use std::{fmt, hash::BuildHasherDefault, panic, sync::Mutex};
 
 use base_db::{
-    ra_salsa::{self, Durability},
-    AnchoredPath, CrateId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
+    CrateId, FileLoader, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
+    SourceRootInput, Upcast,
 };
+use dashmap::DashMap;
 use hir_def::{db::DefDatabase, ModuleId};
 use hir_expand::db::ExpandDatabase;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHasher};
+use salsa::Durability;
 use span::{EditionedFileId, FileId};
 use syntax::TextRange;
 use test_utils::extract_annotations;
 use triomphe::Arc;
+use vfs::AnchoredPath;
 
-#[ra_salsa::database(
-    base_db::SourceRootDatabaseStorage,
-    base_db::SourceDatabaseStorage,
-    hir_expand::db::ExpandDatabaseStorage,
-    hir_def::db::InternDatabaseStorage,
-    hir_def::db::DefDatabaseStorage,
-    crate::db::HirDatabaseStorage
-)]
+#[salsa::db]
+#[derive(Clone)]
 pub(crate) struct TestDB {
-    storage: ra_salsa::Storage<TestDB>,
-    events: Mutex<Option<Vec<ra_salsa::Event>>>,
+    storage: salsa::Storage<Self>,
+    files: DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>,
+    source_roots: DashMap<vfs::FileId, SourceRootInput, BuildHasherDefault<FxHasher>>,
+    events: Arc<Mutex<Option<Vec<salsa::Event>>>>,
 }
 
 impl Default for TestDB {
     fn default() -> Self {
-        let mut this = Self { storage: Default::default(), events: Default::default() };
-        this.setup_syntax_context_root();
+        let mut this = Self {
+            storage: Default::default(),
+            events: Default::default(),
+            files: Default::default(),
+            source_roots: Default::default(),
+        };
+        hir_expand::db::setup_syntax_context_root(this.upcast());
         this.set_expand_proc_attr_macros_with_durability(true, Durability::HIGH);
         this
     }
@@ -54,21 +58,68 @@ impl Upcast<dyn DefDatabase> for TestDB {
     }
 }
 
-impl ra_salsa::Database for TestDB {
-    fn salsa_event(&self, event: ra_salsa::Event) {
-        let mut events = self.events.lock().unwrap();
-        if let Some(events) = &mut *events {
-            events.push(event);
-        }
+impl Upcast<dyn RootQueryDb> for TestDB {
+    fn upcast(&self) -> &(dyn RootQueryDb + 'static) {
+        self
     }
 }
 
-impl ra_salsa::ParallelDatabase for TestDB {
-    fn snapshot(&self) -> ra_salsa::Snapshot<TestDB> {
-        ra_salsa::Snapshot::new(TestDB {
-            storage: self.storage.snapshot(),
-            events: Default::default(),
-        })
+impl Upcast<dyn SourceDatabase> for TestDB {
+    fn upcast(&self) -> &(dyn SourceDatabase + 'static) {
+        self
+    }
+}
+
+#[salsa::db]
+impl SourceDatabase for TestDB {
+    fn file_text(&self, file_id: vfs::FileId) -> FileText {
+        *self.files.get(&file_id).expect("Unable to fetch file; this is a bug")
+    }
+
+    fn set_file_text(&self, file_id: vfs::FileId, text: &str) {
+        self.files.insert(file_id, FileText::new(self, file_id, Arc::from(text)));
+    }
+
+    fn set_file_text_with_durability(
+        &self,
+        file_id: vfs::FileId,
+        text: &str,
+        durability: salsa::Durability,
+    ) {
+        self.files.insert(
+            file_id,
+            FileText::builder(file_id, Arc::from(text)).durability(durability).new(self),
+        );
+    }
+
+    /// Source root of the file.
+    fn source_root(&self, file_id: vfs::FileId) -> SourceRootInput {
+        let source_root =
+            self.source_roots.get(&file_id).expect("Unable to fetch source root id; this is a bug");
+
+        *source_root
+    }
+
+    fn set_source_root_with_durability(
+        &self,
+        file_id: vfs::FileId,
+        source_root_id: SourceRootId,
+        source_root: Arc<SourceRoot>,
+        durability: salsa::Durability,
+    ) {
+        let input =
+            SourceRootInput::builder(source_root_id, source_root).durability(durability).new(self);
+        self.source_roots.insert(file_id, input);
+    }
+}
+
+#[salsa::db]
+impl salsa::Database for TestDB {
+    fn salsa_event(&self, event: &dyn std::ops::Fn() -> salsa::Event) {
+        let mut events = self.events.lock().unwrap();
+        if let Some(events) = &mut *events {
+            events.push(event());
+        }
     }
 }
 
@@ -76,10 +127,12 @@ impl panic::RefUnwindSafe for TestDB {}
 
 impl FileLoader for TestDB {
     fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        FileLoaderDelegate(self).resolve_path(path)
+        todo!()
+        // FileLoaderDelegate(self).resolve_path(path)
     }
     fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
-        FileLoaderDelegate(self).relevant_crates(file_id)
+        todo!()
+        // FileLoaderDelegate(self).relevant_crates(file_id)
     }
 }
 
@@ -117,7 +170,7 @@ impl TestDB {
             .into_iter()
             .filter_map(|file_id| {
                 let text = self.file_text(file_id.file_id());
-                let annotations = extract_annotations(&text);
+                let annotations = extract_annotations(&text.text(self));
                 if annotations.is_empty() {
                     return None;
                 }
@@ -128,7 +181,7 @@ impl TestDB {
 }
 
 impl TestDB {
-    pub(crate) fn log(&self, f: impl FnOnce()) -> Vec<ra_salsa::Event> {
+    pub(crate) fn log(&self, f: impl FnOnce()) -> Vec<salsa::Event> {
         *self.events.lock().unwrap() = Some(Vec::new());
         f();
         self.events.lock().unwrap().take().unwrap()
@@ -141,8 +194,8 @@ impl TestDB {
             .filter_map(|e| match e.kind {
                 // This is pretty horrible, but `Debug` is the only way to inspect
                 // QueryDescriptor at the moment.
-                ra_salsa::EventKind::WillExecute { database_key } => {
-                    Some(format!("{:?}", database_key.debug(self)))
+                salsa::EventKind::WillExecute { database_key } => {
+                    Some(format!("{:?}", database_key.key_index()))
                 }
                 _ => None,
             })

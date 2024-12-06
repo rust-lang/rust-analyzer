@@ -1,23 +1,15 @@
 use std::{fmt, marker::PhantomData};
 
 use hir::{
-    db::{AstIdMapQuery, AttrsQuery, BlockDefMapQuery, ParseMacroExpansionQuery},
-    Attr, Attrs, ExpandResult, MacroFileId, Module,
+    // db::{AstIdMapQuery, AttrsQuery, BlockDefMapQuery, ParseMacroExpansionQuery},
+    Attr,
+    Attrs,
+    ExpandResult,
+    MacroFileId,
+    Module,
 };
-use ide_db::{
-    base_db::{
-        ra_salsa::{
-            debug::{DebugQueryTable, TableEntry},
-            Query, QueryTable,
-        },
-        CompressedFileTextQuery, CrateData, ParseQuery, SourceDatabase, SourceRootId,
-    },
-    symbol_index::ModuleSymbolsQuery,
-};
-use ide_db::{
-    symbol_index::{LibrarySymbolsQuery, SymbolIndex},
-    RootDatabase,
-};
+use ide_db::base_db::{CrateData, RootQueryDb, SourceRootId, Upcast};
+use ide_db::{symbol_index::SymbolIndex, RootDatabase};
 use itertools::Itertools;
 use profile::{memory_usage, Bytes};
 use span::{EditionedFileId, FileId};
@@ -38,17 +30,17 @@ use triomphe::Arc;
 pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
     let mut buf = String::new();
 
-    format_to!(buf, "{}\n", collect_query(CompressedFileTextQuery.in_db(db)));
-    format_to!(buf, "{}\n", collect_query(ParseQuery.in_db(db)));
-    format_to!(buf, "{}\n", collect_query(ParseMacroExpansionQuery.in_db(db)));
-    format_to!(buf, "{}\n", collect_query(LibrarySymbolsQuery.in_db(db)));
-    format_to!(buf, "{}\n", collect_query(ModuleSymbolsQuery.in_db(db)));
-    format_to!(buf, "{} in total\n", memory_usage());
+    // format_to!(buf, "{}\n", collect_query(CompressedFileTextQuery.in_db(db)));
+    // format_to!(buf, "{}\n", collect_query(ParseQuery.in_db(db)));
+    // format_to!(buf, "{}\n", collect_query(ParseMacroExpansionQuery.in_db(db)));
+    // format_to!(buf, "{}\n", collect_query(LibrarySymbolsQuery.in_db(db)));
+    // format_to!(buf, "{}\n", collect_query(ModuleSymbolsQuery.in_db(db)));
+    // format_to!(buf, "{} in total\n", memory_usage());
 
-    format_to!(buf, "\nDebug info:\n");
-    format_to!(buf, "{}\n", collect_query(AttrsQuery.in_db(db)));
-    format_to!(buf, "{} ast id maps\n", collect_query_count(AstIdMapQuery.in_db(db)));
-    format_to!(buf, "{} block def maps\n", collect_query_count(BlockDefMapQuery.in_db(db)));
+    // format_to!(buf, "\nDebug info:\n");
+    // format_to!(buf, "{}\n", collect_query(AttrsQuery.in_db(db)));
+    // format_to!(buf, "{} ast id maps\n", collect_query_count(AstIdMapQuery.in_db(db)));
+    // format_to!(buf, "{} block def maps\n", collect_query_count(BlockDefMapQuery.in_db(db)));
 
     if let Some(file_id) = file_id {
         format_to!(buf, "\nCrates for file {}:\n", file_id.index());
@@ -56,7 +48,8 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
         if crates.is_empty() {
             format_to!(buf, "Does not belong to any crate");
         }
-        let crate_graph = db.crate_graph();
+
+        let crate_graph = Upcast::<dyn RootQueryDb>::upcast(db).crate_graph();
         for crate_id in crates {
             let CrateData {
                 root_file_id,
@@ -97,77 +90,77 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
     buf.trim().to_owned()
 }
 
-fn collect_query<'q, Q>(table: QueryTable<'q, Q>) -> <Q as QueryCollect>::Collector
-where
-    QueryTable<'q, Q>: DebugQueryTable,
-    Q: QueryCollect,
-    <Q as Query>::Storage: 'q,
-    <Q as QueryCollect>::Collector: StatCollect<
-        <QueryTable<'q, Q> as DebugQueryTable>::Key,
-        <QueryTable<'q, Q> as DebugQueryTable>::Value,
-    >,
-{
-    struct StatCollectorWrapper<C>(C);
-    impl<C: StatCollect<K, V>, K, V> FromIterator<TableEntry<K, V>> for StatCollectorWrapper<C> {
-        fn from_iter<T>(iter: T) -> StatCollectorWrapper<C>
-        where
-            T: IntoIterator<Item = TableEntry<K, V>>,
-        {
-            let mut res = C::default();
-            for entry in iter {
-                res.collect_entry(entry.key, entry.value);
-            }
-            StatCollectorWrapper(res)
-        }
-    }
-    table.entries::<StatCollectorWrapper<<Q as QueryCollect>::Collector>>().0
-}
+// fn collect_query<'q, Q>(table: QueryTable<'q, Q>) -> <Q as QueryCollect>::Collector
+// where
+//     QueryTable<'q, Q>: DebugQueryTable,
+//     Q: QueryCollect,
+//     <Q as Query>::Storage: 'q,
+//     <Q as QueryCollect>::Collector: StatCollect<
+//         <QueryTable<'q, Q> as DebugQueryTable>::Key,
+//         <QueryTable<'q, Q> as DebugQueryTable>::Value,
+//     >,
+// {
+//     struct StatCollectorWrapper<C>(C);
+//     impl<C: StatCollect<K, V>, K, V> FromIterator<TableEntry<K, V>> for StatCollectorWrapper<C> {
+//         fn from_iter<T>(iter: T) -> StatCollectorWrapper<C>
+//         where
+//             T: IntoIterator<Item = TableEntry<K, V>>,
+//         {
+//             let mut res = C::default();
+//             for entry in iter {
+//                 res.collect_entry(entry.key, entry.value);
+//             }
+//             StatCollectorWrapper(res)
+//         }
+//     }
+//     table.entries::<StatCollectorWrapper<<Q as QueryCollect>::Collector>>().0
+// }
 
-fn collect_query_count<'q, Q>(table: QueryTable<'q, Q>) -> usize
-where
-    QueryTable<'q, Q>: DebugQueryTable,
-    Q: Query,
-    <Q as Query>::Storage: 'q,
-{
-    struct EntryCounter(usize);
-    impl<K, V> FromIterator<TableEntry<K, V>> for EntryCounter {
-        fn from_iter<T>(iter: T) -> EntryCounter
-        where
-            T: IntoIterator<Item = TableEntry<K, V>>,
-        {
-            EntryCounter(iter.into_iter().count())
-        }
-    }
-    table.entries::<EntryCounter>().0
-}
+// fn collect_query_count<'q, Q>(table: QueryTable<'q, Q>) -> usize
+// where
+//     QueryTable<'q, Q>: DebugQueryTable,
+//     Q: Query,
+//     <Q as Query>::Storage: 'q,
+// {
+//     struct EntryCounter(usize);
+//     impl<K, V> FromIterator<TableEntry<K, V>> for EntryCounter {
+//         fn from_iter<T>(iter: T) -> EntryCounter
+//         where
+//             T: IntoIterator<Item = TableEntry<K, V>>,
+//         {
+//             EntryCounter(iter.into_iter().count())
+//         }
+//     }
+//     table.entries::<EntryCounter>().0
+// }
 
-trait QueryCollect: Query {
-    type Collector;
-}
+// trait QueryCollect: Query {
+//     type Collector;
+// }
 
-impl QueryCollect for LibrarySymbolsQuery {
-    type Collector = SymbolsStats<SourceRootId>;
-}
+// impl QueryCollect for LibrarySymbolsQuery {
+//     type Collector = SymbolsStats<SourceRootId>;
+// }
 
-impl QueryCollect for ParseQuery {
-    type Collector = SyntaxTreeStats<false>;
-}
+// impl QueryCollect for ParseQuery {
+//     type Collector = SyntaxTreeStats<false>;
+// }
 
-impl QueryCollect for ParseMacroExpansionQuery {
-    type Collector = SyntaxTreeStats<true>;
-}
+// impl QueryCollect for ParseMacroExpansionQuery {
+//     type Collector = SyntaxTreeStats<true>;
+// }
 
-impl QueryCollect for CompressedFileTextQuery {
-    type Collector = FilesStats;
-}
+// impl QueryCollect for CompressedFileTextQuery {
+//     type Collector = FilesStats;
+// }
 
-impl QueryCollect for ModuleSymbolsQuery {
-    type Collector = SymbolsStats<Module>;
-}
+// impl QueryCollect for ModuleSymbolsQuery {
+//     type Collector = SymbolsStats<Module>;
+// }
 
-impl QueryCollect for AttrsQuery {
-    type Collector = AttrsStats;
-}
+// impl QueryCollect for AttrsQuery {
+//     type Collector = AttrsStats;
+// }
 
 trait StatCollect<K, V>: Default {
     fn collect_entry(&mut self, key: K, value: Option<V>);

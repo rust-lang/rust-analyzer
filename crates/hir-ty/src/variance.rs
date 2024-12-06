@@ -19,7 +19,7 @@ use crate::{
     AliasTy, Const, ConstScalar, DynTyExt, GenericArg, GenericArgData, Interner, Lifetime,
     LifetimeData, Ty, TyKind,
 };
-use base_db::ra_salsa::Cycle;
+use base_db::salsa::Cycle;
 use chalk_ir::Mutability;
 use hir_def::data::adt::StructFlags;
 use hir_def::{AdtId, GenericDefId, GenericParamId, VariantId};

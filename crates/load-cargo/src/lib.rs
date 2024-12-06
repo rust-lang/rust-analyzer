@@ -499,7 +499,7 @@ impl ProcMacroExpander for Expander {
 
 #[cfg(test)]
 mod tests {
-    use ide_db::base_db::SourceDatabase;
+    use ide_db::base_db::RootQueryDb;
     use vfs::file_set::FileSetConfigBuilder;
 
     use super::*;

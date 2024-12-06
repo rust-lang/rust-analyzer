@@ -83,7 +83,7 @@ use either::Either;
 use hir::{db::ExpandDatabase, diagnostics::AnyDiagnostic, Crate, HirFileId, InFile, Semantics};
 use ide_db::{
     assists::{Assist, AssistId, AssistKind, AssistResolveStrategy},
-    base_db::SourceDatabase,
+    base_db::RootQueryDb as _,
     generated::lints::{Lint, LintGroup, CLIPPY_LINT_GROUPS, DEFAULT_LINTS, DEFAULT_LINT_GROUPS},
     imports::insert_use::InsertUseConfig,
     label::Label,

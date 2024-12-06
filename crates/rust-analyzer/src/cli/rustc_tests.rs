@@ -160,14 +160,14 @@ impl Tester {
                     let analysis = self.host.analysis();
                     let root_file = self.root_file;
                     move || {
-                        let res = std::panic::catch_unwind(move || {
-                            analysis.full_diagnostics(
-                                diagnostic_config,
-                                ide::AssistResolveStrategy::None,
-                                root_file,
-                            )
-                        });
-                        main.unpark();
+                        // let res = std::panic::catch_unwind(move || {
+                        let res = analysis.full_diagnostics(
+                            diagnostic_config,
+                            ide::AssistResolveStrategy::None,
+                            root_file,
+                        );
+                        // });
+                        // main.unpark();
                         res
                     }
                 })
@@ -183,7 +183,7 @@ impl Tester {
                 // attempt to cancel the worker, won't work for chalk hangs unfortunately
                 self.host.request_cancellation();
             }
-            worker.join().and_then(identity)
+            worker.join()
         });
         let mut actual = FxHashMap::default();
         let panicked = match res {

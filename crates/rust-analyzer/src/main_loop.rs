@@ -10,7 +10,7 @@ use std::{
 
 use always_assert::always;
 use crossbeam_channel::{select, Receiver};
-use ide_db::base_db::{SourceDatabase, SourceRootDatabase, VfsPath};
+use ide_db::base_db::{RootQueryDb, SourceDatabase, VfsPath};
 use lsp_server::{Connection, Notification, Request};
 use lsp_types::{notification::Notification as _, TextDocumentIdentifier};
 use stdx::thread::ThreadIntent;
@@ -533,13 +533,13 @@ impl GlobalState {
                 .iter()
                 .map(|path| vfs.file_id(path).unwrap())
                 .filter(|&file_id| {
-                    let source_root = db.file_source_root(file_id);
+                    let source_root = db.source_root(file_id).source_root(db);
                     // Only publish diagnostics for files in the workspace, not from crates.io deps
                     // or the sysroot.
                     // While theoretically these should never have errors, we have quite a few false
                     // positives particularly in the stdlib, and those diagnostics would stay around
                     // forever if we emitted them here.
-                    !db.source_root(source_root).is_library
+                    !source_root.is_library
                 })
                 .collect::<std::sync::Arc<_>>()
         };
@@ -617,8 +617,8 @@ impl GlobalState {
             .iter()
             .map(|path| self.vfs.read().0.file_id(path).unwrap())
             .filter(|&file_id| {
-                let source_root = db.file_source_root(file_id);
-                !db.source_root(source_root).is_library
+                let source_root = db.source_root(file_id).source_root(db);
+                !source_root.is_library
             })
             .collect::<Vec<_>>();
         tracing::trace!("updating tests for {:?}", subscriptions);

@@ -45,14 +45,15 @@ pub mod syntax_helpers {
     pub use parser::LexedStr;
 }
 
+use dashmap::DashMap;
 pub use hir::ChangeWithProcMacros;
+use salsa::Durability;
 
-use std::{fmt, mem::ManuallyDrop};
+use std::{fmt, hash::BuildHasherDefault, mem::ManuallyDrop};
 
 use base_db::{
     db_ext_macro::{self},
-    ra_salsa::{self, Durability},
-    AnchoredPath, CrateId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
+    FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId, SourceRootInput, Upcast,
     DEFAULT_FILE_TEXT_LRU_CAP,
 };
 use hir::{
@@ -77,27 +78,37 @@ pub type FxIndexMap<K, V> =
 pub type FilePosition = FilePositionWrapper<FileId>;
 pub type FileRange = FileRangeWrapper<FileId>;
 
-#[ra_salsa::database(
-    base_db::SourceRootDatabaseStorage,
-    base_db::SourceDatabaseStorage,
-    hir::db::ExpandDatabaseStorage,
-    hir::db::DefDatabaseStorage,
-    hir::db::HirDatabaseStorage,
-    hir::db::InternDatabaseStorage,
-    LineIndexDatabaseStorage,
-    symbol_index::SymbolsDatabaseStorage
-)]
+#[salsa::db]
 pub struct RootDatabase {
     // We use `ManuallyDrop` here because every codegen unit that contains a
     // `&RootDatabase -> &dyn OtherDatabase` cast will instantiate its drop glue in the vtable,
     // which duplicates `Weak::drop` and `Arc::drop` tens of thousands of times, which makes
     // compile times of all `ide_*` and downstream crates suffer greatly.
-    storage: ManuallyDrop<ra_salsa::Storage<RootDatabase>>,
+    storage: ManuallyDrop<salsa::Storage<Self>>,
+    files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
+    source_roots: Arc<DashMap<vfs::FileId, SourceRootInput, BuildHasherDefault<FxHasher>>>,
+}
+
+impl std::panic::RefUnwindSafe for RootDatabase {}
+
+#[salsa::db]
+impl salsa::Database for RootDatabase {
+    fn salsa_event(&self, _event: &dyn Fn() -> salsa::Event) {}
 }
 
 impl Drop for RootDatabase {
     fn drop(&mut self) {
         unsafe { ManuallyDrop::drop(&mut self.storage) };
+    }
+}
+
+impl Clone for RootDatabase {
+    fn clone(&self) -> Self {
+        Self {
+            storage: self.storage.clone(),
+            files: self.files.clone(),
+            source_roots: self.source_roots.clone(),
+        }
     }
 }
 
@@ -128,16 +139,60 @@ impl Upcast<dyn HirDatabase> for RootDatabase {
     }
 }
 
-impl FileLoader for RootDatabase {
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        FileLoaderDelegate(self).resolve_path(path)
-    }
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
-        FileLoaderDelegate(self).relevant_crates(file_id)
+impl Upcast<dyn RootQueryDb> for RootDatabase {
+    fn upcast(&self) -> &(dyn RootQueryDb + 'static) {
+        self
     }
 }
 
-impl ra_salsa::Database for RootDatabase {}
+impl Upcast<dyn SourceDatabase> for RootDatabase {
+    fn upcast(&self) -> &(dyn SourceDatabase + 'static) {
+        self
+    }
+}
+
+#[salsa::db]
+impl SourceDatabase for RootDatabase {
+    fn file_text(&self, file_id: vfs::FileId) -> FileText {
+        *self.files.get(&file_id).expect("Unable to fetch file; this is a bug")
+    }
+
+    fn set_file_text(&self, file_id: vfs::FileId, text: &str) {
+        self.files.insert(file_id, FileText::new(self, file_id, Arc::from(text)));
+    }
+
+    fn set_file_text_with_durability(
+        &self,
+        file_id: vfs::FileId,
+        text: &str,
+        durability: Durability,
+    ) {
+        self.files.insert(
+            file_id,
+            FileText::builder(file_id, Arc::from(text)).durability(durability).new(self),
+        );
+    }
+
+    /// Source root of the file.
+    fn source_root(&self, file_id: vfs::FileId) -> SourceRootInput {
+        let source_root =
+            self.source_roots.get(&file_id).expect("Unable to fetch source root id; this is a bug");
+
+        *source_root
+    }
+
+    fn set_source_root_with_durability(
+        &self,
+        file_id: vfs::FileId,
+        source_root_id: SourceRootId,
+        source_root: Arc<SourceRoot>,
+        durability: Durability,
+    ) {
+        let input =
+            SourceRootInput::builder(source_root_id, source_root).durability(durability).new(self);
+        self.source_roots.insert(file_id, input);
+    }
+}
 
 impl Default for RootDatabase {
     fn default() -> RootDatabase {
@@ -147,14 +202,18 @@ impl Default for RootDatabase {
 
 impl RootDatabase {
     pub fn new(lru_capacity: Option<u16>) -> RootDatabase {
-        let mut db = RootDatabase { storage: ManuallyDrop::new(ra_salsa::Storage::default()) };
+        let mut db = RootDatabase {
+            storage: ManuallyDrop::new(salsa::Storage::default()),
+            files: Default::default(),
+            source_roots: Default::default(),
+        };
         db.set_crate_graph_with_durability(Default::default(), Durability::HIGH);
         db.set_proc_macros_with_durability(Default::default(), Durability::HIGH);
         db.set_local_roots_with_durability(Default::default(), Durability::HIGH);
         db.set_library_roots_with_durability(Default::default(), Durability::HIGH);
         db.set_expand_proc_attr_macros_with_durability(false, Durability::HIGH);
         db.update_base_query_lru_capacities(lru_capacity);
-        db.setup_syntax_context_root();
+        // hir::setup_syntax_context_root(db.as_dyn_database());
         db
     }
 
@@ -163,65 +222,55 @@ impl RootDatabase {
     }
 
     pub fn update_base_query_lru_capacities(&mut self, lru_capacity: Option<u16>) {
-        let lru_capacity = lru_capacity.unwrap_or(base_db::DEFAULT_PARSE_LRU_CAP);
-        base_db::FileTextQuery.in_db_mut(self).set_lru_capacity(DEFAULT_FILE_TEXT_LRU_CAP);
-        base_db::ParseQuery.in_db_mut(self).set_lru_capacity(lru_capacity);
-        // macro expansions are usually rather small, so we can afford to keep more of them alive
-        hir::db::ParseMacroExpansionQuery.in_db_mut(self).set_lru_capacity(4 * lru_capacity);
-        hir::db::BorrowckQuery.in_db_mut(self).set_lru_capacity(base_db::DEFAULT_BORROWCK_LRU_CAP);
-        hir::db::BodyWithSourceMapQuery.in_db_mut(self).set_lru_capacity(2048);
+        // let lru_capacity = lru_capacity.unwrap_or(base_db::DEFAULT_PARSE_LRU_CAP);
+        // base_db::FileTextQuery.in_db_mut(self).set_lru_capacity(DEFAULT_FILE_TEXT_LRU_CAP);
+        // base_db::ParseQuery.in_db_mut(self).set_lru_capacity(lru_capacity);
+        // // macro expansions are usually rather small, so we can afford to keep more of them alive
+        // hir::db::ParseMacroExpansionQuery.in_db_mut(self).set_lru_capacity(4 * lru_capacity);
+        // hir::db::BorrowckQuery.in_db_mut(self).set_lru_capacity(base_db::DEFAULT_BORROWCK_LRU_CAP);
+        // hir::db::BodyWithSourceMapQuery.in_db_mut(self).set_lru_capacity(2048);
     }
 
     pub fn update_lru_capacities(&mut self, lru_capacities: &FxHashMap<Box<str>, u16>) {
         use hir::db as hir_db;
 
-        base_db::FileTextQuery.in_db_mut(self).set_lru_capacity(DEFAULT_FILE_TEXT_LRU_CAP);
-        base_db::ParseQuery.in_db_mut(self).set_lru_capacity(
-            lru_capacities
-                .get(stringify!(ParseQuery))
-                .copied()
-                .unwrap_or(base_db::DEFAULT_PARSE_LRU_CAP),
-        );
-        hir_db::ParseMacroExpansionQuery.in_db_mut(self).set_lru_capacity(
-            lru_capacities
-                .get(stringify!(ParseMacroExpansionQuery))
-                .copied()
-                .unwrap_or(4 * base_db::DEFAULT_PARSE_LRU_CAP),
-        );
-        hir_db::BorrowckQuery.in_db_mut(self).set_lru_capacity(
-            lru_capacities
-                .get(stringify!(BorrowckQuery))
-                .copied()
-                .unwrap_or(base_db::DEFAULT_BORROWCK_LRU_CAP),
-        );
-        hir::db::BodyWithSourceMapQuery.in_db_mut(self).set_lru_capacity(2048);
+        // base_db::FileTextQuery.in_db_mut(self).set_lru_capacity(DEFAULT_FILE_TEXT_LRU_CAP);
+        // base_db::ParseQuery.in_db_mut(self).set_lru_capacity(
+        //     lru_capacities
+        //         .get(stringify!(ParseQuery))
+        //         .copied()
+        //         .unwrap_or(base_db::DEFAULT_PARSE_LRU_CAP),
+        // );
+        // hir_db::ParseMacroExpansionQuery.in_db_mut(self).set_lru_capacity(
+        //     lru_capacities
+        //         .get(stringify!(ParseMacroExpansionQuery))
+        //         .copied()
+        //         .unwrap_or(4 * base_db::DEFAULT_PARSE_LRU_CAP),
+        // );
+        // hir_db::BorrowckQuery.in_db_mut(self).set_lru_capacity(
+        //     lru_capacities
+        //         .get(stringify!(BorrowckQuery))
+        //         .copied()
+        //         .unwrap_or(base_db::DEFAULT_BORROWCK_LRU_CAP),
+        // );
+        // hir::db::BodyWithSourceMapQuery.in_db_mut(self).set_lru_capacity(2048);
+    }
+
+    pub fn snapshot(&self) -> Self {
+        Self {
+            storage: self.storage.clone(),
+            files: self.files.clone(),
+            source_roots: self.source_roots.clone(),
+        }
     }
 }
 
-impl ra_salsa::ParallelDatabase for RootDatabase {
-    fn snapshot(&self) -> ra_salsa::Snapshot<RootDatabase> {
-        ra_salsa::Snapshot::new(RootDatabase {
-            storage: ManuallyDrop::new(self.storage.snapshot()),
-        })
-    }
-}
-
-#[ra_salsa::query_group(LineIndexDatabaseStorage)]
-pub trait LineIndexDatabase: base_db::SourceDatabase {
+#[db_ext_macro::query_group]
+pub trait LineIndexDatabase: base_db::RootQueryDb {
     fn line_index(&self, file_id: FileId) -> Arc<LineIndex>;
 }
 
 fn line_index(db: &dyn LineIndexDatabase, file_id: FileId) -> Arc<LineIndex> {
-    let text = db.file_text(file_id);
-    Arc::new(LineIndex::new(&text))
-}
-
-#[db_ext_macro::query_group]
-pub trait LineIndexDatabase2: base_db::RootQueryDb {
-    fn line_index_query(&self, file_id: FileId) -> Arc<LineIndex>;
-}
-
-fn line_index_query(db: &dyn LineIndexDatabase2, file_id: FileId) -> Arc<LineIndex> {
     let text = db.file_text(file_id).text(db);
     Arc::new(LineIndex::new(&text))
 }

@@ -2,7 +2,6 @@
 
 use std::{fmt::Write, iter, mem};
 
-use base_db::ra_salsa::Cycle;
 use chalk_ir::{BoundVar, ConstData, DebruijnIndex, TyKind};
 use hir_def::{
     body::{Body, HygieneId},
@@ -22,13 +21,14 @@ use hir_expand::name::Name;
 use la_arena::ArenaMap;
 use rustc_apfloat::Float;
 use rustc_hash::FxHashMap;
+use salsa::Cycle;
 use span::{Edition, FileId};
 use syntax::TextRange;
 use triomphe::Arc;
 
 use crate::{
     consteval::ConstEvalError,
-    db::{HirDatabase, InternedClosure},
+    db::{HirDatabase, HirDatabaseData, InternedClosure},
     display::{hir_display_with_types_map, HirDisplay},
     error_lifetime,
     generics::generics,
@@ -2139,10 +2139,11 @@ pub fn mir_body_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Result<Arc<Mi
     Ok(Arc::new(result))
 }
 
-pub fn mir_body_recover(
+pub(crate) fn mir_body_recover(
     _db: &dyn HirDatabase,
     _cycle: &Cycle,
-    _def: &DefWithBodyId,
+    _: HirDatabaseData,
+    _def: DefWithBodyId,
 ) -> Result<Arc<MirBody>> {
     Err(MirLowerError::Loop)
 }

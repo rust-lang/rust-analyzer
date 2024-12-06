@@ -324,7 +324,7 @@ fn compute_expr_scopes(
 
 #[cfg(test)]
 mod tests {
-    use base_db::SourceDatabase;
+    use base_db::RootQueryDb;
     use hir_expand::{name::AsName, InFile};
     use span::FileId;
     use syntax::{algo::find_node_at_offset, ast, AstNode};
@@ -365,7 +365,7 @@ mod tests {
         let function = find_function(&db, file_id.file_id());
 
         let scopes = db.expr_scopes(function.into());
-        let (_body, source_map) = db.body_with_source_map(function.into());
+        let source_map = db.body_with_source_map(function.into()).1;
 
         let expr_id = source_map
             .node_expr(InFile { file_id: file_id.into(), value: &marker.into() })
@@ -522,7 +522,7 @@ fn foo() {
         let function = find_function(&db, file_id.file_id());
 
         let scopes = db.expr_scopes(function.into());
-        let (_, source_map) = db.body_with_source_map(function.into());
+        let source_map = db.body_with_source_map(function.into()).1;
 
         let expr_scope = {
             let expr_ast = name_ref.syntax().ancestors().find_map(ast::Expr::cast).unwrap();

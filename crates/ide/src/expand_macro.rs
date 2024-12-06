@@ -236,7 +236,7 @@ fn _format(
     file_id: FileId,
     expansion: &str,
 ) -> Option<String> {
-    use ide_db::base_db::{FileLoader, SourceDatabase};
+    use ide_db::base_db::FileLoader;
     // hack until we get hygiene working (same character amount to preserve formatting as much as possible)
     const DOLLAR_CRATE_REPLACE: &str = "__r_a_";
     const BUILTIN_REPLACE: &str = "builtin__POUND";
@@ -250,8 +250,9 @@ fn _format(
     };
     let expansion = format!("{prefix}{expansion}{suffix}");
 
-    let &crate_id = db.relevant_crates(file_id).iter().next()?;
-    let edition = db.crate_graph()[crate_id].edition;
+    let upcast_db = ide_db::base_db::Upcast::<dyn ide_db::base_db::RootQueryDb>::upcast(db);
+    let &crate_id = upcast_db.relevant_crates(file_id).iter().next()?;
+    let edition = upcast_db.crate_graph()[crate_id].edition;
 
     #[allow(clippy::disallowed_methods)]
     let mut cmd = std::process::Command::new(toolchain::Tool::Rustfmt.path());

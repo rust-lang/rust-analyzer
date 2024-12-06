@@ -1,4 +1,4 @@
-use base_db::SourceDatabaseFileInputExt as _;
+use base_db::{RootQueryDb, SourceDatabase};
 use test_fixture::WithFixture;
 
 use crate::{db::DefDatabase, nameres::tests::TestDB, AdtId, ModuleDefId};
@@ -6,6 +6,14 @@ use crate::{db::DefDatabase, nameres::tests::TestDB, AdtId, ModuleDefId};
 fn check_def_map_is_not_recomputed(ra_fixture_initial: &str, ra_fixture_change: &str) {
     let (mut db, pos) = TestDB::with_position(ra_fixture_initial);
     let krate = db.fetch_test_crate();
+
+    let (db, pos) = TestDB::with_position(ra_fixture_initial);
+    let krate = {
+        let crate_graph = db.crate_graph();
+        // Some of these tests use minicore/proc-macros which will be injected as the first crate
+        crate_graph.iter().last().unwrap()
+    };
+
     {
         let events = db.log_executed(|| {
             db.crate_def_map(krate);
@@ -317,7 +325,7 @@ pub type Ty = ();
     }
 
     // Delete the parse tree.
-    base_db::ParseQuery.in_db(&db).purge();
+    // base_db::ParseQuery.in_db(&db).purge();
 
     {
         let events = db.log_executed(|| {

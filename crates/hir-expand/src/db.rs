@@ -5,7 +5,7 @@ use either::Either;
 use limit::Limit;
 use mbe::MatchedArmIndex;
 use rustc_hash::FxHashSet;
-use salsa::{interned_sans_lifetime, plumbing::AsId};
+use salsa::plumbing::AsId;
 use span::{AstIdMap, Edition, EditionedFileId, HirFileId, HirFileIdRepr, MacroFileId, Span};
 use syntax::{AstNode, Parse, SyntaxElement, SyntaxError, SyntaxNode, SyntaxToken, T, ast};
 use syntax_bridge::{DocCommentDesugarMode, syntax_node_to_token_tree};

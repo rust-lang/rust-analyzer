@@ -1,6 +1,7 @@
 //! Handles the `Enter` key press. At the momently, this only continues
 //! comments, but should handle indent some time in the future as well.
 
+use ide_db::base_db::RootQueryDb;
 use ide_db::RootDatabase;
 use ide_db::{base_db::SourceDatabase, FilePosition};
 use span::EditionedFileId;

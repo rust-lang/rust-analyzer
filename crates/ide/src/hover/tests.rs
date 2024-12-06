@@ -46,7 +46,7 @@ fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         .unwrap();
 
     let content = analysis.db.file_text(position.file_id);
-    let hovered_element = &content[hover.range];
+    let hovered_element = &content.text(&analysis.db)[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
@@ -71,7 +71,7 @@ fn check_hover_fields_limit(
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -97,7 +97,7 @@ fn check_hover_enum_variants_limit(
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -123,7 +123,7 @@ fn check_assoc_count(
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -140,7 +140,7 @@ fn check_hover_no_links(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect:
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -157,7 +157,7 @@ fn check_hover_no_memory_layout(#[rust_analyzer::rust_fixture] ra_fixture: &str,
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -178,7 +178,7 @@ fn check_hover_no_markdown(#[rust_analyzer::rust_fixture] ra_fixture: &str, expe
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);

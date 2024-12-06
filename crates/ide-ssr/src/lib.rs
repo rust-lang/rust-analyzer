@@ -141,19 +141,23 @@ impl<'db> MatchFinder<'db> {
 
     /// Constructs an instance using the start of the first file in `db` as the lookup context.
     pub fn at_first_file(db: &'db ide_db::RootDatabase) -> Result<MatchFinder<'db>, SsrError> {
-        use ide_db::base_db::SourceRootDatabase;
-        use ide_db::symbol_index::SymbolsDatabase;
-        if let Some(first_file_id) =
-            db.local_roots().iter().next().and_then(|root| db.source_root(*root).iter().next())
-        {
-            MatchFinder::in_context(
-                db,
-                ide_db::FilePosition { file_id: first_file_id, offset: 0.into() },
-                vec![],
-            )
-        } else {
-            bail!("No files to search");
-        }
+        todo!()
+        // use ide_db::base_db::SourceDatabase;
+        // use ide_db::symbol_index::SymbolsDatabase;
+        // if let Some(first_file_id) = db
+        //     .local_roots()
+        //     .iter()
+        //     .next()
+        //     .and_then(|root| db.source_root(*root).source_root(db).iter().next())
+        // {
+        //     MatchFinder::in_context(
+        //         db,
+        //         ide_db::FilePosition { file_id: first_file_id, offset: 0.into() },
+        //         vec![],
+        //     )
+        // } else {
+        //     bail!("No files to search");
+        // }
     }
 
     /// Adds a rule to be applied. The order in which rules are added matters. Earlier rules take
@@ -188,7 +192,7 @@ impl<'db> MatchFinder<'db> {
                     replacing::matches_to_edit(
                         self.sema.db,
                         &matches,
-                        &self.sema.db.file_text(file_id),
+                        &self.sema.db.file_text(file_id).text(self.sema.db),
                         &self.rules,
                     ),
                 )
@@ -229,7 +233,7 @@ impl<'db> MatchFinder<'db> {
     ) -> Vec<MatchDebugInfo> {
         let file = self.sema.parse(file_id);
         let mut res = Vec::new();
-        let file_text = self.sema.db.file_text(file_id.into());
+        let file_text = self.sema.db.file_text(file_id.into()).text(self.sema.db);
         let mut remaining_text = &*file_text;
         let mut base = 0;
         let len = snippet.len() as u32;
