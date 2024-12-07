@@ -6,8 +6,10 @@ use ide_db::imports::{
 use itertools::Itertools;
 use syntax::{
     algo::neighbor,
-    ast::{self, edit_in_place::EditorRemovable, syntax_factory::SyntaxFactory},
-    match_ast, AstNode, SyntaxElement, SyntaxNode,
+    ast::{self, syntax_factory::SyntaxFactory},
+    match_ast,
+    syntax_editor::edits::Removable,
+    AstNode, SyntaxElement, SyntaxNode,
 };
 
 use crate::{
@@ -68,7 +70,6 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
         (selection_range, edits?)
     };
 
-    // FIXME: Is this the best to get a `SyntaxNode` object? We need one for `SourceChangeBuilder::make_editor`.
     let parent_node = match ctx.covering_element() {
         SyntaxElement::Node(n) => n,
         SyntaxElement::Token(t) => t.parent()?,
