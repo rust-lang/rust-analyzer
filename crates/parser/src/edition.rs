@@ -1,6 +1,7 @@
 //! The edition of the Rust language used in a crate.
 // Ideally this would be defined in the span crate, but the dependency chain is all over the place
 // wrt to span, parser and syntax.
+#![allow(unreachable_pub, dead_code)] // This file is `include!()d` in codegen.
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
