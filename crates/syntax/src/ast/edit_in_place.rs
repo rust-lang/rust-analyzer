@@ -448,7 +448,7 @@ impl ast::UseTree {
 
         if let Some(u) = parent.clone().and_then(ast::Use::cast) {
             if u.use_tree().is_none() {
-                u.remove()
+                u.remove();
             }
         } else if let Some(u) = parent.and_then(ast::UseTreeList::cast) {
             if u.use_trees().next().is_none() {
