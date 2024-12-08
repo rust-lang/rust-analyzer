@@ -1459,6 +1459,30 @@ enum Foo {
 }
 
 #[test]
+fn flyimport_enum_variant_not_shadow_by_fn() {
+    check(
+        r#"
+//- /std.rs crate:std
+pub enum Result<T, E> {
+    Ok(T),
+    Err(E)
+}
+
+//- /dep.rs crate:dep deps:std
+use std::Result;
+pub fn Ok<T>(t: T) -> Result<T, ()> {}
+
+//- /main.rs crate:main deps:std,dep
+use std::{Result, Result::Ok};
+fn main() -> Result<(), ()> {
+    Ok$0
+}
+"#,
+        expect![[r#""#]],
+    )
+}
+
+#[test]
 fn flyimport_attribute() {
     check(
         r#"

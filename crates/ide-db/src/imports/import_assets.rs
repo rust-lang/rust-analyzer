@@ -251,7 +251,6 @@ impl ImportAssets {
             *to_import = NameToImport::Exact(name, case_sensitive);
         }
     }
-
     fn search_for(
         &self,
         sema: &Semantics<'_, RootDatabase>,
@@ -277,11 +276,33 @@ impl ImportAssets {
             )
             .filter(|path| path.len() > 1)
         };
+        let current_def_names: FxHashSet<Name> = scope_definitions
+            .iter()
+            .filter_map(|&scope_def| match scope_def {
+                ScopeDef::ModuleDef(module_def) => {
+                    match module_def {
+                        // Built in types can coexist with modules of the same name
+                        ModuleDef::BuiltinType(_) => None,
+                        def => def.name(sema.db),
+                    }
+                }
+                _ => None,
+            })
+            .collect();
 
         match &self.import_candidate {
             ImportCandidate::Path(path_candidate) => {
                 path_applicable_imports(sema, krate, path_candidate, mod_path, |item_to_import| {
+                    let import_def = match item_to_import {
+                        ItemInNs::Types(def) => def,
+                        ItemInNs::Values(def) => def,
+                        ItemInNs::Macros(def) => ModuleDef::Macro(def),
+                    };
+
                     !scope_definitions.contains(&ScopeDef::from(item_to_import))
+                        && !import_def
+                            .name(sema.db)
+                            .is_some_and(|name| current_def_names.contains(&name))
                 })
             }
             ImportCandidate::TraitAssocItem(trait_candidate)
