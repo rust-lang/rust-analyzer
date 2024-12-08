@@ -62,6 +62,7 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
                 root_file_id,
                 edition,
                 version,
+                package_id,
                 display_name,
                 cfg_options,
                 potential_cfg_options,
@@ -81,6 +82,7 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
             format_to!(buf, "    Root module file id: {}\n", root_file_id.index());
             format_to!(buf, "    Edition: {}\n", edition);
             format_to!(buf, "    Version: {}\n", version.as_deref().unwrap_or("n/a"));
+            format_to!(buf, "    Package Id: {}\n", package_id.as_deref().unwrap_or("n/a"));
             format_to!(buf, "    Enabled cfgs: {:?}\n", cfg_options);
             format_to!(buf, "    Potential cfgs: {:?}\n", potential_cfg_options);
             format_to!(buf, "    Env: {:?}\n", env);
