@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["cpu_span","memory_usage"],"struct":["Bytes","CpuSpan","MemoryUsage","StopWatch","StopWatchSpan"]};

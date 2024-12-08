@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ErrorCode","ExtractError","Message"],"struct":["Connection","Incoming","IoThreads","Notification","Outgoing","ProtocolError","ReqQueue","Request","RequestId","Response","ResponseError"]};
