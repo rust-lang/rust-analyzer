@@ -20,6 +20,7 @@ struct RatomlTest {
     urls: Vec<Url>,
     server: Server,
     tmp_path: Utf8PathBuf,
+    config_locked: bool,
 }
 
 impl RatomlTest {
@@ -30,6 +31,23 @@ impl RatomlTest {
         fixtures: Vec<&str>,
         roots: Vec<&str>,
         client_config: Option<serde_json::Value>,
+    ) -> Self {
+        RatomlTest::new_with_lock(fixtures, roots, client_config, false)
+    }
+
+    fn new_locked(
+        fixtures: Vec<&str>,
+        roots: Vec<&str>,
+        client_config: Option<serde_json::Value>,
+    ) -> Self {
+        RatomlTest::new_with_lock(fixtures, roots, client_config, true)
+    }
+
+    fn new_with_lock(
+        fixtures: Vec<&str>,
+        roots: Vec<&str>,
+        client_config: Option<serde_json::Value>,
+        prelock: bool,
     ) -> Self {
         let tmp_dir = TestDir::new();
         let tmp_path = tmp_dir.path().to_owned();
@@ -46,15 +64,16 @@ impl RatomlTest {
             project = project.with_config(client_config);
         }
 
-        let server = project.server().wait_until_workspace_is_loaded();
+        let server = project.server_with_lock(prelock).wait_until_workspace_is_loaded();
 
-        let mut case = Self { urls: vec![], server, tmp_path };
-        let urls = fixtures.iter().map(|fixture| case.fixture_path(fixture)).collect::<Vec<_>>();
+        let mut case = Self { urls: vec![], server, tmp_path, config_locked: prelock };
+        let urls =
+            fixtures.iter().map(|fixture| case.fixture_path(fixture, prelock)).collect::<Vec<_>>();
         case.urls = urls;
         case
     }
 
-    fn fixture_path(&self, fixture: &str) -> Url {
+    fn fixture_path(&self, fixture: &str, prelock: bool) -> Url {
         let mut lines = fixture.trim().split('\n');
 
         let mut path =
@@ -72,7 +91,8 @@ impl RatomlTest {
         let mut spl = spl.into_iter();
         if let Some(first) = spl.next() {
             if first == "$$CONFIG_DIR$$" {
-                path = Config::user_config_path().unwrap().to_path_buf().into();
+                assert!(prelock, "this test requires prelock to be set");
+                path = Config::user_config_dir_path().unwrap().to_path_buf().into();
             } else {
                 path = path.join(first);
             }
@@ -92,7 +112,7 @@ impl RatomlTest {
     }
 
     fn create(&mut self, fixture_path: &str, text: String) {
-        let url = self.fixture_path(fixture_path);
+        let url = self.fixture_path(fixture_path, self.config_locked);
 
         self.server.notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
@@ -285,16 +305,15 @@ enum Value {
 //     }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_user_config_detected() {
     if skip_slow_tests() {
         return;
     }
 
-    let server = RatomlTest::new(
+    let server = RatomlTest::new_locked(
         vec![
             r#"
-//- /$$CONFIG_DIR$$/rust-analyzer/rust-analyzer.toml
+//- /$$CONFIG_DIR$$/rust-analyzer.toml
 assist.emitMustUse = true
 "#,
             r#"
@@ -322,13 +341,12 @@ enum Value {
 }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_create_user_config() {
     if skip_slow_tests() {
         return;
     }
 
-    let mut server = RatomlTest::new(
+    let mut server = RatomlTest::new_locked(
         vec![
             r#"
 //- /p1/Cargo.toml
@@ -353,10 +371,7 @@ enum Value {
         1,
         InternalTestingFetchConfigResponse::AssistEmitMustUse(false),
     );
-    server.create(
-        "//- /$$CONFIG_DIR$$/rust-analyzer/rust-analyzer.toml",
-        RatomlTest::EMIT_MUST_USE.to_owned(),
-    );
+    server.create("//- /$$CONFIG_DIR$$/rust-analyzer.toml", RatomlTest::EMIT_MUST_USE.to_owned());
     server.query(
         InternalTestingFetchConfigOption::AssistEmitMustUse,
         1,
@@ -365,13 +380,12 @@ enum Value {
 }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_modify_user_config() {
     if skip_slow_tests() {
         return;
     }
 
-    let mut server = RatomlTest::new(
+    let mut server = RatomlTest::new_locked(
         vec![
             r#"
 //- /p1/Cargo.toml
@@ -386,7 +400,7 @@ enum Value {
     Text(String),
 }"#,
             r#"
-//- /$$CONFIG_DIR$$/rust-analyzer/rust-analyzer.toml
+//- /$$CONFIG_DIR$$/rust-analyzer.toml
 assist.emitMustUse = true"#,
         ],
         vec!["p1"],
@@ -407,13 +421,12 @@ assist.emitMustUse = true"#,
 }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_delete_user_config() {
     if skip_slow_tests() {
         return;
     }
 
-    let mut server = RatomlTest::new(
+    let mut server = RatomlTest::new_locked(
         vec![
             r#"
 //- /p1/Cargo.toml
@@ -428,7 +441,7 @@ enum Value {
     Text(String),
 }"#,
             r#"
-//- /$$CONFIG_DIR$$/rust-analyzer/rust-analyzer.toml
+//- /$$CONFIG_DIR$$/rust-analyzer.toml
 assist.emitMustUse = true"#,
         ],
         vec!["p1"],
