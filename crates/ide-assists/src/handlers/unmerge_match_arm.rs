@@ -1,5 +1,4 @@
 use syntax::{
-    algo::neighbor,
     ast::{self, edit::IndentLevel, make, AstNode},
     ted::{self, Position},
     Direction, SyntaxKind, T,
@@ -55,12 +54,8 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
                 .siblings_with_tokens(Direction::Next)
                 .filter_map(|it| ast::Pat::cast(it.into_node()?));
             // FIXME: We should add a leading pipe if the original arm has one.
-            let new_match_arm = make::match_arm(
-                pats_after,
-                match_arm.guard().and_then(|guard| guard.condition()),
-                match_arm_body,
-            )
-            .clone_for_update();
+            let new_match_arm =
+                make::match_arm(pats_after, match_arm.guard(), match_arm_body).clone_for_update();
 
             let mut pipe_index = pipe_token.index();
             if pipe_token
@@ -84,15 +79,8 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
             //    body is a block, but we don't bother to check that.
             //  - Missing after the arm with arms after, if the arm body is a block. In this case
             //    we don't want to insert a comma at all.
-            let has_comma_after =
-                std::iter::successors(match_arm.syntax().last_child_or_token(), |it| {
-                    it.prev_sibling_or_token()
-                })
-                .map(|it| it.kind())
-                .find(|it| !it.is_trivia())
-                    == Some(T![,]);
-            let has_arms_after = neighbor(&match_arm, Direction::Next).is_some();
-            if !has_comma_after && !has_arms_after {
+            let has_comma_after = match_arm.comma_token().is_some();
+            if !has_comma_after && !match_arm.expr().unwrap().is_block_like() {
                 insert_after_old_arm.push(make::token(T![,]).into());
             }
 
@@ -102,13 +90,6 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
             insert_after_old_arm.push(new_match_arm.syntax().clone().into());
 
             ted::insert_all_raw(Position::after(match_arm.syntax()), insert_after_old_arm);
-
-            if has_comma_after {
-                ted::insert_raw(
-                    Position::last_child_of(new_match_arm.syntax()),
-                    make::token(T![,]),
-                );
-            }
 
             edit.replace(old_parent_range, new_parent.to_string());
         },
@@ -256,7 +237,7 @@ fn main() {
     let x = X::A;
     let y = match x {
         X::A => 1i32,
-        X::B => 1i32
+        X::B => 1i32,
     };
 }
 "#,
@@ -286,7 +267,7 @@ fn main() {
     let x = X::A;
     match x {
         X::A => {},
-        X::B => {},
+        X::B => {}
     }
 }
 "#,

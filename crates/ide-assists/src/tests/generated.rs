@@ -2560,6 +2560,31 @@ const _: i32 = 1_012_345;
 }
 
 #[test]
+fn doctest_remove_braces() {
+    check_doc_test(
+        "remove_braces",
+        r#####"
+fn foo(n: i32) -> i32 {
+    match n {
+        1 =>$0 {
+            n + 1
+        },
+        _ => 0
+    }
+}
+"#####,
+        r#####"
+fn foo(n: i32) -> i32 {
+    match n {
+        1 => n + 1,
+        _ => 0
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_remove_dbg() {
     check_doc_test(
         "remove_dbg",

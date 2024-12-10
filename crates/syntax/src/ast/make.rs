@@ -786,18 +786,23 @@ pub fn path_pat(path: ast::Path) -> ast::Pat {
 
 pub fn match_arm(
     pats: impl IntoIterator<Item = ast::Pat>,
-    guard: Option<ast::Expr>,
+    guard: Option<ast::MatchGuard>,
     expr: ast::Expr,
 ) -> ast::MatchArm {
+    let comma_str = if expr.is_block_like() { "" } else { "," };
     let pats_str = pats.into_iter().join(" | ");
     return match guard {
-        Some(guard) => from_text(&format!("{pats_str} if {guard} => {expr}")),
-        None => from_text(&format!("{pats_str} => {expr}")),
+        Some(guard) => from_text(&format!("{pats_str} {guard} => {expr}{comma_str}")),
+        None => from_text(&format!("{pats_str} => {expr}{comma_str}")),
     };
 
     fn from_text(text: &str) -> ast::MatchArm {
         ast_from_text(&format!("fn f() {{ match () {{{text}}} }}"))
     }
+}
+
+pub fn match_guard(condition: ast::Expr) -> ast::MatchGuard {
+    ast_from_text(&format!("fn f() {{ match () {{() if {condition} => ()}} }}"))
 }
 
 pub fn match_arm_with_guard(
@@ -816,7 +821,7 @@ pub fn match_arm_with_guard(
 pub fn match_arm_list(arms: impl IntoIterator<Item = ast::MatchArm>) -> ast::MatchArmList {
     let arms_str = arms.into_iter().fold(String::new(), |mut acc, arm| {
         let needs_comma = arm.expr().map_or(true, |it| !it.is_block_like());
-        let comma = if needs_comma { "," } else { "" };
+        let comma = if needs_comma && arm.comma_token().is_none() { "," } else { "" };
         let arm = arm.syntax();
         format_to_acc!(acc, "    {arm}{comma}\n")
     });

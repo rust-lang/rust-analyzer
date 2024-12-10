@@ -126,6 +126,30 @@ impl SyntaxFactory {
         ast.into()
     }
 
+    pub fn match_arm(
+        &self,
+        pat: ast::Pat,
+        guard: Option<ast::MatchGuard>,
+        expr: ast::Expr,
+    ) -> ast::MatchArm {
+        let ast = make::match_arm([pat.clone()], guard.clone(), expr.clone()).clone_for_update();
+
+        if let Some(mut mappings) = self.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
+
+            builder.map_node(pat.syntax().clone(), ast.pat().unwrap().syntax().clone());
+            builder.map_node(expr.syntax().clone(), ast.expr().unwrap().syntax().clone());
+
+            if let Some(input) = guard {
+                builder.map_node(input.syntax().clone(), ast.guard().unwrap().syntax().clone());
+            }
+
+            builder.finish(&mut mappings);
+        }
+
+        ast
+    }
+
     pub fn let_stmt(
         &self,
         pattern: ast::Pat,

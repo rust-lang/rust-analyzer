@@ -104,7 +104,6 @@ mod handlers {
 
     pub(crate) type Handler = fn(&mut Assists, &AssistContext<'_>) -> Option<()>;
 
-    mod add_braces;
     mod add_explicit_type;
     mod add_label_to_loop;
     mod add_lifetime_to_type;
@@ -116,6 +115,7 @@ mod handlers {
     mod auto_import;
     mod bind_unused_param;
     mod bool_to_enum;
+    mod change_braces;
     mod change_visibility;
     mod convert_bool_then;
     mod convert_closure_to_fn;
@@ -232,7 +232,6 @@ mod handlers {
     pub(crate) fn all() -> &'static [Handler] {
         &[
             // These are alphabetic for the foolish consistency
-            add_braces::add_braces,
             add_explicit_type::add_explicit_type,
             add_label_to_loop::add_label_to_loop,
             add_missing_match_arms::add_missing_match_arms,
@@ -244,6 +243,7 @@ mod handlers {
             auto_import::auto_import,
             bind_unused_param::bind_unused_param,
             bool_to_enum::bool_to_enum,
+            change_braces::change_braces,
             change_visibility::change_visibility,
             convert_bool_then::convert_bool_then_to_if,
             convert_bool_then::convert_if_to_bool_then,
