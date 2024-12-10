@@ -879,6 +879,37 @@
         [
             FileSymbol {
                 name: "IsThisJustATrait",
+                def: Trait(
+                    Trait {
+                        id: TraitId(
+                            0,
+                        ),
+                    },
+                ),
+                loc: DeclarationLocation {
+                    hir_file_id: EditionedFileId(
+                        FileId(
+                            1,
+                        ),
+                        Edition2021,
+                    ),
+                    ptr: SyntaxNodePtr {
+                        kind: USE_TREE,
+                        range: 111..143,
+                    },
+                    name_ptr: AstPtr(
+                        SyntaxNodePtr {
+                            kind: NAME,
+                            range: 127..143,
+                        },
+                    ),
+                },
+                container_name: None,
+                is_alias: false,
+                is_assoc: false,
+            },
+            FileSymbol {
+                name: "IsThisJustATrait",
                 def: Macro(
                     Macro {
                         id: Macro2Id(

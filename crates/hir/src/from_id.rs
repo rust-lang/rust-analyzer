@@ -5,13 +5,14 @@
 
 use hir_def::{
     hir::{BindingId, LabelId},
+    item_scope::ImportId,
     AdtId, AssocItemId, DefWithBodyId, EnumVariantId, FieldId, GenericDefId, GenericParamId,
-    ModuleDefId, VariantId,
+    ModuleDefId, UseId, VariantId,
 };
 
 use crate::{
-    Adt, AssocItem, BuiltinType, DefWithBody, Field, GenericDef, GenericParam, ItemInNs, Label,
-    Local, ModuleDef, Variant, VariantDef,
+    Adt, AssocItem, BuiltinType, DefWithBody, Field, GenericDef, GenericParam, Import, ItemInNs,
+    Label, Local, ModuleDef, Use, Variant, VariantDef,
 };
 
 macro_rules! from_id {
@@ -50,6 +51,33 @@ from_id![
     (hir_def::MacroId, crate::Macro),
     (hir_def::ExternCrateId, crate::ExternCrateDecl),
 ];
+
+impl From<Use> for UseId {
+    fn from(value: Use) -> Self {
+        value.id
+    }
+}
+impl From<Import> for UseId {
+    fn from(value: Import) -> Self {
+        value.id.import
+    }
+}
+impl From<Import> for ImportId {
+    fn from(value: Import) -> Self {
+        value.id
+    }
+}
+
+impl From<UseId> for Use {
+    fn from(id: UseId) -> Self {
+        Use { id }
+    }
+}
+impl From<ImportId> for Import {
+    fn from(id: ImportId) -> Self {
+        Import { id }
+    }
+}
 
 impl From<AdtId> for Adt {
     fn from(id: AdtId) -> Self {

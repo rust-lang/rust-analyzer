@@ -317,6 +317,7 @@ fn module_def_to_hl_tag(def: Definition) -> HlTag {
         Definition::DeriveHelper(_) => SymbolKind::DeriveHelper,
         Definition::InlineAsmRegOrRegClass(_) => SymbolKind::InlineAsmRegOrRegClass,
         Definition::InlineAsmOperand(_) => SymbolKind::Local,
+        Definition::Import(_) => unreachable!(),
     };
     HlTag::Symbol(symbol)
 }

@@ -79,7 +79,7 @@ use crate::{
     item_tree::{ItemTreeId, Mod, TreeId},
     nameres::{diagnostics::DefDiagnostic, path_resolution::ResolveMode},
     path::ModPath,
-    per_ns::PerNs,
+    per_ns::PerNsRes,
     visibility::{Visibility, VisibilityExplicitness},
     AstId, BlockId, BlockLoc, CrateRootModuleId, EnumId, EnumVariantId, ExternCrateId, FunctionId,
     FxIndexMap, LocalModuleId, Lookup, MacroExpander, MacroId, ModuleId, ProcMacroId, UseId,
@@ -603,7 +603,7 @@ impl DefMap {
         path: &ModPath,
         shadow: BuiltinShadowMode,
         expected_macro_subns: Option<MacroSubNs>,
-    ) -> (PerNs, Option<usize>) {
+    ) -> (PerNsRes, Option<usize>) {
         let res = self.resolve_path_fp_with_macro(
             db,
             ResolveMode::Other,
@@ -621,7 +621,7 @@ impl DefMap {
         original_module: LocalModuleId,
         path: &ModPath,
         shadow: BuiltinShadowMode,
-    ) -> (PerNs, Option<usize>) {
+    ) -> (PerNsRes, Option<usize>) {
         let res = self.resolve_path_fp_with_macro_single(
             db,
             ResolveMode::Other,

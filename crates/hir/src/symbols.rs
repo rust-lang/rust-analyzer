@@ -1,8 +1,9 @@
 //! File symbol extraction.
 
+use std::convert::identity;
+
 use hir_def::{
     db::DefDatabase,
-    item_scope::ItemInNs,
     src::{HasChildSource, HasSource},
     AdtId, AssocItemId, DefWithBodyId, HasModule, ImplId, Lookup, MacroId, ModuleDefId, ModuleId,
     TraitId,
@@ -151,8 +152,6 @@ impl<'a> SymbolCollector<'a> {
         }
 
         // Record renamed imports.
-        // FIXME: In case it imports multiple items under different namespaces we just pick one arbitrarily
-        // for now.
         for id in scope.imports() {
             let source = id.import.child_source(self.db.upcast());
             let Some(use_tree_src) = source.value.get(id.idx) else { continue };
@@ -160,12 +159,8 @@ impl<'a> SymbolCollector<'a> {
             let Some(name) = rename.name() else { continue };
 
             let res = scope.fully_resolve_import(self.db.upcast(), id);
-            res.iter_items().for_each(|(item, _)| {
-                let def = match item {
-                    ItemInNs::Types(def) | ItemInNs::Values(def) => def,
-                    ItemInNs::Macros(def) => ModuleDefId::from(def),
-                }
-                .into();
+            res.map(identity, identity, ModuleDefId::from).iter().for_each(|def| {
+                let def = def.into();
                 let dec_loc = DeclarationLocation {
                     hir_file_id: source.file_id,
                     ptr: SyntaxNodePtr::new(use_tree_src.syntax()),

@@ -21,7 +21,7 @@ use crate::{
     item_tree::FieldsShape,
     nameres::{sub_namespace_match, BlockInfo, BuiltinShadowMode, DefMap, MacroSubNs},
     path::{ModPath, PathKind},
-    per_ns::PerNs,
+    per_ns::PerNsRes,
     visibility::{RawVisibility, Visibility},
     AdtId, LocalModuleId, ModuleDefId,
 };
@@ -40,7 +40,7 @@ pub(super) enum ReachedFixedPoint {
 
 #[derive(Debug, Clone)]
 pub(super) struct ResolvePathResult {
-    pub(super) resolved_def: PerNs,
+    pub(super) resolved_def: PerNsRes,
     pub(super) segment_index: Option<usize>,
     pub(super) reached_fixedpoint: ReachedFixedPoint,
     pub(super) from_differing_crate: bool,
@@ -48,11 +48,11 @@ pub(super) struct ResolvePathResult {
 
 impl ResolvePathResult {
     fn empty(reached_fixedpoint: ReachedFixedPoint) -> ResolvePathResult {
-        ResolvePathResult::new(PerNs::none(), reached_fixedpoint, None, false)
+        ResolvePathResult::new(PerNsRes::none(), reached_fixedpoint, None, false)
     }
 
     fn new(
-        resolved_def: PerNs,
+        resolved_def: PerNsRes,
         reached_fixedpoint: ReachedFixedPoint,
         segment_index: Option<usize>,
         from_differing_crate: bool,
@@ -61,7 +61,7 @@ impl ResolvePathResult {
     }
 }
 
-impl PerNs {
+impl PerNsRes {
     pub(super) fn filter_macro(
         mut self,
         db: &dyn DefDatabase,
@@ -223,15 +223,15 @@ impl DefMap {
             PathKind::DollarCrate(krate) => {
                 if krate == self.krate {
                     cov_mark::hit!(macro_dollar_crate_self);
-                    PerNs::types(self.crate_root().into(), Visibility::Public, None)
+                    PerNsRes::types(self.crate_root().into(), Visibility::Public, None)
                 } else {
                     let def_map = db.crate_def_map(krate);
                     let module = def_map.module_id(Self::ROOT);
                     cov_mark::hit!(macro_dollar_crate_other);
-                    PerNs::types(module.into(), Visibility::Public, None)
+                    PerNsRes::types(module.into(), Visibility::Public, None)
                 }
             }
-            PathKind::Crate => PerNs::types(self.crate_root().into(), Visibility::Public, None),
+            PathKind::Crate => PerNsRes::types(self.crate_root().into(), Visibility::Public, None),
             // plain import or absolute path in 2015: crate-relative with
             // fallback to extern prelude (with the simplification in
             // rust-lang/rust#57745)
@@ -318,7 +318,7 @@ impl DefMap {
                     );
                 }
 
-                PerNs::types(module.into(), Visibility::Public, None)
+                PerNsRes::types(module.into(), Visibility::Public, None)
             }
             PathKind::Abs => match self.resolve_path_abs(&mut segments, path) {
                 Either::Left(it) => it,
@@ -384,14 +384,14 @@ impl DefMap {
         &self,
         segments: &mut impl Iterator<Item = (usize, &'a Name)>,
         path: &ModPath,
-    ) -> Either<PerNs, ReachedFixedPoint> {
+    ) -> Either<PerNsRes, ReachedFixedPoint> {
         let segment = match segments.next() {
             Some((_, segment)) => segment,
             None => return Either::Right(ReachedFixedPoint::Yes),
         };
         if let Some(&(def, extern_crate)) = self.data.extern_prelude.get(segment) {
             tracing::debug!("absolute path {:?} resolved to crate {:?}", path, def);
-            Either::Left(PerNs::types(
+            Either::Left(PerNsRes::types(
                 def.into(),
                 Visibility::Public,
                 extern_crate.map(ImportOrExternCrate::ExternCrate),
@@ -404,7 +404,7 @@ impl DefMap {
     fn resolve_remaining_segments<'a>(
         &self,
         segments: impl Iterator<Item = (usize, &'a Name)>,
-        mut curr_per_ns: PerNs,
+        mut curr_per_ns: PerNsRes,
         path: &ModPath,
         db: &dyn DefDatabase,
         shadow: BuiltinShadowMode,
@@ -478,9 +478,9 @@ impl DefMap {
                         let variant_data = &tree[variant.lookup(db).id.value];
                         (variant_data.name == *segment).then(|| match variant_data.shape {
                             FieldsShape::Record => {
-                                PerNs::types(variant.into(), Visibility::Public, None)
+                                PerNsRes::types(variant.into(), Visibility::Public, None)
                             }
-                            FieldsShape::Tuple | FieldsShape::Unit => PerNs::both(
+                            FieldsShape::Tuple | FieldsShape::Unit => PerNsRes::both(
                                 variant.into(),
                                 variant.into(),
                                 Visibility::Public,
@@ -492,7 +492,7 @@ impl DefMap {
                         Some(res) => res,
                         None => {
                             return ResolvePathResult::new(
-                                PerNs::types(e.into(), vis, imp),
+                                PerNsRes::types(e.into(), vis, imp),
                                 ReachedFixedPoint::Yes,
                                 Some(i),
                                 false,
@@ -510,7 +510,7 @@ impl DefMap {
                     );
 
                     return ResolvePathResult::new(
-                        PerNs::types(s, vis, imp),
+                        PerNsRes::types(s, vis, imp),
                         ReachedFixedPoint::Yes,
                         Some(i),
                         false,
@@ -532,7 +532,7 @@ impl DefMap {
         name: &Name,
         shadow: BuiltinShadowMode,
         expected_macro_subns: Option<MacroSubNs>,
-    ) -> PerNs {
+    ) -> PerNsRes {
         // Resolve in:
         //  - legacy scope of macro
         //  - current module / scope
@@ -547,14 +547,14 @@ impl DefMap {
             .filter(|&id| {
                 sub_namespace_match(Some(MacroSubNs::from_id(db, id)), expected_macro_subns)
             })
-            .map_or_else(PerNs::none, |m| PerNs::macros(m, Visibility::Public, None));
+            .map_or_else(PerNsRes::none, |m| PerNsRes::macros(m, Visibility::Public, None));
         let from_scope = self[module].scope.get(name).filter_macro(db, expected_macro_subns);
         let from_builtin = match self.block {
             Some(_) => {
                 // Only resolve to builtins in the root `DefMap`.
-                PerNs::none()
+                PerNsRes::none()
             }
-            None => BUILTIN_SCOPE.get(name).copied().unwrap_or_else(PerNs::none),
+            None => BUILTIN_SCOPE.get(name).copied().unwrap_or_else(PerNsRes::none),
         };
         let from_scope_or_builtin = match shadow {
             BuiltinShadowMode::Module => from_scope.or(from_builtin),
@@ -568,14 +568,14 @@ impl DefMap {
             if self.block.is_some() && module == DefMap::ROOT {
                 // Don't resolve extern prelude in pseudo-modules of blocks, because
                 // they might been shadowed by local names.
-                return PerNs::none();
+                return PerNsRes::none();
             }
             self.resolve_name_in_extern_prelude(name)
         };
         let macro_use_prelude = || self.resolve_in_macro_use_prelude(name);
         let prelude = || {
             if self.block.is_some() && module == DefMap::ROOT {
-                return PerNs::none();
+                return PerNsRes::none();
             }
             self.resolve_in_prelude(db, name)
         };
@@ -587,7 +587,7 @@ impl DefMap {
             .or_else(prelude)
     }
 
-    fn resolve_name_in_all_preludes(&self, db: &dyn DefDatabase, name: &Name) -> PerNs {
+    fn resolve_name_in_all_preludes(&self, db: &dyn DefDatabase, name: &Name) -> PerNsRes {
         // Resolve in:
         //  - extern prelude / macro_use prelude
         //  - std prelude
@@ -598,9 +598,9 @@ impl DefMap {
         extern_prelude.or_else(macro_use_prelude).or_else(prelude)
     }
 
-    fn resolve_name_in_extern_prelude(&self, name: &Name) -> PerNs {
-        self.data.extern_prelude.get(name).map_or(PerNs::none(), |&(it, extern_crate)| {
-            PerNs::types(
+    fn resolve_name_in_extern_prelude(&self, name: &Name) -> PerNsRes {
+        self.data.extern_prelude.get(name).map_or(PerNsRes::none(), |&(it, extern_crate)| {
+            PerNsRes::types(
                 it.into(),
                 Visibility::Public,
                 extern_crate.map(ImportOrExternCrate::ExternCrate),
@@ -608,9 +608,9 @@ impl DefMap {
         })
     }
 
-    fn resolve_in_macro_use_prelude(&self, name: &Name) -> PerNs {
-        self.macro_use_prelude.get(name).map_or(PerNs::none(), |&(it, _extern_crate)| {
-            PerNs::macros(
+    fn resolve_in_macro_use_prelude(&self, name: &Name) -> PerNsRes {
+        self.macro_use_prelude.get(name).map_or(PerNsRes::none(), |&(it, _extern_crate)| {
+            PerNsRes::macros(
                 it,
                 Visibility::Public,
                 // FIXME?
@@ -624,7 +624,7 @@ impl DefMap {
         db: &dyn DefDatabase,
         module: LocalModuleId,
         name: &Name,
-    ) -> PerNs {
+    ) -> PerNsRes {
         let from_crate_root = match self.block {
             Some(_) => {
                 let def_map = self.crate_root().def_map(db);
@@ -635,7 +635,7 @@ impl DefMap {
         let from_extern_prelude = || {
             if self.block.is_some() && module == DefMap::ROOT {
                 // Don't resolve extern prelude in pseudo-module of a block.
-                return PerNs::none();
+                return PerNsRes::none();
             }
             self.resolve_name_in_extern_prelude(name)
         };
@@ -643,7 +643,7 @@ impl DefMap {
         from_crate_root.or_else(from_extern_prelude)
     }
 
-    fn resolve_in_prelude(&self, db: &dyn DefDatabase, name: &Name) -> PerNs {
+    fn resolve_in_prelude(&self, db: &dyn DefDatabase, name: &Name) -> PerNsRes {
         if let Some((prelude, _use)) = self.prelude {
             let keep;
             let def_map = if prelude.krate == self.krate {
@@ -655,7 +655,7 @@ impl DefMap {
             };
             def_map[prelude.local_id].scope.get(name)
         } else {
-            PerNs::none()
+            PerNsRes::none()
         }
     }
 }

@@ -238,6 +238,7 @@ impl TryToNav for Definition {
             Definition::TraitAlias(it) => it.try_to_nav(db),
             Definition::TypeAlias(it) => it.try_to_nav(db),
             Definition::ExternCrateDecl(it) => it.try_to_nav(db),
+            Definition::Import(it) => it.try_to_nav(db),
             Definition::InlineAsmOperand(it) => it.try_to_nav(db),
             Definition::BuiltinLifetime(_)
             | Definition::BuiltinType(_)
@@ -439,6 +440,36 @@ impl TryToNav for hir::ExternCrateDecl {
                         .unwrap_or_else(|| self.name(db))
                         .display_no_db(edition)
                         .to_smolstr(),
+                    focus_range,
+                    full_range,
+                    SymbolKind::Module,
+                );
+
+                res.docs = self.docs(db);
+                res.description = Some(self.display(db, edition).to_string());
+                res.container_name = container_name(db, *self, edition);
+                res
+            },
+        ))
+    }
+}
+
+impl TryToNav for hir::Import {
+    fn try_to_nav(&self, db: &RootDatabase) -> Option<UpmappingResult<NavigationTarget>> {
+        let src = self.source(db)?;
+        let name = self.alias_or_name(db).or_else(|| self.name(db))?;
+        let InFile { file_id, value } = src;
+        let focus = value.rename().map_or_else(
+            || value.path().and_then(|it| it.segment()).map(Either::Left),
+            |it| it.name().map(Either::Right),
+        );
+        let edition = self.module(db).krate().edition(db);
+
+        Some(orig_range_with_focus(db, file_id, value.syntax(), focus).map(
+            |(FileRange { file_id, range: full_range }, focus_range)| {
+                let mut res = NavigationTarget::from_syntax(
+                    file_id,
+                    name.display_no_db(edition).to_smolstr(),
                     focus_range,
                     full_range,
                     SymbolKind::Module,

@@ -16,8 +16,8 @@ use span::SyntaxContextId;
 
 use crate::{
     Adt, AsAssocItem, AssocItem, BuiltinType, Const, ConstParam, DocLinkDef, Enum, ExternCrateDecl,
-    Field, Function, GenericParam, HasCrate, Impl, LifetimeParam, Macro, Module, ModuleDef, Static,
-    Struct, Trait, TraitAlias, Type, TypeAlias, TypeParam, Union, Variant, VariantDef,
+    Field, Function, GenericParam, HasCrate, Impl, Import, LifetimeParam, Macro, Module, ModuleDef,
+    Static, Struct, Trait, TraitAlias, Type, TypeAlias, TypeParam, Union, Use, Variant, VariantDef,
 };
 
 pub trait HasAttrs {
@@ -55,6 +55,7 @@ impl_has_attrs![
     (GenericParam, GenericParamId),
     (Impl, ImplId),
     (ExternCrateDecl, ExternCrateId),
+    (Use, UseId),
 ];
 
 macro_rules! impl_has_attrs_enum {
@@ -72,6 +73,16 @@ macro_rules! impl_has_attrs_enum {
 
 impl_has_attrs_enum![Struct, Union, Enum for Adt];
 impl_has_attrs_enum![TypeParam, ConstParam, LifetimeParam for GenericParam];
+
+impl HasAttrs for Import {
+    fn attrs(self, db: &dyn HirDatabase) -> AttrsWithOwner {
+        let def = AttrDefId::UseId(self.id.import);
+        AttrsWithOwner::new(db.upcast(), def)
+    }
+    fn attr_id(self) -> AttrDefId {
+        AttrDefId::UseId(self.id.import)
+    }
+}
 
 impl HasAttrs for AssocItem {
     fn attrs(self, db: &dyn HirDatabase) -> AttrsWithOwner {

@@ -1158,6 +1158,17 @@ pub enum ImportKind {
 }
 
 impl UseTree {
+    pub fn find(&self, idx: Idx<ast::UseTree>) -> Option<&UseTree> {
+        if self.index == idx {
+            return Some(self);
+        }
+        if let UseTreeKind::Prefixed { list, .. } = &self.kind {
+            list.iter().find_map(|it| it.find(idx))
+        } else {
+            None
+        }
+    }
+
     /// Expands the `UseTree` into individually imported `ModPath`s.
     pub fn expand(
         &self,

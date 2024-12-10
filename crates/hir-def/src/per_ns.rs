@@ -28,14 +28,37 @@ bitflags! {
     }
 }
 
+pub type PerNsRes = PerNs<
+    (ModuleDefId, Visibility, Option<ImportOrExternCrate>),
+    (ModuleDefId, Visibility, Option<ImportId>),
+    (MacroId, Visibility, Option<ImportId>),
+>;
+
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct PerNs {
-    pub types: Option<(ModuleDefId, Visibility, Option<ImportOrExternCrate>)>,
-    pub values: Option<(ModuleDefId, Visibility, Option<ImportId>)>,
-    pub macros: Option<(MacroId, Visibility, Option<ImportId>)>,
+pub struct PerNs<T, V, M> {
+    pub types: Option<T>,
+    pub values: Option<V>,
+    pub macros: Option<M>,
 }
 
-impl PerNs {
+impl<T, V, M> PerNs<T, V, M> {
+    pub fn none() -> PerNs<T, V, M> {
+        PerNs { types: None, values: None, macros: None }
+    }
+
+    pub fn map<T2, V2, M2>(
+        self,
+        types: impl FnOnce(T) -> T2,
+        values: impl FnOnce(V) -> V2,
+        macros: impl FnOnce(M) -> M2,
+    ) -> PerNs<T2, V2, M2> {
+        PerNs {
+            types: self.types.map(types),
+            values: self.values.map(values),
+            macros: self.macros.map(macros),
+        }
+    }
+
     pub(crate) fn availability(&self) -> NsAvailability {
         let mut result = NsAvailability::empty();
         result.set(NsAvailability::TYPES, self.types.is_some());
@@ -43,17 +66,21 @@ impl PerNs {
         result.set(NsAvailability::MACROS, self.macros.is_some());
         result
     }
+}
 
-    pub fn none() -> PerNs {
-        PerNs { types: None, values: None, macros: None }
+impl<T> PerNs<T, T, T> {
+    pub fn iter(self) -> impl Iterator<Item = T> {
+        self.types.into_iter().chain(self.values).chain(self.macros)
+    }
+}
+
+impl PerNsRes {
+    pub fn values(t: ModuleDefId, v: Visibility, i: Option<ImportId>) -> PerNsRes {
+        PerNsRes { types: None, values: Some((t, v, i)), macros: None }
     }
 
-    pub fn values(t: ModuleDefId, v: Visibility, i: Option<ImportId>) -> PerNs {
-        PerNs { types: None, values: Some((t, v, i)), macros: None }
-    }
-
-    pub fn types(t: ModuleDefId, v: Visibility, i: Option<ImportOrExternCrate>) -> PerNs {
-        PerNs { types: Some((t, v, i)), values: None, macros: None }
+    pub fn types(t: ModuleDefId, v: Visibility, i: Option<ImportOrExternCrate>) -> PerNsRes {
+        PerNsRes { types: Some((t, v, i)), values: None, macros: None }
     }
 
     pub fn both(
@@ -61,16 +88,16 @@ impl PerNs {
         values: ModuleDefId,
         v: Visibility,
         i: Option<ImportOrExternCrate>,
-    ) -> PerNs {
-        PerNs {
+    ) -> PerNsRes {
+        PerNsRes {
             types: Some((types, v, i)),
             values: Some((values, v, i.and_then(ImportOrExternCrate::into_import))),
             macros: None,
         }
     }
 
-    pub fn macros(macro_: MacroId, v: Visibility, i: Option<ImportId>) -> PerNs {
-        PerNs { types: None, values: None, macros: Some((macro_, v, i)) }
+    pub fn macros(macro_: MacroId, v: Visibility, i: Option<ImportId>) -> PerNsRes {
+        PerNsRes { types: None, values: None, macros: Some((macro_, v, i)) }
     }
 
     pub fn is_none(&self) -> bool {
@@ -105,32 +132,32 @@ impl PerNs {
         self.macros.map(|it| (it.0, it.2))
     }
 
-    pub fn filter_visibility(self, mut f: impl FnMut(Visibility) -> bool) -> PerNs {
-        let _p = tracing::info_span!("PerNs::filter_visibility").entered();
-        PerNs {
+    pub fn filter_visibility(self, mut f: impl FnMut(Visibility) -> bool) -> PerNsRes {
+        let _p = tracing::info_span!("PerNsRes::filter_visibility").entered();
+        PerNsRes {
             types: self.types.filter(|&(_, v, _)| f(v)),
             values: self.values.filter(|&(_, v, _)| f(v)),
             macros: self.macros.filter(|&(_, v, _)| f(v)),
         }
     }
 
-    pub fn with_visibility(self, vis: Visibility) -> PerNs {
-        PerNs {
+    pub fn with_visibility(self, vis: Visibility) -> PerNsRes {
+        PerNsRes {
             types: self.types.map(|(it, _, c)| (it, vis, c)),
             values: self.values.map(|(it, _, c)| (it, vis, c)),
             macros: self.macros.map(|(it, _, import)| (it, vis, import)),
         }
     }
 
-    pub fn or(self, other: PerNs) -> PerNs {
-        PerNs {
+    pub fn or(self, other: PerNsRes) -> PerNsRes {
+        PerNsRes {
             types: self.types.or(other.types),
             values: self.values.or(other.values),
             macros: self.macros.or(other.macros),
         }
     }
 
-    pub fn or_else(self, f: impl FnOnce() -> PerNs) -> PerNs {
+    pub fn or_else(self, f: impl FnOnce() -> PerNsRes) -> PerNsRes {
         if self.is_full() {
             self
         } else {
@@ -139,7 +166,6 @@ impl PerNs {
     }
 
     pub fn iter_items(self) -> impl Iterator<Item = (ItemInNs, Option<ImportOrExternCrate>)> {
-        let _p = tracing::info_span!("PerNs::iter_items").entered();
         self.types
             .map(|it| (ItemInNs::Types(it.0), it.2))
             .into_iter()

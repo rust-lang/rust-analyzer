@@ -21,8 +21,8 @@ use itertools::Itertools;
 
 use crate::{
     Adt, AsAssocItem, AssocItem, AssocItemContainer, Const, ConstParam, Enum, ExternCrateDecl,
-    Field, Function, GenericParam, HasCrate, HasVisibility, Impl, LifetimeParam, Macro, Module,
-    SelfParam, Static, Struct, Trait, TraitAlias, TupleField, TyBuilder, Type, TypeAlias,
+    Field, Function, GenericParam, HasCrate, HasVisibility, Impl, Import, LifetimeParam, Macro,
+    Module, SelfParam, Static, Struct, Trait, TraitAlias, TupleField, TyBuilder, Type, TypeAlias,
     TypeOrConstParam, TypeParam, Union, Variant,
 };
 
@@ -438,6 +438,32 @@ impl HirDisplay for ExternCrateDecl {
         if let Some(alias) = self.alias(f.db) {
             write!(f, " as {}", alias.display(f.edition()))?;
         }
+        Ok(())
+    }
+}
+
+impl HirDisplay for Import {
+    fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
+        use hir_def::{item_tree::ImportKind, Lookup};
+
+        let loc = self.id.import.lookup(f.db.upcast());
+        let item_tree = loc.id.item_tree(f.db.upcast());
+        let use_ = &item_tree[loc.id.value];
+        write_visibility(self.module(f.db).id, self.visibility(f.db), f)?;
+        f.write_str("use ")?;
+        // FIXME: short circuit
+        use_.use_tree.expand(|idx, path, kind, alias| {
+            if idx == self.id.idx {
+                _ = write!(f, "{}", path.display(f.db.upcast(), f.edition()));
+                if let ImportKind::Glob = kind {
+                    _ = write!(f, "*");
+                }
+                if let Some(alias) = alias {
+                    _ = write!(f, " as {}", alias.display(f.edition()));
+                }
+            }
+        });
+
         Ok(())
     }
 }

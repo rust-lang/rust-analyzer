@@ -32,6 +32,13 @@ pub enum ImportAlias {
 }
 
 impl ImportAlias {
+    pub fn name(&self) -> Option<Name> {
+        match self {
+            ImportAlias::Underscore => None,
+            ImportAlias::Alias(name) => Some(name.clone()),
+        }
+    }
+
     pub fn display(&self, edition: Edition) -> impl Display + '_ {
         ImportAliasDisplay { value: self, edition }
     }

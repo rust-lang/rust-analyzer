@@ -538,6 +538,9 @@ pub(super) fn highlight_def(
             }
             highlight
         }
+        Definition::Import(_) => {
+            unreachable!()
+        }
         Definition::Label(_) => Highlight::new(HlTag::Symbol(SymbolKind::Label)),
         Definition::BuiltinAttr(_) => Highlight::new(HlTag::Symbol(SymbolKind::BuiltinAttr)),
         Definition::ToolModule(_) => Highlight::new(HlTag::Symbol(SymbolKind::ToolModule)),

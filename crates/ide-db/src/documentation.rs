@@ -1,4 +1,5 @@
 //! Documentation attribute related utilities.
+
 use either::Either;
 use hir::{
     db::{DefDatabase, HirDatabase},
@@ -178,7 +179,7 @@ macro_rules! impl_has_docs {
 
 impl_has_docs![
     Variant, Field, Static, Const, Trait, TraitAlias, TypeAlias, Macro, Function, Adt, Module,
-    Impl,
+    Impl, Use,
 ];
 
 macro_rules! impl_has_docs_enum {
@@ -226,17 +227,59 @@ impl HasDocs for hir::AssocItem {
 
 impl HasDocs for hir::ExternCrateDecl {
     fn docs(self, db: &dyn HirDatabase) -> Option<Documentation> {
-        let crate_docs =
-            docs_from_attrs(&self.resolved_crate(db)?.root_module().attrs(db)).map(String::from);
+        let crate_docs = self.resolved_crate(db)?.root_module().docs(db);
         let decl_docs = docs_from_attrs(&self.attrs(db)).map(String::from);
         match (decl_docs, crate_docs) {
             (None, None) => None,
             (Some(decl_docs), None) => Some(decl_docs),
-            (None, Some(crate_docs)) => Some(crate_docs),
+            (None, Some(crate_docs)) => return Some(crate_docs),
             (Some(mut decl_docs), Some(crate_docs)) => {
                 decl_docs.push('\n');
                 decl_docs.push('\n');
-                decl_docs += &crate_docs;
+                decl_docs += crate_docs.as_str();
+                Some(decl_docs)
+            }
+        }
+        .map(Documentation::new)
+    }
+    fn resolve_doc_path(
+        self,
+        db: &dyn HirDatabase,
+        link: &str,
+        ns: Option<hir::Namespace>,
+    ) -> Option<hir::DocLinkDef> {
+        resolve_doc_path_on(db, self, link, ns)
+    }
+}
+
+impl HasDocs for hir::Import {
+    fn docs(self, db: &dyn HirDatabase) -> Option<Documentation> {
+        let target_docs = self.resolve_once(db).iter().next().and_then(|it| match it {
+            hir::ImportOrDef::Import(it) => it.docs(db),
+            hir::ImportOrDef::ExternCrate(it) => it.docs(db),
+            hir::ImportOrDef::Def(it) => match it {
+                hir::ModuleDef::Module(it) => it.docs(db),
+                hir::ModuleDef::Function(it) => it.docs(db),
+                hir::ModuleDef::Adt(it) => it.docs(db),
+                hir::ModuleDef::Variant(it) => it.docs(db),
+                hir::ModuleDef::Const(it) => it.docs(db),
+                hir::ModuleDef::Static(it) => it.docs(db),
+                hir::ModuleDef::Trait(it) => it.docs(db),
+                hir::ModuleDef::TraitAlias(it) => it.docs(db),
+                hir::ModuleDef::TypeAlias(it) => it.docs(db),
+                hir::ModuleDef::Macro(it) => it.docs(db),
+                hir::ModuleDef::BuiltinType(_) => None,
+            },
+        });
+        let decl_docs = docs_from_attrs(&self.attrs(db)).map(String::from);
+        match (decl_docs, target_docs) {
+            (None, None) => None,
+            (Some(decl_docs), None) => Some(decl_docs),
+            (None, Some(target_docs)) => return Some(target_docs),
+            (Some(mut decl_docs), Some(target_docs)) => {
+                decl_docs.push('\n');
+                decl_docs.push('\n');
+                decl_docs += target_docs.as_str();
                 Some(decl_docs)
             }
         }

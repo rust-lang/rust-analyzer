@@ -44,7 +44,7 @@ use crate::{
         ResolveMode,
     },
     path::{ImportAlias, ModPath, PathKind},
-    per_ns::PerNs,
+    per_ns::PerNsRes,
     tt,
     visibility::{RawVisibility, Visibility},
     AdtId, AstId, AstIdWithPath, ConstLoc, CrateRootModuleId, EnumLoc, EnumVariantLoc,
@@ -112,15 +112,15 @@ enum PartialResolvedImport {
     /// None of any namespaces is resolved
     Unresolved,
     /// One of namespaces is resolved
-    Indeterminate(PerNs),
+    Indeterminate(PerNsRes),
     /// All namespaces are resolved, OR it comes from other crate
-    Resolved(PerNs),
+    Resolved(PerNsRes),
 }
 
 impl PartialResolvedImport {
-    fn namespaces(self) -> PerNs {
+    fn namespaces(self) -> PerNsRes {
         match self {
-            PartialResolvedImport::Unresolved => PerNs::none(),
+            PartialResolvedImport::Unresolved => PerNsRes::none(),
             PartialResolvedImport::Indeterminate(ns) | PartialResolvedImport::Resolved(ns) => ns,
         }
     }
@@ -210,7 +210,7 @@ struct DefCollector<'a> {
     deps: FxHashMap<Name, Dependency>,
     glob_imports: FxHashMap<LocalModuleId, Vec<(LocalModuleId, Visibility, UseId)>>,
     unresolved_imports: Vec<ImportDirective>,
-    indeterminate_imports: Vec<(ImportDirective, PerNs)>,
+    indeterminate_imports: Vec<(ImportDirective, PerNsRes)>,
     unresolved_macros: Vec<MacroDirective>,
     // We'd like to avoid emitting a diagnostics avalanche when some `extern crate` doesn't
     // resolve. When we emit diagnostics for unresolved imports, we only do so if the import
@@ -634,7 +634,7 @@ impl DefCollector<'_> {
             self.def_map.modules[module_id].scope.declare(macro_.into());
             self.update(
                 module_id,
-                &[(Some(name), PerNs::macros(macro_.into(), Visibility::Public, None))],
+                &[(Some(name), PerNsRes::macros(macro_.into(), Visibility::Public, None))],
                 Visibility::Public,
                 None,
             );
@@ -670,7 +670,7 @@ impl DefCollector<'_> {
         self.def_map.modules[module_id].scope.declare(macro_.into());
         self.update(
             module_id,
-            &[(Some(name), PerNs::macros(macro_.into(), Visibility::Public, None))],
+            &[(Some(name), PerNsRes::macros(macro_.into(), Visibility::Public, None))],
             vis,
             None,
         );
@@ -685,7 +685,7 @@ impl DefCollector<'_> {
         self.def_map.modules[module_id].scope.declare(macro_.into());
         self.update(
             module_id,
-            &[(Some(name), PerNs::macros(macro_.into(), Visibility::Public, None))],
+            &[(Some(name), PerNsRes::macros(macro_.into(), Visibility::Public, None))],
             Visibility::Public,
             None,
         );
@@ -940,7 +940,7 @@ impl DefCollector<'_> {
                         .iter()
                         .map(|&variant| {
                             let name = tree[variant.lookup(self.db).id.value].name.clone();
-                            let res = PerNs::both(variant.into(), variant.into(), vis, None);
+                            let res = PerNsRes::both(variant.into(), variant.into(), vis, None);
                             (Some(name), res)
                         })
                         .collect::<Vec<_>>();
@@ -961,7 +961,7 @@ impl DefCollector<'_> {
         &mut self,
         // The module for which `resolutions` have been resolve
         module_id: LocalModuleId,
-        resolutions: &[(Option<Name>, PerNs)],
+        resolutions: &[(Option<Name>, PerNsRes)],
         // Visibility this import will have
         vis: Visibility,
         import: Option<ImportType>,
@@ -974,9 +974,9 @@ impl DefCollector<'_> {
         &mut self,
         // The module for which `resolutions` have been resolved.
         module_id: LocalModuleId,
-        resolutions: &[(Option<Name>, PerNs)],
+        resolutions: &[(Option<Name>, PerNsRes)],
         // All resolutions are imported with this visibility; the visibilities in
-        // the `PerNs` values are ignored and overwritten
+        // the `PerNsRes` values are ignored and overwritten
         vis: Visibility,
         import: Option<ImportType>,
         depth: usize,
@@ -1059,7 +1059,7 @@ impl DefCollector<'_> {
         &mut self,
         module_id: LocalModuleId,
         name: &Name,
-        mut defs: PerNs,
+        mut defs: PerNsRes,
         vis: Visibility,
         def_import_type: Option<ImportType>,
     ) -> bool {
@@ -1620,7 +1620,7 @@ impl ModCollector<'_, '_> {
                 def_collector.def_map.modules[module_id].scope.declare(id);
                 def_collector.update(
                     module_id,
-                    &[(Some(name.clone()), PerNs::from_def(id, vis, has_constructor, None))],
+                    &[(Some(name.clone()), PerNsRes::from_def(id, vis, has_constructor, None))],
                     vis,
                     None,
                 )
@@ -1725,7 +1725,7 @@ impl ModCollector<'_, '_> {
                             module_id,
                             &[(
                                 name.cloned(),
-                                PerNs::types(
+                                PerNsRes::types(
                                     resolved.into(),
                                     vis,
                                     Some(ImportOrExternCrate::ExternCrate(id)),
@@ -2136,7 +2136,7 @@ impl ModCollector<'_, '_> {
         def_map.modules[self.module_id].scope.declare(def);
         self.def_collector.update(
             self.module_id,
-            &[(Some(name), PerNs::from_def(def, vis, false, None))],
+            &[(Some(name), PerNsRes::from_def(def, vis, false, None))],
             vis,
             None,
         );

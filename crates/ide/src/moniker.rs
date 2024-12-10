@@ -229,6 +229,9 @@ pub(crate) fn def_to_kind(db: &RootDatabase, def: Definition) -> SymbolInformati
         Definition::ToolModule(..) => Module,
         Definition::ExternCrateDecl(..) => Module,
         Definition::InlineAsmRegOrRegClass(..) => Module,
+        Definition::Import(_) => {
+            unreachable!()
+        }
     }
 }
 
@@ -377,6 +380,9 @@ pub(crate) fn def_to_moniker(
         }
         Definition::ExternCrateDecl(m) => {
             MonikerDescriptor { name: m.name(db).display(db, edition).to_string(), desc }
+        }
+        Definition::Import(_) => {
+            unreachable!()
         }
     };
 

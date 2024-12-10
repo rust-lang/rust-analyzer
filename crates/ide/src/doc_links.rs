@@ -211,6 +211,7 @@ pub(crate) fn resolve_doc_path_for_def(
         Definition::Field(it) => it.resolve_doc_path(db, link, ns),
         Definition::SelfType(it) => it.resolve_doc_path(db, link, ns),
         Definition::ExternCrateDecl(it) => it.resolve_doc_path(db, link, ns),
+        Definition::Import(it) => it.resolve_doc_path(db, link, ns),
         Definition::BuiltinAttr(_)
         | Definition::BuiltinType(_)
         | Definition::BuiltinLifetime(_)
@@ -666,6 +667,9 @@ fn filename_and_frag_for_def(
         }
         Definition::ExternCrateDecl(it) => {
             format!("{}/index.html", it.name(db).unescaped().display(db.upcast()))
+        }
+        Definition::Import(it) => {
+            return filename_and_frag_for_def(db, it.resolve_fully(db).iter().next()?.into())
         }
         Definition::Local(_)
         | Definition::GenericParam(_)

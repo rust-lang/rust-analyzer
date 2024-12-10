@@ -46,19 +46,20 @@ use hir_def::{
     data::adt::VariantData,
     generics::{LifetimeParamData, TypeOrConstParamData, TypeParamProvenance},
     hir::{BindingAnnotation, BindingId, ExprId, ExprOrPatId, LabelId, Pat},
-    item_tree::{AttrOwner, FieldParent, ItemTreeFieldId, ItemTreeNode},
+    item_scope::ImportId,
+    item_tree::{AttrOwner, FieldParent, ItemTreeFieldId, ItemTreeNode, UseTreeKind},
     lang_item::LangItemTarget,
     layout::{self, ReprOptions, TargetDataLayout},
     nameres::{self, diagnostics::DefDiagnostic},
     path::ImportAlias,
-    per_ns::PerNs,
+    per_ns::{PerNs, PerNsRes},
     resolver::{HasResolver, Resolver},
     type_ref::TypesSourceMap,
     AssocItemId, AssocItemLoc, AttrDefId, CallableDefId, ConstId, ConstParamId, CrateRootModuleId,
     DefWithBodyId, EnumId, EnumVariantId, ExternCrateId, FunctionId, GenericDefId, GenericParamId,
     HasModule, ImplId, InTypeConstId, ItemContainerId, LifetimeParamId, LocalFieldId, Lookup,
     MacroExpander, ModuleId, StaticId, StructId, SyntheticSyntax, TraitAliasId, TraitId, TupleId,
-    TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId,
+    TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, UseId,
 };
 use hir_expand::{
     attrs::collect_attrs, proc_macro::ProcMacroKind, AstId, MacroCallKind, RenderedExpandError,
@@ -2572,6 +2573,124 @@ impl SelfParam {
 impl HasVisibility for Function {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
         db.function_visibility(self.id)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ImportOrDef {
+    Import(Import),
+    ExternCrate(ExternCrateDecl),
+    Def(ModuleDef),
+}
+
+impl From<hir_def::item_scope::ImportOrDef> for ImportOrDef {
+    fn from(import_or_def: hir_def::item_scope::ImportOrDef) -> Self {
+        match import_or_def {
+            hir_def::item_scope::ImportOrDef::Import(import) => ImportOrDef::Import(import.into()),
+            hir_def::item_scope::ImportOrDef::ExternCrate(extern_crate) => {
+                ImportOrDef::ExternCrate(extern_crate.into())
+            }
+            hir_def::item_scope::ImportOrDef::Def(def) => ImportOrDef::Def(def.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Import {
+    pub(crate) id: ImportId,
+}
+
+impl Import {
+    pub fn parent_use(self) -> Use {
+        Use { id: self.id.import }
+    }
+
+    pub fn module(self, db: &dyn HirDatabase) -> Module {
+        self.id.import.module(db.upcast()).into()
+    }
+
+    pub fn resolve_once(
+        self,
+        db: &dyn HirDatabase,
+    ) -> PerNs<ImportOrDef, ImportOrDef, ImportOrDef> {
+        let module = self.module(db);
+        module.id.def_map(db.upcast())[module.id.local_id].scope.resolve_import(self.id).map(
+            From::from,
+            From::from,
+            From::from,
+        )
+    }
+
+    pub fn resolve_fully(self, db: &dyn HirDatabase) -> PerNs<ModuleDef, ModuleDef, ModuleDef> {
+        let module = self.module(db);
+        module.id.def_map(db.upcast())[module.id.local_id]
+            .scope
+            .fully_resolve_import(db.upcast(), self.id)
+            .map(From::from, From::from, |it| ModuleDefId::from(it).into())
+    }
+
+    pub fn name(self, db: &dyn HirDatabase) -> Option<Name> {
+        let loc = self.id.import.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
+        let use_ = &item_tree[loc.id.value];
+        use_.use_tree.find(self.id.idx).and_then(|it| match it.kind() {
+            UseTreeKind::Single { path, .. } => path.segments().last().cloned(),
+            _ => None,
+        })
+    }
+
+    pub fn alias(self, db: &dyn HirDatabase) -> Option<ImportAlias> {
+        let loc = self.id.import.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
+        let use_ = &item_tree[loc.id.value];
+        use_.use_tree.find(self.id.idx).and_then(|it| match it.kind() {
+            UseTreeKind::Single { alias, .. } => alias.clone(),
+            _ => None,
+        })
+    }
+
+    /// Returns the name under which this crate is made accessible, taking `_` into account.
+    pub fn alias_or_name(self, db: &dyn HirDatabase) -> Option<Name> {
+        let loc = self.id.import.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
+        let use_ = &item_tree[loc.id.value];
+        use_.use_tree.find(self.id.idx).and_then(|it| match it.kind() {
+            UseTreeKind::Single { path, alias } => match alias {
+                Some(ImportAlias::Underscore) => None,
+                Some(ImportAlias::Alias(alias)) => Some(alias.clone()),
+                None => path.segments().last().cloned(),
+            },
+            _ => None,
+        })
+    }
+}
+
+impl HasVisibility for Import {
+    fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
+        let loc = self.id.import.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
+        let use_ = &item_tree[loc.id.value];
+        item_tree[use_.visibility].resolve(db.upcast(), &self.id.import.resolver(db.upcast()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Use {
+    pub(crate) id: UseId,
+}
+
+impl Use {
+    pub fn module(self, db: &dyn HirDatabase) -> Module {
+        self.id.module(db.upcast()).into()
+    }
+}
+
+impl HasVisibility for Use {
+    fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
+        let use_ = &item_tree[loc.id.value];
+        item_tree[use_.visibility].resolve(db.upcast(), &self.id.resolver(db.upcast()))
     }
 }
 
@@ -5690,7 +5809,7 @@ pub enum ScopeDef {
 }
 
 impl ScopeDef {
-    pub fn all_items(def: PerNs) -> ArrayVec<Self, 3> {
+    pub fn all_items(def: PerNsRes) -> ArrayVec<Self, 3> {
         let mut items = ArrayVec::new();
 
         match (def.take_types(), def.take_values()) {
@@ -5907,6 +6026,18 @@ pub trait HasContainer {
 impl HasContainer for ExternCrateDecl {
     fn container(&self, db: &dyn HirDatabase) -> ItemContainer {
         container_id_to_hir(self.id.lookup(db.upcast()).container.into())
+    }
+}
+
+impl HasContainer for Use {
+    fn container(&self, db: &dyn HirDatabase) -> ItemContainer {
+        container_id_to_hir(self.id.lookup(db.upcast()).container.into())
+    }
+}
+
+impl HasContainer for Import {
+    fn container(&self, db: &dyn HirDatabase) -> ItemContainer {
+        container_id_to_hir(self.id.import.lookup(db.upcast()).container.into())
     }
 }
 

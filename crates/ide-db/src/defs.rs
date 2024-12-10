@@ -13,9 +13,9 @@ use either::Either;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, AssocItem, AttributeTemplate, BuiltinAttr, BuiltinType,
     Const, Crate, DefWithBody, DeriveHelper, DocLinkDef, ExternAssocItem, ExternCrateDecl, Field,
-    Function, GenericParam, HasVisibility, HirDisplay, Impl, InlineAsmOperand, Label, Local, Macro,
-    Module, ModuleDef, Name, PathResolution, Semantics, Static, StaticLifetime, Struct, ToolModule,
-    Trait, TraitAlias, TupleField, TypeAlias, Variant, VariantDef, Visibility,
+    Function, GenericParam, HasVisibility, HirDisplay, Impl, Import, InlineAsmOperand, Label,
+    Local, Macro, Module, ModuleDef, Name, PathResolution, Semantics, Static, StaticLifetime,
+    Struct, ToolModule, Trait, TraitAlias, TupleField, TypeAlias, Variant, VariantDef, Visibility,
 };
 use span::Edition;
 use stdx::{format_to, impl_from};
@@ -49,6 +49,7 @@ pub enum Definition {
     BuiltinAttr(BuiltinAttr),
     ToolModule(ToolModule),
     ExternCrateDecl(ExternCrateDecl),
+    Import(Import),
     InlineAsmRegOrRegClass(()),
     InlineAsmOperand(InlineAsmOperand),
 }
@@ -83,6 +84,7 @@ impl Definition {
             Definition::GenericParam(it) => it.module(db),
             Definition::Label(it) => it.module(db),
             Definition::ExternCrateDecl(it) => it.module(db),
+            Definition::Import(it) => it.module(db),
             Definition::DeriveHelper(it) => it.derive().module(db),
             Definition::InlineAsmOperand(it) => it.parent(db).module(db),
             Definition::BuiltinAttr(_)
@@ -115,6 +117,7 @@ impl Definition {
             Definition::TypeAlias(it) => it.visibility(db),
             Definition::Variant(it) => it.visibility(db),
             Definition::ExternCrateDecl(it) => it.visibility(db),
+            Definition::Import(it) => it.visibility(db),
             Definition::BuiltinType(_) | Definition::TupleField(_) => Visibility::Public,
             Definition::Macro(_) => return None,
             Definition::BuiltinAttr(_)
@@ -155,6 +158,7 @@ impl Definition {
             Definition::ToolModule(_) => return None,  // FIXME
             Definition::DeriveHelper(it) => it.name(db),
             Definition::ExternCrateDecl(it) => return it.alias_or_name(db),
+            Definition::Import(it) => return it.alias_or_name(db),
             Definition::InlineAsmRegOrRegClass(_) => return None,
             Definition::InlineAsmOperand(op) => return op.name(db),
         };
@@ -207,6 +211,7 @@ impl Definition {
             Definition::GenericParam(_) => None,
             Definition::Label(_) => None,
             Definition::ExternCrateDecl(it) => it.docs(db),
+            Definition::Import(it) => it.docs(db),
 
             Definition::BuiltinAttr(it) => {
                 let name = it.name(db);
@@ -283,6 +288,7 @@ impl Definition {
             Definition::GenericParam(it) => it.display(db, edition).to_string(),
             Definition::Label(it) => it.name(db).display(db, edition).to_string(),
             Definition::ExternCrateDecl(it) => it.display(db, edition).to_string(),
+            Definition::Import(it) => it.display(db, edition).to_string(),
             Definition::BuiltinAttr(it) => format!("#[{}]", it.name(db).display(db, edition)),
             Definition::ToolModule(it) => it.name(db).display(db, edition).to_string(),
             Definition::DeriveHelper(it) => {

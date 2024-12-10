@@ -200,6 +200,20 @@ impl Definition {
                         .and_then(syn_ctx_is_root)
                 }
             }
+            Definition::Import(it) => {
+                let src = sema.source(it)?;
+                if let Some(rename) = src.value.rename() {
+                    let name = rename.name()?;
+                    src.with_value(name.syntax())
+                        .original_file_range_opt(sema.db)
+                        .and_then(syn_ctx_is_root)
+                } else {
+                    let name = src.value.path()?.segment()?.name_ref()?;
+                    src.with_value(name.syntax())
+                        .original_file_range_opt(sema.db)
+                        .and_then(syn_ctx_is_root)
+                }
+            }
             Definition::InlineAsmOperand(it) => name_range(it, sema).and_then(syn_ctx_is_root),
             Definition::BuiltinType(_)
             | Definition::BuiltinLifetime(_)

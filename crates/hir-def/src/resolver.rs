@@ -23,7 +23,7 @@ use crate::{
     lang_item::LangItemTarget,
     nameres::{DefMap, MacroSubNs},
     path::{ModPath, Path, PathKind},
-    per_ns::PerNs,
+    per_ns::PerNsRes,
     type_ref::{LifetimeRef, TypesMap},
     visibility::{RawVisibility, Visibility},
     AdtId, ConstId, ConstParamId, CrateRootModuleId, DefWithBodyId, EnumId, EnumVariantId,
@@ -157,7 +157,7 @@ impl Resolver {
         }
     }
 
-    pub fn resolve_module_path_in_items(&self, db: &dyn DefDatabase, path: &ModPath) -> PerNs {
+    pub fn resolve_module_path_in_items(&self, db: &dyn DefDatabase, path: &ModPath) -> PerNsRes {
         self.resolve_module_path(db, path, BuiltinShadowMode::Module)
     }
 
@@ -517,7 +517,7 @@ impl Resolver {
         // FIXME: should we provide `self` here?
         // f(
         //     Name::self_param(),
-        //     PerNs::types(Resolution::Def {
+        //     PerNsRes::types(Resolution::Def {
         //         def: m.module.into(),
         //     }),
         // );
@@ -757,12 +757,12 @@ impl Resolver {
         db: &dyn DefDatabase,
         path: &ModPath,
         shadow: BuiltinShadowMode,
-    ) -> PerNs {
+    ) -> PerNsRes {
         let (item_map, module) = self.item_scope();
         // This method resolves `path` just like import paths, so no expected macro subns is given.
         let (module_res, segment_index) = item_map.resolve_path(db, module, path, shadow, None);
         if segment_index.is_some() {
-            return PerNs::none();
+            return PerNsRes::none();
         }
         module_res
     }
@@ -965,7 +965,7 @@ impl ModuleItemMap {
     }
 }
 
-fn to_value_ns(per_ns: PerNs) -> Option<(ValueNs, Option<ImportId>)> {
+fn to_value_ns(per_ns: PerNsRes) -> Option<(ValueNs, Option<ImportId>)> {
     let (def, import) = per_ns.take_values_import()?;
     let res = match def {
         ModuleDefId::FunctionId(it) => ValueNs::FunctionId(it),
@@ -985,7 +985,7 @@ fn to_value_ns(per_ns: PerNs) -> Option<(ValueNs, Option<ImportId>)> {
     Some((res, import))
 }
 
-fn to_type_ns(per_ns: PerNs) -> Option<(TypeNs, Option<ImportOrExternCrate>)> {
+fn to_type_ns(per_ns: PerNsRes) -> Option<(TypeNs, Option<ImportOrExternCrate>)> {
     let (def, _, import) = per_ns.take_types_full()?;
     let res = match def {
         ModuleDefId::AdtId(it) => TypeNs::AdtId(it),
@@ -1018,7 +1018,7 @@ impl ScopeNames {
             set.push(def)
         }
     }
-    fn add_per_ns(&mut self, name: &Name, def: PerNs) {
+    fn add_per_ns(&mut self, name: &Name, def: PerNsRes) {
         if let &Some((ty, _, _)) = &def.types {
             self.add(name, ScopeDef::ModuleDef(ty))
         }

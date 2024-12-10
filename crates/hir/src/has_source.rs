@@ -14,8 +14,8 @@ use tt::TextRange;
 
 use crate::{
     db::HirDatabase, Adt, Callee, Const, Enum, ExternCrateDecl, Field, FieldSource, Function, Impl,
-    InlineAsmOperand, Label, LifetimeParam, LocalSource, Macro, Module, Param, SelfParam, Static,
-    Struct, Trait, TraitAlias, TypeAlias, TypeOrConstParam, Union, Variant,
+    Import, InlineAsmOperand, Label, LifetimeParam, LocalSource, Macro, Module, Param, SelfParam,
+    Static, Struct, Trait, TraitAlias, TypeAlias, TypeOrConstParam, Union, Variant,
 };
 
 pub trait HasSource {
@@ -290,6 +290,15 @@ impl HasSource for ExternCrateDecl {
 
     fn source(self, db: &dyn HirDatabase) -> Option<InFile<Self::Ast>> {
         Some(self.id.lookup(db.upcast()).source(db.upcast()))
+    }
+}
+
+impl HasSource for Import {
+    type Ast = ast::UseTree;
+
+    fn source(self, db: &dyn HirDatabase) -> Option<InFile<Self::Ast>> {
+        let source = self.id.import.child_source(db.upcast());
+        source.map(|it| it.get(self.id.idx).cloned()).transpose()
     }
 }
 
