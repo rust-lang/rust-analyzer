@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PathKind"],"fn":["resolve_crate_root"],"macro":["path"],"struct":["ModPath","UnescapedModPath"]};
