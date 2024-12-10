@@ -45,8 +45,8 @@ impl From<CfgAtom> for CfgExpr {
 
 impl CfgExpr {
     #[cfg(feature = "tt")]
-    pub fn parse<S>(tt: &tt::Subtree<S>) -> CfgExpr {
-        next_cfg_expr(&mut tt.token_trees.iter()).unwrap_or(CfgExpr::Invalid)
+    pub fn parse<S>(tt: &tt::TokenStream<S>) -> CfgExpr {
+        next_cfg_expr(tt.trees()).unwrap_or(CfgExpr::Invalid)
     }
 
     /// Fold the cfg by querying all basic `Atom` and `KeyValue` predicates.
@@ -66,48 +66,52 @@ impl CfgExpr {
 }
 
 #[cfg(feature = "tt")]
-fn next_cfg_expr<S>(it: &mut std::slice::Iter<'_, tt::TokenTree<S>>) -> Option<CfgExpr> {
+fn next_cfg_expr<S>(mut it: tt::RefTokenTreeCursor<'_, S>) -> Option<CfgExpr> {
     use intern::sym;
 
     let name = match it.next() {
         None => return None,
-        Some(tt::TokenTree::Leaf(tt::Leaf::Ident(ident))) => ident.sym.clone(),
+        Some(tt::TokenTree::Token(tt::Token { kind: tt::TokenKind::Ident(ident, _), .. }, _)) => {
+            ident.clone()
+        }
         Some(_) => return Some(CfgExpr::Invalid),
     };
 
     // Peek
-    let ret = match it.as_slice().first() {
-        Some(tt::TokenTree::Leaf(tt::Leaf::Punct(punct))) if punct.char == '=' => {
-            match it.as_slice().get(1) {
-                Some(tt::TokenTree::Leaf(tt::Leaf::Literal(literal))) => {
-                    it.next();
-                    it.next();
-                    CfgAtom::KeyValue { key: name, value: literal.symbol.clone() }.into()
+    let ret = match it.look_ahead(0) {
+        Some(tt::TokenTree::Token(tt::Token { kind: tt::TokenKind::Eq, .. }, _)) => {
+            match it.look_ahead(1) {
+                Some(tt::TokenTree::Token(
+                    tt::Token { kind: tt::TokenKind::Literal(lit), .. },
+                    _,
+                )) => {
+                    let res = CfgAtom::KeyValue { key: name, value: lit.symbol.clone() }.into();
+                    _ = it.next();
+                    _ = it.next();
+                    res
                 }
                 _ => return Some(CfgExpr::Invalid),
             }
         }
-        Some(tt::TokenTree::Subtree(subtree)) => {
-            it.next();
-            let mut sub_it = subtree.token_trees.iter();
-            let mut subs = std::iter::from_fn(|| next_cfg_expr(&mut sub_it));
-            match name {
+        Some(tt::TokenTree::Delimited(_, _, _, stream)) => {
+            let mut subs = std::iter::from_fn(|| next_cfg_expr(stream.trees()));
+            let res = match name {
                 s if s == sym::all => CfgExpr::All(subs.collect()),
                 s if s == sym::any => CfgExpr::Any(subs.collect()),
                 s if s == sym::not => {
                     CfgExpr::Not(Box::new(subs.next().unwrap_or(CfgExpr::Invalid)))
                 }
                 _ => CfgExpr::Invalid,
-            }
+            };
+            it.next();
+            res
         }
         _ => CfgAtom::Flag(name).into(),
     };
 
     // Eat comma separator
-    if let Some(tt::TokenTree::Leaf(tt::Leaf::Punct(punct))) = it.as_slice().first() {
-        if punct.char == ',' {
-            it.next();
-        }
+    if let Some(tt::TokenTree::Token(tt::Token { kind: tt::TokenKind::Comma, .. }, _)) = it.next() {
+        it.next();
     }
     Some(ret)
 }

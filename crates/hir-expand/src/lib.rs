@@ -75,6 +75,7 @@ pub mod tt {
     pub type Punct = ::tt::Punct<Span>;
     pub type Ident = ::tt::Ident<Span>;
     pub type TokenTree = ::tt::TokenTree<Span>;
+    pub type TokenStream = ::tt::TokenStream<Span>;
 }
 
 #[macro_export]
