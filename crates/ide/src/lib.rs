@@ -61,7 +61,7 @@ use std::{iter, panic::UnwindSafe};
 
 use cfg::CfgOptions;
 use fetch_crates::CrateInfo;
-use hir::{sym, ChangeWithProcMacros};
+use hir::{db::DefDatabase, sym, ChangeWithProcMacros};
 use ide_db::{
     base_db::{
         ra_salsa::{self, ParallelDatabase},
@@ -246,6 +246,7 @@ impl Analysis {
         crate_graph.add_crate_root(
             file_id,
             Edition::CURRENT,
+            None,
             None,
             None,
             Arc::new(cfg_options),
@@ -591,6 +592,23 @@ impl Analysis {
     /// Returns crates this file belongs too.
     pub fn crates_for(&self, file_id: FileId) -> Cancellable<Vec<CrateId>> {
         self.with_db(|db| parent_module::crates_for(db, file_id))
+    }
+
+    /// Returns files that belong to this crate
+    pub fn files_for(&self, crate_id: CrateId) -> Cancellable<Vec<FileId>> {
+        self.with_db(|db| db.crate_def_map(crate_id).files().collect())
+    }
+
+    /// Returns the crate with the given package id
+    pub fn crate_with_id(&self, package_id: &str) -> Cancellable<Option<CrateId>> {
+        self.with_db(|db| {
+            let graph = db.crate_graph();
+            let id = graph.iter().find(|id| {
+                let crate_data = &graph[*id];
+                crate_data.package_id.as_deref() == Some(package_id)
+            });
+            id
+        })
     }
 
     /// Returns crates this file belongs too.
