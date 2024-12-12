@@ -31,6 +31,27 @@ SOURCE_FILE
                 L_CURLY "{"
                 R_CURLY "}"
           SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            IDENT_PAT
+              NAME
+                IDENT "x"
+            WHITESPACE " "
+            IN_KW "in"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+          SEMICOLON ";"
         WHITESPACE "\n"
         R_CURLY "}"
   WHITESPACE "\n"

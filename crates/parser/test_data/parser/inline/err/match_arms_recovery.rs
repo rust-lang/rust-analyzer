@@ -7,5 +7,6 @@ fn foo() {
         if true => (),
         _ => (),
         () if => (),
+        () if => let a = 1,
     }
 }

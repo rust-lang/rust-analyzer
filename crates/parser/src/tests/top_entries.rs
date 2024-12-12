@@ -322,17 +322,16 @@ fn expr() {
         "let _ = 0;",
         expect![[r#"
             ERROR
-              LET_EXPR
+              ERROR
                 LET_KW "let"
-                WHITESPACE " "
-                WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
-                LITERAL
-                  INT_NUMBER "0"
+              WHITESPACE " "
+              UNDERSCORE "_"
+              WHITESPACE " "
+              EQ "="
+              WHITESPACE " "
+              INT_NUMBER "0"
               SEMICOLON ";"
+            error 0: expected expression
         "#]],
     );
 }

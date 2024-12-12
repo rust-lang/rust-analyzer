@@ -101,6 +101,33 @@ SOURCE_FILE
                 L_PAREN "("
                 R_PAREN ")"
               COMMA ","
+            WHITESPACE "\n        "
+            MATCH_ARM
+              TUPLE_PAT
+                L_PAREN "("
+                R_PAREN ")"
+              WHITESPACE " "
+              MATCH_GUARD
+                IF_KW "if"
+              WHITESPACE " "
+              FAT_ARROW "=>"
+              WHITESPACE " "
+              ERROR
+                LET_KW "let"
+            WHITESPACE " "
+            MATCH_ARM
+              IDENT_PAT
+                NAME
+                  IDENT "a"
+              WHITESPACE " "
+              ERROR
+                EQ "="
+            WHITESPACE " "
+            MATCH_ARM
+              LITERAL_PAT
+                LITERAL
+                  INT_NUMBER "1"
+              COMMA ","
             WHITESPACE "\n    "
             R_CURLY "}"
         WHITESPACE "\n"
@@ -111,3 +138,11 @@ error 58: expected expression
 error 85: expected pattern
 error 100: expected pattern
 error 145: expected expression
+error 166: expected expression
+error 170: expected expression
+error 173: expected `,`
+error 175: expected FAT_ARROW
+error 176: expected expression
+error 177: expected `,`
+error 179: expected FAT_ARROW
+error 180: expected expression

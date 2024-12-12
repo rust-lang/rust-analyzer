@@ -1,0 +1,187 @@
+SOURCE_FILE
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "foo"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            IDENT_PAT
+              NAME
+                IDENT "x"
+            WHITESPACE " "
+            IN_KW "in"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            ERROR
+              IN_KW "in"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            TUPLE_STRUCT_PAT
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "x"
+              WHITESPACE " "
+              L_PAREN "("
+              R_PAREN ")"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            RECORD_PAT
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "x"
+              WHITESPACE " "
+              RECORD_PAT_FIELD_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+            ERROR
+              SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            RECORD_PAT
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "x"
+              WHITESPACE " "
+              RECORD_PAT_FIELD_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            IDENT_PAT
+              NAME
+                IDENT "x"
+            WHITESPACE " "
+            ERROR
+              LET_KW "let"
+        WHITESPACE " "
+        EXPR_STMT
+          BIN_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "a"
+            WHITESPACE " "
+            EQ "="
+            WHITESPACE " "
+            LITERAL
+              INT_NUMBER "1"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            IDENT_PAT
+              NAME
+                IDENT "x"
+            WHITESPACE " "
+            IN_KW "in"
+            WHITESPACE " "
+            ERROR
+              LET_KW "let"
+        WHITESPACE " "
+        EXPR_STMT
+          BIN_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "a"
+            WHITESPACE " "
+            EQ "="
+            WHITESPACE " "
+            LITERAL
+              INT_NUMBER "1"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FOR_EXPR
+            FOR_KW "for"
+            WHITESPACE " "
+            ERROR
+              IN_KW "in"
+            WHITESPACE " "
+            TUPLE_EXPR
+              L_PAREN "("
+              R_PAREN ")"
+            WHITESPACE " "
+            BLOCK_EXPR
+              STMT_LIST
+                L_CURLY "{"
+                R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n"
+        R_CURLY "}"
+  WHITESPACE "\n"
+error 26: expected a block
+error 36: expected pattern
+error 38: expected IN_KW
+error 41: expected a block
+error 55: expected IN_KW
+error 58: expected a block
+error 72: expected IN_KW
+error 72: expected expression
+error 73: expected a block
+error 86: expected IN_KW
+error 89: expected a block
+error 100: expected IN_KW
+error 101: expected expression
+error 104: expected a block
+error 125: expected expression
+error 128: expected a block
+error 144: expected pattern
+error 146: expected IN_KW

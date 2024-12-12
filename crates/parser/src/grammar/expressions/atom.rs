@@ -54,7 +54,6 @@ pub(super) const ATOM_EXPR_FIRST: TokenSet =
         T![gen],
         T![for],
         T![if],
-        T![let],
         T![loop],
         T![match],
         T![move],
@@ -85,10 +84,10 @@ pub(super) fn atom_expr(
     }
     let la = p.nth(1);
     let done = match p.current() {
-        T!['('] => tuple_expr(p),
+        T!['('] => tuple_expr(p, r),
         T!['['] => array_expr(p),
         T![if] => if_expr(p),
-        T![let] => let_expr(p),
+        T![let] if !r.forbid_let => let_expr(p),
         T![_] => {
             // test destructuring_assignment_wildcard_pat
             // fn foo() {
@@ -208,7 +207,7 @@ pub(super) fn atom_expr(
 //     (1);
 //     (1,);
 // }
-fn tuple_expr(p: &mut Parser<'_>) -> CompletedMarker {
+fn tuple_expr(p: &mut Parser<'_>, r: Restrictions) -> CompletedMarker {
     assert!(p.at(T!['(']));
     let m = p.start();
     p.expect(T!['(']);
@@ -230,7 +229,7 @@ fn tuple_expr(p: &mut Parser<'_>) -> CompletedMarker {
 
         // test tuple_attrs
         // const A: (i64, i64) = (1, #[cfg(test)] 2);
-        if expr(p).is_none() {
+        if if r.forbid_let { expr(p) } else { expr_maybe_let(p) }.is_none() {
             break;
         }
 
@@ -588,7 +587,7 @@ fn if_expr(p: &mut Parser<'_>) -> CompletedMarker {
     assert!(p.at(T![if]));
     let m = p.start();
     p.bump(T![if]);
-    expr_no_struct(p);
+    expr_no_struct_maybe_let(p);
     block_expr(p);
     if p.eat(T![else]) {
         if p.at(T![if]) {
@@ -636,7 +635,7 @@ fn while_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
     assert!(p.at(T![while]));
     let m = m.unwrap_or_else(|| p.start());
     p.bump(T![while]);
-    expr_no_struct(p);
+    expr_no_struct_maybe_let(p);
     block_expr(p);
     m.complete(p, WHILE_EXPR)
 }
@@ -644,6 +643,19 @@ fn while_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
 // test for_expr
 // fn foo() {
 //     for x in [] {};
+//     for x in {} {};
+// }
+
+// test_err for_expr_recovery
+// fn foo() {
+//     for x in {};
+//     for in {};
+//     for x () {};
+//     for x {};
+//     for x {} {};
+//     for x let a = 1;
+//     for x in let a = 1;
+//     for in () {};
 // }
 fn for_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
     assert!(p.at(T![for]));
@@ -666,7 +678,7 @@ fn let_expr(p: &mut Parser<'_>) -> CompletedMarker {
     p.bump(T![let]);
     patterns::pattern(p);
     p.expect(T![=]);
-    expr_let(p);
+    let_expr_initializer(p);
     m.complete(p, LET_EXPR)
 }
 
@@ -700,6 +712,7 @@ fn match_expr(p: &mut Parser<'_>) -> CompletedMarker {
 //         if true => (),
 //         _ => (),
 //         () if => (),
+//         () if => let a = 1,
 //     }
 // }
 pub(crate) fn match_arm_list(p: &mut Parser<'_>) {
@@ -802,7 +815,7 @@ fn match_guard(p: &mut Parser<'_>) -> CompletedMarker {
     if p.at(T![=]) {
         p.error("expected expression");
     } else {
-        expr(p);
+        expr_maybe_let(p);
     }
     m.complete(p, MATCH_GUARD)
 }

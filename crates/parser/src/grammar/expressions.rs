@@ -17,7 +17,12 @@ pub(super) enum Semicolon {
 const EXPR_FIRST: TokenSet = LHS_FIRST;
 
 pub(super) fn expr(p: &mut Parser<'_>) -> Option<CompletedMarker> {
-    let r = Restrictions { forbid_structs: false, prefer_stmt: false };
+    let r = Restrictions { forbid_structs: false, prefer_stmt: false, forbid_let: true };
+    expr_bp(p, None, r, 1).map(|(m, _)| m)
+}
+
+pub(super) fn expr_maybe_let(p: &mut Parser<'_>) -> Option<CompletedMarker> {
+    let r = Restrictions { forbid_structs: false, prefer_stmt: false, forbid_let: false };
     expr_bp(p, None, r, 1).map(|(m, _)| m)
 }
 
@@ -25,12 +30,17 @@ pub(super) fn expr_stmt(
     p: &mut Parser<'_>,
     m: Option<Marker>,
 ) -> Option<(CompletedMarker, BlockLike)> {
-    let r = Restrictions { forbid_structs: false, prefer_stmt: true };
+    let r = Restrictions { forbid_structs: false, prefer_stmt: true, forbid_let: true };
     expr_bp(p, m, r, 1)
 }
 
 fn expr_no_struct(p: &mut Parser<'_>) {
-    let r = Restrictions { forbid_structs: true, prefer_stmt: false };
+    let r = Restrictions { forbid_structs: true, prefer_stmt: false, forbid_let: true };
+    expr_bp(p, None, r, 1);
+}
+
+fn expr_no_struct_maybe_let(p: &mut Parser<'_>) {
+    let r = Restrictions { forbid_structs: true, prefer_stmt: false, forbid_let: false };
     expr_bp(p, None, r, 1);
 }
 
@@ -38,8 +48,8 @@ fn expr_no_struct(p: &mut Parser<'_>) {
 /// It needs to be parsed with lower precedence than `&&`, so that
 /// `if let true = true && false` is parsed as `if (let true = true) && (true)`
 /// and not `if let true = (true && true)`.
-fn expr_let(p: &mut Parser<'_>) {
-    let r = Restrictions { forbid_structs: true, prefer_stmt: false };
+fn let_expr_initializer(p: &mut Parser<'_>) {
+    let r = Restrictions { forbid_structs: true, prefer_stmt: false, forbid_let: true };
     expr_bp(p, None, r, 5);
 }
 
@@ -182,9 +192,10 @@ pub(super) fn expr_block_contents(p: &mut Parser<'_>) {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Restrictions {
     forbid_structs: bool,
+    forbid_let: bool,
     prefer_stmt: bool,
 }
 
@@ -255,7 +266,7 @@ fn expr_bp(
         m
     });
 
-    if !p.at_ts(EXPR_FIRST) {
+    if !p.at_ts(EXPR_FIRST) && (r.forbid_let || !p.at(T![let])) {
         p.err_recover("expected expression", atom::EXPR_RECOVERY_SET);
         m.abandon(p);
         return None;

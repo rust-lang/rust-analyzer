@@ -733,6 +733,10 @@ mod err {
         run_and_expect_errors("test_data/parser/inline/err/fn_pointer_type_missing_fn.rs");
     }
     #[test]
+    fn for_expr_recovery() {
+        run_and_expect_errors("test_data/parser/inline/err/for_expr_recovery.rs");
+    }
+    #[test]
     fn gen_fn() { run_and_expect_errors("test_data/parser/inline/err/gen_fn.rs"); }
     #[test]
     fn generic_arg_list_recover() {
