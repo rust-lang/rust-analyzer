@@ -95,9 +95,6 @@ pub trait ExpandDatabase: RootQueryDb {
     #[db_ext_macro::interned(SyntaxContextWrapper)]
     fn intern_syntax_context(&self, ctx: SyntaxContextData) -> SyntaxContextId;
 
-    // #[db_ext_macro::transparent]
-    // fn setup_syntax_context_root(&self) -> ();
-
     #[db_ext_macro::transparent]
     #[db_ext_macro::invoke(crate::hygiene::dump_syntax_contexts)]
     fn dump_syntax_contexts(&self) -> String;

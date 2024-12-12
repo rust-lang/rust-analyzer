@@ -148,27 +148,6 @@ pub fn crate_symbols(db: &dyn SymbolsDatabase, krate: Crate) -> Box<[Arc<SymbolI
     krate.modules(db.upcast()).into_iter().map(|module| db.module_symbols(module)).collect()
 }
 
-/// Need to wrap Snapshot to provide `Clone` impl for `map_with`
-struct Snap<DB>(DB);
-impl<DB> Snap<DB> {
-    fn new(db: &DB) -> Self {
-        todo!()
-        // Self(db.clone())
-    }
-}
-// impl<DB: ParallelDatabase> Clone for Snap<ra_salsa::Snapshot<DB>> {
-//     fn clone(&self) -> Snap<ra_salsa::Snapshot<DB>> {
-//         Snap(self.0.snapshot())
-//     }
-// }
-impl<DB> std::ops::Deref for Snap<DB> {
-    type Target = DB;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 // Feature: Workspace Symbol
 //
 // Uses fuzzy-search to find types, modules and functions by name across your
@@ -200,7 +179,7 @@ pub fn world_symbols(db: &RootDatabase, query: Query) -> Vec<FileSymbol> {
     let indices: Vec<_> = if query.libs {
         db.library_roots()
             .par_iter()
-            .map_with(*db, |snap, &root| snap.library_symbols(root))
+            .map_with(db.clone(), |snap, &root| snap.library_symbols(root))
             .collect()
     } else {
         let mut crates = Vec::new();
@@ -210,7 +189,7 @@ pub fn world_symbols(db: &RootDatabase, query: Query) -> Vec<FileSymbol> {
         }
         let indices: Vec<_> = crates
             .into_par_iter()
-            .map_with(*db, |snap, krate| snap.crate_symbols(krate.into()))
+            .map_with(db.clone(), |snap, krate| snap.crate_symbols(krate.into()))
             .collect();
         indices.iter().flat_map(|indices| indices.iter().cloned()).collect()
     };

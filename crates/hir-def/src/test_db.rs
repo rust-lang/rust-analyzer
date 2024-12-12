@@ -3,13 +3,13 @@
 use std::{fmt, hash::BuildHasherDefault, panic, sync::Mutex};
 
 use base_db::{
-    AnchoredPath, CrateId, FileLoader, FileText, RootQueryDb, SourceDatabase, SourceRoot,
-    SourceRootId, SourceRootInput, Upcast,
+    AnchoredPath, CrateId, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
+    SourceRootInput, Upcast,
 };
 use dashmap::DashMap;
 use hir_expand::{db::ExpandDatabase, files::FilePosition, InFile};
 use rustc_hash::FxHasher;
-use salsa::Durability;
+use salsa::{AsDynDatabase, Durability};
 use span::{EditionedFileId, FileId};
 use syntax::{algo, ast, AstNode};
 use triomphe::Arc;
@@ -75,7 +75,8 @@ impl salsa::Database for TestDB {
     fn salsa_event(&self, event: &dyn std::ops::Fn() -> salsa::Event) {
         let mut events = self.events.lock().unwrap();
         if let Some(events) = &mut *events {
-            events.push(event());
+            let event = event();
+            events.push(event);
         }
     }
 }
@@ -87,17 +88,6 @@ impl fmt::Debug for TestDB {
 }
 
 impl panic::RefUnwindSafe for TestDB {}
-
-impl FileLoader for TestDB {
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        // FileLoaderDelegate(self).resolve_path(path)
-        todo!()
-    }
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
-        // FileLoaderDelegate(self).relevant_crates(file_id)
-        todo!()
-    }
-}
 
 #[salsa::db]
 impl SourceDatabase for TestDB {
@@ -139,6 +129,20 @@ impl SourceDatabase for TestDB {
         let input =
             SourceRootInput::builder(source_root_id, source_root).durability(durability).new(self);
         self.source_roots.insert(file_id, input);
+    }
+
+    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
+        // FIXME: this *somehow* should be platform agnostic...
+        let source_root = self.source_root(path.anchor);
+        source_root.source_root(self).resolve_path(path)
+    }
+
+    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
+        let _p = tracing::info_span!("relevant_crates").entered();
+
+        let file_id = self.file_text(file_id).file_id(self);
+        let source_root = self.source_root(file_id);
+        self.source_root_crates(source_root.source_root_id(self))
     }
 }
 
@@ -316,7 +320,10 @@ impl TestDB {
                 // This is pretty horrible, but `Debug` is the only way to inspect
                 // QueryDescriptor at the moment.
                 salsa::EventKind::WillExecute { database_key } => {
-                    Some(format!("{:?}", database_key.key_index()))
+                    let ingredient = self
+                        .as_dyn_database()
+                        .ingredient_debug_name(database_key.ingredient_index());
+                    Some(ingredient.to_string())
                 }
                 _ => None,
             })

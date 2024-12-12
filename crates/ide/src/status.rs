@@ -11,7 +11,7 @@ use hir::{
 use ide_db::base_db::{CrateData, RootQueryDb, SourceRootId, Upcast};
 use ide_db::{symbol_index::SymbolIndex, RootDatabase};
 use itertools::Itertools;
-use profile::{memory_usage, Bytes};
+use profile::Bytes;
 use span::{EditionedFileId, FileId};
 use stdx::format_to;
 use syntax::{ast, Parse, SyntaxNode};
