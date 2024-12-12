@@ -40,15 +40,6 @@ use crate::cli::{
     report_metric, Verbosity,
 };
 
-/// Need to wrap Snapshot to provide `Clone` impl for `map_with`
-struct Snap<DB>(DB);
-impl<DB> Clone for Snap<DB> {
-    fn clone(&self) -> Snap<DB> {
-        todo!()
-        // Snap(self.0.snapshot())
-    }
-}
-
 impl flags::AnalysisStats {
     pub fn run(self, verbosity: Verbosity) -> anyhow::Result<()> {
         let mut rng = {
@@ -618,12 +609,12 @@ impl flags::AnalysisStats {
 
         if self.parallel {
             let mut inference_sw = self.stop_watch();
-            let snap = Snap(db.snapshot());
+            let snap = db.snapshot();
             bodies
                 .par_iter()
                 .map_with(snap, |snap, &body| {
-                    snap.0.body(body.into());
-                    snap.0.infer(body.into());
+                    snap.body(body.into());
+                    snap.infer(body.into());
                 })
                 .count();
             eprintln!("{:<20} {}", "Parallel Inference:", inference_sw.elapsed());

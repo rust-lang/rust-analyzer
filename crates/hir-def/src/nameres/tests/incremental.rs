@@ -235,7 +235,7 @@ pub struct S {}
 
 #[test]
 fn typing_inside_a_function_should_not_invalidate_item_expansions() {
-    let (mut db, pos) = TestDB::with_position(
+    let (db, pos) = TestDB::with_position(
         r#"
 //- /lib.rs
 macro_rules! m {
@@ -263,10 +263,10 @@ m!(Z);
             assert_eq!(module_data.scope.resolutions().count(), 4);
         });
         let n_recalculated_item_trees =
-            events.iter().filter(|it| it.contains("item_tree(")).count();
+            events.iter().filter(|it| it.contains("file_item_tree_shim")).count();
         assert_eq!(n_recalculated_item_trees, 6);
         let n_reparsed_macros =
-            events.iter().filter(|it| it.contains("parse_macro_expansion(")).count();
+            events.iter().filter(|it| it.contains("parse_macro_expansion_shim")).count();
         assert_eq!(n_reparsed_macros, 3);
     }
 
@@ -284,10 +284,11 @@ m!(Z);
             let (_, module_data) = crate_def_map.modules.iter().last().unwrap();
             assert_eq!(module_data.scope.resolutions().count(), 4);
         });
-        let n_recalculated_item_trees = events.iter().filter(|it| it.contains("item_tree")).count();
-        assert_eq!(n_recalculated_item_trees, 1);
+        let n_recalculated_item_trees =
+            events.iter().filter(|it| it.contains("file_item_tree_shim")).count();
+        assert_eq!(n_recalculated_item_trees, 0);
         let n_reparsed_macros =
-            events.iter().filter(|it| it.contains("parse_macro_expansion(")).count();
+            events.iter().filter(|it| it.contains("parse_macro_expansion_shim")).count();
         assert_eq!(n_reparsed_macros, 0);
     }
 }
@@ -318,9 +319,10 @@ pub type Ty = ();
         let events = db.log_executed(|| {
             db.file_item_tree(pos.file_id.into());
         });
-        let n_calculated_item_trees = events.iter().filter(|it| it.contains("item_tree(")).count();
+        let n_calculated_item_trees =
+            events.iter().filter(|it| it.contains("file_item_tree_shim")).count();
         assert_eq!(n_calculated_item_trees, 1);
-        let n_parsed_files = events.iter().filter(|it| it.contains("parse(")).count();
+        let n_parsed_files = events.iter().filter(|it| it.contains("parse")).count();
         assert_eq!(n_parsed_files, 1);
     }
 

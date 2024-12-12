@@ -6,7 +6,7 @@ use hir::{db::DefDatabase, DefMap, InFile, ModuleSource};
 use ide_db::base_db::RootQueryDb;
 use ide_db::text_edit::TextEdit;
 use ide_db::{
-    base_db::{FileLoader, SourceDatabase},
+    base_db::{SourceDatabase, Upcast},
     source_change::SourceChange,
     FileId, FileRange, LineIndexDatabase,
 };

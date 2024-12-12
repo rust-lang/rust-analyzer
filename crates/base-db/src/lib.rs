@@ -58,12 +58,6 @@ pub const DEFAULT_FILE_TEXT_LRU_CAP: u16 = 16;
 pub const DEFAULT_PARSE_LRU_CAP: u16 = 128;
 pub const DEFAULT_BORROWCK_LRU_CAP: u16 = 2024;
 
-pub trait FileLoader {
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId>;
-    /// Crates whose root's source root is the same as the source root of `file_id`
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]>;
-}
-
 /// Crate related data shared by the whole workspace.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct CrateWorkspaceData {
@@ -137,22 +131,11 @@ pub trait SourceDatabase: salsa::Database {
         source_root: Arc<SourceRoot>,
         durability: Durability,
     );
-}
 
-impl FileLoader for dyn RootQueryDb {
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        // FIXME: this *somehow* should be platform agnostic...
-        let source_root = self.source_root(path.anchor);
-        source_root.source_root(self).resolve_path(path)
-    }
+    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId>;
 
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
-        let _p = tracing::info_span!("relevant_crates").entered();
-
-        let file_id = self.file_text(file_id).file_id(self);
-        let source_root = self.source_root(file_id);
-        self.source_root_crates(source_root.source_root_id(self))
-    }
+    /// Crates whose root's source root is the same as the source root of `file_id`
+    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]>;
 }
 
 fn toolchain_channel(db: &dyn RootQueryDb, krate: CrateId) -> Option<ReleaseChannel> {

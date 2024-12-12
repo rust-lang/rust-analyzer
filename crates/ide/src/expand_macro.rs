@@ -236,7 +236,6 @@ fn _format(
     file_id: FileId,
     expansion: &str,
 ) -> Option<String> {
-    use ide_db::base_db::FileLoader;
     // hack until we get hygiene working (same character amount to preserve formatting as much as possible)
     const DOLLAR_CRATE_REPLACE: &str = "__r_a_";
     const BUILTIN_REPLACE: &str = "builtin__POUND";

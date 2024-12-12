@@ -85,7 +85,7 @@
 //! active crate for a given position, and then provide an API to resolve all
 //! syntax nodes against this specific crate.
 
-use base_db::{FileLoader as _, RootQueryDb, Upcast};
+use base_db::{RootQueryDb, Upcast};
 use either::Either;
 use hir_def::{
     dyn_map::{

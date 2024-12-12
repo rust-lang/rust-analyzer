@@ -715,7 +715,7 @@ impl MacroCallKind {
         let file_id = loop {
             match kind.file_id().repr() {
                 HirFileIdRepr::MacroFile(file) => {
-                    db.lookup_intern_macro_call(file.macro_call_id).kind;
+                    kind = db.lookup_intern_macro_call(file.macro_call_id).kind;
                 }
                 HirFileIdRepr::FileId(file_id) => break file_id,
             }

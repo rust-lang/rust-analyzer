@@ -7,7 +7,7 @@ mod topologic_sort;
 use std::time::Duration;
 
 use hir::db::DefDatabase;
-use salsa::{Cancelled, Database};
+use salsa::Cancelled;
 
 use crate::{
     base_db::{CrateId, RootQueryDb, SourceDatabase},
@@ -92,13 +92,13 @@ pub fn parallel_prime_caches(
 
         for id in 0..num_worker_threads {
             let worker = prime_caches_worker.clone();
-            // let db = db.snapshot();
+            let db = db.snapshot();
 
-            // stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
-            //     .allow_leak(true)
-            //     .name(format!("PrimeCaches#{id}"))
-            //     .spawn(move || Cancelled::catch(|| worker(db.clone())))
-            //     .expect("failed to spawn thread");
+            stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
+                .allow_leak(true)
+                .name(format!("PrimeCaches#{id}"))
+                .spawn(move || Cancelled::catch(|| worker(db.snapshot())))
+                .expect("failed to spawn thread");
         }
 
         (work_sender, progress_receiver)

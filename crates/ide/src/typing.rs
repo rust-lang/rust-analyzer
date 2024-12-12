@@ -15,13 +15,10 @@
 
 mod on_enter;
 
+use ide_db::{base_db::RootQueryDb, FilePosition, RootDatabase};
+use span::{Edition, EditionedFileId};
 use std::iter;
 
-use ide_db::{
-    base_db::{RootQueryDb, SourceDatabase},
-    FilePosition, RootDatabase,
-};
-use span::{Edition, EditionedFileId};
 use syntax::{
     algo::{ancestors_at_offset, find_node_at_offset},
     ast::{self, edit::IndentLevel, AstToken},
