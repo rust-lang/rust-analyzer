@@ -69,7 +69,6 @@ use ide_db::{
         CrateOrigin,
         CrateWorkspaceData,
         Env,
-        FileLoader,
         FileSet,
         RootQueryDb,
         SourceDatabase,

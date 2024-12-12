@@ -1,6 +1,5 @@
 //! Run all tests in a project, similar to `cargo test`, but using the mir interpreter.
 
-use std::convert::identity;
 use std::thread::Builder;
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, fs::read_to_string, panic::AssertUnwindSafe, path::PathBuf};

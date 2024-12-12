@@ -29,8 +29,17 @@ use ra_salsa::{InternId, InternValue};
 use crate::{Edition, MacroCallId};
 
 /// Interned [`SyntaxContextData`].
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Eq, PartialOrd, Ord, Hash)]
 pub struct SyntaxContextId(pub salsa::Id);
+
+impl PartialEq for SyntaxContextId {
+    fn eq(&self, other: &Self) -> bool {
+        let self_underlying = self.0.as_u32() & ((1 << 23) - 1);
+        let other_underlying = other.0.as_u32() & ((1 << 23) - 1);
+
+        self_underlying == other_underlying
+    }
+}
 
 impl salsa::plumbing::AsId for SyntaxContextId {
     fn as_id(&self) -> salsa::Id {
@@ -56,7 +65,7 @@ impl fmt::Debug for SyntaxContextId {
 
 impl fmt::Display for SyntaxContextId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.0)
+        write!(f, "{}", self.0.as_u32())
     }
 }
 
@@ -72,6 +81,10 @@ impl SyntaxContextId {
     pub const fn root(edition: Edition) -> Self {
         SyntaxContextId(salsa::Id::from_u32(edition as u32))
     }
+
+    // veykril(HACK): FIXME salsa doesn't allow us fetching the id of the current input to be allocated so
+    // we need a special value that behaves as the current context.
+    pub const SELF_REF: Self = SyntaxContextId(salsa::Id::from_u32(4194304 - 1));
 
     pub fn is_root(self) -> bool {
         self.into_u32() <= Edition::LATEST as u32

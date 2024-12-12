@@ -58,12 +58,6 @@ pub const DEFAULT_FILE_TEXT_LRU_CAP: u16 = 16;
 pub const DEFAULT_PARSE_LRU_CAP: u16 = 128;
 pub const DEFAULT_BORROWCK_LRU_CAP: u16 = 2024;
 
-pub trait FileLoader {
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId>;
-    /// Crates whose root's source root is the same as the source root of `file_id`
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]>;
-}
-
 /// Crate related data shared by the whole workspace.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct CrateWorkspaceData {
@@ -105,6 +99,41 @@ pub trait RootQueryDb: SourceDatabase + salsa::Database {
 
     #[db_ext_macro::transparent]
     fn toolchain_channel(&self, krate: CrateId) -> Option<ReleaseChannel>;
+
+    /// Crates whose root file is in `id`.
+    fn source_root_crates(&self, id: SourceRootId) -> Arc<[CrateId]>;
+}
+
+#[salsa::db]
+pub trait SourceDatabase: salsa::Database {
+    /// Text of the file.
+    fn file_text(&self, file_id: vfs::FileId) -> FileText;
+
+    fn set_file_text(&self, file_id: vfs::FileId, text: &str);
+
+    fn set_file_text_with_durability(
+        &self,
+        file_id: vfs::FileId,
+        text: &str,
+        durability: Durability,
+    );
+
+    /// Contents of the source root.
+    fn source_root(&self, id: vfs::FileId) -> SourceRootInput;
+
+    /// Source root of the file.
+    fn set_source_root_with_durability(
+        &self,
+        file_id: vfs::FileId,
+        source_root_id: SourceRootId,
+        source_root: Arc<SourceRoot>,
+        durability: Durability,
+    );
+
+    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId>;
+
+    /// Crates whose root's source root is the same as the source root of `file_id`
+    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]>;
 }
 
 /// Crate related data shared by the whole workspace.
