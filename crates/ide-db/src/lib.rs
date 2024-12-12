@@ -48,13 +48,14 @@ pub mod syntax_helpers {
 use dashmap::DashMap;
 pub use hir::ChangeWithProcMacros;
 use salsa::Durability;
+use vfs::AnchoredPath;
 
 use std::{fmt, hash::BuildHasherDefault, mem::ManuallyDrop};
 
 use base_db::{
     db_ext_macro::{self},
-    FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId, SourceRootInput, Upcast,
-    DEFAULT_FILE_TEXT_LRU_CAP,
+    CrateId, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId, SourceRootInput,
+    Upcast, DEFAULT_FILE_TEXT_LRU_CAP,
 };
 use hir::{
     db::{DefDatabase, ExpandDatabase, HirDatabase},
@@ -192,6 +193,20 @@ impl SourceDatabase for RootDatabase {
             SourceRootInput::builder(source_root_id, source_root).durability(durability).new(self);
         self.source_roots.insert(file_id, input);
     }
+
+    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
+        // FIXME: this *somehow* should be platform agnostic...
+        let source_root = self.source_root(path.anchor);
+        source_root.source_root(self).resolve_path(path)
+    }
+
+    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
+        let _p = tracing::info_span!("relevant_crates").entered();
+
+        let file_id = self.file_text(file_id).file_id(self);
+        let source_root = self.source_root(file_id);
+        self.source_root_crates(source_root.source_root_id(self))
+    }
 }
 
 impl Default for RootDatabase {
@@ -221,7 +236,7 @@ impl RootDatabase {
         self.set_expand_proc_attr_macros_with_durability(true, Durability::HIGH);
     }
 
-    pub fn update_base_query_lru_capacities(&mut self, lru_capacity: Option<u16>) {
+    pub fn update_base_query_lru_capacities(&mut self, _lru_capacity: Option<u16>) {
         // let lru_capacity = lru_capacity.unwrap_or(base_db::DEFAULT_PARSE_LRU_CAP);
         // base_db::FileTextQuery.in_db_mut(self).set_lru_capacity(DEFAULT_FILE_TEXT_LRU_CAP);
         // base_db::ParseQuery.in_db_mut(self).set_lru_capacity(lru_capacity);
@@ -231,8 +246,8 @@ impl RootDatabase {
         // hir::db::BodyWithSourceMapQuery.in_db_mut(self).set_lru_capacity(2048);
     }
 
-    pub fn update_lru_capacities(&mut self, lru_capacities: &FxHashMap<Box<str>, u16>) {
-        use hir::db as hir_db;
+    pub fn update_lru_capacities(&mut self, _lru_capacities: &FxHashMap<Box<str>, u16>) {
+        // use hir::db as hir_db;
 
         // base_db::FileTextQuery.in_db_mut(self).set_lru_capacity(DEFAULT_FILE_TEXT_LRU_CAP);
         // base_db::ParseQuery.in_db_mut(self).set_lru_capacity(

@@ -662,10 +662,9 @@ fn relative_file(
     let lookup = db.lookup_intern_macro_call(call_id);
     let call_site = lookup.kind.file_id().original_file_respecting_includes(db).file_id();
     let path = AnchoredPath { anchor: call_site, path: path_str };
-    // let res = db
-    //     .resolve_path(path)
-    //     .ok_or_else(|| ExpandError::other(err_span, format!("failed to load file `{path_str}`")))?;
-    let res: FileId = todo!();
+    let res: FileId = db
+        .resolve_path(path)
+        .ok_or_else(|| ExpandError::other(err_span, format!("failed to load file `{path_str}`")))?;
     // Prevent include itself
     if res == call_site && !allow_recursion {
         Err(ExpandError::other(err_span, format!("recursive inclusion of `{path_str}`")))

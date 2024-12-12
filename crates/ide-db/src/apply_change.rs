@@ -1,7 +1,7 @@
 //! Applies changes to the IDE state transactionally.
 
 use base_db::SourceRootId;
-use profile::{memory_usage, Bytes};
+use profile::Bytes;
 use rustc_hash::FxHashSet;
 use salsa::{Database as _, Durability};
 use triomphe::Arc;

@@ -1,6 +1,6 @@
 use hir::{db::DefDatabase, Semantics};
 use ide_db::{
-    base_db::{CrateId, FileLoader, RootQueryDb, Upcast},
+    base_db::{CrateId, RootQueryDb, Upcast},
     FileId, FilePosition, RootDatabase,
 };
 use itertools::Itertools;

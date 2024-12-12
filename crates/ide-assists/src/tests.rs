@@ -3,7 +3,7 @@ mod generated;
 use expect_test::expect;
 use hir::{FileRange, Semantics};
 use ide_db::{
-    base_db::{RootQueryDb, SourceDatabase},
+    base_db::SourceDatabase,
     imports::insert_use::{ImportGranularity, InsertUseConfig},
     source_change::FileSystemEdit,
     EditionedFileId, RootDatabase, SnippetCap,
