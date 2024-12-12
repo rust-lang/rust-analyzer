@@ -1,0 +1,1 @@
+searchState.loadedDescShard("edition", 0, "The edition of the Rust language used in a crate.\nThe current latest stable edition, note this is usually …\nReturns the argument unchanged.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nCalls <code>U::from(self)</code>.")

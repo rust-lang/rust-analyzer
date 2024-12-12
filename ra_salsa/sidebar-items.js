@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["database","query_group"],"enum":["Cancelled","EventKind"],"mod":["debug"],"struct":["Cycle","DatabaseKeyIndex","Durability","Event","InternId","QueryTable","QueryTableMut","Revision","Runtime","RuntimeId","Snapshot","Storage"],"trait":["Database","InternKey","InternValue","InternValueTrivial","ParallelDatabase","Query","QueryDb"]};

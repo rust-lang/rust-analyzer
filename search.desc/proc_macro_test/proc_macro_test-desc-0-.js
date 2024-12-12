@@ -1,0 +1,1 @@
+searchState.loadedDescShard("proc_macro_test", 0, "Exports a few trivial procedural macros for testing.")
