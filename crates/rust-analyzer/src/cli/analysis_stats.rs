@@ -119,12 +119,12 @@ impl flags::AnalysisStats {
             .iter()
             .cloned()
             .map(|krate| {
-                let source_root = db.source_root(krate.root_file(db));
-                source_root
+                let source_root = db.file_source_root(krate.root_file(db)).source_root_id(db);
+                db.source_root(source_root).source_root_id(db)
             })
             .unique();
-        for source_root_input in source_roots {
-            let source_root = source_root_input.source_root(db);
+        for source_root_id in source_roots {
+            let source_root = db.source_root(source_root_id).source_root(db);
             if !source_root.is_library || self.with_deps {
                 for file_id in source_root.iter() {
                     if let Some(p) = source_root.path_for_file(&file_id) {
@@ -150,7 +150,8 @@ impl flags::AnalysisStats {
             let file_id = module.definition_source_file_id(db);
             let file_id = file_id.original_file(db);
 
-            let source_root = db.source_root(file_id.into()).source_root(db);
+            let source_root = db.file_source_root(file_id.into()).source_root_id(db);
+            let source_root = db.source_root(source_root).source_root(db);
             if !source_root.is_library || self.with_deps {
                 num_crates += 1;
                 visit_queue.push(module);

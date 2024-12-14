@@ -81,7 +81,10 @@ fn fixes(
     // suggest that as a fix.
 
     let db = ctx.sema.db;
-    let source_root = ctx.sema.db.source_root(file_id).source_root(db);
+
+    let source_root = ctx.sema.db.file_source_root(file_id).source_root_id(db);
+    let source_root = ctx.sema.db.source_root(source_root).source_root(db);
+
     let our_path = source_root.path_for_file(&file_id)?;
     let parent = our_path.parent()?;
     let (module_name, _) = our_path.name_and_extension()?;

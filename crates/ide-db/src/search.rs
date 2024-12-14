@@ -164,7 +164,8 @@ impl SearchScope {
         let graph = db.crate_graph();
         for krate in graph.iter() {
             let root_file = graph[krate].root_file_id;
-            let source_root = db.source_root(root_file).source_root(db);
+            let source_root = db.file_source_root(root_file).source_root_id(db);
+            let source_root = db.source_root(source_root).source_root(db);
             entries.extend(
                 source_root.iter().map(|id| (EditionedFileId::new(id, graph[krate].edition), None)),
             );
@@ -177,7 +178,9 @@ impl SearchScope {
         let mut entries = FxHashMap::default();
         for rev_dep in of.transitive_reverse_dependencies(db) {
             let root_file = rev_dep.root_file(db);
-            let source_root = db.source_root(root_file).source_root(db);
+
+            let source_root = db.file_source_root(root_file).source_root_id(db);
+            let source_root = db.source_root(source_root).source_root(db);
             entries.extend(
                 source_root.iter().map(|id| (EditionedFileId::new(id, rev_dep.edition(db)), None)),
             );
@@ -188,7 +191,9 @@ impl SearchScope {
     /// Build a search scope spanning the given crate.
     fn krate(db: &RootDatabase, of: hir::Crate) -> SearchScope {
         let root_file = of.root_file(db);
-        let source_root = db.source_root(root_file).source_root(db);
+
+        let source_root_id = db.file_source_root(root_file).source_root_id(db);
+        let source_root = db.source_root(source_root_id).source_root(db);
         SearchScope {
             entries: source_root
                 .iter()
