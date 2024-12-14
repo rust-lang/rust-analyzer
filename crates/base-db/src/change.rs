@@ -63,18 +63,16 @@ impl FileChange {
                 let root_id = SourceRootId(idx as u32);
                 let durability = durability(&root);
                 for file_id in root.iter() {
-                    db.set_source_root_with_durability(
-                        file_id,
-                        root_id,
-                        Arc::new(root.clone()),
-                        durability,
-                    );
+                    db.set_file_source_root_with_durability(file_id, root_id, durability);
                 }
+
+                db.set_source_root_with_durability(root_id, Arc::new(root), durability);
             }
         }
 
         for (file_id, text) in self.files_changed {
-            let source_root = db.source_root(file_id);
+            let source_root_id = db.file_source_root(file_id);
+            let source_root = db.source_root(source_root_id.source_root_id(db));
 
             let durability = durability(&source_root.source_root(db));
             // XXX: can't actually remove the file, just reset the text

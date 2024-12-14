@@ -54,8 +54,8 @@ use std::{fmt, hash::BuildHasherDefault, mem::ManuallyDrop};
 
 use base_db::{
     db_ext_macro::{self},
-    CrateId, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId, SourceRootInput,
-    Upcast, DEFAULT_FILE_TEXT_LRU_CAP,
+    CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
+    SourceRootInput, Upcast, DEFAULT_FILE_TEXT_LRU_CAP,
 };
 use hir::{
     db::{DefDatabase, ExpandDatabase, HirDatabase},
@@ -87,7 +87,8 @@ pub struct RootDatabase {
     // compile times of all `ide_*` and downstream crates suffer greatly.
     storage: ManuallyDrop<salsa::Storage<Self>>,
     files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
-    source_roots: Arc<DashMap<vfs::FileId, SourceRootInput, BuildHasherDefault<FxHasher>>>,
+    source_roots: Arc<DashMap<SourceRootId, SourceRootInput, BuildHasherDefault<FxHasher>>>,
+    file_source_roots: Arc<DashMap<vfs::FileId, FileSourceRootInput, BuildHasherDefault<FxHasher>>>,
 }
 
 impl std::panic::RefUnwindSafe for RootDatabase {}
@@ -109,6 +110,7 @@ impl Clone for RootDatabase {
             storage: self.storage.clone(),
             files: self.files.clone(),
             source_roots: self.source_roots.clone(),
+            file_source_roots: self.file_source_roots.clone(),
         }
     }
 }
@@ -175,28 +177,49 @@ impl SourceDatabase for RootDatabase {
     }
 
     /// Source root of the file.
-    fn source_root(&self, file_id: vfs::FileId) -> SourceRootInput {
-        let source_root =
-            self.source_roots.get(&file_id).expect("Unable to fetch source root id; this is a bug");
+    fn source_root(&self, source_root_id: SourceRootId) -> SourceRootInput {
+        let source_root = self
+            .source_roots
+            .get(&source_root_id)
+            .expect("Unable to fetch source root id; this is a bug");
 
         *source_root
     }
 
     fn set_source_root_with_durability(
         &self,
-        file_id: vfs::FileId,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: Durability,
     ) {
         let input =
             SourceRootInput::builder(source_root_id, source_root).durability(durability).new(self);
-        self.source_roots.insert(file_id, input);
+        self.source_roots.insert(source_root_id, input);
+    }
+
+    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
+        let file_source_root = self
+            .file_source_roots
+            .get(&id)
+            .expect("Unable to fetch FileSourceRootInput; this is a bug");
+        *file_source_root
+    }
+
+    fn set_file_source_root_with_durability(
+        &self,
+        id: vfs::FileId,
+        source_root_id: SourceRootId,
+        durability: Durability,
+    ) {
+        let input =
+            FileSourceRootInput::builder(id, source_root_id).durability(durability).new(self);
+        self.file_source_roots.insert(id, input);
     }
 
     fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
         // FIXME: this *somehow* should be platform agnostic...
-        let source_root = self.source_root(path.anchor);
+        let source_root = self.file_source_root(path.anchor);
+        let source_root = self.source_root(source_root.source_root_id(self));
         source_root.source_root(self).resolve_path(path)
     }
 
@@ -204,7 +227,7 @@ impl SourceDatabase for RootDatabase {
         let _p = tracing::info_span!("relevant_crates").entered();
 
         let file_id = self.file_text(file_id).file_id(self);
-        let source_root = self.source_root(file_id);
+        let source_root = self.file_source_root(file_id);
         self.source_root_crates(source_root.source_root_id(self))
     }
 }
@@ -221,6 +244,7 @@ impl RootDatabase {
             storage: ManuallyDrop::new(salsa::Storage::default()),
             files: Default::default(),
             source_roots: Default::default(),
+            file_source_roots: Default::default(),
         };
         db.set_crate_graph_with_durability(Default::default(), Durability::HIGH);
         db.set_proc_macros_with_durability(Default::default(), Durability::HIGH);
@@ -276,6 +300,7 @@ impl RootDatabase {
             storage: self.storage.clone(),
             files: self.files.clone(),
             source_roots: self.source_roots.clone(),
+            file_source_roots: self.file_source_roots.clone(),
         }
     }
 }

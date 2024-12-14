@@ -40,11 +40,10 @@ impl flags::RunTests {
                 None => " (unknown line col)".to_owned(),
                 Some(x) => format!("#{}:{}", x.line + 1, x.col),
             };
-            let path = &db
-                .source_root(file_id)
-                .source_root(db)
-                .path_for_file(&file_id)
-                .map(|x| x.to_string());
+            let source_root = db.file_source_root(file_id.into()).source_root_id(db);
+            let source_root = db.source_root(source_root).source_root(db);
+
+            let path = source_root.path_for_file(&file_id).map(|x| x.to_string());
             let path = path.as_deref().unwrap_or("<unknown file>");
             format!("file://{path}{line_col}")
         };
