@@ -533,7 +533,8 @@ impl GlobalState {
                 .iter()
                 .map(|path| vfs.file_id(path).unwrap())
                 .filter(|&file_id| {
-                    let source_root = db.source_root(file_id).source_root(db);
+                    let source_root_id = db.file_source_root(file_id).source_root_id(db);
+                    let source_root = db.source_root(source_root_id).source_root(db);
                     // Only publish diagnostics for files in the workspace, not from crates.io deps
                     // or the sysroot.
                     // While theoretically these should never have errors, we have quite a few false
@@ -617,7 +618,8 @@ impl GlobalState {
             .iter()
             .map(|path| self.vfs.read().0.file_id(path).unwrap())
             .filter(|&file_id| {
-                let source_root = db.source_root(file_id).source_root(db);
+                let source_root_id = db.file_source_root(file_id).source_root_id(db);
+                let source_root = db.source_root(source_root_id).source_root(db);
                 !source_root.is_library
             })
             .collect::<Vec<_>>();

@@ -283,13 +283,13 @@ impl Analysis {
     }
 
     pub fn source_root_id(&self, file_id: FileId) -> Cancellable<SourceRootId> {
-        self.with_db(|db| db.source_root(file_id).source_root_id(db))
+        self.with_db(|db| db.file_source_root(file_id).source_root_id(db))
     }
 
     pub fn is_local_source_root(&self, file_id: FileId) -> Cancellable<bool> {
         self.with_db(|db| {
-            let sr = db.source_root(file_id).source_root(db);
-            !sr.is_library
+            let source_root = db.file_source_root(file_id).source_root_id(db);
+            !db.source_root(source_root).source_root(db).is_library
         })
     }
 
@@ -313,7 +313,10 @@ impl Analysis {
 
     /// Returns true if this file belongs to an immutable library.
     pub fn is_library_file(&self, file_id: FileId) -> Cancellable<bool> {
-        self.with_db(|db| db.source_root(file_id).source_root(db).is_library)
+        self.with_db(|db| {
+            let source_root = db.file_source_root(file_id).source_root_id(db);
+            db.source_root(source_root).source_root(db).is_library
+        })
     }
 
     /// Gets the file's `LineIndex`: data structure to convert between absolute

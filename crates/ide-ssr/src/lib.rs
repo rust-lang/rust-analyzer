@@ -84,6 +84,7 @@ pub use crate::{errors::SsrError, from_comment::ssr_from_comment, matching::Matc
 
 use crate::{errors::bail, matching::MatchFailureReason};
 use hir::{FileRange, Semantics};
+use ide_db::symbol_index::SymbolsDatabase;
 use ide_db::text_edit::TextEdit;
 use ide_db::{base_db::SourceDatabase, EditionedFileId, FileId, FxHashMap, RootDatabase};
 use resolving::ResolvedRule;
@@ -141,23 +142,20 @@ impl<'db> MatchFinder<'db> {
 
     /// Constructs an instance using the start of the first file in `db` as the lookup context.
     pub fn at_first_file(db: &'db ide_db::RootDatabase) -> Result<MatchFinder<'db>, SsrError> {
-        todo!()
-        // use ide_db::base_db::SourceDatabase;
-        // use ide_db::symbol_index::SymbolsDatabase;
-        // if let Some(first_file_id) = db
-        //     .local_roots()
-        //     .iter()
-        //     .next()
-        //     .and_then(|root| db.source_root(*root).source_root(db).iter().next())
-        // {
-        //     MatchFinder::in_context(
-        //         db,
-        //         ide_db::FilePosition { file_id: first_file_id, offset: 0.into() },
-        //         vec![],
-        //     )
-        // } else {
-        //     bail!("No files to search");
-        // }
+        if let Some(first_file_id) = db
+            .local_roots()
+            .iter()
+            .next()
+            .and_then(|root| db.source_root(*root).source_root(db).iter().next())
+        {
+            MatchFinder::in_context(
+                db,
+                ide_db::FilePosition { file_id: first_file_id, offset: 0.into() },
+                vec![],
+            )
+        } else {
+            bail!("No files to search");
+        }
     }
 
     /// Adds a rule to be applied. The order in which rules are added matters. Earlier rules take

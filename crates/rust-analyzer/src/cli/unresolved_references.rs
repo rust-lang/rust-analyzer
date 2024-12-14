@@ -55,8 +55,8 @@ impl flags::UnresolvedReferences {
 
         let work = all_modules(db).into_iter().filter(|module| {
             let file_id = module.definition_source_file_id(db).original_file(db);
-            let source_root = db.source_root(file_id.into()).source_root(db);
-
+            let source_root = db.file_source_root(file_id.into()).source_root_id(db);
+            let source_root = db.source_root(source_root).source_root(db);
             !source_root.is_library
         });
 

@@ -430,9 +430,8 @@ impl GlobalState {
 
                     // If change has been made to a ratoml file that
                     // belongs to a non-local source root, we will ignore it.
-                    let source_root_input = db.source_root(file_id);
-                    let source_root = source_root_input.source_root(db);
-                    let source_root_id = source_root_input.source_root_id(db);
+                    let source_root_id = db.file_source_root(file_id).source_root_id(db);
+                    let source_root = db.source_root(source_root_id).source_root(db);
 
                     if !source_root.is_library {
                         let entry = if workspace_ratoml_paths.contains(&vfs_path) {

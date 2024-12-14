@@ -76,6 +76,12 @@ pub struct FileText {
 }
 
 #[salsa::input]
+pub struct FileSourceRootInput {
+    pub file_id: vfs::FileId,
+    pub source_root_id: SourceRootId,
+}
+
+#[salsa::input]
 pub struct SourceRootInput {
     pub source_root_id: SourceRootId,
     pub source_root: Arc<SourceRoot>,
@@ -121,12 +127,20 @@ pub trait SourceDatabase: salsa::Database {
     );
 
     /// Contents of the source root.
-    fn source_root(&self, id: vfs::FileId) -> SourceRootInput;
+    fn source_root(&self, id: SourceRootId) -> SourceRootInput;
+
+    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput;
+
+    fn set_file_source_root_with_durability(
+        &self,
+        id: vfs::FileId,
+        source_root_id: SourceRootId,
+        durability: Durability,
+    );
 
     /// Source root of the file.
     fn set_source_root_with_durability(
         &self,
-        file_id: vfs::FileId,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: Durability,
@@ -167,7 +181,7 @@ fn source_root_crates(db: &dyn RootQueryDb, id: SourceRootId) -> Arc<[CrateId]> 
         .iter()
         .filter(|&krate| {
             let root_file = graph[krate].root_file_id;
-            db.source_root(root_file).source_root_id(db) == id
+            db.file_source_root(root_file).source_root_id(db) == id
         })
         .collect::<Vec<_>>();
     crates.sort();
