@@ -3,8 +3,8 @@
 use std::{fmt, hash::BuildHasherDefault, panic, sync::Mutex};
 
 use base_db::{
-    AnchoredPath, CrateId, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
-    SourceRootInput, Upcast,
+    AnchoredPath, CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot,
+    SourceRootId, SourceRootInput, Upcast,
 };
 use dashmap::DashMap;
 use hir_expand::{db::ExpandDatabase, files::FilePosition, InFile};
@@ -26,7 +26,8 @@ use crate::{
 pub(crate) struct TestDB {
     storage: salsa::Storage<Self>,
     files: DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>,
-    source_roots: DashMap<vfs::FileId, SourceRootInput, BuildHasherDefault<FxHasher>>,
+    source_roots: DashMap<SourceRootId, SourceRootInput, BuildHasherDefault<FxHasher>>,
+    file_source_roots: Arc<DashMap<vfs::FileId, FileSourceRootInput, BuildHasherDefault<FxHasher>>>,
     events: Arc<Mutex<Option<Vec<salsa::Event>>>>,
 }
 
@@ -37,6 +38,7 @@ impl Default for TestDB {
             events: Default::default(),
             files: Default::default(),
             source_roots: Default::default(),
+            file_source_roots: Default::default(),
         };
         hir_expand::db::setup_syntax_context_root(this.upcast());
         this.set_expand_proc_attr_macros_with_durability(true, Durability::HIGH);
@@ -111,29 +113,49 @@ impl SourceDatabase for TestDB {
         );
     }
 
+    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
+        let file_source_root = self
+            .file_source_roots
+            .get(&id)
+            .expect("Unable to fetch FileSourceRootInput; this is a bug");
+        *file_source_root
+    }
+
+    fn set_file_source_root_with_durability(
+        &self,
+        id: vfs::FileId,
+        source_root_id: SourceRootId,
+        durability: Durability,
+    ) {
+        let input =
+            FileSourceRootInput::builder(id, source_root_id).durability(durability).new(self);
+        self.file_source_roots.insert(id, input);
+    }
+
     /// Source root of the file.
-    fn source_root(&self, file_id: vfs::FileId) -> SourceRootInput {
+    fn source_root(&self, id: SourceRootId) -> SourceRootInput {
         let source_root =
-            self.source_roots.get(&file_id).expect("Unable to fetch source root id; this is a bug");
+            self.source_roots.get(&id).expect("Unable to fetch source root id; this is a bug");
 
         *source_root
     }
 
     fn set_source_root_with_durability(
         &self,
-        file_id: vfs::FileId,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: Durability,
     ) {
         let input =
             SourceRootInput::builder(source_root_id, source_root).durability(durability).new(self);
-        self.source_roots.insert(file_id, input);
+        self.source_roots.insert(source_root_id, input);
     }
 
     fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
         // FIXME: this *somehow* should be platform agnostic...
-        let source_root = self.source_root(path.anchor);
+        let source_root_id = self.file_source_root(path.anchor);
+        let source_root = self.source_root(source_root_id.source_root_id(self));
+
         source_root.source_root(self).resolve_path(path)
     }
 
@@ -141,7 +163,8 @@ impl SourceDatabase for TestDB {
         let _p = tracing::info_span!("relevant_crates").entered();
 
         let file_id = self.file_text(file_id).file_id(self);
-        let source_root = self.source_root(file_id);
+        let source_root_id = self.file_source_root(file_id);
+        let source_root = self.source_root(source_root_id.source_root_id(self));
         self.source_root_crates(source_root.source_root_id(self))
     }
 }

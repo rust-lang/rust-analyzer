@@ -155,7 +155,7 @@ impl Tester {
                 .stack_size(40 * 1024 * 1024)
                 .spawn_scoped(s, {
                     let diagnostic_config = &diagnostic_config;
-                    let main = std::thread::current();
+                    // let main = std::thread::current();
                     let analysis = self.host.analysis();
                     let root_file = self.root_file;
                     move || {

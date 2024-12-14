@@ -281,7 +281,8 @@ fn check_with_config(
                     snippet_edit.apply(&mut text);
                 }
                 if !skip_header {
-                    let sr = db.source_root(file_id).source_root(&db);
+                    let source_root_id = db.file_source_root(file_id).source_root_id(&db);
+                    let sr = db.source_root(source_root_id).source_root(&db);
                     let path = sr.path_for_file(&file_id).unwrap();
                     format_to!(buf, "//- {}\n", path)
                 }
@@ -299,7 +300,9 @@ fn check_with_config(
                         (dst, format!("{src_id:?}\n{src:?}"))
                     }
                 };
-                let sr = db.source_root(dst.anchor).source_root(&db);
+
+                let source_root_id = db.file_source_root(dst.anchor).source_root_id(&db);
+                let sr = db.source_root(source_root_id).source_root(&db);
                 let mut base = sr.path_for_file(&dst.anchor).unwrap().clone();
                 base.pop();
                 let created_file_path = base.join(&dst.path).unwrap();

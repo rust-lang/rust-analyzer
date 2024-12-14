@@ -159,14 +159,11 @@ impl MatchFinder<'_> {
             use ide_db::base_db::SourceDatabase;
             use ide_db::symbol_index::SymbolsDatabase;
             for &root in self.sema.db.local_roots().iter() {
-                // self.sema.db.source_root(id)
-                // let sr = self.sema.db.source_root(id)
+                let sr = self.sema.db.source_root(root).source_root(self.sema.db);
+                for file_id in sr.iter() {
+                    callback(file_id);
+                }
             }
-            //     let sr = self.sema.db.source_root(root);
-            //     for file_id in sr.iter() {
-            //         callback(file_id);
-            //     }
-            // }
         } else {
             // Search is restricted, deduplicate file IDs (generally only one).
             let mut files = FxHashSet::default();
