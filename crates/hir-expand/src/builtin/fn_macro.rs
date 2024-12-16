@@ -404,7 +404,7 @@ fn use_panic_2021(db: &dyn ExpandDatabase, span: Span) -> bool {
     // stack that does not have #[allow_internal_unstable(edition_panic)].
     // (To avoid using the edition of e.g. the assert!() or debug_assert!() definition.)
     loop {
-        let Some(expn) = db.lookup_intern_syntax_context(span.ctx).outer_expn else {
+        let Some(expn) = span.ctx.outer_expn(db) else {
             break false;
         };
         let expn = db.lookup_intern_macro_call(expn);

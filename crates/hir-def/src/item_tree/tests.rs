@@ -1,4 +1,4 @@
-use expect_test::{expect, Expect};
+use expect_test::{Expect, expect};
 use span::Edition;
 use test_fixture::WithFixture;
 
@@ -270,7 +270,7 @@ m!();
             // AstId: 2
             pub macro m2 { ... }
 
-            // AstId: 3, SyntaxContext: 2, ExpandTo: Items
+            // AstId: 3, SyntaxContext: 4294967039, ExpandTo: Items
             m!(...);
         "#]],
     );

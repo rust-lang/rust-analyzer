@@ -118,10 +118,7 @@ impl flags::AnalysisStats {
         let source_roots = krates
             .iter()
             .cloned()
-            .map(|krate| {
-                let source_root = db.file_source_root(krate.root_file(db)).source_root_id(db);
-                db.source_root(source_root).source_root_id(db)
-            })
+            .map(|krate| db.file_source_root(krate.root_file(db)).source_root_id(db))
             .unique();
         for source_root_id in source_roots {
             let source_root = db.source_root(source_root_id).source_root(db);

@@ -4,6 +4,7 @@ use base_db::{
     CrateGraph, CrateId, CrateWorkspaceData, FileChange, RootQueryDb, SourceDatabase, SourceRoot,
 };
 use rustc_hash::FxHashMap;
+use salsa::Durability;
 use span::FileId;
 use triomphe::Arc;
 
@@ -23,7 +24,7 @@ impl ChangeWithProcMacros {
     pub fn apply(self, db: &mut (impl ExpandDatabase + SourceDatabase + RootQueryDb)) {
         self.source_change.apply(db);
         if let Some(proc_macros) = self.proc_macros {
-            db.set_proc_macros_with_durability(Arc::new(proc_macros), salsa::Durability::HIGH);
+            db.set_proc_macros_with_durability(Arc::new(proc_macros), Durability::HIGH);
         }
     }
 

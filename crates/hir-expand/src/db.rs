@@ -5,7 +5,10 @@ use either::Either;
 use mbe::MatchedArmIndex;
 use rustc_hash::FxHashSet;
 use salsa::plumbing::AsId;
-use span::{AstIdMap, Edition, EditionedFileId, HirFileId, HirFileIdRepr, MacroFileId, Span};
+use span::{
+    AstIdMap, Edition, EditionedFileId, HirFileId, HirFileIdRepr, MacroFileId, Span,
+    SyntaxContextData,
+};
 use syntax::{AstNode, Parse, SyntaxElement, SyntaxError, SyntaxNode, SyntaxToken, T, ast};
 use syntax_bridge::{DocCommentDesugarMode, syntax_node_to_token_tree};
 use triomphe::Arc;
@@ -90,9 +93,6 @@ pub trait ExpandDatabase: RootQueryDb {
     /// to be incremental.
     #[db_ext_macro::interned(MacroCallWrapper)]
     fn intern_macro_call(&self, macro_call: MacroCallLoc) -> MacroCallId;
-
-    #[db_ext_macro::interned(SyntaxContextWrapper)]
-    fn intern_syntax_context(&self, ctx: SyntaxContextData) -> SyntaxContextId;
 
     #[db_ext_macro::transparent]
     #[db_ext_macro::invoke(crate::hygiene::dump_syntax_contexts)]
