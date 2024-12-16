@@ -132,7 +132,6 @@ pub use {
     hir_expand::{
         attrs::{Attr, AttrId},
         change::ChangeWithProcMacros,
-        db::setup_syntax_context_root,
         files::{
             FilePosition, FilePositionWrapper, FileRange, FileRangeWrapper, HirFilePosition,
             HirFileRange, InFile, InFileWrapper, InMacroFile, InRealFile, MacroFilePosition,

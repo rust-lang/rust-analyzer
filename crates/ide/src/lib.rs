@@ -64,16 +64,8 @@ use fetch_crates::CrateInfo;
 use hir::{sym, ChangeWithProcMacros};
 use ide_db::{
     base_db::{
-        // ra_salsa::{self, ParallelDatabase},
-        salsa::Cancelled,
-        CrateOrigin,
-        CrateWorkspaceData,
-        Env,
-        FileSet,
-        RootQueryDb,
-        SourceDatabase,
-        Upcast,
-        VfsPath,
+        salsa::Cancelled, CrateOrigin, CrateWorkspaceData, Env, FileSet, RootQueryDb,
+        SourceDatabase, Upcast, VfsPath,
     },
     prime_caches, symbol_index, FxHashMap, FxIndexSet, LineIndexDatabase,
 };
