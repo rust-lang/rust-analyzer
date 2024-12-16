@@ -16,7 +16,6 @@ doctest = false
 lz4_flex = { version = "0.11", default-features = false }
 
 la-arena.workspace = true
-ra-salsa.workspace = true
 dashmap.workspace = true
 salsa.workspace = true
 db-ext-macro.workspace = true

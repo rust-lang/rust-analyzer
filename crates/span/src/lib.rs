@@ -10,9 +10,12 @@ mod map;
 
 pub use self::{
     ast_id::{AstIdMap, AstIdNode, ErasedFileAstId, FileAstId},
-    hygiene::{SyntaxContextData, SyntaxContextId, Transparency},
+    hygiene::{SyntaxContext, Transparency},
     map::{RealSpanMap, SpanMap},
 };
+
+// Remove this
+pub use self::hygiene::SyntaxContext as SyntaxContextId;
 
 pub use syntax::Edition;
 pub use text_size::{TextRange, TextSize};
@@ -31,7 +34,7 @@ pub const FIXUP_ERASED_FILE_AST_ID_MARKER: ErasedFileAstId =
     // is required to be stable for the proc-macro-server
     ErasedFileAstId::from_raw(!0 - 1);
 
-pub type Span = SpanData<SyntaxContextId>;
+pub type Span = SpanData<SyntaxContext>;
 
 impl Span {
     pub fn cover(self, other: Span) -> Span {
