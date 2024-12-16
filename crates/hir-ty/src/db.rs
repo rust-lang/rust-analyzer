@@ -3,7 +3,7 @@
 
 use std::sync;
 
-use base_db::{CrateId, InternValueTrivial, Upcast, impl_intern_key, impl_wrapper};
+use base_db::{CrateId, Upcast, impl_intern_key, impl_wrapper};
 use hir_def::{
     AdtId, BlockId, CallableDefId, ConstParamId, DefWithBodyId, EnumVariantId, FunctionId,
     GeneralConstId, GenericDefId, ImplId, LifetimeParamId, LocalFieldId, StaticId, TraitId,
@@ -341,15 +341,12 @@ impl_intern_key!(InternedClosureId);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InternedClosure(pub DefWithBodyId, pub ExprId);
 
-impl InternValueTrivial for InternedClosure {}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InternedCoroutineId(salsa::Id);
 impl_intern_key!(InternedCoroutineId);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InternedCoroutine(pub DefWithBodyId, pub ExprId);
-impl InternValueTrivial for InternedCoroutine {}
 
 /// This exists just for Chalk, because Chalk just has a single `FnDefId` where
 /// we have different IDs for struct and enum variant constructors.

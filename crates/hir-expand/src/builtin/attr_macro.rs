@@ -2,10 +2,7 @@
 use intern::sym;
 use span::{MacroCallId, Span};
 
-use crate::{
-    db::{ExpandDatabase},
-    name, tt, ExpandResult, MacroCallKind,
-};
+use crate::{db::ExpandDatabase, name, tt, ExpandResult, MacroCallKind};
 
 use super::quote;
 

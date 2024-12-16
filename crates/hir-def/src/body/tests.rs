@@ -1,6 +1,5 @@
 mod block;
 
-use base_db::RootQueryDb;
 use expect_test::{expect, Expect};
 use test_fixture::WithFixture;
 

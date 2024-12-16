@@ -12,7 +12,6 @@ pub use crate::{
     },
 };
 pub use db_ext_macro::{self};
-pub use ra_salsa::InternValueTrivial;
 use rustc_hash::FxHashMap;
 use salsa::Durability;
 pub use salsa::{self};
@@ -71,19 +70,16 @@ pub struct CrateWorkspaceData {
 
 #[salsa::input]
 pub struct FileText {
-    pub file_id: vfs::FileId,
     pub text: Arc<str>,
 }
 
 #[salsa::input]
 pub struct FileSourceRootInput {
-    pub file_id: vfs::FileId,
     pub source_root_id: SourceRootId,
 }
 
 #[salsa::input]
 pub struct SourceRootInput {
-    pub source_root_id: SourceRootId,
     pub source_root: Arc<SourceRoot>,
 }
 

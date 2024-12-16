@@ -533,7 +533,7 @@ fn handle_diag_from_macros(
     let span_map = sema.db.expansion_span_map(macro_file);
     let mut spans = span_map.spans_for_range(node.text_range());
     if spans.any(|span| {
-        sema.db.lookup_intern_syntax_context(span.ctx).outer_expn.is_some_and(|expansion| {
+        span.ctx.outer_expn(sema.db).is_some_and(|expansion| {
             let macro_call =
                 sema.db.lookup_intern_macro_call(expansion.as_macro_file().macro_call_id);
             // We don't want to show diagnostics for non-local macros at all, but proc macros authors

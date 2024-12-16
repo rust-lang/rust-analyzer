@@ -106,9 +106,8 @@ impl DeclarativeMacroExpander {
             if ctx.is_root() {
                 crate_graph[def_crate].edition
             } else {
-                let data = db.lookup_intern_syntax_context(ctx);
                 // UNWRAP-SAFETY: Only the root context has no outer expansion
-                let krate = db.lookup_intern_macro_call(data.outer_expn.unwrap()).def.krate;
+                let krate = db.lookup_intern_macro_call(ctx.outer_expn(db).unwrap()).def.krate;
                 crate_graph[krate].edition
             }
         };
