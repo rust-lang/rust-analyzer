@@ -539,6 +539,12 @@ impl InferenceResult {
             ExprOrPatId::PatId(id) => self.type_of_pat.get(id),
         }
     }
+    pub fn type_of_expr_including_adjust(&self, id: ExprId) -> Option<&Ty> {
+        match self.expr_adjustments.get(&id).and_then(|adjustments| adjustments.last()) {
+            Some(adjustment) => Some(&adjustment.target),
+            None => self.type_of_expr.get(id),
+        }
+    }
 }
 
 impl Index<ExprId> for InferenceResult {
