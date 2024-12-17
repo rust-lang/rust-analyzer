@@ -88,7 +88,7 @@ pub struct SourceRootInput {
 #[db_ext_macro::query_group]
 pub trait RootQueryDb: SourceDatabase + salsa::Database {
     /// Parses the file into the syntax tree.
-    // #[db_ext_macro::lru]
+    #[db_ext_macro::lru]
     fn parse(&self, file_id: EditionedFileId) -> Parse<ast::SourceFile>;
 
     /// Returns the set of errors obtained from parsing the file including validation errors.
