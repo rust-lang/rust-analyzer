@@ -5,6 +5,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -45,6 +46,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -76,6 +78,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -107,6 +110,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -138,6 +142,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -186,6 +191,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -217,6 +223,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -313,6 +320,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -344,6 +352,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -375,6 +384,7 @@
         ),
         edition: Edition2021,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -406,6 +416,7 @@
         ),
         edition: Edition2018,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -483,6 +494,7 @@
         ),
         edition: Edition2018,
         version: None,
+        package_id: None,
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(

@@ -7,6 +7,9 @@
         version: Some(
             "0.1.0",
         ),
+        package_id: Some(
+            "hello-world 0.1.0 (path+file://$ROOT$hello-world)",
+        ),
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -69,6 +72,9 @@
         edition: Edition2018,
         version: Some(
             "0.1.0",
+        ),
+        package_id: Some(
+            "hello-world 0.1.0 (path+file://$ROOT$hello-world)",
         ),
         display_name: Some(
             CrateDisplayName {
@@ -141,6 +147,9 @@
         version: Some(
             "0.1.0",
         ),
+        package_id: Some(
+            "hello-world 0.1.0 (path+file://$ROOT$hello-world)",
+        ),
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -212,6 +221,9 @@
         version: Some(
             "0.1.0",
         ),
+        package_id: Some(
+            "hello-world 0.1.0 (path+file://$ROOT$hello-world)",
+        ),
         display_name: Some(
             CrateDisplayName {
                 crate_name: CrateName(
@@ -282,6 +294,9 @@
         edition: Edition2015,
         version: Some(
             "0.2.98",
+        ),
+        package_id: Some(
+            "libc 0.2.98 (registry+https://github.com/rust-lang/crates.io-index)",
         ),
         display_name: Some(
             CrateDisplayName {
