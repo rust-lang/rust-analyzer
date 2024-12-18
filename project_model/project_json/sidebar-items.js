@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RunnableKind","RunnableKindData","TargetKindData"],"struct":["Build","BuildData","Crate","CrateArrayIdx","ProjectJson","ProjectJsonData","Runnable","RunnableData"]};
