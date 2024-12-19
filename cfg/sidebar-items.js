@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CfgAtom","CfgExpr"],"struct":["CfgDiff","CfgOptions","DnfExpr","InactiveReason"]};

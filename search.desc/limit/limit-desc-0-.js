@@ -1,0 +1,1 @@
+searchState.loadedDescShard("limit", 0, "limit defines a struct to enforce limits.\nRepresents a struct used to enforce a numerical limit.\nChecks whether the given value is below the limit. Returns …\nReturns the argument unchanged.\nGets the underlying numeric limit.\nCalls <code>U::from(self)</code>.\nCreates a new limit.")
