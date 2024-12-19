@@ -23,15 +23,14 @@ mod tests;
 
 use span::{Edition, Span, SyntaxContextId};
 use syntax_bridge::to_parser_input;
-use tt::iter::TtIter;
-use tt::DelimSpan;
+use tt::{DelimSpan, RefTokenCursor, Token, TokenCursor, TokenKind, TokenStream};
 
 use std::fmt;
 use std::sync::Arc;
 
 use crate::parser::{MetaTemplate, MetaVarKind, Op};
 
-pub use tt::{Delimiter, DelimiterKind, Punct};
+pub use tt::Delimiter;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ParseError {
@@ -148,18 +147,18 @@ impl DeclarativeMacro {
 
     /// The old, `macro_rules! m {}` flavor.
     pub fn parse_macro_rules(
-        tt: &tt::Subtree<Span>,
+        stream: &TokenStream<Span>,
         ctx_edition: impl Copy + Fn(SyntaxContextId) -> Edition,
     ) -> DeclarativeMacro {
         // Note: this parsing can be implemented using mbe machinery itself, by
         // matching against `$($lhs:tt => $rhs:tt);*` pattern, but implementing
         // manually seems easier.
-        let mut src = TtIter::new(tt);
+        let mut cursor = RefTokenCursor::new(stream);
         let mut rules = Vec::new();
         let mut err = None;
 
-        while src.len() > 0 {
-            let rule = match Rule::parse(ctx_edition, &mut src) {
+        while let Some((token, _)) = cursor.next() {
+            let rule = match Rule::parse(ctx_edition, &mut cursor) {
                 Ok(it) => it,
                 Err(e) => {
                     err = Some(Box::new(e));
@@ -167,11 +166,13 @@ impl DeclarativeMacro {
                 }
             };
             rules.push(rule);
-            if let Err(()) = src.expect_char(';') {
-                if src.len() > 0 {
+            match cursor.next() {
+                Some((Token { kind: TokenKind::Semi, .. }, _)) => (),
+                Some((Token { span, .. }, _)) => {
                     err = Some(Box::new(ParseError::expected("expected `;`")));
+                    break;
                 }
-                break;
+                None => break,
             }
         }
 
@@ -187,8 +188,8 @@ impl DeclarativeMacro {
 
     /// The new, unstable `macro m {}` flavor.
     pub fn parse_macro2(
-        args: Option<&tt::Subtree<Span>>,
-        body: &tt::Subtree<Span>,
+        args: Option<&tt::TokenStream<Span>>,
+        body: &tt::TokenStream<Span>,
         ctx_edition: impl Copy + Fn(SyntaxContextId) -> Edition,
     ) -> DeclarativeMacro {
         let mut rules = Vec::new();
@@ -210,9 +211,9 @@ impl DeclarativeMacro {
             }
         } else {
             cov_mark::hit!(parse_macro_def_rules);
-            let mut src = TtIter::new(body);
-            while src.len() > 0 {
-                let rule = match Rule::parse(ctx_edition, &mut src) {
+            let mut cursor = RefTokenCursor::new(body);
+            while let Some((token, _)) = cursor.next() {
+                let rule = match Rule::parse(ctx_edition, &mut cursor) {
                     Ok(it) => it,
                     Err(e) => {
                         err = Some(Box::new(e));
@@ -220,13 +221,15 @@ impl DeclarativeMacro {
                     }
                 };
                 rules.push(rule);
-                if let Err(()) = src.expect_any_char(&[';', ',']) {
-                    if src.len() > 0 {
+                match cursor.next() {
+                    Some((Token { kind: TokenKind::Semi | TokenKind::Comma, .. }, _)) => (),
+                    Some((Token { span, .. }, _)) => {
                         err = Some(Box::new(ParseError::expected(
                             "expected `;` or `,` to delimit rules",
                         )));
+                        break;
                     }
-                    break;
+                    None => break,
                 }
             }
         }
@@ -251,11 +254,11 @@ impl DeclarativeMacro {
 
     pub fn expand(
         &self,
-        tt: &tt::Subtree<Span>,
+        tt: &tt::TokenStream<Span>,
         marker: impl Fn(&mut Span) + Copy,
         call_site: Span,
         def_site_edition: Edition,
-    ) -> ExpandResult<(tt::Subtree<Span>, MatchedArmIndex)> {
+    ) -> ExpandResult<(tt::TokenStream<Span>, MatchedArmIndex)> {
         expander::expand_rules(&self.rules, tt, marker, call_site, def_site_edition)
     }
 }
@@ -263,7 +266,7 @@ impl DeclarativeMacro {
 impl Rule {
     fn parse(
         edition: impl Copy + Fn(SyntaxContextId) -> Edition,
-        src: &mut TtIter<'_, Span>,
+        src: &mut RefTokenCursor<'_, Span>,
     ) -> Result<Self, ParseError> {
         let lhs = src.expect_subtree().map_err(|()| ParseError::expected("expected subtree"))?;
         src.expect_char('=').map_err(|()| ParseError::expected("expected `=`"))?;
@@ -360,31 +363,26 @@ impl<T: Default, E> From<Result<T, E>> for ValueResult<T, E> {
 }
 
 pub fn expect_fragment(
-    tt_iter: &mut TtIter<'_, Span>,
+    cursor: &mut RefTokenCursor<'_, Span>,
     entry_point: ::parser::PrefixEntryPoint,
     edition: ::parser::Edition,
     delim_span: DelimSpan<Span>,
 ) -> ExpandResult<Option<tt::TokenTree<Span>>> {
     use ::parser;
-    let buffer = tt::buffer::TokenBuffer::from_tokens(tt_iter.as_slice());
-    let parser_input = to_parser_input(edition, &buffer);
+    let parser_input = to_parser_input(edition, cursor.clone());
     let tree_traversal = entry_point.parse(&parser_input, edition);
-    let mut cursor = buffer.begin();
     let mut error = false;
     for step in tree_traversal.iter() {
         match step {
             parser::Step::Token { kind, mut n_input_tokens } => {
-                if kind == ::parser::SyntaxKind::LIFETIME_IDENT {
-                    n_input_tokens = 2;
-                }
                 for _ in 0..n_input_tokens {
-                    cursor = cursor.bump_subtree();
+                    cursor.next();
                 }
             }
             parser::Step::FloatSplit { .. } => {
                 // FIXME: We need to split the tree properly here, but mutating the token trees
                 // in the buffer is somewhat tricky to pull off.
-                cursor = cursor.bump_subtree();
+                cursor.next();
             }
             parser::Step::Enter { .. } | parser::Step::Exit => (),
             parser::Step::Error { .. } => error = true,
@@ -409,7 +407,7 @@ pub fn expect_fragment(
         curr = curr.bump();
     }
 
-    *tt_iter = TtIter::new_iter(tt_iter.as_slice()[res.len()..].iter());
+    *cursor = TtIter::new_iter(cursor.as_slice()[res.len()..].iter());
     let res = match &*res {
         [] | [_] => res.pop(),
         [first, ..] => Some(tt::TokenTree::Subtree(tt::Subtree {
