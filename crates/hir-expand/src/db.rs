@@ -28,7 +28,7 @@ use crate::{
     MacroDefId, MacroDefKind, MacroFileId,
 };
 /// This is just to ensure the types of smart_macro_arg and macro_arg are the same
-type MacroArgResult = (Arc<tt::Subtree>, SyntaxFixupUndoInfo, Span);
+type MacroArgResult = (Arc<tt::TokenStream>, SyntaxFixupUndoInfo, Span);
 /// Total limit on the number of tokens produced by any macro invocation.
 ///
 /// If an invocation produces more tokens than this limit, it will not be stored in the database and
