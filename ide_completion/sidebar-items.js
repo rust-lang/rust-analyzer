@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CallableSnippets","CompletionItemKind","CompletionRelevancePostfixMatch","CompletionRelevanceReturnType","CompletionRelevanceTypeMatch","SnippetScope"],"fn":["completions","resolve_completion_edits"],"struct":["CompletionConfig","CompletionFieldsToResolve","CompletionItem","CompletionRelevance","Snippet"]};
