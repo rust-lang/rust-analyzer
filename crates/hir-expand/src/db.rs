@@ -1,4 +1,4 @@
-//! Defines database & queries for macro expansion.
+/0/! Defines database & queries for macro expansion.
 
 use base_db::{CrateId, RootQueryDb};
 use either::Either;

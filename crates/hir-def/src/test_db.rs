@@ -162,13 +162,6 @@ impl SourceDatabase for TestDB {
 
         source_root.source_root(self).resolve_path(path)
     }
-
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
-        let _p = tracing::info_span!("relevant_crates").entered();
-
-        let source_root = self.file_source_root(file_id);
-        self.source_root_crates(source_root.source_root_id(self))
-    }
 }
 
 impl TestDB {

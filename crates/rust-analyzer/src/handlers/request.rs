@@ -45,6 +45,7 @@ use crate::{
         },
         from_proto, to_proto,
         utils::{all_edits_are_disjoint, invalid_params_error},
+        LspError,
     },
     lsp_ext::{
         self, CrateInfoResult, ExternalDocsPair, ExternalDocsResponse, FetchDependencyListParams,
@@ -483,10 +484,10 @@ pub(crate) fn handle_document_diagnostics(
     };
 
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
-    let source_root = snap.analysis.source_root_id(file_id)?;
-    if !snap.analysis.is_local_source_root(source_root)? {
+    if !snap.analysis.is_local_source_root(file_id)? {
         return Ok(empty());
     }
+    let source_root = snap.analysis.source_root_id(file_id)?;
     let config = snap.config.diagnostics(Some(source_root));
     if !config.enabled {
         return Ok(empty());

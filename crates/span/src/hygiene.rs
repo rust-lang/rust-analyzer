@@ -21,11 +21,6 @@
 //! `ExpnData::call_site` in rustc, [`MacroCallLoc::call_site`] in rust-analyzer.
 use std::fmt;
 
-#[cfg(not(feature = "ra-salsa"))]
-use crate::InternId;
-#[cfg(feature = "ra-salsa")]
-use ra_salsa::{InternId, InternValue};
-
 use crate::{Edition, MacroCallId};
 
 // /// Interned [`SyntaxContextData`].
