@@ -45,9 +45,9 @@ pub mod syntax_helpers {
     pub use parser::LexedStr;
 }
 
-use dashmap::DashMap;
+use dashmap::{mapref::entry::Entry, DashMap};
 pub use hir::ChangeWithProcMacros;
-use salsa::Durability;
+use salsa::{Durability, Setter};
 use vfs::AnchoredPath;
 
 use std::{fmt, hash::BuildHasherDefault, mem::ManuallyDrop};
@@ -160,12 +160,21 @@ impl SourceDatabase for RootDatabase {
         *self.files.get(&file_id).expect("Unable to fetch file; this is a bug")
     }
 
-    fn set_file_text(&self, file_id: vfs::FileId, text: &str) {
-        self.files.insert(file_id, FileText::new(self, Arc::from(text)));
+    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
+        let files = Arc::clone(&self.files);
+        match files.entry(file_id) {
+            Entry::Occupied(mut occupied) => {
+                occupied.get_mut().set_text(self).to(Arc::from(text));
+            }
+            Entry::Vacant(vacant) => {
+                let text = FileText::new(self, Arc::from(text));
+                vacant.insert(text);
+            }
+        };
     }
 
     fn set_file_text_with_durability(
-        &self,
+        &mut self,
         file_id: vfs::FileId,
         text: &str,
         durability: Durability,
@@ -185,7 +194,7 @@ impl SourceDatabase for RootDatabase {
     }
 
     fn set_source_root_with_durability(
-        &self,
+        &mut self,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: Durability,
@@ -203,7 +212,7 @@ impl SourceDatabase for RootDatabase {
     }
 
     fn set_file_source_root_with_durability(
-        &self,
+        &mut self,
         id: vfs::FileId,
         source_root_id: SourceRootId,
         durability: Durability,

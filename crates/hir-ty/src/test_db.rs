@@ -6,11 +6,11 @@ use base_db::{
     CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
     SourceRootInput, Upcast,
 };
-use dashmap::DashMap;
+use dashmap::{mapref::entry::Entry, DashMap};
 use hir_def::{db::DefDatabase, ModuleId};
 use hir_expand::db::ExpandDatabase;
 use rustc_hash::{FxHashMap, FxHasher};
-use salsa::{AsDynDatabase, Durability};
+use salsa::{AsDynDatabase, Durability, Setter};
 use span::{EditionedFileId, FileId};
 use syntax::TextRange;
 use test_utils::extract_annotations;
@@ -77,12 +77,21 @@ impl SourceDatabase for TestDB {
         *self.files.get(&file_id).expect("Unable to fetch file; this is a bug")
     }
 
-    fn set_file_text(&self, file_id: vfs::FileId, text: &str) {
-        self.files.insert(file_id, FileText::new(self, Arc::from(text)));
+    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
+        let files = Arc::clone(&self.files);
+        match files.entry(file_id) {
+            Entry::Occupied(mut occupied) => {
+                occupied.get_mut().set_text(self).to(Arc::from(text));
+            }
+            Entry::Vacant(vacant) => {
+                let text = FileText::new(self, Arc::from(text));
+                vacant.insert(text);
+            }
+        };
     }
 
     fn set_file_text_with_durability(
-        &self,
+        &mut self,
         file_id: vfs::FileId,
         text: &str,
         durability: salsa::Durability,
@@ -100,7 +109,7 @@ impl SourceDatabase for TestDB {
     }
 
     fn set_file_source_root_with_durability(
-        &self,
+        &mut self,
         id: vfs::FileId,
         source_root_id: SourceRootId,
         durability: Durability,
@@ -120,7 +129,7 @@ impl SourceDatabase for TestDB {
     }
 
     fn set_source_root_with_durability(
-        &self,
+        &mut self,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: salsa::Durability,

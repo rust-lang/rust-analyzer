@@ -539,7 +539,7 @@ fn check_infer_with_mismatches(#[rust_analyzer::rust_fixture] ra_fixture: &str, 
 
 #[test]
 fn salsa_bug() {
-    let (db, pos) = TestDB::with_position(
+    let (mut db, pos) = TestDB::with_position(
         "
         //- /lib.rs
         trait Index {
