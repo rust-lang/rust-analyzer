@@ -3,12 +3,11 @@
 
 use std::sync;
 
-use base_db::{CrateId, Upcast, impl_intern_key, impl_wrapper};
+use base_db::{impl_intern_key, impl_wrapper, CrateId, Upcast};
 use hir_def::{
-    AdtId, BlockId, CallableDefId, ConstParamId, DefWithBodyId, EnumVariantId, FunctionId,
-    GeneralConstId, GenericDefId, ImplId, LifetimeParamId, LocalFieldId, StaticId, TraitId,
-    TypeAliasId, TypeOrConstParamId, VariantId, db::DefDatabase, hir::ExprId,
-    layout::TargetDataLayout,
+    db::DefDatabase, hir::ExprId, layout::TargetDataLayout, AdtId, BlockId, CallableDefId,
+    ConstParamId, DefWithBodyId, EnumVariantId, FunctionId, GeneralConstId, GenericDefId, ImplId,
+    LifetimeParamId, LocalFieldId, StaticId, TraitId, TypeAliasId, TypeOrConstParamId, VariantId,
 };
 use hir_expand::name::Name;
 use la_arena::ArenaMap;
@@ -17,8 +16,7 @@ use smallvec::SmallVec;
 use triomphe::Arc;
 
 use crate::{
-    Binders, ClosureId, Const, FnDefId, ImplTraitId, ImplTraits, InferenceResult, Interner,
-    PolyFnSig, Substitution, TraitEnvironment, TraitRef, Ty, TyDefId, ValueTyDefId, chalk_db,
+    chalk_db,
     consteval::ConstEvalError,
     drop::DropGlue,
     dyn_compatibility::DynCompatibilityViolation,
@@ -26,6 +24,8 @@ use crate::{
     lower::{Diagnostics, GenericDefaults, GenericPredicates},
     method_resolution::{InherentImpls, TraitImpls, TyFingerprint},
     mir::{BorrowckResult, MirBody, MirLowerError},
+    Binders, ClosureId, Const, FnDefId, ImplTraitId, ImplTraits, InferenceResult, Interner,
+    PolyFnSig, Substitution, TraitEnvironment, TraitRef, Ty, TyDefId, ValueTyDefId,
 };
 
 #[db_ext_macro::query_group]
@@ -188,8 +188,10 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
 
     #[db_ext_macro::invoke(crate::lower::generic_defaults_with_diagnostics_query)]
     #[db_ext_macro::cycle(crate::lower::generic_defaults_with_diagnostics_recover)]
-    fn generic_defaults_with_diagnostics(&self, def: GenericDefId)
-    -> GenericDefaultsAndDiagnostics;
+    fn generic_defaults_with_diagnostics(
+        &self,
+        def: GenericDefId,
+    ) -> (GenericDefaults, Diagnostics);
 
     #[db_ext_macro::invoke(crate::lower::generic_defaults_query)]
     fn generic_defaults(&self, def: GenericDefId) -> GenericDefaults;
@@ -360,20 +362,8 @@ pub struct InternedCallableDefId(pub salsa::Id);
 impl_intern_key!(InternedCallableDefId);
 
 impl_wrapper!(InternedCallableDefId, CallableDefId, CallableDefIdWrapper);
-impl_wrapper!(
-    InternedTypeOrConstParamId,
-    TypeOrConstParamId,
-    TypeOrConstParamIdWrapper
-);
-impl_wrapper!(
-    InternedLifetimeParamId,
-    LifetimeParamId,
-    LifetimeParamIdWrapper
-);
+impl_wrapper!(InternedTypeOrConstParamId, TypeOrConstParamId, TypeOrConstParamIdWrapper);
+impl_wrapper!(InternedLifetimeParamId, LifetimeParamId, LifetimeParamIdWrapper);
 impl_wrapper!(InternedOpaqueTyId, ImplTraitId, ImplTraitIdWrapper);
 impl_wrapper!(InternedClosureId, InternedClosure, InternedClosureWrapper);
-impl_wrapper!(
-    InternedCoroutineId,
-    InternedCoroutine,
-    InternedCoroutineWrapper
-);
+impl_wrapper!(InternedCoroutineId, InternedCoroutine, InternedCoroutineWrapper);

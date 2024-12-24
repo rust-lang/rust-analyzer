@@ -1,4 +1,5 @@
 use base_db::SourceDatabase;
+use hir_def::ModuleDefId;
 use test_fixture::WithFixture;
 
 use crate::{db::HirDatabase, test_db::TestDB};
