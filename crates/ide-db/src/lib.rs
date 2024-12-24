@@ -48,13 +48,12 @@ pub mod syntax_helpers {
 use dashmap::{mapref::entry::Entry, DashMap};
 pub use hir::ChangeWithProcMacros;
 use salsa::{Durability, Setter};
-use vfs::AnchoredPath;
 
 use std::{fmt, hash::BuildHasherDefault, mem::ManuallyDrop};
 
 use base_db::{
     db_ext_macro::{self},
-    CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
+    FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
     SourceRootInput, Upcast, DEFAULT_FILE_TEXT_LRU_CAP,
 };
 use hir::{
@@ -179,8 +178,16 @@ impl SourceDatabase for RootDatabase {
         text: &str,
         durability: Durability,
     ) {
-        self.files
-            .insert(file_id, FileText::builder(Arc::from(text)).durability(durability).new(self));
+        let files = Arc::clone(&self.files);
+        match files.entry(file_id) {
+            Entry::Occupied(mut occupied) => {
+                occupied.get_mut().set_text(self).to(Arc::from(text));
+            }
+            Entry::Vacant(vacant) => {
+                let text = FileText::builder(Arc::from(text)).durability(durability).new(self);
+                vacant.insert(text);
+            }
+        };
     }
 
     /// Source root of the file.
@@ -219,20 +226,6 @@ impl SourceDatabase for RootDatabase {
     ) {
         let input = FileSourceRootInput::builder(source_root_id).durability(durability).new(self);
         self.file_source_roots.insert(id, input);
-    }
-
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        // FIXME: this *somehow* should be platform agnostic...
-        let source_root = self.file_source_root(path.anchor);
-        let source_root = self.source_root(source_root.source_root_id(self));
-        source_root.source_root(self).resolve_path(path)
-    }
-
-    fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]> {
-        let _p = tracing::info_span!("relevant_crates").entered();
-
-        let source_root = self.file_source_root(file_id);
-        self.source_root_crates(source_root.source_root_id(self))
     }
 }
 
