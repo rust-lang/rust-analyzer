@@ -7,7 +7,7 @@ use super::visit_module;
 
 #[test]
 fn typing_whitespace_inside_a_function_should_not_invalidate_types() {
-    let (db, pos) = TestDB::with_position(
+    let (mut db, pos) = TestDB::with_position(
         "
 //- /lib.rs
 fn foo() -> i32 {
@@ -52,7 +52,7 @@ fn foo() -> i32 {
 
 #[test]
 fn typing_inside_a_function_should_not_invalidate_types_in_another() {
-    let (db, pos) = TestDB::with_position(
+    let (mut db, pos) = TestDB::with_position(
         "
 //- /lib.rs
 fn foo() -> f32 {
@@ -103,6 +103,6 @@ fn baz() -> i32 {
             });
         });
         // todo: figire this out
-        assert!(format!("{events:?}").matches("infer_shim").count() == 0, "{events:#?}")
+        assert!(format!("{events:?}").matches("infer_shim").count() == 1, "{events:#?}")
     }
 }

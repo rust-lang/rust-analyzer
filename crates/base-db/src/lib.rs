@@ -113,10 +113,10 @@ pub trait SourceDatabase: salsa::Database {
     /// Text of the file.
     fn file_text(&self, file_id: vfs::FileId) -> FileText;
 
-    fn set_file_text(&self, file_id: vfs::FileId, text: &str);
+    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str);
 
     fn set_file_text_with_durability(
-        &self,
+        &mut self,
         file_id: vfs::FileId,
         text: &str,
         durability: Durability,
@@ -128,7 +128,7 @@ pub trait SourceDatabase: salsa::Database {
     fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput;
 
     fn set_file_source_root_with_durability(
-        &self,
+        &mut self,
         id: vfs::FileId,
         source_root_id: SourceRootId,
         durability: Durability,
@@ -136,7 +136,7 @@ pub trait SourceDatabase: salsa::Database {
 
     /// Source root of the file.
     fn set_source_root_with_durability(
-        &self,
+        &mut self,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: Durability,

@@ -4,7 +4,7 @@ use test_fixture::WithFixture;
 use crate::{db::DefDatabase, nameres::tests::TestDB, AdtId, ModuleDefId};
 
 fn check_def_map_is_not_recomputed(ra_fixture_initial: &str, ra_fixture_change: &str) {
-    let (db, pos) = TestDB::with_position(ra_fixture_initial);
+    let (mut db, pos) = TestDB::with_position(ra_fixture_initial);
     let krate = db.fetch_test_crate();
     {
         let events = db.log_executed(|| {
@@ -227,7 +227,7 @@ pub struct S {}
 
 #[test]
 fn typing_inside_a_function_should_not_invalidate_item_expansions() {
-    let (db, pos) = TestDB::with_position(
+    let (mut db, pos) = TestDB::with_position(
         r#"
 //- /lib.rs
 macro_rules! m {

@@ -6,10 +6,10 @@ use base_db::{
     AnchoredPath, CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot,
     SourceRootId, SourceRootInput, Upcast,
 };
-use dashmap::DashMap;
+use dashmap::{mapref::entry::Entry, DashMap};
 use hir_expand::{db::ExpandDatabase, files::FilePosition, InFile};
 use rustc_hash::FxHasher;
-use salsa::{AsDynDatabase, Durability};
+use salsa::{AsDynDatabase, Durability, Setter};
 use span::{EditionedFileId, FileId};
 use syntax::{algo, ast, AstNode};
 use triomphe::Arc;
@@ -25,7 +25,7 @@ use crate::{
 #[derive(Clone)]
 pub(crate) struct TestDB {
     storage: salsa::Storage<Self>,
-    files: DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>,
+    files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
     source_roots: DashMap<SourceRootId, SourceRootInput, BuildHasherDefault<FxHasher>>,
     file_source_roots: Arc<DashMap<vfs::FileId, FileSourceRootInput, BuildHasherDefault<FxHasher>>>,
     events: Arc<Mutex<Option<Vec<salsa::Event>>>>,
@@ -96,12 +96,21 @@ impl SourceDatabase for TestDB {
         *self.files.get(&file_id).expect("Unable to fetch file; this is a bug")
     }
 
-    fn set_file_text(&self, file_id: vfs::FileId, text: &str) {
-        self.files.insert(file_id, FileText::new(self, Arc::from(text)));
+    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
+        let files = Arc::clone(&self.files);
+        match files.entry(file_id) {
+            Entry::Occupied(mut occupied) => {
+                occupied.get_mut().set_text(self).to(Arc::from(text));
+            }
+            Entry::Vacant(vacant) => {
+                let text = FileText::new(self, Arc::from(text));
+                vacant.insert(text);
+            }
+        };
     }
 
     fn set_file_text_with_durability(
-        &self,
+        &mut self,
         file_id: vfs::FileId,
         text: &str,
         durability: Durability,
@@ -119,7 +128,7 @@ impl SourceDatabase for TestDB {
     }
 
     fn set_file_source_root_with_durability(
-        &self,
+        &mut self,
         id: vfs::FileId,
         source_root_id: SourceRootId,
         durability: Durability,
@@ -137,7 +146,7 @@ impl SourceDatabase for TestDB {
     }
 
     fn set_source_root_with_durability(
-        &self,
+        &mut self,
         source_root_id: SourceRootId,
         source_root: Arc<SourceRoot>,
         durability: Durability,
