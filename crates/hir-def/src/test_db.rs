@@ -1,15 +1,13 @@
 //! Database used for testing `hir_def`.
 
-use std::{fmt, hash::BuildHasherDefault, panic, sync::Mutex};
+use std::{fmt, panic, sync::Mutex};
 
 use base_db::{
-    AnchoredPath, CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot,
+    CrateId, FileSourceRootInput, FileText, RootQueryDb, SourceDatabase, SourceRoot,
     SourceRootId, SourceRootInput, Upcast,
 };
-use dashmap::{mapref::entry::Entry, DashMap};
 use hir_expand::{db::ExpandDatabase, files::FilePosition, InFile};
-use rustc_hash::FxHasher;
-use salsa::{AsDynDatabase, Durability, Setter};
+use salsa::{AsDynDatabase, Durability};
 use span::{EditionedFileId, FileId};
 use syntax::{algo, ast, AstNode};
 use triomphe::Arc;
@@ -25,9 +23,7 @@ use crate::{
 #[derive(Clone)]
 pub(crate) struct TestDB {
     storage: salsa::Storage<Self>,
-    files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
-    source_roots: DashMap<SourceRootId, SourceRootInput, BuildHasherDefault<FxHasher>>,
-    file_source_roots: Arc<DashMap<vfs::FileId, FileSourceRootInput, BuildHasherDefault<FxHasher>>>,
+    files: Arc<base_db::Files>,
     events: Arc<Mutex<Option<Vec<salsa::Event>>>>,
 }
 
@@ -37,8 +33,6 @@ impl Default for TestDB {
             storage: Default::default(),
             events: Default::default(),
             files: Default::default(),
-            source_roots: Default::default(),
-            file_source_roots: Default::default(),
         };
         this.set_expand_proc_attr_macros_with_durability(true, Durability::HIGH);
         this
@@ -93,20 +87,12 @@ impl panic::RefUnwindSafe for TestDB {}
 #[salsa::db]
 impl SourceDatabase for TestDB {
     fn file_text(&self, file_id: vfs::FileId) -> FileText {
-        *self.files.get(&file_id).expect("Unable to fetch file; this is a bug")
+        self.files.file_text(file_id)
     }
 
     fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
         let files = Arc::clone(&self.files);
-        match files.entry(file_id) {
-            Entry::Occupied(mut occupied) => {
-                occupied.get_mut().set_text(self).to(Arc::from(text));
-            }
-            Entry::Vacant(vacant) => {
-                let text = FileText::new(self, Arc::from(text));
-                vacant.insert(text);
-            }
-        };
+        files.set_file_text(self, file_id, text);
     }
 
     fn set_file_text_with_durability(
@@ -115,34 +101,13 @@ impl SourceDatabase for TestDB {
         text: &str,
         durability: Durability,
     ) {
-        self.files
-            .insert(file_id, FileText::builder(Arc::from(text)).durability(durability).new(self));
-    }
-
-    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
-        let file_source_root = self
-            .file_source_roots
-            .get(&id)
-            .expect("Unable to fetch FileSourceRootInput; this is a bug");
-        *file_source_root
-    }
-
-    fn set_file_source_root_with_durability(
-        &mut self,
-        id: vfs::FileId,
-        source_root_id: SourceRootId,
-        durability: Durability,
-    ) {
-        let input = FileSourceRootInput::builder(source_root_id).durability(durability).new(self);
-        self.file_source_roots.insert(id, input);
+        let files = Arc::clone(&self.files);
+        files.set_file_text_with_durability(self, file_id, text, durability);
     }
 
     /// Source root of the file.
-    fn source_root(&self, id: SourceRootId) -> SourceRootInput {
-        let source_root =
-            self.source_roots.get(&id).expect("Unable to fetch source root id; this is a bug");
-
-        *source_root
+    fn source_root(&self, source_root_id: SourceRootId) -> SourceRootInput {
+        self.files.source_root(source_root_id)
     }
 
     fn set_source_root_with_durability(
@@ -151,16 +116,22 @@ impl SourceDatabase for TestDB {
         source_root: Arc<SourceRoot>,
         durability: Durability,
     ) {
-        let input = SourceRootInput::builder(source_root).durability(durability).new(self);
-        self.source_roots.insert(source_root_id, input);
+        let files = Arc::clone(&self.files);
+        files.set_source_root_with_durability(self, source_root_id, source_root, durability);
     }
 
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        // FIXME: this *somehow* should be platform agnostic...
-        let source_root_id = self.file_source_root(path.anchor);
-        let source_root = self.source_root(source_root_id.source_root_id(self));
+    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
+        self.files.file_source_root(id)
+    }
 
-        source_root.source_root(self).resolve_path(path)
+    fn set_file_source_root_with_durability(
+        &mut self,
+        id: vfs::FileId,
+        source_root_id: SourceRootId,
+        durability: Durability,
+    ) {
+        let files = Arc::clone(&self.files);
+        files.set_file_source_root_with_durability(self, id, source_root_id, durability);
     }
 }
 
