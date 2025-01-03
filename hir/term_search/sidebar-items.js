@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Expr"],"fn":["term_search"],"struct":["TermSearchConfig","TermSearchCtx"]};

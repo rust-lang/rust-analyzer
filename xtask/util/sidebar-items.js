@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["list_files","list_rust_files"]};
