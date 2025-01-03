@@ -31,6 +31,7 @@ import type { LanguageClient } from "vscode-languageclient/node";
 import { HOVER_REFERENCE_COMMAND } from "./client";
 import type { DependencyId } from "./dependencies_provider";
 import { log } from "./util";
+import type { SyntaxElement } from "./syntax_tree_provider";
 
 export * from "./ast_inspector";
 export * from "./run";
@@ -288,13 +289,13 @@ export function openCargoToml(ctx: CtxInit): Cmd {
 
 export function revealDependency(ctx: CtxInit): Cmd {
     return async (editor: RustEditor) => {
-        if (!ctx.dependencies?.isInitialized()) {
+        if (!ctx.dependenciesProvider?.isInitialized()) {
             return;
         }
         const documentPath = editor.document.uri.fsPath;
-        const dep = ctx.dependencies?.getDependency(documentPath);
+        const dep = ctx.dependenciesProvider?.getDependency(documentPath);
         if (dep) {
-            await ctx.treeView?.reveal(dep, { select: true, expand: true });
+            await ctx.dependencyTreeView?.reveal(dep, { select: true, expand: true });
         } else {
             await revealParentChain(editor.document, ctx);
         }
@@ -340,10 +341,10 @@ async function revealParentChain(document: RustDocument, ctx: CtxInit) {
             // a open file referencing the old version
             return;
         }
-    } while (!ctx.dependencies?.contains(documentPath));
+    } while (!ctx.dependenciesProvider?.contains(documentPath));
     parentChain.reverse();
     for (const idx in parentChain) {
-        const treeView = ctx.treeView;
+        const treeView = ctx.dependencyTreeView;
         if (!treeView) {
             continue;
         }
@@ -355,6 +356,38 @@ async function revealParentChain(document: RustDocument, ctx: CtxInit) {
 
 export async function execRevealDependency(e: RustEditor): Promise<void> {
     await vscode.commands.executeCommand("rust-analyzer.revealDependency", e);
+}
+
+export function syntaxTreeReveal(): Cmd {
+    return async (element: SyntaxElement) => {
+        const activeEditor = vscode.window.activeTextEditor;
+
+        if (activeEditor !== undefined) {
+            const start = activeEditor.document.positionAt(element.start);
+            const end = activeEditor.document.positionAt(element.end);
+
+            const newSelection = new vscode.Selection(start, end);
+
+            activeEditor.selection = newSelection;
+            activeEditor.revealRange(newSelection);
+        }
+    };
+}
+
+export function syntaxTreeHideWhitespace(ctx: CtxInit): Cmd {
+    return async () => {
+        if (ctx.syntaxTreeProvider !== undefined) {
+            await ctx.syntaxTreeProvider.toggleWhitespace();
+        }
+    };
+}
+
+export function syntaxTreeShowWhitespace(ctx: CtxInit): Cmd {
+    return async () => {
+        if (ctx.syntaxTreeProvider !== undefined) {
+            await ctx.syntaxTreeProvider.toggleWhitespace();
+        }
+    };
 }
 
 export function ssr(ctx: CtxInit): Cmd {
