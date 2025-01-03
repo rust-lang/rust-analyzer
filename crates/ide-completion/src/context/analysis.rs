@@ -417,6 +417,11 @@ fn analyze(
         derive_ctx,
     } = expansion_result;
 
+    // do not disable completions if both original and self token are strings, as this disables completions for format strings.
+    if original_token.kind() == SyntaxKind::STRING && original_token.kind() != self_token.kind() {
+        return None;
+    }
+
     // Overwrite the path kind for derives
     if let Some((original_file, file_with_fake_ident, offset, origin_attr)) = derive_ctx {
         if let Some(ast::NameLike::NameRef(name_ref)) =
