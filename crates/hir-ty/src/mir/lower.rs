@@ -28,7 +28,7 @@ use triomphe::Arc;
 
 use crate::{
     consteval::ConstEvalError,
-    db::{HirDatabase, HirDatabaseData, InternedClosure},
+    db::{HirDatabase, InternedClosure},
     display::{hir_display_with_types_map, HirDisplay},
     error_lifetime,
     generics::generics,
@@ -2142,7 +2142,6 @@ pub fn mir_body_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Result<Arc<Mi
 pub(crate) fn mir_body_recover(
     _db: &dyn HirDatabase,
     _cycle: &Cycle,
-    _: HirDatabaseData,
     _def: DefWithBodyId,
 ) -> Result<Arc<MirBody>> {
     Err(MirLowerError::Loop)

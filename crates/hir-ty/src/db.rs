@@ -3,7 +3,7 @@
 
 use std::sync;
 
-use base_db::{impl_intern_key, impl_wrapper, CrateId, Upcast};
+use base_db::{impl_intern_key, CrateId, Upcast};
 use hir_def::{
     db::DefDatabase, hir::ExprId, layout::TargetDataLayout, AdtId, BlockId, CallableDefId,
     ConstParamId, DefWithBodyId, EnumVariantId, FunctionId, GeneralConstId, GenericDefId, ImplId,
@@ -29,12 +29,12 @@ use hir_expand::name::Name;
 
 #[db_ext_macro::query_group]
 pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
-    #[db_ext_macro::invoke(crate::infer::infer_query)]
+    #[db_ext_macro::invoke_actual(crate::infer::infer_query)]
     fn infer(&self, def: DefWithBodyId) -> Arc<InferenceResult>;
 
     // region:mir
 
-    #[db_ext_macro::invoke(crate::mir::mir_body_query)]
+    #[db_ext_macro::invoke_actual(crate::mir::mir_body_query)]
     #[db_ext_macro::cycle(crate::mir::mir_body_recover)]
     fn mir_body(&self, def: DefWithBodyId) -> Result<Arc<MirBody>, MirLowerError>;
 
@@ -71,11 +71,11 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
         trait_env: Option<Arc<TraitEnvironment>>,
     ) -> Result<Const, ConstEvalError>;
 
-    #[db_ext_macro::invoke(crate::consteval::const_eval_static_query)]
+    #[db_ext_macro::invoke_actual(crate::consteval::const_eval_static_query)]
     #[db_ext_macro::cycle(crate::consteval::const_eval_static_recover)]
     fn const_eval_static(&self, def: StaticId) -> Result<Const, ConstEvalError>;
 
-    #[db_ext_macro::invoke(crate::consteval::const_eval_discriminant_variant)]
+    #[db_ext_macro::invoke_actual(crate::consteval::const_eval_discriminant_variant)]
     #[db_ext_macro::cycle(crate::consteval::const_eval_discriminant_recover)]
     fn const_eval_discriminant(&self, def: EnumVariantId) -> Result<i128, ConstEvalError>;
 
@@ -105,26 +105,26 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
     #[db_ext_macro::invoke(crate::layout::target_data_layout_query)]
     fn target_data_layout(&self, krate: CrateId) -> Result<Arc<TargetDataLayout>, Arc<str>>;
 
-    #[db_ext_macro::invoke(crate::dyn_compatibility::dyn_compatibility_of_trait_query)]
+    #[db_ext_macro::invoke_actual(crate::dyn_compatibility::dyn_compatibility_of_trait_query)]
     fn dyn_compatibility_of_trait(&self, trait_: TraitId) -> Option<DynCompatibilityViolation>;
 
     #[db_ext_macro::invoke(crate::lower::ty_query)]
     #[db_ext_macro::cycle(crate::lower::ty_recover)]
     fn ty(&self, def: TyDefId) -> Binders<Ty>;
 
-    #[db_ext_macro::invoke(crate::lower::type_for_type_alias_with_diagnostics_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::type_for_type_alias_with_diagnostics_query)]
     fn type_for_type_alias_with_diagnostics(&self, def: TypeAliasId) -> (Binders<Ty>, Diagnostics);
 
     /// Returns the type of the value of the given constant, or `None` if the `ValueTyDefId` is
     /// a `StructId` or `EnumVariantId` with a record constructor.
-    #[db_ext_macro::invoke(crate::lower::value_ty_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::value_ty_query)]
     fn value_ty(&self, def: ValueTyDefId) -> Option<Binders<Ty>>;
 
-    #[db_ext_macro::invoke(crate::lower::impl_self_ty_with_diagnostics_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::impl_self_ty_with_diagnostics_query)]
     #[db_ext_macro::cycle(crate::lower::impl_self_ty_with_diagnostics_recover)]
     fn impl_self_ty_with_diagnostics(&self, def: ImplId) -> (Binders<Ty>, Diagnostics);
 
-    #[db_ext_macro::invoke(crate::lower::impl_self_ty_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::impl_self_ty_query)]
     fn impl_self_ty(&self, def: ImplId) -> Binders<Ty>;
 
     #[db_ext_macro::invoke(crate::lower::const_param_ty_with_diagnostics_query)]
@@ -133,28 +133,28 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
     #[db_ext_macro::invoke(crate::lower::const_param_ty_query)]
     fn const_param_ty(&self, def: ConstParamId) -> Ty;
 
-    #[db_ext_macro::invoke(crate::lower::impl_trait_with_diagnostics_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::impl_trait_with_diagnostics_query)]
     fn impl_trait_with_diagnostics(&self, def: ImplId) -> Option<(Binders<TraitRef>, Diagnostics)>;
 
-    #[db_ext_macro::invoke(crate::lower::impl_trait_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::impl_trait_query)]
     fn impl_trait(&self, def: ImplId) -> Option<Binders<TraitRef>>;
 
-    #[db_ext_macro::invoke(crate::lower::field_types_with_diagnostics_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::field_types_with_diagnostics_query)]
     fn field_types_with_diagnostics(
         &self,
         var: VariantId,
     ) -> (Arc<ArenaMap<LocalFieldId, Binders<Ty>>>, Diagnostics);
 
-    #[db_ext_macro::invoke(crate::lower::field_types_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::field_types_query)]
     fn field_types(&self, var: VariantId) -> Arc<ArenaMap<LocalFieldId, Binders<Ty>>>;
 
-    #[db_ext_macro::invoke(crate::lower::callable_item_sig)]
+    #[db_ext_macro::invoke_actual(crate::lower::callable_item_sig)]
     fn callable_item_signature(&self, def: CallableDefId) -> PolyFnSig;
 
-    #[db_ext_macro::invoke(crate::lower::return_type_impl_traits)]
+    #[db_ext_macro::invoke_actual(crate::lower::return_type_impl_traits)]
     fn return_type_impl_traits(&self, def: FunctionId) -> Option<Arc<Binders<ImplTraits>>>;
 
-    #[db_ext_macro::invoke(crate::lower::type_alias_impl_traits)]
+    #[db_ext_macro::invoke_actual(crate::lower::type_alias_impl_traits)]
     fn type_alias_impl_traits(&self, def: TypeAliasId) -> Option<Arc<Binders<ImplTraits>>>;
 
     #[db_ext_macro::invoke(crate::lower::generic_predicates_for_param_query)]
@@ -166,39 +166,41 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
         assoc_name: Option<Name>,
     ) -> GenericPredicates;
 
-    #[db_ext_macro::invoke(crate::lower::generic_predicates_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::generic_predicates_query)]
     fn generic_predicates(&self, def: GenericDefId) -> GenericPredicates;
 
-    #[db_ext_macro::invoke(crate::lower::generic_predicates_without_parent_with_diagnostics_query)]
+    #[db_ext_macro::invoke_actual(
+        crate::lower::generic_predicates_without_parent_with_diagnostics_query
+    )]
     fn generic_predicates_without_parent_with_diagnostics(
         &self,
         def: GenericDefId,
     ) -> (GenericPredicates, Diagnostics);
 
-    #[db_ext_macro::invoke(crate::lower::generic_predicates_without_parent_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::generic_predicates_without_parent_query)]
     fn generic_predicates_without_parent(&self, def: GenericDefId) -> GenericPredicates;
 
-    #[db_ext_macro::invoke(crate::lower::trait_environment_for_body_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::trait_environment_for_body_query)]
     #[db_ext_macro::transparent]
     fn trait_environment_for_body(&self, def: DefWithBodyId) -> Arc<TraitEnvironment>;
 
-    #[db_ext_macro::invoke(crate::lower::trait_environment_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::trait_environment_query)]
     fn trait_environment(&self, def: GenericDefId) -> Arc<TraitEnvironment>;
 
-    #[db_ext_macro::invoke(crate::lower::generic_defaults_with_diagnostics_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::generic_defaults_with_diagnostics_query)]
     #[db_ext_macro::cycle(crate::lower::generic_defaults_with_diagnostics_recover)]
     fn generic_defaults_with_diagnostics(
         &self,
         def: GenericDefId,
     ) -> (GenericDefaults, Diagnostics);
 
-    #[db_ext_macro::invoke(crate::lower::generic_defaults_query)]
+    #[db_ext_macro::invoke_actual(crate::lower::generic_defaults_query)]
     fn generic_defaults(&self, def: GenericDefId) -> GenericDefaults;
 
     #[db_ext_macro::invoke(InherentImpls::inherent_impls_in_crate_query)]
     fn inherent_impls_in_crate(&self, krate: CrateId) -> Arc<InherentImpls>;
 
-    #[db_ext_macro::invoke(InherentImpls::inherent_impls_in_block_query)]
+    #[db_ext_macro::invoke_actual(InherentImpls::inherent_impls_in_block_query)]
     fn inherent_impls_in_block(&self, block: BlockId) -> Option<Arc<InherentImpls>>;
 
     /// Collects all crates in the dependency graph that have impls for the
@@ -215,32 +217,32 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
     #[db_ext_macro::invoke(TraitImpls::trait_impls_in_crate_query)]
     fn trait_impls_in_crate(&self, krate: CrateId) -> Arc<TraitImpls>;
 
-    #[db_ext_macro::invoke(TraitImpls::trait_impls_in_block_query)]
+    #[db_ext_macro::invoke_actual(TraitImpls::trait_impls_in_block_query)]
     fn trait_impls_in_block(&self, block: BlockId) -> Option<Arc<TraitImpls>>;
 
     #[db_ext_macro::invoke(TraitImpls::trait_impls_in_deps_query)]
     fn trait_impls_in_deps(&self, krate: CrateId) -> Arc<[Arc<TraitImpls>]>;
 
     // Interned IDs for Chalk integration
-    #[db_ext_macro::interned(CallableDefIdWrapper)]
+    #[db_ext_macro::interned]
     fn intern_callable_def(&self, callable_def: CallableDefId) -> InternedCallableDefId;
 
-    #[db_ext_macro::interned(TypeOrConstParamIdWrapper)]
+    #[db_ext_macro::interned]
     fn intern_type_or_const_param_id(
         &self,
         param_id: TypeOrConstParamId,
     ) -> InternedTypeOrConstParamId;
 
-    #[db_ext_macro::interned(LifetimeParamIdWrapper)]
+    #[db_ext_macro::interned]
     fn intern_lifetime_param_id(&self, param_id: LifetimeParamId) -> InternedLifetimeParamId;
 
-    #[db_ext_macro::interned(ImplTraitIdWrapper)]
+    #[db_ext_macro::interned]
     fn intern_impl_trait_id(&self, id: ImplTraitId) -> InternedOpaqueTyId;
 
-    #[db_ext_macro::interned(InternedClosureWrapper)]
+    #[db_ext_macro::interned]
     fn intern_closure(&self, id: InternedClosure) -> InternedClosureId;
 
-    #[db_ext_macro::interned(InternedCoroutineWrapper)]
+    #[db_ext_macro::interned]
     fn intern_coroutine(&self, id: InternedCoroutine) -> InternedCoroutineId;
 
     #[db_ext_macro::invoke(chalk_db::associated_ty_data_query)]
@@ -279,7 +281,7 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
     #[db_ext_macro::invoke(chalk_db::adt_variance_query)]
     fn adt_variance(&self, adt_id: chalk_db::AdtId) -> chalk_db::Variances;
 
-    #[db_ext_macro::invoke(crate::variance::variances_of)]
+    #[db_ext_macro::invoke_actual(crate::variance::variances_of)]
     #[db_ext_macro::cycle(crate::variance::variances_of_cycle)]
     fn variances_of(&self, def: GenericDefId) -> Option<Arc<[crate::variance::Variance]>>;
 
@@ -320,45 +322,22 @@ fn hir_database_is_dyn_compatible() {
     fn _assert_dyn_compatible(_: &dyn HirDatabase) {}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedTypeOrConstParamId(salsa::Id);
-impl_intern_key!(InternedTypeOrConstParamId);
+impl_intern_key!(InternedTypeOrConstParamId, TypeOrConstParamId);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedLifetimeParamId(salsa::Id);
-impl_intern_key!(InternedLifetimeParamId);
+impl_intern_key!(InternedLifetimeParamId, LifetimeParamId);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedConstParamId(salsa::Id);
-impl_intern_key!(InternedConstParamId);
+impl_intern_key!(InternedConstParamId, ConstParamId);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedOpaqueTyId(salsa::Id);
-impl_intern_key!(InternedOpaqueTyId);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedClosureId(salsa::Id);
-impl_intern_key!(InternedClosureId);
+impl_intern_key!(InternedOpaqueTyId, ImplTraitId);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InternedClosure(pub DefWithBodyId, pub ExprId);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedCoroutineId(salsa::Id);
-impl_intern_key!(InternedCoroutineId);
+impl_intern_key!(InternedClosureId, InternedClosure);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct InternedCoroutine(pub DefWithBodyId, pub ExprId);
+impl_intern_key!(InternedCoroutineId, InternedCoroutine);
 
-/// This exists just for Chalk, because Chalk just has a single `FnDefId` where
-/// we have different IDs for struct and enum variant constructors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct InternedCallableDefId(pub salsa::Id);
-impl_intern_key!(InternedCallableDefId);
-
-impl_wrapper!(InternedCallableDefId, CallableDefId, CallableDefIdWrapper);
-impl_wrapper!(InternedTypeOrConstParamId, TypeOrConstParamId, TypeOrConstParamIdWrapper);
-impl_wrapper!(InternedLifetimeParamId, LifetimeParamId, LifetimeParamIdWrapper);
-impl_wrapper!(InternedOpaqueTyId, ImplTraitId, ImplTraitIdWrapper);
-impl_wrapper!(InternedClosureId, InternedClosure, InternedClosureWrapper);
-impl_wrapper!(InternedCoroutineId, InternedCoroutine, InternedCoroutineWrapper);
+// This exists just for Chalk, because Chalk just has a single `FnDefId` where
+// we have different IDs for struct and enum variant constructors.
+impl_intern_key!(InternedCallableDefId, CallableDefId);
