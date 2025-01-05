@@ -19,9 +19,8 @@
 //! # The Call-site Hierarchy
 //!
 //! `ExpnData::call_site` in rustc, [`MacroCallLoc::call_site`] in rust-analyzer.
-use std::{any::TypeId, fmt};
+use std::fmt;
 
-use salsa::plumbing::Zalsa;
 
 use crate::{Edition, MacroCallId};
 
@@ -130,16 +129,18 @@ const _: () = {
 
     unsafe impl Sync for SyntaxContext {}
 
-    impl salsa::plumbing::SalsaStructInDb for SyntaxContext {
-        fn lookup_or_create_ingredient_index(aux: &Zalsa) -> salsa::plumbing::IngredientIndices {
+    impl zalsa_::SalsaStructInDb for SyntaxContext {
+        fn lookup_or_create_ingredient_index(
+            aux: &salsa::plumbing::Zalsa,
+        ) -> salsa::plumbing::IngredientIndices {
             aux.add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>()
                 .into()
         }
 
         #[inline]
-        fn cast(id: zalsa_::Id, type_id: TypeId) -> Option<Self> {
-            if type_id == TypeId::of::<SyntaxContext>() {
-                Some(<SyntaxContext as zalsa_::FromId>::from_id(id))
+        fn cast(id: salsa::Id, type_id: std::any::TypeId) -> Option<Self> {
+            if type_id == std::any::TypeId::of::<SyntaxContext>() {
+                Some(<Self as salsa::plumbing::FromId>::from_id(id))
             } else {
                 None
             }
@@ -286,11 +287,16 @@ const _: () = {
                 let f = f.field("edition", &fields.edition);
                 let f = f.field("parent", &fields.parent);
                 let f = f.field("opaque", &fields.opaque);
-                let f = f.field("opaque_and_semitransparent", &fields.opaque_and_semitransparent);
+                let f = f.field(
+                    "opaque_and_semitransparent",
+                    &fields.opaque_and_semitransparent,
+                );
                 f.finish()
             })
             .unwrap_or_else(|| {
-                f.debug_tuple("SyntaxContextData").field(&zalsa_::AsId::as_id(&this)).finish()
+                f.debug_tuple("SyntaxContextData")
+                    .field(&zalsa_::AsId::as_id(&this))
+                    .finish()
             })
         }
     }

@@ -235,7 +235,6 @@ pub(crate) fn const_eval_recover(
 pub(crate) fn const_eval_static_recover(
     _: &dyn HirDatabase,
     _: &Cycle,
-    _: HirDatabaseData,
     _: StaticId,
 ) -> Result<Const, ConstEvalError> {
     Err(ConstEvalError::MirLowerError(MirLowerError::Loop))
@@ -244,7 +243,6 @@ pub(crate) fn const_eval_static_recover(
 pub(crate) fn const_eval_discriminant_recover(
     _: &dyn HirDatabase,
     _: &Cycle,
-    _: HirDatabaseData,
     _: EnumVariantId,
 ) -> Result<i128, ConstEvalError> {
     Err(ConstEvalError::MirLowerError(MirLowerError::Loop))

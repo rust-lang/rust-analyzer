@@ -72,7 +72,7 @@ impl ToChalk for TypeAliasAsValue {
 
 impl From<FnDefId> for crate::db::InternedCallableDefId {
     fn from(fn_def_id: FnDefId) -> Self {
-        Self(salsa::Id::from_id(fn_def_id.0))
+        Self::from_id(fn_def_id.0)
     }
 }
 
