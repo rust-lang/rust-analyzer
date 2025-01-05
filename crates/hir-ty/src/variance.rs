@@ -13,7 +13,7 @@
 //! by the next salsa version. If not, we will likely have to adapt and go with the rustc approach
 //! while installing firewall per item queries to prevent invalidation issues.
 
-use crate::db::{HirDatabase, HirDatabaseData};
+use crate::db::{HirDatabase};
 use crate::generics::{generics, Generics};
 use crate::{
     AliasTy, Const, ConstScalar, DynTyExt, GenericArg, GenericArgData, Interner, Lifetime,
@@ -58,7 +58,6 @@ pub(crate) fn variances_of(db: &dyn HirDatabase, def: GenericDefId) -> Option<Ar
 pub(crate) fn variances_of_cycle(
     db: &dyn HirDatabase,
     _cycle: &Cycle,
-    _data: HirDatabaseData,
     def: GenericDefId,
 ) -> Option<Arc<[Variance]>> {
     let generics = generics(db.upcast(), def);

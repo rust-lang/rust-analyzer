@@ -1417,7 +1417,6 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
 pub(crate) fn generic_defaults_with_diagnostics_recover(
     db: &dyn HirDatabase,
     _cycle: &Cycle,
-    _: HirDatabaseData,
     def: GenericDefId,
 ) -> (GenericDefaults, Diagnostics) {
     let generic_params = generics(db.upcast(), def);
@@ -1607,7 +1606,7 @@ pub enum TyDefId {
 }
 impl_from!(BuiltinType, AdtId(StructId, EnumId, UnionId), TypeAliasId for TyDefId);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum ValueTyDefId {
     FunctionId(FunctionId),
     StructId(StructId),
@@ -1714,7 +1713,6 @@ pub(crate) fn const_param_ty_with_diagnostics_query(
 pub(crate) fn impl_self_ty_with_diagnostics_recover(
     db: &dyn HirDatabase,
     _cycle: &salsa::Cycle,
-    _: HirDatabaseData,
     impl_id: ImplId,
 ) -> (Binders<Ty>, Diagnostics) {
     let generics = generics(db.upcast(), (impl_id).into());
