@@ -560,6 +560,11 @@ impl flags::AnalysisStats {
     }
 
     fn run_mir_lowering(&self, db: &RootDatabase, bodies: &[DefWithBody], verbosity: Verbosity) {
+        let mut bar = match verbosity {
+            Verbosity::Quiet | Verbosity::Spammy => ProgressReport::hidden(),
+            _ if self.parallel || self.output.is_some() => ProgressReport::hidden(),
+            _ => ProgressReport::new(bodies.len() as u64),
+        };
         let mut sw = self.stop_watch();
         let mut all = 0;
         let mut fail = 0;
@@ -581,11 +586,13 @@ impl flags::AnalysisStats {
                     .chain(Some(body.name(db).unwrap_or_else(Name::missing)))
                     .map(|it| it.display(db, Edition::LATEST).to_string())
                     .join("::");
-                println!("Mir body for {full_name} failed due {e:?}");
+                bar.println(format!("Mir body for {full_name} failed due {e:?}"));
             }
             fail += 1;
+            bar.tick();
         }
         let mir_lowering_time = sw.elapsed();
+        bar.finish_and_clear();
         eprintln!("{:<20} {}", "MIR lowering:", mir_lowering_time);
         eprintln!("Mir failed bodies: {fail} ({}%)", percentage(fail, all));
         report_metric("mir failed bodies", fail, "#");

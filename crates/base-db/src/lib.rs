@@ -26,27 +26,19 @@ use vfs::{AbsPathBuf, FileId};
 
 #[macro_export]
 macro_rules! impl_intern_key {
-    ($name:ident) => {
-        impl $crate::salsa::plumbing::AsId for $name {
-            fn as_id(&self) -> $crate::salsa::Id {
-                self.0
-            }
-        }
-
-        impl $crate::salsa::plumbing::FromId for $name {
-            fn from_id(id: salsa::Id) -> Self {
-                $name(id)
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_wrapper {
-    ($id:ident, $loc:ident, $intern:ident) => {
-        #[salsa::interned_sans_lifetime(id = $id)]
-        pub struct $intern {
+    ($id:ident, $loc:ident) => {
+        #[salsa::interned_sans_lifetime(no_debug)]
+        pub struct $id {
             pub loc: $loc,
+        }
+
+        // If we derive this salsa prints the values recursively, and this causes us to blow.
+        impl ::std::fmt::Debug for $id {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.debug_tuple(stringify!($id))
+                    .field(&format_args!("{:04x}", self.0.as_u32()))
+                    .finish()
+            }
         }
     };
 }
