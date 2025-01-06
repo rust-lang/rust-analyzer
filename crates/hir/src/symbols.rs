@@ -109,7 +109,7 @@ impl<'a> SymbolCollector<'a> {
     fn do_work(&mut self, work: SymbolCollectorWork) {
         let _p = tracing::info_span!("SymbolCollector::do_work", ?work).entered();
         tracing::info!(?work, "SymbolCollector::do_work");
-        self.db.unwind_if_cancelled();
+        self.db.unwind_if_revision_cancelled();
 
         let parent_name = work.parent.map(|name| name.as_str().to_smolstr());
         self.with_container_name(parent_name, |s| s.collect_from_module(work.module_id));

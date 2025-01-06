@@ -7,7 +7,7 @@ mod topologic_sort;
 use std::time::Duration;
 
 use hir::db::DefDatabase;
-use salsa::Cancelled;
+use salsa::{Cancelled, Database};
 
 use crate::{
     base_db::{CrateId, RootQueryDb, SourceDatabase},
@@ -113,7 +113,7 @@ pub fn parallel_prime_caches(
         FxIndexMap::with_capacity_and_hasher(num_worker_threads, Default::default());
 
     while crates_done < crates_total {
-        // db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
 
         for crate_id in &mut crates_to_prime {
             work_sender
@@ -134,7 +134,7 @@ pub fn parallel_prime_caches(
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                 // our workers may have died from a cancelled task, so we'll check and re-raise here.
-                // db.unwind_if_cancelled();
+                db.unwind_if_revision_cancelled();
                 break;
             }
         };
