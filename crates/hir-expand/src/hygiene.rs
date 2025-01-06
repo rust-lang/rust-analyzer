@@ -65,13 +65,7 @@ fn span_with_ctxt_from_mark(
     edition: Edition,
 ) -> Span {
     Span {
-        ctx: apply_mark(
-            db,
-            SyntaxContextId::root(edition),
-            expn_id,
-            transparency,
-            edition,
-        ),
+        ctx: apply_mark(db, SyntaxContextId::root(edition), expn_id, transparency, edition),
         ..span
     }
 }
@@ -158,7 +152,7 @@ pub trait SyntaxContextExt {
     fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContext;
     fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContext;
     fn remove_mark(&mut self, db: &dyn ExpandDatabase)
-    -> (Option<span::MacroCallId>, Transparency);
+        -> (Option<span::MacroCallId>, Transparency);
     fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<span::MacroCallId>, Transparency);
     fn marks(self, db: &dyn ExpandDatabase) -> Vec<(span::MacroCallId, Transparency)>;
     fn is_opaque(self, db: &dyn ExpandDatabase) -> bool;
@@ -166,11 +160,7 @@ pub trait SyntaxContextExt {
 
 impl SyntaxContextExt for SyntaxContextId {
     fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
-        handle_self_ref(
-            self,
-            db.lookup_intern_syntax_context(self)
-                .opaque_and_semitransparent,
-        )
+        handle_self_ref(self, db.lookup_intern_syntax_context(self).opaque_and_semitransparent)
     }
     fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContext {
         self.opaque(db)
@@ -196,11 +186,7 @@ impl SyntaxContextExt for SyntaxContextId {
         marks
     }
     fn is_opaque(self, db: &dyn ExpandDatabase) -> bool {
-        !self.is_root()
-            && db
-                .lookup_intern_syntax_context(self)
-                .outer_transparency
-                .is_opaque()
+        !self.is_root() && db.lookup_intern_syntax_context(self).outer_transparency.is_opaque()
     }
 }
 

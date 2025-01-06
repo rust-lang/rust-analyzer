@@ -100,7 +100,7 @@ dependencies = [
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lz4_flex",
  "rustc-hash 2.1.0",
- "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "semver",
  "span",
  "stdx",
@@ -670,7 +670,7 @@ dependencies = [
  "ra-ap-rustc_parse_format",
  "rustc-hash 2.1.0",
  "rustc_apfloat",
- "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "smallvec",
  "span",
  "stdx",
@@ -703,7 +703,7 @@ dependencies = [
  "mbe",
  "parser",
  "rustc-hash 2.1.0",
- "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "smallvec",
  "span",
  "stdx",
@@ -746,7 +746,7 @@ dependencies = [
  "ra-ap-rustc_pattern_analysis",
  "rustc-hash 2.1.0",
  "rustc_apfloat",
- "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "scoped-tls",
  "smallvec",
  "span",
@@ -985,7 +985,7 @@ dependencies = [
  "profile",
  "rayon",
  "rustc-hash 2.1.0",
- "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "span",
  "stdx",
  "syntax",
@@ -2035,7 +2035,7 @@ dependencies = [
 [[package]]
 name = "salsa"
 version = "0.18.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra#dc15095afa88a1cfb005d2ddda13572000f40283"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
 dependencies = [
  "append-only-vec",
  "arc-swap",
@@ -2046,8 +2046,8 @@ dependencies = [
  "parking_lot",
  "rayon",
  "rustc-hash 2.1.0",
- "salsa-macro-rules 0.1.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
- "salsa-macros 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa-macro-rules 0.1.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
+ "salsa-macros 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "smallvec",
  "tracing",
 ]
@@ -2076,7 +2076,7 @@ dependencies = [
 [[package]]
 name = "salsa-macro-rules"
 version = "0.1.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra#dc15095afa88a1cfb005d2ddda13572000f40283"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
 
 [[package]]
 name = "salsa-macro-rules"
@@ -2096,7 +2096,7 @@ dependencies = [
 [[package]]
 name = "salsa-macros"
 version = "0.18.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra#dc15095afa88a1cfb005d2ddda13572000f40283"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2247,7 +2247,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 2.1.0",
- "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=david-and-lukas/required-salsa-changes-for-ra)",
+ "salsa 0.18.0 (git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro)",
  "stdx",
  "syntax",
  "text-size",

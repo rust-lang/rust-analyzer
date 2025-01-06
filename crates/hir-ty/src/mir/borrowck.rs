@@ -144,7 +144,7 @@ fn moved_out_of_ref(db: &dyn HirDatabase, body: &MirBody) -> Vec<MovedOutOfRef> 
         Operand::Constant(_) | Operand::Static(_) => (),
     };
     for (_, block) in body.basic_blocks.iter() {
-        // db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
         for statement in &block.statements {
             match &statement.kind {
                 StatementKind::Assign(_, r) => match r {
@@ -234,7 +234,7 @@ fn partially_moved(db: &dyn HirDatabase, body: &MirBody) -> Vec<PartiallyMoved> 
         Operand::Constant(_) | Operand::Static(_) => (),
     };
     for (_, block) in body.basic_blocks.iter() {
-        // db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
         for statement in &block.statements {
             match &statement.kind {
                 StatementKind::Assign(_, r) => match r {
@@ -305,7 +305,7 @@ fn partially_moved(db: &dyn HirDatabase, body: &MirBody) -> Vec<PartiallyMoved> 
 fn borrow_regions(db: &dyn HirDatabase, body: &MirBody) -> Vec<BorrowRegion> {
     let mut borrows = FxHashMap::default();
     for (_, block) in body.basic_blocks.iter() {
-        // db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
         for statement in &block.statements {
             if let StatementKind::Assign(_, Rvalue::Ref(kind, p)) = &statement.kind {
                 borrows
@@ -473,7 +473,7 @@ fn ever_initialized_map(
         dfs(db, body, l, &mut stack, &mut result);
     }
     for l in body.locals.iter().map(|it| it.0) {
-        // db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
         if !result[body.start_block].contains_idx(l) {
             result[body.start_block].insert(l, false);
             stack.clear();
