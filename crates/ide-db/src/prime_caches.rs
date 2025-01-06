@@ -120,7 +120,7 @@ pub fn parallel_prime_caches(
     let mut additional_phases = vec![];
 
     while crates_done < crates_total {
-        // db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
 
         for crate_id in &mut crates_to_prime {
             let krate = &graph[crate_id];
@@ -159,7 +159,7 @@ pub fn parallel_prime_caches(
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                 // our workers may have died from a cancelled task, so we'll check and re-raise here.
-                // db.unwind_if_cancelled();
+                db.unwind_if_revision_cancelled();
                 break;
             }
         };
