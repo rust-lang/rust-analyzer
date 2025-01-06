@@ -336,7 +336,7 @@ fn convert_path_tt(db: &dyn ExpandDatabase, tt: tt::TokenTreesView<'_>) -> Optio
 pub fn resolve_crate_root(db: &dyn ExpandDatabase, mut ctxt: SyntaxContextId) -> Option<CrateId> {
     // When resolving `$crate` from a `macro_rules!` invoked in a `macro`,
     // we don't want to pretend that the `macro_rules!` definition is in the `macro`
-    // as described in `SyntaxContext::apply_mark`, so we ignore prepended opaque marks.
+    // as described in `SyntaxContextId::apply_mark`, so we ignore prepended opaque marks.
     // FIXME: This is only a guess and it doesn't work correctly for `macro_rules!`
     // definitions actually produced by `macro` and `macro` definitions produced by
     // `macro_rules!`, but at least such configurations are not stable yet.

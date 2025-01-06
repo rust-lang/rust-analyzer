@@ -12,7 +12,7 @@ use crate::{
     attrs::RawAttrs,
     db::ExpandDatabase,
     hygiene::{apply_mark, Transparency},
-    tt, AstId, ExpandError, ExpandErrorKind, ExpandResult,
+    tt, AstId, ExpandError, ExpandErrorKind, ExpandResult, Lookup,
 };
 
 /// Old-style `macro_rules` or the new macros 2.0
