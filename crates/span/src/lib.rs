@@ -31,7 +31,7 @@ pub const FIXUP_ERASED_FILE_AST_ID_MARKER: ErasedFileAstId =
     // is required to be stable for the proc-macro-server
     ErasedFileAstId::from_raw(!0 - 1);
 
-pub type Span = SpanData<SyntaxContext>;
+pub type Span = SpanData<SyntaxContextId>;
 
 impl Span {
     pub fn cover(self, other: Span) -> Span {

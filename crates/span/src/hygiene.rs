@@ -23,72 +23,6 @@ use std::fmt;
 
 use crate::{Edition, MacroCallId};
 
-// /// Interned [`SyntaxContextData`].
-// #[derive(Clone, Copy, Eq, PartialOrd, Ord)]
-// pub struct SyntaxContextId(pub salsa::Id);
-
-// impl std::hash::Hash for SyntaxContextId {
-//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-//         self.0.hash(state);
-//     }
-// }
-
-// impl PartialEq for SyntaxContextId {
-//     fn eq(&self, other: &Self) -> bool {
-//         let self_underlying = self.0.as_u32() & ((1 << 23) - 1);
-//         let other_underlying = other.0.as_u32() & ((1 << 23) - 1);
-
-//         self_underlying == other_underlying
-//     }
-// }
-
-// impl salsa::plumbing::AsId for SyntaxContextId {
-//     fn as_id(&self) -> salsa::Id {
-//         self.0
-//     }
-// }
-
-// impl salsa::plumbing::FromId for SyntaxContextId {
-//     fn from_id(id: salsa::Id) -> Self {
-//         SyntaxContextId(id)
-//     }
-// }
-
-// impl fmt::Debug for SyntaxContextId {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         if f.alternate() {
-//             write!(f, "{:?}", self.0)
-//         } else {
-//             f.debug_tuple("SyntaxContextId").field(&self.0).finish()
-//         }
-//     }
-// }
-
-// impl fmt::Display for SyntaxContextId {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "{}", self.0.as_u32())
-//     }
-// }
-
-// impl SyntaxContextId {
-
-//     pub fn is_root(self) -> bool {
-//         self == Self::ROOT
-//     }
-
-//     /// Deconstruct a `SyntaxContextId` into a raw `u32`.
-//     /// This should only be used for deserialization purposes for the proc-macro server.
-//     pub fn into_u32(self) -> u32 {
-//         self.0.as_u32()
-//     }
-
-//     /// Constructs a `SyntaxContextId` from a raw `u32`.
-//     /// This should only be used for serialization purposes for the proc-macro server.
-//     pub fn from_u32(u32: u32) -> Self {
-//         Self(salsa::Id::from_u32(u32))
-//     }
-// }
-
 // Recursive expansion of interned macro
 // ======================================
 
@@ -102,50 +36,59 @@ pub struct SyntaxContext(
 #[allow(warnings)]
 const _: () = {
     use salsa::plumbing as zalsa_;
-    use zalsa_::interned as zalsa_struct_;
+    use salsa::plumbing::interned as zalsa_struct_;
     type Configuration_ = SyntaxContext;
     #[derive(Clone, Eq)]
-    pub struct StructData(
-        Option<MacroCallId>,
-        Transparency,
-        SyntaxContext,
-        SyntaxContext,
-        SyntaxContext,
-    );
+    pub struct StructData {
+        outer_expn: Option<MacroCallId>,
+        outer_transparency: Transparency,
+        edition: Edition,
+        parent: SyntaxContext,
+        opaque: SyntaxContext,
+        opaque_and_semitransparent: SyntaxContext,
+    }
 
     impl PartialEq for StructData {
         fn eq(&self, other: &Self) -> bool {
-            self.0 == other.0 && self.1 == other.1 && self.2 == other.2
+            self.outer_expn == other.outer_expn
+                && self.outer_transparency == other.outer_transparency
+                && self.edition == other.edition
+                && self.parent == other.parent
         }
     }
 
     impl std::hash::Hash for StructData {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.0.hash(state);
-            self.1.hash(state);
-            self.2.hash(state);
+            self.outer_expn.hash(state);
+            self.outer_transparency.hash(state);
+            self.edition.hash(state);
+            self.parent.hash(state);
         }
     }
-    #[doc = r" Key to use during hash lookups. Each field is some type that implements `Lookup<T>`"]
-    #[doc = r" for the owned type. This permits interning with an `&str` when a `String` is required and so forth."]
+    /// Key to use during hash lookups. Each field is some type that implements `Lookup<T>`
+    /// for the owned type. This permits interning with an `&str` when a `String` is required and so forth.
     #[derive(Hash)]
-    struct StructKey<'db, T0, T1, T2>(T0, T1, T2, std::marker::PhantomData<&'db ()>);
+    struct StructKey<'db, T0, T1, T2, T3>(T0, T1, T2, T3, std::marker::PhantomData<&'db ()>);
 
-    impl<'db, T0, T1, T2> zalsa_::interned::HashEqLike<StructKey<'db, T0, T1, T2>> for StructData
+    impl<'db, T0, T1, T2, T3> zalsa_::interned::HashEqLike<StructKey<'db, T0, T1, T2, T3>>
+        for StructData
     where
         Option<MacroCallId>: zalsa_::interned::HashEqLike<T0>,
         Transparency: zalsa_::interned::HashEqLike<T1>,
-        SyntaxContext: zalsa_::interned::HashEqLike<T2>,
+        Edition: zalsa_::interned::HashEqLike<T2>,
+        SyntaxContext: zalsa_::interned::HashEqLike<T3>,
     {
         fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
-            zalsa_::interned::HashEqLike::<T0>::hash(&self.0, &mut *h);
-            zalsa_::interned::HashEqLike::<T1>::hash(&self.1, &mut *h);
-            zalsa_::interned::HashEqLike::<T2>::hash(&self.2, &mut *h);
+            zalsa_::interned::HashEqLike::<T0>::hash(&self.outer_expn, &mut *h);
+            zalsa_::interned::HashEqLike::<T1>::hash(&self.outer_transparency, &mut *h);
+            zalsa_::interned::HashEqLike::<T2>::hash(&self.edition, &mut *h);
+            zalsa_::interned::HashEqLike::<T3>::hash(&self.parent, &mut *h);
         }
-        fn eq(&self, data: &StructKey<'db, T0, T1, T2>) -> bool {
-            (zalsa_::interned::HashEqLike::<T0>::eq(&self.0, &data.0)
-                && zalsa_::interned::HashEqLike::<T1>::eq(&self.1, &data.1)
-                && zalsa_::interned::HashEqLike::<T2>::eq(&self.2, &data.2)
+        fn eq(&self, data: &StructKey<'db, T0, T1, T2, T3>) -> bool {
+            (zalsa_::interned::HashEqLike::<T0>::eq(&self.outer_expn, &data.0)
+                && zalsa_::interned::HashEqLike::<T1>::eq(&self.outer_transparency, &data.1)
+                && zalsa_::interned::HashEqLike::<T2>::eq(&self.edition, &data.2)
+                && zalsa_::interned::HashEqLike::<T3>::eq(&self.parent, &data.3)
                 && true)
         }
     }
@@ -210,12 +153,14 @@ const _: () = {
             Db_,
             T0: zalsa_::interned::Lookup<Option<MacroCallId>> + std::hash::Hash,
             T1: zalsa_::interned::Lookup<Transparency> + std::hash::Hash,
-            T2: zalsa_::interned::Lookup<SyntaxContext> + std::hash::Hash,
+            T2: zalsa_::interned::Lookup<Edition> + std::hash::Hash,
+            T3: zalsa_::interned::Lookup<SyntaxContext> + std::hash::Hash,
         >(
             db: &'db Db_,
             outer_expn: T0,
             outer_transparency: T1,
-            parent: T2,
+            edition: T2,
+            parent: T3,
             opaque: impl FnOnce(SyntaxContext) -> SyntaxContext,
             opaque_and_semitransparent: impl FnOnce(SyntaxContext) -> SyntaxContext,
         ) -> Self
@@ -223,7 +168,8 @@ const _: () = {
             Db_: ?Sized + salsa::Database,
             Option<MacroCallId>: zalsa_::interned::HashEqLike<T0>,
             Transparency: zalsa_::interned::HashEqLike<T1>,
-            SyntaxContext: zalsa_::interned::HashEqLike<T2>,
+            Edition: zalsa_::interned::HashEqLike<T2>,
+            SyntaxContext: zalsa_::interned::HashEqLike<T3>,
         {
             let current_revision = zalsa_::current_revision(db);
             Configuration_::ingredient(db).intern(
@@ -231,22 +177,24 @@ const _: () = {
                 StructKey::<'db>(
                     outer_expn,
                     outer_transparency,
+                    edition,
                     parent,
                     std::marker::PhantomData::default(),
                 ),
-                |id, data| {
-                    StructData(
-                        zalsa_::interned::Lookup::into_owned(data.0),
-                        zalsa_::interned::Lookup::into_owned(data.1),
-                        zalsa_::interned::Lookup::into_owned(data.2),
-                        opaque(zalsa_::FromId::from_id(id)),
-                        opaque_and_semitransparent(zalsa_::FromId::from_id(id)),
-                    )
+                |id, data| StructData {
+                    outer_expn: zalsa_::interned::Lookup::into_owned(data.0),
+                    outer_transparency: zalsa_::interned::Lookup::into_owned(data.1),
+                    edition: zalsa_::interned::Lookup::into_owned(data.2),
+                    parent: zalsa_::interned::Lookup::into_owned(data.3),
+                    opaque: opaque(zalsa_::FromId::from_id(id)),
+                    opaque_and_semitransparent: opaque_and_semitransparent(
+                        zalsa_::FromId::from_id(id),
+                    ),
                 },
             )
         }
 
-        /// Invariant: Only [`SyntaxContextId::ROOT`] has a [`None`] outer expansion.
+        /// Invariant: Only [`SyntaxContext::ROOT`] has a [`None`] outer expansion.
         // FIXME: The None case needs to encode the context crate id. We can encode that as the MSB of
         // MacroCallId is reserved anyways so we can do bit tagging here just fine.
         // The bigger issue is that this will cause interning to now create completely separate chains
@@ -259,8 +207,9 @@ const _: () = {
                 return None;
             }
             let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.0))
+            std::clone::Clone::clone((&fields.outer_expn))
         }
+
         pub fn outer_transparency<Db_>(self, db: &'db Db_) -> Transparency
         where
             Db_: ?Sized + zalsa_::Database,
@@ -269,8 +218,20 @@ const _: () = {
                 return Transparency::Opaque;
             }
             let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.1))
+            std::clone::Clone::clone((&fields.outer_transparency))
         }
+
+        pub fn edition<Db_>(self, db: &'db Db_) -> Edition
+        where
+            Db_: ?Sized + zalsa_::Database,
+        {
+            if self.is_root() {
+                return Edition::LATEST;
+            }
+            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone((&fields.edition))
+        }
+
         pub fn parent<Db_>(self, db: &'db Db_) -> SyntaxContext
         where
             Db_: ?Sized + zalsa_::Database,
@@ -279,7 +240,7 @@ const _: () = {
                 return self;
             }
             let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.2))
+            std::clone::Clone::clone((&fields.parent))
         }
         /// This context, but with all transparent and semi-transparent expansions filtered away.
         pub fn opaque<Db_>(self, db: &'db Db_) -> SyntaxContext
@@ -290,8 +251,9 @@ const _: () = {
                 return self;
             }
             let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.3))
+            std::clone::Clone::clone((&fields.opaque))
         }
+
         /// This context, but with all transparent expansions filtered away.
         pub fn opaque_and_semitransparent<Db_>(self, db: &'db Db_) -> SyntaxContext
         where
@@ -301,42 +263,57 @@ const _: () = {
                 return self;
             }
             let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.4))
+            std::clone::Clone::clone((&fields.opaque_and_semitransparent))
         }
+
         #[doc = r" Default debug formatting for this struct (may be useful if you define your own `Debug` impl)"]
         pub fn default_debug_fmt(this: Self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             zalsa_::with_attached_database(|db| {
                 let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), this);
                 let mut f = f.debug_struct("SyntaxContextData");
-                let f = f.field("outer_expn", &fields.0);
-                let f = f.field("outer_transparency", &fields.1);
-                let f = f.field("parent", &fields.2);
-                let f = f.field("opaque", &fields.3);
-                let f = f.field("opaque_and_semitransparent", &fields.4);
+                let f = f.field("outer_expn", &fields.outer_expn);
+                let f = f.field("outer_transparency", &fields.outer_expn);
+                let f = f.field("edition", &fields.edition);
+                let f = f.field("parent", &fields.parent);
+                let f = f.field("opaque", &fields.opaque);
+                let f = f.field("opaque_and_semitransparent", &fields.opaque_and_semitransparent);
                 f.finish()
             })
             .unwrap_or_else(|| {
-                f.debug_tuple("SyntaxContextData")
-                    .field(&zalsa_::AsId::as_id(&this))
-                    .finish()
+                f.debug_tuple("SyntaxContextData").field(&zalsa_::AsId::as_id(&this)).finish()
             })
         }
     }
 };
 
 impl SyntaxContext {
+    const MAX_ID: u32 = salsa::Id::MAX_U32 - 1;
+
     pub fn is_root(self) -> bool {
-        self.into_u32() <= Edition::LATEST as u32
+        (SyntaxContext::MAX_ID - Edition::LATEST as u32) <= self.into_u32()
+            && self.into_u32() <= (SyntaxContext::MAX_ID - Edition::Edition2015 as u32)
     }
+
+    #[inline]
+    pub fn remove_root_edition(&mut self) {
+        if self.is_root() {
+            *self = Self::root(Edition::Edition2015);
+        }
+    }
+
     /// The root context, which is the parent of all other contexts. All [`FileId`]s have this context.
-    pub const ROOT: Self = SyntaxContext(
-        salsa::Id::from_u32(salsa::Id::MAX_U32 - 1),
-        std::marker::PhantomData,
-    );
+    pub const fn root(edition: Edition) -> Self {
+        let edition = edition as u32;
+        SyntaxContext(
+            salsa::Id::from_u32(SyntaxContext::MAX_ID - edition),
+            std::marker::PhantomData,
+        )
+    }
 
     pub fn into_u32(self) -> u32 {
         self.0.as_u32()
     }
+
     pub fn from_u32(u32: u32) -> Self {
         Self(salsa::Id::from_u32(u32), std::marker::PhantomData)
     }

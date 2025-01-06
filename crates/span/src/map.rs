@@ -6,8 +6,8 @@ use std::{fmt, hash::Hash};
 use stdx::{always, itertools::Itertools};
 
 use crate::{
-    EditionedFileId, ErasedFileAstId, ROOT_ERASED_FILE_AST_ID, Span, SpanAnchor, SpanData,
-    SyntaxContext, TextRange, TextSize,
+    EditionedFileId, ErasedFileAstId, Span, SpanAnchor, SpanData, SyntaxContextId, TextRange,
+    TextSize, ROOT_ERASED_FILE_AST_ID,
 };
 
 /// Maps absolute text ranges for the corresponding file to the relevant span data.
@@ -26,10 +26,7 @@ where
 {
     /// Creates a new empty [`SpanMap`].
     pub fn empty() -> Self {
-        Self {
-            spans: Vec::new(),
-            matched_arm: None,
-        }
+        Self { spans: Vec::new(), matched_arm: None }
     }
 
     /// Finalizes the [`SpanMap`], shrinking its backing storage and validating that the offsets are
@@ -65,18 +62,13 @@ where
     where
         S: Copy,
     {
-        self.spans
-            .iter()
-            .enumerate()
-            .filter_map(move |(idx, &(end, s))| {
-                if !s.eq_ignoring_ctx(span) {
-                    return None;
-                }
-                let start = idx
-                    .checked_sub(1)
-                    .map_or(TextSize::new(0), |prev| self.spans[prev].0);
-                Some((TextRange::new(start, end), s.ctx))
-            })
+        self.spans.iter().enumerate().filter_map(move |(idx, &(end, s))| {
+            if !s.eq_ignoring_ctx(span) {
+                return None;
+            }
+            let start = idx.checked_sub(1).map_or(TextSize::new(0), |prev| self.spans[prev].0);
+            Some((TextRange::new(start, end), s.ctx))
+        })
     }
 
     /// Returns all [`TextRange`]s whose spans contain the given span.
@@ -86,21 +78,16 @@ where
     where
         S: Copy,
     {
-        self.spans
-            .iter()
-            .enumerate()
-            .filter_map(move |(idx, &(end, s))| {
-                if s.anchor != span.anchor {
-                    return None;
-                }
-                if !s.range.contains_range(span.range) {
-                    return None;
-                }
-                let start = idx
-                    .checked_sub(1)
-                    .map_or(TextSize::new(0), |prev| self.spans[prev].0);
-                Some((TextRange::new(start, end), s.ctx))
-            })
+        self.spans.iter().enumerate().filter_map(move |(idx, &(end, s))| {
+            if s.anchor != span.anchor {
+                return None;
+            }
+            if !s.range.contains_range(span.range) {
+                return None;
+            }
+            let start = idx.checked_sub(1).map_or(TextSize::new(0), |prev| self.spans[prev].0);
+            Some((TextRange::new(start, end), s.ctx))
+        })
     }
 
     /// Returns the span at the given position.
@@ -115,9 +102,7 @@ where
         let (start, end) = (range.start(), range.end());
         let start_entry = self.spans.partition_point(|&(it, _)| it <= start);
         let end_entry = self.spans[start_entry..].partition_point(|&(it, _)| it <= end); // FIXME: this might be wrong?
-        self.spans[start_entry..][..end_entry]
-            .iter()
-            .map(|&(_, s)| s)
+        self.spans[start_entry..][..end_entry].iter().map(|&(_, s)| s)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (TextSize, SpanData<S>)> + '_ {
@@ -161,12 +146,8 @@ where
             }
         });
 
-        self.spans.extend(
-            other
-                .spans
-                .iter()
-                .map(|&(offset, span)| (offset + other_range.start(), span)),
-        );
+        self.spans
+            .extend(other.spans.iter().map(|&(offset, span)| (offset + other_range.start(), span)));
 
         self.spans.sort_unstable_by_key(|&(offset, _)| offset);
 
@@ -209,11 +190,7 @@ impl RealSpanMap {
         pairs: Box<[(TextSize, ErasedFileAstId)]>,
         end: TextSize,
     ) -> Self {
-        Self {
-            file_id,
-            pairs,
-            end,
-        }
+        Self { file_id, pairs, end }
     }
 
     pub fn span_for_range(&self, range: TextRange) -> Span {
@@ -230,10 +207,7 @@ impl RealSpanMap {
         let (offset, ast_id) = self.pairs[idx - 1];
         Span {
             range: range - offset,
-            anchor: SpanAnchor {
-                file_id: self.file_id,
-                ast_id,
-            },
+            anchor: SpanAnchor { file_id: self.file_id, ast_id },
             ctx: SyntaxContextId::root(self.file_id.edition()),
         }
     }

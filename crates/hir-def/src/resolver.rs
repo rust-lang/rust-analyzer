@@ -2,35 +2,35 @@
 use std::{fmt, iter, mem};
 
 use base_db::CrateId;
-use hir_expand::{MacroDefId, name::Name};
+use hir_expand::{name::Name, MacroDefId};
 use intern::sym;
 use itertools::Itertools as _;
 use rustc_hash::FxHashSet;
-use smallvec::{SmallVec, smallvec};
+use smallvec::{smallvec, SmallVec};
 use triomphe::Arc;
 
 use crate::{
-    AdtId, ConstId, ConstParamId, CrateRootModuleId, DefWithBodyId, EnumId, EnumVariantId,
-    ExternBlockId, ExternCrateId, FunctionId, FxIndexMap, GenericDefId, GenericParamId, HasModule,
-    ImplId, ItemContainerId, ItemTreeLoc, LifetimeParamId, LocalModuleId, Lookup, Macro2Id,
-    MacroId, MacroRulesId, ModuleDefId, ModuleId, ProcMacroId, StaticId, StructId, TraitAliasId,
-    TraitId, TypeAliasId, TypeOrConstParamId, TypeOwnerId, TypeParamId, UseId, VariantId,
     body::{
-        HygieneId,
         scope::{ExprScopes, ScopeId},
+        HygieneId,
     },
     builtin_type::BuiltinType,
     data::ExternCrateDeclData,
     db::DefDatabase,
     generics::{GenericParams, TypeOrConstParamData},
     hir::{BindingId, ExprId, LabelId},
-    item_scope::{BUILTIN_SCOPE, BuiltinShadowMode, ImportId, ImportOrExternCrate},
+    item_scope::{BuiltinShadowMode, ImportOrGlob, ImportOrExternCrate, BUILTIN_SCOPE},
     lang_item::LangItemTarget,
     nameres::{DefMap, MacroSubNs, ResolvePathResultPrefixInfo},
     path::{ModPath, Path, PathKind},
     per_ns::PerNs,
     type_ref::{LifetimeRef, TypesMap},
     visibility::{RawVisibility, Visibility},
+    AdtId, ConstId, ConstParamId, CrateRootModuleId, DefWithBodyId, EnumId, EnumVariantId,
+    ExternBlockId, ExternCrateId, FunctionId, FxIndexMap, GenericDefId, GenericParamId, HasModule,
+    ImplId, ItemContainerId, ItemTreeLoc, LifetimeParamId, LocalModuleId, Lookup, Macro2Id,
+    MacroId, MacroRulesId, ModuleDefId, ModuleId, ProcMacroId, StaticId, StructId, TraitAliasId,
+    TraitId, TypeAliasId, TypeOrConstParamId, TypeOwnerId, TypeParamId, UseId, VariantId,
 };
 
 #[derive(Debug, Clone)]
@@ -51,9 +51,7 @@ struct ModuleItemMap {
 
 impl fmt::Debug for ModuleItemMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ModuleItemMap")
-            .field("module_id", &self.module_id)
-            .finish()
+        f.debug_struct("ModuleItemMap").field("module_id", &self.module_id).finish()
     }
 }
 
@@ -78,10 +76,7 @@ enum Scope {
     /// All the items and imported names of a module
     BlockScope(ModuleItemMap),
     /// Brings the generic parameters of an item into scope
-    GenericParams {
-        def: GenericDefId,
-        params: Arc<GenericParams>,
-    },
+    GenericParams { def: GenericDefId, params: Arc<GenericParams> },
     /// Brings `Self` in `impl` block into scope
     ImplDefScope(ImplId),
     /// Brings `Self` in enum, struct and union definitions into scope
@@ -137,9 +132,7 @@ pub enum LifetimeNs {
 impl Resolver {
     /// Resolve known trait from std, like `std::futures::Future`
     pub fn resolve_known_trait(&self, db: &dyn DefDatabase, path: &ModPath) -> Option<TraitId> {
-        let res = self
-            .resolve_module_path(db, path, BuiltinShadowMode::Other)
-            .take_types()?;
+        let res = self.resolve_module_path(db, path, BuiltinShadowMode::Other).take_types()?;
         match res {
             ModuleDefId::TraitId(it) => Some(it),
             _ => None,
@@ -148,9 +141,7 @@ impl Resolver {
 
     /// Resolve known struct from std, like `std::boxed::Box`
     pub fn resolve_known_struct(&self, db: &dyn DefDatabase, path: &ModPath) -> Option<StructId> {
-        let res = self
-            .resolve_module_path(db, path, BuiltinShadowMode::Other)
-            .take_types()?;
+        let res = self.resolve_module_path(db, path, BuiltinShadowMode::Other).take_types()?;
         match res {
             ModuleDefId::AdtId(AdtId::StructId(it)) => Some(it),
             _ => None,
@@ -159,9 +150,7 @@ impl Resolver {
 
     /// Resolve known enum from std, like `std::result::Result`
     pub fn resolve_known_enum(&self, db: &dyn DefDatabase, path: &ModPath) -> Option<EnumId> {
-        let res = self
-            .resolve_module_path(db, path, BuiltinShadowMode::Other)
-            .take_types()?;
+        let res = self.resolve_module_path(db, path, BuiltinShadowMode::Other).take_types()?;
         match res {
             ModuleDefId::AdtId(AdtId::EnumId(it)) => Some(it),
             _ => None,
@@ -285,9 +274,7 @@ impl Resolver {
         db: &dyn DefDatabase,
         visibility: &RawVisibility,
     ) -> Option<Visibility> {
-        let within_impl = self
-            .scopes()
-            .any(|scope| matches!(scope, Scope::ImplDefScope(_)));
+        let within_impl = self.scopes().any(|scope| matches!(scope, Scope::ImplDefScope(_)));
         match visibility {
             RawVisibility::Module(_, _) => {
                 let (item_map, module) = self.item_scope();
@@ -303,8 +290,7 @@ impl Resolver {
         path: &Path,
         hygiene_id: HygieneId,
     ) -> Option<ResolveValueResult> {
-        self.resolve_path_in_value_ns_with_prefix_info(db, path, hygiene_id)
-            .map(|(it, _)| it)
+        self.resolve_path_in_value_ns_with_prefix_info(db, path, hygiene_id).map(|(it, _)| it)
     }
 
     pub fn resolve_path_in_value_ns_with_prefix_info(
@@ -355,11 +341,7 @@ impl Resolver {
         };
         let n_segments = path.segments().len();
         let tmp = Name::new_symbol_root(sym::self_.clone());
-        let first_name = if path.is_self() {
-            &tmp
-        } else {
-            path.segments().first()?
-        };
+        let first_name = if path.is_self() { &tmp } else { path.segments().first()? };
         let skip_to_mod = path.kind != PathKind::Plain && !path.is_self();
         if skip_to_mod {
             return self.module_scope.resolve_path_in_value_ns(db, path);
@@ -367,7 +349,7 @@ impl Resolver {
 
         if n_segments <= 1 {
             let mut hygiene_info = if !hygiene_id.is_root() {
-                let ctx = hygiene_id.0;
+                let ctx = hygiene_id.lookup();
                 ctx.outer_expn(db).map(|expansion| {
                     let expansion = db.lookup_intern_macro_call(expansion);
                     (ctx.parent(db), expansion.def)
@@ -379,13 +361,9 @@ impl Resolver {
                 match scope {
                     Scope::ExprScope(scope) => {
                         let entry =
-                            scope
-                                .expr_scopes
-                                .entries(scope.scope_id)
-                                .iter()
-                                .find(|entry| {
-                                    entry.name() == first_name && entry.hygiene() == hygiene_id
-                                });
+                            scope.expr_scopes.entries(scope.scope_id).iter().find(|entry| {
+                                entry.name() == first_name && entry.hygiene() == hygiene_id
+                            });
 
                         if let Some(e) = entry {
                             return Some((
@@ -516,13 +494,7 @@ impl Resolver {
     ) -> Option<(MacroId, Option<ImportOrGlob>)> {
         let (item_map, module) = self.item_scope();
         item_map
-            .resolve_path(
-                db,
-                module,
-                path,
-                BuiltinShadowMode::Other,
-                expected_macro_kind,
-            )
+            .resolve_path(db, module, path, BuiltinShadowMode::Other, expected_macro_kind)
             .0
             .take_macros_import()
     }
@@ -533,8 +505,7 @@ impl Resolver {
         path: &ModPath,
         expected_macro_kind: Option<MacroSubNs>,
     ) -> Option<MacroDefId> {
-        self.resolve_path_as_macro(db, path, expected_macro_kind)
-            .map(|(it, _)| db.macro_def(it))
+        self.resolve_path_as_macro(db, path, expected_macro_kind).map(|(it, _)| db.macro_def(it))
     }
 
     pub fn resolve_lifetime(&self, lifetime: &LifetimeRef) -> Option<LifetimeNs> {
@@ -543,9 +514,9 @@ impl Resolver {
         }
 
         self.scopes().find_map(|scope| match scope {
-            Scope::GenericParams { def, params } => params
-                .find_lifetime_by_name(&lifetime.name, *def)
-                .map(LifetimeNs::LifetimeParam),
+            Scope::GenericParams { def, params } => {
+                params.find_lifetime_by_name(&lifetime.name, *def).map(LifetimeNs::LifetimeParam)
+            }
             _ => None,
         })
     }
@@ -596,10 +567,7 @@ impl Resolver {
         for scope in self.scopes() {
             scope.process_names(&mut res, db);
         }
-        let ModuleItemMap {
-            ref def_map,
-            module_id,
-        } = self.module_scope;
+        let ModuleItemMap { ref def_map, module_id } = self.module_scope;
         // FIXME: should we provide `self` here?
         // f(
         //     Name::self_param(),
@@ -611,26 +579,19 @@ impl Resolver {
             res.add_per_ns(name, def);
         });
 
-        def_map[module_id]
-            .scope
-            .legacy_macros()
-            .for_each(|(name, macs)| {
-                macs.iter().for_each(|&mac| {
-                    res.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroId(mac)));
-                })
-            });
-        def_map
-            .macro_use_prelude()
-            .iter()
-            .sorted_by_key(|&(k, _)| k.clone())
-            .for_each(|(name, &(def, _extern_crate))| {
+        def_map[module_id].scope.legacy_macros().for_each(|(name, macs)| {
+            macs.iter().for_each(|&mac| {
+                res.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroId(mac)));
+            })
+        });
+        def_map.macro_use_prelude().iter().sorted_by_key(|&(k, _)| k.clone()).for_each(
+            |(name, &(def, _extern_crate))| {
                 res.add(name, ScopeDef::ModuleDef(def.into()));
-            });
-        def_map
-            .extern_prelude()
-            .for_each(|(name, (def, _extern_crate))| {
-                res.add(name, ScopeDef::ModuleDef(ModuleDefId::ModuleId(def.into())));
-            });
+            },
+        );
+        def_map.extern_prelude().for_each(|(name, (def, _extern_crate))| {
+            res.add(name, ScopeDef::ModuleDef(ModuleDefId::ModuleId(def.into())));
+        });
         BUILTIN_SCOPE.iter().for_each(|(name, &def)| {
             res.add_per_ns(name, def);
         });
@@ -650,11 +611,7 @@ impl Resolver {
         self.module_scope.def_map[self.module_scope.module_id]
             .scope
             .extern_crate_decls()
-            .map(|id| {
-                ExternCrateDeclData::extern_crate_decl_data_query(db, id)
-                    .name
-                    .clone()
-            })
+            .map(|id| ExternCrateDeclData::extern_crate_decl_data_query(db, id).name.clone())
     }
 
     pub fn extern_crates_in_scope(&self) -> impl Iterator<Item = (Name, ModuleId)> + '_ {
@@ -693,11 +650,7 @@ impl Resolver {
             traits.extend(prelude_def_map[prelude.local_id].scope.traits());
         }
         // Fill in module visible traits
-        traits.extend(
-            self.module_scope.def_map[self.module_scope.module_id]
-                .scope
-                .traits(),
-        );
+        traits.extend(self.module_scope.def_map[self.module_scope.module_id].scope.traits());
         traits
     }
 
@@ -732,9 +685,7 @@ impl Resolver {
                 _ => None,
             })
             .flat_map(|(params, def)| {
-                params
-                    .where_predicates()
-                    .zip(iter::repeat((def, &params.types_map)))
+                params.where_predicates().zip(iter::repeat((def, &params.types_map)))
             })
     }
 
@@ -809,10 +760,9 @@ impl Resolver {
             }));
             if let Some(block) = expr_scopes.block(scope_id) {
                 let def_map = db.block_def_map(block);
-                resolver.scopes.push(Scope::BlockScope(ModuleItemMap {
-                    def_map,
-                    module_id: DefMap::ROOT,
-                }));
+                resolver
+                    .scopes
+                    .push(Scope::BlockScope(ModuleItemMap { def_map, module_id: DefMap::ROOT }));
                 // FIXME: This adds as many module scopes as there are blocks, but resolving in each
                 // already traverses all parents, so this is O(n²). I think we could only store the
                 // innermost module scope instead?
@@ -820,15 +770,9 @@ impl Resolver {
         }
 
         let start = self.scopes.len();
-        let innermost_scope = self
-            .scopes()
-            .find(|scope| !matches!(scope, Scope::MacroDefScope(_)));
+        let innermost_scope = self.scopes().find(|scope| !matches!(scope, Scope::MacroDefScope(_)));
         match innermost_scope {
-            Some(&Scope::ExprScope(ExprScope {
-                scope_id,
-                ref expr_scopes,
-                owner,
-            })) => {
+            Some(&Scope::ExprScope(ExprScope { scope_id, ref expr_scopes, owner })) => {
                 let expr_scopes = expr_scopes.clone();
                 let scope_chain = expr_scopes
                     .scope_chain(expr_scopes.scope_for(expr_id))
@@ -903,25 +847,16 @@ impl Scope {
     fn process_names(&self, acc: &mut ScopeNames, db: &dyn DefDatabase) {
         match self {
             Scope::BlockScope(m) => {
-                m.def_map[m.module_id]
-                    .scope
-                    .entries()
-                    .for_each(|(name, def)| {
-                        acc.add_per_ns(name, def);
-                    });
-                m.def_map[m.module_id]
-                    .scope
-                    .legacy_macros()
-                    .for_each(|(name, macs)| {
-                        macs.iter().for_each(|&mac| {
-                            acc.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroId(mac)));
-                        })
-                    });
+                m.def_map[m.module_id].scope.entries().for_each(|(name, def)| {
+                    acc.add_per_ns(name, def);
+                });
+                m.def_map[m.module_id].scope.legacy_macros().for_each(|(name, macs)| {
+                    macs.iter().for_each(|&mac| {
+                        acc.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroId(mac)));
+                    })
+                });
             }
-            Scope::GenericParams {
-                params,
-                def: parent,
-            } => {
+            Scope::GenericParams { params, def: parent } => {
                 let parent = *parent;
                 for (local_id, param) in params.iter_type_or_consts() {
                     if let Some(name) = &param.name() {
@@ -946,28 +881,18 @@ impl Scope {
                 }
             }
             Scope::ImplDefScope(i) => {
-                acc.add(
-                    &Name::new_symbol_root(sym::Self_.clone()),
-                    ScopeDef::ImplSelfType(*i),
-                );
+                acc.add(&Name::new_symbol_root(sym::Self_.clone()), ScopeDef::ImplSelfType(*i));
             }
             Scope::AdtScope(i) => {
-                acc.add(
-                    &Name::new_symbol_root(sym::Self_.clone()),
-                    ScopeDef::AdtSelfType(*i),
-                );
+                acc.add(&Name::new_symbol_root(sym::Self_.clone()), ScopeDef::AdtSelfType(*i));
             }
             Scope::ExprScope(scope) => {
                 if let Some((label, name)) = scope.expr_scopes.label(scope.scope_id) {
                     acc.add(&name, ScopeDef::Label(label))
                 }
-                scope
-                    .expr_scopes
-                    .entries(scope.scope_id)
-                    .iter()
-                    .for_each(|e| {
-                        acc.add_local(e.name(), e.binding());
-                    });
+                scope.expr_scopes.entries(scope.scope_id).iter().for_each(|e| {
+                    acc.add_local(e.name(), e.binding());
+                });
             }
             Scope::MacroDefScope(_) => {}
         }
@@ -1035,10 +960,7 @@ impl Resolver {
 
     fn push_block_scope(self, def_map: Arc<DefMap>) -> Resolver {
         debug_assert!(def_map.block_id().is_some());
-        self.push_scope(Scope::BlockScope(ModuleItemMap {
-            def_map,
-            module_id: DefMap::ROOT,
-        }))
+        self.push_scope(Scope::BlockScope(ModuleItemMap { def_map, module_id: DefMap::ROOT }))
     }
 
     fn push_expr_scope(
@@ -1047,11 +969,7 @@ impl Resolver {
         expr_scopes: Arc<ExprScopes>,
         scope_id: ScopeId,
     ) -> Resolver {
-        self.push_scope(Scope::ExprScope(ExprScope {
-            owner,
-            expr_scopes,
-            scope_id,
-        }))
+        self.push_scope(Scope::ExprScope(ExprScope { owner, expr_scopes, scope_id }))
     }
 }
 
@@ -1062,8 +980,7 @@ impl ModuleItemMap {
         path: &ModPath,
     ) -> Option<(ResolveValueResult, ResolvePathResultPrefixInfo)> {
         let (module_def, unresolved_idx, prefix_info) =
-            self.def_map
-                .resolve_path_locally(db, self.module_id, path, BuiltinShadowMode::Other);
+            self.def_map.resolve_path_locally(db, self.module_id, path, BuiltinShadowMode::Other);
         match unresolved_idx {
             None => {
                 let (value, import) = to_value_ns(module_def)?;
@@ -1085,10 +1002,7 @@ impl ModuleItemMap {
                     | ModuleDefId::MacroId(_)
                     | ModuleDefId::StaticId(_) => return None,
                 };
-                Some((
-                    ResolveValueResult::Partial(ty, unresolved_idx, def.import),
-                    prefix_info,
-                ))
+                Some((ResolveValueResult::Partial(ty, unresolved_idx, def.import), prefix_info))
             }
         }
     }
@@ -1199,10 +1113,7 @@ impl HasResolver for ModuleId {
         let mut module_id = self.local_id;
 
         if !self.is_block_module() {
-            return Resolver {
-                scopes: vec![],
-                module_scope: ModuleItemMap { def_map, module_id },
-            };
+            return Resolver { scopes: vec![], module_scope: ModuleItemMap { def_map, module_id } };
         }
 
         let mut modules: SmallVec<[_; 1]> = smallvec![];
@@ -1229,10 +1140,7 @@ impl HasResolver for CrateRootModuleId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
         Resolver {
             scopes: vec![],
-            module_scope: ModuleItemMap {
-                def_map: self.def_map(db),
-                module_id: DefMap::ROOT,
-            },
+            module_scope: ModuleItemMap { def_map: self.def_map(db), module_id: DefMap::ROOT },
         }
     }
 }
