@@ -19,7 +19,7 @@ use crate::{
     },
     generics::{GenericParams, TypeOrConstParamData},
     hir::{BindingId, ExprId, LabelId},
-    item_scope::{BuiltinShadowMode, ImportId, ImportOrExternCrate, BUILTIN_SCOPE},
+    item_scope::{BuiltinShadowMode, ImportOrExternCrate, ImportOrGlob, BUILTIN_SCOPE},
     lang_item::LangItemTarget,
     nameres::{DefMap, MacroSubNs, ResolvePathResultPrefixInfo},
     path::{ModPath, Path, PathKind},
@@ -350,7 +350,7 @@ impl Resolver {
 
         if n_segments <= 1 {
             let mut hygiene_info = if !hygiene_id.is_root() {
-                let ctx = hygiene_id.0;
+                let ctx = hygiene_id.lookup();
                 ctx.outer_expn(db).map(|expansion| {
                     let expansion = db.lookup_intern_macro_call(expansion);
                     (ctx.parent(db), expansion.def)
