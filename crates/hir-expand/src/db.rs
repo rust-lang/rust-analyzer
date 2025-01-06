@@ -8,7 +8,7 @@ use rustc_hash::FxHashSet;
 use salsa::plumbing::AsId;
 use span::{
     AstIdMap, Edition, EditionedFileId, HirFileId, HirFileIdRepr, MacroCallId, MacroFileId, Span,
-    SyntaxContext,
+    SyntaxContextId,
 };
 use syntax::{ast, AstNode, Parse, SyntaxElement, SyntaxError, SyntaxNode, SyntaxToken, T};
 use syntax_bridge::{syntax_node_to_token_tree, DocCommentDesugarMode};
@@ -31,7 +31,7 @@ use crate::{
     },
     proc_macro::{CustomProcMacroExpander, ProcMacros},
     span_map::{ExpansionSpanMap, RealSpanMap, SpanMap, SpanMapRef},
-    tt, ExpandResult, MacroCallKind, MacroCallLoc, MacroDefId,
+    tt
 };
 /// This is just to ensure the types of smart_macro_arg and macro_arg are the same
 type MacroArgResult = (Arc<tt::TopSubtree>, SyntaxFixupUndoInfo, Span);
@@ -154,7 +154,7 @@ pub struct MacroCallWrapper {
 
 #[salsa::interned_sans_lifetime(id = span::SyntaxContextId)]
 pub struct SyntaxContextWrapper {
-    pub data: SyntaxContextData,
+    pub data: SyntaxContextId,
 }
 
 fn syntax_context(db: &dyn ExpandDatabase, file: HirFileId, edition: Edition) -> SyntaxContextId {
@@ -748,12 +748,7 @@ pub(crate) fn token_tree_to_syntax_node(
         ExpandTo::Type => syntax_bridge::TopEntryPoint::Type,
         ExpandTo::Expr => syntax_bridge::TopEntryPoint::Expr,
     };
-    syntax_bridge::token_tree_to_syntax_node(
-        tt,
-        entry_point,
-        &mut |ctx| ctx.lookup(db).edition,
-        edition,
-    )
+    syntax_bridge::token_tree_to_syntax_node(tt, entry_point, &mut |ctx| ctx.edition(db), edition)
 }
 
 fn check_tt_count(tt: &tt::TopSubtree) -> Result<(), ExpandResult<()>> {
@@ -773,11 +768,5 @@ fn check_tt_count(tt: &tt::TopSubtree) -> Result<(), ExpandResult<()>> {
         })
     } else {
         Ok(())
-    }
-}
-
-fn setup_syntax_context_root(db: &dyn ExpandDatabase) {
-    for edition in Edition::iter() {
-        db.intern_syntax_context(SyntaxContextData::root(edition));
     }
 }

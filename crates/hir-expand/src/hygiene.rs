@@ -24,7 +24,7 @@
 
 use std::{convert::identity, iter};
 
-use span::{Edition, MacroCallId, Span, SyntaxContextData, SyntaxContextId};
+use span::{Edition, MacroCallId, Span, SyntaxContextId};
 
 use crate::db::ExpandDatabase;
 
@@ -72,7 +72,7 @@ fn span_with_ctxt_from_mark(
 
 pub(super) fn apply_mark(
     db: &dyn ExpandDatabase,
-    ctxt: span::SyntaxContext,
+    ctxt: span::SyntaxContextId,
     call_id: span::MacroCallId,
     transparency: Transparency,
     edition: Edition,
@@ -109,17 +109,11 @@ pub(super) fn apply_mark(
 
 fn apply_mark_internal(
     db: &dyn ExpandDatabase,
-    ctxt: SyntaxContext,
+    ctxt: SyntaxContextId,
     call_id: MacroCallId,
     transparency: Transparency,
     edition: Edition,
 ) -> SyntaxContextId {
-    dbg!(&ctxt);
-    let syntax_context_data = db.lookup_intern_syntax_context(ctxt);
-
-    let mut opaque = handle_self_ref(ctxt, syntax_context_data.opaque);
-    let mut opaque_and_semitransparent =
-        handle_self_ref(ctxt, syntax_context_data.opaque_and_semitransparent);
     let call_id = Some(call_id);
 
     let mut opaque = ctxt.opaque(db);
@@ -127,20 +121,22 @@ fn apply_mark_internal(
 
     if transparency >= Transparency::Opaque {
         let parent = opaque;
-        opaque = SyntaxContext::new(db, call_id, transparency, parent, identity, identity);
+        opaque =
+            SyntaxContextId::new(db, call_id, transparency, edition, parent, identity, identity);
     }
 
     if transparency >= Transparency::SemiTransparent {
         let parent = opaque_and_semitransparent;
         opaque_and_semitransparent =
-            SyntaxContext::new(db, call_id, transparency, parent, |_| opaque, identity);
+            SyntaxContextId::new(db, call_id, transparency, edition, parent, |_| opaque, identity);
     }
 
     let parent = ctxt;
-    SyntaxContext::new(
+    SyntaxContextId::new(
         db,
         call_id,
         transparency,
+        edition,
         parent,
         |_| opaque,
         |_| opaque_and_semitransparent,
@@ -148,9 +144,9 @@ fn apply_mark_internal(
 }
 
 pub trait SyntaxContextExt {
-    fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> span::SyntaxContext;
-    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContext;
-    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContext;
+    fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId;
+    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId;
+    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId;
     fn remove_mark(&mut self, db: &dyn ExpandDatabase)
         -> (Option<span::MacroCallId>, Transparency);
     fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<span::MacroCallId>, Transparency);
@@ -160,12 +156,12 @@ pub trait SyntaxContextExt {
 
 impl SyntaxContextExt for SyntaxContextId {
     fn normalize_to_macro_rules(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
-        handle_self_ref(self, db.lookup_intern_syntax_context(self).opaque_and_semitransparent)
+        self.opaque_and_semitransparent(db)
     }
-    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContext {
+    fn normalize_to_macros_2_0(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
         self.opaque(db)
     }
-    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContext {
+    fn parent_ctxt(self, db: &dyn ExpandDatabase) -> span::SyntaxContextId {
         self.parent(db)
     }
     fn outer_mark(self, db: &dyn ExpandDatabase) -> (Option<span::MacroCallId>, Transparency) {
@@ -186,13 +182,13 @@ impl SyntaxContextExt for SyntaxContextId {
         marks
     }
     fn is_opaque(self, db: &dyn ExpandDatabase) -> bool {
-        !self.is_root() && db.lookup_intern_syntax_context(self).outer_transparency.is_opaque()
+        !self.is_root() && self.outer_transparency(db).is_opaque()
     }
 }
 
 // FIXME: Make this a SyntaxContextExt method once we have RPIT
 pub fn marks_rev(
-    ctxt: SyntaxContext,
+    ctxt: SyntaxContextId,
     db: &dyn ExpandDatabase,
 ) -> impl Iterator<Item = (span::MacroCallId, Transparency)> + '_ {
     iter::successors(Some(ctxt), move |&mark| Some(mark.parent_ctxt(db)))
@@ -230,7 +226,7 @@ pub(crate) fn dump_syntax_contexts(db: &dyn ExpandDatabase) -> String {
     // for e in entries {
     //     struct SyntaxContextDebug<'a>(
     //         &'a dyn ExpandDatabase,
-    //         SyntaxContext,
+    //         SyntaxContextId,
     //         &'a SyntaxContextData,
     //     );
 
@@ -242,7 +238,7 @@ pub(crate) fn dump_syntax_contexts(db: &dyn ExpandDatabase) -> String {
 
     //     fn fancy_debug(
     //         this: &SyntaxContextData,
-    //         self_id: SyntaxContext,
+    //         self_id: SyntaxContextId,
     //         db: &dyn ExpandDatabase,
     //         f: &mut std::fmt::Formatter<'_>,
     //     ) -> std::fmt::Result {
