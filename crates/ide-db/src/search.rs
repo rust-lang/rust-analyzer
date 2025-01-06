@@ -17,6 +17,7 @@ use hir::{
 use memchr::memmem::Finder;
 use parser::SyntaxKind;
 use rustc_hash::{FxHashMap, FxHashSet};
+use salsa::Database;
 use span::EditionedFileId;
 use syntax::{
     ast::{self, HasName, Rename},
@@ -1000,7 +1001,7 @@ impl<'a> FindUsages<'a> {
             let finder = &Finder::new("super");
 
             for (text, file_id, search_range) in Self::scope_files(sema.db, &scope) {
-                // self.sema.db.unwind_if_cancelled();
+                self.sema.db.unwind_if_revision_cancelled();
                 let tree = LazyCell::new(move || sema.parse(file_id).syntax().clone());
 
                 for offset in Self::match_indices(&text, finder, search_range) {
