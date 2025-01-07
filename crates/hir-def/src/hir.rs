@@ -574,8 +574,8 @@ pub enum Pat {
         ellipsis: bool,
     },
     Range {
-        start: Option<Box<LiteralOrConst>>,
-        end: Option<Box<LiteralOrConst>>,
+        start: Option<ExprId>,
+        end: Option<ExprId>,
     },
     Slice {
         prefix: Box<[PatId]>,
