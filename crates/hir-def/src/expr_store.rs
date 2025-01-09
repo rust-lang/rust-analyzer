@@ -16,7 +16,7 @@ use hir_expand::{name::Name, ExpandError, InFile};
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use span::{Edition, MacroFileId, SyntaxContextData};
+use span::{Edition, MacroFileId, SyntaxContext};
 use syntax::{ast, AstPtr, SyntaxNodePtr};
 use triomphe::Arc;
 use tt::TextRange;
@@ -49,7 +49,7 @@ impl HygieneId {
         Self(ctx)
     }
 
-    pub(crate) fn lookup(self) -> SyntaxContextData {
+    pub(crate) fn lookup(self) -> SyntaxContext {
         self.0
     }
 
