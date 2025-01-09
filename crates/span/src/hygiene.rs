@@ -33,11 +33,10 @@ pub struct SyntaxContext(
     std::marker::PhantomData<&'static salsa::plumbing::interned::Value<SyntaxContext>>,
 );
 
-#[allow(warnings)]
 const _: () = {
     use salsa::plumbing as zalsa_;
     use salsa::plumbing::interned as zalsa_struct_;
-    type Configuration_ = SyntaxContext;
+
     #[derive(Clone, Eq)]
     pub struct StructData {
         outer_expn: Option<MacroCallId>,
@@ -85,14 +84,13 @@ const _: () = {
             zalsa_::interned::HashEqLike::<T3>::hash(&self.parent, &mut *h);
         }
         fn eq(&self, data: &StructKey<'db, T0, T1, T2, T3>) -> bool {
-            (zalsa_::interned::HashEqLike::<T0>::eq(&self.outer_expn, &data.0)
+            zalsa_::interned::HashEqLike::<T0>::eq(&self.outer_expn, &data.0)
                 && zalsa_::interned::HashEqLike::<T1>::eq(&self.outer_transparency, &data.1)
                 && zalsa_::interned::HashEqLike::<T2>::eq(&self.edition, &data.2)
                 && zalsa_::interned::HashEqLike::<T3>::eq(&self.parent, &data.3)
-                && true)
         }
     }
-    impl zalsa_struct_::Configuration for Configuration_ {
+    impl zalsa_struct_::Configuration for SyntaxContext {
         const DEBUG_NAME: &'static str = "SyntaxContextData";
         type Data<'a> = StructData;
         type Struct<'a> = SyntaxContext;
@@ -103,16 +101,16 @@ const _: () = {
             s.0
         }
     }
-    impl Configuration_ {
+    impl SyntaxContext {
         pub fn ingredient<Db>(db: &Db) -> &zalsa_struct_::IngredientImpl<Self>
         where
             Db: ?Sized + zalsa_::Database,
         {
-            static CACHE: zalsa_::IngredientCache<zalsa_struct_::IngredientImpl<Configuration_>> =
+            static CACHE: zalsa_::IngredientCache<zalsa_struct_::IngredientImpl<SyntaxContext>> =
                 zalsa_::IngredientCache::new();
             CACHE.get_or_create(db.as_dyn_database(), || {
                 db.zalsa()
-                    .add_or_lookup_jar_by_type(&<zalsa_struct_::JarImpl<Configuration_>>::default())
+                    .add_or_lookup_jar_by_type(&<zalsa_struct_::JarImpl<SyntaxContext>>::default())
             })
         }
     }
@@ -130,15 +128,15 @@ const _: () = {
 
     unsafe impl Sync for SyntaxContext {}
 
-    impl zalsa_::SalsaStructInDb for SyntaxContext {
+    impl salsa::plumbing::SalsaStructInDb for SyntaxContext {
         fn lookup_ingredient_index(
             aux: &dyn salsa::plumbing::JarAux,
         ) -> Option<salsa::IngredientIndex> {
-            aux.lookup_jar_by_type(&zalsa_struct_::JarImpl::<Configuration_>::default())
+            aux.lookup_jar_by_type(&zalsa_struct_::JarImpl::<SyntaxContext>::default())
         }
     }
 
-    unsafe impl zalsa_::Update for SyntaxContext {
+    unsafe impl salsa::plumbing::Update for SyntaxContext {
         unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
             if unsafe { *old_pointer } != new_value {
                 unsafe { *old_pointer = new_value };
@@ -150,13 +148,13 @@ const _: () = {
     }
     impl<'db> SyntaxContext {
         pub fn new<
-            Db_,
+            Db,
             T0: zalsa_::interned::Lookup<Option<MacroCallId>> + std::hash::Hash,
             T1: zalsa_::interned::Lookup<Transparency> + std::hash::Hash,
             T2: zalsa_::interned::Lookup<Edition> + std::hash::Hash,
             T3: zalsa_::interned::Lookup<SyntaxContext> + std::hash::Hash,
         >(
-            db: &'db Db_,
+            db: &'db Db,
             outer_expn: T0,
             outer_transparency: T1,
             edition: T2,
@@ -165,14 +163,15 @@ const _: () = {
             opaque_and_semitransparent: impl FnOnce(SyntaxContext) -> SyntaxContext,
         ) -> Self
         where
-            Db_: ?Sized + salsa::Database,
+            Db: ?Sized + salsa::Database,
             Option<MacroCallId>: zalsa_::interned::HashEqLike<T0>,
             Transparency: zalsa_::interned::HashEqLike<T1>,
             Edition: zalsa_::interned::HashEqLike<T2>,
             SyntaxContext: zalsa_::interned::HashEqLike<T3>,
         {
+            // FIXME: do we need this?
             let current_revision = zalsa_::current_revision(db);
-            Configuration_::ingredient(db).intern(
+            SyntaxContext::ingredient(db).intern(
                 db.as_dyn_database(),
                 StructKey::<'db>(
                     outer_expn,
@@ -199,77 +198,78 @@ const _: () = {
         // MacroCallId is reserved anyways so we can do bit tagging here just fine.
         // The bigger issue is that this will cause interning to now create completely separate chains
         // per crate. Though that is likely not a problem as `MacroCallId`s are already crate calling dependent.
-        pub fn outer_expn<Db_>(self, db: &'db Db_) -> Option<MacroCallId>
+        pub fn outer_expn<Db>(self, db: &'db Db) -> Option<MacroCallId>
         where
-            Db_: ?Sized + zalsa_::Database,
+            Db: ?Sized + zalsa_::Database,
         {
             if self.is_root() {
                 return None;
             }
-            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.outer_expn))
+            let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone(&fields.outer_expn)
         }
 
-        pub fn outer_transparency<Db_>(self, db: &'db Db_) -> Transparency
+        pub fn outer_transparency<Db>(self, db: &'db Db) -> Transparency
         where
-            Db_: ?Sized + zalsa_::Database,
+            Db: ?Sized + zalsa_::Database,
         {
             if self.is_root() {
                 return Transparency::Opaque;
             }
-            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.outer_transparency))
+            let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone(&fields.outer_transparency)
         }
 
-        pub fn edition<Db_>(self, db: &'db Db_) -> Edition
+        pub fn edition<Db>(self, db: &'db Db) -> Edition
         where
-            Db_: ?Sized + zalsa_::Database,
+            Db: ?Sized + zalsa_::Database,
         {
+            // FIXME: is this right?
             if self.is_root() {
                 return Edition::LATEST;
             }
-            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.edition))
+            let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone(&fields.edition)
         }
 
-        pub fn parent<Db_>(self, db: &'db Db_) -> SyntaxContext
+        pub fn parent<Db>(self, db: &'db Db) -> SyntaxContext
         where
-            Db_: ?Sized + zalsa_::Database,
+            Db: ?Sized + zalsa_::Database,
         {
             if self.is_root() {
                 return self;
             }
-            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.parent))
+            let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone(&fields.parent)
         }
+
         /// This context, but with all transparent and semi-transparent expansions filtered away.
-        pub fn opaque<Db_>(self, db: &'db Db_) -> SyntaxContext
+        pub fn opaque<Db>(self, db: &'db Db) -> SyntaxContext
         where
-            Db_: ?Sized + zalsa_::Database,
+            Db: ?Sized + zalsa_::Database,
         {
             if self.is_root() {
                 return self;
             }
-            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.opaque))
+            let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone(&fields.opaque)
         }
 
         /// This context, but with all transparent expansions filtered away.
-        pub fn opaque_and_semitransparent<Db_>(self, db: &'db Db_) -> SyntaxContext
+        pub fn opaque_and_semitransparent<Db>(self, db: &'db Db) -> SyntaxContext
         where
-            Db_: ?Sized + zalsa_::Database,
+            Db: ?Sized + zalsa_::Database,
         {
             if self.is_root() {
                 return self;
             }
-            let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), self);
-            std::clone::Clone::clone((&fields.opaque_and_semitransparent))
+            let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), self);
+            std::clone::Clone::clone(&fields.opaque_and_semitransparent)
         }
 
-        #[doc = r" Default debug formatting for this struct (may be useful if you define your own `Debug` impl)"]
         pub fn default_debug_fmt(this: Self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            zalsa_::with_attached_database(|db| {
-                let fields = Configuration_::ingredient(db).fields(db.as_dyn_database(), this);
+            salsa::with_attached_database(|db| {
+                let fields = SyntaxContext::ingredient(db).fields(db.as_dyn_database(), this);
                 let mut f = f.debug_struct("SyntaxContextData");
                 let f = f.field("outer_expn", &fields.outer_expn);
                 let f = f.field("outer_transparency", &fields.outer_expn);
