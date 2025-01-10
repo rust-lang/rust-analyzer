@@ -2,7 +2,7 @@ use either::Either;
 use ide_db::defs::{Definition, NameRefClass};
 use syntax::{
     ast::{self, AstNode, HasAttrs, HasGenericParams, HasVisibility},
-    match_ast, ted, SyntaxKind, SyntaxNode,
+    match_ast, ted, SyntaxKind, SyntaxNode, TextSize,
 };
 
 use crate::{assist_context::SourceChangeBuilder, AssistContext, AssistId, AssistKind, Assists};
@@ -136,12 +136,15 @@ fn edit_struct_references(
     };
     let usages = strukt_def.usages(&ctx.sema).include_self_refs().all();
 
-    let edit_node = |edit: &mut SourceChangeBuilder, node: SyntaxNode| -> Option<()> {
+    let edit_node = |diff: TextSize,
+                     edit: &mut SourceChangeBuilder,
+                     node: SyntaxNode|
+     -> Option<()> {
         match_ast! {
             match node {
                 ast::TupleStructPat(tuple_struct_pat) => {
                     edit.replace(
-                        tuple_struct_pat.syntax().text_range(),
+                        tuple_struct_pat.syntax().text_range().checked_add(diff)?,
                         ast::make::record_pat_with_fields(
                             tuple_struct_pat.path()?,
                             ast::make::record_pat_field_list(tuple_struct_pat.fields().zip(names).map(
@@ -196,8 +199,9 @@ fn edit_struct_references(
     for (file_id, refs) in usages {
         edit.edit_file(file_id.file_id());
         for r in refs {
+            let diff = r.range.start() - r.name.syntax().text_range().start();
             for node in r.name.syntax().ancestors() {
-                if edit_node(edit, node).is_some() {
+                if edit_node(diff, edit, node).is_some() {
                     break;
                 }
             }
@@ -921,6 +925,49 @@ pub struct $0Foo(#[my_custom_attr] u32);
 "#,
             r#"
 pub struct Foo { #[my_custom_attr] field1: u32 }
+"#,
+        );
+    }
+
+    #[test]
+    fn convert_in_macro_pattern_args() {
+        check_assist(
+            convert_tuple_struct_to_named_struct,
+            r#"
+macro_rules! foo {
+    ($expression:expr, $pattern:pat) => {
+        match $expression {
+            $pattern => true,
+            _ => false
+        }
+    };
+}
+
+enum Expr {
+    A$0(usize),
+}
+fn main() {
+    let e = Expr::A(0);
+    foo!(e, Expr::A(0));
+}
+"#,
+            r#"
+macro_rules! foo {
+    ($expression:expr, $pattern:pat) => {
+        match $expression {
+            $pattern => true,
+            _ => false
+        }
+    };
+}
+
+enum Expr {
+    A { field1: usize },
+}
+fn main() {
+    let e = Expr::A { field1: 0 };
+    foo!(e, Expr::A { field1: 0 });
+}
 "#,
         );
     }
