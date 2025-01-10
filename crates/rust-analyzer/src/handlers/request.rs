@@ -2441,6 +2441,11 @@ pub(crate) fn internal_testing_fetch_config(
                 state.config.flycheck_workspace(source_root),
             )
         }
+        InternalTestingFetchConfigOption::DiagnosticsDisabled => {
+            InternalTestingFetchConfigResponse::DiagnosticsDisabled(
+                state.config.diagnostics(source_root).disabled,
+            )
+        }
     }))
 }
 
