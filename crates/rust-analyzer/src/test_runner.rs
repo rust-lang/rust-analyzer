@@ -9,7 +9,7 @@ use toolchain::Tool;
 
 use crate::{
     command::{CommandHandle, ParseFromLine},
-    flycheck::CargoOptions,
+    flycheck::command::CargoOptions,
 };
 
 #[derive(Debug, Deserialize)]
