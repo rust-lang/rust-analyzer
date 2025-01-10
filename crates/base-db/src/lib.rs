@@ -16,10 +16,9 @@ pub use crate::{
 use dashmap::{mapref::entry::Entry, DashMap};
 pub use db_ext_macro::{self};
 use rustc_hash::{FxHashMap, FxHasher};
-use salsa::{Durability, Setter};
 pub use salsa::{self};
+use salsa::{Durability, Setter};
 pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
-use span::EditionedFileId;
 use syntax::{ast, Parse, SyntaxError};
 use triomphe::Arc;
 pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
@@ -69,7 +68,6 @@ pub struct CrateWorkspaceData {
     pub toolchain: Option<Version>,
 }
 
-
 #[derive(Debug, Default)]
 pub struct Files {
     files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
@@ -89,7 +87,7 @@ impl Files {
                 occupied.get_mut().set_text(db).to(Arc::from(text));
             }
             Entry::Vacant(vacant) => {
-                let text = FileText::new(db, Arc::from(text));
+                let text = FileText::new(db, Arc::from(text), file_id);
                 vacant.insert(text);
             }
         };
@@ -108,7 +106,8 @@ impl Files {
                 occupied.get_mut().set_text(db).to(Arc::from(text));
             }
             Entry::Vacant(vacant) => {
-                let text = FileText::builder(Arc::from(text)).durability(durability).new(db);
+                let text =
+                    FileText::builder(Arc::from(text), file_id).durability(durability).new(db);
                 vacant.insert(text);
             }
         };
@@ -137,7 +136,8 @@ impl Files {
                 occupied.get_mut().set_source_root(db).to(source_root);
             }
             Entry::Vacant(vacant) => {
-                let source_root = SourceRootInput::builder(source_root).durability(durability).new(db);
+                let source_root =
+                    SourceRootInput::builder(source_root).durability(durability).new(db);
                 vacant.insert(source_root);
             }
         };
@@ -165,16 +165,24 @@ impl Files {
                 occupied.get_mut().set_source_root_id(db).to(source_root_id);
             }
             Entry::Vacant(vacant) => {
-                let file_source_root = FileSourceRootInput::builder(source_root_id).durability(durability).new(db);
+                let file_source_root =
+                    FileSourceRootInput::builder(source_root_id).durability(durability).new(db);
                 vacant.insert(file_source_root);
             }
         };
     }
 }
 
+#[salsa::interned_sans_lifetime]
+pub struct EditionedFileId {
+    pub file_id: FileText,
+    pub editioned_file_id: span::EditionedFileId,
+}
+
 #[salsa::input]
 pub struct FileText {
     pub text: Arc<str>,
+    pub file_id: vfs::FileId,
 }
 
 #[salsa::input]
@@ -192,7 +200,8 @@ pub struct SourceRootInput {
 #[db_ext_macro::query_group]
 pub trait RootQueryDb: SourceDatabase + salsa::Database {
     /// Parses the file into the syntax tree.
-    #[db_ext_macro::lru]
+    #[db_ext_macro::invoke_actual(parse)]
+    #[db_ext_macro::lru(128)]
     fn parse(&self, file_id: EditionedFileId) -> Parse<ast::SourceFile>;
 
     /// Returns the set of errors obtained from parsing the file including validation errors.
@@ -276,8 +285,8 @@ fn toolchain_channel(db: &dyn RootQueryDb, krate: CrateId) -> Option<ReleaseChan
 
 fn parse(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Parse<ast::SourceFile> {
     let _p = tracing::info_span!("parse", ?file_id).entered();
-    let (file_id, edition) = file_id.unpack();
-    let text = db.file_text(file_id);
+    let (text, editioned_file_id) = (file_id.file_id(db), file_id.editioned_file_id(db));
+    let (_, edition) = editioned_file_id.unpack();
     ast::SourceFile::parse(&text.text(db), edition)
 }
 

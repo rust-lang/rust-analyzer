@@ -237,9 +237,8 @@ pub trait DefDatabase:
     // endregion:data
 
     #[db_ext_macro::invoke(Body::body_with_source_map_query)]
-    #[db_ext_macro::lru]
+    #[db_ext_macro::lru(1024)]
     fn body_with_source_map(&self, def: DefWithBodyId) -> (Arc<Body>, Arc<BodySourceMap>);
-
     #[db_ext_macro::invoke(Body::body_query)]
     fn body(&self, def: DefWithBodyId) -> Arc<Body>;
 

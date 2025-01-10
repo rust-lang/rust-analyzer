@@ -70,7 +70,7 @@ pub trait ExpandDatabase: RootQueryDb {
     fn parse_or_expand(&self, file_id: HirFileId) -> SyntaxNode;
 
     /// Implementation for the macro case.
-    #[db_ext_macro::lru]
+    #[db_ext_macro::lru(128)]
     fn parse_macro_expansion(
         &self,
         macro_file: span::MacroFileId,
@@ -343,7 +343,13 @@ fn ast_id_map(db: &dyn ExpandDatabase, file_id: span::HirFileId) -> triomphe::Ar
 /// file or a macro expansion.
 fn parse_or_expand(db: &dyn ExpandDatabase, file_id: HirFileId) -> SyntaxNode {
     match file_id.repr() {
-        HirFileIdRepr::FileId(file_id) => db.parse(file_id).syntax_node(),
+        HirFileIdRepr::FileId(editioned_file_id) => {
+            let (file_id, _) = editioned_file_id.unpack();
+            let file_text = db.file_text(file_id);
+            let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+            db.parse(file_id).syntax_node()
+        },
+
         HirFileIdRepr::MacroFile(macro_file) => {
             db.parse_macro_expansion(macro_file).value.0.syntax_node()
         }
@@ -395,8 +401,12 @@ pub(crate) fn parse_with_map(
     file_id: HirFileId,
 ) -> (Parse<SyntaxNode>, SpanMap) {
     match file_id.repr() {
-        HirFileIdRepr::FileId(file_id) => {
-            (db.parse(file_id).to_syntax(), SpanMap::RealSpanMap(db.real_span_map(file_id)))
+        HirFileIdRepr::FileId(editioned_file_id) => {
+            let (file_id, _) = editioned_file_id.unpack();
+            let file_text = db.file_text(file_id);
+            let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+
+            (db.parse(file_id).to_syntax(), SpanMap::RealSpanMap(db.real_span_map(editioned_file_id)))
         }
         HirFileIdRepr::MacroFile(macro_file) => {
             let (parse, map) = db.parse_macro_expansion(macro_file).value;
