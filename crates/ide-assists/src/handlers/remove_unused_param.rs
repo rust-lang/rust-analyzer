@@ -1,4 +1,9 @@
-use ide_db::{defs::Definition, search::FileReference, EditionedFileId};
+use ide_db::{
+    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    defs::Definition,
+    search::FileReference,
+    EditionedFileId,
+};
 use syntax::{
     algo::{find_node_at_range, least_common_ancestor_element},
     ast::{self, HasArgList},
@@ -102,7 +107,12 @@ fn process_usages(
     arg_to_remove: usize,
     is_self_present: bool,
 ) {
-    let source_file = ctx.sema.parse(file_id);
+    let file_text = ctx.sema.db.file_text(file_id.file_id());
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(ctx.sema.db.as_dyn_database(), file_text, file_id);
+
+    let source_file = ctx.sema.parse(editioned_file_id_wrapper);
+    builder.edit_file(file_id);
     let possible_ranges = references
         .into_iter()
         .filter_map(|usage| process_usage(&source_file, usage, arg_to_remove, is_self_present));
