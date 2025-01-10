@@ -2,6 +2,10 @@ use std::{fmt, process::Command};
 
 use ide_db::FxHashMap;
 use paths::Utf8PathBuf;
+use toolchain::Tool;
+use vfs::{AbsPath, AbsPathBuf};
+
+pub(crate) const SAVED_FILE_PLACEHOLDER: &str = "$saved_file";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) enum InvocationStrategy {
@@ -79,6 +83,98 @@ impl fmt::Display for FlycheckConfig {
             FlycheckConfig::CustomCommand { command, args, .. } => {
                 write!(f, "{command} {}", args.join(" "))
             }
+        }
+    }
+}
+
+/// Construct a `Command` object for checking the user's code. If the user
+/// has specified a custom command with placeholders that we cannot fill,
+/// return None.
+pub(super) fn check_command(
+    root: &AbsPathBuf,
+    sysroot_root: &Option<AbsPathBuf>,
+    manifest_path: &Option<AbsPathBuf>,
+    config: FlycheckConfig,
+    package: Option<&str>,
+    saved_file: Option<&AbsPath>,
+    target: Option<Target>,
+) -> Option<Command> {
+    match config {
+        FlycheckConfig::CargoCommand { command, options, ansi_color_output } => {
+            let mut cmd = toolchain::command(Tool::Cargo.path(), &*root);
+            if let Some(sysroot_root) = &sysroot_root {
+                cmd.env("RUSTUP_TOOLCHAIN", AsRef::<std::path::Path>::as_ref(sysroot_root));
+            }
+            cmd.arg(command);
+
+            match package {
+                Some(pkg) => cmd.arg("-p").arg(pkg),
+                None => cmd.arg("--workspace"),
+            };
+
+            if let Some(tgt) = target {
+                match tgt {
+                    Target::Bin(tgt) => cmd.arg("--bin").arg(tgt),
+                    Target::Example(tgt) => cmd.arg("--example").arg(tgt),
+                    Target::Test(tgt) => cmd.arg("--test").arg(tgt),
+                    Target::Benchmark(tgt) => cmd.arg("--bench").arg(tgt),
+                };
+            }
+
+            cmd.arg(if ansi_color_output {
+                "--message-format=json-diagnostic-rendered-ansi"
+            } else {
+                "--message-format=json"
+            });
+
+            if let Some(manifest_path) = &manifest_path {
+                cmd.arg("--manifest-path");
+                cmd.arg(manifest_path);
+                if manifest_path.extension() == Some("rs") {
+                    cmd.arg("-Zscript");
+                }
+            }
+
+            cmd.arg("--keep-going");
+
+            options.apply_on_command(&mut cmd);
+            cmd.args(&options.extra_args);
+            Some(cmd)
+        }
+        FlycheckConfig::CustomCommand { command, args, extra_env, invocation_strategy } => {
+            let root = match invocation_strategy {
+                InvocationStrategy::Once => &*root,
+                InvocationStrategy::PerWorkspace => {
+                    // FIXME: &affected_workspace
+                    &*root
+                }
+            };
+            let mut cmd = toolchain::command(command, root);
+            cmd.envs(extra_env);
+
+            // If the custom command has a $saved_file placeholder, and
+            // we're saving a file, replace the placeholder in the arguments.
+            if let Some(saved_file) = saved_file {
+                for arg in args {
+                    if arg == SAVED_FILE_PLACEHOLDER {
+                        cmd.arg(saved_file);
+                    } else {
+                        cmd.arg(arg);
+                    }
+                }
+            } else {
+                for arg in args {
+                    if arg == SAVED_FILE_PLACEHOLDER {
+                        // The custom command has a $saved_file placeholder,
+                        // but we had an IDE event that wasn't a file save. Do nothing.
+                        return None;
+                    }
+
+                    cmd.arg(arg);
+                }
+            }
+
+            Some(cmd)
         }
     }
 }

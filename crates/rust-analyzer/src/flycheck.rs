@@ -1,20 +1,19 @@
 //! Flycheck provides the functionality needed to run `cargo check` to provide
 //! LSP diagnostics based on the output of the command.
 
-use std::{fmt, io, process::Command, time::Duration};
+use std::{fmt, io, time::Duration};
 
 use cargo_metadata::PackageId;
-use command::{FlycheckConfig, InvocationStrategy, Target};
+use command::{check_command, FlycheckConfig, Target};
 use crossbeam_channel::{select_biased, unbounded, Receiver, Sender};
 use ide_db::FxHashSet;
-use paths::{AbsPath, AbsPathBuf};
+use paths::AbsPathBuf;
 use serde::Deserialize as _;
 use serde_derive::Deserialize;
 
 pub(crate) use cargo_metadata::diagnostic::{
     Applicability, Diagnostic, DiagnosticCode, DiagnosticLevel, DiagnosticSpan,
 };
-use toolchain::Tool;
 use triomphe::Arc;
 
 use crate::command::{CommandHandle, ParseFromLine};
@@ -37,13 +36,11 @@ impl FlycheckHandle {
     pub(crate) fn spawn(
         id: usize,
         sender: Sender<FlycheckMessage>,
-        config: FlycheckConfig,
         sysroot_root: Option<AbsPathBuf>,
         workspace_root: AbsPathBuf,
         manifest_path: Option<AbsPathBuf>,
     ) -> FlycheckHandle {
-        let actor =
-            FlycheckActor::new(id, sender, config, sysroot_root, workspace_root, manifest_path);
+        let actor = FlycheckActor::new(id, sender, sysroot_root, workspace_root, manifest_path);
         let (sender, receiver) = unbounded::<StateChange>();
         let thread = stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
             .name("Flycheck".to_owned())
@@ -53,14 +50,21 @@ impl FlycheckHandle {
     }
 
     /// Schedule a re-start of the cargo check worker to do a workspace wide check.
-    pub(crate) fn restart_workspace(&self, saved_file: Option<AbsPathBuf>) {
-        self.sender.send(StateChange::Restart { package: None, saved_file, target: None }).unwrap();
+    pub(crate) fn restart_workspace(&self, saved_file: Option<AbsPathBuf>, config: FlycheckConfig) {
+        self.sender
+            .send(StateChange::Restart { package: None, saved_file, target: None, config })
+            .unwrap();
     }
 
     /// Schedule a re-start of the cargo check worker to do a package wide check.
-    pub(crate) fn restart_for_package(&self, package: String, target: Option<Target>) {
+    pub(crate) fn restart_for_package(
+        &self,
+        package: String,
+        target: Option<Target>,
+        config: FlycheckConfig,
+    ) {
         self.sender
-            .send(StateChange::Restart { package: Some(package), saved_file: None, target })
+            .send(StateChange::Restart { package: Some(package), saved_file: None, target, config })
             .unwrap();
     }
 
@@ -130,7 +134,12 @@ pub(crate) enum Progress {
 }
 
 enum StateChange {
-    Restart { package: Option<String>, saved_file: Option<AbsPathBuf>, target: Option<Target> },
+    Restart {
+        package: Option<String>,
+        saved_file: Option<AbsPathBuf>,
+        target: Option<Target>,
+        config: FlycheckConfig,
+    },
     Cancel,
 }
 
@@ -140,7 +149,6 @@ struct FlycheckActor {
     id: usize,
 
     sender: Sender<FlycheckMessage>,
-    config: FlycheckConfig,
     manifest_path: Option<AbsPathBuf>,
     /// Either the workspace root of the workspace we are flychecking,
     /// or the project root of the project.
@@ -165,13 +173,10 @@ enum Event {
     CheckEvent(Option<CargoCheckMessage>),
 }
 
-pub(crate) const SAVED_FILE_PLACEHOLDER: &str = "$saved_file";
-
 impl FlycheckActor {
     fn new(
         id: usize,
         sender: Sender<FlycheckMessage>,
-        config: FlycheckConfig,
         sysroot_root: Option<AbsPathBuf>,
         workspace_root: AbsPathBuf,
         manifest_path: Option<AbsPathBuf>,
@@ -180,7 +185,6 @@ impl FlycheckActor {
         FlycheckActor {
             id,
             sender,
-            config,
             sysroot_root,
             root: Arc::new(workspace_root),
             manifest_path,
@@ -215,7 +219,12 @@ impl FlycheckActor {
                     tracing::debug!(flycheck_id = self.id, "flycheck cancelled");
                     self.cancel_check_process();
                 }
-                Event::RequestStateChange(StateChange::Restart { package, saved_file, target }) => {
+                Event::RequestStateChange(StateChange::Restart {
+                    package,
+                    saved_file,
+                    target,
+                    config,
+                }) => {
                     // Cancel the previously spawned process
                     self.cancel_check_process();
                     while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
@@ -225,9 +234,15 @@ impl FlycheckActor {
                         }
                     }
 
-                    let Some(command) =
-                        self.check_command(package.as_deref(), saved_file.as_deref(), target)
-                    else {
+                    let Some(command) = check_command(
+                        &self.root,
+                        &self.sysroot_root,
+                        &self.manifest_path,
+                        config,
+                        package.as_deref(),
+                        saved_file.as_deref(),
+                        target,
+                    ) else {
                         continue;
                     };
 
@@ -358,95 +373,6 @@ impl FlycheckActor {
         self.diagnostics_cleared_for.clear();
         self.diagnostics_cleared_for_all = false;
         self.diagnostics_received = false;
-    }
-
-    /// Construct a `Command` object for checking the user's code. If the user
-    /// has specified a custom command with placeholders that we cannot fill,
-    /// return None.
-    fn check_command(
-        &self,
-        package: Option<&str>,
-        saved_file: Option<&AbsPath>,
-        target: Option<Target>,
-    ) -> Option<Command> {
-        match &self.config {
-            FlycheckConfig::CargoCommand { command, options, ansi_color_output } => {
-                let mut cmd = toolchain::command(Tool::Cargo.path(), &*self.root);
-                if let Some(sysroot_root) = &self.sysroot_root {
-                    cmd.env("RUSTUP_TOOLCHAIN", AsRef::<std::path::Path>::as_ref(sysroot_root));
-                }
-                cmd.arg(command);
-
-                match package {
-                    Some(pkg) => cmd.arg("-p").arg(pkg),
-                    None => cmd.arg("--workspace"),
-                };
-
-                if let Some(tgt) = target {
-                    match tgt {
-                        Target::Bin(tgt) => cmd.arg("--bin").arg(tgt),
-                        Target::Example(tgt) => cmd.arg("--example").arg(tgt),
-                        Target::Test(tgt) => cmd.arg("--test").arg(tgt),
-                        Target::Benchmark(tgt) => cmd.arg("--bench").arg(tgt),
-                    };
-                }
-
-                cmd.arg(if *ansi_color_output {
-                    "--message-format=json-diagnostic-rendered-ansi"
-                } else {
-                    "--message-format=json"
-                });
-
-                if let Some(manifest_path) = &self.manifest_path {
-                    cmd.arg("--manifest-path");
-                    cmd.arg(manifest_path);
-                    if manifest_path.extension() == Some("rs") {
-                        cmd.arg("-Zscript");
-                    }
-                }
-
-                cmd.arg("--keep-going");
-
-                options.apply_on_command(&mut cmd);
-                cmd.args(&options.extra_args);
-                Some(cmd)
-            }
-            FlycheckConfig::CustomCommand { command, args, extra_env, invocation_strategy } => {
-                let root = match invocation_strategy {
-                    InvocationStrategy::Once => &*self.root,
-                    InvocationStrategy::PerWorkspace => {
-                        // FIXME: &affected_workspace
-                        &*self.root
-                    }
-                };
-                let mut cmd = toolchain::command(command, root);
-                cmd.envs(extra_env);
-
-                // If the custom command has a $saved_file placeholder, and
-                // we're saving a file, replace the placeholder in the arguments.
-                if let Some(saved_file) = saved_file {
-                    for arg in args {
-                        if arg == SAVED_FILE_PLACEHOLDER {
-                            cmd.arg(saved_file);
-                        } else {
-                            cmd.arg(arg);
-                        }
-                    }
-                } else {
-                    for arg in args {
-                        if arg == SAVED_FILE_PLACEHOLDER {
-                            // The custom command has a $saved_file placeholder,
-                            // but we had an IDE event that wasn't a file save. Do nothing.
-                            return None;
-                        }
-
-                        cmd.arg(arg);
-                    }
-                }
-
-                Some(cmd)
-            }
-        }
     }
 
     #[track_caller]

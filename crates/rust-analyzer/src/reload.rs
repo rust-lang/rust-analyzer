@@ -811,14 +811,7 @@ impl GlobalState {
 
         self.flycheck = match invocation_strategy {
             crate::flycheck::command::InvocationStrategy::Once => {
-                vec![FlycheckHandle::spawn(
-                    0,
-                    sender,
-                    config,
-                    None,
-                    self.config.root_path().clone(),
-                    None,
-                )]
+                vec![FlycheckHandle::spawn(0, sender, None, self.config.root_path().clone(), None)]
             }
             crate::flycheck::command::InvocationStrategy::PerWorkspace => {
                 self.workspaces
@@ -852,7 +845,6 @@ impl GlobalState {
                         FlycheckHandle::spawn(
                             id,
                             sender.clone(),
-                            config.clone(),
                             sysroot_root,
                             root.to_path_buf(),
                             manifest_path.map(|it| it.to_path_buf()),
