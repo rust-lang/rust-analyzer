@@ -16,7 +16,7 @@ mod proc_macros;
 
 use std::{iter, ops::Range, sync};
 
-use base_db::RootQueryDb;
+use base_db::{RootQueryDb, SourceDatabase};
 use expect_test::Expect;
 use hir_expand::{
     db::ExpandDatabase,
@@ -26,6 +26,7 @@ use hir_expand::{
 };
 use intern::Symbol;
 use itertools::Itertools;
+use salsa::AsDynDatabase;
 use span::{Edition, Span};
 use stdx::{format_to, format_to_acc};
 use syntax::{
@@ -63,8 +64,14 @@ fn check_errors(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
                 MacroCallKind::Derive { ast_id, .. } => ast_id.map(|it| it.erase()),
                 MacroCallKind::Attr { ast_id, .. } => ast_id.map(|it| it.erase()),
             };
+
+            let editioned_file_id = ast_id.file_id.file_id().expect("unable to get FileId; this is a bug");
+            let (file_id, _) = editioned_file_id.unpack();
+            let file_text = db.file_text(file_id);
+            let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_text, editioned_file_id);
+
             let ast = db
-                .parse(ast_id.file_id.file_id().expect("macros inside macros are not supported"))
+                .parse(editioned_file_id_wrapper)
                 .syntax_node();
             let ast_id_map = db.ast_id_map(ast_id.file_id);
             let node = ast_id_map.get_erased(ast_id.value).to_node(&ast);
