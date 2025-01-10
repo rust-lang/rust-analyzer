@@ -86,7 +86,10 @@ use crate::{errors::bail, matching::MatchFailureReason};
 use hir::{FileRange, Semantics};
 use ide_db::symbol_index::SymbolsDatabase;
 use ide_db::text_edit::TextEdit;
-use ide_db::{base_db::SourceDatabase, EditionedFileId, FileId, FxHashMap, RootDatabase};
+use ide_db::{
+    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    EditionedFileId, FileId, FxHashMap, RootDatabase,
+};
 use resolving::ResolvedRule;
 use syntax::{ast, AstNode, SyntaxNode, TextRange};
 
@@ -229,7 +232,13 @@ impl<'db> MatchFinder<'db> {
         file_id: EditionedFileId,
         snippet: &str,
     ) -> Vec<MatchDebugInfo> {
-        let file = self.sema.parse(file_id);
+        let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+            self.sema.db.as_dyn_database(),
+            self.sema.db.file_text(file_id.file_id()),
+            file_id,
+        );
+
+        let file = self.sema.parse(editioned_file_id_wrapper);
         let mut res = Vec::new();
         let file_text = self.sema.db.file_text(file_id.into()).text(self.sema.db);
         let mut remaining_text = &*file_text;

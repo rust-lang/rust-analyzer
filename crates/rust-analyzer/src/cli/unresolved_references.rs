@@ -2,7 +2,9 @@
 use hir::{db::HirDatabase, AnyDiagnostic, Crate, HirFileIdExt as _, Module, Semantics};
 use ide::{AnalysisHost, RootDatabase, TextRange};
 use ide_db::{
-    base_db::SourceDatabase, defs::NameRefClass, EditionedFileId, FxHashSet, LineIndexDatabase as _,
+    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    defs::NameRefClass,
+    EditionedFileId, FxHashSet, LineIndexDatabase as _,
 };
 use load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice};
 use parser::SyntaxKind;
@@ -139,7 +141,12 @@ fn all_unresolved_references(
     let file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let file = sema.parse(file_id);
+    let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+        sema.db.as_dyn_database(),
+        sema.db.file_text(file_id.file_id()),
+        file_id,
+    );
+    let file = sema.parse(editioned_file_id_wrapper);
     let root = file.syntax();
 
     let mut unresolved_references = Vec::new();

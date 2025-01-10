@@ -7,6 +7,7 @@ use crate::{
 };
 use hir::FileRange;
 use ide_db::{
+    base_db::{salsa::AsDynDatabase, SourceDatabase},
     defs::Definition,
     search::{SearchScope, UsageSearchResult},
     EditionedFileId, FileId, FxHashSet,
@@ -74,7 +75,13 @@ impl MatchFinder<'_> {
         resolved_path: &ResolvedPath,
         file_range: FileRange,
     ) -> Vec<SyntaxNode> {
-        let file = self.sema.parse(file_range.file_id);
+        let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+            self.sema.db.as_dyn_database(),
+            self.sema.db.file_text(file_range.file_id.file_id()),
+            file_range.file_id,
+        );
+
+        let file = self.sema.parse(editioned_file_id_wrapper);
         let depth = resolved_path.depth as usize;
         let offset = file_range.range.start();
 

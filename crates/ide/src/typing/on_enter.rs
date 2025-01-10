@@ -2,7 +2,10 @@
 //! comments, but should handle indent some time in the future as well.
 
 use ide_db::base_db::RootQueryDb;
-use ide_db::{FilePosition, RootDatabase};
+use ide_db::{
+    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    FilePosition, RootDatabase,
+};
 use span::EditionedFileId;
 use syntax::{
     algo::find_node_at_offset,
@@ -53,7 +56,12 @@ use ide_db::text_edit::TextEdit;
 //
 // image::https://user-images.githubusercontent.com/48062697/113065578-04c21800-91b1-11eb-82b8-22b8c481e645.gif[]
 pub(crate) fn on_enter(db: &RootDatabase, position: FilePosition) -> Option<TextEdit> {
-    let parse = db.parse(EditionedFileId::current_edition(position.file_id));
+    let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+        db.as_dyn_database(),
+        db.file_text(position.file_id),
+        EditionedFileId::current_edition(position.file_id),
+    );
+    let parse = db.parse(editioned_file_id_wrapper);
     let file = parse.tree();
     let token = file.syntax().token_at_offset(position.offset).left_biased()?;
 

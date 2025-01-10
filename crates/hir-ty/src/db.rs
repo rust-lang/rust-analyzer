@@ -59,7 +59,7 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
     ) -> Result<Arc<MirBody>, MirLowerError>;
 
     #[db_ext_macro::invoke(crate::mir::borrowck_query)]
-    #[db_ext_macro::lru]
+    #[db_ext_macro::lru(2048)]
     fn borrowck(&self, def: DefWithBodyId) -> Result<Arc<[BorrowckResult]>, MirLowerError>;
 
     #[db_ext_macro::invoke(crate::consteval::const_eval_query)]
