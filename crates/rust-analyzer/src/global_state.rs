@@ -9,7 +9,6 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use hir::ChangeWithProcMacros;
 use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
 use ide_db::base_db::{CrateId, ProcMacroPaths, SourceDatabase, SourceRootDatabase};
-use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
 use nohash_hasher::IntMap;
@@ -327,6 +326,11 @@ impl GlobalState {
             let mut modified_rust_files = vec![];
             for file in changed_files.into_values() {
                 let vfs_path = vfs.file_path(file.file_id);
+                if let Some((".rust-analyzer", Some("toml"))) = vfs_path.name_and_extension() {
+                    // Remember ids to use them after `apply_changes`
+                    modified_ratoml_files.insert(file.file_id, (file.kind(), vfs_path.clone()));
+                }
+
                 if let Some(("rust-analyzer", Some("toml"))) = vfs_path.name_and_extension() {
                     // Remember ids to use them after `apply_changes`
                     modified_ratoml_files.insert(file.file_id, (file.kind(), vfs_path.clone()));
@@ -446,19 +450,12 @@ impl GlobalState {
                 let mut change = ConfigChange::default();
                 let db = self.analysis_host.raw_database();
 
-                // FIXME @alibektas : This is silly. There is no reason to use VfsPaths when there is SourceRoots. But how
-                // do I resolve a "workspace_root" to its corresponding id without having to rely on a cargo.toml's ( or project json etc.) file id?
-                let workspace_ratoml_paths = self
+                let workspace_source_roots = self
                     .workspaces
                     .iter()
-                    .map(|ws| {
-                        VfsPath::from({
-                            let mut p = ws.workspace_root().to_owned();
-                            p.push("rust-analyzer.toml");
-                            p
-                        })
-                    })
-                    .collect_vec();
+                    .enumerate()
+                    .filter_map(|(id, _)| self.workspace_source_root_map.get(&id))
+                    .collect::<Vec<_>>();
 
                 for (file_id, (change_kind, vfs_path)) in modified_ratoml_files {
                     tracing::info!(%vfs_path, ?change_kind, "Processing rust-analyzer.toml changes");
@@ -474,7 +471,7 @@ impl GlobalState {
                     let sr = db.source_root(sr_id);
 
                     if !sr.is_library {
-                        let entry = if workspace_ratoml_paths.contains(&vfs_path) {
+                        let entry = if workspace_source_roots.contains(&&sr_id) {
                             tracing::info!(%vfs_path, ?sr_id, "workspace rust-analyzer.toml changes");
                             change.change_workspace_ratoml(
                                 sr_id,
@@ -491,8 +488,13 @@ impl GlobalState {
                         };
 
                         if let Some((kind, old_path, old_text)) = entry {
-                            // SourceRoot has more than 1 RATOML files. In this case lexicographically smaller wins.
-                            if old_path < vfs_path {
+                            let (old_filename, _) = old_path.name_and_extension().unwrap();
+                            // SourceRoot has more than 1 RATOML file. In this case lexicographically smaller wins.
+                            // Either old_path is indeed lexicographically smaller, or old file is dotted ratoml and both paths share the same parent.
+                            if (old_path < vfs_path)
+                                ^ (old_path.parent() == vfs_path.parent()
+                                    && old_filename.starts_with("."))
+                            {
                                 tracing::error!("Two `rust-analyzer.toml` files were found inside the same crate. {vfs_path} has no effect.");
                                 // Put the old one back in.
                                 match kind {
