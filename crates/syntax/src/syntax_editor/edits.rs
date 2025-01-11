@@ -1,9 +1,10 @@
 //! Structural editing for ast using `SyntaxEditor`
 
 use crate::{
+    algo::neighbor,
     ast::{
-        self, edit::IndentLevel, make, syntax_factory::SyntaxFactory, AstNode, Fn, GenericParam,
-        HasGenericParams, HasName,
+        self, edit::IndentLevel, make, syntax_factory::SyntaxFactory, AstNode, AstToken, Fn,
+        GenericParam, HasGenericParams, HasName,
     },
     syntax_editor::{Position, SyntaxEditor},
     Direction, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
@@ -141,6 +142,68 @@ fn normalize_ws_between_braces(editor: &mut SyntaxEditor, node: &SyntaxNode) -> 
         _ => (),
     }
     Some(())
+}
+
+pub trait Removable: AstNode {
+    fn remove(&self, editor: &mut SyntaxEditor);
+}
+
+impl Removable for ast::Use {
+    fn remove(&self, editor: &mut SyntaxEditor) {
+        let make = SyntaxFactory::new();
+
+        let next_ws = self
+            .syntax()
+            .next_sibling_or_token()
+            .and_then(|it| it.into_token())
+            .and_then(ast::Whitespace::cast);
+        if let Some(next_ws) = next_ws {
+            let ws_text = next_ws.syntax().text();
+            if let Some(rest) = ws_text.strip_prefix('\n') {
+                if rest.is_empty() {
+                    editor.delete(next_ws.syntax());
+                } else {
+                    editor.replace(next_ws.syntax(), make.whitespace(rest));
+                }
+            }
+        }
+        let prev_ws = self
+            .syntax()
+            .prev_sibling_or_token()
+            .and_then(|it| it.into_token())
+            .and_then(ast::Whitespace::cast);
+        if let Some(prev_ws) = prev_ws {
+            let ws_text = prev_ws.syntax().text();
+            let prev_newline = ws_text.rfind('\n').map(|x| x + 1).unwrap_or(0);
+            let rest = &ws_text[0..prev_newline];
+            if rest.is_empty() {
+                editor.delete(prev_ws.syntax());
+            } else {
+                editor.replace(prev_ws.syntax(), make.whitespace(rest));
+            }
+        }
+
+        editor.delete(self.syntax());
+    }
+}
+
+impl Removable for ast::UseTree {
+    fn remove(&self, editor: &mut SyntaxEditor) {
+        for dir in [Direction::Next, Direction::Prev] {
+            if let Some(next_use_tree) = neighbor(self, dir) {
+                let separators = self
+                    .syntax()
+                    .siblings_with_tokens(dir)
+                    .skip(1)
+                    .take_while(|it| it.as_node() != Some(next_use_tree.syntax()));
+                for sep in separators {
+                    editor.delete(sep);
+                }
+                break;
+            }
+        }
+        editor.delete(self.syntax());
+    }
 }
 
 #[cfg(test)]
