@@ -413,7 +413,11 @@ impl GlobalState {
                     && !self.fetch_build_data_queue.op_requested()
                 {
                     // Project has loaded properly, kick off initial flycheck
-                    self.flycheck.iter().for_each(|flycheck| flycheck.restart_workspace(None));
+                    self.flycheck.iter().for_each(|flycheck| {
+                        let sr = self.workspace_source_root_map.get(&flycheck.id());
+                        let config = self.config.flycheck(sr.cloned());
+                        flycheck.restart_workspace(None, config)
+                    });
                 }
                 if self.config.prefill_caches() {
                     self.prime_caches_queue.request_op("became quiescent".to_owned(), ());

@@ -32,7 +32,7 @@ use vfs::{AbsPath, AbsPathBuf, ChangeKind};
 
 use crate::{
     config::{Config, FilesWatcher, LinkedProject},
-    flycheck::{FlycheckConfig, FlycheckHandle},
+    flycheck::{command::FlycheckConfig, FlycheckHandle},
     global_state::{
         FetchBuildDataResponse, FetchWorkspaceRequest, FetchWorkspaceResponse, GlobalState,
     },
@@ -802,7 +802,7 @@ impl GlobalState {
         let sender = self.flycheck_sender.clone();
         let invocation_strategy = match config {
             FlycheckConfig::CargoCommand { .. } => {
-                crate::flycheck::InvocationStrategy::PerWorkspace
+                crate::flycheck::command::InvocationStrategy::PerWorkspace
             }
             FlycheckConfig::CustomCommand { ref invocation_strategy, .. } => {
                 invocation_strategy.clone()
@@ -810,17 +810,10 @@ impl GlobalState {
         };
 
         self.flycheck = match invocation_strategy {
-            crate::flycheck::InvocationStrategy::Once => {
-                vec![FlycheckHandle::spawn(
-                    0,
-                    sender,
-                    config,
-                    None,
-                    self.config.root_path().clone(),
-                    None,
-                )]
+            crate::flycheck::command::InvocationStrategy::Once => {
+                vec![FlycheckHandle::spawn(0, sender, None, self.config.root_path().clone(), None)]
             }
-            crate::flycheck::InvocationStrategy::PerWorkspace => {
+            crate::flycheck::command::InvocationStrategy::PerWorkspace => {
                 self.workspaces
                     .iter()
                     .enumerate()
@@ -852,7 +845,6 @@ impl GlobalState {
                         FlycheckHandle::spawn(
                             id,
                             sender.clone(),
-                            config.clone(),
                             sysroot_root,
                             root.to_path_buf(),
                             manifest_path.map(|it| it.to_path_buf()),

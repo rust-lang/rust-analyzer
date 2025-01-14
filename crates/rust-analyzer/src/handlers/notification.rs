@@ -15,7 +15,7 @@ use vfs::{AbsPathBuf, ChangeKind, VfsPath};
 
 use crate::{
     config::{Config, ConfigChange},
-    flycheck::Target,
+    flycheck::command::Target,
     global_state::{FetchWorkspaceRequest, GlobalState},
     lsp::{from_proto, utils::apply_document_changes},
     lsp_ext::{self, RunFlycheckParams},
@@ -190,7 +190,9 @@ pub(crate) fn handle_did_save_text_document(
     } else if state.config.check_on_save(None) && state.config.flycheck_workspace(None) {
         // No specific flycheck was triggered, so let's trigger all of them.
         for flycheck in state.flycheck.iter() {
-            flycheck.restart_workspace(None);
+            let sr = state.workspace_source_root_map.get(&flycheck.id());
+            let config = state.config.flycheck(sr.cloned());
+            flycheck.restart_workspace(None, config);
         }
     }
 
@@ -330,7 +332,10 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                             _ => false,
                         });
                     if let Some((idx, _)) = workspace {
-                        world.flycheck[idx].restart_for_package(package, target);
+                        let flycheck = &world.flycheck[idx];
+                        let source_root = world.workspace_source_root_map.get(&flycheck.id());
+                        let config = world.config.flycheck(source_root.cloned());
+                        flycheck.restart_for_package(package, target, config);
                     }
                 }
             }
@@ -391,7 +396,9 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                 for (id, _) in workspace_ids.clone() {
                     if id == flycheck.id() {
                         updated = true;
-                        flycheck.restart_workspace(saved_file.clone());
+                        let sr = world.workspace_source_root_map.get(&id);
+                        let config = world.config.flycheck(sr.cloned());
+                        flycheck.restart_workspace(saved_file.clone(), config);
                         continue 'flychecks;
                     }
                 }
@@ -399,7 +406,9 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
             // No specific flycheck was triggered, so let's trigger all of them.
             if !updated {
                 for flycheck in world.flycheck.iter() {
-                    flycheck.restart_workspace(saved_file.clone());
+                    let sr = world.workspace_source_root_map.get(&flycheck.id());
+                    let config = world.config.flycheck(sr.cloned());
+                    flycheck.restart_workspace(saved_file.clone(), config);
                 }
             }
             Ok(())
@@ -442,7 +451,9 @@ pub(crate) fn handle_run_flycheck(
     // No specific flycheck was triggered, so let's trigger all of them.
     if state.config.flycheck_workspace(None) {
         for flycheck in state.flycheck.iter() {
-            flycheck.restart_workspace(None);
+            let sr = state.workspace_source_root_map.get(&flycheck.id());
+            let config = state.config.flycheck(sr.cloned());
+            flycheck.restart_workspace(None, config);
         }
     }
     Ok(())
