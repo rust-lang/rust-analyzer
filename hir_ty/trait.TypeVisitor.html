@@ -1,0 +1,148 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A “visitor” recursively folds some term – that is, some bit of IR, such as a `Goal`, and computes a value as a result."><title>TypeVisitor in hir_ty - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="hir_ty" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../hir_ty/index.html">hir_ty</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Type<wbr>Visitor</a></h2><h3><a href="#required-associated-types">Required Associated Types</a></h3><ul class="block"><li><a href="#associatedtype.BreakTy" title="BreakTy">BreakTy</a></li></ul><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.as_dyn" title="as_dyn">as_dyn</a></li><li><a href="#tymethod.interner" title="interner">interner</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.forbid_free_placeholders" title="forbid_free_placeholders">forbid_free_placeholders</a></li><li><a href="#method.forbid_free_vars" title="forbid_free_vars">forbid_free_vars</a></li><li><a href="#method.forbid_inference_vars" title="forbid_inference_vars">forbid_inference_vars</a></li><li><a href="#method.visit_const" title="visit_const">visit_const</a></li><li><a href="#method.visit_domain_goal" title="visit_domain_goal">visit_domain_goal</a></li><li><a href="#method.visit_free_placeholder" title="visit_free_placeholder">visit_free_placeholder</a></li><li><a href="#method.visit_free_var" title="visit_free_var">visit_free_var</a></li><li><a href="#method.visit_goal" title="visit_goal">visit_goal</a></li><li><a href="#method.visit_inference_var" title="visit_inference_var">visit_inference_var</a></li><li><a href="#method.visit_lifetime" title="visit_lifetime">visit_lifetime</a></li><li><a href="#method.visit_program_clause" title="visit_program_clause">visit_program_clause</a></li><li><a href="#method.visit_ty" title="visit_ty">visit_ty</a></li><li><a href="#method.visit_where_clause" title="visit_where_clause">visit_where_clause</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate hir_<wbr>ty</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="index.html">hir_ty</a></span><h1>Trait <span class="trait">TypeVisitor</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><pre class="rust item-decl"><code>pub trait TypeVisitor&lt;I&gt;<div class="where">where
+    I: Interner,</div>{
+    type <a href="#associatedtype.BreakTy" class="associatedtype">BreakTy</a>;
+
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 15 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.as_dyn" class="fn">as_dyn</a>(&amp;mut self) -&gt; &amp;mut dyn <a class="trait" href="trait.TypeVisitor.html" title="trait hir_ty::TypeVisitor">TypeVisitor</a>&lt;I, BreakTy = Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.interner" class="fn">interner</a>(&amp;self) -&gt; I;
+
+    // Provided methods
+    fn <a href="#method.visit_ty" class="fn">visit_ty</a>(
+        &amp;mut self,
+        ty: &amp;Ty&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_lifetime" class="fn">visit_lifetime</a>(
+        &amp;mut self,
+        lifetime: &amp;Lifetime&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_const" class="fn">visit_const</a>(
+        &amp;mut self,
+        constant: &amp;Const&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_program_clause" class="fn">visit_program_clause</a>(
+        &amp;mut self,
+        clause: &amp;ProgramClause&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_goal" class="fn">visit_goal</a>(
+        &amp;mut self,
+        goal: &amp;Goal&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_domain_goal" class="fn">visit_domain_goal</a>(
+        &amp;mut self,
+        domain_goal: &amp;DomainGoal&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.forbid_free_vars" class="fn">forbid_free_vars</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.bool.html">bool</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_free_var" class="fn">visit_free_var</a>(
+        &amp;mut self,
+        bound_var: <a class="struct" href="struct.BoundVar.html" title="struct hir_ty::BoundVar">BoundVar</a>,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.forbid_free_placeholders" class="fn">forbid_free_placeholders</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.bool.html">bool</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_free_placeholder" class="fn">visit_free_placeholder</a>(
+        &amp;mut self,
+        universe: PlaceholderIndex,
+        _outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_where_clause" class="fn">visit_where_clause</a>(
+        &amp;mut self,
+        where_clause: &amp;WhereClause&lt;I&gt;,
+        outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.forbid_inference_vars" class="fn">forbid_inference_vars</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.bool.html">bool</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.visit_inference_var" class="fn">visit_inference_var</a>(
+        &amp;mut self,
+        var: InferenceVar,
+        _outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt; { ... }
+</details>}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A “visitor” recursively folds some term – that is, some bit of IR,
+such as a <code>Goal</code>, and computes a value as a result.</p>
+<p>To <strong>apply</strong> a visitor, use the <code>TypeVisitable::visit_with</code> method, like so</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>result = x.visit_with(<span class="kw-2">&amp;mut </span>visitor, <span class="number">0</span>);</code></pre></div>
+</div></details><h2 id="required-associated-types" class="section-header">Required Associated Types<a href="#required-associated-types" class="anchor">§</a></h2><div class="methods"><details class="toggle" open><summary><section id="associatedtype.BreakTy" class="method"><h4 class="code-header">type <a href="#associatedtype.BreakTy" class="associatedtype">BreakTy</a></h4></section></summary><div class="docblock"><p>The “break type” of the visitor, often <code>()</code>. It represents the result
+the visitor yields when it stops visiting.</p>
+</div></details></div><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.as_dyn" class="method"><h4 class="code-header">fn <a href="#tymethod.as_dyn" class="fn">as_dyn</a>(&amp;mut self) -&gt; &amp;mut dyn <a class="trait" href="trait.TypeVisitor.html" title="trait hir_ty::TypeVisitor">TypeVisitor</a>&lt;I, BreakTy = Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Creates a <code>dyn</code> value from this visitor. Unfortunately, this
+must be added manually to each impl of visitor; it permits the
+default implements below to create a <code>&amp;mut dyn TypeVisitor</code> from
+<code>Self</code> without knowing what <code>Self</code> is (by invoking this
+method). Effectively, this limits impls of <code>visitor</code> to types
+for which we are able to create a dyn value (i.e., not <code>[T]</code>
+types).</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.interner" class="method"><h4 class="code-header">fn <a href="#tymethod.interner" class="fn">interner</a>(&amp;self) -&gt; I</h4></section></summary><div class="docblock"><p>Gets the visitor’s interner.</p>
+</div></details></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.visit_ty" class="method"><h4 class="code-header">fn <a href="#method.visit_ty" class="fn">visit_ty</a>(
+    &amp;mut self,
+    ty: &amp;Ty&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Top-level callback: invoked for each <code>Ty&lt;I&gt;</code> that is
+encountered when visiting. By default, invokes
+<code>super_visit_with</code>, which will in turn invoke the more
+specialized visiting methods below, like <code>visit_free_var</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_lifetime" class="method"><h4 class="code-header">fn <a href="#method.visit_lifetime" class="fn">visit_lifetime</a>(
+    &amp;mut self,
+    lifetime: &amp;Lifetime&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Top-level callback: invoked for each <code>Lifetime&lt;I&gt;</code> that is
+encountered when visiting. By default, invokes
+<code>super_visit_with</code>, which will in turn invoke the more
+specialized visiting methods below, like <code>visit_free_var</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_const" class="method"><h4 class="code-header">fn <a href="#method.visit_const" class="fn">visit_const</a>(
+    &amp;mut self,
+    constant: &amp;Const&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Top-level callback: invoked for each <code>Const&lt;I&gt;</code> that is
+encountered when visiting. By default, invokes
+<code>super_visit_with</code>, which will in turn invoke the more
+specialized visiting methods below, like <code>visit_free_var</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_program_clause" class="method"><h4 class="code-header">fn <a href="#method.visit_program_clause" class="fn">visit_program_clause</a>(
+    &amp;mut self,
+    clause: &amp;ProgramClause&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for every program clause. By default, recursively visits the goals contents.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_goal" class="method"><h4 class="code-header">fn <a href="#method.visit_goal" class="fn">visit_goal</a>(
+    &amp;mut self,
+    goal: &amp;Goal&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for every goal. By default, recursively visits the goals contents.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_domain_goal" class="method"><h4 class="code-header">fn <a href="#method.visit_domain_goal" class="fn">visit_domain_goal</a>(
+    &amp;mut self,
+    domain_goal: &amp;DomainGoal&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for each domain goal.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.forbid_free_vars" class="method"><h4 class="code-header">fn <a href="#method.forbid_free_vars" class="fn">forbid_free_vars</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>If overridden to return true, then visiting will panic if a
+free variable is encountered. This should be done if free
+type/lifetime/const variables are not expected.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_free_var" class="method"><h4 class="code-header">fn <a href="#method.visit_free_var" class="fn">visit_free_var</a>(
+    &amp;mut self,
+    bound_var: <a class="struct" href="struct.BoundVar.html" title="struct hir_ty::BoundVar">BoundVar</a>,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for <code>BoundVar</code> instances that are not bound
+within the type being visited over:</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.forbid_free_placeholders" class="method"><h4 class="code-header">fn <a href="#method.forbid_free_placeholders" class="fn">forbid_free_placeholders</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>If overridden to return true, we will panic when a free
+placeholder type/lifetime is encountered.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_free_placeholder" class="method"><h4 class="code-header">fn <a href="#method.visit_free_placeholder" class="fn">visit_free_placeholder</a>(
+    &amp;mut self,
+    universe: PlaceholderIndex,
+    _outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for each occurrence of a placeholder type; these are
+used when we instantiate binders universally.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_where_clause" class="method"><h4 class="code-header">fn <a href="#method.visit_where_clause" class="fn">visit_where_clause</a>(
+    &amp;mut self,
+    where_clause: &amp;WhereClause&lt;I&gt;,
+    outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for each where clause.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.forbid_inference_vars" class="method"><h4 class="code-header">fn <a href="#method.forbid_inference_vars" class="fn">forbid_inference_vars</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>If overridden to return true, inference variables will trigger
+panics when visited. Used when inference variables are
+unexpected.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.visit_inference_var" class="method"><h4 class="code-header">fn <a href="#method.visit_inference_var" class="fn">visit_inference_var</a>(
+    &amp;mut self,
+    var: InferenceVar,
+    _outer_binder: <a class="struct" href="struct.DebruijnIndex.html" title="struct hir_ty::DebruijnIndex">DebruijnIndex</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;Self::<a class="associatedtype" href="trait.TypeVisitor.html#associatedtype.BreakTy" title="type hir_ty::TypeVisitor::BreakTy">BreakTy</a>&gt;</h4></section></summary><div class="docblock"><p>Invoked for each occurrence of a inference type; these are
+used when we instantiate binders universally.</p>
+</div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../trait.impl/chalk_ir/visit/trait.TypeVisitor.js" async></script></section></div></main></body></html>

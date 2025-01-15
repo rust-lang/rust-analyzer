@@ -1,0 +1,53 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Indicates a database that also supports parallel query evaluation. All of Salsa’s base query support is capable of parallel execution, but for it to work, your query key/value types must also be `Send`, as must any additional data in your database."><title>ParallelDatabase in ra_salsa - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="ra_salsa" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../ra_salsa/index.html">ra_<wbr>salsa</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Parallel<wbr>Database</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.snapshot" title="snapshot">snapshot</a></li></ul><h3><a href="#dyn-compatibility">Dyn Compatibility</a></h3><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate ra_<wbr>salsa</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="index.html">ra_salsa</a></span><h1>Trait <span class="trait">ParallelDatabase</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/ra_salsa/lib.rs.html#273-333">Source</a> </span></div><pre class="rust item-decl"><code>pub trait ParallelDatabase: <a class="trait" href="trait.Database.html" title="trait ra_salsa::Database">Database</a> + <a class="trait" href="https://doc.rust-lang.org/1.84.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> {
+    // Required method
+    fn <a href="#tymethod.snapshot" class="fn">snapshot</a>(&amp;self) -&gt; <a class="struct" href="struct.Snapshot.html" title="struct ra_salsa::Snapshot">Snapshot</a>&lt;Self&gt;;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Indicates a database that also supports parallel query
+evaluation. All of Salsa’s base query support is capable of
+parallel execution, but for it to work, your query key/value types
+must also be <code>Send</code>, as must any additional data in your database.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.snapshot" class="method"><a class="src rightside" href="../src/ra_salsa/lib.rs.html#332">Source</a><h4 class="code-header">fn <a href="#tymethod.snapshot" class="fn">snapshot</a>(&amp;self) -&gt; <a class="struct" href="struct.Snapshot.html" title="struct ra_salsa::Snapshot">Snapshot</a>&lt;Self&gt;</h4></section></summary><div class="docblock"><p>Creates a second handle to the database that holds the
+database fixed at a particular revision. So long as this
+“frozen” handle exists, any attempt to <a href="struct.QueryTable.html#method.set"><code>set</code></a> an input will
+block.</p>
+<p>This is the method you are meant to use most of the time in a
+parallel setting where modifications may arise asynchronously
+(e.g., a language server). In this context, it is common to
+wish to “fork off” a snapshot of the database performing some
+series of queries in parallel and arranging the results. Using
+this method for that purpose ensures that those queries will
+see a consistent view of the database (it is also advisable
+for those queries to use the <a href="trait.Database.html#method.unwind_if_cancelled" title="method ra_salsa::Database::unwind_if_cancelled"><code>Database::unwind_if_cancelled</code></a>
+method to check for cancellation).</p>
+<h5 id="panics"><a class="doc-anchor" href="#panics">§</a>Panics</h5>
+<p>It is not permitted to create a snapshot from inside of a
+query. Attempting to do so will panic.</p>
+<h5 id="deadlock-warning"><a class="doc-anchor" href="#deadlock-warning">§</a>Deadlock warning</h5>
+<p>The intended pattern for snapshots is that, once created, they
+are sent to another thread and used from there. As such, the
+<code>snapshot</code> acquires a “read lock” on the database –
+therefore, so long as the <code>snapshot</code> is not dropped, any
+attempt to <code>set</code> a value in the database will block. If the
+<code>snapshot</code> is owned by the same thread that is attempting to
+<code>set</code>, this will cause a problem.</p>
+<h5 id="how-to-implement-this"><a class="doc-anchor" href="#how-to-implement-this">§</a>How to implement this</h5>
+<p>Typically, this method will create a second copy of your
+database type (<code>MyDatabaseType</code>, in the example below),
+cloning over each of the fields from <code>self</code> into this new
+copy. For the field that stores the salsa runtime, you should
+use <a href="struct.Runtime.html#method.snapshot">the <code>Runtime::snapshot</code> method</a> to create a snapshot of the
+runtime. Finally, package up the result using <code>Snapshot::new</code>,
+which is a simple wrapper type that only gives <code>&amp;self</code> access
+to the database within (thus preventing the use of methods
+that may mutate the inputs):</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>ParallelDatabase <span class="kw">for </span>MyDatabaseType {
+    <span class="kw">fn </span>snapshot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Snapshot&lt;<span class="self">Self</span>&gt; {
+        Snapshot::new(
+            MyDatabaseType {
+                runtime: <span class="self">self</span>.runtime.snapshot(<span class="self">self</span>),
+                other_field: <span class="self">self</span>.other_field.clone(),
+            }
+        )
+    }
+}</code></pre></div>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait is <b>not</b> <a href="https://doc.rust-lang.org/1.84.0/reference/items/traits.html#object-safety">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety", so this trait is not object safe.</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../trait.impl/ra_salsa/trait.ParallelDatabase.js" async></script></section></div></main></body></html>
