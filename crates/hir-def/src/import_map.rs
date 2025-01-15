@@ -320,7 +320,7 @@ impl SearchMode {
                     };
                     match m {
                         Some((index, _)) => {
-                            name = &name[index + 1..];
+                            name = &name[ceil_char_boundary(name, index + 1)..];
                             true
                         }
                         None => false,
@@ -329,6 +329,12 @@ impl SearchMode {
             }
         }
     }
+}
+
+// FIXME: use `ceil_char_boundary` from `std::str` when it gets stable
+// https://github.com/rust-lang/rust/issues/93743
+fn ceil_char_boundary(text: &str, index: usize) -> usize {
+    (index..).find(|&index| text.is_char_boundary(index)).unwrap_or(text.len())
 }
 
 /// Three possible ways to search for the name in associated and/or other items.
@@ -1041,6 +1047,24 @@ pub mod fmt {
                 dep::FMT (t)
                 dep::FMT (v)
             "#]],
+        );
+    }
+
+    #[test]
+    fn unicode_fn_name() {
+        let ra_fixture = r#"
+            //- /main.rs crate:main deps:dep
+            //- /dep.rs crate:dep
+            pub fn あい() {}
+        "#;
+
+        check_search(
+            ra_fixture,
+            "main",
+            Query::new("あ".to_owned()).fuzzy(),
+            expect![[r#"
+            dep::あい (f)
+        "#]],
         );
     }
 }
