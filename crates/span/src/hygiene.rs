@@ -19,7 +19,9 @@
 //! # The Call-site Hierarchy
 //!
 //! `ExpnData::call_site` in rustc, [`MacroCallLoc::call_site`] in rust-analyzer.
-use std::fmt;
+use std::{any::TypeId, fmt};
+
+use salsa::plumbing::Zalsa;
 
 use crate::{Edition, MacroCallId};
 
@@ -110,7 +112,7 @@ const _: () = {
                 zalsa_::IngredientCache::new();
             CACHE.get_or_create(db.as_dyn_database(), || {
                 db.zalsa()
-                    .add_or_lookup_jar_by_type(&<zalsa_struct_::JarImpl<SyntaxContext>>::default())
+                    .add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>()
             })
         }
     }
@@ -129,10 +131,18 @@ const _: () = {
     unsafe impl Sync for SyntaxContext {}
 
     impl salsa::plumbing::SalsaStructInDb for SyntaxContext {
-        fn lookup_ingredient_index(
-            aux: &dyn salsa::plumbing::JarAux,
-        ) -> Option<salsa::IngredientIndex> {
-            aux.lookup_jar_by_type(&zalsa_struct_::JarImpl::<SyntaxContext>::default())
+        fn lookup_or_create_ingredient_index(aux: &Zalsa) -> salsa::plumbing::IngredientIndices {
+            aux.add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>()
+                .into()
+        }
+
+        #[inline]
+        fn cast(id: zalsa_::Id, type_id: TypeId) -> Option<Self> {
+            if type_id == TypeId::of::<SyntaxContext>() {
+                Some(<SyntaxContext as zalsa_::FromId>::from_id(id))
+            } else {
+                None
+            }
         }
     }
 
