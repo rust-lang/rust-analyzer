@@ -16,7 +16,7 @@ use rustc_hash::FxHashMap;
 use crate::{SyntaxElement, SyntaxNode, SyntaxToken};
 
 mod edit_algo;
-mod edits;
+pub mod edits;
 mod mapping;
 
 pub use mapping::{SyntaxMapping, SyntaxMappingBuilder};
