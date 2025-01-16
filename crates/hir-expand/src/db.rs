@@ -70,7 +70,7 @@ pub trait ExpandDatabase: RootQueryDb {
     fn parse_or_expand(&self, file_id: HirFileId) -> SyntaxNode;
 
     /// Implementation for the macro case.
-    #[db_ext_macro::lru(128)]
+    #[db_ext_macro::lru(512)]
     fn parse_macro_expansion(
         &self,
         macro_file: span::MacroFileId,

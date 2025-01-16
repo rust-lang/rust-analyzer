@@ -377,7 +377,7 @@ dependencies = [
 [[package]]
 name = "db-ext-macro"
 version = "0.1.0"
-source = "git+https://github.com/davidbarsky/db-ext-macro.git#c88f2f058ac4e6a8a09e87e41d7b30b147235514"
+source = "git+https://github.com/davidbarsky/db-ext-macro.git?rev=c88f2f058ac4e6a8a09e87e41d7b30b147235514#c88f2f058ac4e6a8a09e87e41d7b30b147235514"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
