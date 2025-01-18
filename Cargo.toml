@@ -11,7 +11,7 @@ authors = ["rust-analyzer team"]
 repository = "https://github.com/rust-lang/rust-analyzer"
 
 [profile.dev]
-debug = 1
+debug = 2
 
 [profile.dev.package]
 # These speed up local tests.

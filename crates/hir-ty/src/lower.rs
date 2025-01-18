@@ -2463,7 +2463,7 @@ pub enum TyDefId {
 }
 impl_from!(BuiltinType, AdtId(StructId, EnumId, UnionId), TypeAliasId for TyDefId);
 
-#[derive(Debug, salsa::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum ValueTyDefId {
     FunctionId(FunctionId),
     StructId(StructId),

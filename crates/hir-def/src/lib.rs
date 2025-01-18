@@ -560,7 +560,7 @@ pub enum ItemContainerId {
 impl_from!(ModuleId for ItemContainerId);
 
 /// A Data Type
-#[derive(Debug, PartialOrd, Ord, salsa::Enum)]
+#[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum AdtId {
     StructId(StructId),
     UnionId(UnionId),
@@ -569,7 +569,7 @@ pub enum AdtId {
 impl_from!(StructId, UnionId, EnumId for AdtId);
 
 /// A macro
-#[derive(Debug, PartialOrd, Ord, salsa::Enum)]
+#[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum MacroId {
     Macro2Id(Macro2Id),
     MacroRulesId(MacroRulesId),
@@ -823,7 +823,7 @@ impl GeneralConstId {
 }
 
 /// The defs which have a body.
-#[derive(Debug, PartialOrd, Ord, salsa::Enum)]
+#[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum DefWithBodyId {
     FunctionId(FunctionId),
     StaticId(StaticId),
@@ -866,7 +866,7 @@ pub enum AssocItemId {
 // casting them, and somehow making the constructors private, which would be annoying.
 impl_from!(FunctionId, ConstId, TypeAliasId for AssocItemId);
 
-#[derive(Debug, PartialOrd, Ord, salsa::Enum)]
+#[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum GenericDefId {
     FunctionId(FunctionId),
     AdtId(AdtId),
@@ -949,7 +949,7 @@ impl From<AssocItemId> for GenericDefId {
     }
 }
 
-#[derive(Debug, PartialOrd, Ord, salsa::Enum)]
+#[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum CallableDefId {
     FunctionId(FunctionId),
     StructId(StructId),
@@ -1065,7 +1065,7 @@ impl From<VariantId> for AttrDefId {
     }
 }
 
-#[derive(Debug, salsa::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Enum)]
 pub enum VariantId {
     EnumVariantId(EnumVariantId),
     StructId(StructId),
