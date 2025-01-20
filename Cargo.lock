@@ -2042,7 +2042,7 @@ dependencies = [
 [[package]]
 name = "salsa"
 version = "0.18.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=chayim-david-lukas/salsa-perf-improvements#7c52974de9ea52cedf906ae20c5bf7157a66e364"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=chayim-david-lukas/salsa-perf-improvements#8b4aee2fd2b9954adf52cd35f4884235d3f3d3e6"
 dependencies = [
  "append-only-vec",
  "arc-swap",
@@ -2082,7 +2082,7 @@ dependencies = [
 [[package]]
 name = "salsa-macro-rules"
 version = "0.1.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=chayim-david-lukas/salsa-perf-improvements#7c52974de9ea52cedf906ae20c5bf7157a66e364"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=chayim-david-lukas/salsa-perf-improvements#8b4aee2fd2b9954adf52cd35f4884235d3f3d3e6"
 
 [[package]]
 name = "salsa-macro-rules"
@@ -2102,7 +2102,7 @@ dependencies = [
 [[package]]
 name = "salsa-macros"
 version = "0.18.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=chayim-david-lukas/salsa-perf-improvements#7c52974de9ea52cedf906ae20c5bf7157a66e364"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=chayim-david-lukas/salsa-perf-improvements#8b4aee2fd2b9954adf52cd35f4884235d3f3d3e6"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
