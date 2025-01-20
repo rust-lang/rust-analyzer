@@ -556,6 +556,11 @@ Whether to show documentation on hover.
 Whether to show keyword hover popups. Only applies when
 `#rust-analyzer.hover.documentation.enable#` is set.
 --
+[[rust-analyzer.hover.dropGlue.enable]]rust-analyzer.hover.dropGlue.enable (default: `true`)::
++
+--
+Whether to show drop glue information on hover.
+--
 [[rust-analyzer.hover.links.enable]]rust-analyzer.hover.links.enable (default: `true`)::
 +
 --
