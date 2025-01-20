@@ -1,10 +1,6 @@
 //! Functionality for obtaining data related to traits from the DB.
 
-use crate::{
-    base_db::{salsa::AsDynDatabase, RootQueryDb},
-    defs::Definition,
-    RootDatabase,
-};
+use crate::{defs::Definition, RootDatabase};
 use hir::{db::HirDatabase, AsAssocItem, Semantics};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
