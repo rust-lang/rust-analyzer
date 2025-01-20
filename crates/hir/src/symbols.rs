@@ -344,7 +344,7 @@ impl<'a> SymbolCollector<'a> {
         }
     }
 
-    fn push_decl<'db, L>(&mut self, id: L, name: &Name, is_assoc: bool)
+    fn push_decl<L>(&mut self, id: L, name: &Name, is_assoc: bool)
     where
         L: Lookup<Database = dyn DefDatabase> + Into<ModuleDefId>,
         <L as Lookup>::Data: HasSource,
