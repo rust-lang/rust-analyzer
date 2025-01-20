@@ -879,6 +879,37 @@
         [
             FileSymbol {
                 name: "IsThisJustATrait",
+                def: Trait(
+                    Trait {
+                        id: TraitId(
+                            7400,
+                        ),
+                    },
+                ),
+                loc: DeclarationLocation {
+                    hir_file_id: EditionedFileId(
+                        FileId(
+                            1,
+                        ),
+                        Edition2021,
+                    ),
+                    ptr: SyntaxNodePtr {
+                        kind: USE_TREE,
+                        range: 141..173,
+                    },
+                    name_ptr: AstPtr(
+                        SyntaxNodePtr {
+                            kind: NAME,
+                            range: 157..173,
+                        },
+                    ),
+                },
+                container_name: None,
+                is_alias: false,
+                is_assoc: false,
+            },
+            FileSymbol {
+                name: "IsThisJustATrait",
                 def: Macro(
                     Macro {
                         id: Macro2Id(
@@ -953,72 +984,6 @@
                             ),
                         ),
                     },
-                ),
-                loc: DeclarationLocation {
-                    hir_file_id: EditionedFileId(
-                        FileId(
-                            1,
-                        ),
-                        Edition2021,
-                    ),
-                    ptr: SyntaxNodePtr {
-                        kind: USE_TREE,
-                        range: 141..173,
-                    },
-                    name_ptr: AstPtr(
-                        SyntaxNodePtr {
-                            kind: NAME,
-                            range: 157..173,
-                        },
-                    ),
-                },
-                container_name: None,
-                is_alias: false,
-                is_assoc: false,
-            },
-            FileSymbol {
-                name: "StructInModB",
-                def: Adt(
-                    Struct(
-                        Struct {
-                            id: StructId(
-                                5c04,
-                            ),
-                        },
-                    ),
-                ),
-                loc: DeclarationLocation {
-                    hir_file_id: EditionedFileId(
-                        FileId(
-                            1,
-                        ),
-                        Edition2021,
-                    ),
-                    ptr: SyntaxNodePtr {
-                        kind: STRUCT,
-                        range: 0..20,
-                    },
-                    name_ptr: AstPtr(
-                        SyntaxNodePtr {
-                            kind: NAME,
-                            range: 7..19,
-                        },
-                    ),
-                },
-                container_name: None,
-                is_alias: false,
-                is_assoc: false,
-            },
-            FileSymbol {
-                name: "ThisStruct",
-                def: Adt(
-                    Struct(
-                        Struct {
-                            id: StructId(
-                                5c04,
-                            ),
-                        },
-                    ),
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
