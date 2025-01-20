@@ -69,10 +69,7 @@ mod pretty;
 #[cfg(test)]
 mod test_db;
 
-use std::{
-    hash::{Hash, Hasher},
-    panic::{RefUnwindSafe, UnwindSafe},
-};
+use std::hash::{Hash, Hasher};
 
 use base_db::{impl_intern_key, CrateId};
 use hir_expand::{
