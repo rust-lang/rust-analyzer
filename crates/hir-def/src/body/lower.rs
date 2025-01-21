@@ -1736,13 +1736,7 @@ impl ExprCollector<'_> {
                                     return ident
                                         .name()
                                         .and_then(|name| Some(name.as_name()))
-                                        .and_then(|hir_name| {
-                                            self.alloc_binding(
-                                                hir_name.clone(),
-                                                BindingAnnotation::Unannotated,
-                                            );
-                                            Some(Path::from(hir_name))
-                                        })
+                                        .and_then(|hir_name| Some(Path::from(hir_name)))
                                         .and_then(|path| {
                                             Some(self.alloc_expr_from_pat(Expr::Path(path), ptr))
                                         });

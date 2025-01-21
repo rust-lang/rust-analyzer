@@ -1,9 +1,11 @@
 mod block;
 
+use base_db::Upcast;
 use expect_test::{expect, Expect};
 use test_fixture::WithFixture;
+use tracing::Instrument;
 
-use crate::{test_db::TestDB, ModuleDefId};
+use crate::{db::InternDatabase, test_db::TestDB, ModuleDefId};
 
 use super::*;
 
