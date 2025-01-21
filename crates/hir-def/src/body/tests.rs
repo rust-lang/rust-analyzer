@@ -444,6 +444,7 @@ fn foo() {
     );
 }
 
+#[test]
 fn skip_skips_body() {
     let (db, body, owner) = lower(
         r#"

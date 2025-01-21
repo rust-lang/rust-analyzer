@@ -1721,7 +1721,6 @@ impl ExprCollector<'_> {
                 }
                 None => Pat::Missing,
             },
-            // FIXME: implement in a way that also builds source map and calculates assoc resolutions in type inference.
             ast::Pat::RangePat(p) => {
                 let mut range_part_lower = |p: Option<ast::Pat>| -> Option<ExprId> {
                     p.and_then(|it| {
