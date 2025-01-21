@@ -59,10 +59,7 @@ impl ExprOrPatId {
     }
 
     pub fn is_expr(&self) -> bool {
-        match self {
-            Self::ExprId(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::ExprId(_))
     }
 
     pub fn as_pat(self) -> Option<PatId> {
@@ -73,10 +70,7 @@ impl ExprOrPatId {
     }
 
     pub fn is_pat(&self) -> bool {
-        match self {
-            Self::PatId(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::PatId(_))
     }
 }
 stdx::impl_from!(ExprId, PatId for ExprOrPatId);
