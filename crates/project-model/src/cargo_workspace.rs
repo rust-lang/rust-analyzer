@@ -1,6 +1,6 @@
 //! See [`CargoWorkspace`].
 
-use std::ops;
+use std::{fmt, ops};
 use std::str::from_utf8;
 
 use anyhow::Context;
@@ -226,6 +226,25 @@ pub enum TargetKind {
     Bench,
     BuildScript,
     Other,
+}
+
+impl fmt::Display for TargetKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TargetKind::Bin => "bin",
+                TargetKind::Lib { is_proc_macro: true } => "proc-macro",
+                TargetKind::Lib { is_proc_macro: false } => "lib",
+                TargetKind::Example => "example",
+                TargetKind::Test => "test",
+                TargetKind::Bench => "bench",
+                TargetKind::BuildScript => "custom-build",
+                TargetKind::Other => "other",
+            }
+        )
+    }
 }
 
 impl TargetKind {

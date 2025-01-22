@@ -14,23 +14,60 @@ use process_wrap::std::{StdChildWrapper, StdCommandWrap};
 use stdx::process::streaming_output;
 
 /// Cargo output is structured as a one JSON per line. This trait abstracts parsing one line of
-/// cargo output into a Rust data type.
+/// cargo output into a Rust data type where the data is self-describing.
 pub(crate) trait ParseFromLine: Sized + Send + 'static {
     fn from_line(line: &str, error: &mut String) -> Option<Self>;
     fn from_eof() -> Option<Self>;
 }
 
+/// When Cargo output is not fully self-describing, a parser object can supply sufficient
+/// context to interpret the output correctly.
+pub(crate) trait CargoParser<T>: Send + 'static {
+    fn from_line(&self, line: &str, error: &mut String) -> Option<T>;
+    fn from_eof(&self) -> Option<T>;
+}
+
+/// Allow using the ParseFromLine trait as a parser object
+struct StatelessParser<T: ParseFromLine> {
+    marker: PhantomData<T>,
+}
+
+impl<T: ParseFromLine> StatelessParser<T> {
+    pub(crate) fn new() -> Self {
+        StatelessParser { marker: PhantomData }
+    }
+}
+
+impl<T: ParseFromLine> CargoParser<T> for StatelessParser<T> {
+    fn from_line(&self, line: &str, error: &mut String) -> Option<T> {
+        T::from_line(line, error)
+    }
+
+    fn from_eof(&self) -> Option<T> {
+        T::from_eof()
+    }
+}
+
 struct CargoActor<T> {
+    parser: Box<dyn CargoParser<T>>,
     sender: Sender<T>,
     stdout: ChildStdout,
     stderr: ChildStderr,
 }
 
-impl<T: ParseFromLine> CargoActor<T> {
-    fn new(sender: Sender<T>, stdout: ChildStdout, stderr: ChildStderr) -> Self {
-        CargoActor { sender, stdout, stderr }
+impl<T: Sized + Send + 'static> CargoActor<T> {
+    fn new(
+        parser: impl CargoParser<T>,
+        sender: Sender<T>,
+        stdout: ChildStdout,
+        stderr: ChildStderr,
+    ) -> Self {
+        let parser = Box::new(parser);
+        CargoActor { parser, sender, stdout, stderr }
     }
+}
 
+impl<T: Sized + Send + 'static> CargoActor<T> {
     fn run(self) -> io::Result<(bool, String)> {
         // We manually read a line at a time, instead of using serde's
         // stream deserializers, because the deserializer cannot recover
@@ -47,7 +84,7 @@ impl<T: ParseFromLine> CargoActor<T> {
         let mut read_at_least_one_stderr_message = false;
         let process_line = |line: &str, error: &mut String| {
             // Try to deserialize a message from Cargo or Rustc.
-            if let Some(t) = T::from_line(line, error) {
+            if let Some(t) = self.parser.from_line(line, error) {
                 self.sender.send(t).unwrap();
                 true
             } else {
@@ -68,7 +105,7 @@ impl<T: ParseFromLine> CargoActor<T> {
                 }
             },
             &mut || {
-                if let Some(t) = T::from_eof() {
+                if let Some(t) = self.parser.from_eof() {
                     self.sender.send(t).unwrap();
                 }
             },
@@ -117,7 +154,17 @@ impl<T> fmt::Debug for CommandHandle<T> {
 }
 
 impl<T: ParseFromLine> CommandHandle<T> {
-    pub(crate) fn spawn(mut command: Command, sender: Sender<T>) -> std::io::Result<Self> {
+    pub(crate) fn spawn(command: Command, sender: Sender<T>) -> std::io::Result<Self> {
+        Self::spawn_with_parser(command, StatelessParser::<T>::new(), sender)
+    }
+}
+
+impl<T: Sized + Send + 'static> CommandHandle<T> {
+    pub(crate) fn spawn_with_parser(
+        mut command: Command,
+        parser: impl CargoParser<T>,
+        sender: Sender<T>,
+    ) -> std::io::Result<Self> {
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
 
         let program = command.get_program().into();
@@ -134,7 +181,7 @@ impl<T: ParseFromLine> CommandHandle<T> {
         let stdout = child.0.stdout().take().unwrap();
         let stderr = child.0.stderr().take().unwrap();
 
-        let actor = CargoActor::<T>::new(sender, stdout, stderr);
+        let actor = CargoActor::<T>::new(parser, sender, stdout, stderr);
         let thread = stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
             .name("CommandHandle".to_owned())
             .spawn(move || actor.run())
