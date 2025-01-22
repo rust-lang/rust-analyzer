@@ -220,6 +220,7 @@ impl ExprCollector<'_> {
             DefWithBodyId::ConstId(it) => self.db.attrs(it.into()),
             DefWithBodyId::InTypeConstId(_) => Attrs::EMPTY,
             DefWithBodyId::VariantId(it) => self.db.attrs(it.into()),
+            DefWithBodyId::FieldId(it) => self.db.attrs(it.into()),
         }
         .rust_analyzer_tool()
         .any(|attr| *attr.path() == tool_path![skip]);
@@ -261,6 +262,7 @@ impl ExprCollector<'_> {
                     Awaitable::No("constant")
                 }
                 DefWithBodyId::VariantId(..) => Awaitable::No("enum variant"),
+                DefWithBodyId::FieldId(..) => Awaitable::No("field"),
             }
         });
         if let Some((param_list, mut attr_enabled)) = param_list {
