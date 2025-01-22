@@ -329,8 +329,11 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                             } => *cargo.workspace_root() == root,
                             _ => false,
                         });
-                    if let Some((idx, _)) = workspace {
-                        world.flycheck[idx].restart_for_package(package, target);
+                    if let Some((idx, ws)) = workspace {
+                        match world.flycheck.get(idx) {
+                            Some(fh) => fh.restart_for_package(package, target),
+                            None => tracing::error!(?target, ?ws, "out of bound flycheck handle"),
+                        }
                     }
                 }
             }
