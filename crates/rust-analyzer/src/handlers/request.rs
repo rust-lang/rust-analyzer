@@ -251,7 +251,7 @@ pub(crate) fn handle_run_test(
                     .iter()
                     .filter_map(|test| {
                         let (root, remainder) = match test.split_once("::") {
-                            Some((root, remainder)) => (root.to_string(), Some(remainder)),
+                            Some((root, remainder)) => (root.to_owned(), Some(remainder)),
                             None => (test.clone(), None),
                         };
                         if let Some(target) = find_test_target(&root, cargo) {

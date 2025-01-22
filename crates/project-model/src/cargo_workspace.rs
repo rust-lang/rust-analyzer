@@ -1,7 +1,7 @@
 //! See [`CargoWorkspace`].
 
-use std::{fmt, ops};
 use std::str::from_utf8;
+use std::{fmt, ops};
 
 use anyhow::Context;
 use base_db::Env;
