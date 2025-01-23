@@ -152,7 +152,7 @@ pub trait ExpandDatabase: RootQueryDb {
     fn syntax_context(&self, file: HirFileId, edition: Edition) -> SyntaxContextId;
 }
 
-#[salsa::interned_sans_lifetime(id = span::MacroCallId)]
+#[salsa::interned(no_lifetime, id = span::MacroCallId)]
 pub struct MacroCallWrapper {
     pub loc: MacroCallLoc,
 }
@@ -168,7 +168,7 @@ fn lookup_intern_macro_call(db: &dyn ExpandDatabase, macro_call: MacroCallId) ->
         .clone()
 }
 
-#[salsa::interned_sans_lifetime(id = span::SyntaxContextId)]
+#[salsa::interned(no_lifetime, id = span::SyntaxContextId)]
 pub struct SyntaxContextWrapper {
     pub data: SyntaxContextId,
 }
