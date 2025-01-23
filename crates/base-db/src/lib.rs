@@ -27,7 +27,7 @@ use vfs::{AbsPathBuf, FileId};
 #[macro_export]
 macro_rules! impl_intern_key {
     ($id:ident, $loc:ident) => {
-        #[salsa::interned_sans_lifetime(no_debug)]
+        #[salsa::interned(no_debug, no_lifetime)]
         pub struct $id {
             pub loc: $loc,
         }
@@ -167,7 +167,7 @@ impl Files {
     }
 }
 
-#[salsa::interned_sans_lifetime]
+#[salsa::interned(no_lifetime)]
 pub struct EditionedFileId {
     pub file_id: FileText,
     pub editioned_file_id: span::EditionedFileId,
