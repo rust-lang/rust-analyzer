@@ -34,6 +34,7 @@ use rustc_apfloat::{
     ieee::{Half as f16, Quad as f128},
     Float,
 };
+use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use span::Edition;
 use stdx::never;
@@ -87,6 +88,35 @@ pub struct HirFormatter<'a> {
     omit_verbose_types: bool,
     closure_style: ClosureStyle,
     display_target: DisplayTarget,
+    bounds_formatting_ctx: BoundsFormattingCtx,
+}
+
+#[derive(Default)]
+enum BoundsFormattingCtx {
+    Entered {
+        /// We can have recursive bounds like the following case:
+        /// ```rust
+        /// where
+        ///     T: Foo,
+        ///     T::FooAssoc: Baz<<T::FooAssoc as Bar>::BarAssoc> + Bar
+        /// ```
+        /// So, record the projection types met while formatting bounds and
+        //. prevent recursing into their bounds to avoid infinite loops.
+        projection_tys_met: FxHashSet<ProjectionTy>,
+    },
+    #[default]
+    Exited,
+}
+
+impl BoundsFormattingCtx {
+    fn insert(&mut self, proj: ProjectionTy) -> bool {
+        match self {
+            BoundsFormattingCtx::Entered { projection_tys_met } => {
+                projection_tys_met.insert(proj.clone())
+            }
+            BoundsFormattingCtx::Exited => true,
+        }
+    }
 }
 
 impl HirFormatter<'_> {
@@ -96,6 +126,22 @@ impl HirFormatter<'_> {
 
     fn end_location_link(&mut self) {
         self.fmt.end_location_link();
+    }
+
+    fn format_bounds_with<T, F: FnOnce(&mut Self) -> T>(&mut self, format_bounds: F) -> T {
+        match self.bounds_formatting_ctx {
+            BoundsFormattingCtx::Entered { .. } => format_bounds(self),
+            BoundsFormattingCtx::Exited => {
+                self.bounds_formatting_ctx =
+                    BoundsFormattingCtx::Entered { projection_tys_met: FxHashSet::default() };
+                let res = format_bounds(self);
+                // Since we want to prevent only the infinite recursions in bounds formatting
+                // and do not want to skip formatting of other separate bounds, clear context
+                // when exiting the formatting of outermost bounds
+                self.bounds_formatting_ctx = BoundsFormattingCtx::Exited;
+                res
+            }
+        }
     }
 }
 
@@ -220,6 +266,7 @@ pub trait HirDisplay {
             closure_style: ClosureStyle::ImplFn,
             display_target: DisplayTarget::SourceCode { module_id, allow_opaque },
             show_container_bounds: false,
+            bounds_formatting_ctx: Default::default(),
         }) {
             Ok(()) => {}
             Err(HirDisplayError::FmtError) => panic!("Writing to String can't fail!"),
@@ -427,6 +474,7 @@ impl<T: HirDisplay> HirDisplayWrapper<'_, T> {
             display_target: self.display_target,
             closure_style: self.closure_style,
             show_container_bounds: self.show_container_bounds,
+            bounds_formatting_ctx: Default::default(),
         })
     }
 
@@ -479,42 +527,54 @@ impl HirDisplay for ProjectionTy {
         // `<Param as Trait>::Assoc`
         if !f.display_target.is_source_code() {
             if let TyKind::Placeholder(idx) = self_ty.kind(Interner) {
-                let db = f.db;
-                let id = from_placeholder_idx(db, *idx);
-                let generics = generics(db.upcast(), id.parent);
+                let res = f.format_bounds_with(|f| {
+                    // Avoid infinite recursion
+                    if !f.bounds_formatting_ctx.insert(self.clone()) {
+                        return None;
+                    }
 
-                let substs = generics.placeholder_subst(db);
-                let bounds = db
-                    .generic_predicates(id.parent)
-                    .iter()
-                    .map(|pred| pred.clone().substitute(Interner, &substs))
-                    .filter(|wc| match wc.skip_binders() {
-                        WhereClause::Implemented(tr) => {
-                            match tr.self_type_parameter(Interner).kind(Interner) {
-                                TyKind::Alias(AliasTy::Projection(proj)) => proj == self,
-                                _ => false,
+                    let db = f.db;
+                    let id = from_placeholder_idx(db, *idx);
+                    let generics = generics(db.upcast(), id.parent);
+
+                    let substs = generics.placeholder_subst(db);
+                    let bounds = db
+                        .generic_predicates(id.parent)
+                        .iter()
+                        .map(|pred| pred.clone().substitute(Interner, &substs))
+                        .filter(|wc| match wc.skip_binders() {
+                            WhereClause::Implemented(tr) => {
+                                matches!(
+                                    tr.self_type_parameter(Interner).kind(Interner),
+                                    TyKind::Alias(_)
+                                )
                             }
-                        }
-                        WhereClause::TypeOutlives(t) => match t.ty.kind(Interner) {
-                            TyKind::Alias(AliasTy::Projection(proj)) => proj == self,
-                            _ => false,
-                        },
-                        // We shouldn't be here if these exist
-                        WhereClause::AliasEq(_) => false,
-                        WhereClause::LifetimeOutlives(_) => false,
-                    })
-                    .collect::<Vec<_>>();
-                if !bounds.is_empty() {
-                    return write_bounds_like_dyn_trait_with_prefix(
-                        f,
-                        "impl",
-                        Either::Left(
-                            &TyKind::Alias(AliasTy::Projection(self.clone())).intern(Interner),
-                        ),
-                        &bounds,
-                        SizedByDefault::NotSized,
-                    );
-                };
+                            WhereClause::TypeOutlives(t) => {
+                                matches!(t.ty.kind(Interner), TyKind::Alias(_))
+                            }
+                            // We shouldn't be here if these exist
+                            WhereClause::AliasEq(_) => false,
+                            WhereClause::LifetimeOutlives(_) => false,
+                        })
+                        .collect::<Vec<_>>();
+                    if !bounds.is_empty() {
+                        Some(write_bounds_like_dyn_trait_with_prefix(
+                            f,
+                            "impl",
+                            Either::Left(
+                                &TyKind::Alias(AliasTy::Projection(self.clone())).intern(Interner),
+                            ),
+                            &bounds,
+                            SizedByDefault::NotSized,
+                        ))
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(res) = res {
+                    return res;
+                }
             }
         }
 

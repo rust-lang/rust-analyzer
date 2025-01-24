@@ -10382,7 +10382,12 @@ where
         "#,
         expect![
             r#"
-        "#
+*x*
+
+```rust
+let x: impl Baz<<<T as Foo>::Assoc as Bar>::Target> + Bar
+```
+"#
         ],
     );
 }
