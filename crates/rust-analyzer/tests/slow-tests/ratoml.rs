@@ -1,5 +1,6 @@
 use crate::support::{Project, Server};
 use crate::testdir::TestDir;
+use ide_db::FxHashSet;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument},
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
@@ -1008,5 +1009,89 @@ fn main() {
         InternalTestingFetchConfigOption::CheckWorkspace,
         2,
         InternalTestingFetchConfigResponse::CheckWorkspace(true),
+    );
+}
+
+#[test]
+fn dotted_ratoml_lower_precedence_over_bare_ratoml() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = RatomlTest::new(
+        vec![
+            r#"
+//- /p1/Cargo.toml
+[package]
+name = "p1"
+version = "0.1.0"
+edition = "2021"
+        "#,
+            r#"
+//- /p1/.rust-analyzer.toml
+diagnostics.disabled = ["await_outside_of_async"]
+       "#,
+            r#"
+//- /p1/rust-analyzer.toml
+diagnostics.disabled = ["break_outside_of_loop"]
+       "#,
+            r#"
+//- /p1/src/lib.rs
+fn main() {
+    todo!()
+}"#,
+        ],
+        vec!["p1"],
+        None,
+    );
+
+    server.query(
+        InternalTestingFetchConfigOption::DiagnosticsDisabled,
+        3,
+        InternalTestingFetchConfigResponse::DiagnosticsDisabled(FxHashSet::from_iter(
+            vec!["break_outside_of_loop".to_owned()].into_iter(),
+        )),
+    );
+}
+
+#[test]
+fn dotted_ratoml_lower_precedence_over_bare_ratoml_rev() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = RatomlTest::new(
+        vec![
+            r#"
+//- /p1/Cargo.toml
+[package]
+name = "p1"
+version = "0.1.0"
+edition = "2021"
+        "#,
+            r#"
+//- /p1/rust-analyzer.toml
+diagnostics.disabled = ["break_outside_of_loop"]
+       "#,
+            r#"
+//- /p1/.rust-analyzer.toml
+diagnostics.disabled = ["await_outside_of_async"]
+       "#,
+            r#"
+//- /p1/src/lib.rs
+fn main() {
+    todo!()
+}"#,
+        ],
+        vec!["p1"],
+        None,
+    );
+
+    server.query(
+        InternalTestingFetchConfigOption::DiagnosticsDisabled,
+        3,
+        InternalTestingFetchConfigResponse::DiagnosticsDisabled(FxHashSet::from_iter(
+            vec!["break_outside_of_loop".to_owned()].into_iter(),
+        )),
     );
 }

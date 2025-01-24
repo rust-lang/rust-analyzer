@@ -9,7 +9,6 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use hir::ChangeWithProcMacros;
 use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
 use ide_db::base_db::{CrateId, ProcMacroPaths, SourceDatabase, SourceRootDatabase};
-use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
 use nohash_hasher::IntMap;
@@ -152,6 +151,10 @@ pub(crate) struct GlobalState {
     /// the user just adds comments or whitespace to Cargo.toml, we do not want
     /// to invalidate any salsa caches.
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
+
+    /// Maps a workspace to its corresponding top level `SourceRootId`.
+    /// The key used here is the index as used by the `workspaces` field.
+    pub(crate) workspace_source_root_map: Arc<FxHashMap<usize, SourceRootId>>,
     pub(crate) crate_graph_file_dependencies: FxHashSet<vfs::VfsPath>,
     pub(crate) detached_files: FxHashSet<ManifestPath>,
 
@@ -183,6 +186,9 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
     vfs: Arc<RwLock<(vfs::Vfs, IntMap<FileId, LineEndings>)>>,
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
+    // FIXME : @alibektas remove this as soon as flycheck_rewrite is in place.
+    #[allow(dead_code)]
+    pub(crate) workspace_source_root_map: Arc<FxHashMap<usize, SourceRootId>>,
     // used to signal semantic highlighting to fall back to syntax based highlighting until
     // proc-macros have been loaded
     // FIXME: Can we derive this from somewhere else?
@@ -273,6 +279,8 @@ impl GlobalState {
             wants_to_switch: None,
 
             workspaces: Arc::from(Vec::new()),
+            workspace_source_root_map: Arc::new(FxHashMap::default()),
+
             crate_graph_file_dependencies: FxHashSet::default(),
             detached_files: FxHashSet::default(),
             fetch_workspaces_queue: OpQueue::default(),
@@ -318,6 +326,11 @@ impl GlobalState {
             let mut modified_rust_files = vec![];
             for file in changed_files.into_values() {
                 let vfs_path = vfs.file_path(file.file_id);
+                if let Some((".rust-analyzer", Some("toml"))) = vfs_path.name_and_extension() {
+                    // Remember ids to use them after `apply_changes`
+                    modified_ratoml_files.insert(file.file_id, (file.kind(), vfs_path.clone()));
+                }
+
                 if let Some(("rust-analyzer", Some("toml"))) = vfs_path.name_and_extension() {
                     // Remember ids to use them after `apply_changes`
                     modified_ratoml_files.insert(file.file_id, (file.kind(), vfs_path.clone()));
@@ -392,6 +405,36 @@ impl GlobalState {
 
         let _p = span!(Level::INFO, "GlobalState::process_changes/apply_change").entered();
         self.analysis_host.apply_change(change);
+
+        {
+            let vfs = self.vfs.read();
+            let analysis = self.analysis_host.analysis();
+            let mut workspace_source_root_map = FxHashMap::default();
+
+            let mut insert_map = |workspace_id, manifest_path: Option<&ManifestPath>| {
+                if let Some(manifest_path) = manifest_path {
+                    let vfs_path = VfsPath::from(manifest_path.normalize());
+                    if let Some(file_id) = vfs.0.file_id(&vfs_path) {
+                        if let Ok(sr) = analysis.source_root_id(file_id) {
+                            workspace_source_root_map.insert(workspace_id, sr);
+                        }
+                    }
+                }
+            };
+
+            self.workspaces.iter().enumerate().for_each(|(ws_id, ws)| match &ws.kind {
+                ProjectWorkspaceKind::Cargo { cargo, .. } => {
+                    insert_map(ws_id, Some(cargo.manifest_path()));
+                }
+                ProjectWorkspaceKind::Json(project_json) => {
+                    insert_map(ws_id, project_json.manifest())
+                }
+                ProjectWorkspaceKind::DetachedFile { file, .. } => insert_map(ws_id, Some(file)),
+            });
+
+            self.workspace_source_root_map = Arc::new(workspace_source_root_map);
+        }
+
         if !modified_ratoml_files.is_empty()
             || !self.config.same_source_root_parent_map(&self.local_roots_parent_map)
         {
@@ -407,19 +450,12 @@ impl GlobalState {
                 let mut change = ConfigChange::default();
                 let db = self.analysis_host.raw_database();
 
-                // FIXME @alibektas : This is silly. There is no reason to use VfsPaths when there is SourceRoots. But how
-                // do I resolve a "workspace_root" to its corresponding id without having to rely on a cargo.toml's ( or project json etc.) file id?
-                let workspace_ratoml_paths = self
+                let workspace_source_roots = self
                     .workspaces
                     .iter()
-                    .map(|ws| {
-                        VfsPath::from({
-                            let mut p = ws.workspace_root().to_owned();
-                            p.push("rust-analyzer.toml");
-                            p
-                        })
-                    })
-                    .collect_vec();
+                    .enumerate()
+                    .filter_map(|(id, _)| self.workspace_source_root_map.get(&id))
+                    .collect::<Vec<_>>();
 
                 for (file_id, (change_kind, vfs_path)) in modified_ratoml_files {
                     tracing::info!(%vfs_path, ?change_kind, "Processing rust-analyzer.toml changes");
@@ -435,7 +471,7 @@ impl GlobalState {
                     let sr = db.source_root(sr_id);
 
                     if !sr.is_library {
-                        let entry = if workspace_ratoml_paths.contains(&vfs_path) {
+                        let entry = if workspace_source_roots.contains(&&sr_id) {
                             tracing::info!(%vfs_path, ?sr_id, "workspace rust-analyzer.toml changes");
                             change.change_workspace_ratoml(
                                 sr_id,
@@ -452,8 +488,13 @@ impl GlobalState {
                         };
 
                         if let Some((kind, old_path, old_text)) = entry {
-                            // SourceRoot has more than 1 RATOML files. In this case lexicographically smaller wins.
-                            if old_path < vfs_path {
+                            let (old_filename, _) = old_path.name_and_extension().unwrap();
+                            // SourceRoot has more than 1 RATOML file. In this case lexicographically smaller wins.
+                            // Either old_path is indeed lexicographically smaller, or old file is dotted ratoml and both paths share the same parent.
+                            if (old_path < vfs_path)
+                                ^ (old_path.parent() == vfs_path.parent()
+                                    && old_filename.starts_with("."))
+                            {
                                 tracing::error!("Two `rust-analyzer.toml` files were found inside the same crate. {vfs_path} has no effect.");
                                 // Put the old one back in.
                                 match kind {
@@ -518,6 +559,7 @@ impl GlobalState {
         GlobalStateSnapshot {
             config: Arc::clone(&self.config),
             workspaces: Arc::clone(&self.workspaces),
+            workspace_source_root_map: Arc::clone(&self.workspace_source_root_map),
             analysis: self.analysis_host.analysis(),
             vfs: Arc::clone(&self.vfs),
             check_fixes: Arc::clone(&self.diagnostics.check_fixes),

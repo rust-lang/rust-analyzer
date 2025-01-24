@@ -8,6 +8,7 @@
 
 use std::ops;
 
+use ide_db::FxHashSet;
 use lsp_types::request::Request;
 use lsp_types::Url;
 use lsp_types::{
@@ -24,12 +25,14 @@ pub enum InternalTestingFetchConfig {}
 pub enum InternalTestingFetchConfigOption {
     AssistEmitMustUse,
     CheckWorkspace,
+    DiagnosticsDisabled,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub enum InternalTestingFetchConfigResponse {
     AssistEmitMustUse(bool),
     CheckWorkspace(bool),
+    DiagnosticsDisabled(FxHashSet<String>),
 }
 
 impl Request for InternalTestingFetchConfig {
