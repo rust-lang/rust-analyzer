@@ -152,6 +152,10 @@ pub(crate) struct GlobalState {
     /// the user just adds comments or whitespace to Cargo.toml, we do not want
     /// to invalidate any salsa caches.
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
+
+    /// Maps a workspace to its corresponding top level `SourceRootId`.
+    /// The key used here is the index as used by the `workspaces` field.
+    pub(crate) workspace_source_root_map: Arc<FxHashMap<usize, SourceRootId>>,
     pub(crate) crate_graph_file_dependencies: FxHashSet<vfs::VfsPath>,
     pub(crate) detached_files: FxHashSet<ManifestPath>,
 
@@ -183,6 +187,9 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
     vfs: Arc<RwLock<(vfs::Vfs, IntMap<FileId, LineEndings>)>>,
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
+    // FIXME : @alibektas remove this as soon as flycheck_rewrite is in place.
+    #[allow(dead_code)]
+    pub(crate) workspace_source_root_map: Arc<FxHashMap<usize, SourceRootId>>,
     // used to signal semantic highlighting to fall back to syntax based highlighting until
     // proc-macros have been loaded
     // FIXME: Can we derive this from somewhere else?
@@ -273,6 +280,8 @@ impl GlobalState {
             wants_to_switch: None,
 
             workspaces: Arc::from(Vec::new()),
+            workspace_source_root_map: Arc::new(FxHashMap::default()),
+
             crate_graph_file_dependencies: FxHashSet::default(),
             detached_files: FxHashSet::default(),
             fetch_workspaces_queue: OpQueue::default(),
@@ -392,6 +401,36 @@ impl GlobalState {
 
         let _p = span!(Level::INFO, "GlobalState::process_changes/apply_change").entered();
         self.analysis_host.apply_change(change);
+
+        {
+            let vfs = self.vfs.read();
+            let analysis = self.analysis_host.analysis();
+            let mut workspace_source_root_map = FxHashMap::default();
+
+            let mut insert_map = |workspace_id, manifest_path: Option<&ManifestPath>| {
+                if let Some(manifest_path) = manifest_path {
+                    let vfs_path = VfsPath::from(manifest_path.normalize());
+                    if let Some(file_id) = vfs.0.file_id(&vfs_path) {
+                        if let Ok(sr) = analysis.source_root_id(file_id) {
+                            workspace_source_root_map.insert(workspace_id, sr);
+                        }
+                    }
+                }
+            };
+
+            self.workspaces.iter().enumerate().for_each(|(ws_id, ws)| match &ws.kind {
+                ProjectWorkspaceKind::Cargo { cargo, .. } => {
+                    insert_map(ws_id, Some(cargo.manifest_path()));
+                }
+                ProjectWorkspaceKind::Json(project_json) => {
+                    insert_map(ws_id, project_json.manifest())
+                }
+                ProjectWorkspaceKind::DetachedFile { file, .. } => insert_map(ws_id, Some(file)),
+            });
+
+            self.workspace_source_root_map = Arc::new(workspace_source_root_map);
+        }
+
         if !modified_ratoml_files.is_empty()
             || !self.config.same_source_root_parent_map(&self.local_roots_parent_map)
         {
@@ -518,6 +557,7 @@ impl GlobalState {
         GlobalStateSnapshot {
             config: Arc::clone(&self.config),
             workspaces: Arc::clone(&self.workspaces),
+            workspace_source_root_map: Arc::clone(&self.workspace_source_root_map),
             analysis: self.analysis_host.analysis(),
             vfs: Arc::clone(&self.vfs),
             check_fixes: Arc::clone(&self.diagnostics.check_fixes),

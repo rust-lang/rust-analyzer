@@ -36,7 +36,7 @@ use vfs::{AbsPath, AbsPathBuf, VfsPath};
 
 use crate::{
     diagnostics::DiagnosticsMapConfig,
-    flycheck::{CargoOptions, FlycheckConfig},
+    flycheck::command::{CargoOptions, FlycheckConfig},
     lsp::capabilities::ClientCapabilities,
     lsp_ext::{WorkspaceSymbolSearchKind, WorkspaceSymbolSearchScope},
 };
@@ -2093,9 +2093,11 @@ impl Config {
                     args,
                     extra_env: self.check_extra_env(source_root),
                     invocation_strategy: match self.check_invocationStrategy(source_root) {
-                        InvocationStrategy::Once => crate::flycheck::InvocationStrategy::Once,
+                        InvocationStrategy::Once => {
+                            crate::flycheck::command::InvocationStrategy::Once
+                        }
                         InvocationStrategy::PerWorkspace => {
-                            crate::flycheck::InvocationStrategy::PerWorkspace
+                            crate::flycheck::command::InvocationStrategy::PerWorkspace
                         }
                     },
                 }
