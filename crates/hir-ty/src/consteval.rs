@@ -3,10 +3,9 @@
 use base_db::Crate;
 use chalk_ir::{BoundVar, DebruijnIndex, cast::Cast};
 use hir_def::{
-    ConstBlockLoc, EnumVariantId, GeneralConstId, HasModule as _, StaticId,
-    expr_store::{Body, HygieneId},
+    EnumVariantId, GeneralConstId, HasModule as _, StaticId,
+    expr_store::{Body, HygieneId, path::Path},
     hir::{Expr, ExprId},
-    path::Path,
     resolver::{Resolver, ValueNs},
     type_ref::LiteralConstRef,
 };
@@ -23,7 +22,6 @@ use crate::{
     generics::Generics,
     infer::InferenceContext,
     lower::ParamLoweringMode,
-    mir::monomorphize_mir_body_bad,
     to_placeholder_idx,
 };
 
@@ -165,15 +163,15 @@ pub fn intern_const_ref(
     ty: Ty,
     krate: Crate,
 ) -> Const {
-    let layout = db.layout_of_ty(ty.clone(), TraitEnvironment::empty(krate));
+    let layout = || db.layout_of_ty(ty.clone(), TraitEnvironment::empty(krate));
     let bytes = match value {
         LiteralConstRef::Int(i) => {
             // FIXME: We should handle failure of layout better.
-            let size = layout.map(|it| it.size.bytes_usize()).unwrap_or(16);
+            let size = layout().map(|it| it.size.bytes_usize()).unwrap_or(16);
             ConstScalar::Bytes(i.to_le_bytes()[0..size].into(), MemoryMap::default())
         }
         LiteralConstRef::UInt(i) => {
-            let size = layout.map(|it| it.size.bytes_usize()).unwrap_or(16);
+            let size = layout().map(|it| it.size.bytes_usize()).unwrap_or(16);
             ConstScalar::Bytes(i.to_le_bytes()[0..size].into(), MemoryMap::default())
         }
         LiteralConstRef::Bool(b) => ConstScalar::Bytes(Box::new([*b as u8]), MemoryMap::default()),
@@ -268,18 +266,9 @@ pub(crate) fn const_eval_query(
             let krate = s.module(db.upcast()).krate();
             db.monomorphized_mir_body(s.into(), subst, TraitEnvironment::empty(krate))?
         }
-        GeneralConstId::ConstBlockId(c) => {
-            let ConstBlockLoc { parent, root } = db.lookup_intern_anonymous_const(c);
-            let body = db.body(parent);
-            let infer = db.infer(parent);
-            Arc::new(monomorphize_mir_body_bad(
-                db,
-                lower_to_mir(db, parent, &body, &infer, root)?,
-                subst,
-                db.trait_environment_for_body(parent),
-            )?)
+        GeneralConstId::ConstBlockId(_c) => {
+            todo!()
         }
-        GeneralConstId::InTypeConstId(c) => db.mir_body(c.into())?,
     };
     let c = interpret_mir(db, body, false, trait_env)?.0?;
     Ok(c)
@@ -318,7 +307,7 @@ pub(crate) fn const_eval_discriminant_variant(
         return Ok(value);
     }
 
-    let repr = db.enum_data(loc.parent).repr;
+    let repr = db.enum_signature(loc.parent).repr;
     let is_signed = repr.and_then(|repr| repr.int).is_none_or(|int| int.is_signed());
 
     let mir_body = db.monomorphized_mir_body(

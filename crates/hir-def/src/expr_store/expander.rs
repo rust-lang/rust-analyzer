@@ -1,6 +1,7 @@
 //! Macro expansion utilities.
 
 use std::cell::OnceCell;
+use std::mem;
 
 use base_db::Crate;
 use cfg::CfgOptions;
@@ -9,28 +10,32 @@ use hir_expand::{
     ExpandError, ExpandErrorKind, ExpandResult, HirFileId, InFile, Lookup, MacroCallId,
     attrs::RawAttrs, mod_path::ModPath, span_map::SpanMap,
 };
-use span::{Edition, SyntaxContext};
-use syntax::{Parse, ast};
+use span::{AstIdMap, Edition, SyntaxContext};
+use syntax::{AstPtr, Parse, ast};
+use triomphe::Arc;
 
+use crate::expr_store::path::Path;
+use crate::nameres::DefMap;
 use crate::type_ref::{TypesMap, TypesSourceMap};
-use crate::{
-    AsMacroCall, MacroId, ModuleId, UnresolvedMacro, attr::Attrs, db::DefDatabase, lower::LowerCtx,
-    path::Path,
-};
+use crate::{AsMacroCall, MacroId, ModuleId, UnresolvedMacro, attr::Attrs, db::DefDatabase};
 
 #[derive(Debug)]
-pub struct Expander {
-    span_map: OnceCell<SpanMap>,
+pub(super) struct Expander {
+    span_map: SpanMap,
     current_file_id: HirFileId,
-    pub(crate) module: ModuleId,
+    ast_id_map: Arc<AstIdMap>,
     /// `recursion_depth == usize::MAX` indicates that the recursion limit has been reached.
     recursion_depth: u32,
     recursion_limit: usize,
 }
 
 impl Expander {
-    pub fn new(db: &dyn DefDatabase, current_file_id: HirFileId, module: ModuleId) -> Expander {
-        let recursion_limit = module.def_map(db).recursion_limit() as usize;
+    pub(super) fn new(
+        db: &dyn DefDatabase,
+        current_file_id: HirFileId,
+        def_map: &DefMap,
+    ) -> Expander {
+        let recursion_limit = def_map.recursion_limit() as usize;
         let recursion_limit = if cfg!(test) {
             // Without this, `body::tests::your_stack_belongs_to_me` stack-overflows in debug
             std::cmp::min(32, recursion_limit)
@@ -39,30 +44,27 @@ impl Expander {
         };
         Expander {
             current_file_id,
-            module,
             recursion_depth: 0,
             recursion_limit,
-            span_map: OnceCell::new(),
+            span_map: db.span_map(current_file_id),
+            ast_id_map: db.ast_id_map(current_file_id),
         }
     }
 
-    pub(crate) fn span_map(&self, db: &dyn DefDatabase) -> &SpanMap {
-        self.span_map.get_or_init(|| db.span_map(self.current_file_id))
+    pub(super) fn span_map(&self) -> &SpanMap {
+        &self.span_map
     }
 
-    pub fn krate(&self) -> Crate {
-        self.module.krate
-    }
-
-    pub fn syntax_context(&self) -> SyntaxContext {
+    pub(super) fn call_syntax_ctx(&self) -> SyntaxContext {
         // FIXME:
         SyntaxContext::root(Edition::CURRENT_FIXME)
     }
 
-    pub fn enter_expand<T: ast::AstNode>(
+    pub(super) fn enter_expand<T: ast::AstNode>(
         &mut self,
         db: &dyn DefDatabase,
         macro_call: ast::MacroCall,
+        krate: Crate,
         resolver: impl Fn(&ModPath) -> Option<MacroId>,
     ) -> Result<ExpandResult<Option<(Mark, Parse<T>)>>, UnresolvedMacro> {
         // FIXME: within_limit should support this, instead of us having to extract the error
@@ -70,7 +72,7 @@ impl Expander {
 
         let result = self.within_limit(db, |this| {
             let macro_call = this.in_file(&macro_call);
-            match macro_call.as_call_id_with_errors(db.upcast(), this.module.krate(), |path| {
+            match macro_call.as_call_id_with_errors(db.upcast(), krate, |path| {
                 resolver(path).map(|it| db.macro_def(it))
             }) {
                 Ok(call_id) => call_id,
@@ -84,7 +86,7 @@ impl Expander {
         if let Some(err) = unresolved_macro_err { Err(err) } else { Ok(result) }
     }
 
-    pub fn enter_expand_id<T: ast::AstNode>(
+    pub(super) fn enter_expand_id<T: ast::AstNode>(
         &mut self,
         db: &dyn DefDatabase,
         call_id: MacroCallId,
@@ -92,9 +94,10 @@ impl Expander {
         self.within_limit(db, |_this| ExpandResult::ok(Some(call_id)))
     }
 
-    pub fn exit(&mut self, mut mark: Mark) {
-        self.span_map = mark.span_map;
-        self.current_file_id = mark.file_id;
+    pub(super) fn exit(&mut self, Mark { file_id, span_map, ast_id_map, mut bomb }: Mark) {
+        self.span_map = span_map;
+        self.current_file_id = file_id;
+        self.ast_id_map = ast_id_map;
         if self.recursion_depth == u32::MAX {
             // Recursion limit has been reached somewhere in the macro expansion tree. Reset the
             // depth only when we get out of the tree.
@@ -104,63 +107,15 @@ impl Expander {
         } else {
             self.recursion_depth -= 1;
         }
-        mark.bomb.defuse();
+        bomb.defuse();
     }
 
-    pub fn ctx<'a>(
-        &self,
-        db: &'a dyn DefDatabase,
-        types_map: &'a mut TypesMap,
-        types_source_map: &'a mut TypesSourceMap,
-    ) -> LowerCtx<'a> {
-        LowerCtx::with_span_map_cell(
-            db,
-            self.current_file_id,
-            self.span_map.clone(),
-            types_map,
-            types_source_map,
-        )
-    }
-
-    pub(crate) fn in_file<T>(&self, value: T) -> InFile<T> {
+    pub(super) fn in_file<T>(&self, value: T) -> InFile<T> {
         InFile { file_id: self.current_file_id, value }
     }
 
-    pub(crate) fn parse_attrs(&self, db: &dyn DefDatabase, owner: &dyn ast::HasAttrs) -> Attrs {
-        Attrs::filter(
-            db,
-            self.krate(),
-            RawAttrs::new(
-                db.upcast(),
-                owner,
-                self.span_map.get_or_init(|| db.span_map(self.current_file_id)).as_ref(),
-            ),
-        )
-    }
-
-    pub(crate) fn cfg_options<'db>(&self, db: &'db dyn DefDatabase) -> &'db CfgOptions {
-        self.module.krate.cfg_options(db)
-    }
-
-    pub fn current_file_id(&self) -> HirFileId {
+    pub(super) fn current_file_id(&self) -> HirFileId {
         self.current_file_id
-    }
-
-    pub(crate) fn parse_path(
-        &mut self,
-        db: &dyn DefDatabase,
-        path: ast::Path,
-        types_map: &mut TypesMap,
-        types_source_map: &mut TypesSourceMap,
-    ) -> Option<Path> {
-        let mut ctx = LowerCtx::with_span_map_cell(
-            db,
-            self.current_file_id,
-            self.span_map.clone(),
-            types_map,
-            types_source_map,
-        );
-        Path::from_src(&mut ctx, path)
     }
 
     fn within_limit<F, T: ast::AstNode>(
@@ -208,16 +163,16 @@ impl Expander {
                     let parse = res.value.0.cast::<T>()?;
 
                     self.recursion_depth += 1;
-                    let old_span_map = OnceCell::new();
-                    if let Some(prev) = self.span_map.take() {
-                        _ = old_span_map.set(prev);
-                    };
-                    _ = self.span_map.set(SpanMap::ExpansionSpanMap(res.value.1));
                     let old_file_id =
                         std::mem::replace(&mut self.current_file_id, macro_file.into());
+                    let old_span_map =
+                        std::mem::replace(&mut self.span_map, db.span_map(self.current_file_id));
+                    let prev_ast_id_map =
+                        mem::replace(&mut self.ast_id_map, db.ast_id_map(self.current_file_id));
                     let mark = Mark {
                         file_id: old_file_id,
                         span_map: old_span_map,
+                        ast_id_map: prev_ast_id_map,
                         bomb: DropBomb::new("expansion mark dropped"),
                     };
                     Some((mark, parse))
@@ -226,11 +181,16 @@ impl Expander {
             err,
         }
     }
+
+    pub(super) fn ast_id_map(&self) -> &AstIdMap {
+        &self.ast_id_map
+    }
 }
 
 #[derive(Debug)]
-pub struct Mark {
+pub(super) struct Mark {
     file_id: HirFileId,
-    span_map: OnceCell<SpanMap>,
+    span_map: SpanMap,
+    ast_id_map: Arc<AstIdMap>,
     bomb: DropBomb,
 }

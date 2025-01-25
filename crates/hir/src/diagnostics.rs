@@ -7,12 +7,11 @@ use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_def::{
     DefWithBodyId, SyntheticSyntax,
-    expr_store::ExprOrPatPtr,
+    expr_store::{ExprOrPatPtr, hir_segment_to_ast_segment},
     hir::ExprOrPatId,
-    path::{ModPath, hir_segment_to_ast_segment},
     type_ref::TypesSourceMap,
 };
-use hir_expand::{HirFileId, InFile, name::Name};
+use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
 use hir_ty::{
     CastError, InferenceDiagnostic, InferenceTyDiagnosticSource, PathLoweringDiagnostic,
     TyLoweringDiagnostic, TyLoweringDiagnosticKind,

@@ -44,20 +44,21 @@ use either::Either;
 use hir_def::{
     AdtId, AssocItemId, AssocItemLoc, AttrDefId, CallableDefId, ConstId, ConstParamId,
     CrateRootModuleId, DefWithBodyId, EnumId, EnumVariantId, ExternBlockId, ExternCrateId,
-    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, InTypeConstId, ItemContainerId,
-    LifetimeParamId, LocalFieldId, Lookup, MacroExpander, MacroId, ModuleId, StaticId, StructId,
-    SyntheticSyntax, TraitAliasId, TupleId, TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId,
-    data::{TraitFlags, adt::VariantData},
+    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, ItemContainerId, LifetimeParamId,
+    LocalFieldId, Lookup, MacroExpander, MacroId, ModuleId, StaticId, StructId, SyntheticSyntax,
+    TraitAliasId, TupleId, TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId,
     expr_store::ExpressionStoreDiagnostics,
-    generics::{LifetimeParamData, TypeOrConstParamData, TypeParamProvenance},
-    hir::{BindingAnnotation, BindingId, Expr, ExprId, ExprOrPatId, LabelId, Pat},
-    item_tree::{AttrOwner, FieldParent, ItemTreeFieldId, ItemTreeNode},
+    hir::{
+        BindingAnnotation, BindingId, Expr, ExprId, ExprOrPatId, LabelId, Pat,
+        generics::TypeOrConstParamData,
+    },
+    item_tree::{AttrOwner, FieldParent, ImportAlias, ItemTreeFieldId, ItemTreeNode},
     lang_item::LangItemTarget,
     layout::{self, ReprOptions, TargetDataLayout},
     nameres::{self, diagnostics::DefDiagnostic},
-    path::ImportAlias,
     per_ns::PerNs,
     resolver::{HasResolver, Resolver},
+    signatures::VariantFields,
     type_ref::TypesSourceMap,
 };
 use hir_expand::{
@@ -117,7 +118,6 @@ pub use {
         Complete,
         ImportPathConfig,
         attr::{AttrSourceMap, Attrs, AttrsWithOwner},
-        data::adt::StructKind,
         find_path::PrefixKind,
         import_map,
         lang_item::LangItem,
@@ -160,17 +160,6 @@ pub use {
     // FIXME: Properly encapsulate mir
     hir_ty::{Interner as ChalkTyInterner, mir},
     intern::{Symbol, sym},
-};
-
-// These are negative re-exports: pub using these names is forbidden, they
-// should remain private to hir internals.
-#[allow(unused)]
-use {
-    hir_def::path::Path,
-    hir_expand::{
-        name::AsName,
-        span_map::{ExpansionSpanMap, RealSpanMap, SpanMap, SpanMapRef},
-    },
 };
 
 /// hir::Crate describes a single crate. It's the main interface with which
@@ -672,7 +661,8 @@ impl Module {
                                 db.field_types_with_diagnostics(s.id.into()).1,
                                 tree_source_maps.strukt(tree_id.value).item(),
                             );
-                            for diag in db.variant_data_with_diagnostics(s.id.into()).1.iter() {
+                            for diag in db.variant_signature_with_diagnostics(s.id.into()).1.iter()
+                            {
                                 emit_def_diagnostic(db, acc, diag, edition);
                             }
                         }
@@ -685,7 +675,8 @@ impl Module {
                                 db.field_types_with_diagnostics(u.id.into()).1,
                                 tree_source_maps.union(tree_id.value).item(),
                             );
-                            for diag in db.variant_data_with_diagnostics(u.id.into()).1.iter() {
+                            for diag in db.variant_signature_with_diagnostics(u.id.into()).1.iter()
+                            {
                                 emit_def_diagnostic(db, acc, diag, edition);
                             }
                         }
@@ -701,7 +692,9 @@ impl Module {
                                     tree_source_maps.variant(tree_id.value),
                                 );
                                 acc.extend(ModuleDef::Variant(v).diagnostics(db, style_lints));
-                                for diag in db.variant_data_with_diagnostics(v.id.into()).1.iter() {
+                                for diag in
+                                    db.variant_signature_with_diagnostics(v.id.into()).1.iter()
+                                {
                                     emit_def_diagnostic(db, acc, diag, edition);
                                 }
                             }
@@ -812,9 +805,9 @@ impl Module {
             if let (false, Some(trait_)) = (impl_is_negative, trait_) {
                 let items = &db.trait_items(trait_.into()).items;
                 let required_items = items.iter().filter(|&(_, assoc)| match *assoc {
-                    AssocItemId::FunctionId(it) => !db.function_data(it).has_body(),
-                    AssocItemId::ConstId(id) => !db.const_data(id).has_body(),
-                    AssocItemId::TypeAliasId(it) => db.type_alias_data(it).type_ref.is_none(),
+                    AssocItemId::FunctionId(it) => !db.function_signature(it).has_body(),
+                    AssocItemId::ConstId(id) => !db.const_signature(id).has_body(),
+                    AssocItemId::TypeAliasId(it) => db.type_alias_signature(it).type_ref.is_none(),
                 });
                 impl_assoc_items_scratch.extend(db.impl_items(impl_def.id).items.iter().cloned());
 
@@ -1417,7 +1410,7 @@ impl Struct {
     }
 
     pub fn name(self, db: &dyn HirDatabase) -> Name {
-        db.struct_data(self.id).name.clone()
+        db.struct_signature(self.id).name.clone()
     }
 
     pub fn fields(self, db: &dyn HirDatabase) -> Vec<Field> {
@@ -1441,15 +1434,19 @@ impl Struct {
     }
 
     pub fn repr(self, db: &dyn HirDatabase) -> Option<ReprOptions> {
-        db.struct_data(self.id).repr
+        db.struct_signature(self.id).repr
     }
 
     pub fn kind(self, db: &dyn HirDatabase) -> StructKind {
-        self.variant_data(db).kind()
+        match self.variant_fields(db).shape {
+            hir_def::item_tree::FieldsShape::Record => StructKind::Record,
+            hir_def::item_tree::FieldsShape::Tuple => StructKind::Tuple,
+            hir_def::item_tree::FieldsShape::Unit => StructKind::Unit,
+        }
     }
 
-    fn variant_data(self, db: &dyn HirDatabase) -> Arc<VariantData> {
-        db.variant_data(self.id.into()).clone()
+    fn variant_fields(self, db: &dyn HirDatabase) -> Arc<VariantFields> {
+        db.variant_fields(self.id.into())
     }
 
     pub fn is_unstable(self, db: &dyn HirDatabase) -> bool {
@@ -1459,7 +1456,7 @@ impl Struct {
 
 impl HasVisibility for Struct {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        db.struct_data(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
+        db.struct_signature(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
     }
 }
 
@@ -1470,7 +1467,7 @@ pub struct Union {
 
 impl Union {
     pub fn name(self, db: &dyn HirDatabase) -> Name {
-        db.union_data(self.id).name.clone()
+        db.union_signature(self.id).name.clone()
     }
 
     pub fn module(self, db: &dyn HirDatabase) -> Module {
@@ -1508,7 +1505,7 @@ impl Union {
 
 impl HasVisibility for Union {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        db.union_data(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
+        db.union_signature(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
     }
 }
 
@@ -1523,7 +1520,7 @@ impl Enum {
     }
 
     pub fn name(self, db: &dyn HirDatabase) -> Name {
-        db.enum_data(self.id).name.clone()
+        db.enum_signature(self.id).name.clone()
     }
 
     pub fn variants(self, db: &dyn HirDatabase) -> Vec<Variant> {
@@ -1535,7 +1532,7 @@ impl Enum {
     }
 
     pub fn repr(self, db: &dyn HirDatabase) -> Option<ReprOptions> {
-        db.enum_data(self.id).repr
+        db.enum_signature(self.id).repr
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
@@ -1550,7 +1547,7 @@ impl Enum {
     pub fn variant_body_ty(self, db: &dyn HirDatabase) -> Type {
         Type::new_for_crate(
             self.id.lookup(db.upcast()).container.krate(),
-            TyBuilder::builtin(match db.enum_data(self.id).variant_body_type() {
+            TyBuilder::builtin(match db.enum_signature(self.id).variant_body_type() {
                 layout::IntegerType::Pointer(sign) => match sign {
                     true => hir_def::builtin_type::BuiltinType::Int(
                         hir_def::builtin_type::BuiltinInt::Isize,
@@ -1595,7 +1592,7 @@ impl Enum {
 
 impl HasVisibility for Enum {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        db.enum_data(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
+        db.enum_signature(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
     }
 }
 
@@ -1625,7 +1622,7 @@ impl Variant {
     }
 
     pub fn name(self, db: &dyn HirDatabase) -> Name {
-        db.enum_variant_data(self.id).name.clone()
+        db.enum_variant_signature(self.id).name.clone()
     }
 
     pub fn fields(self, db: &dyn HirDatabase) -> Vec<Field> {
@@ -1671,6 +1668,13 @@ impl Variant {
     pub fn is_unstable(self, db: &dyn HirDatabase) -> bool {
         db.attrs(self.id.into()).is_unstable()
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StructKind {
+    Record,
+    Tuple,
+    Unit,
 }
 
 /// Variants inherit visibility from the parent enum.
@@ -1823,7 +1827,7 @@ impl VariantDef {
 
     pub(crate) fn variant_data(self, db: &dyn HirDatabase) -> Arc<VariantData> {
         match self {
-            VariantDef::Struct(it) => it.variant_data(db),
+            VariantDef::Struct(it) => it.variant_fields(db),
             VariantDef::Union(it) => it.variant_data(db),
             VariantDef::Variant(it) => it.variant_data(db),
         }
@@ -1837,7 +1841,6 @@ pub enum DefWithBody {
     Static(Static),
     Const(Const),
     Variant(Variant),
-    InTypeConst(InTypeConst),
 }
 impl_from!(Function, Const, Static, Variant, InTypeConst for DefWithBody);
 
@@ -1848,7 +1851,6 @@ impl DefWithBody {
             DefWithBody::Function(f) => f.module(db),
             DefWithBody::Static(s) => s.module(db),
             DefWithBody::Variant(v) => v.module(db),
-            DefWithBody::InTypeConst(c) => c.module(db),
         }
     }
 
@@ -1858,7 +1860,6 @@ impl DefWithBody {
             DefWithBody::Static(s) => Some(s.name(db)),
             DefWithBody::Const(c) => c.name(db),
             DefWithBody::Variant(v) => Some(v.name(db)),
-            DefWithBody::InTypeConst(_) => None,
         }
     }
 
@@ -1869,11 +1870,6 @@ impl DefWithBody {
             DefWithBody::Static(it) => it.ty(db),
             DefWithBody::Const(it) => it.ty(db),
             DefWithBody::Variant(it) => it.parent_enum(db).variant_body_ty(db),
-            DefWithBody::InTypeConst(it) => Type::new_with_resolver_inner(
-                db,
-                &DefWithBodyId::from(it.id).resolver(db.upcast()),
-                TyKind::Error.intern(Interner),
-            ),
         }
     }
 
@@ -1883,7 +1879,6 @@ impl DefWithBody {
             DefWithBody::Static(it) => it.id.into(),
             DefWithBody::Const(it) => it.id.into(),
             DefWithBody::Variant(it) => it.into(),
-            DefWithBody::InTypeConst(it) => it.id.into(),
         }
     }
 
@@ -4289,10 +4284,10 @@ impl TypeOrConstParam {
     pub fn split(self, db: &dyn HirDatabase) -> Either<ConstParam, TypeParam> {
         let params = db.generic_params(self.id.parent);
         match &params[self.id.local_id] {
-            hir_def::generics::TypeOrConstParamData::TypeParamData(_) => {
+            TypeOrConstParamData::TypeParamData(_) => {
                 Either::Right(TypeParam { id: TypeParamId::from_unchecked(self.id) })
             }
-            hir_def::generics::TypeOrConstParamData::ConstParamData(_) => {
+            TypeOrConstParamData::ConstParamData(_) => {
                 Either::Left(ConstParam { id: ConstParamId::from_unchecked(self.id) })
             }
         }
@@ -4308,18 +4303,18 @@ impl TypeOrConstParam {
     pub fn as_type_param(self, db: &dyn HirDatabase) -> Option<TypeParam> {
         let params = db.generic_params(self.id.parent);
         match &params[self.id.local_id] {
-            hir_def::generics::TypeOrConstParamData::TypeParamData(_) => {
+            TypeOrConstParamData::TypeParamData(_) => {
                 Some(TypeParam { id: TypeParamId::from_unchecked(self.id) })
             }
-            hir_def::generics::TypeOrConstParamData::ConstParamData(_) => None,
+            TypeOrConstParamData::ConstParamData(_) => None,
         }
     }
 
     pub fn as_const_param(self, db: &dyn HirDatabase) -> Option<ConstParam> {
         let params = db.generic_params(self.id.parent);
         match &params[self.id.local_id] {
-            hir_def::generics::TypeOrConstParamData::TypeParamData(_) => None,
-            hir_def::generics::TypeOrConstParamData::ConstParamData(_) => {
+            TypeOrConstParamData::TypeParamData(_) => None,
+            TypeOrConstParamData::ConstParamData(_) => {
                 Some(ConstParam { id: ConstParamId::from_unchecked(self.id) })
             }
         }
@@ -4448,11 +4443,11 @@ impl Impl {
     }
 
     pub fn is_negative(self, db: &dyn HirDatabase) -> bool {
-        db.impl_data(self.id).is_negative
+        db.impl_signature(self.id).is_negative
     }
 
     pub fn is_unsafe(self, db: &dyn HirDatabase) -> bool {
-        db.impl_data(self.id).is_unsafe
+        db.impl_signature(self.id).is_unsafe
     }
 
     pub fn module(self, db: &dyn HirDatabase) -> Module {
