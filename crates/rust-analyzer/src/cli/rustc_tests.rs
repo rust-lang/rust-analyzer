@@ -1,6 +1,5 @@
 //! Run all tests in a project, similar to `cargo test`, but using the mir interpreter.
 
-use std::convert::identity;
 use std::thread::Builder;
 use std::time::{Duration, Instant};
 use std::{cell::RefCell, fs::read_to_string, panic::AssertUnwindSafe, path::PathBuf};
@@ -156,18 +155,18 @@ impl Tester {
                 .stack_size(40 * 1024 * 1024)
                 .spawn_scoped(s, {
                     let diagnostic_config = &diagnostic_config;
-                    let main = std::thread::current();
+                    // let main = std::thread::current();
                     let analysis = self.host.analysis();
                     let root_file = self.root_file;
                     move || {
-                        let res = std::panic::catch_unwind(move || {
-                            analysis.full_diagnostics(
-                                diagnostic_config,
-                                ide::AssistResolveStrategy::None,
-                                root_file,
-                            )
-                        });
-                        main.unpark();
+                        // let res = std::panic::catch_unwind(move || {
+                        let res = analysis.full_diagnostics(
+                            diagnostic_config,
+                            ide::AssistResolveStrategy::None,
+                            root_file,
+                        );
+                        // });
+                        // main.unpark();
                         res
                     }
                 })
@@ -183,7 +182,7 @@ impl Tester {
                 // attempt to cancel the worker, won't work for chalk hangs unfortunately
                 self.host.request_cancellation();
             }
-            worker.join().and_then(identity)
+            worker.join()
         });
         let mut actual = FxHashMap::default();
         let panicked = match res {

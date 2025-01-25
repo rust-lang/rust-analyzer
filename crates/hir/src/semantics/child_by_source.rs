@@ -251,7 +251,7 @@ fn insert_item_loc<ID, N, Data>(
     id: ID,
     key: Key<N::Source, ID>,
 ) where
-    ID: for<'db> Lookup<Database<'db> = dyn DefDatabase + 'db, Data = Data> + 'static,
+    ID: for<'db> Lookup<Database = dyn DefDatabase, Data = Data> + 'static,
     Data: ItemTreeLoc<Id = N>,
     N: ItemTreeNode,
     N::Source: 'static,

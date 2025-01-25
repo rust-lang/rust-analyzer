@@ -221,6 +221,7 @@ impl StructData {
             None,
         );
         let types_map = strukt.types_map.clone();
+
         (
             Arc::new(StructData {
                 name: strukt.name.clone(),

@@ -484,10 +484,10 @@ pub(crate) fn handle_document_diagnostics(
     };
 
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
-    let source_root = snap.analysis.source_root_id(file_id)?;
-    if !snap.analysis.is_local_source_root(source_root)? {
+    if !snap.analysis.is_local_source_root(file_id)? {
         return Ok(empty());
     }
+    let source_root = snap.analysis.source_root_id(file_id)?;
     let config = snap.config.diagnostics(Some(source_root));
     if !config.enabled {
         return Ok(empty());
@@ -1050,7 +1050,11 @@ pub(crate) fn handle_related_tests(
 
 pub(crate) fn handle_completion(
     snap: GlobalStateSnapshot,
-    lsp_types::CompletionParams { text_document_position, context,.. }: lsp_types::CompletionParams,
+    lsp_types::CompletionParams {
+        text_document_position,
+        context,
+        ..
+    }: lsp_types::CompletionParams,
 ) -> anyhow::Result<Option<lsp_types::CompletionResponse>> {
     let _p = tracing::info_span!("handle_completion").entered();
     let mut position = from_proto::file_position(&snap, text_document_position.clone())?;
@@ -1098,7 +1102,9 @@ pub(crate) fn handle_completion_resolve(
         .into());
     }
 
-    let Some(data) = original_completion.data.take() else { return Ok(original_completion) };
+    let Some(data) = original_completion.data.take() else {
+        return Ok(original_completion);
+    };
 
     let resolve_data: lsp_ext::CompletionResolveData = serde_json::from_value(data)?;
 
@@ -1294,7 +1300,7 @@ pub(crate) fn handle_rename(
     {
         for op in ops {
             if let lsp_types::DocumentChangeOperation::Op(doc_change_op) = op {
-                resource_ops_supported(&snap.config, resolve_resource_op(doc_change_op))?
+                resource_ops_supported(&snap.config, resolve_resource_op(&doc_change_op))?
             }
         }
     }
@@ -1417,7 +1423,7 @@ pub(crate) fn handle_code_action(
         if let Some(changes) = changes {
             for change in changes {
                 if let lsp_ext::SnippetDocumentChangeOperation::Op(res_op) = change {
-                    resource_ops_supported(&snap.config, resolve_resource_op(res_op))?
+                    resource_ops_supported(&snap.config, resolve_resource_op(&res_op))?
                 }
             }
         }
@@ -1481,7 +1487,7 @@ pub(crate) fn handle_code_action_resolve(
                 "Failed to parse action id string '{}': {e}",
                 params.id
             ))
-            .into())
+            .into());
         }
     };
 
@@ -1589,7 +1595,9 @@ pub(crate) fn handle_code_lens_resolve(
     snap: GlobalStateSnapshot,
     mut code_lens: CodeLens,
 ) -> anyhow::Result<CodeLens> {
-    let Some(data) = code_lens.data.take() else { return Ok(code_lens) };
+    let Some(data) = code_lens.data.take() else {
+        return Ok(code_lens);
+    };
     let resolve = serde_json::from_value::<lsp_ext::CodeLensResolveData>(data)?;
     let Some(annotation) = from_proto::annotation(&snap, code_lens.range, resolve)? else {
         return Ok(code_lens);
@@ -1698,14 +1706,18 @@ pub(crate) fn handle_inlay_hints_resolve(
 ) -> anyhow::Result<InlayHint> {
     let _p = tracing::info_span!("handle_inlay_hints_resolve").entered();
 
-    let Some(data) = original_hint.data.take() else { return Ok(original_hint) };
+    let Some(data) = original_hint.data.take() else {
+        return Ok(original_hint);
+    };
     let resolve_data: lsp_ext::InlayHintResolveData = serde_json::from_value(data)?;
     let file_id = FileId::from_raw(resolve_data.file_id);
     if resolve_data.version != snap.file_version(file_id) {
         tracing::warn!("Inlay hint resolve data is outdated");
         return Ok(original_hint);
     }
-    let Some(hash) = resolve_data.hash.parse().ok() else { return Ok(original_hint) };
+    let Some(hash) = resolve_data.hash.parse().ok() else {
+        return Ok(original_hint);
+    };
     anyhow::ensure!(snap.file_exists(file_id), "Invalid LSP resolve data");
 
     let line_index = snap.file_line_index(file_id)?;
