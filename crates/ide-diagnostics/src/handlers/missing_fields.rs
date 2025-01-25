@@ -845,4 +845,35 @@ pub struct Claims {
         "#,
         );
     }
+
+    #[test]
+    fn default_field_values() {
+        check_diagnostics(
+            r#"
+struct F {
+    field1: i32 = 4,
+    field2: bool,
+}
+
+fn f() {
+    let _f = F {
+        field2: true,
+        ..
+    };
+
+    let _f = F {
+           //^ 💡 error: missing structure fields:
+           //| - field1
+        field2: true,
+    };
+
+    let _f = F {
+           //^ 💡 error: missing structure fields:
+           //| - field2
+        ..
+    };
+}
+"#,
+        );
+    }
 }

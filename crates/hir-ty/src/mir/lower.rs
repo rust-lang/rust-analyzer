@@ -823,7 +823,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
             }
             Expr::Become { .. } => not_supported!("tail-calls"),
             Expr::Yield { .. } => not_supported!("yield"),
-            Expr::RecordLit { fields, path, spread } => {
+            Expr::RecordLit { fields, path, spread, ellipsis: _ } => {
                 let spread_place = match spread {
                     &Some(it) => {
                         let Some((p, c)) = self.lower_expr_as_place(current, it, true)? else {
@@ -2130,6 +2130,10 @@ pub fn mir_body_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Result<Arc<Mi
             db.enum_variant_data(it).name.display(db.upcast(), edition).to_string()
         }
         DefWithBodyId::InTypeConstId(it) => format!("in type const {it:?}"),
+        DefWithBodyId::FieldId(it) => it.parent.variant_data(db.upcast()).fields()[it.local_id]
+            .name
+            .display(db.upcast(), edition)
+            .to_string(),
     };
     let _p = tracing::info_span!("mir_body_query", ?detail).entered();
     let body = db.body(def);
