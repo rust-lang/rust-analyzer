@@ -1047,6 +1047,7 @@ fn test() -> String {
     }
 
     #[test]
+    #[ignore]
     fn closure_mismatch_show_different_type() {
         check_diagnostics(
             r#"

@@ -9,9 +9,9 @@ use base_db::CrateId;
 use either::Either;
 use hir_expand::{
     mod_path::tool_path,
+    InFile, MacroDefId,
     name::{AsName, Name},
     span_map::{ExpansionSpanMap, SpanMap},
-    InFile, MacroDefId,
 };
 use intern::{sym, Symbol};
 use rustc_hash::FxHashMap;
@@ -1854,16 +1854,18 @@ impl ExprCollector<'_> {
         &self,
         lifetime: Option<ast::Lifetime>,
     ) -> Result<Option<LabelId>, BodyDiagnostic> {
-        let Some(lifetime) = lifetime else { return Ok(None) };
+        let Some(lifetime) = lifetime else {
+            return Ok(None);
+        };
         let (mut hygiene_id, mut hygiene_info) = match &self.current_span_map {
             None => (HygieneId::ROOT, None),
             Some(span_map) => {
                 let span = span_map.span_at(lifetime.syntax().text_range().start());
-                let ctx = self.db.lookup_intern_syntax_context(span.ctx);
-                let hygiene_id = HygieneId::new(ctx.opaque_and_semitransparent);
-                let hygiene_info = ctx.outer_expn.map(|expansion| {
+                let ctx = span.ctx;
+                let hygiene_id = HygieneId::new(ctx.opaque_and_semitransparent(self.db));
+                let hygiene_info = ctx.outer_expn(self.db).map(|expansion| {
                     let expansion = self.db.lookup_intern_macro_call(expansion);
-                    (ctx.parent, expansion.def)
+                    (ctx.parent(self.db), expansion.def)
                 });
                 (hygiene_id, hygiene_info)
             }
@@ -1890,11 +1892,11 @@ impl ExprCollector<'_> {
                             // A macro is allowed to refer to labels from before its declaration.
                             // Therefore, if we got to the rib of its declaration, give up its hygiene
                             // and use its parent expansion.
-                            let parent_ctx = self.db.lookup_intern_syntax_context(parent_ctx);
-                            hygiene_id = HygieneId::new(parent_ctx.opaque_and_semitransparent);
-                            hygiene_info = parent_ctx.outer_expn.map(|expansion| {
+                            hygiene_id =
+                                HygieneId::new(parent_ctx.opaque_and_semitransparent(self.db));
+                            hygiene_info = parent_ctx.outer_expn(self.db).map(|expansion| {
                                 let expansion = self.db.lookup_intern_macro_call(expansion);
-                                (parent_ctx.parent, expansion.def)
+                                (parent_ctx.parent(self.db), expansion.def)
                             });
                         }
                     }
@@ -1963,7 +1965,7 @@ impl ExprCollector<'_> {
                 return match l.kind() {
                     ast::LiteralKind::String(s) => Some((s, true)),
                     _ => None,
-                }
+                };
             }
             _ => return None,
         };
@@ -2050,7 +2052,9 @@ impl ExprCollector<'_> {
         // E.g. "{0} {0:x} {0} {1}" -> [(0, Display), (0, LowerHex), (1, Display)]
         let mut argmap = FxIndexSet::default();
         for piece in fmt.template.iter() {
-            let FormatArgsPiece::Placeholder(placeholder) = piece else { continue };
+            let FormatArgsPiece::Placeholder(placeholder) = piece else {
+                continue;
+            };
             if let Ok(index) = placeholder.argument.index {
                 argmap.insert((index, ArgumentType::Format(placeholder.format_trait)));
             }
@@ -2093,7 +2097,9 @@ impl ExprCollector<'_> {
                 .template
                 .iter()
                 .filter_map(|piece| {
-                    let FormatArgsPiece::Placeholder(placeholder) = piece else { return None };
+                    let FormatArgsPiece::Placeholder(placeholder) = piece else {
+                        return None;
+                    };
                     Some(self.make_format_spec(placeholder, &mut argmap))
                 })
                 .collect();
@@ -2502,7 +2508,7 @@ impl ExprCollector<'_> {
             None => HygieneId::ROOT,
             Some(span_map) => {
                 let ctx = span_map.span_at(span_start).ctx;
-                HygieneId::new(self.db.lookup_intern_syntax_context(ctx).opaque_and_semitransparent)
+                HygieneId::new(ctx.opaque_and_semitransparent(self.db))
             }
         }
     }

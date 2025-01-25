@@ -22,6 +22,8 @@ itertools.workspace = true
 hashbrown.workspace = true
 smallvec.workspace = true
 triomphe.workspace = true
+db-ext-macro.workspace = true
+salsa.workspace = true
 
 # local deps
 stdx.workspace = true
