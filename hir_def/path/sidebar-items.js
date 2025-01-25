@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GenericArg","ImportAlias","Path","PathKind"],"fn":["hir_segment_to_ast_segment"],"macro":["path"],"struct":["AssociatedTypeBinding","GenericArgs","ModPath","NormalPath","PathSegment","PathSegments"]};

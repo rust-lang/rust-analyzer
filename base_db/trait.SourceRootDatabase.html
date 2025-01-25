@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="We don’t want to give HIR knowledge of source roots, hence we extract these methods into a separate DB."><title>SourceRootDatabase in base_db - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="base_db" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../base_db/index.html">base_db</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Source<wbr>Root<wbr>Database</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.file_source_root" title="file_source_root">file_source_root</a></li><li><a href="#tymethod.set_file_source_root" title="set_file_source_root">set_file_source_root</a></li><li><a href="#tymethod.set_file_source_root_with_durability" title="set_file_source_root_with_durability">set_file_source_root_with_durability</a></li><li><a href="#tymethod.set_source_root" title="set_source_root">set_source_root</a></li><li><a href="#tymethod.set_source_root_with_durability" title="set_source_root_with_durability">set_source_root_with_durability</a></li><li><a href="#tymethod.source_root" title="source_root">source_root</a></li><li><a href="#tymethod.source_root_crates" title="source_root_crates">source_root_crates</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate base_<wbr>db</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="index.html">base_db</a></span><h1>Trait <span class="trait">SourceRootDatabase</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/base_db/lib.rs.html#129">Source</a> </span></div><pre class="rust item-decl"><code>pub trait SourceRootDatabase:
+    Database
+    + HasQueryGroup&lt;<a class="struct" href="struct.SourceRootDatabaseStorage.html" title="struct base_db::SourceRootDatabaseStorage">SourceRootDatabaseStorage</a>&gt;
+    + <a class="trait" href="trait.SourceDatabase.html" title="trait base_db::SourceDatabase">SourceDatabase</a> {
+    // Required methods
+    fn <a href="#tymethod.file_source_root" class="fn">file_source_root</a>(&amp;self, file_id: FileId) -&gt; <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_file_source_root" class="fn">set_file_source_root</a>(&amp;mut self, file_id: FileId, value__: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_file_source_root_with_durability" class="fn">set_file_source_root_with_durability</a>(
+        &amp;mut self,
+        file_id: FileId,
+        value__: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>,
+        durability__: Durability,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.source_root" class="fn">source_root</a>(&amp;self, id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>) -&gt; Arc&lt;<a class="struct" href="struct.SourceRoot.html" title="struct base_db::SourceRoot">SourceRoot</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_source_root" class="fn">set_source_root</a>(&amp;mut self, id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>, value__: Arc&lt;<a class="struct" href="struct.SourceRoot.html" title="struct base_db::SourceRoot">SourceRoot</a>&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_source_root_with_durability" class="fn">set_source_root_with_durability</a>(
+        &amp;mut self,
+        id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>,
+        value__: Arc&lt;<a class="struct" href="struct.SourceRoot.html" title="struct base_db::SourceRoot">SourceRoot</a>&gt;,
+        durability__: Durability,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.source_root_crates" class="fn">source_root_crates</a>(&amp;self, id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>) -&gt; Arc&lt;[<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>]&gt;;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>We don’t want to give HIR knowledge of source roots, hence we extract these
+methods into a separate DB.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.file_source_root" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.file_source_root" class="fn">file_source_root</a>(&amp;self, file_id: FileId) -&gt; <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a></h4></section></summary><div class="docblock"><p>Path to a file, relative to the root of its source root.
+Source root of the file.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_file_source_root" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.set_file_source_root" class="fn">set_file_source_root</a>(&amp;mut self, file_id: FileId, value__: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>)</h4></section></summary><div class="docblock"><p>Set the value of the <code>file_source_root</code> input.</p>
+<p>See <code>file_source_root</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_file_source_root_with_durability" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.set_file_source_root_with_durability" class="fn">set_file_source_root_with_durability</a>(
+    &amp;mut self,
+    file_id: FileId,
+    value__: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>,
+    durability__: Durability,
+)</h4></section></summary><div class="docblock"><p>Set the value of the <code>file_source_root</code> input with a
+specific durability instead of the default of
+<code>Durability::LOW</code>. You can use <code>Durability::MAX</code>
+to promise that its value will never change again.</p>
+<p>See <code>file_source_root</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.source_root" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.source_root" class="fn">source_root</a>(&amp;self, id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>) -&gt; Arc&lt;<a class="struct" href="struct.SourceRoot.html" title="struct base_db::SourceRoot">SourceRoot</a>&gt;</h4></section></summary><div class="docblock"><p>Contents of the source root.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_source_root" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.set_source_root" class="fn">set_source_root</a>(&amp;mut self, id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>, value__: Arc&lt;<a class="struct" href="struct.SourceRoot.html" title="struct base_db::SourceRoot">SourceRoot</a>&gt;)</h4></section></summary><div class="docblock"><p>Set the value of the <code>source_root</code> input.</p>
+<p>See <code>source_root</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_source_root_with_durability" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.set_source_root_with_durability" class="fn">set_source_root_with_durability</a>(
+    &amp;mut self,
+    id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>,
+    value__: Arc&lt;<a class="struct" href="struct.SourceRoot.html" title="struct base_db::SourceRoot">SourceRoot</a>&gt;,
+    durability__: Durability,
+)</h4></section></summary><div class="docblock"><p>Set the value of the <code>source_root</code> input with a
+specific durability instead of the default of
+<code>Durability::LOW</code>. You can use <code>Durability::MAX</code>
+to promise that its value will never change again.</p>
+<p>See <code>source_root</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.source_root_crates" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><h4 class="code-header">fn <a href="#tymethod.source_root_crates" class="fn">source_root_crates</a>(&amp;self, id: <a class="struct" href="struct.SourceRootId.html" title="struct base_db::SourceRootId">SourceRootId</a>) -&gt; Arc&lt;[<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>]&gt;</h4></section></summary><div class="docblock"><p>Crates whose root file is in <code>id</code>.</p>
+</div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-SourceRootDatabase-for-DB" class="impl"><a class="src rightside" href="../src/base_db/lib.rs.html#129">Source</a><a href="#impl-SourceRootDatabase-for-DB" class="anchor">§</a><h3 class="code-header">impl&lt;DB&gt; <a class="trait" href="trait.SourceRootDatabase.html" title="trait base_db::SourceRootDatabase">SourceRootDatabase</a> for DB<div class="where">where
+    DB: <a class="trait" href="trait.SourceDatabase.html" title="trait base_db::SourceDatabase">SourceDatabase</a> + Database + HasQueryGroup&lt;<a class="struct" href="struct.SourceRootDatabaseStorage.html" title="struct base_db::SourceRootDatabaseStorage">SourceRootDatabaseStorage</a>&gt;,</div></h3></section></div><script src="../trait.impl/base_db/trait.SourceRootDatabase.js" async></script></section></div></main></body></html>

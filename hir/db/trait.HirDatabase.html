@@ -1,0 +1,396 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `HirDatabase` trait in crate `hir`."><title>HirDatabase in hir::db - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hir" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../hir/index.html">hir</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">HirDatabase</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.adt_datum" title="adt_datum">adt_datum</a></li><li><a href="#tymethod.adt_variance" title="adt_variance">adt_variance</a></li><li><a href="#tymethod.associated_ty_data" title="associated_ty_data">associated_ty_data</a></li><li><a href="#tymethod.associated_ty_value" title="associated_ty_value">associated_ty_value</a></li><li><a href="#tymethod.borrowck" title="borrowck">borrowck</a></li><li><a href="#tymethod.callable_item_signature" title="callable_item_signature">callable_item_signature</a></li><li><a href="#tymethod.const_eval" title="const_eval">const_eval</a></li><li><a href="#tymethod.const_eval_discriminant" title="const_eval_discriminant">const_eval_discriminant</a></li><li><a href="#tymethod.const_eval_static" title="const_eval_static">const_eval_static</a></li><li><a href="#tymethod.const_param_ty" title="const_param_ty">const_param_ty</a></li><li><a href="#tymethod.const_param_ty_with_diagnostics" title="const_param_ty_with_diagnostics">const_param_ty_with_diagnostics</a></li><li><a href="#tymethod.dyn_compatibility_of_trait" title="dyn_compatibility_of_trait">dyn_compatibility_of_trait</a></li><li><a href="#tymethod.field_types" title="field_types">field_types</a></li><li><a href="#tymethod.field_types_with_diagnostics" title="field_types_with_diagnostics">field_types_with_diagnostics</a></li><li><a href="#tymethod.fn_def_datum" title="fn_def_datum">fn_def_datum</a></li><li><a href="#tymethod.fn_def_variance" title="fn_def_variance">fn_def_variance</a></li><li><a href="#tymethod.generic_defaults" title="generic_defaults">generic_defaults</a></li><li><a href="#tymethod.generic_defaults_with_diagnostics" title="generic_defaults_with_diagnostics">generic_defaults_with_diagnostics</a></li><li><a href="#tymethod.generic_predicates" title="generic_predicates">generic_predicates</a></li><li><a href="#tymethod.generic_predicates_for_param" title="generic_predicates_for_param">generic_predicates_for_param</a></li><li><a href="#tymethod.generic_predicates_without_parent" title="generic_predicates_without_parent">generic_predicates_without_parent</a></li><li><a href="#tymethod.generic_predicates_without_parent_with_diagnostics" title="generic_predicates_without_parent_with_diagnostics">generic_predicates_without_parent_with_diagnostics</a></li><li><a href="#tymethod.impl_datum" title="impl_datum">impl_datum</a></li><li><a href="#tymethod.impl_self_ty" title="impl_self_ty">impl_self_ty</a></li><li><a href="#tymethod.impl_self_ty_with_diagnostics" title="impl_self_ty_with_diagnostics">impl_self_ty_with_diagnostics</a></li><li><a href="#tymethod.impl_trait" title="impl_trait">impl_trait</a></li><li><a href="#tymethod.impl_trait_with_diagnostics" title="impl_trait_with_diagnostics">impl_trait_with_diagnostics</a></li><li><a href="#tymethod.incoherent_inherent_impl_crates" title="incoherent_inherent_impl_crates">incoherent_inherent_impl_crates</a></li><li><a href="#tymethod.infer" title="infer">infer</a></li><li><a href="#tymethod.inherent_impls_in_block" title="inherent_impls_in_block">inherent_impls_in_block</a></li><li><a href="#tymethod.inherent_impls_in_crate" title="inherent_impls_in_crate">inherent_impls_in_crate</a></li><li><a href="#tymethod.intern_callable_def" title="intern_callable_def">intern_callable_def</a></li><li><a href="#tymethod.intern_closure" title="intern_closure">intern_closure</a></li><li><a href="#tymethod.intern_coroutine" title="intern_coroutine">intern_coroutine</a></li><li><a href="#tymethod.intern_impl_trait_id" title="intern_impl_trait_id">intern_impl_trait_id</a></li><li><a href="#tymethod.intern_lifetime_param_id" title="intern_lifetime_param_id">intern_lifetime_param_id</a></li><li><a href="#tymethod.intern_type_or_const_param_id" title="intern_type_or_const_param_id">intern_type_or_const_param_id</a></li><li><a href="#tymethod.layout_of_adt" title="layout_of_adt">layout_of_adt</a></li><li><a href="#tymethod.layout_of_ty" title="layout_of_ty">layout_of_ty</a></li><li><a href="#tymethod.lookup_impl_method" title="lookup_impl_method">lookup_impl_method</a></li><li><a href="#tymethod.lookup_intern_callable_def" title="lookup_intern_callable_def">lookup_intern_callable_def</a></li><li><a href="#tymethod.lookup_intern_closure" title="lookup_intern_closure">lookup_intern_closure</a></li><li><a href="#tymethod.lookup_intern_coroutine" title="lookup_intern_coroutine">lookup_intern_coroutine</a></li><li><a href="#tymethod.lookup_intern_impl_trait_id" title="lookup_intern_impl_trait_id">lookup_intern_impl_trait_id</a></li><li><a href="#tymethod.lookup_intern_lifetime_param_id" title="lookup_intern_lifetime_param_id">lookup_intern_lifetime_param_id</a></li><li><a href="#tymethod.lookup_intern_type_or_const_param_id" title="lookup_intern_type_or_const_param_id">lookup_intern_type_or_const_param_id</a></li><li><a href="#tymethod.mir_body" title="mir_body">mir_body</a></li><li><a href="#tymethod.mir_body_for_closure" title="mir_body_for_closure">mir_body_for_closure</a></li><li><a href="#tymethod.monomorphized_mir_body" title="monomorphized_mir_body">monomorphized_mir_body</a></li><li><a href="#tymethod.monomorphized_mir_body_for_closure" title="monomorphized_mir_body_for_closure">monomorphized_mir_body_for_closure</a></li><li><a href="#tymethod.normalize_projection" title="normalize_projection">normalize_projection</a></li><li><a href="#tymethod.program_clauses_for_chalk_env" title="program_clauses_for_chalk_env">program_clauses_for_chalk_env</a></li><li><a href="#tymethod.return_type_impl_traits" title="return_type_impl_traits">return_type_impl_traits</a></li><li><a href="#tymethod.target_data_layout" title="target_data_layout">target_data_layout</a></li><li><a href="#tymethod.trait_datum" title="trait_datum">trait_datum</a></li><li><a href="#tymethod.trait_environment" title="trait_environment">trait_environment</a></li><li><a href="#tymethod.trait_environment_for_body" title="trait_environment_for_body">trait_environment_for_body</a></li><li><a href="#tymethod.trait_impls_in_block" title="trait_impls_in_block">trait_impls_in_block</a></li><li><a href="#tymethod.trait_impls_in_crate" title="trait_impls_in_crate">trait_impls_in_crate</a></li><li><a href="#tymethod.trait_impls_in_deps" title="trait_impls_in_deps">trait_impls_in_deps</a></li><li><a href="#tymethod.trait_solve" title="trait_solve">trait_solve</a></li><li><a href="#tymethod.ty" title="ty">ty</a></li><li><a href="#tymethod.type_alias_impl_traits" title="type_alias_impl_traits">type_alias_impl_traits</a></li><li><a href="#tymethod.type_for_type_alias_with_diagnostics" title="type_for_type_alias_with_diagnostics">type_for_type_alias_with_diagnostics</a></li><li><a href="#tymethod.value_ty" title="value_ty">value_ty</a></li><li><a href="#tymethod.variances_of" title="variances_of">variances_of</a></li></ul><h3><a href="#trait-implementations">Trait Implementations</a></h3><ul class="block trait-implementation"><li><a href="#impl-UnificationDatabase%3CInterner%3E-for-%26dyn+HirDatabase" title="UnificationDatabase&#60;Interner&#62;">UnificationDatabase&#60;Interner&#62;</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In hir::db</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="../index.html">hir</a>::<wbr><a href="index.html">db</a></span><h1>Trait <span class="trait">HirDatabase</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><pre class="rust item-decl"><code>pub trait HirDatabase:
+    Database
+    + HasQueryGroup&lt;<a class="struct" href="struct.HirDatabaseStorage.html" title="struct hir::db::HirDatabaseStorage">HirDatabaseStorage</a>&gt;
+    + <a class="trait" href="trait.DefDatabase.html" title="trait hir::db::DefDatabase">DefDatabase</a>
+    + Upcast&lt;dyn <a class="trait" href="trait.DefDatabase.html" title="trait hir::db::DefDatabase">DefDatabase</a>&gt; {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 66 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.infer" class="fn">infer</a>(&amp;self, def: DefWithBodyId) -&gt; Arc&lt;InferenceResult&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.mir_body" class="fn">mir_body</a>(
+        &amp;self,
+        def: DefWithBodyId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.mir_body_for_closure" class="fn">mir_body_for_closure</a>(
+        &amp;self,
+        def: ClosureId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.monomorphized_mir_body" class="fn">monomorphized_mir_body</a>(
+        &amp;self,
+        def: DefWithBodyId,
+        subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        env: Arc&lt;TraitEnvironment&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.monomorphized_mir_body_for_closure" class="fn">monomorphized_mir_body_for_closure</a>(
+        &amp;self,
+        def: ClosureId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        env: Arc&lt;TraitEnvironment&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.borrowck" class="fn">borrowck</a>(
+        &amp;self,
+        def: DefWithBodyId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;[<a class="struct" href="../mir/struct.BorrowckResult.html" title="struct hir::mir::BorrowckResult">BorrowckResult</a>]&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_eval" class="fn">const_eval</a>(
+        &amp;self,
+        def: GeneralConstId,
+        subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        trait_env: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;TraitEnvironment&gt;&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Const&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;, <a class="enum" href="../enum.ConstEvalError.html" title="enum hir::ConstEvalError">ConstEvalError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_eval_static" class="fn">const_eval_static</a>(
+        &amp;self,
+        def: StaticId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Const&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;, <a class="enum" href="../enum.ConstEvalError.html" title="enum hir::ConstEvalError">ConstEvalError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_eval_discriminant" class="fn">const_eval_discriminant</a>(
+        &amp;self,
+        def: EnumVariantId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.i128.html">i128</a>, <a class="enum" href="../enum.ConstEvalError.html" title="enum hir::ConstEvalError">ConstEvalError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_impl_method" class="fn">lookup_impl_method</a>(
+        &amp;self,
+        env: Arc&lt;TraitEnvironment&gt;,
+        func: FunctionId,
+        fn_subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; (FunctionId, Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.layout_of_adt" class="fn">layout_of_adt</a>(
+        &amp;self,
+        def: AdtId,
+        subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        env: Arc&lt;TraitEnvironment&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;LayoutData&lt;RustcFieldIdx, RustcEnumVariantIdx&gt;&gt;, <a class="enum" href="../enum.LayoutError.html" title="enum hir::LayoutError">LayoutError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.layout_of_ty" class="fn">layout_of_ty</a>(
+        &amp;self,
+        ty: Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        env: Arc&lt;TraitEnvironment&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;LayoutData&lt;RustcFieldIdx, RustcEnumVariantIdx&gt;&gt;, <a class="enum" href="../enum.LayoutError.html" title="enum hir::LayoutError">LayoutError</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.target_data_layout" class="fn">target_data_layout</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;TargetDataLayout&gt;, Arc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.str.html">str</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.dyn_compatibility_of_trait" class="fn">dyn_compatibility_of_trait</a>(
+        &amp;self,
+        trait_: <a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../enum.DynCompatibilityViolation.html" title="enum hir::DynCompatibilityViolation">DynCompatibilityViolation</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.ty" class="fn">ty</a>(&amp;self, def: TyDefId) -&gt; Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.type_for_type_alias_with_diagnostics" class="fn">type_for_type_alias_with_diagnostics</a>(
+        &amp;self,
+        def: TypeAliasId,
+    ) -&gt; (Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.value_ty" class="fn">value_ty</a>(&amp;self, def: ValueTyDefId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_self_ty_with_diagnostics" class="fn">impl_self_ty_with_diagnostics</a>(
+        &amp;self,
+        def: ImplId,
+    ) -&gt; (Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_self_ty" class="fn">impl_self_ty</a>(&amp;self, def: ImplId) -&gt; Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_param_ty_with_diagnostics" class="fn">const_param_ty_with_diagnostics</a>(
+        &amp;self,
+        def: ConstParamId,
+    ) -&gt; (Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_param_ty" class="fn">const_param_ty</a>(&amp;self, def: ConstParamId) -&gt; Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_trait_with_diagnostics" class="fn">impl_trait_with_diagnostics</a>(
+        &amp;self,
+        def: ImplId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Binders&lt;TraitRef&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_trait" class="fn">impl_trait</a>(&amp;self, def: ImplId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Binders&lt;TraitRef&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.field_types_with_diagnostics" class="fn">field_types_with_diagnostics</a>(
+        &amp;self,
+        var: <a class="enum" href="../diagnostics/enum.VariantId.html" title="enum hir::diagnostics::VariantId">VariantId</a>,
+    ) -&gt; (Arc&lt;ArenaMap&lt;Idx&lt;FieldData&gt;, Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.field_types" class="fn">field_types</a>(
+        &amp;self,
+        var: <a class="enum" href="../diagnostics/enum.VariantId.html" title="enum hir::diagnostics::VariantId">VariantId</a>,
+    ) -&gt; Arc&lt;ArenaMap&lt;Idx&lt;FieldData&gt;, Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.callable_item_signature" class="fn">callable_item_signature</a>(
+        &amp;self,
+        def: CallableDefId,
+    ) -&gt; Binders&lt;CallableSig&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.return_type_impl_traits" class="fn">return_type_impl_traits</a>(
+        &amp;self,
+        def: FunctionId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;Binders&lt;ImplTraits&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.type_alias_impl_traits" class="fn">type_alias_impl_traits</a>(
+        &amp;self,
+        def: TypeAliasId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;Binders&lt;ImplTraits&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_predicates_for_param" class="fn">generic_predicates_for_param</a>(
+        &amp;self,
+        def: GenericDefId,
+        param_id: TypeOrConstParamId,
+        assoc_name: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../struct.Name.html" title="struct hir::Name">Name</a>&gt;,
+    ) -&gt; GenericPredicates;
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_predicates" class="fn">generic_predicates</a>(&amp;self, def: GenericDefId) -&gt; GenericPredicates;
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_predicates_without_parent_with_diagnostics" class="fn">generic_predicates_without_parent_with_diagnostics</a>(
+        &amp;self,
+        def: GenericDefId,
+    ) -&gt; (GenericPredicates, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_predicates_without_parent" class="fn">generic_predicates_without_parent</a>(
+        &amp;self,
+        def: GenericDefId,
+    ) -&gt; GenericPredicates;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_environment_for_body" class="fn">trait_environment_for_body</a>(
+        &amp;self,
+        def: DefWithBodyId,
+    ) -&gt; Arc&lt;TraitEnvironment&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_environment" class="fn">trait_environment</a>(&amp;self, def: GenericDefId) -&gt; Arc&lt;TraitEnvironment&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_defaults_with_diagnostics" class="fn">generic_defaults_with_diagnostics</a>(
+        &amp;self,
+        def: GenericDefId,
+    ) -&gt; (GenericDefaults, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_defaults" class="fn">generic_defaults</a>(&amp;self, def: GenericDefId) -&gt; GenericDefaults;
+<span class="item-spacer"></span>    fn <a href="#tymethod.inherent_impls_in_crate" class="fn">inherent_impls_in_crate</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+    ) -&gt; Arc&lt;InherentImpls&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.inherent_impls_in_block" class="fn">inherent_impls_in_block</a>(
+        &amp;self,
+        block: BlockId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;InherentImpls&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.incoherent_inherent_impl_crates" class="fn">incoherent_inherent_impl_crates</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        fp: <a class="enum" href="../enum.TyFingerprint.html" title="enum hir::TyFingerprint">TyFingerprint</a>,
+    ) -&gt; SmallVec&lt;[Idx&lt;CrateData&gt;; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.array.html">2</a>]&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_impls_in_crate" class="fn">trait_impls_in_crate</a>(&amp;self, krate: Idx&lt;CrateData&gt;) -&gt; Arc&lt;TraitImpls&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_impls_in_block" class="fn">trait_impls_in_block</a>(&amp;self, block: BlockId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;TraitImpls&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_impls_in_deps" class="fn">trait_impls_in_deps</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+    ) -&gt; Arc&lt;[Arc&lt;TraitImpls&gt;]&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.intern_callable_def" class="fn">intern_callable_def</a>(
+        &amp;self,
+        callable_def: CallableDefId,
+    ) -&gt; InternedCallableDefId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_intern_callable_def" class="fn">lookup_intern_callable_def</a>(
+        &amp;self,
+        key: InternedCallableDefId,
+    ) -&gt; CallableDefId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.intern_type_or_const_param_id" class="fn">intern_type_or_const_param_id</a>(
+        &amp;self,
+        param_id: TypeOrConstParamId,
+    ) -&gt; InternedTypeOrConstParamId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_intern_type_or_const_param_id" class="fn">lookup_intern_type_or_const_param_id</a>(
+        &amp;self,
+        key: InternedTypeOrConstParamId,
+    ) -&gt; TypeOrConstParamId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.intern_lifetime_param_id" class="fn">intern_lifetime_param_id</a>(
+        &amp;self,
+        param_id: LifetimeParamId,
+    ) -&gt; InternedLifetimeParamId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_intern_lifetime_param_id" class="fn">lookup_intern_lifetime_param_id</a>(
+        &amp;self,
+        key: InternedLifetimeParamId,
+    ) -&gt; LifetimeParamId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.intern_impl_trait_id" class="fn">intern_impl_trait_id</a>(&amp;self, id: ImplTraitId) -&gt; InternedOpaqueTyId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_intern_impl_trait_id" class="fn">lookup_intern_impl_trait_id</a>(
+        &amp;self,
+        key: InternedOpaqueTyId,
+    ) -&gt; ImplTraitId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.intern_closure" class="fn">intern_closure</a>(&amp;self, id: InternedClosure) -&gt; InternedClosureId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_intern_closure" class="fn">lookup_intern_closure</a>(&amp;self, key: InternedClosureId) -&gt; InternedClosure;
+<span class="item-spacer"></span>    fn <a href="#tymethod.intern_coroutine" class="fn">intern_coroutine</a>(&amp;self, id: InternedCoroutine) -&gt; InternedCoroutineId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.lookup_intern_coroutine" class="fn">lookup_intern_coroutine</a>(
+        &amp;self,
+        key: InternedCoroutineId,
+    ) -&gt; InternedCoroutine;
+<span class="item-spacer"></span>    fn <a href="#tymethod.associated_ty_data" class="fn">associated_ty_data</a>(
+        &amp;self,
+        id: AssocTypeId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;AssociatedTyDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_datum" class="fn">trait_datum</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        trait_id: TraitId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;TraitDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.adt_datum" class="fn">adt_datum</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        struct_id: AdtId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;AdtDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_datum" class="fn">impl_datum</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        impl_id: ImplId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;ImplDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.fn_def_datum" class="fn">fn_def_datum</a>(
+        &amp;self,
+        fn_def_id: FnDefId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;FnDefDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.fn_def_variance" class="fn">fn_def_variance</a>(
+        &amp;self,
+        fn_def_id: FnDefId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; Variances&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.adt_variance" class="fn">adt_variance</a>(&amp;self, adt_id: AdtId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;) -&gt; Variances&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.variances_of" class="fn">variances_of</a>(&amp;self, def: GenericDefId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;[<a class="enum" href="../enum.Variance.html" title="enum hir::Variance">Variance</a>]&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.associated_ty_value" class="fn">associated_ty_value</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        id: AssociatedTyValueId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;AssociatedTyValue&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.normalize_projection" class="fn">normalize_projection</a>(
+        &amp;self,
+        projection: ProjectionTy&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+        env: Arc&lt;TraitEnvironment&gt;,
+    ) -&gt; Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_solve" class="fn">trait_solve</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        block: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockId&gt;,
+        goal: Canonical&lt;InEnvironment&lt;Goal&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Solution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.program_clauses_for_chalk_env" class="fn">program_clauses_for_chalk_env</a>(
+        &amp;self,
+        krate: Idx&lt;CrateData&gt;,
+        block: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockId&gt;,
+        env: Environment&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    ) -&gt; ProgramClauses&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;;
+</details>}</code></pre><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.infer" class="method"><h4 class="code-header">fn <a href="#tymethod.infer" class="fn">infer</a>(&amp;self, def: DefWithBodyId) -&gt; Arc&lt;InferenceResult&gt;</h4></section><section id="tymethod.mir_body" class="method"><h4 class="code-header">fn <a href="#tymethod.mir_body" class="fn">mir_body</a>(&amp;self, def: DefWithBodyId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;</h4></section><section id="tymethod.mir_body_for_closure" class="method"><h4 class="code-header">fn <a href="#tymethod.mir_body_for_closure" class="fn">mir_body_for_closure</a>(
+    &amp;self,
+    def: ClosureId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;</h4></section><section id="tymethod.monomorphized_mir_body" class="method"><h4 class="code-header">fn <a href="#tymethod.monomorphized_mir_body" class="fn">monomorphized_mir_body</a>(
+    &amp;self,
+    def: DefWithBodyId,
+    subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    env: Arc&lt;TraitEnvironment&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;</h4></section><section id="tymethod.monomorphized_mir_body_for_closure" class="method"><h4 class="code-header">fn <a href="#tymethod.monomorphized_mir_body_for_closure" class="fn">monomorphized_mir_body_for_closure</a>(
+    &amp;self,
+    def: ClosureId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    env: Arc&lt;TraitEnvironment&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;<a class="struct" href="../mir/struct.MirBody.html" title="struct hir::mir::MirBody">MirBody</a>&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;</h4></section><section id="tymethod.borrowck" class="method"><h4 class="code-header">fn <a href="#tymethod.borrowck" class="fn">borrowck</a>(
+    &amp;self,
+    def: DefWithBodyId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;[<a class="struct" href="../mir/struct.BorrowckResult.html" title="struct hir::mir::BorrowckResult">BorrowckResult</a>]&gt;, <a class="enum" href="../mir/enum.MirLowerError.html" title="enum hir::mir::MirLowerError">MirLowerError</a>&gt;</h4></section><section id="tymethod.const_eval" class="method"><h4 class="code-header">fn <a href="#tymethod.const_eval" class="fn">const_eval</a>(
+    &amp;self,
+    def: GeneralConstId,
+    subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    trait_env: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;TraitEnvironment&gt;&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Const&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;, <a class="enum" href="../enum.ConstEvalError.html" title="enum hir::ConstEvalError">ConstEvalError</a>&gt;</h4></section><section id="tymethod.const_eval_static" class="method"><h4 class="code-header">fn <a href="#tymethod.const_eval_static" class="fn">const_eval_static</a>(
+    &amp;self,
+    def: StaticId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Const&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;, <a class="enum" href="../enum.ConstEvalError.html" title="enum hir::ConstEvalError">ConstEvalError</a>&gt;</h4></section><section id="tymethod.const_eval_discriminant" class="method"><h4 class="code-header">fn <a href="#tymethod.const_eval_discriminant" class="fn">const_eval_discriminant</a>(
+    &amp;self,
+    def: EnumVariantId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.i128.html">i128</a>, <a class="enum" href="../enum.ConstEvalError.html" title="enum hir::ConstEvalError">ConstEvalError</a>&gt;</h4></section><section id="tymethod.lookup_impl_method" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_impl_method" class="fn">lookup_impl_method</a>(
+    &amp;self,
+    env: Arc&lt;TraitEnvironment&gt;,
+    func: FunctionId,
+    fn_subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; (FunctionId, Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;)</h4></section><section id="tymethod.layout_of_adt" class="method"><h4 class="code-header">fn <a href="#tymethod.layout_of_adt" class="fn">layout_of_adt</a>(
+    &amp;self,
+    def: AdtId,
+    subst: Substitution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    env: Arc&lt;TraitEnvironment&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;LayoutData&lt;RustcFieldIdx, RustcEnumVariantIdx&gt;&gt;, <a class="enum" href="../enum.LayoutError.html" title="enum hir::LayoutError">LayoutError</a>&gt;</h4></section><section id="tymethod.layout_of_ty" class="method"><h4 class="code-header">fn <a href="#tymethod.layout_of_ty" class="fn">layout_of_ty</a>(
+    &amp;self,
+    ty: Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    env: Arc&lt;TraitEnvironment&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;LayoutData&lt;RustcFieldIdx, RustcEnumVariantIdx&gt;&gt;, <a class="enum" href="../enum.LayoutError.html" title="enum hir::LayoutError">LayoutError</a>&gt;</h4></section><section id="tymethod.target_data_layout" class="method"><h4 class="code-header">fn <a href="#tymethod.target_data_layout" class="fn">target_data_layout</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Arc&lt;TargetDataLayout&gt;, Arc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.str.html">str</a>&gt;&gt;</h4></section><section id="tymethod.dyn_compatibility_of_trait" class="method"><h4 class="code-header">fn <a href="#tymethod.dyn_compatibility_of_trait" class="fn">dyn_compatibility_of_trait</a>(
+    &amp;self,
+    trait_: <a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../enum.DynCompatibilityViolation.html" title="enum hir::DynCompatibilityViolation">DynCompatibilityViolation</a>&gt;</h4></section><section id="tymethod.ty" class="method"><h4 class="code-header">fn <a href="#tymethod.ty" class="fn">ty</a>(&amp;self, def: TyDefId) -&gt; Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.type_for_type_alias_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.type_for_type_alias_with_diagnostics" class="fn">type_for_type_alias_with_diagnostics</a>(
+    &amp;self,
+    def: TypeAliasId,
+) -&gt; (Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.value_ty" class="method"><h4 class="code-header">fn <a href="#tymethod.value_ty" class="fn">value_ty</a>(&amp;self, def: ValueTyDefId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;</h4></section></summary><div class="docblock"><p>Returns the type of the value of the given constant, or <code>None</code> if the <code>ValueTyDefId</code> is
+a <code>StructId</code> or <code>EnumVariantId</code> with a record constructor.</p>
+</div></details><section id="tymethod.impl_self_ty_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_self_ty_with_diagnostics" class="fn">impl_self_ty_with_diagnostics</a>(
+    &amp;self,
+    def: ImplId,
+) -&gt; (Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)</h4></section><section id="tymethod.impl_self_ty" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_self_ty" class="fn">impl_self_ty</a>(&amp;self, def: ImplId) -&gt; Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.const_param_ty_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.const_param_ty_with_diagnostics" class="fn">const_param_ty_with_diagnostics</a>(
+    &amp;self,
+    def: ConstParamId,
+) -&gt; (Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)</h4></section><section id="tymethod.const_param_ty" class="method"><h4 class="code-header">fn <a href="#tymethod.const_param_ty" class="fn">const_param_ty</a>(&amp;self, def: ConstParamId) -&gt; Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section><section id="tymethod.impl_trait_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_trait_with_diagnostics" class="fn">impl_trait_with_diagnostics</a>(
+    &amp;self,
+    def: ImplId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Binders&lt;TraitRef&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)&gt;</h4></section><section id="tymethod.impl_trait" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_trait" class="fn">impl_trait</a>(&amp;self, def: ImplId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Binders&lt;TraitRef&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;</h4></section><section id="tymethod.field_types_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.field_types_with_diagnostics" class="fn">field_types_with_diagnostics</a>(
+    &amp;self,
+    var: <a class="enum" href="../diagnostics/enum.VariantId.html" title="enum hir::diagnostics::VariantId">VariantId</a>,
+) -&gt; (Arc&lt;ArenaMap&lt;Idx&lt;FieldData&gt;, Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;&gt;, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)</h4></section><section id="tymethod.field_types" class="method"><h4 class="code-header">fn <a href="#tymethod.field_types" class="fn">field_types</a>(
+    &amp;self,
+    var: <a class="enum" href="../diagnostics/enum.VariantId.html" title="enum hir::diagnostics::VariantId">VariantId</a>,
+) -&gt; Arc&lt;ArenaMap&lt;Idx&lt;FieldData&gt;, Binders&lt;Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;&gt;</h4></section><section id="tymethod.callable_item_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.callable_item_signature" class="fn">callable_item_signature</a>(&amp;self, def: CallableDefId) -&gt; Binders&lt;CallableSig&gt;</h4></section><section id="tymethod.return_type_impl_traits" class="method"><h4 class="code-header">fn <a href="#tymethod.return_type_impl_traits" class="fn">return_type_impl_traits</a>(
+    &amp;self,
+    def: FunctionId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;Binders&lt;ImplTraits&gt;&gt;&gt;</h4></section><section id="tymethod.type_alias_impl_traits" class="method"><h4 class="code-header">fn <a href="#tymethod.type_alias_impl_traits" class="fn">type_alias_impl_traits</a>(
+    &amp;self,
+    def: TypeAliasId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;Binders&lt;ImplTraits&gt;&gt;&gt;</h4></section><section id="tymethod.generic_predicates_for_param" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_predicates_for_param" class="fn">generic_predicates_for_param</a>(
+    &amp;self,
+    def: GenericDefId,
+    param_id: TypeOrConstParamId,
+    assoc_name: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../struct.Name.html" title="struct hir::Name">Name</a>&gt;,
+) -&gt; GenericPredicates</h4></section><section id="tymethod.generic_predicates" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_predicates" class="fn">generic_predicates</a>(&amp;self, def: GenericDefId) -&gt; GenericPredicates</h4></section><section id="tymethod.generic_predicates_without_parent_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_predicates_without_parent_with_diagnostics" class="fn">generic_predicates_without_parent_with_diagnostics</a>(
+    &amp;self,
+    def: GenericDefId,
+) -&gt; (GenericPredicates, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)</h4></section><section id="tymethod.generic_predicates_without_parent" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_predicates_without_parent" class="fn">generic_predicates_without_parent</a>(
+    &amp;self,
+    def: GenericDefId,
+) -&gt; GenericPredicates</h4></section><section id="tymethod.trait_environment_for_body" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_environment_for_body" class="fn">trait_environment_for_body</a>(
+    &amp;self,
+    def: DefWithBodyId,
+) -&gt; Arc&lt;TraitEnvironment&gt;</h4></section><section id="tymethod.trait_environment" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_environment" class="fn">trait_environment</a>(&amp;self, def: GenericDefId) -&gt; Arc&lt;TraitEnvironment&gt;</h4></section><section id="tymethod.generic_defaults_with_diagnostics" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_defaults_with_diagnostics" class="fn">generic_defaults_with_diagnostics</a>(
+    &amp;self,
+    def: GenericDefId,
+) -&gt; (GenericDefaults, <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ThinArc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.unit.html">()</a>, TyLoweringDiagnostic&gt;&gt;)</h4></section><section id="tymethod.generic_defaults" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_defaults" class="fn">generic_defaults</a>(&amp;self, def: GenericDefId) -&gt; GenericDefaults</h4></section><section id="tymethod.inherent_impls_in_crate" class="method"><h4 class="code-header">fn <a href="#tymethod.inherent_impls_in_crate" class="fn">inherent_impls_in_crate</a>(&amp;self, krate: Idx&lt;CrateData&gt;) -&gt; Arc&lt;InherentImpls&gt;</h4></section><section id="tymethod.inherent_impls_in_block" class="method"><h4 class="code-header">fn <a href="#tymethod.inherent_impls_in_block" class="fn">inherent_impls_in_block</a>(&amp;self, block: BlockId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;InherentImpls&gt;&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.incoherent_inherent_impl_crates" class="method"><h4 class="code-header">fn <a href="#tymethod.incoherent_inherent_impl_crates" class="fn">incoherent_inherent_impl_crates</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    fp: <a class="enum" href="../enum.TyFingerprint.html" title="enum hir::TyFingerprint">TyFingerprint</a>,
+) -&gt; SmallVec&lt;[Idx&lt;CrateData&gt;; <a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.array.html">2</a>]&gt;</h4></section></summary><div class="docblock"><p>Collects all crates in the dependency graph that have impls for the
+given fingerprint. This is only used for primitive types and types
+annotated with <code>rustc_has_incoherent_inherent_impls</code>; for other types
+we just look at the crate where the type is defined.</p>
+</div></details><section id="tymethod.trait_impls_in_crate" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_impls_in_crate" class="fn">trait_impls_in_crate</a>(&amp;self, krate: Idx&lt;CrateData&gt;) -&gt; Arc&lt;TraitImpls&gt;</h4></section><section id="tymethod.trait_impls_in_block" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_impls_in_block" class="fn">trait_impls_in_block</a>(&amp;self, block: BlockId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;TraitImpls&gt;&gt;</h4></section><section id="tymethod.trait_impls_in_deps" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_impls_in_deps" class="fn">trait_impls_in_deps</a>(&amp;self, krate: Idx&lt;CrateData&gt;) -&gt; Arc&lt;[Arc&lt;TraitImpls&gt;]&gt;</h4></section><section id="tymethod.intern_callable_def" class="method"><h4 class="code-header">fn <a href="#tymethod.intern_callable_def" class="fn">intern_callable_def</a>(
+    &amp;self,
+    callable_def: CallableDefId,
+) -&gt; InternedCallableDefId</h4></section><section id="tymethod.lookup_intern_callable_def" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_intern_callable_def" class="fn">lookup_intern_callable_def</a>(
+    &amp;self,
+    key: InternedCallableDefId,
+) -&gt; CallableDefId</h4></section><section id="tymethod.intern_type_or_const_param_id" class="method"><h4 class="code-header">fn <a href="#tymethod.intern_type_or_const_param_id" class="fn">intern_type_or_const_param_id</a>(
+    &amp;self,
+    param_id: TypeOrConstParamId,
+) -&gt; InternedTypeOrConstParamId</h4></section><section id="tymethod.lookup_intern_type_or_const_param_id" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_intern_type_or_const_param_id" class="fn">lookup_intern_type_or_const_param_id</a>(
+    &amp;self,
+    key: InternedTypeOrConstParamId,
+) -&gt; TypeOrConstParamId</h4></section><section id="tymethod.intern_lifetime_param_id" class="method"><h4 class="code-header">fn <a href="#tymethod.intern_lifetime_param_id" class="fn">intern_lifetime_param_id</a>(
+    &amp;self,
+    param_id: LifetimeParamId,
+) -&gt; InternedLifetimeParamId</h4></section><section id="tymethod.lookup_intern_lifetime_param_id" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_intern_lifetime_param_id" class="fn">lookup_intern_lifetime_param_id</a>(
+    &amp;self,
+    key: InternedLifetimeParamId,
+) -&gt; LifetimeParamId</h4></section><section id="tymethod.intern_impl_trait_id" class="method"><h4 class="code-header">fn <a href="#tymethod.intern_impl_trait_id" class="fn">intern_impl_trait_id</a>(&amp;self, id: ImplTraitId) -&gt; InternedOpaqueTyId</h4></section><section id="tymethod.lookup_intern_impl_trait_id" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_intern_impl_trait_id" class="fn">lookup_intern_impl_trait_id</a>(&amp;self, key: InternedOpaqueTyId) -&gt; ImplTraitId</h4></section><section id="tymethod.intern_closure" class="method"><h4 class="code-header">fn <a href="#tymethod.intern_closure" class="fn">intern_closure</a>(&amp;self, id: InternedClosure) -&gt; InternedClosureId</h4></section><section id="tymethod.lookup_intern_closure" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_intern_closure" class="fn">lookup_intern_closure</a>(&amp;self, key: InternedClosureId) -&gt; InternedClosure</h4></section><section id="tymethod.intern_coroutine" class="method"><h4 class="code-header">fn <a href="#tymethod.intern_coroutine" class="fn">intern_coroutine</a>(&amp;self, id: InternedCoroutine) -&gt; InternedCoroutineId</h4></section><section id="tymethod.lookup_intern_coroutine" class="method"><h4 class="code-header">fn <a href="#tymethod.lookup_intern_coroutine" class="fn">lookup_intern_coroutine</a>(&amp;self, key: InternedCoroutineId) -&gt; InternedCoroutine</h4></section><section id="tymethod.associated_ty_data" class="method"><h4 class="code-header">fn <a href="#tymethod.associated_ty_data" class="fn">associated_ty_data</a>(
+    &amp;self,
+    id: AssocTypeId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;AssociatedTyDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.trait_datum" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_datum" class="fn">trait_datum</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    trait_id: TraitId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;TraitDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.adt_datum" class="method"><h4 class="code-header">fn <a href="#tymethod.adt_datum" class="fn">adt_datum</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    struct_id: AdtId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;AdtDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.impl_datum" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_datum" class="fn">impl_datum</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    impl_id: ImplId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;ImplDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.fn_def_datum" class="method"><h4 class="code-header">fn <a href="#tymethod.fn_def_datum" class="fn">fn_def_datum</a>(
+    &amp;self,
+    fn_def_id: FnDefId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;FnDefDatum&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.fn_def_variance" class="method"><h4 class="code-header">fn <a href="#tymethod.fn_def_variance" class="fn">fn_def_variance</a>(&amp;self, fn_def_id: FnDefId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;) -&gt; Variances&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section><section id="tymethod.adt_variance" class="method"><h4 class="code-header">fn <a href="#tymethod.adt_variance" class="fn">adt_variance</a>(&amp;self, adt_id: AdtId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;) -&gt; Variances&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section><section id="tymethod.variances_of" class="method"><h4 class="code-header">fn <a href="#tymethod.variances_of" class="fn">variances_of</a>(&amp;self, def: GenericDefId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;[<a class="enum" href="../enum.Variance.html" title="enum hir::Variance">Variance</a>]&gt;&gt;</h4></section><section id="tymethod.associated_ty_value" class="method"><h4 class="code-header">fn <a href="#tymethod.associated_ty_value" class="fn">associated_ty_value</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    id: AssociatedTyValueId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;AssociatedTyValue&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.normalize_projection" class="method"><h4 class="code-header">fn <a href="#tymethod.normalize_projection" class="fn">normalize_projection</a>(
+    &amp;self,
+    projection: ProjectionTy&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+    env: Arc&lt;TraitEnvironment&gt;,
+) -&gt; Ty&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section><section id="tymethod.trait_solve" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_solve" class="fn">trait_solve</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    block: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockId&gt;,
+    goal: Canonical&lt;InEnvironment&lt;Goal&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Solution&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;&gt;</h4></section><section id="tymethod.program_clauses_for_chalk_env" class="method"><h4 class="code-header">fn <a href="#tymethod.program_clauses_for_chalk_env" class="fn">program_clauses_for_chalk_env</a>(
+    &amp;self,
+    krate: Idx&lt;CrateData&gt;,
+    block: <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockId&gt;,
+    env: Environment&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;,
+) -&gt; ProgramClauses&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section></div><h2 id="trait-implementations" class="section-header">Trait Implementations<a href="#trait-implementations" class="anchor">§</a></h2><div id="trait-implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-UnificationDatabase%3CInterner%3E-for-%26dyn+HirDatabase" class="impl"><a href="#impl-UnificationDatabase%3CInterner%3E-for-%26dyn+HirDatabase" class="anchor">§</a><h3 class="code-header">impl UnificationDatabase&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt; for &amp;dyn <a class="trait" href="trait.HirDatabase.html" title="trait hir::db::HirDatabase">HirDatabase</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.fn_def_variance" class="method trait-impl"><a href="#method.fn_def_variance" class="anchor">§</a><h4 class="code-header">fn <a class="fn">fn_def_variance</a>(&amp;self, fn_def_id: FnDefId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;) -&gt; Variances&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section></summary><div class='docblock'>Gets the variances for the substitution of a fn def</div></details><details class="toggle method-toggle" open><summary><section id="method.adt_variance" class="method trait-impl"><a href="#method.adt_variance" class="anchor">§</a><h4 class="code-header">fn <a class="fn">adt_variance</a>(&amp;self, adt_id: AdtId&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;) -&gt; Variances&lt;<a class="struct" href="../struct.ChalkTyInterner.html" title="struct hir::ChalkTyInterner">Interner</a>&gt;</h4></section></summary><div class='docblock'>Gets the variances for the substitution of a adt</div></details></div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-HirDatabase-for-DB" class="impl"><a href="#impl-HirDatabase-for-DB" class="anchor">§</a><h3 class="code-header">impl&lt;DB&gt; <a class="trait" href="trait.HirDatabase.html" title="trait hir::db::HirDatabase">HirDatabase</a> for DB<div class="where">where
+    DB: <a class="trait" href="trait.DefDatabase.html" title="trait hir::db::DefDatabase">DefDatabase</a> + Upcast&lt;dyn <a class="trait" href="trait.DefDatabase.html" title="trait hir::db::DefDatabase">DefDatabase</a>&gt; + Database + HasQueryGroup&lt;<a class="struct" href="struct.HirDatabaseStorage.html" title="struct hir::db::HirDatabaseStorage">HirDatabaseStorage</a>&gt;,</div></h3></section></div><script src="../../trait.impl/hir_ty/db/trait.HirDatabase.js" async></script></section></div></main></body></html>

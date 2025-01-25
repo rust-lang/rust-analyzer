@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ImportOrDef","ImportOrExternCrate","ImportOrGlob","ItemInNs"],"struct":["GlobId","ImportId","ItemScope","PerNsGlobImports"]};
