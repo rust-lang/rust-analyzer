@@ -9,12 +9,12 @@ use chalk_ir::{DebruijnIndex, Mutability, TyVariableKind, cast::Cast, fold::Shif
 use either::Either;
 use hir_def::{
     BlockId, FieldId, GenericDefId, GenericParamId, ItemContainerId, Lookup, TupleFieldId, TupleId,
+    expr_store::path::{GenericArg, GenericArgs, Path},
     hir::{
         ArithOp, Array, AsmOperand, AsmOptions, BinaryOp, ClosureKind, Expr, ExprId, ExprOrPatId,
         LabelId, Literal, Pat, PatId, Statement, UnaryOp,
     },
     lang_item::{LangItem, LangItemTarget},
-    path::{GenericArg, GenericArgs, Path},
     resolver::ValueNs,
 };
 use hir_expand::name::Name;
@@ -38,9 +38,7 @@ use crate::{
         pat::contains_explicit_ref_binding,
     },
     lang_items::lang_items_for_bin_op,
-    lower::{
-        ParamLoweringMode, const_or_path_to_chalk, generic_arg_to_chalk, lower_to_chalk_mutability,
-    },
+    lower::{ParamLoweringMode, generic_arg_to_chalk, lower_to_chalk_mutability},
     mapping::{ToChalk, from_chalk},
     method_resolution::{self, VisibleFromModule},
     primitive::{self, UintTy},
@@ -349,8 +347,7 @@ impl InferenceContext<'_> {
             }
             Expr::Const(id) => {
                 self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {
-                    let loc = this.db.lookup_intern_anonymous_const(*id);
-                    this.infer_expr(loc.root, expected, ExprIsRead::Yes)
+                    this.infer_expr(*id, expected, ExprIsRead::Yes)
                 })
                 .1
             }
@@ -907,7 +904,9 @@ impl InferenceContext<'_> {
             }
             Expr::Index { base, index } => {
                 let base_ty = self.infer_expr_inner(*base, &Expectation::none(), ExprIsRead::Yes);
+                dbg!(&base_ty);
                 let index_ty = self.infer_expr(*index, &Expectation::none(), ExprIsRead::Yes);
+                dbg!(&index_ty);
 
                 if let Some(index_trait) = self.resolve_lang_trait(LangItem::Index) {
                     let canonicalized = self.canonicalize(base_ty.clone());
@@ -917,10 +916,13 @@ impl InferenceContext<'_> {
                         canonicalized,
                         index_trait,
                     );
+                    dbg!(&receiver_adjustments);
                     let (self_ty, mut adj) = receiver_adjustments
                         .map_or((self.err_ty(), Vec::new()), |adj| {
                             adj.apply(&mut self.table, base_ty)
                         });
+                    dbg!(&self_ty);
+
                     // mutability will be fixed up in `InferenceContext::infer_mut`;
                     adj.push(Adjustment::borrow(
                         Mutability::Not,
@@ -934,6 +936,7 @@ impl InferenceContext<'_> {
                         .method_by_name(&Name::new_symbol_root(sym::index.clone()))
                     {
                         let subst = TyBuilder::subst_for_def(self.db, index_trait, None);
+                        dbg!(subst.remaining());
                         if subst.remaining() != 2 {
                             return self.err_ty();
                         }
@@ -1678,12 +1681,12 @@ impl InferenceContext<'_> {
                     });
                 }
                 &TyKind::Adt(AdtId(hir_def::AdtId::StructId(s)), ref parameters) => {
-                    let local_id = self.db.variant_data(s.into()).field(name)?;
+                    let local_id = self.db.variant_fields(s.into()).field(name)?;
                     let field = FieldId { parent: s.into(), local_id };
                     (field, parameters.clone())
                 }
                 &TyKind::Adt(AdtId(hir_def::AdtId::UnionId(u)), ref parameters) => {
-                    let local_id = self.db.variant_data(u.into()).field(name)?;
+                    let local_id = self.db.variant_fields(u.into()).field(name)?;
                     let field = FieldId { parent: u.into(), local_id };
                     (field, parameters.clone())
                 }
@@ -2214,20 +2217,10 @@ impl InferenceContext<'_> {
                         kind_id,
                         args.next().unwrap(), // `peek()` is `Some(_)`, so guaranteed no panic
                         self,
-                        &self.body.types,
+                        &self.body.store,
                         |this, type_ref| this.make_body_ty(type_ref),
-                        |this, c, ty| {
-                            const_or_path_to_chalk(
-                                this.db,
-                                &this.resolver,
-                                this.owner.into(),
-                                ty,
-                                c,
-                                ParamLoweringMode::Placeholder,
-                                || this.generics(),
-                                DebruijnIndex::INNERMOST,
-                            )
-                        },
+                        |this, c, ty| this.make_body_const(*c, ty),
+                        |this, path, ty| this.make_path_as_body_const(path, ty),
                         |this, lt_ref| this.make_body_lifetime(lt_ref),
                     ),
                 };
@@ -2307,7 +2300,7 @@ impl InferenceContext<'_> {
             _ => return Default::default(),
         };
 
-        let data = self.db.function_data(func);
+        let data = self.db.function_signature(func);
         let Some(legacy_const_generics_indices) = &data.legacy_const_generics_indices else {
             return Default::default();
         };

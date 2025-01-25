@@ -1013,7 +1013,7 @@ where
     T: ?Sized + TypeVisitable<Interner>,
 {
     let mut collector = PlaceholderCollector { db, placeholders: FxHashSet::default() };
-    value.visit_with(&mut collector, DebruijnIndex::INNERMOST);
+    _ = value.visit_with(&mut collector, DebruijnIndex::INNERMOST);
     collector.placeholders.into_iter().collect()
 }
 
@@ -1022,15 +1022,6 @@ pub fn known_const_to_ast(
     db: &dyn HirDatabase,
     display_target: DisplayTarget,
 ) -> Option<ConstArg> {
-    if let ConstValue::Concrete(c) = &konst.interned().value {
-        match c.interned {
-            ConstScalar::UnevaluatedConst(GeneralConstId::InTypeConstId(cid), _) => {
-                return Some(cid.source(db.upcast()));
-            }
-            ConstScalar::Unknown => return None,
-            _ => (),
-        }
-    }
     Some(make::expr_const_value(konst.display(db, display_target).to_string().as_str()))
 }
 
