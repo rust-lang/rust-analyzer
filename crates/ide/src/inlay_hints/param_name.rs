@@ -8,6 +8,7 @@ use either::Either;
 use hir::{Callable, Semantics};
 use ide_db::{famous_defs::FamousDefs, RootDatabase};
 
+use itertools::{EitherOrBoth, Itertools};
 use span::EditionedFileId;
 use stdx::to_lower_snake_case;
 use syntax::{
@@ -124,6 +125,7 @@ fn should_hide_param_name_hint(
     };
     let fn_name = fn_name.as_deref();
     is_param_name_suffix_of_fn_name(param_name, callable, fn_name)
+        || is_param_name_same_as_field_expr(argument, param_name)
         || is_argument_expr_similar_to_param_name(argument, param_name)
         || param_name.starts_with("ra_fixture")
         || (callable.n_params() == 1 && is_obvious_param(param_name))
@@ -152,6 +154,18 @@ fn is_param_name_suffix_of_fn_name(
         }
         _ => false,
     }
+}
+
+/// `a_b_c_d` will match `a.b.c.d`
+fn is_param_name_same_as_field_expr(argument: &ast::Expr, param_name: &str) -> bool {
+    let ast::Expr::FieldExpr(argument) = argument else {
+        return false;
+    };
+
+    let argument = argument.to_string();
+    let param_split = param_name.split('_');
+    let argument_split = argument.split('.');
+    param_split.zip_longest(argument_split).all(|v| matches!(v, EitherOrBoth::Both(l, r) if l == r))
 }
 
 fn is_argument_expr_similar_to_param_name(argument: &ast::Expr, param_name: &str) -> bool {
@@ -508,6 +522,14 @@ enum CompletionKind {
 
 fn non_ident_pat((a, b): (u32, u32)) {}
 
+struct Abc {
+    def: Def
+}
+struct Def {
+    ijk: i32
+}
+fn baz(abc_def_ijk: i32) {}
+
 fn main() {
     const PARAM: u32 = 0;
     foo(PARAM);
@@ -553,6 +575,13 @@ fn main() {
       //^^^^^^^^^^^ param_eter
 
     non_ident_pat((0, 0));
+
+    let abc = Abc { def: Def { ijk: 42 } };
+    baz(abc.def.ijk);
+
+    let a = Abc { def: Def { ijk: 43 } };
+    baz(a.def.ijk);
+      //^^^^^^^^^ abc_def_ijk
 }"#,
         );
     }
