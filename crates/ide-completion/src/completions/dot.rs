@@ -1500,7 +1500,9 @@ fn main() {
     bar.$0
 }
 "#,
-            expect![[r#""#]],
+            expect![[r#"
+                me foo() fn(self: Bar)
+            "#]],
         );
     }
 

@@ -2163,9 +2163,49 @@ impl Receiver for Bar {
 fn main() {
     let bar = Bar;
     let _v1 = bar.foo1();
-      //^^^ type: {unknown}
+      //^^^ type: i32
     let _v2 = bar.foo2();
-      //^^^ type: {unknown}
+      //^^^ type: bool
+}
+"#,
+    );
+}
+
+#[test]
+fn receiver_autoderef_fallback() {
+    check(
+        r#"
+//- minicore: deref
+use core::ops::Deref;
+
+// This lacks `impl<P: ?Sized, T: ?Sized> Receiver for P where P: Deref<Target = T>`,
+// like old versions of rust-std
+#[lang = "receiver"]
+pub trait Receiver {
+    #[lang = "receiver_target"]
+    type Target: ?Sized;
+}
+
+struct Foo;
+
+impl Foo {
+    fn foo(&self) -> i32 { 42 }
+}
+
+struct Bar;
+
+impl Deref for Bar {
+    type Target = Foo;
+
+    fn deref(&self) -> &Self::Target {
+        loop {}
+    }
+}
+
+fn main() {
+    let bar = Bar;
+    let _v = bar.foo();
+      //^^ type: i32
 }
 "#,
     );

@@ -6,15 +6,15 @@
 use std::mem;
 
 use chalk_ir::cast::Cast;
-use hir_def::lang_item::LangItem;
+use hir_def::{lang_item::LangItem, TraitId, TypeAliasId};
 use hir_expand::name::Name;
 use intern::sym;
 use limit::Limit;
 use triomphe::Arc;
 
 use crate::{
-    db::HirDatabase, infer::unify::InferenceTable, Canonical, Goal, Interner, ProjectionTyExt,
-    TraitEnvironment, Ty, TyBuilder, TyKind,
+    db::HirDatabase, infer::unify::InferenceTable, Binders, Canonical, DomainGoal, Goal, GoalData,
+    Interner, ProgramClauses, ProjectionTyExt, TraitEnvironment, Ty, TyBuilder, TyKind,
 };
 
 static AUTODEREF_RECURSION_LIMIT: Limit = Limit::new(20);
@@ -193,26 +193,65 @@ pub(crate) fn deref_by_trait(
         return None;
     }
 
-    let trait_id = || {
-        // FIXME: Remove the `false` once `Receiver` needs to be stabilized, doing so will
-        // effectively bump the MSRV of rust-analyzer to 1.84 due to 1.83 and below lacking the
-        // blanked impl on `Deref`.
-        #[expect(clippy::overly_complex_bool_expr)]
-        if use_receiver_trait && false {
-            if let Some(receiver) =
+    let deref_trait =
+        db.lang_item(table.trait_env.krate, LangItem::Deref).and_then(|l| l.as_trait())?;
+    let deref_target = db
+        .trait_data(deref_trait)
+        .associated_type_by_name(&Name::new_symbol_root(sym::Target.clone()))?;
+    let mut trait_ = || {
+        if use_receiver_trait {
+            if let Some(receiver_trait) =
                 db.lang_item(table.trait_env.krate, LangItem::Receiver).and_then(|l| l.as_trait())
             {
-                return Some(receiver);
+                // FIXME: The following lines check whether the current rust-std contains blancket
+                // implementation of `Receiver` trait for the implementors of `Deref`.
+                // Remove this once `Receiver` needs to be stabilized, doing so will
+                // effectively bump the MSRV of rust-analyzer to 1.84 due to 1.83 and below lacking the
+                // blanked impl on `Deref`.
+                let proj = |trait_id: TraitId, target: TypeAliasId| {
+                    Binders::with_fresh_type_var(Interner, |ty| {
+                        let b = TyBuilder::subst_for_def(db, trait_id, None);
+                        if b.remaining() != 1 {
+                            // the Target type + Deref trait should only have one generic parameter,
+                            // namely Deref's Self type
+                            return None;
+                        }
+                        let deref_subst = b.push(ty.clone()).build();
+                        Some(
+                            TyBuilder::assoc_type_projection(db, target, Some(deref_subst)).build(),
+                        )
+                    })
+                };
+                let deref_proj =
+                    proj(deref_trait, deref_target).filter_map(std::convert::identity)?;
+                let deref_trait_ref = deref_proj.map(|it| it.trait_ref(db));
+                let receiver_target = db
+                    .trait_data(receiver_trait)
+                    .associated_type_by_name(&Name::new_symbol_root(sym::Target.clone()))?;
+                let receiver_proj =
+                    proj(receiver_trait, receiver_target).filter_map(std::convert::identity)?;
+                let receiver_trait_ref = receiver_proj.map(|it| it.trait_ref(db));
+                // if P: Deref<Target = T> then P: Receiver<Target = T>
+                let implements_goal: Goal = GoalData::Implies(
+                    ProgramClauses::from_iter(
+                        Interner,
+                        [deref_trait_ref.clone().map(|it| it.cast::<DomainGoal>(Interner))],
+                    ),
+                    receiver_trait_ref.cast(Interner),
+                )
+                .intern(Interner);
+                if table.try_obligation(implements_goal).is_some() {
+                    return Some((receiver_trait, receiver_target));
+                }
             }
         }
-        // Old rustc versions might not have `Receiver` trait.
-        // Fallback to `Deref` if they don't
-        db.lang_item(table.trait_env.krate, LangItem::Deref).and_then(|l| l.as_trait())
+        None
     };
-    let trait_id = trait_id()?;
-    let target = db
-        .trait_data(trait_id)
-        .associated_type_by_name(&Name::new_symbol_root(sym::Target.clone()))?;
+
+    // Old rust-std versions may not have `Receiver` trait or
+    // `impl<P: ?Sized, T: ?Sized> Receiver for P where P: Deref<Target = T>`.
+    // Fallback to `Deref` if they don't
+    let (trait_id, target) = trait_().unwrap_or((deref_trait, deref_target));
 
     let projection = {
         let b = TyBuilder::subst_for_def(db, trait_id, None);
