@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Database which stores all significant input facts: source code and project model. Everything else in rust-analyzer is derived from these queries."><title>SourceDatabase in base_db - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="base_db" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../base_db/index.html">base_db</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Source<wbr>Database</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.compressed_file_text" title="compressed_file_text">compressed_file_text</a></li><li><a href="#tymethod.crate_graph" title="crate_graph">crate_graph</a></li><li><a href="#tymethod.crate_workspace_data" title="crate_workspace_data">crate_workspace_data</a></li><li><a href="#tymethod.file_text" title="file_text">file_text</a></li><li><a href="#tymethod.parse" title="parse">parse</a></li><li><a href="#tymethod.parse_errors" title="parse_errors">parse_errors</a></li><li><a href="#tymethod.set_compressed_file_text" title="set_compressed_file_text">set_compressed_file_text</a></li><li><a href="#tymethod.set_compressed_file_text_with_durability" title="set_compressed_file_text_with_durability">set_compressed_file_text_with_durability</a></li><li><a href="#tymethod.set_crate_graph" title="set_crate_graph">set_crate_graph</a></li><li><a href="#tymethod.set_crate_graph_with_durability" title="set_crate_graph_with_durability">set_crate_graph_with_durability</a></li><li><a href="#tymethod.set_crate_workspace_data" title="set_crate_workspace_data">set_crate_workspace_data</a></li><li><a href="#tymethod.set_crate_workspace_data_with_durability" title="set_crate_workspace_data_with_durability">set_crate_workspace_data_with_durability</a></li><li><a href="#tymethod.toolchain_channel" title="toolchain_channel">toolchain_channel</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate base_<wbr>db</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="index.html">base_db</a></span><h1>Trait <span class="trait">SourceDatabase</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/base_db/lib.rs.html#58">Source</a> </span></div><pre class="rust item-decl"><code>pub trait SourceDatabase:
+    Database
+    + HasQueryGroup&lt;<a class="struct" href="struct.SourceDatabaseStorage.html" title="struct base_db::SourceDatabaseStorage">SourceDatabaseStorage</a>&gt;
+    + <a class="trait" href="trait.FileLoader.html" title="trait base_db::FileLoader">FileLoader</a>
+    + <a class="trait" href="https://doc.rust-lang.org/1.84.0/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 13 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.compressed_file_text" class="fn">compressed_file_text</a>(&amp;self, file_id: FileId) -&gt; Arc&lt;[<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.u8.html">u8</a>]&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_compressed_file_text" class="fn">set_compressed_file_text</a>(&amp;mut self, file_id: FileId, value__: Arc&lt;[<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.u8.html">u8</a>]&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_compressed_file_text_with_durability" class="fn">set_compressed_file_text_with_durability</a>(
+        &amp;mut self,
+        file_id: FileId,
+        value__: Arc&lt;[<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.u8.html">u8</a>]&gt;,
+        durability__: Durability,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.file_text" class="fn">file_text</a>(&amp;self, file_id: FileId) -&gt; Arc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.str.html">str</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.parse" class="fn">parse</a>(&amp;self, file_id: EditionedFileId) -&gt; Parse&lt;SourceFile&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.parse_errors" class="fn">parse_errors</a>(
+        &amp;self,
+        file_id: EditionedFileId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;[SyntaxError]&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.crate_graph" class="fn">crate_graph</a>(&amp;self) -&gt; Arc&lt;<a class="struct" href="struct.CrateGraph.html" title="struct base_db::CrateGraph">CrateGraph</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_crate_graph" class="fn">set_crate_graph</a>(&amp;mut self, value__: Arc&lt;<a class="struct" href="struct.CrateGraph.html" title="struct base_db::CrateGraph">CrateGraph</a>&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_crate_graph_with_durability" class="fn">set_crate_graph_with_durability</a>(
+        &amp;mut self,
+        value__: Arc&lt;<a class="struct" href="struct.CrateGraph.html" title="struct base_db::CrateGraph">CrateGraph</a>&gt;,
+        durability__: Durability,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.crate_workspace_data" class="fn">crate_workspace_data</a>(
+        &amp;self,
+    ) -&gt; Arc&lt;FxHashMap&lt;<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>, Arc&lt;<a class="struct" href="struct.CrateWorkspaceData.html" title="struct base_db::CrateWorkspaceData">CrateWorkspaceData</a>&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_crate_workspace_data" class="fn">set_crate_workspace_data</a>(
+        &amp;mut self,
+        value__: Arc&lt;FxHashMap&lt;<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>, Arc&lt;<a class="struct" href="struct.CrateWorkspaceData.html" title="struct base_db::CrateWorkspaceData">CrateWorkspaceData</a>&gt;&gt;&gt;,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_crate_workspace_data_with_durability" class="fn">set_crate_workspace_data_with_durability</a>(
+        &amp;mut self,
+        value__: Arc&lt;FxHashMap&lt;<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>, Arc&lt;<a class="struct" href="struct.CrateWorkspaceData.html" title="struct base_db::CrateWorkspaceData">CrateWorkspaceData</a>&gt;&gt;&gt;,
+        durability__: Durability,
+    );
+<span class="item-spacer"></span>    fn <a href="#tymethod.toolchain_channel" class="fn">toolchain_channel</a>(&amp;self, krate: <a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.ReleaseChannel.html" title="enum base_db::ReleaseChannel">ReleaseChannel</a>&gt;;
+</details>}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Database which stores all significant input facts: source code and project
+model. Everything else in rust-analyzer is derived from these queries.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.compressed_file_text" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.compressed_file_text" class="fn">compressed_file_text</a>(&amp;self, file_id: FileId) -&gt; Arc&lt;[<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.u8.html">u8</a>]&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.set_compressed_file_text" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.set_compressed_file_text" class="fn">set_compressed_file_text</a>(&amp;mut self, file_id: FileId, value__: Arc&lt;[<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.u8.html">u8</a>]&gt;)</h4></section></summary><div class="docblock"><p>Set the value of the <code>compressed_file_text</code> input.</p>
+<p>See <code>compressed_file_text</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_compressed_file_text_with_durability" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.set_compressed_file_text_with_durability" class="fn">set_compressed_file_text_with_durability</a>(
+    &amp;mut self,
+    file_id: FileId,
+    value__: Arc&lt;[<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.u8.html">u8</a>]&gt;,
+    durability__: Durability,
+)</h4></section></summary><div class="docblock"><p>Set the value of the <code>compressed_file_text</code> input with a
+specific durability instead of the default of
+<code>Durability::LOW</code>. You can use <code>Durability::MAX</code>
+to promise that its value will never change again.</p>
+<p>See <code>compressed_file_text</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.file_text" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.file_text" class="fn">file_text</a>(&amp;self, file_id: FileId) -&gt; Arc&lt;<a class="primitive" href="https://doc.rust-lang.org/1.84.0/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Text of the file.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.parse" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.parse" class="fn">parse</a>(&amp;self, file_id: EditionedFileId) -&gt; Parse&lt;SourceFile&gt;</h4></section></summary><div class="docblock"><p>Parses the file into the syntax tree.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.parse_errors" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.parse_errors" class="fn">parse_errors</a>(&amp;self, file_id: EditionedFileId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Arc&lt;[SyntaxError]&gt;&gt;</h4></section></summary><div class="docblock"><p>Returns the set of errors obtained from parsing the file including validation errors.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.crate_graph" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.crate_graph" class="fn">crate_graph</a>(&amp;self) -&gt; Arc&lt;<a class="struct" href="struct.CrateGraph.html" title="struct base_db::CrateGraph">CrateGraph</a>&gt;</h4></section></summary><div class="docblock"><p>The crate graph.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_crate_graph" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.set_crate_graph" class="fn">set_crate_graph</a>(&amp;mut self, value__: Arc&lt;<a class="struct" href="struct.CrateGraph.html" title="struct base_db::CrateGraph">CrateGraph</a>&gt;)</h4></section></summary><div class="docblock"><p>Set the value of the <code>crate_graph</code> input.</p>
+<p>See <code>crate_graph</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_crate_graph_with_durability" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.set_crate_graph_with_durability" class="fn">set_crate_graph_with_durability</a>(
+    &amp;mut self,
+    value__: Arc&lt;<a class="struct" href="struct.CrateGraph.html" title="struct base_db::CrateGraph">CrateGraph</a>&gt;,
+    durability__: Durability,
+)</h4></section></summary><div class="docblock"><p>Set the value of the <code>crate_graph</code> input with a
+specific durability instead of the default of
+<code>Durability::LOW</code>. You can use <code>Durability::MAX</code>
+to promise that its value will never change again.</p>
+<p>See <code>crate_graph</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><section id="tymethod.crate_workspace_data" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.crate_workspace_data" class="fn">crate_workspace_data</a>(
+    &amp;self,
+) -&gt; Arc&lt;FxHashMap&lt;<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>, Arc&lt;<a class="struct" href="struct.CrateWorkspaceData.html" title="struct base_db::CrateWorkspaceData">CrateWorkspaceData</a>&gt;&gt;&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.set_crate_workspace_data" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.set_crate_workspace_data" class="fn">set_crate_workspace_data</a>(
+    &amp;mut self,
+    value__: Arc&lt;FxHashMap&lt;<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>, Arc&lt;<a class="struct" href="struct.CrateWorkspaceData.html" title="struct base_db::CrateWorkspaceData">CrateWorkspaceData</a>&gt;&gt;&gt;,
+)</h4></section></summary><div class="docblock"><p>Set the value of the <code>crate_workspace_data</code> input.</p>
+<p>See <code>crate_workspace_data</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.set_crate_workspace_data_with_durability" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.set_crate_workspace_data_with_durability" class="fn">set_crate_workspace_data_with_durability</a>(
+    &amp;mut self,
+    value__: Arc&lt;FxHashMap&lt;<a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>, Arc&lt;<a class="struct" href="struct.CrateWorkspaceData.html" title="struct base_db::CrateWorkspaceData">CrateWorkspaceData</a>&gt;&gt;&gt;,
+    durability__: Durability,
+)</h4></section></summary><div class="docblock"><p>Set the value of the <code>crate_workspace_data</code> input with a
+specific durability instead of the default of
+<code>Durability::LOW</code>. You can use <code>Durability::MAX</code>
+to promise that its value will never change again.</p>
+<p>See <code>crate_workspace_data</code> for details.</p>
+<p><em>Note:</em> Setting values will trigger cancellation
+of any ongoing queries; this method blocks until
+those queries have been cancelled.</p>
+</div></details><section id="tymethod.toolchain_channel" class="method"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><h4 class="code-header">fn <a href="#tymethod.toolchain_channel" class="fn">toolchain_channel</a>(&amp;self, krate: <a class="type" href="type.CrateId.html" title="type base_db::CrateId">CrateId</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.84.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.ReleaseChannel.html" title="enum base_db::ReleaseChannel">ReleaseChannel</a>&gt;</h4></section></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-SourceDatabase-for-DB" class="impl"><a class="src rightside" href="../src/base_db/lib.rs.html#58">Source</a><a href="#impl-SourceDatabase-for-DB" class="anchor">§</a><h3 class="code-header">impl&lt;DB&gt; <a class="trait" href="trait.SourceDatabase.html" title="trait base_db::SourceDatabase">SourceDatabase</a> for DB<div class="where">where
+    DB: <a class="trait" href="trait.FileLoader.html" title="trait base_db::FileLoader">FileLoader</a> + <a class="trait" href="https://doc.rust-lang.org/1.84.0/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + Database + HasQueryGroup&lt;<a class="struct" href="struct.SourceDatabaseStorage.html" title="struct base_db::SourceDatabaseStorage">SourceDatabaseStorage</a>&gt;,</div></h3></section></div><script src="../trait.impl/base_db/trait.SourceDatabase.js" async></script></section></div></main></body></html>

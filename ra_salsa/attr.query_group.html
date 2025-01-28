@@ -1,0 +1,78 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The decorator that defines a salsa “query group” trait. This is a trait that defines everything that a block of queries need to execute, as well as defining the queries themselves that are exported for others to use."><title>query_group in ra_salsa - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="ra_salsa" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../static.files/storage-59e33391.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc attr"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../ra_salsa/index.html">ra_<wbr>salsa</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">query_<wbr>group</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a></li><li><a href="#storage-attributes" title="Storage attributes">Storage attributes</a><ul><li><a href="#input-queries" title="Input queries">Input queries</a></li><li><a href="#derived-queries" title="Derived queries">Derived queries</a></li><li><a href="#attribute-combinations" title="Attribute combinations">Attribute combinations</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate ra_<wbr>salsa</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><span class="rustdoc-breadcrumbs"><a href="index.html">ra_salsa</a></span><h1>Attribute Macro <span class="attr">query_group</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/ra_salsa_macros/lib.rs.html#99">Source</a> </span></div><pre class="rust item-decl"><code>#[query_group]</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The decorator that defines a salsa “query group” trait. This is a
+trait that defines everything that a block of queries need to
+execute, as well as defining the queries themselves that are
+exported for others to use.</p>
+<p>This macro declares the “prototype” for a group of queries. It will
+expand into a trait and a set of structs, one per query.</p>
+<p>For each query, you give the name of the accessor method to invoke
+the query (e.g., <code>my_query</code>, below), as well as its parameter
+types and the output type. You also give the name for a query type
+(e.g., <code>MyQuery</code>, below) that represents the query, and optionally
+other details, such as its storage.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<p>The simplest example is something like this:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[salsa::query_group]
+</span><span class="kw">trait </span>TypeckDatabase {
+    <span class="attr">#[salsa::input] </span><span class="comment">// see below for other legal attributes
+    </span><span class="kw">fn </span>my_query(<span class="kw-2">&amp;</span><span class="self">self</span>, input: u32) -&gt; u64;
+
+    <span class="doccomment">/// Queries can have any number of inputs (including zero); if there
+    /// is not exactly one input, then the key type will be
+    /// a tuple of the input types, so in this case `(u32, f32)`.
+    </span><span class="kw">fn </span>other_query(<span class="kw-2">&amp;</span><span class="self">self</span>, input1: u32, input2: f32) -&gt; u64;
+}</code></pre></div>
+<p>Here is a list of legal <code>salsa::XXX</code> attributes:</p>
+<ul>
+<li>Storage attributes: control how the query data is stored and set. These
+are described in detail in the section below.
+<ul>
+<li><code>#[salsa::input]</code></li>
+<li><code>#[salsa::memoized]</code></li>
+<li><code>#[salsa::dependencies]</code></li>
+</ul>
+</li>
+<li>Query execution:
+<ul>
+<li><code>#[salsa::invoke(path::to::my_fn)]</code> – for a non-input, this
+indicates the function to call when a query must be
+recomputed. The default is to call a function in the same
+module with the same name as the query.</li>
+<li><code>#[query_type(MyQueryTypeName)]</code> specifies the name of the
+dummy struct created for the query. Default is the name of the
+query, in camel case, plus the word “Query” (e.g.,
+<code>MyQueryQuery</code> and <code>OtherQueryQuery</code> in the examples above).</li>
+</ul>
+</li>
+</ul>
+<h2 id="storage-attributes"><a class="doc-anchor" href="#storage-attributes">§</a>Storage attributes</h2>
+<p>Here are the possible storage values for each query.  The default
+is <code>storage memoized</code>.</p>
+<h3 id="input-queries"><a class="doc-anchor" href="#input-queries">§</a>Input queries</h3>
+<p>Specifying <code>storage input</code> will give you an <strong>input
+query</strong>. Unlike derived queries, whose value is given by a
+function, input queries are explicitly set by doing
+<code>db.query(QueryType).set(key, value)</code> (where <code>QueryType</code> is the
+<code>type</code> specified for the query). Accessing a value that has not
+yet been set will panic. Each time you invoke <code>set</code>, we assume the
+value has changed, and so we will potentially re-execute derived
+queries that read (transitively) from this input.</p>
+<h3 id="derived-queries"><a class="doc-anchor" href="#derived-queries">§</a>Derived queries</h3>
+<p>Derived queries are specified by a function.</p>
+<ul>
+<li><code>#[salsa::memoized]</code> (the default) – The result is memoized
+between calls.  If the inputs have changed, we will recompute
+the value, but then compare against the old memoized value,
+which can significantly reduce the amount of recomputation
+required in new revisions. This does require that the value
+implements <code>Eq</code>.</li>
+<li><code>#[salsa::dependencies]</code> – does not cache the value, so it will
+be recomputed every time it is needed. We do track the inputs, however,
+so if they have not changed, then things that rely on this query
+may be known not to have changed.</li>
+</ul>
+<h3 id="attribute-combinations"><a class="doc-anchor" href="#attribute-combinations">§</a>Attribute combinations</h3>
+<p>Some attributes are mutually exclusive. For example, it is an error to add
+multiple storage specifiers or to annotate a function to <code>invoke</code> on an
+<code>input</code> query.</p>
+</div></details></section></div></main></body></html>
