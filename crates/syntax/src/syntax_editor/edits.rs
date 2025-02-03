@@ -167,21 +167,6 @@ impl Removable for ast::Use {
                 }
             }
         }
-        let prev_ws = self
-            .syntax()
-            .prev_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .and_then(ast::Whitespace::cast);
-        if let Some(prev_ws) = prev_ws {
-            let ws_text = prev_ws.syntax().text();
-            let prev_newline = ws_text.rfind('\n').map(|x| x + 1).unwrap_or(0);
-            let rest = &ws_text[0..prev_newline];
-            if rest.is_empty() {
-                editor.delete(prev_ws.syntax());
-            } else {
-                editor.replace(prev_ws.syntax(), make.whitespace(rest));
-            }
-        }
 
         editor.delete(self.syntax());
     }
