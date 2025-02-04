@@ -262,6 +262,7 @@ fn parse_cfg(s: &str) -> Result<cfg::CfgAtom, String> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SysrootSourceWorkspaceConfig {
     CargoMetadata(CargoMetadataConfig),
+    Json(ProjectJson),
     Stitched,
 }
 

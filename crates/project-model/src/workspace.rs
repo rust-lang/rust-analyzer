@@ -336,10 +336,14 @@ impl ProjectWorkspace {
         })
     }
 
-    pub fn load_inline(project_json: ProjectJson, config: &CargoConfig) -> ProjectWorkspace {
+    pub fn load_inline(mut project_json: ProjectJson, config: &CargoConfig) -> ProjectWorkspace {
         let mut sysroot =
             Sysroot::new(project_json.sysroot.clone(), project_json.sysroot_src.clone());
-        sysroot.load_workspace(&SysrootSourceWorkspaceConfig::Stitched);
+        if let Some(sysroot_project) = project_json.sysroot_project.take() {
+            sysroot.load_workspace(&SysrootSourceWorkspaceConfig::Json(*sysroot_project));
+        } else {
+            sysroot.load_workspace(&SysrootSourceWorkspaceConfig::Stitched);
+        }
         let query_config = QueryConfig::Rustc(&sysroot, project_json.path().as_ref());
         let toolchain = version::get(query_config, &config.extra_env).ok().flatten();
 
@@ -564,6 +568,14 @@ impl ProjectWorkspace {
                             pkg_root.join("benches"),
                         ];
                         Some(PackageRoot { is_local: false, include, exclude })
+                    })
+                    .collect(),
+                SysrootWorkspace::Json(project_json) => project_json
+                    .crates()
+                    .map(|(_, krate)| PackageRoot {
+                        is_local: false,
+                        include: krate.include.clone(),
+                        exclude: krate.exclude.clone(),
                     })
                     .collect(),
                 SysrootWorkspace::Stitched(_) | SysrootWorkspace::Empty => vec![],
@@ -1377,6 +1389,67 @@ impl SysrootPublicDeps {
     }
 }
 
+fn extend_crate_graph_with_sysroot(
+    crate_graph: &mut CrateGraph,
+    mut sysroot_crate_graph: CrateGraph,
+    mut sysroot_proc_macros: ProcMacroPaths,
+) -> (SysrootPublicDeps, Option<CrateId>) {
+    let mut pub_deps = vec![];
+    let mut libproc_macro = None;
+    let diff = CfgDiff::new(vec![], vec![CfgAtom::Flag(sym::test.clone())]).unwrap();
+    for (cid, c) in sysroot_crate_graph.iter_mut() {
+        // uninject `test` flag so `core` keeps working.
+        Arc::make_mut(&mut c.cfg_options).apply_diff(diff.clone());
+        // patch the origin
+        if c.origin.is_local() {
+            let lang_crate = LangCrateOrigin::from(c.display_name.as_ref().map_or("", |it| {
+                let canonical_name = it.canonical_name().as_str();
+                // FIXME: this is buck-specific and should be handled there instead
+                canonical_name.strip_suffix("-0.0.0").unwrap_or(canonical_name)
+            }));
+            c.origin = CrateOrigin::Lang(lang_crate);
+            match lang_crate {
+                LangCrateOrigin::Test
+                | LangCrateOrigin::Alloc
+                | LangCrateOrigin::Core
+                | LangCrateOrigin::Std => pub_deps.push((
+                    CrateName::normalize_dashes(&lang_crate.to_string()),
+                    cid,
+                    !matches!(lang_crate, LangCrateOrigin::Test | LangCrateOrigin::Alloc),
+                )),
+                LangCrateOrigin::ProcMacro => libproc_macro = Some(cid),
+                LangCrateOrigin::Other => (),
+            }
+        }
+    }
+
+    let mut marker_set = vec![];
+    for &(_, cid, _) in pub_deps.iter() {
+        marker_set.extend(sysroot_crate_graph.transitive_deps(cid));
+    }
+    if let Some(cid) = libproc_macro {
+        marker_set.extend(sysroot_crate_graph.transitive_deps(cid));
+    }
+
+    marker_set.sort();
+    marker_set.dedup();
+
+    // Remove all crates except the ones we are interested in to keep the sysroot graph small.
+    let removed_mapping = sysroot_crate_graph.remove_crates_except(&marker_set);
+    let mapping = crate_graph.extend(sysroot_crate_graph, &mut sysroot_proc_macros);
+
+    // Map the id through the removal mapping first, then through the crate graph extension mapping.
+    pub_deps.iter_mut().for_each(|(_, cid, _)| {
+        *cid = mapping[&removed_mapping[cid.into_raw().into_u32() as usize].unwrap()]
+    });
+    if let Some(libproc_macro) = &mut libproc_macro {
+        *libproc_macro =
+            mapping[&removed_mapping[libproc_macro.into_raw().into_u32() as usize].unwrap()];
+    }
+
+    (SysrootPublicDeps { deps: pub_deps }, libproc_macro)
+}
+
 fn sysroot_to_crate_graph(
     crate_graph: &mut CrateGraph,
     sysroot: &Sysroot,
@@ -1386,7 +1459,7 @@ fn sysroot_to_crate_graph(
     let _p = tracing::info_span!("sysroot_to_crate_graph").entered();
     match sysroot.workspace() {
         SysrootWorkspace::Workspace(cargo) => {
-            let (mut cg, mut pm) = cargo_to_crate_graph(
+            let (cg, pm) = cargo_to_crate_graph(
                 load,
                 None,
                 cargo,
@@ -1407,58 +1480,29 @@ fn sysroot_to_crate_graph(
                 false,
             );
 
-            let mut pub_deps = vec![];
-            let mut libproc_macro = None;
-            let diff = CfgDiff::new(vec![], vec![CfgAtom::Flag(sym::test.clone())]).unwrap();
-            for (cid, c) in cg.iter_mut() {
-                // uninject `test` flag so `core` keeps working.
-                Arc::make_mut(&mut c.cfg_options).apply_diff(diff.clone());
-                // patch the origin
-                if c.origin.is_local() {
-                    let lang_crate = LangCrateOrigin::from(
-                        c.display_name.as_ref().map_or("", |it| it.canonical_name().as_str()),
-                    );
-                    c.origin = CrateOrigin::Lang(lang_crate);
-                    match lang_crate {
-                        LangCrateOrigin::Test
-                        | LangCrateOrigin::Alloc
-                        | LangCrateOrigin::Core
-                        | LangCrateOrigin::Std => pub_deps.push((
-                            CrateName::normalize_dashes(&lang_crate.to_string()),
-                            cid,
-                            !matches!(lang_crate, LangCrateOrigin::Test | LangCrateOrigin::Alloc),
-                        )),
-                        LangCrateOrigin::ProcMacro => libproc_macro = Some(cid),
-                        LangCrateOrigin::Other => (),
-                    }
-                }
-            }
+            extend_crate_graph_with_sysroot(crate_graph, cg, pm)
+        }
+        SysrootWorkspace::Json(project_json) => {
+            let (cg, pm) = project_json_to_crate_graph(
+                rustc_cfg,
+                load,
+                project_json,
+                &Sysroot::empty(),
+                &FxHashMap::default(),
+                &CfgOverrides {
+                    global: CfgDiff::new(
+                        vec![
+                            CfgAtom::Flag(sym::debug_assertions.clone()),
+                            CfgAtom::Flag(sym::miri.clone()),
+                        ],
+                        vec![],
+                    )
+                    .unwrap(),
+                    ..Default::default()
+                },
+            );
 
-            let mut marker_set = vec![];
-            for &(_, cid, _) in pub_deps.iter() {
-                marker_set.extend(cg.transitive_deps(cid));
-            }
-            if let Some(cid) = libproc_macro {
-                marker_set.extend(cg.transitive_deps(cid));
-            }
-
-            marker_set.sort();
-            marker_set.dedup();
-
-            // Remove all crates except the ones we are interested in to keep the sysroot graph small.
-            let removed_mapping = cg.remove_crates_except(&marker_set);
-            let mapping = crate_graph.extend(cg, &mut pm);
-
-            // Map the id through the removal mapping first, then through the crate graph extension mapping.
-            pub_deps.iter_mut().for_each(|(_, cid, _)| {
-                *cid = mapping[&removed_mapping[cid.into_raw().into_u32() as usize].unwrap()]
-            });
-            if let Some(libproc_macro) = &mut libproc_macro {
-                *libproc_macro = mapping
-                    [&removed_mapping[libproc_macro.into_raw().into_u32() as usize].unwrap()];
-            }
-
-            (SysrootPublicDeps { deps: pub_deps }, libproc_macro)
+            extend_crate_graph_with_sysroot(crate_graph, cg, pm)
         }
         SysrootWorkspace::Stitched(stitched) => {
             let cfg_options = Arc::new({

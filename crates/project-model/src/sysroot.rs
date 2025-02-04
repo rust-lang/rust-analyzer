@@ -21,7 +21,7 @@ use stdx::format_to;
 use toolchain::{probe_for_binary, Tool};
 
 use crate::{
-    cargo_workspace::CargoMetadataConfig, utf8_stdout, CargoWorkspace, ManifestPath,
+    cargo_workspace::CargoMetadataConfig, utf8_stdout, CargoWorkspace, ManifestPath, ProjectJson,
     SysrootSourceWorkspaceConfig,
 };
 
@@ -36,6 +36,7 @@ pub struct Sysroot {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum SysrootWorkspace {
     Workspace(CargoWorkspace),
+    Json(ProjectJson),
     Stitched(Stitched),
     Empty,
 }
@@ -107,6 +108,7 @@ impl Sysroot {
     pub fn is_empty(&self) -> bool {
         match &self.workspace {
             SysrootWorkspace::Workspace(ws) => ws.packages().next().is_none(),
+            SysrootWorkspace::Json(project_json) => project_json.n_crates() == 0,
             SysrootWorkspace::Stitched(stitched) => stitched.crates.is_empty(),
             SysrootWorkspace::Empty => true,
         }
@@ -119,6 +121,7 @@ impl Sysroot {
     pub fn num_packages(&self) -> usize {
         match &self.workspace {
             SysrootWorkspace::Workspace(ws) => ws.packages().count(),
+            SysrootWorkspace::Json(project_json) => project_json.n_crates(),
             SysrootWorkspace::Stitched(c) => c.crates().count(),
             SysrootWorkspace::Empty => 0,
         }
@@ -241,6 +244,10 @@ impl Sysroot {
                     return;
                 }
             }
+        } else if let SysrootSourceWorkspaceConfig::Json(project_json) = sysroot_source_config {
+            *workspace = SysrootWorkspace::Json(project_json.clone());
+            self.load_core_check();
+            return;
         }
         tracing::debug!("Stitching sysroot library: {src_root}");
 
@@ -295,6 +302,10 @@ impl Sysroot {
             if let Some(src_root) = &self.src_root {
                 let has_core = match &self.workspace {
                     SysrootWorkspace::Workspace(ws) => ws.packages().any(|p| ws[p].name == "core"),
+                    SysrootWorkspace::Json(project_json) => project_json
+                        .crates()
+                        .filter_map(|(_, krate)| krate.display_name.clone())
+                        .any(|name| name.canonical_name().as_str() == "core-0.0.0"), // FIXME: this is buck-specific and should be handled there instead
                     SysrootWorkspace::Stitched(stitched) => stitched.by_name("core").is_some(),
                     SysrootWorkspace::Empty => true,
                 };
