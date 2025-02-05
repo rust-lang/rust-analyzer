@@ -12,7 +12,7 @@ pub use self::{
 };
 
 // Remove this
-pub use self::hygiene::SyntaxContext as SyntaxContextId;
+pub use self::hygiene::{SyntaxContext as SyntaxContextId, SyntaxContextUnderlyingData};
 
 pub use syntax::Edition;
 pub use text_size::{TextRange, TextSize};
