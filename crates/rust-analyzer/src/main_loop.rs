@@ -529,7 +529,7 @@ impl GlobalState {
         let num_worker_threads = self.config.prime_caches_num_threads();
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, {
-            let analysis = self.snapshot().analysis;
+            let analysis = AssertUnwindSafe(self.snapshot().analysis);
             move |sender| {
                 sender.send(Task::PrimeCaches(PrimeCachesProgress::Begin)).unwrap();
                 let res = analysis.parallel_prime_caches(num_worker_threads, |progress| {
@@ -910,12 +910,12 @@ impl GlobalState {
             }
             QueuedTask::CheckProcMacroSources(modified_rust_files) => {
                 let crate_graph = self.analysis_host.raw_database().crate_graph();
-                let snap = self.snapshot();
+                let analysis = AssertUnwindSafe(self.snapshot().analysis);
                 self.task_pool.handle.spawn_with_sender(stdx::thread::ThreadIntent::Worker, {
                     move |sender| {
                         if modified_rust_files.into_iter().any(|file_id| {
                             // FIXME: Check whether these files could be build script related
-                            match snap.analysis.crates_for(file_id) {
+                            match analysis.crates_for(file_id) {
                                 Ok(crates) => {
                                     crates.iter().any(|&krate| crate_graph[krate].is_proc_macro)
                                 }
