@@ -21,7 +21,6 @@
 //! `ExpnData::call_site` in rustc, [`MacroCallLoc::call_site`] in rust-analyzer.
 use std::fmt;
 
-
 use crate::{Edition, MacroCallId};
 
 // Recursive expansion of interned macro
@@ -34,21 +33,22 @@ pub struct SyntaxContext(
     std::marker::PhantomData<&'static salsa::plumbing::interned::Value<SyntaxContext>>,
 );
 
+/// The underlying data interned by Salsa.
+#[derive(Clone, Eq, Debug)]
+pub struct SyntaxContextUnderlyingData {
+    pub outer_expn: Option<MacroCallId>,
+    pub outer_transparency: Transparency,
+    pub edition: Edition,
+    pub parent: SyntaxContext,
+    pub opaque: SyntaxContext,
+    pub opaque_and_semitransparent: SyntaxContext,
+}
+
 const _: () = {
     use salsa::plumbing as zalsa_;
     use salsa::plumbing::interned as zalsa_struct_;
 
-    #[derive(Clone, Eq)]
-    pub struct StructData {
-        outer_expn: Option<MacroCallId>,
-        outer_transparency: Transparency,
-        edition: Edition,
-        parent: SyntaxContext,
-        opaque: SyntaxContext,
-        opaque_and_semitransparent: SyntaxContext,
-    }
-
-    impl PartialEq for StructData {
+    impl PartialEq for SyntaxContextUnderlyingData {
         fn eq(&self, other: &Self) -> bool {
             self.outer_expn == other.outer_expn
                 && self.outer_transparency == other.outer_transparency
@@ -57,7 +57,7 @@ const _: () = {
         }
     }
 
-    impl std::hash::Hash for StructData {
+    impl std::hash::Hash for SyntaxContextUnderlyingData {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.outer_expn.hash(state);
             self.outer_transparency.hash(state);
@@ -71,7 +71,7 @@ const _: () = {
     struct StructKey<'db, T0, T1, T2, T3>(T0, T1, T2, T3, std::marker::PhantomData<&'db ()>);
 
     impl<'db, T0, T1, T2, T3> zalsa_::interned::HashEqLike<StructKey<'db, T0, T1, T2, T3>>
-        for StructData
+        for SyntaxContextUnderlyingData
     where
         Option<MacroCallId>: zalsa_::interned::HashEqLike<T0>,
         Transparency: zalsa_::interned::HashEqLike<T1>,
@@ -93,7 +93,7 @@ const _: () = {
     }
     impl zalsa_struct_::Configuration for SyntaxContext {
         const DEBUG_NAME: &'static str = "SyntaxContextData";
-        type Data<'a> = StructData;
+        type Fields<'a> = SyntaxContextUnderlyingData;
         type Struct<'a> = SyntaxContext;
         fn struct_from_id<'db>(id: salsa::Id) -> Self::Struct<'db> {
             SyntaxContext(id, std::marker::PhantomData)
@@ -110,8 +110,7 @@ const _: () = {
             static CACHE: zalsa_::IngredientCache<zalsa_struct_::IngredientImpl<SyntaxContext>> =
                 zalsa_::IngredientCache::new();
             CACHE.get_or_create(db.as_dyn_database(), || {
-                db.zalsa()
-                    .add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>()
+                db.zalsa().add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>()
             })
         }
     }
@@ -130,11 +129,12 @@ const _: () = {
     unsafe impl Sync for SyntaxContext {}
 
     impl zalsa_::SalsaStructInDb for SyntaxContext {
+        type MemoIngredientMap = salsa::plumbing::MemoIngredientSingletonIndex;
+
         fn lookup_or_create_ingredient_index(
             aux: &salsa::plumbing::Zalsa,
         ) -> salsa::plumbing::IngredientIndices {
-            aux.add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>()
-                .into()
+            aux.add_or_lookup_jar_by_type::<zalsa_struct_::JarImpl<SyntaxContext>>().into()
         }
 
         #[inline]
@@ -180,8 +180,6 @@ const _: () = {
             Edition: zalsa_::interned::HashEqLike<T2>,
             SyntaxContext: zalsa_::interned::HashEqLike<T3>,
         {
-            // FIXME: do we need this?
-            let current_revision = zalsa_::current_revision(db);
             SyntaxContext::ingredient(db).intern(
                 db.as_dyn_database(),
                 StructKey::<'db>(
@@ -191,7 +189,7 @@ const _: () = {
                     parent,
                     std::marker::PhantomData::default(),
                 ),
-                |id, data| StructData {
+                |id, data| SyntaxContextUnderlyingData {
                     outer_expn: zalsa_::interned::Lookup::into_owned(data.0),
                     outer_transparency: zalsa_::interned::Lookup::into_owned(data.1),
                     edition: zalsa_::interned::Lookup::into_owned(data.2),
@@ -287,16 +285,11 @@ const _: () = {
                 let f = f.field("edition", &fields.edition);
                 let f = f.field("parent", &fields.parent);
                 let f = f.field("opaque", &fields.opaque);
-                let f = f.field(
-                    "opaque_and_semitransparent",
-                    &fields.opaque_and_semitransparent,
-                );
+                let f = f.field("opaque_and_semitransparent", &fields.opaque_and_semitransparent);
                 f.finish()
             })
             .unwrap_or_else(|| {
-                f.debug_tuple("SyntaxContextData")
-                    .field(&zalsa_::AsId::as_id(&this))
-                    .finish()
+                f.debug_tuple("SyntaxContextData").field(&zalsa_::AsId::as_id(&this)).finish()
             })
         }
     }

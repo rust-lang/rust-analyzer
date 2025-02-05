@@ -26,7 +26,7 @@ use std::{convert::identity, iter};
 
 use span::{Edition, MacroCallId, Span, SyntaxContextId};
 
-use crate::db::ExpandDatabase;
+use crate::db::{ExpandDatabase, MacroCallWrapper};
 
 pub use span::Transparency;
 
@@ -202,57 +202,51 @@ pub fn marks_rev(
 }
 
 pub(crate) fn dump_syntax_contexts(db: &dyn ExpandDatabase) -> String {
-    todo!()
-    // use base_db::ra_salsa::debug::DebugQueryTable;
+    let mut s = String::from("Expansions:");
+    let entries =
+        MacroCallWrapper::ingredient(db).entries(db.as_dyn_database()).collect::<Vec<_>>();
+    for loc in entries {
+        let expn_data = &loc.fields().0;
 
-    // let mut s = String::from("Expansions:");
-    // let mut entries = InternMacroCallLookupQuery.in_db(db).entries::<Vec<_>>();
-    // entries.sort_by_key(|e| e.key);
-    // for e in entries {
-    //     let id = e.key;
-    //     let expn_data = e.value.as_ref().unwrap();
-    //     s.push_str(&format!(
-    //         "\n{:?}: parent: {:?}, call_site_ctxt: {:?}, kind: {:?}",
-    //         id,
-    //         expn_data.kind.file_id(),
-    //         expn_data.ctxt,
-    //         expn_data.kind.descr(),
-    //     ));
-    // }
+        s.push_str(&format!(
+            "parent: {:?}, call_site_ctxt: {:?}, kind: {:?}",
+            expn_data.kind.file_id(),
+            expn_data.ctxt,
+            expn_data.kind.descr(),
+        ));
+    }
 
-    // s.push_str("\n\nSyntaxContexts:\n");
-    // let mut entries = InternSyntaxContextLookupQuery.in_db(db).entries::<Vec<_>>();
-    // entries.sort_by_key(|e| e.key);
-    // for e in entries {
-    //     struct SyntaxContextDebug<'a>(
-    //         &'a dyn ExpandDatabase,
-    //         SyntaxContextId,
-    //         &'a SyntaxContextData,
-    //     );
+    s.push_str("\n\nSyntaxContexts:\n");
+    let entries = SyntaxContextId::ingredient(db).entries(db.as_dyn_database()).collect::<Vec<_>>();
+    for e in entries {
+        struct SyntaxContextDebug<'a>(
+            &'a dyn ExpandDatabase,
+            &'a span::SyntaxContextUnderlyingData,
+        );
 
-    //     impl std::fmt::Debug for SyntaxContextDebug<'_> {
-    //         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    //             fancy_debug(self.2, self.1, self.0, f)
-    //         }
-    //     }
+        impl std::fmt::Debug for SyntaxContextDebug<'_> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                fancy_debug(&self.1, self.0, f)
+            }
+        }
 
-    //     fn fancy_debug(
-    //         this: &SyntaxContextData,
-    //         self_id: SyntaxContextId,
-    //         db: &dyn ExpandDatabase,
-    //         f: &mut std::fmt::Formatter<'_>,
-    //     ) -> std::fmt::Result {
-    //         write!(f, "#{self_id} parent: #{}, outer_mark: (", this.parent)?;
-    //         match this.outer_expn {
-    //             Some(id) => {
-    //                 write!(f, "{:?}::{{{{expn{:?}}}}}", lookup_intern_macro_call(db, id).krate, id)?
-    //             }
-    //             None => write!(f, "root")?,
-    //         }
-    //         write!(f, ", {:?})", this.outer_transparency)
-    //     }
+        fn fancy_debug(
+            this: &span::SyntaxContextUnderlyingData,
+            db: &dyn ExpandDatabase,
+            f: &mut std::fmt::Formatter<'_>,
+        ) -> std::fmt::Result {
+            write!(f, "parent: #{}, outer_mark: (", this.parent)?;
+            match this.outer_expn {
+                Some(id) => {
+                    write!(f, "{:?}::{{{{expn{:?}}}}}", db.lookup_intern_macro_call(id).krate, id)?
+                }
+                None => write!(f, "root")?,
+            }
+            write!(f, ", {:?})", this.outer_transparency)
+        }
 
-    //     stdx::format_to!(s, "{:?}\n", SyntaxContextDebug(db, e.key, &e.value.unwrap()));
-    // }
-    // s
+        let dbg = SyntaxContextDebug(db, e.fields());
+        stdx::format_to!(s, "{:?}\n", dbg);
+    }
+    s
 }

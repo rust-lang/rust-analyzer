@@ -16,7 +16,6 @@ use std::env;
 use std::sync::LazyLock;
 
 use base_db::SourceDatabase;
-use either::Either;
 use expect_test::Expect;
 use hir_def::{
     db::DefDatabase,
