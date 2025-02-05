@@ -74,14 +74,10 @@ pub fn parallel_prime_caches(
     let (work_sender, progress_receiver) = {
         let (progress_sender, progress_receiver) = crossbeam_channel::unbounded();
         let (work_sender, work_receiver) = crossbeam_channel::unbounded();
-        let graph = graph.clone();
-        let local_roots = db.local_roots();
-        let prime_caches_worker = move |db: Snapshot<RootDatabase>| {
-            while let Ok((crate_id, crate_name)) = work_receiver.recv() {
-                progress_sender.send(ParallelPrimeCacheWorkerProgress::BeginCrate {
-                    crate_id,
-                    crate_name,
-                })?;
+        let prime_caches_worker = move |db: RootDatabase| {
+            while let Ok((crate_id, crate_name, kind)) = work_receiver.recv() {
+                progress_sender
+                    .send(ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name })?;
 
                 match kind {
                     PrimingPhase::DefMap => _ = db.crate_def_map(crate_id),
@@ -197,7 +193,7 @@ pub fn parallel_prime_caches(
     }
 
     while crates_done < crates_total {
-        db.unwind_if_cancelled();
+        db.unwind_if_revision_cancelled();
 
         // recv_timeout is somewhat a hack, we need a way to from this thread check to see if the current salsa revision
         // is cancelled on a regular basis. workers will only exit if they are processing a task that is cancelled, or
@@ -209,7 +205,7 @@ pub fn parallel_prime_caches(
             }
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                 // our workers may have died from a cancelled task, so we'll check and re-raise here.
-                db.unwind_if_cancelled();
+                db.unwind_if_revision_cancelled();
                 break;
             }
         };
