@@ -23,7 +23,7 @@ use crate::{
     cargo_workspace::{CargoMetadataConfig, DepKind, PackageData, RustLibSource},
     env::{cargo_config_env, inject_cargo_env, inject_cargo_package_env, inject_rustc_tool_env},
     project_json::{Crate, CrateArrayIdx},
-    sysroot::{SysrootCrate, SysrootWorkspace},
+    sysroot::SysrootWorkspace,
     toolchain_info::{rustc_cfg, target_data_layout, target_tuple, version, QueryConfig},
     CargoConfig, CargoWorkspace, CfgOverrides, InvocationStrategy, ManifestPath, Package,
     ProjectJson, ProjectManifest, Sysroot, SysrootSourceWorkspaceConfig, TargetData, TargetKind,
@@ -339,17 +339,23 @@ impl ProjectWorkspace {
     pub fn load_inline(mut project_json: ProjectJson, config: &CargoConfig) -> ProjectWorkspace {
         let mut sysroot =
             Sysroot::new(project_json.sysroot.clone(), project_json.sysroot_src.clone());
-        if let Some(sysroot_project) = project_json.sysroot_project.take() {
-            sysroot.load_workspace(&SysrootSourceWorkspaceConfig::Json(*sysroot_project));
-        } else {
-            sysroot.load_workspace(&SysrootSourceWorkspaceConfig::Stitched);
-        }
-        let query_config = QueryConfig::Rustc(&sysroot, project_json.path().as_ref());
-        let toolchain = version::get(query_config, &config.extra_env).ok().flatten();
 
+        let query_config = QueryConfig::Rustc(&sysroot, project_json.path().as_ref());
+        let targets = target_tuple::get(query_config, config.target.as_deref(), &config.extra_env)
+            .unwrap_or_default();
+        let toolchain = version::get(query_config, &config.extra_env).ok().flatten();
         let target = config.target.as_deref();
         let rustc_cfg = rustc_cfg::get(query_config, target, &config.extra_env);
         let data_layout = target_data_layout::get(query_config, target, &config.extra_env);
+
+        if let Some(sysroot_project) = project_json.sysroot_project.take() {
+            sysroot.load_workspace(&SysrootSourceWorkspaceConfig::Json(*sysroot_project));
+        } else {
+            sysroot.load_workspace(&SysrootSourceWorkspaceConfig::CargoMetadata(
+                sysroot_metadata_config(&config.extra_env, &targets),
+            ));
+        }
+
         ProjectWorkspace {
             kind: ProjectWorkspaceKind::Json(project_json),
             sysroot,
@@ -578,7 +584,7 @@ impl ProjectWorkspace {
                         exclude: krate.exclude.clone(),
                     })
                     .collect(),
-                SysrootWorkspace::Stitched(_) | SysrootWorkspace::Empty => vec![],
+                SysrootWorkspace::Empty => vec![],
             };
 
             r.push(PackageRoot {
@@ -1503,59 +1509,6 @@ fn sysroot_to_crate_graph(
             );
 
             extend_crate_graph_with_sysroot(crate_graph, cg, pm)
-        }
-        SysrootWorkspace::Stitched(stitched) => {
-            let cfg_options = Arc::new({
-                let mut cfg_options = CfgOptions::default();
-                cfg_options.extend(rustc_cfg);
-                cfg_options.insert_atom(sym::debug_assertions.clone());
-                cfg_options.insert_atom(sym::miri.clone());
-                cfg_options
-            });
-            let sysroot_crates: FxHashMap<SysrootCrate, CrateId> = stitched
-                .crates()
-                .filter_map(|krate| {
-                    let file_id = load(&stitched[krate].root)?;
-
-                    let display_name = CrateDisplayName::from_canonical_name(&stitched[krate].name);
-                    let crate_id = crate_graph.add_crate_root(
-                        file_id,
-                        Edition::CURRENT_FIXME,
-                        Some(display_name),
-                        None,
-                        cfg_options.clone(),
-                        None,
-                        Env::default(),
-                        false,
-                        CrateOrigin::Lang(LangCrateOrigin::from(&*stitched[krate].name)),
-                    );
-                    Some((krate, crate_id))
-                })
-                .collect();
-
-            for from in stitched.crates() {
-                for &to in stitched[from].deps.iter() {
-                    let name = CrateName::new(&stitched[to].name).unwrap();
-                    if let (Some(&from), Some(&to)) =
-                        (sysroot_crates.get(&from), sysroot_crates.get(&to))
-                    {
-                        add_dep(crate_graph, from, name, to);
-                    }
-                }
-            }
-
-            let public_deps = SysrootPublicDeps {
-                deps: stitched
-                    .public_deps()
-                    .filter_map(|(name, idx, prelude)| {
-                        Some((name, *sysroot_crates.get(&idx)?, prelude))
-                    })
-                    .collect::<Vec<_>>(),
-            };
-
-            let libproc_macro =
-                stitched.proc_macro().and_then(|it| sysroot_crates.get(&it).copied());
-            (public_deps, libproc_macro)
         }
         SysrootWorkspace::Empty => (SysrootPublicDeps { deps: vec![] }, None),
     }
