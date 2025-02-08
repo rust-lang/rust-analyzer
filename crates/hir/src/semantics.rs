@@ -284,16 +284,23 @@ impl<DB: HirDatabase + ?Sized> Semantics<'_, DB> {
         self.imp.resolve_variant(record_lit).map(VariantDef::from)
     }
 
-    pub fn file_to_module_def(&self, file: impl Into<FileId>) -> Option<Module> {
-        self.imp.file_to_module_defs(file.into()).next()
+    pub fn file_to_module_def(&self, file: EditionedFileId) -> Option<Module> {
+        self.imp.ed_file_to_module_defs(file).next()
     }
 
-    pub fn file_to_module_defs(&self, file: impl Into<FileId>) -> impl Iterator<Item = Module> {
-        self.imp.file_to_module_defs(file.into())
+    pub fn file_to_module_def2(&self, file: FileId) -> Option<Module> {
+        self.imp.file_to_module_defs(file).next()
     }
 
     pub fn hir_file_to_module_def(&self, file: impl Into<HirFileId>) -> Option<Module> {
         self.imp.hir_file_to_module_defs(file.into()).next()
+    }
+
+    pub fn file_to_module_defs(
+        &self,
+        file: impl Into<EditionedFileId>,
+    ) -> impl Iterator<Item = Module> {
+        self.imp.ed_file_to_module_defs(file.into())
     }
 
     pub fn hir_file_to_module_defs(
@@ -380,6 +387,19 @@ impl<'db> SemanticsImpl<'db> {
         }
     }
 
+    /// If not crate is found for the file, try to return the last crate in topological order.
+    pub fn first_crate_hir(&self, file: HirFileId) -> Option<Crate> {
+        match file {
+            HirFileId::FileId(editioned_file_id) => {
+                self.first_crate(editioned_file_id.file_id(self.db))
+            }
+            HirFileId::MacroFile(macro_call_id) => {
+                let macro_call = self.db.lookup_intern_macro_call(macro_call_id);
+                Some(macro_call.krate.into())
+            }
+        }
+    }
+
     pub fn attach_first_edition(&self, file: FileId) -> Option<EditionedFileId> {
         Some(EditionedFileId::new(
             self.db,
@@ -412,6 +432,7 @@ impl<'db> SemanticsImpl<'db> {
             HirFileId::FileId(file_id) => {
                 let module = self.file_to_module_defs(file_id.file_id(self.db)).next()?;
                 let def_map = crate_def_map(self.db, module.krate().id);
+
                 match def_map[module.id.local_id].origin {
                     ModuleOrigin::CrateRoot { .. } => None,
                     ModuleOrigin::File { declaration, declaration_tree_id, .. } => {
@@ -770,7 +791,7 @@ impl<'db> SemanticsImpl<'db> {
     // FIXME: Type the return type
     /// Returns the range (pre-expansion) in the string literal corresponding to the resolution,
     /// absolute file range (post-expansion)
-    /// of the part in the format string, the corresponding string token and the resolution if it
+    /// of the part in the format string (post-expansion), the corresponding string token and the resolution if it
     /// exists.
     pub fn check_for_format_args_template_with_file(
         &self,
@@ -904,7 +925,6 @@ impl<'db> SemanticsImpl<'db> {
             None => return res,
         };
         let file = self.find_file(node.syntax());
-
         if first == last {
             // node is just the token, so descend the token
             self.descend_into_macros_all(
@@ -1877,9 +1897,15 @@ impl<'db> SemanticsImpl<'db> {
         self.with_ctx(|ctx| ctx.file_to_def(file).to_owned()).into_iter().map(Module::from)
     }
 
+    fn ed_file_to_module_defs(&self, file: EditionedFileId) -> impl Iterator<Item = Module> {
+        self.with_ctx(|ctx| ctx.file_to_def(file.file_id(self.db)).to_owned())
+            .into_iter()
+            .map(Module::from)
+    }
+
     fn hir_file_to_module_defs(&self, file: HirFileId) -> impl Iterator<Item = Module> {
         // FIXME: Do we need to care about inline modules for macro expansions?
-        self.file_to_module_defs(file.original_file_respecting_includes(self.db).file_id(self.db))
+        self.ed_file_to_module_defs(file.original_file_respecting_includes(self.db))
     }
 
     pub fn scope(&self, node: &SyntaxNode) -> Option<SemanticsScope<'db>> {

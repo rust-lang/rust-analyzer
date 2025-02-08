@@ -1,20 +1,19 @@
 //! This module implements a methods and free functions search in the specified file.
 //! We have to skip tests, so cannot reuse file_structure module.
 
-use hir::Semantics;
+use hir::{HirFileId, Semantics};
 use ide_assists::utils::test_related_attribute_syn;
 use ide_db::RootDatabase;
 use syntax::{AstNode, SyntaxNode, TextRange, ast, ast::HasName};
 
-use crate::FileId;
-
 pub(super) fn find_all_methods(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: HirFileId,
 ) -> Vec<(TextRange, Option<TextRange>)> {
     let sema = Semantics::new(db);
-    let source_file = sema.parse_guess_edition(file_id);
-    source_file.syntax().descendants().filter_map(method_range).collect()
+    let file_id = sema.adjust_edition(file_id);
+    let syntax = sema.parse_or_expand(sema.adjust_edition(file_id));
+    syntax.descendants().filter_map(method_range).collect()
 }
 
 fn method_range(item: SyntaxNode) -> Option<(TextRange, Option<TextRange>)> {
@@ -50,7 +49,7 @@ mod tests {
         "#,
         );
 
-        let refs = super::find_all_methods(&analysis.db, pos.file_id);
+        let refs = super::find_all_methods(&analysis.db, pos.file_id.into());
         check_result(&refs, &[3..=13, 27..=33, 47..=57]);
     }
 
@@ -65,7 +64,7 @@ mod tests {
         "#,
         );
 
-        let refs = super::find_all_methods(&analysis.db, pos.file_id);
+        let refs = super::find_all_methods(&analysis.db, pos.file_id.into());
         check_result(&refs, &[19..=22, 35..=38]);
     }
 
@@ -86,7 +85,7 @@ mod tests {
         "#,
         );
 
-        let refs = super::find_all_methods(&analysis.db, pos.file_id);
+        let refs = super::find_all_methods(&analysis.db, pos.file_id.into());
         check_result(&refs, &[28..=34]);
     }
 

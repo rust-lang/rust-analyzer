@@ -190,6 +190,7 @@ pub(crate) fn apply_document_changes(
         // We don't care about line endings here.
         endings: LineEndings::Unix,
         encoding,
+        transform: Default::default(),
     };
 
     // The changes we got must be applied sequentially, but can cross lines so we

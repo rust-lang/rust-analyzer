@@ -349,8 +349,8 @@ pub fn semantic_diagnostics(
     let editioned_file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(db, file_id));
+    let edition = editioned_file_id.edition(db);
 
-    let (file_id, edition) = editioned_file_id.unpack(db);
     let mut res = Vec::new();
 
     let parse = sema.parse(editioned_file_id);
@@ -371,7 +371,7 @@ pub fn semantic_diagnostics(
         );
     }
 
-    let module = sema.file_to_module_def(file_id);
+    let module = sema.file_to_module_def(editioned_file_id);
 
     let is_nightly = matches!(
         module.and_then(|m| db.toolchain_channel(m.krate().into())),

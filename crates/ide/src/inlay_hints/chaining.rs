@@ -99,7 +99,7 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let mut inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+        let mut inlay_hints = analysis.inlay_hints(&config, file_id.into(), None).unwrap();
         inlay_hints.iter_mut().flat_map(|hint| &mut hint.label.parts).for_each(|hint| {
             if let Some(LazyProperty::Computed(loc)) = &mut hint.linked_location {
                 loc.range = TextRange::empty(TextSize::from(0));
@@ -139,7 +139,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 63..64,
                                         },
@@ -158,7 +160,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 7..8,
                                         },
@@ -222,7 +226,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 51..52,
                                         },
@@ -241,7 +247,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 29..30,
                                         },
@@ -289,7 +297,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 51..52,
                                         },
@@ -308,7 +318,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 29..30,
                                         },
@@ -357,7 +369,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 23..24,
                                         },
@@ -372,7 +386,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 55..56,
                                         },
@@ -392,7 +408,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 7..8,
                                         },
@@ -407,7 +425,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 55..56,
                                         },
@@ -460,7 +480,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(2001),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -475,7 +497,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(2001),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -496,7 +520,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(2001),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -511,7 +537,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(2001),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -532,7 +560,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(2001),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -547,7 +577,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(2001),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -568,7 +600,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 0..0,
                                         },
@@ -616,7 +650,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 7..13,
                                         },
@@ -635,7 +671,9 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 7..13,
                                         },
@@ -654,28 +692,11 @@ fn main() {
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                0,
+                                                EditionedFileId(
+                                                    Id(2000),
+                                                ),
                                             ),
                                             range: 7..13,
-                                        },
-                                    ),
-                                ),
-                                tooltip: "",
-                            },
-                        ],
-                    ),
-                    (
-                        222..228,
-                        [
-                            InlayHintLabelPart {
-                                text: "self",
-                                linked_location: Some(
-                                    Computed(
-                                        FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
-                                            ),
-                                            range: 42..46,
                                         },
                                     ),
                                 ),

@@ -71,7 +71,8 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_>)
             let make = SyntaxFactory::with_mappings();
             let mut editor = edit.make_editor(let_stmt.syntax());
             let name = to_upper_snake_case(&name.to_string());
-            let usages = Definition::Local(local).usages(&ctx.sema).all();
+            let usages =
+                Definition::Local(local).usages(&ctx.sema).all().map_out_of_macros(&ctx.sema);
             if let Some(usages) = usages.references.get(&ctx.file_id()) {
                 let name_ref = make.name_ref(&name);
 

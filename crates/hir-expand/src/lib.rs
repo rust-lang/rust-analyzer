@@ -1068,6 +1068,7 @@ intern::impl_internable!(ModPath, attrs::AttrInput);
 
 #[salsa_macros::interned(no_lifetime, debug, revisions = usize::MAX)]
 #[doc(alias = "MacroFileId")]
+#[derive(PartialOrd, Ord)]
 pub struct MacroCallId {
     pub loc: MacroCallLoc,
 }
@@ -1086,7 +1087,7 @@ impl From<MacroCallId> for span::MacroCallId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa_macros::Supertype)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, salsa_macros::Supertype)]
 pub enum HirFileId {
     FileId(EditionedFileId),
     MacroFile(MacroCallId),

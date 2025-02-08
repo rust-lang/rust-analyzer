@@ -3,8 +3,8 @@
 use std::collections::VecDeque;
 
 use base_db::SourceDatabase;
-use hir::{Crate, ItemInNs, ModuleDef, Name, Semantics};
-use span::{Edition, FileId};
+use hir::{Crate, HirFileId, ItemInNs, ModuleDef, Name, Semantics};
+use span::Edition;
 use syntax::{
     AstToken, SyntaxKind, SyntaxToken, ToSmolStr, TokenAtOffset,
     ast::{self, make},
@@ -60,11 +60,11 @@ pub fn mod_path_to_ast(path: &hir::ModPath, edition: Edition) -> ast::Path {
 /// Iterates all `ModuleDef`s and `Impl` blocks of the given file.
 pub fn visit_file_defs(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: HirFileId,
     cb: &mut dyn FnMut(Definition),
 ) {
     let db = sema.db;
-    let module = match sema.file_to_module_def(file_id) {
+    let module = match sema.hir_file_to_module_def(file_id) {
         Some(it) => it,
         None => return,
     };

@@ -7,19 +7,22 @@ use std::{
 };
 
 use base64::{Engine, prelude::BASE64_STANDARD};
+use hir::{HirFileId, HirFileRange};
 use ide::{
     Annotation, AnnotationKind, Assist, AssistKind, Cancellable, CompletionFieldsToResolve,
-    CompletionItem, CompletionItemKind, CompletionRelevance, Documentation, FileId, FileRange,
-    FileSystemEdit, Fold, FoldKind, Highlight, HlMod, HlOperator, HlPunct, HlRange, HlTag, Indel,
-    InlayFieldsToResolve, InlayHint, InlayHintLabel, InlayHintLabelPart, InlayKind, LazyProperty,
-    Markup, NavigationTarget, ReferenceCategory, RenameError, Runnable, Severity, SignatureHelp,
+    CompletionItem, CompletionItemKind, CompletionRelevance, Documentation, FileId, FileSystemEdit,
+    Fold, FoldKind, Highlight, HirNavigationTarget, HlMod, HlOperator, HlPunct, HlRange, HlTag,
+    Indel, InlayFieldsToResolve, InlayHint, InlayHintLabel, InlayHintLabelPart, InlayKind,
+    LazyProperty, Markup, ReferenceCategory, RenameError, Runnable, Severity, SignatureHelp,
     SnippetEdit, SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
     UpdateTest,
 };
-use ide_db::{FxHasher, assists, rust_doc::format_docs, source_change::ChangeAnnotationId};
+use ide_db::{
+    FxHasher, assists, base_db::SourceDatabase, rust_doc::format_docs,
+    source_change::ChangeAnnotationId,
+};
 use itertools::Itertools;
 use paths::{Utf8Component, Utf8Prefix};
-use semver::VersionReq;
 use serde_json::to_value;
 use vfs::AbsPath;
 
@@ -38,7 +41,7 @@ use crate::{
 };
 
 pub(crate) fn position(line_index: &LineIndex, offset: TextSize) -> lsp_types::Position {
-    let line_col = line_index.index.line_col(offset);
+    let line_col = line_index.line_col(offset);
     match line_index.encoding {
         PositionEncoding::Utf8 => lsp_types::Position::new(line_col.line, line_col.col),
         PositionEncoding::Wide(enc) => {
@@ -553,7 +556,7 @@ pub(crate) fn inlay_hint(
     snap: &GlobalStateSnapshot,
     fields_to_resolve: &InlayFieldsToResolve,
     line_index: &LineIndex,
-    file_id: FileId,
+    file_id: HirFileId,
     mut inlay_hint: InlayHint,
 ) -> Cancellable<lsp_types::InlayHint> {
     let hint_needs_resolve = |hint: &InlayHint| -> Option<TextRange> {
@@ -584,10 +587,7 @@ pub(crate) fn inlay_hint(
             LazyProperty::Computed(it) => Some(it),
             LazyProperty::Lazy => {
                 something_to_resolve |=
-                    snap.config.visual_studio_code_version().is_none_or(|version| {
-                        VersionReq::parse(">=1.86.0").unwrap().matches(version)
-                    }) && resolve_range_and_hash.is_some()
-                        && fields_to_resolve.resolve_text_edits;
+                    resolve_range_and_hash.is_some() && fields_to_resolve.resolve_text_edits;
                 None
             }
         })
@@ -600,12 +600,12 @@ pub(crate) fn inlay_hint(
         inlay_hint.label,
     )?;
 
-    let data = match resolve_range_and_hash {
-        Some((resolve_range, hash)) if something_to_resolve => Some(
+    let data = match (resolve_range_and_hash, file_id.file_id()) {
+        (Some((resolve_range, hash)), Some(file_id)) if something_to_resolve => Some(
             to_value(lsp_ext::InlayHintResolveData {
-                file_id: file_id.index(),
+                file_id: file_id.file_id(snap.analysis.db()).index(),
                 hash: hash.to_string(),
-                version: snap.file_version(file_id),
+                version: snap.file_version(snap.analysis.editioned_file_id_to_vfs(file_id)),
                 resolve_range: range(line_index, resolve_range),
             })
             .unwrap(),
@@ -718,7 +718,6 @@ fn inlay_hint_label(
 static TOKEN_RESULT_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 pub(crate) fn semantic_tokens(
-    text: &str,
     line_index: &LineIndex,
     highlights: Vec<HlRange>,
     semantics_tokens_augments_syntax_tokens: bool,
@@ -764,11 +763,7 @@ pub(crate) fn semantic_tokens(
         let token_index = semantic_tokens::type_index(ty);
         let modifier_bitset = mods.0;
 
-        for mut text_range in line_index.index.lines(highlight_range.range) {
-            if text[text_range].ends_with('\n') {
-                text_range =
-                    TextRange::new(text_range.start(), text_range.end() - TextSize::of('\n'));
-            }
+        for text_range in line_index.index.lines(highlight_range.range) {
             let range = range(line_index, text_range);
             builder.push(range, token_index, modifier_bitset);
         }
@@ -956,6 +951,10 @@ pub(crate) fn url(snap: &GlobalStateSnapshot, file_id: FileId) -> lsp_types::Url
     snap.file_id_to_url(file_id)
 }
 
+pub(crate) fn url_hir(snap: &GlobalStateSnapshot, file_id: HirFileId) -> lsp_types::Url {
+    snap.hir_file_id_to_url(file_id)
+}
+
 /// Returns a `Url` object from a given path, will lowercase drive letters if present.
 /// This will only happen when processing windows paths.
 ///
@@ -999,10 +998,10 @@ pub(crate) fn optional_versioned_text_document_identifier(
 
 pub(crate) fn location(
     snap: &GlobalStateSnapshot,
-    frange: FileRange,
+    frange: HirFileRange,
 ) -> Cancellable<lsp_types::Location> {
-    let url = url(snap, frange.file_id);
-    let line_index = snap.file_line_index(frange.file_id)?;
+    let url = url_hir(snap, frange.file_id);
+    let line_index = snap.hir_line_index(frange.file_id)?;
     let range = range(&line_index, frange.range);
     let loc = lsp_types::Location::new(url, range);
     Ok(loc)
@@ -1011,10 +1010,10 @@ pub(crate) fn location(
 /// Prefer using `location_link`, if the client has the cap.
 pub(crate) fn location_from_nav(
     snap: &GlobalStateSnapshot,
-    nav: NavigationTarget,
+    nav: HirNavigationTarget,
 ) -> Cancellable<lsp_types::Location> {
-    let url = url(snap, nav.file_id);
-    let line_index = snap.file_line_index(nav.file_id)?;
+    let url = url_hir(snap, nav.file_id);
+    let line_index = snap.hir_line_index(nav.file_id)?;
     let range = range(&line_index, nav.focus_or_full_range());
     let loc = lsp_types::Location::new(url, range);
     Ok(loc)
@@ -1022,12 +1021,12 @@ pub(crate) fn location_from_nav(
 
 pub(crate) fn location_link(
     snap: &GlobalStateSnapshot,
-    src: Option<FileRange>,
-    target: NavigationTarget,
+    src: Option<HirFileRange>,
+    target: HirNavigationTarget,
 ) -> Cancellable<lsp_types::LocationLink> {
     let origin_selection_range = match src {
         Some(src) => {
-            let line_index = snap.file_line_index(src.file_id)?;
+            let line_index = snap.hir_line_index(src.file_id)?;
             let range = range(&line_index, src.range);
             Some(range)
         }
@@ -1045,11 +1044,11 @@ pub(crate) fn location_link(
 
 fn location_info(
     snap: &GlobalStateSnapshot,
-    target: NavigationTarget,
+    target: HirNavigationTarget,
 ) -> Cancellable<(lsp_types::Url, lsp_types::Range, lsp_types::Range)> {
-    let line_index = snap.file_line_index(target.file_id)?;
+    let line_index = snap.hir_line_index(target.file_id)?;
 
-    let target_uri = url(snap, target.file_id);
+    let target_uri = url_hir(snap, target.file_id);
     let target_range = range(&line_index, target.full_range);
     let target_selection_range =
         target.focus_range.map(|it| range(&line_index, it)).unwrap_or(target_range);
@@ -1058,8 +1057,8 @@ fn location_info(
 
 pub(crate) fn goto_definition_response(
     snap: &GlobalStateSnapshot,
-    src: Option<FileRange>,
-    targets: Vec<NavigationTarget>,
+    src: Option<HirFileRange>,
+    targets: Vec<HirNavigationTarget>,
 ) -> Cancellable<lsp_types::GotoDefinitionResponse> {
     if snap.config.location_link() {
         let links = targets
@@ -1071,7 +1070,7 @@ pub(crate) fn goto_definition_response(
     } else {
         let locations = targets
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
             .unique()
             .map(|range| location(snap, range))
             .collect::<Cancellable<Vec<_>>>()?;
@@ -1460,7 +1459,7 @@ impl From<lsp_ext::SnippetTextEdit>
 
 pub(crate) fn call_hierarchy_item(
     snap: &GlobalStateSnapshot,
-    target: NavigationTarget,
+    target: HirNavigationTarget,
 ) -> Cancellable<lsp_types::CallHierarchyItem> {
     let name = target.name.to_string();
     let detail = target.description.clone();
@@ -1538,9 +1537,7 @@ pub(crate) fn runnable(
     snap: &GlobalStateSnapshot,
     runnable: Runnable,
 ) -> Cancellable<Option<lsp_ext::Runnable>> {
-    let target_spec = TargetSpec::for_file(snap, runnable.nav.file_id)?;
-    let source_root = snap.analysis.source_root_id(runnable.nav.file_id).ok();
-    let config = snap.config.runnables(source_root);
+    let target_spec = TargetSpec::for_hir_file(snap, runnable.nav.file_id)?;
 
     match target_spec {
         Some(TargetSpec::Cargo(spec)) => {
@@ -1561,7 +1558,18 @@ pub(crate) fn runnable(
             };
 
             let label = runnable.label(Some(&target));
+            let source_root = snap.analysis.with_db(|db| {
+                db.file_source_root(
+                    runnable
+                        .nav
+                        .file_id
+                        .original_file_respecting_includes(db)
+                        .file_id(snap.analysis.db()),
+                )
+                .source_root_id(snap.analysis.db())
+            })?;
             let location = location_link(snap, None, runnable.nav)?;
+            let config = snap.config.runnables(Some(source_root));
 
             Ok(Some(lsp_ext::Runnable {
                 label,
@@ -1604,13 +1612,26 @@ pub(crate) fn runnable(
             }
         }
         None => {
-            let Some(path) = snap.file_id_to_file_path(runnable.nav.file_id).parent() else {
+            let Some(path) = runnable.nav.file_id.file_id().and_then(|file_id| {
+                snap.file_id_to_file_path(snap.analysis.editioned_file_id_to_vfs(file_id)).parent()
+            }) else {
                 return Ok(None);
             };
             let (cargo_args, executable_args) =
                 CargoTargetSpec::runnable_args(snap, None, &runnable.kind, &runnable.cfg);
 
             let label = runnable.label(None);
+            let source_root = snap.analysis.with_db(|db| {
+                db.file_source_root(
+                    runnable
+                        .nav
+                        .file_id
+                        .original_file_respecting_includes(db)
+                        .file_id(snap.analysis.db()),
+                )
+                .source_root_id(snap.analysis.db())
+            })?;
+            let config = snap.config.runnables(Some(source_root));
             let location = location_link(snap, None, runnable.nav)?;
 
             Ok(Some(lsp_ext::Runnable {
@@ -1638,7 +1659,7 @@ pub(crate) fn code_lens(
     let client_commands_config = snap.config.client_commands();
     match annotation.kind {
         AnnotationKind::Runnable(run) => {
-            let line_index = snap.file_line_index(run.nav.file_id)?;
+            let line_index = snap.hir_line_index(run.nav.file_id)?;
             let annotation_range = range(&line_index, annotation.range);
 
             let update_test = run.update_test;
@@ -1704,9 +1725,9 @@ pub(crate) fn code_lens(
             if !client_commands_config.show_reference {
                 return Ok(());
             }
-            let line_index = snap.file_line_index(pos.file_id)?;
+            let line_index = snap.hir_line_index(pos.file_id)?;
             let annotation_range = range(&line_index, annotation.range);
-            let url = url(snap, pos.file_id);
+            let url = url_hir(snap, pos.file_id);
             let pos = position(&line_index, pos.offset);
 
             let id = lsp_types::TextDocumentIdentifier { uri: url.clone() };
@@ -1725,7 +1746,7 @@ pub(crate) fn code_lens(
                     .filter_map(|target| {
                         location(
                             snap,
-                            FileRange { file_id: target.file_id, range: target.full_range },
+                            HirFileRange { file_id: target.file_id, range: target.full_range },
                         )
                         .ok()
                     })
@@ -1758,9 +1779,9 @@ pub(crate) fn code_lens(
             if !client_commands_config.show_reference {
                 return Ok(());
             }
-            let line_index = snap.file_line_index(pos.file_id)?;
+            let line_index = snap.hir_line_index(pos.file_id)?;
             let annotation_range = range(&line_index, annotation.range);
-            let url = url(snap, pos.file_id);
+            let url = url_hir(snap, pos.file_id);
             let pos = position(&line_index, pos.offset);
 
             let id = lsp_types::TextDocumentIdentifier { uri: url.clone() };
@@ -1832,7 +1853,8 @@ pub(crate) fn test_item(
 }
 
 pub(crate) mod command {
-    use ide::{FileRange, NavigationTarget};
+    use hir::HirFileRange;
+    use ide::HirNavigationTarget;
     use serde_json::to_value;
 
     use crate::{
@@ -1889,13 +1911,13 @@ pub(crate) mod command {
 
     pub(crate) fn goto_location(
         snap: &GlobalStateSnapshot,
-        nav: &NavigationTarget,
+        nav: &HirNavigationTarget,
     ) -> Option<lsp_types::Command> {
         let value = if snap.config.location_link() {
             let link = location_link(snap, None, nav.clone()).ok()?;
             to_value(link).ok()?
         } else {
-            let range = FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() };
+            let range = HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() };
             let location = location(snap, range).ok()?;
             to_value(location).ok()?
         };
@@ -1997,13 +2019,14 @@ fn main() {
 }"#;
 
         let (analysis, file_id) = Analysis::from_single_file(text.to_owned());
-        let folds = analysis.folding_ranges(file_id).unwrap();
+        let folds = analysis.folding_ranges(file_id.into()).unwrap();
         assert_eq!(folds.len(), 4);
 
         let line_index = LineIndex {
             index: Arc::new(ide::LineIndex::new(text)),
             endings: LineEndings::Unix,
             encoding: PositionEncoding::Utf8,
+            transform: Default::default(),
         };
         let converted: Vec<lsp_types::FoldingRange> =
             folds.into_iter().map(|it| folding_range(text, &line_index, true, it)).collect();
@@ -2034,7 +2057,10 @@ fn bar(_: usize) {}
         let (offset, text) = extract_offset(text);
         let (analysis, file_id) = Analysis::from_single_file(text);
         let help = signature_help(
-            analysis.signature_help(FilePosition { file_id, offset }).unwrap().unwrap(),
+            analysis
+                .signature_help(FilePosition { file_id: file_id.file_id(analysis.db()), offset })
+                .unwrap()
+                .unwrap(),
             CallInfoConfig { params_only: false, docs: true },
             false,
         );
@@ -2069,6 +2095,7 @@ fn bar(_: usize) {}
             index: Arc::new(ide::LineIndex::new(&source)),
             endings,
             encoding: PositionEncoding::Utf8,
+            transform: Default::default(),
         };
 
         let res = merge_text_and_snippet_edits(&line_index, edit, snippets, true);

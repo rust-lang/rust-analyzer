@@ -80,7 +80,7 @@ pub use crate::{errors::SsrError, from_comment::ssr_from_comment, matching::Matc
 
 use crate::{errors::bail, matching::MatchFailureReason};
 use hir::{FileRange, Semantics};
-use ide_db::symbol_index::SymbolsDatabase;
+use ide_db::base_db::RootQueryDb;
 use ide_db::text_edit::TextEdit;
 use ide_db::{EditionedFileId, FileId, FxHashMap, RootDatabase, base_db::SourceDatabase};
 use resolving::ResolvedRule;

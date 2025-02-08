@@ -7,6 +7,7 @@ import * as diagnostics from "./diagnostics";
 import { activateTaskProvider } from "./tasks";
 import { setContextValue } from "./util";
 import { initializeDebugSessionTrackingAndRebuild } from "./debug";
+import * as ra from "./lsp_ext";
 
 const RUST_PROJECT_CONTEXT_NAME = "inRustProject";
 
@@ -37,10 +38,31 @@ export async function activate(
     return api;
 }
 
+class MacroFileProvider implements vscode.TextDocumentContentProvider {
+    constructor(private readonly ctx: Ctx) {}
+    onDidChange?: vscode.Event<vscode.Uri> | undefined;
+    provideTextDocumentContent(
+        uri: vscode.Uri,
+        token: vscode.CancellationToken,
+    ): vscode.ProviderResult<string> {
+        if (!this.ctx.client) {
+            throw new Error("rust-analyzer is not running");
+        }
+        return this.ctx.client.sendRequest(ra.macroFile, { uri: uri.toString() }, token);
+    }
+}
+
 async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
     if (ctx.workspace.kind === "Workspace Folder") {
         ctx.pushExtCleanup(activateTaskProvider(ctx.config));
     }
+
+    ctx.pushExtCleanup(
+        vscode.workspace.registerTextDocumentContentProvider(
+            "rust-macro-file",
+            new MacroFileProvider(ctx),
+        ),
+    );
 
     const diagnosticProvider = new diagnostics.TextDocumentProvider(ctx);
     ctx.pushExtCleanup(

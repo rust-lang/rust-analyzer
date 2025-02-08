@@ -1,14 +1,12 @@
 use hir::db::ExpandDatabase;
-use hir::{ExpandResult, InFile, InRealFile, Semantics};
+use hir::{ExpandResult, HirFileId, HirFilePosition, InFile, InRealFile, Semantics};
 use ide_db::{
-    FileId, RootDatabase, base_db::Crate, helpers::pick_best_token,
+    RootDatabase, base_db::Crate, helpers::pick_best_token,
     syntax_helpers::prettify_macro_expansion,
 };
 use span::{SpanMap, SyntaxContext, TextRange, TextSize};
 use stdx::format_to;
 use syntax::{AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T, ast, ted};
-
-use crate::FilePosition;
 
 pub struct ExpandedMacro {
     pub name: String,
@@ -24,13 +22,19 @@ pub struct ExpandedMacro {
 // | VS Code | **rust-analyzer: Expand macro recursively at caret** |
 //
 // ![Expand Macro Recursively](https://user-images.githubusercontent.com/48062697/113020648-b3973180-917a-11eb-84a9-ecb921293dc5.gif)
-pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<ExpandedMacro> {
+pub(crate) fn expand_macro(
+    db: &RootDatabase,
+    hir::FilePositionWrapper { mut file_id, offset }: HirFilePosition,
+) -> Option<ExpandedMacro> {
     let sema = Semantics::new(db);
-    let file_id = sema.attach_first_edition(position.file_id)?;
-    let file = sema.parse(file_id);
-    let krate = sema.file_to_module_def(file_id.file_id(db))?.krate().into();
+    file_id = sema.adjust_edition(file_id);
+    let file = &sema.parse_or_expand(file_id);
+    let krate = match file_id {
+        HirFileId::FileId(file_id) => sema.file_to_module_def(file_id)?.krate().into(),
+        HirFileId::MacroFile(macro_file_id) => db.lookup_intern_macro_call(macro_file_id).def.krate,
+    };
 
-    let tok = pick_best_token(file.syntax().token_at_offset(position.offset), |kind| match kind {
+    let tok = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         SyntaxKind::IDENT => 1,
         _ => 0,
     })?;
@@ -66,14 +70,8 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
         let ExpandResult { err, value: expansion } = expansions.get(idx)?.clone();
         let expansion_file_id = sema.hir_file_for(&expansion).macro_file()?;
         let expansion_span_map = db.expansion_span_map(expansion_file_id);
-        let mut expansion = format(
-            db,
-            SyntaxKind::MACRO_ITEMS,
-            position.file_id,
-            expansion,
-            &expansion_span_map,
-            krate,
-        );
+        let mut expansion =
+            format(db, SyntaxKind::MACRO_ITEMS, expansion, &expansion_span_map, krate);
         if let Some(err) = err {
             expansion.insert_str(
                 0,
@@ -87,10 +85,13 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
         return derive;
     }
 
-    let mut anc = sema
-        .descend_token_into_include_expansion(InRealFile::new(file_id, tok))
-        .value
-        .parent_ancestors();
+    let mut anc = match file_id {
+        HirFileId::FileId(file_id) => {
+            sema.descend_token_into_include_expansion(InRealFile::new(file_id, tok)).value
+        }
+        HirFileId::MacroFile(_) => tok,
+    }
+    .parent_ancestors();
     let mut span_map = SpanMap::empty();
     let mut error = String::new();
     let (name, expanded, kind) = loop {
@@ -127,7 +128,7 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
     // FIXME:
     // macro expansion may lose all white space information
     // But we hope someday we can use ra_fmt for that
-    let mut expansion = format(db, kind, position.file_id, expanded, &span_map, krate);
+    let mut expansion = format(db, kind, expanded, &span_map, krate);
 
     if !error.is_empty() {
         expansion.insert_str(0, &format!("Expansion had errors:{error}\n\n"));
@@ -203,22 +204,21 @@ fn expand(
 fn format(
     db: &RootDatabase,
     kind: SyntaxKind,
-    file_id: FileId,
     expanded: SyntaxNode,
     span_map: &SpanMap<SyntaxContext>,
     krate: Crate,
 ) -> String {
     let expansion = prettify_macro_expansion(db, expanded, span_map, krate).to_string();
 
-    _format(db, kind, file_id, &expansion).unwrap_or(expansion)
+    _format(db, kind, &expansion, krate).unwrap_or(expansion)
 }
 
 #[cfg(any(test, target_arch = "wasm32", target_os = "emscripten"))]
 fn _format(
     _db: &RootDatabase,
     _kind: SyntaxKind,
-    _file_id: FileId,
     expansion: &str,
+    _krate: Crate,
 ) -> Option<String> {
     // remove trailing spaces for test
     use itertools::Itertools;
@@ -229,11 +229,9 @@ fn _format(
 fn _format(
     db: &RootDatabase,
     kind: SyntaxKind,
-    file_id: FileId,
     expansion: &str,
+    crate_id: Crate,
 ) -> Option<String> {
-    use ide_db::base_db::RootQueryDb;
-
     // hack until we get hygiene working (same character amount to preserve formatting as much as possible)
     const DOLLAR_CRATE_REPLACE: &str = "__r_a_";
     const BUILTIN_REPLACE: &str = "builtin__POUND";
@@ -247,7 +245,6 @@ fn _format(
     };
     let expansion = format!("{prefix}{expansion}{suffix}");
 
-    let &crate_id = db.relevant_crates(file_id).iter().next()?;
     let edition = crate_id.data(db).edition;
 
     #[allow(clippy::disallowed_methods)]
@@ -295,7 +292,7 @@ mod tests {
     #[track_caller]
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         let (analysis, pos) = fixture::position(ra_fixture);
-        let expansion = analysis.expand_macro(pos).unwrap().unwrap();
+        let expansion = analysis.expand_macro(pos.into()).unwrap().unwrap();
         let actual = format!("{}\n{}", expansion.name, expansion.expansion);
         expect.assert_eq(&actual);
     }
@@ -319,7 +316,7 @@ $0concat!("test", 10, 'b', true);"#,
 //- minicore: asm
 $0asm!("0x300, x0");"#,
         );
-        let expansion = analysis.expand_macro(pos).unwrap();
+        let expansion = analysis.expand_macro(pos.into()).unwrap();
         assert!(expansion.is_none());
     }
 

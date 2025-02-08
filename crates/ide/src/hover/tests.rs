@@ -1,5 +1,6 @@
 use expect_test::{Expect, expect};
-use ide_db::{FileRange, base_db::SourceDatabase};
+use hir::HirFileRange;
+use ide_db::base_db::SourceDatabase;
 use syntax::TextRange;
 
 use crate::{
@@ -30,7 +31,10 @@ fn check_hover_no_result(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let hover = analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap();
     assert!(hover.is_none(), "hover not expected but found: {:?}", hover.unwrap());
@@ -42,13 +46,16 @@ fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let hover = analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
-    let hovered_element = &content.text(&analysis.db)[hover.range];
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
+    let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
@@ -68,12 +75,15 @@ fn check_hover_fields_limit(
                 max_fields_count: fields_count.into(),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -94,12 +104,15 @@ fn check_hover_enum_variants_limit(
                 max_enum_variants_count: variants_count.into(),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -120,12 +133,15 @@ fn check_assoc_count(
                 max_trait_assoc_items_count: Some(count),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -137,12 +153,15 @@ fn check_hover_no_links(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect:
     let hover = analysis
         .hover(
             &HOVER_BASE_CONFIG,
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -154,12 +173,15 @@ fn check_hover_no_memory_layout(#[rust_analyzer::rust_fixture] ra_fixture: &str,
     let hover = analysis
         .hover(
             &HoverConfig { memory_layout: None, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -175,12 +197,15 @@ fn check_hover_no_markdown(#[rust_analyzer::rust_fixture] ra_fixture: &str, expe
                 format: HoverDocFormat::PlainText,
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
+    let content = analysis.db.file_text(position.file_id.file_id(&analysis.db)).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -192,7 +217,7 @@ fn check_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect
     let mut hover = analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id, range: position.range_or_empty() },
+            HirFileRange { file_id: file_id.into(), range: position.range_or_empty() },
         )
         .unwrap()
         .unwrap();
@@ -214,14 +239,14 @@ fn check_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect
 
 fn check_hover_range(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
-    let hover = analysis.hover(&HOVER_BASE_CONFIG, range).unwrap().unwrap();
+    let hover = analysis.hover(&HOVER_BASE_CONFIG, range.into()).unwrap().unwrap();
     expect.assert_eq(hover.info.markup.as_str())
 }
 
 fn check_hover_range_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
     let mut hover = analysis
-        .hover(&HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG }, range)
+        .hover(&HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG }, range.into())
         .unwrap()
         .unwrap();
     // stub out ranges into minicore as they can change every now and then
@@ -242,7 +267,7 @@ fn check_hover_range_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, ex
 
 fn check_hover_range_no_results(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let (analysis, range) = fixture::range(ra_fixture);
-    let hover = analysis.hover(&HOVER_BASE_CONFIG, range).unwrap();
+    let hover = analysis.hover(&HOVER_BASE_CONFIG, range.into()).unwrap();
     assert!(hover.is_none());
 }
 
@@ -493,7 +518,9 @@ fn main() {
                             mod_path: "ra_test_fixture::S2",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 10..20,
                                 focus_range: 17..19,
@@ -506,7 +533,9 @@ fn main() {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..9,
                                 focus_range: 7..8,
@@ -519,7 +548,9 @@ fn main() {
                             mod_path: "core::ops::function::FnOnce",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    1,
+                                    EditionedFileId(
+                                        Id(2001),
+                                    ),
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -2370,7 +2401,9 @@ fn foo(Foo { b$0ar }: &Foo) {}
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -2406,7 +2439,9 @@ fn test() {
                 Reference(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 3,
                     },
@@ -2417,7 +2452,9 @@ fn test() {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 20..29,
                                 focus_range: 27..28,
@@ -2452,7 +2489,9 @@ fn test() {
                 Reference(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 15,
                     },
@@ -2463,7 +2502,9 @@ fn test() {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -2497,7 +2538,9 @@ fn test() {
                 Reference(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 16,
                     },
@@ -2508,7 +2551,9 @@ fn test() {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -2712,7 +2757,9 @@ fn test_hover_trait_show_qualifiers() {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 13,
                     },
@@ -3403,7 +3450,9 @@ fn test_hover_trait_has_impl_action() {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 6,
                     },
@@ -3422,7 +3471,9 @@ fn test_hover_struct_has_impl_action() {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 7,
                     },
@@ -3441,7 +3492,9 @@ fn test_hover_union_has_impl_action() {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 6,
                     },
@@ -3460,7 +3513,9 @@ fn test_hover_enum_has_impl_action() {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 5,
                     },
@@ -3479,7 +3534,9 @@ fn test_hover_self_has_impl_action() {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 7,
                     },
@@ -3501,7 +3558,9 @@ fn foo_$0test() {}
                 Reference(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 11,
                     },
@@ -3511,7 +3570,9 @@ fn foo_$0test() {}
                         use_name_in_title: false,
                         nav: NavigationTarget {
                             file_id: FileId(
-                                0,
+                                EditionedFileId(
+                                    Id(2000),
+                                ),
                             ),
                             full_range: 0..24,
                             focus_range: 11..19,
@@ -3555,7 +3616,9 @@ mod tests$0 {
                         use_name_in_title: false,
                         nav: NavigationTarget {
                             file_id: FileId(
-                                0,
+                                EditionedFileId(
+                                    Id(2000),
+                                ),
                             ),
                             full_range: 0..46,
                             focus_range: 4..9,
@@ -3595,7 +3658,9 @@ fn main() { let s$0t = S{ f1:0 }; }
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..19,
                                 focus_range: 7..8,
@@ -3628,7 +3693,9 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
                             mod_path: "ra_test_fixture::Arg",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..16,
                                 focus_range: 7..10,
@@ -3641,7 +3708,9 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 17..37,
                                 focus_range: 24..25,
@@ -3687,7 +3756,9 @@ fn main() { let s$0t = S{ f1: S{ f1: Arg(0) } }; }
                             mod_path: "ra_test_fixture::Arg",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..16,
                                 focus_range: 7..10,
@@ -3700,7 +3771,9 @@ fn main() { let s$0t = S{ f1: S{ f1: Arg(0) } }; }
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 17..37,
                                 focus_range: 24..25,
@@ -3736,7 +3809,9 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                             mod_path: "ra_test_fixture::A",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..14,
                                 focus_range: 7..8,
@@ -3749,7 +3824,9 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                             mod_path: "ra_test_fixture::B",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 15..29,
                                 focus_range: 22..23,
@@ -3762,7 +3839,9 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                             mod_path: "ra_test_fixture::M::C",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 42..60,
                                 focus_range: 53..54,
@@ -3796,7 +3875,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -3830,7 +3911,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -3843,7 +3926,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 16..25,
                                 focus_range: 23..24,
@@ -3877,7 +3962,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 13..25,
                                 focus_range: 19..22,
@@ -3890,7 +3977,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -3927,7 +4016,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 16..31,
                                 focus_range: 22..25,
@@ -3940,7 +4031,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -3953,7 +4046,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::S1",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 32..44,
                                 focus_range: 39..41,
@@ -3966,7 +4061,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::S2",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 45..57,
                                 focus_range: 52..54,
@@ -3997,7 +4094,9 @@ fn foo(ar$0g: &impl Foo) {}
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4031,7 +4130,9 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 13..28,
                                 focus_range: 19..22,
@@ -4044,7 +4145,9 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4057,7 +4160,9 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 29..39,
                                 focus_range: 36..37,
@@ -4098,7 +4203,9 @@ pub mod future {
                             mod_path: "core::future::Future",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    1,
+                                    EditionedFileId(
+                                        Id(2001),
+                                    ),
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -4112,7 +4219,9 @@ pub mod future {
                             mod_path: "main::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..110,
                                 focus_range: 108..109,
@@ -4144,7 +4253,9 @@ fn foo(ar$0g: &impl Foo<S>) {}
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4157,7 +4268,9 @@ fn foo(ar$0g: &impl Foo<S>) {}
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 16..27,
                                 focus_range: 23..24,
@@ -4194,7 +4307,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::B",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 48..61,
                                 focus_range: 55..56,
@@ -4207,7 +4322,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4220,7 +4337,9 @@ fn main() { let s$0t = foo(); }
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 16..25,
                                 focus_range: 23..24,
@@ -4251,7 +4370,9 @@ fn foo(ar$0g: &dyn Foo) {}
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4283,7 +4404,9 @@ fn foo(ar$0g: &dyn Foo<S>) {}
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4296,7 +4419,9 @@ fn foo(ar$0g: &dyn Foo<S>) {}
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 16..27,
                                 focus_range: 23..24,
@@ -4331,7 +4456,9 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             mod_path: "ra_test_fixture::B",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 43..57,
                                 focus_range: 50..51,
@@ -4344,7 +4471,9 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             mod_path: "ra_test_fixture::DynTrait",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 22..42,
                                 focus_range: 28..36,
@@ -4357,7 +4486,9 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             mod_path: "ra_test_fixture::ImplTrait",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..21,
                                 focus_range: 6..15,
@@ -4370,7 +4501,9 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 58..69,
                                 focus_range: 65..66,
@@ -4412,7 +4545,9 @@ fn main() { let s$0t = test().get(); }
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..62,
                                 focus_range: 6..9,
@@ -4445,7 +4580,9 @@ impl<const BAR: Bar> Foo<BAR$0> {}
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -4477,7 +4614,9 @@ fn foo<T: Foo>(t: T$0){}
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4510,7 +4649,9 @@ impl Foo {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -6814,7 +6955,10 @@ fn hover_feature() {
     analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
@@ -7244,7 +7388,9 @@ fn foo() {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -9213,7 +9359,9 @@ impl Iterator for S {
                 Implementation(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 7,
                     },
@@ -9224,7 +9372,9 @@ impl Iterator for S {
                             mod_path: "core::future::Future",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    1,
+                                    EditionedFileId(
+                                        Id(2001),
+                                    ),
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -9238,7 +9388,9 @@ impl Iterator for S {
                             mod_path: "core::iter::traits::iterator::Iterator",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    1,
+                                    EditionedFileId(
+                                        Id(2001),
+                                    ),
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -9252,7 +9404,9 @@ impl Iterator for S {
                             mod_path: "ra_test_fixture::Notable",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 21..59,
                                 focus_range: 49..56,
@@ -9265,7 +9419,9 @@ impl Iterator for S {
                             mod_path: "ra_test_fixture::S2",
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(2000),
+                                    ),
                                 ),
                                 full_range: 10..20,
                                 focus_range: 17..19,
@@ -10528,7 +10684,9 @@ macro_rules! str {
                 Reference(
                     FilePositionWrapper {
                         file_id: FileId(
-                            0,
+                            EditionedFileId(
+                                Id(2000),
+                            ),
                         ),
                         offset: 92,
                     },
@@ -10538,7 +10696,9 @@ macro_rules! str {
                         use_name_in_title: false,
                         nav: NavigationTarget {
                             file_id: FileId(
-                                0,
+                                EditionedFileId(
+                                    Id(2000),
+                                ),
                             ),
                             full_range: 81..301,
                             focus_range: 92..96,

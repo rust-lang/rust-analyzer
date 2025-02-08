@@ -5,8 +5,11 @@
 //! This module does line ending conversion and detection (so that we can
 //! convert back to `\r\n` on the way out).
 
+use ide::{TextRange, TextSize};
 use ide_db::line_index::WideEncoding;
+use itertools::Itertools;
 use memchr::memmem;
+use syntax_bridge::prettify_macro_expansion::PrettifyWsKind;
 use triomphe::Arc;
 
 #[derive(Clone, Copy)]
@@ -19,6 +22,107 @@ pub(crate) struct LineIndex {
     pub(crate) index: Arc<ide::LineIndex>,
     pub(crate) endings: LineEndings,
     pub(crate) encoding: PositionEncoding,
+    pub(crate) transform: PositionTransform,
+}
+
+impl LineIndex {
+    pub(crate) fn line_col(&self, mut offset: TextSize) -> ide::LineCol {
+        if !self.transform.insertions.is_empty() {
+            offset += TextSize::new(
+                self.transform
+                    .insertions
+                    .iter()
+                    .copied()
+                    .take_while(|&(off, _)| off < offset)
+                    .map(|(_, len)| ws_kind_width(len))
+                    .sum::<u32>(),
+            );
+        }
+        self.index.line_col(offset)
+    }
+
+    pub(crate) fn offset(&self, line_col: ide::LineCol) -> Option<TextSize> {
+        let mut offset = self.index.offset(line_col)?;
+        if !self.transform.insertions.is_empty() {
+            let mut iter = self.transform.insertions.iter();
+            let overall_sub = TextSize::new(if line_col.line == 0 {
+                0
+            } else {
+                // collect all ws insertions until the line `line` starts
+                // we need to offset our range by this value
+                let mut nl_seen = 0;
+                iter.peeking_take_while(|&&(_p, ws)| {
+                    let m = nl_seen != line_col.line;
+                    if ws == PrettifyWsKind::Newline {
+                        nl_seen += 1;
+                    }
+                    m
+                })
+                .copied()
+                .map(|(_, len)| ws_kind_width(len))
+                .sum::<u32>()
+            });
+            offset -= overall_sub;
+
+            for (pos, ws) in iter.copied().take_while(|&(_, ws)| ws != PrettifyWsKind::Newline) {
+                if offset < pos {
+                    break;
+                }
+                offset -= TextSize::new(ws_kind_width(ws));
+            }
+        }
+        Some(offset)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn line(&self, line: u32) -> Option<ide::TextRange> {
+        let mut range = self.index.line(line)?;
+        if !self.transform.insertions.is_empty() {
+            let mut iter = self.transform.insertions.iter();
+            let overall_sub = TextSize::new(if line == 0 {
+                0
+            } else {
+                // collect all ws insertions until the line `line` starts
+                // we need to offset our range by this value
+                let mut nl_seen = 0;
+                iter.peeking_take_while(|&&(_p, ws)| {
+                    let m = nl_seen != line;
+                    if ws == PrettifyWsKind::Newline {
+                        nl_seen += 1;
+                    }
+                    m
+                })
+                .copied()
+                .map(|(_, len)| ws_kind_width(len))
+                .sum::<u32>()
+            });
+
+            // collect all ws insertions within the line `line`
+            // we need to deduct this from range end by this value
+            let end_sub = TextSize::new(
+                iter.copied()
+                    .take_while(|&(_, ws)| ws != PrettifyWsKind::Newline)
+                    .map(|(_, len)| ws_kind_width(len))
+                    .sum::<u32>(),
+            );
+            range =
+                TextRange::new(range.start() - overall_sub, range.end() - overall_sub - end_sub);
+        }
+        Some(range)
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct PositionTransform {
+    pub insertions: Vec<(TextSize, PrettifyWsKind)>,
+}
+
+fn ws_kind_width(ws: PrettifyWsKind) -> u32 {
+    match ws {
+        PrettifyWsKind::Space => 1,
+        PrettifyWsKind::Indent(indent) => 4 * (indent as u32),
+        PrettifyWsKind::Newline => 1,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

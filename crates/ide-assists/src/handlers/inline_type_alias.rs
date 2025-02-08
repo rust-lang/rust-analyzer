@@ -93,7 +93,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>)
                 }
             };
 
-            for (file_id, refs) in usages.into_iter() {
+            for (file_id, refs) in usages.map_out_of_macros(&ctx.sema) {
                 inline_refs_for_file(file_id.file_id(ctx.db()), refs);
             }
             if !definition_deleted {

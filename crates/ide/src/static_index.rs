@@ -2,7 +2,7 @@
 //! read-only code browsers and emitting LSIF
 
 use arrayvec::ArrayVec;
-use hir::{Crate, Module, Semantics, db::HirDatabase};
+use hir::{Crate, EditionedFileId, Module, Semantics, db::HirDatabase};
 use ide_db::{
     FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
     base_db::{RootQueryDb, SourceDatabase, VfsPath},
@@ -149,8 +149,14 @@ pub enum VendoredLibrariesConfig<'a> {
 
 impl StaticIndex<'_> {
     fn add_file(&mut self, file_id: FileId) {
+        let sema = hir::Semantics::new(self.db);
+        let root = sema.parse_guess_edition(file_id).syntax().clone();
+        let editioned_file_id = sema
+            .attach_first_edition(file_id)
+            .unwrap_or_else(|| EditionedFileId::new(sema.db, file_id, Edition::CURRENT));
+        let edition = editioned_file_id.edition(sema.db);
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
-        let folds = self.analysis.folding_ranges(file_id).unwrap();
+        let folds = self.analysis.folding_ranges(editioned_file_id.into()).unwrap();
         let inlay_hints = self
             .analysis
             .inlay_hints(
@@ -184,17 +190,11 @@ impl StaticIndex<'_> {
                     fields_to_resolve: InlayFieldsToResolve::empty(),
                     range_exclusive_hints: false,
                 },
-                file_id,
+                editioned_file_id.into(),
                 None,
             )
             .unwrap();
         // hovers
-        let sema = hir::Semantics::new(self.db);
-        let root = sema.parse_guess_edition(file_id).syntax().clone();
-        let edition = sema
-            .attach_first_edition(file_id)
-            .map(|it| it.edition(self.db))
-            .unwrap_or(Edition::CURRENT);
         let display_target = match sema.first_crate(file_id) {
             Some(krate) => krate.to_display_target(sema.db),
             None => return,
@@ -231,14 +231,13 @@ impl StaticIndex<'_> {
                     documentation: documentation_for_definition(&sema, def, scope_node),
                     hover: Some(hover_for_definition(
                         &sema,
-                        file_id,
+                        editioned_file_id.into(),
                         def,
                         None,
                         scope_node,
                         None,
                         false,
                         &hover_config,
-                        edition,
                         display_target,
                     )),
                     definition: def.try_to_nav(self.db).map(UpmappingResult::call_site).map(|it| {
@@ -266,7 +265,7 @@ impl StaticIndex<'_> {
             result.tokens.push((range, id));
         };
 
-        if let Some(module) = sema.file_to_module_def(file_id) {
+        if let Some(module) = sema.file_to_module_def(editioned_file_id) {
             let def = Definition::Module(module);
             let range = root.text_range();
             add_token(def, range, &root);
@@ -340,7 +339,8 @@ mod tests {
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
         let s = StaticIndex::compute(&analysis, vendored_libs_config);
-        let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
+        let mut range_set: FxHashSet<FileRange> =
+            ranges.iter().map(|it| it.0.into_file_id(&analysis.db)).collect();
         for f in s.files {
             for (range, _) in f.tokens {
                 if range.start() == TextSize::from(0) {
@@ -366,7 +366,8 @@ mod tests {
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
         let s = StaticIndex::compute(&analysis, vendored_libs_config);
-        let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
+        let mut range_set: FxHashSet<FileRange> =
+            ranges.iter().map(|it| it.0.into_file_id(&analysis.db)).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
                 if t.range.start() == TextSize::from(0) {
@@ -391,7 +392,8 @@ mod tests {
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
         let s = StaticIndex::compute(&analysis, vendored_libs_config);
-        let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
+        let mut range_set: FxHashMap<_, i32> =
+            ranges.iter().map(|it| (it.0.into_file_id(&analysis.db), 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
         // a HashSet so that we can have more than one reference at the same range.

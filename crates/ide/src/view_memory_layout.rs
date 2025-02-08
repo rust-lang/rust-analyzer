@@ -219,7 +219,7 @@ mod tests {
     ) -> Option<RecursiveMemoryLayout> {
         let (analysis, position, _) = fixture::annotations(ra_fixture);
 
-        view_memory_layout(&analysis.db, position)
+        view_memory_layout(&analysis.db, position.into_file_id(&analysis.db))
     }
 
     #[test]

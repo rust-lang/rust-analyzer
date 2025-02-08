@@ -310,7 +310,7 @@ fn main(a: SliceIter<'_, Container>) {
         analysis
             .inlay_hints(
                 &InlayHintsConfig { chaining_hints: true, ..DISABLED_CONFIG },
-                file_id,
+                file_id.into(),
                 None,
             )
             .unwrap();
@@ -420,11 +420,12 @@ fn main() {
 }
 "#;
         let (analysis, file_id) = fixture::file(fixture);
-        let expected = extract_annotations(&analysis.file_text(file_id).unwrap());
+        let expected =
+            extract_annotations(&analysis.file_text(file_id.file_id(&analysis.db)).unwrap());
         let inlay_hints = analysis
             .inlay_hints(
                 &InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG },
-                file_id,
+                file_id.into(),
                 Some(TextRange::new(TextSize::from(491), TextSize::from(640))),
             )
             .unwrap();

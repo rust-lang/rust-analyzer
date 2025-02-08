@@ -1,9 +1,9 @@
 //! "Recursive" Syntax highlighting for code in doctests and fixtures.
 
-use std::mem;
+use std::{mem, panic::AssertUnwindSafe};
 
 use either::Either;
-use hir::{EditionedFileId, HirFileId, InFile, Semantics, sym};
+use hir::{HirFileId, InFile, Semantics, sym};
 use ide_db::{
     SymbolKind, active_parameter::ActiveParameter, defs::Definition,
     documentation::docs_with_rangemap, rust_doc::is_rust_fence,
@@ -87,7 +87,7 @@ pub(super) fn ra_fixture(
                 inject_doc_comment: config.inject_doc_comment,
                 macro_bang: config.macro_bang,
             },
-            tmp_file_id,
+            tmp_file_id.into(),
         )
         .unwrap()
     {
@@ -115,14 +115,13 @@ pub(super) fn doc_comment(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
     config: HighlightConfig,
-    src_file_id: EditionedFileId,
+    src_file_id: HirFileId,
     node: &SyntaxNode,
 ) {
     let (attributes, def) = match doc_attributes(sema, node) {
         Some(it) => it,
         None => return,
     };
-    let src_file_id: HirFileId = src_file_id.into();
 
     // Extract intra-doc links and emit highlights for them.
     if let Some((docs, doc_mapping)) = docs_with_rangemap(sema.db, &attributes) {
@@ -241,6 +240,7 @@ pub(super) fn doc_comment(
     inj.add_unmapped("\n}");
 
     let (analysis, tmp_file_id) = Analysis::from_single_file(inj.take_text());
+    let tmp_file_id = AssertUnwindSafe(tmp_file_id.into());
 
     if let Ok(ranges) = analysis.with_db(|db| {
         super::highlight(
@@ -255,7 +255,7 @@ pub(super) fn doc_comment(
                 inject_doc_comment: config.inject_doc_comment,
                 macro_bang: config.macro_bang,
             },
-            tmp_file_id,
+            { tmp_file_id }.0,
             None,
         )
     }) {
