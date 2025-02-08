@@ -1,6 +1,6 @@
 //! Implementation of "chaining" inlay hints.
 use ide_db::famous_defs::FamousDefs;
-use span::EditionedFileId;
+use span::Edition;
 use syntax::{
     ast::{self, AstNode},
     Direction, NodeOrToken, SyntaxKind, T,
@@ -14,7 +14,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    edition: Edition,
     expr: &ast::Expr,
 ) -> Option<()> {
     if !config.chaining_hints {
@@ -58,7 +58,7 @@ pub(super) fn hints(
                     }
                 }
             }
-            let label = label_of_ty(famous_defs, config, &ty, file_id.edition())?;
+            let label = label_of_ty(famous_defs, config, &ty, edition)?;
             acc.push(InlayHint {
                 range: expr.syntax().text_range(),
                 kind: InlayKind::Chaining,
@@ -100,7 +100,7 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let mut inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+        let mut inlay_hints = analysis.inlay_hints(&config, file_id.into(), None).unwrap();
         inlay_hints.iter_mut().flat_map(|hint| &mut hint.label.parts).for_each(|hint| {
             if let Some(LazyProperty::Computed(loc)) = &mut hint.linked_location {
                 loc.range = TextRange::empty(TextSize::from(0));
@@ -139,8 +139,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 63..64,
                                         },
@@ -158,8 +159,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 7..8,
                                         },
@@ -222,8 +224,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 51..52,
                                         },
@@ -241,8 +244,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 29..30,
                                         },
@@ -289,8 +293,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 51..52,
                                         },
@@ -308,8 +313,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 29..30,
                                         },
@@ -357,8 +363,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 23..24,
                                         },
@@ -372,8 +379,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 55..56,
                                         },
@@ -392,8 +400,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 7..8,
                                         },
@@ -407,8 +416,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 55..56,
                                         },
@@ -460,8 +470,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -475,8 +486,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -496,8 +508,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -511,8 +524,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -532,8 +546,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -547,8 +562,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -568,8 +584,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 0..0,
                                         },
@@ -616,8 +633,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 7..13,
                                         },
@@ -635,8 +653,9 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 7..13,
                                         },
@@ -654,29 +673,11 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 0,
+                                                Edition2021,
                                             ),
                                             range: 7..13,
-                                        },
-                                    ),
-                                ),
-                                tooltip: "",
-                            },
-                        ],
-                    ),
-                    (
-                        222..228,
-                        [
-                            InlayHintLabelPart {
-                                text: "self",
-                                linked_location: Some(
-                                    Computed(
-                                        FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
-                                            ),
-                                            range: 42..46,
                                         },
                                     ),
                                 ),

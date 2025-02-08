@@ -1,11 +1,12 @@
 use std::time::Instant;
 
 use expect_test::{expect_file, ExpectFile};
+use hir::HirFileRange;
 use ide_db::SymbolKind;
 use span::Edition;
 use test_utils::{bench, bench_fixture, skip_slow_tests, AssertLinear};
 
-use crate::{fixture, FileRange, HighlightConfig, HlTag, TextRange};
+use crate::{fixture, HighlightConfig, HlTag, TextRange};
 
 const HL_CONFIG: HighlightConfig = HighlightConfig {
     strings: true,
@@ -1151,7 +1152,7 @@ struct Foo {
     let highlights = &analysis
         .highlight_range(
             HL_CONFIG,
-            FileRange { file_id, range: TextRange::at(45.into(), 1.into()) },
+            HirFileRange { file_id: file_id.into(), range: TextRange::at(45.into(), 1.into()) },
         )
         .unwrap();
 
@@ -1167,7 +1168,7 @@ macro_rules! test {}
 }"#
         .trim(),
     );
-    let _ = analysis.highlight(HL_CONFIG, file_id).unwrap();
+    let _ = analysis.highlight(HL_CONFIG, file_id.into()).unwrap();
 }
 
 #[test]
@@ -1187,7 +1188,7 @@ trait Trait {}
 fn foo(x: &fn(&dyn Trait)) {}
 "#,
     );
-    let _ = analysis.highlight(HL_CONFIG, file_id).unwrap();
+    let _ = analysis.highlight(HL_CONFIG, file_id.into()).unwrap();
 }
 
 /// Highlights the code given by the `ra_fixture` argument, renders the
@@ -1199,7 +1200,7 @@ fn check_highlighting(
     rainbow: bool,
 ) {
     let (analysis, file_id) = fixture::file(ra_fixture.trim());
-    let actual_html = &analysis.highlight_as_html(file_id, rainbow).unwrap();
+    let actual_html = &analysis.highlight_as_html(file_id.into(), rainbow).unwrap();
     expect.assert_eq(actual_html)
 }
 
@@ -1215,7 +1216,7 @@ fn benchmark_syntax_highlighting_long_struct() {
     let hash = {
         let _pt = bench("syntax highlighting long struct");
         analysis
-            .highlight(HL_CONFIG, file_id)
+            .highlight(HL_CONFIG, file_id.into())
             .unwrap()
             .iter()
             .filter(|it| it.highlight.tag == HlTag::Symbol(SymbolKind::Struct))
@@ -1241,7 +1242,7 @@ fn syntax_highlighting_not_quadratic() {
             let time = Instant::now();
 
             let hash = analysis
-                .highlight(HL_CONFIG, file_id)
+                .highlight(HL_CONFIG, file_id.into())
                 .unwrap()
                 .iter()
                 .filter(|it| it.highlight.tag == HlTag::Symbol(SymbolKind::Struct))
@@ -1266,7 +1267,7 @@ fn benchmark_syntax_highlighting_parser() {
     let hash = {
         let _pt = bench("syntax highlighting parser");
         analysis
-            .highlight(HL_CONFIG, file_id)
+            .highlight(HL_CONFIG, file_id.into())
             .unwrap()
             .iter()
             .filter(|it| {
@@ -1291,7 +1292,7 @@ fn f<'de, T: Deserialize<'de>>() {
 "#
         .trim(),
     );
-    let _ = analysis.highlight(HL_CONFIG, file_id).unwrap();
+    let _ = analysis.highlight(HL_CONFIG, file_id.into()).unwrap();
 }
 
 #[test]

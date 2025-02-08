@@ -21,9 +21,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {
@@ -54,9 +52,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {
@@ -87,9 +83,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {
@@ -120,9 +114,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {
@@ -153,9 +145,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {
@@ -186,9 +176,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {
@@ -219,9 +207,7 @@
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: EditionedFileId(
-                        FileId(
-                            0,
-                        ),
+                        0,
                         Edition2021,
                     ),
                     ptr: SyntaxNodePtr {

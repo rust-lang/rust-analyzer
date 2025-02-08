@@ -5,10 +5,10 @@
 //! ```
 
 use either::Either;
-use hir::{Callable, Semantics};
+use hir::{Callable, InFile, Semantics};
 use ide_db::{famous_defs::FamousDefs, RootDatabase};
 
-use span::EditionedFileId;
+use span::HirFileId;
 use stdx::to_lower_snake_case;
 use syntax::{
     ast::{self, AstNode, HasArgList, HasName, UnaryOp},
@@ -21,28 +21,31 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     FamousDefs(sema, krate): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    _file_id: EditionedFileId,
+    file_id: HirFileId,
     expr: ast::Expr,
 ) -> Option<()> {
     if !config.parameter_hints {
         return None;
     }
 
-    let (callable, arg_list) = get_callable(sema, &expr)?;
+    let InFile { file_id: arg_file, value: (callable, arg_list) } = get_callable(sema, &expr)?;
     let hints = callable
         .params()
         .into_iter()
         .zip(arg_list.args())
         .filter_map(|(p, arg)| {
-            // Only annotate hints for expressions that exist in the original file
-            let range = sema.original_range_opt(arg.syntax())?;
+            // FIXME: macro mapping for the arg range
+            if arg_file != file_id {
+                return None;
+            }
+            let range = arg.syntax().text_range();
             let param_name = p.name(sema.db)?;
             Some((p, param_name, arg, range))
         })
         .filter(|(_, param_name, arg, _)| {
             !should_hide_param_name_hint(sema, &callable, param_name.as_str(), arg)
         })
-        .map(|(param, param_name, _, hir::FileRange { range, .. })| {
+        .map(|(param, param_name, _, range)| {
             let colon = if config.render_colons { ":" } else { "" };
             let label = InlayHintLabel::simple(
                 format!("{}{colon}", param_name.display(sema.db, krate.edition(sema.db))),
@@ -56,7 +59,7 @@ pub(super) fn hints(
                             _ => None,
                         },
                     }?;
-                    sema.original_range_opt(name_syntax.syntax()).map(Into::into)
+                    Some(source.with_value(name_syntax).node_file_range())
                 }),
             );
             InlayHint {
@@ -78,17 +81,25 @@ pub(super) fn hints(
 fn get_callable(
     sema: &Semantics<'_, RootDatabase>,
     expr: &ast::Expr,
-) -> Option<(hir::Callable, ast::ArgList)> {
+) -> Option<InFile<(hir::Callable, ast::ArgList)>> {
     match expr {
         ast::Expr::CallExpr(expr) => {
             let descended = sema.descend_node_into_attributes(expr.clone()).pop();
             let expr = descended.as_ref().unwrap_or(expr);
-            sema.type_of_expr(&expr.expr()?)?.original.as_callable(sema.db).zip(expr.arg_list())
+            let file_id = sema.hir_file_for(expr.syntax());
+            sema.type_of_expr(&expr.expr()?)?
+                .original
+                .as_callable(sema.db)
+                .zip(expr.arg_list())
+                .map(|it| InFile::new(file_id, it))
         }
         ast::Expr::MethodCallExpr(expr) => {
             let descended = sema.descend_node_into_attributes(expr.clone()).pop();
             let expr = descended.as_ref().unwrap_or(expr);
-            sema.resolve_method_call_as_callable(expr).zip(expr.arg_list())
+            let file_id = sema.hir_file_for(expr.syntax());
+            sema.resolve_method_call_as_callable(expr)
+                .zip(expr.arg_list())
+                .map(|it| InFile::new(file_id, it))
         }
         _ => None,
     }

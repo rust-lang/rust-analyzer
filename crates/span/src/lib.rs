@@ -115,7 +115,10 @@ pub struct EditionedFileId(u32);
 
 impl fmt::Debug for EditionedFileId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("EditionedFileId").field(&self.file_id()).field(&self.edition()).finish()
+        f.debug_tuple("EditionedFileId")
+            .field(&self.file_id().index())
+            .field(&self.edition())
+            .finish()
     }
 }
 
@@ -265,6 +268,8 @@ pub struct MacroFileId {
 pub struct MacroCallId(InternId);
 
 #[cfg(feature = "ra-salsa")]
+pub use ra_salsa::InternKey;
+#[cfg(feature = "ra-salsa")]
 impl ra_salsa::InternKey for MacroCallId {
     fn from_intern_id(v: ra_salsa::InternId) -> Self {
         MacroCallId(v)
@@ -323,6 +328,16 @@ impl From<MacroFileId> for HirFileId {
 impl HirFileId {
     const MAX_HIR_FILE_ID: u32 = u32::MAX ^ Self::MACRO_FILE_TAG_MASK;
     const MACRO_FILE_TAG_MASK: u32 = 1 << 31;
+
+    #[inline]
+    pub fn from_raw(raw: u32) -> Self {
+        HirFileId(raw)
+    }
+
+    #[inline]
+    pub fn into_raw(self) -> u32 {
+        self.0
+    }
 
     #[inline]
     pub fn is_macro(self) -> bool {

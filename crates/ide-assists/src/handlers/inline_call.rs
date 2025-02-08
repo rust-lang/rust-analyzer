@@ -100,7 +100,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
         "Inline into all callers",
         name.syntax().text_range(),
         |builder| {
-            let mut usages = usages.all();
+            let mut usages = usages.all().map_out_of_macros(&ctx.sema);
             let current_file_usage = usages.references.remove(&def_file);
 
             let mut remove_def = true;
@@ -136,7 +136,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     remove_def = false;
                 }
             };
-            for (file_id, refs) in usages.into_iter() {
+            for (file_id, refs) in usages {
                 inline_refs_for_file(file_id, refs);
             }
             match current_file_usage {
@@ -338,6 +338,7 @@ fn inline(
         Definition::Local(local)
             .usages(sema)
             .all()
+            .map_out_of_macros(sema)
             .references
             .remove(&function_def_file_id)
             .unwrap_or_default()

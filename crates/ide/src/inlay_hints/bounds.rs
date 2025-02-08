@@ -1,9 +1,10 @@
 //! Implementation of trait bound hints.
 //!
 //! Currently this renders the implied `Sized` bound.
-use ide_db::{famous_defs::FamousDefs, FileRange};
+use hir::HirFileRange;
+use ide_db::famous_defs::FamousDefs;
 
-use span::EditionedFileId;
+use span::HirFileId;
 use syntax::ast::{self, AstNode, HasTypeBounds};
 
 use crate::{
@@ -15,7 +16,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    _file_id: EditionedFileId,
+    _file_id: HirFileId,
     params: ast::GenericParamList,
 ) -> Option<()> {
     if !config.sized_bound {
@@ -46,12 +47,10 @@ pub(super) fn hints(
                             text: "Sized".to_owned(),
                             linked_location: sized_trait.and_then(|it| {
                                 config.lazy_location_opt(|| {
-                                    it.try_to_nav(sema.db).map(|it| {
-                                        let n = it.call_site();
-                                        FileRange {
-                                            file_id: n.file_id,
-                                            range: n.focus_or_full_range(),
-                                        }
+                                    // FIXME: Replace with a range fetch only
+                                    it.try_to_nav_hir(sema.db).map(|it| HirFileRange {
+                                        file_id: it.file_id,
+                                        range: it.focus_or_full_range(),
                                     })
                                 })
                             }),
@@ -142,8 +141,9 @@ fn foo<T>() {}
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
+                                            file_id: EditionedFileId(
                                                 1,
+                                                Edition2021,
                                             ),
                                             range: 135..140,
                                         },

@@ -5,7 +5,7 @@ use ide_db::{
     defs::Definition,
     helpers::mod_path_to_ast,
     imports::insert_use::{insert_use, ImportScope},
-    search::{FileReference, UsageSearchResult},
+    search::{FileReference, RealFileUsageSearchResult},
     source_change::SourceChangeBuilder,
     syntax_helpers::node_ext::{for_each_tail_expr, walk_expr},
     FxHashSet,
@@ -69,7 +69,8 @@ pub(crate) fn convert_tuple_return_type_to_struct(
             let ret_type = edit.make_mut(ret_type);
             let fn_ = edit.make_mut(fn_);
 
-            let usages = Definition::Function(fn_def).usages(&ctx.sema).all();
+            let usages =
+                Definition::Function(fn_def).usages(&ctx.sema).all().map_out_of_macros(&ctx.sema);
             let struct_name = format!("{}Result", stdx::to_camel_case(&fn_name.to_string()));
             let parent = fn_.syntax().ancestors().find_map(<Either<ast::Impl, ast::Trait>>::cast);
             add_tuple_struct_def(
@@ -100,7 +101,7 @@ pub(crate) fn convert_tuple_return_type_to_struct(
 fn replace_usages(
     edit: &mut SourceChangeBuilder,
     ctx: &AssistContext<'_>,
-    usages: &UsageSearchResult,
+    usages: &RealFileUsageSearchResult,
     struct_name: &str,
     target_module: &hir::Module,
 ) {
@@ -230,7 +231,7 @@ fn augment_references_with_imports(
 fn add_tuple_struct_def(
     edit: &mut SourceChangeBuilder,
     ctx: &AssistContext<'_>,
-    usages: &UsageSearchResult,
+    usages: &RealFileUsageSearchResult,
     parent: &SyntaxNode,
     tuple_ty: &ast::TupleType,
     struct_name: &str,

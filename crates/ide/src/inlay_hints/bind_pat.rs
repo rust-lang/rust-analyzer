@@ -7,7 +7,7 @@ use hir::Semantics;
 use ide_db::{famous_defs::FamousDefs, RootDatabase};
 
 use itertools::Itertools;
-use span::EditionedFileId;
+use span::Edition;
 use syntax::{
     ast::{self, AstNode, HasGenericArgs, HasName},
     match_ast,
@@ -22,7 +22,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    edition: Edition,
     pat: &ast::IdentPat,
 ) -> Option<()> {
     if !config.type_hints {
@@ -70,7 +70,7 @@ pub(super) fn hints(
         return None;
     }
 
-    let mut label = label_of_ty(famous_defs, config, &ty, file_id.edition())?;
+    let mut label = label_of_ty(famous_defs, config, &ty, edition)?;
 
     if config.hide_named_constructor_hints
         && is_named_constructor(sema, pat, &label.to_string()).is_some()
@@ -310,7 +310,7 @@ fn main(a: SliceIter<'_, Container>) {
         analysis
             .inlay_hints(
                 &InlayHintsConfig { chaining_hints: true, ..DISABLED_CONFIG },
-                file_id,
+                file_id.into(),
                 None,
             )
             .unwrap();
@@ -420,11 +420,11 @@ fn main() {
 }
 "#;
         let (analysis, file_id) = fixture::file(fixture);
-        let expected = extract_annotations(&analysis.file_text(file_id).unwrap());
+        let expected = extract_annotations(&analysis.file_text(file_id.into()).unwrap());
         let inlay_hints = analysis
             .inlay_hints(
                 &InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG },
-                file_id,
+                file_id.into(),
                 Some(TextRange::new(TextSize::from(491), TextSize::from(640))),
             )
             .unwrap();
