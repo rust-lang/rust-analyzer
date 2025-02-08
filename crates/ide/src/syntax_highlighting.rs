@@ -15,9 +15,8 @@ mod tests;
 
 use std::ops::ControlFlow;
 
-use hir::{InRealFile, Name, Semantics};
+use hir::{HirFileId, HirFileIdExt, InFile, Name, Semantics};
 use ide_db::{FxHashMap, Ranker, RootDatabase, SymbolKind};
-use span::EditionedFileId;
 use syntax::{
     ast::{self, IsString},
     AstNode, AstToken, NodeOrToken,
@@ -33,7 +32,7 @@ use crate::{
         macro_::MacroHighlighter,
         tags::Highlight,
     },
-    FileId, HlMod, HlOperator, HlPunct, HlTag,
+    HlMod, HlOperator, HlPunct, HlTag,
 };
 
 pub(crate) use html::highlight_as_html;
@@ -191,19 +190,16 @@ pub struct HighlightConfig {
 pub(crate) fn highlight(
     db: &RootDatabase,
     config: HighlightConfig,
-    file_id: FileId,
+    file_id: HirFileId,
     range_to_highlight: Option<TextRange>,
 ) -> Vec<HlRange> {
     let _p = tracing::info_span!("highlight").entered();
     let sema = Semantics::new(db);
-    let file_id = sema
-        .attach_first_edition(file_id)
-        .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
 
     // Determine the root based on the given range.
     let (root, range_to_highlight) = {
-        let file = sema.parse(file_id);
-        let source_file = file.syntax();
+        let file_id = sema.adjust_edition(file_id);
+        let source_file = sema.parse_or_expand(file_id);
         match range_to_highlight {
             Some(range) => {
                 let node = match source_file.covering_element(range) {
@@ -229,12 +225,14 @@ fn traverse(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
     config: HighlightConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
     root: &SyntaxNode,
     krate: hir::Crate,
     range_to_highlight: TextRange,
 ) {
-    let is_unlinked = sema.file_to_module_def(file_id).is_none();
+    let edition = file_id.edition(sema.db);
+    let is_unlinked =
+        file_id.file_id().is_some_and(|file_id| sema.file_to_module_def(file_id).is_none());
     let mut bindings_shadow_count: FxHashMap<Name, u32> = FxHashMap::default();
 
     enum AttrOrDerive {
@@ -411,8 +409,8 @@ fn traverse(
 
                     let mut t = None;
                     let mut r = 0;
-                    sema.descend_into_macros_breakable(
-                        InRealFile::new(file_id, token.clone()),
+                    sema.descend_into_macros_breakable2(
+                        InFile::new(file_id, token.clone()),
                         |tok, _ctx| {
                             // FIXME: Consider checking ctx transparency for being opaque?
                             let tok = tok.value;
@@ -490,7 +488,7 @@ fn traverse(
                         &string,
                         &expanded_string,
                         range,
-                        file_id.edition(),
+                        file_id.edition(sema.db),
                     );
 
                     if !string.is_raw() {
@@ -539,11 +537,9 @@ fn traverse(
                 &mut bindings_shadow_count,
                 config.syntactic_name_ref_highlighting,
                 name_like,
-                file_id.edition(),
+                edition,
             ),
-            NodeOrToken::Token(token) => {
-                highlight::token(sema, token, file_id.edition()).zip(Some(None))
-            }
+            NodeOrToken::Token(token) => highlight::token(sema, token, edition).zip(Some(None)),
         };
         if let Some((mut highlight, binding_hash)) = element {
             if is_unlinked && highlight.tag == HlTag::UnresolvedReference {

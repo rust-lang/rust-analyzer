@@ -5,21 +5,21 @@ use std::{
 
 use either::Either;
 use hir::{
-    sym, ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef,
-    ModuleDefId, Semantics,
+    sym, ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirFileId, HirFileIdExt,
+    HirFileRange, HirWrite, ModuleDef, ModuleDefId, Semantics,
 };
-use ide_db::{famous_defs::FamousDefs, FileRange, RootDatabase};
+use ide_db::{famous_defs::FamousDefs, RootDatabase};
 use ide_db::{text_edit::TextEdit, FxHashSet};
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
-use span::{Edition, EditionedFileId};
+use span::Edition;
 use stdx::never;
 use syntax::{
     ast::{self, AstNode, HasGenericParams},
     format_smolstr, match_ast, SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
 };
 
-use crate::{navigation_target::TryToNav, FileId};
+use crate::navigation_target::TryToNav;
 
 mod adjustment;
 mod bind_pat;
@@ -77,17 +77,15 @@ mod range_exclusive;
 // ![Inlay hints](https://user-images.githubusercontent.com/48062697/113020660-b5f98b80-917a-11eb-8d70-3be3fd558cdd.png)
 pub(crate) fn inlay_hints(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: HirFileId,
     range_limit: Option<TextRange>,
     config: &InlayHintsConfig,
 ) -> Vec<InlayHint> {
     let _p = tracing::info_span!("inlay_hints").entered();
     let sema = Semantics::new(db);
-    let file_id = sema
-        .attach_first_edition(file_id)
-        .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let file = sema.parse(file_id);
-    let file = file.syntax();
+
+    let file_id = sema.adjust_edition(file_id);
+    let file = &sema.parse_or_expand(file_id);
 
     let mut acc = Vec::new();
 
@@ -126,7 +124,7 @@ struct InlayHintCtx {
 
 pub(crate) fn inlay_hints_resolve(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: HirFileId,
     resolve_range: TextRange,
     hash: u64,
     config: &InlayHintsConfig,
@@ -134,11 +132,8 @@ pub(crate) fn inlay_hints_resolve(
 ) -> Option<InlayHint> {
     let _p = tracing::info_span!("inlay_hints_resolve").entered();
     let sema = Semantics::new(db);
-    let file_id = sema
-        .attach_first_edition(file_id)
-        .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let file = sema.parse(file_id);
-    let file = file.syntax();
+    let file_id = sema.adjust_edition(file_id);
+    let file = &sema.parse_or_expand(file_id);
 
     let scope = sema.scope(file)?;
     let famous_defs = FamousDefs(&sema, scope.krate());
@@ -204,10 +199,11 @@ fn hints(
     ctx: &mut InlayHintCtx,
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
     node: SyntaxNode,
 ) {
-    closing_brace::hints(hints, sema, config, file_id, node.clone());
+    let edition = file_id.edition(sema.db);
+    closing_brace::hints(hints, sema, config, file_id, edition, node.clone());
     if let Some(any_has_generic_args) = ast::AnyHasGenericArgs::cast(node.clone()) {
         generic_param::hints(hints, famous_defs, config, any_has_generic_args);
     }
@@ -215,8 +211,8 @@ fn hints(
     match_ast! {
         match node {
             ast::Expr(expr) => {
-                chaining::hints(hints, famous_defs, config, file_id, &expr);
-                adjustment::hints(hints, famous_defs, config, file_id, &expr);
+                chaining::hints(hints, famous_defs, config, edition, &expr);
+                adjustment::hints(hints, famous_defs, config, edition, &expr);
                 match expr {
                     ast::Expr::CallExpr(it) => param_name::hints(hints, famous_defs, config, file_id, ast::Expr::from(it)),
                     ast::Expr::MethodCallExpr(it) => {
@@ -224,7 +220,7 @@ fn hints(
                     }
                     ast::Expr::ClosureExpr(it) => {
                         closure_captures::hints(hints, famous_defs, config, file_id, it.clone());
-                        closure_ret::hints(hints, famous_defs, config, file_id, it)
+                        closure_ret::hints(hints, famous_defs, config, edition, it)
                     },
                     ast::Expr::RangeExpr(it) => range_exclusive::hints(hints, famous_defs, config, file_id,  it),
                     _ => Some(()),
@@ -234,7 +230,7 @@ fn hints(
                 binding_mode::hints(hints, famous_defs, config, file_id,  &it);
                 match it {
                     ast::Pat::IdentPat(it) => {
-                        bind_pat::hints(hints, famous_defs, config, file_id, &it);
+                        bind_pat::hints(hints, famous_defs, config, edition, &it);
                     }
                     ast::Pat::RangePat(it) => {
                         range_exclusive::hints(hints, famous_defs, config, file_id, it);
@@ -245,7 +241,7 @@ fn hints(
             },
             ast::Item(it) => match it {
                 ast::Item::Fn(it) => {
-                    implicit_drop::hints(hints, famous_defs, config, file_id, &it);
+                    implicit_drop::hints(hints, famous_defs, config, edition, &it);
                     if let Some(extern_block) = &ctx.extern_block_parent {
                         extern_block::fn_hints(hints, famous_defs, config, file_id, &it, extern_block);
                     }
@@ -335,8 +331,8 @@ impl InlayHintsConfig {
     /// location link to actually resolve but where computing `finish` would be costly.
     fn lazy_location_opt(
         &self,
-        finish: impl FnOnce() -> Option<FileRange>,
-    ) -> Option<LazyProperty<FileRange>> {
+        finish: impl FnOnce() -> Option<HirFileRange>,
+    ) -> Option<LazyProperty<HirFileRange>> {
         if self.fields_to_resolve.resolve_label_location {
             Some(LazyProperty::Lazy)
         } else {
@@ -523,7 +519,7 @@ impl InlayHintLabel {
     pub fn simple(
         s: impl Into<String>,
         tooltip: Option<LazyProperty<InlayTooltip>>,
-        linked_location: Option<LazyProperty<FileRange>>,
+        linked_location: Option<LazyProperty<HirFileRange>>,
     ) -> InlayHintLabel {
         InlayHintLabel {
             parts: smallvec![InlayHintLabelPart { text: s.into(), linked_location, tooltip }],
@@ -607,7 +603,7 @@ pub struct InlayHintLabelPart {
     /// refers to (not necessarily the location itself).
     /// When setting this, no tooltip must be set on the containing hint, or VS Code will display
     /// them both.
-    pub linked_location: Option<LazyProperty<FileRange>>,
+    pub linked_location: Option<LazyProperty<HirFileRange>>,
     /// The tooltip to show when hovering over the inlay hint, this may invoke other actions like
     /// hover requests to show.
     pub tooltip: Option<LazyProperty<InlayTooltip>>,
@@ -651,7 +647,7 @@ struct InlayHintLabelBuilder<'a> {
     result: InlayHintLabel,
     last_part: String,
     resolve: bool,
-    location: Option<LazyProperty<FileRange>>,
+    location: Option<LazyProperty<HirFileRange>>,
 }
 
 impl fmt::Write for InlayHintLabelBuilder<'_> {
@@ -671,7 +667,7 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
             LazyProperty::Computed({
                 let Some(location) = ModuleDef::from(def).try_to_nav(self.db) else { return };
                 let location = location.call_site();
-                FileRange { file_id: location.file_id, range: location.focus_or_full_range() }
+                HirFileRange { file_id: location.file_id, range: location.focus_or_full_range() }
             })
         });
     }
@@ -889,8 +885,8 @@ mod tests {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let mut expected = extract_annotations(&analysis.file_text(file_id).unwrap());
-        let inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+        let mut expected = extract_annotations(&analysis.file_text(file_id.into()).unwrap());
+        let inlay_hints = analysis.inlay_hints(&config, file_id.into(), None).unwrap();
         let actual = inlay_hints
             .into_iter()
             // FIXME: We trim the start because some inlay produces leading whitespace which is not properly supported by our annotation extraction
@@ -909,7 +905,7 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+        let inlay_hints = analysis.inlay_hints(&config, file_id.into(), None).unwrap();
         let filtered =
             inlay_hints.into_iter().map(|hint| (hint.range, hint.label)).collect::<Vec<_>>();
         expect.assert_debug_eq(&filtered)
@@ -924,7 +920,7 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+        let inlay_hints = analysis.inlay_hints(&config, file_id.into(), None).unwrap();
 
         let edits = inlay_hints
             .into_iter()
@@ -935,7 +931,7 @@ mod tests {
             })
             .expect("no edit returned");
 
-        let mut actual = analysis.file_text(file_id).unwrap().to_string();
+        let mut actual = analysis.file_text(file_id.into()).unwrap().to_string();
         edits.apply(&mut actual);
         expect.assert_eq(&actual);
     }
@@ -946,7 +942,7 @@ mod tests {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+        let inlay_hints = analysis.inlay_hints(&config, file_id.into(), None).unwrap();
 
         let edits: Vec<_> =
             inlay_hints.into_iter().filter_map(|hint| hint.text_edit?.computed()).collect();

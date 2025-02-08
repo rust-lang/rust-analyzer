@@ -5,10 +5,14 @@
 
 use std::{ops::Not as _, time::Instant};
 
+use ::span::HirFileIdRepr;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use hir::ChangeWithProcMacros;
-use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
-use ide_db::base_db::{CrateId, ProcMacroPaths, SourceDatabase, SourceRootDatabase};
+use hir::{db::ExpandDatabase, ChangeWithProcMacros, HirFileId};
+use ide::{Analysis, AnalysisHost, Cancellable, Edition, FileId, SourceRootId};
+use ide_db::{
+    base_db::{CrateId, ProcMacroPaths, SourceDatabase, SourceRootDatabase},
+    EditionedFileId,
+};
 use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
@@ -20,6 +24,9 @@ use parking_lot::{
 use proc_macro_api::ProcMacroClient;
 use project_model::{ManifestPath, ProjectWorkspace, ProjectWorkspaceKind, WorkspaceBuildScripts};
 use rustc_hash::{FxHashMap, FxHashSet};
+use stdx::TupleExt;
+#[allow(deprecated)]
+use syntax_bridge::prettify_macro_expansion::prettify_macro_expansion;
 use tracing::{span, trace, Level};
 use triomphe::Arc;
 use vfs::{AbsPathBuf, AnchoredPathBuf, ChangeKind, Vfs, VfsPath};
@@ -29,7 +36,7 @@ use crate::{
     diagnostics::{CheckFixes, DiagnosticCollection},
     discover,
     flycheck::{FlycheckHandle, FlycheckMessage},
-    line_index::{LineEndings, LineIndex},
+    line_index::{LineEndings, LineIndex, PositionTransform},
     lsp::{from_proto, to_proto::url_from_abs_path},
     lsp_ext,
     main_loop::Task,
@@ -654,8 +661,16 @@ impl GlobalStateSnapshot {
         url_to_file_id(&self.vfs_read(), url)
     }
 
+    pub(crate) fn url_to_hir_file_id(&self, url: &Url) -> anyhow::Result<HirFileId> {
+        url_to_hir_file_id(&self.vfs_read(), url)
+    }
+
     pub(crate) fn file_id_to_url(&self, id: FileId) -> Url {
         file_id_to_url(&self.vfs_read(), id)
+    }
+
+    pub(crate) fn hir_file_id_to_url(&self, id: HirFileId) -> Url {
+        hir_file_id_to_url(&self.vfs_read(), id)
     }
 
     pub(crate) fn vfs_path_to_file_id(&self, vfs_path: &VfsPath) -> anyhow::Result<FileId> {
@@ -665,8 +680,54 @@ impl GlobalStateSnapshot {
     pub(crate) fn file_line_index(&self, file_id: FileId) -> Cancellable<LineIndex> {
         let endings = self.vfs.read().1[&file_id];
         let index = self.analysis.file_line_index(file_id)?;
-        let res = LineIndex { index, endings, encoding: self.config.caps().negotiated_encoding() };
+        let res = LineIndex {
+            index,
+            endings,
+            encoding: self.config.caps().negotiated_encoding(),
+            transform: Default::default(),
+        };
         Ok(res)
+    }
+
+    pub(crate) fn hir_line_index(&self, file_id: HirFileId) -> Cancellable<LineIndex> {
+        match file_id.repr() {
+            HirFileIdRepr::FileId(editioned_file_id) => {
+                self.file_line_index(editioned_file_id.file_id())
+            }
+            HirFileIdRepr::MacroFile(macro_file_id) => {
+                // FIXME: Cache this
+                let s = self
+                    .analysis
+                    .with_db(|db| db.parse_macro_expansion(macro_file_id).value.0.syntax_node())?;
+                let mut transform = vec![];
+                #[allow(deprecated)]
+                let s = prettify_macro_expansion(s, &mut |_| None, |mods| {
+                    transform = mods
+                        .iter()
+                        .map(|(pos, kind)| (pos.offset(), *kind))
+                        .sorted_by(|&(a_off, a2), &(b_off, b2)| a_off.cmp(&b_off).then_with(|| {
+                            // the prettify infra inserts these in reverse due to implementation
+                            // reasons, but or our line assumptions we need to flip them so that
+                            // then indent is not treated as part of the line
+                            match (a2,b2) {
+                                (syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Indent(_) | syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Space, syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Newline) => std::cmp::Ordering::Greater,
+                                (syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Newline, syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Indent(_) | syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Space) => std::cmp::Ordering::Less,
+                                (syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Space,syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Indent(_)) => std::cmp::Ordering::Greater,
+                                (syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Indent(_),syntax_bridge::prettify_macro_expansion::PrettifyWsKind::Space) => std::cmp::Ordering::Less,
+                                _ => std::cmp::Ordering::Equal
+                            }
+                        }))
+                        .collect();
+                });
+                let res = LineIndex {
+                    index: Arc::new(ide_db::line_index::LineIndex::new(&s.to_string())),
+                    endings: LineEndings::Unix,
+                    encoding: self.config.caps().negotiated_encoding(),
+                    transform: PositionTransform { insertions: transform },
+                };
+                Ok(res)
+            }
+        }
     }
 
     pub(crate) fn file_version(&self, file_id: FileId) -> Option<i32> {
@@ -674,7 +735,7 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn url_file_version(&self, url: &Url) -> Option<i32> {
-        let path = from_proto::vfs_path(url).ok()?;
+        let path = from_proto::url_to_vfs_path(url).ok()?.into_vfs()?;
         Some(self.mem_docs.get(&path)?.version)
     }
 
@@ -750,10 +811,35 @@ pub(crate) fn file_id_to_url(vfs: &vfs::Vfs, id: FileId) -> Url {
     url_from_abs_path(path)
 }
 
+pub(crate) fn hir_file_id_to_url(vfs: &vfs::Vfs, id: HirFileId) -> Url {
+    match id.repr() {
+        HirFileIdRepr::FileId(editioned_file_id) => {
+            file_id_to_url(vfs, editioned_file_id.file_id())
+        }
+        HirFileIdRepr::MacroFile(macro_file_id) => lsp_types::Url::parse(&format!(
+            "rust-macro-file:{}.macro-file.rs",
+            ::span::InternKey::as_intern_id(&macro_file_id.macro_call_id).as_u32()
+        ))
+        .unwrap(),
+    }
+}
+
 pub(crate) fn url_to_file_id(vfs: &vfs::Vfs, url: &Url) -> anyhow::Result<FileId> {
-    let path = from_proto::vfs_path(url)?;
-    let res = vfs.file_id(&path).ok_or_else(|| anyhow::format_err!("file not found: {path}"))?;
-    Ok(res)
+    let path = from_proto::url_to_vfs_path(url)?;
+    match path {
+        from_proto::VfsOrMacroPath::Vfs(path) => vfs_path_to_file_id(vfs, &path),
+        from_proto::VfsOrMacroPath::Macro(..) => anyhow::bail!("unexpected macro file"),
+    }
+}
+
+pub(crate) fn url_to_hir_file_id(vfs: &vfs::Vfs, url: &Url) -> anyhow::Result<HirFileId> {
+    let path = from_proto::url_to_vfs_path(url)?;
+    Ok(match path {
+        from_proto::VfsOrMacroPath::Vfs(path) => {
+            EditionedFileId::new(vfs_path_to_file_id(vfs, &path)?, Edition::CURRENT).into()
+        }
+        from_proto::VfsOrMacroPath::Macro(call) => call.into(),
+    })
 }
 
 pub(crate) fn vfs_path_to_file_id(vfs: &vfs::Vfs, vfs_path: &VfsPath) -> anyhow::Result<FileId> {

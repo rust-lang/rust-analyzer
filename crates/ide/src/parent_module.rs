@@ -64,18 +64,21 @@ pub(crate) fn crates_for(db: &RootDatabase, file_id: FileId) -> Vec<CrateId> {
 
 #[cfg(test)]
 mod tests {
-    use ide_db::FileRange;
+    use hir::HirFileRange;
 
     use crate::fixture;
 
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        let navs = analysis.parent_module(position).unwrap();
+        let navs = analysis.parent_module(position.into()).unwrap();
         let navs = navs
             .iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
             .collect::<Vec<_>>();
-        assert_eq!(expected.into_iter().map(|(fr, _)| fr).collect::<Vec<_>>(), navs);
+        assert_eq!(
+            expected.into_iter().map(|(r, _)| r.into()).collect::<Vec<HirFileRange>>(),
+            navs
+        );
     }
 
     #[test]
@@ -149,7 +152,7 @@ $0
 mod foo;
 "#,
         );
-        assert_eq!(analysis.crates_for(file_id).unwrap().len(), 1);
+        assert_eq!(analysis.crates_for(file_id.into()).unwrap().len(), 1);
     }
 
     #[test]
@@ -164,6 +167,6 @@ mod baz;
 mod baz;
 "#,
         );
-        assert_eq!(analysis.crates_for(file_id).unwrap().len(), 2);
+        assert_eq!(analysis.crates_for(file_id.into()).unwrap().len(), 2);
     }
 }

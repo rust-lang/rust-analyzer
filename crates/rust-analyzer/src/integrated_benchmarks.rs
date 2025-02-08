@@ -13,13 +13,14 @@
 use hir::ChangeWithProcMacros;
 use ide::{
     AnalysisHost, CallableSnippets, CompletionConfig, CompletionFieldsToResolve, DiagnosticsConfig,
-    FilePosition, TextSize,
+    Edition, FilePosition, TextSize,
 };
 use ide_db::{
     imports::insert_use::{ImportGranularity, InsertUseConfig},
     SnippetCap,
 };
 use project_model::CargoConfig;
+use span::EditionedFileId;
 use test_utils::project_root;
 use vfs::{AbsPathBuf, VfsPath};
 
@@ -68,7 +69,9 @@ fn integrated_highlighting_benchmark() {
     {
         let _it = stdx::timeit("initial");
         let analysis = host.analysis();
-        analysis.highlight_as_html(file_id, false).unwrap();
+        analysis
+            .highlight_as_html(EditionedFileId::new(file_id, Edition::CURRENT).into(), false)
+            .unwrap();
     }
 
     {
@@ -89,7 +92,9 @@ fn integrated_highlighting_benchmark() {
         let _it = stdx::timeit("after change");
         let _span = profile::cpu_span();
         let analysis = host.analysis();
-        analysis.highlight_as_html(file_id, false).unwrap();
+        analysis
+            .highlight_as_html(EditionedFileId::new(file_id, Edition::CURRENT).into(), false)
+            .unwrap();
     }
 }
 

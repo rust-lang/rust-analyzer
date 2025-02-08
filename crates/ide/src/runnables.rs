@@ -4,8 +4,8 @@ use arrayvec::ArrayVec;
 use ast::HasName;
 use cfg::{CfgAtom, CfgExpr};
 use hir::{
-    db::HirDatabase, sym, AsAssocItem, AttrsWithOwner, HasAttrs, HasCrate, HasSource, HirFileIdExt,
-    ModPath, Name, PathKind, Semantics, Symbol,
+    db::HirDatabase, sym, AsAssocItem, AttrsWithOwner, HasAttrs, HasCrate, HasSource, HirFileId,
+    HirFileIdExt, ModPath, Name, PathKind, Semantics, Symbol,
 };
 use ide_assists::utils::{has_test_related_attribute, test_related_attribute_syn};
 use ide_db::{
@@ -24,7 +24,7 @@ use syntax::{
     format_smolstr, SmolStr, SyntaxNode, ToSmolStr,
 };
 
-use crate::{references, FileId, NavigationTarget, ToNav, TryToNav};
+use crate::{references, NavigationTarget, ToNav, TryToNav};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Runnable {
@@ -124,7 +124,7 @@ impl Runnable {
 // | VS Code | **rust-analyzer: Run** |
 //
 // ![Run](https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif)
-pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
+pub(crate) fn runnables(db: &RootDatabase, file_id: HirFileId) -> Vec<Runnable> {
     let sema = Semantics::new(db);
 
     let mut res = Vec::new();
@@ -171,7 +171,7 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
         }
     });
 
-    sema.file_to_module_defs(file_id)
+    sema.hir_file_to_module_defs(file_id)
         .map(|it| runnable_mod_outline_definition(&sema, it))
         .for_each(|it| add_opt(it, None));
 
@@ -748,7 +748,7 @@ mod tests {
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         let (analysis, position) = fixture::position(ra_fixture);
         let result = analysis
-            .runnables(position.file_id)
+            .runnables(position.file_id.into())
             .unwrap()
             .into_iter()
             .map(|runnable| {
@@ -768,7 +768,7 @@ mod tests {
 
     fn check_tests(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let tests = analysis.related_tests(position, None).unwrap();
+        let tests = analysis.related_tests(position.into(), None).unwrap();
         let navigation_targets = tests.into_iter().map(|runnable| runnable.nav).collect::<Vec<_>>();
         expect.assert_debug_eq(&navigation_targets);
     }

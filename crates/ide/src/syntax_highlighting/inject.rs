@@ -8,7 +8,6 @@ use ide_db::{
     active_parameter::ActiveParameter, defs::Definition, documentation::docs_with_rangemap,
     rust_doc::is_rust_fence, SymbolKind,
 };
-use span::EditionedFileId;
 use syntax::{
     ast::{self, AstNode, IsString, QuoteOffsets},
     AstToken, NodeOrToken, SyntaxNode, TextRange, TextSize,
@@ -88,7 +87,7 @@ pub(super) fn ra_fixture(
                 inject_doc_comment: config.inject_doc_comment,
                 macro_bang: config.macro_bang,
             },
-            tmp_file_id,
+            tmp_file_id.into(),
         )
         .unwrap()
     {
@@ -116,14 +115,13 @@ pub(super) fn doc_comment(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
     config: HighlightConfig,
-    src_file_id: EditionedFileId,
+    src_file_id: HirFileId,
     node: &SyntaxNode,
 ) {
     let (attributes, def) = match doc_attributes(sema, node) {
         Some(it) => it,
         None => return,
     };
-    let src_file_id: HirFileId = src_file_id.into();
 
     // Extract intra-doc links and emit highlights for them.
     if let Some((docs, doc_mapping)) = docs_with_rangemap(sema.db, &attributes) {
@@ -249,7 +247,7 @@ pub(super) fn doc_comment(
                 inject_doc_comment: config.inject_doc_comment,
                 macro_bang: config.macro_bang,
             },
-            tmp_file_id,
+            tmp_file_id.into(),
             None,
         )
     }) {

@@ -6,7 +6,7 @@ use std::iter;
 
 use ide_db::{famous_defs::FamousDefs, syntax_helpers::node_ext::walk_ty, FxHashMap};
 use itertools::Itertools;
-use span::EditionedFileId;
+use span::HirFileId;
 use syntax::{
     ast::{self, AstNode, HasGenericParams, HasName},
     SyntaxKind, SyntaxToken,
@@ -23,7 +23,7 @@ pub(super) fn fn_hints(
     ctx: &mut InlayHintCtx,
     fd: &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
     func: ast::Fn,
 ) -> Option<()> {
     if config.lifetime_elision_hints == LifetimeElisionHints::Never {
@@ -74,7 +74,7 @@ pub(super) fn fn_ptr_hints(
     ctx: &mut InlayHintCtx,
     fd: &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
     func: ast::FnPtrType,
 ) -> Option<()> {
     if config.lifetime_elision_hints == LifetimeElisionHints::Never {
@@ -140,7 +140,7 @@ pub(super) fn fn_path_hints(
     ctx: &mut InlayHintCtx,
     fd: &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
     func: ast::PathType,
 ) -> Option<()> {
     if config.lifetime_elision_hints == LifetimeElisionHints::Never {
@@ -202,7 +202,7 @@ fn hints_(
     ctx: &mut InlayHintCtx,
     FamousDefs(_, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    _file_id: EditionedFileId,
+    _file_id: HirFileId,
     params: impl Iterator<Item = (Option<ast::Name>, ast::Type)>,
     generic_param_list: Option<ast::GenericParamList>,
     ret_type: Option<ast::RetType>,

@@ -1,5 +1,6 @@
 use expect_test::{expect, Expect};
-use ide_db::{base_db::SourceDatabase, FileRange};
+use hir::HirFileRange;
+use ide_db::base_db::SourceDatabase;
 use syntax::TextRange;
 
 use crate::{
@@ -28,7 +29,10 @@ fn check_hover_no_result(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let hover = analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap();
     assert!(hover.is_none(), "hover not expected but found: {:?}", hover.unwrap());
@@ -40,12 +44,15 @@ fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let hover = analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -66,12 +73,15 @@ fn check_hover_fields_limit(
                 max_fields_count: fields_count.into(),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -92,12 +102,15 @@ fn check_hover_enum_variants_limit(
                 max_enum_variants_count: variants_count.into(),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -118,12 +131,15 @@ fn check_assoc_count(
                 max_trait_assoc_items_count: Some(count),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -135,12 +151,15 @@ fn check_hover_no_links(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect:
     let hover = analysis
         .hover(
             &HOVER_BASE_CONFIG,
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -152,12 +171,15 @@ fn check_hover_no_memory_layout(#[rust_analyzer::rust_fixture] ra_fixture: &str,
     let hover = analysis
         .hover(
             &HoverConfig { memory_layout: None, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -173,12 +195,15 @@ fn check_hover_no_markdown(#[rust_analyzer::rust_fixture] ra_fixture: &str, expe
                 format: HoverDocFormat::PlainText,
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            HirFileRange {
+                file_id: position.file_id.into(),
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id.into());
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -190,7 +215,7 @@ fn check_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect
     let mut hover = analysis
         .hover(
             &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id, range: position.range_or_empty() },
+            HirFileRange { file_id: file_id.into(), range: position.range_or_empty() },
         )
         .unwrap()
         .unwrap();
@@ -212,14 +237,14 @@ fn check_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect
 
 fn check_hover_range(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
-    let hover = analysis.hover(&HOVER_BASE_CONFIG, range).unwrap().unwrap();
+    let hover = analysis.hover(&HOVER_BASE_CONFIG, range.into()).unwrap().unwrap();
     expect.assert_eq(hover.info.markup.as_str())
 }
 
 fn check_hover_range_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
     let mut hover = analysis
-        .hover(&HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG }, range)
+        .hover(&HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG }, range.into())
         .unwrap()
         .unwrap();
     // stub out ranges into minicore as they can change every now and then
@@ -240,7 +265,7 @@ fn check_hover_range_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, ex
 
 fn check_hover_range_no_results(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let (analysis, range) = fixture::range(ra_fixture);
-    let hover = analysis.hover(&HOVER_BASE_CONFIG, range).unwrap();
+    let hover = analysis.hover(&HOVER_BASE_CONFIG, range.into()).unwrap();
     assert!(hover.is_none());
 }
 

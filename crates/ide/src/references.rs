@@ -9,15 +9,13 @@
 //! at the index that the match starts at and its tree parent is
 //! resolved to the search element definition, we get a reference.
 
-use hir::{PathResolution, Semantics};
+use hir::{HirFileId, HirFileIdExt, HirFilePosition, PathResolution, Semantics};
 use ide_db::{
     defs::{Definition, NameClass, NameRefClass},
     search::{ReferenceCategory, SearchScope, UsageSearchResult},
-    FileId, RootDatabase,
+    FxHashMap, RootDatabase,
 };
 use itertools::Itertools;
-use nohash_hasher::IntMap;
-use span::Edition;
 use syntax::{
     ast::{self, HasName},
     match_ast, AstNode,
@@ -25,12 +23,12 @@ use syntax::{
     SyntaxNode, TextRange, TextSize, T,
 };
 
-use crate::{highlight_related, FilePosition, HighlightedRange, NavigationTarget, TryToNav};
+use crate::{highlight_related, HighlightedRange, NavigationTarget, TryToNav};
 
 #[derive(Debug, Clone)]
 pub struct ReferenceSearchResult {
     pub declaration: Option<Declaration>,
-    pub references: IntMap<FileId, Vec<(TextRange, ReferenceCategory)>>,
+    pub references: FxHashMap<HirFileId, Vec<(TextRange, ReferenceCategory)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,11 +48,12 @@ pub struct Declaration {
 // ![Find All References](https://user-images.githubusercontent.com/48062697/113020670-b7c34f00-917a-11eb-8003-370ac5f2b3cb.gif)
 pub(crate) fn find_all_refs(
     sema: &Semantics<'_, RootDatabase>,
-    position: FilePosition,
+    mut position: HirFilePosition,
     search_scope: Option<SearchScope>,
 ) -> Option<Vec<ReferenceSearchResult>> {
     let _p = tracing::info_span!("find_all_refs").entered();
-    let syntax = sema.parse_guess_edition(position.file_id).syntax().clone();
+    position.file_id = sema.adjust_edition(position.file_id);
+    let syntax = sema.parse_or_expand(position.file_id);
     let make_searcher = |literal_search: bool| {
         move |def: Definition| {
             let mut usages =
@@ -63,11 +62,11 @@ pub(crate) fn find_all_refs(
                 retain_adt_literal_usages(&mut usages, def, sema);
             }
 
-            let mut references: IntMap<FileId, Vec<(TextRange, ReferenceCategory)>> = usages
+            let mut references: FxHashMap<HirFileId, Vec<(TextRange, ReferenceCategory)>> = usages
                 .into_iter()
                 .map(|(file_id, refs)| {
                     (
-                        file_id.into(),
+                        file_id,
                         refs.into_iter()
                             .map(|file_ref| (file_ref.range, file_ref.category))
                             .unique()
@@ -102,7 +101,7 @@ pub(crate) fn find_all_refs(
     };
 
     // Find references for control-flow keywords.
-    if let Some(res) = handle_control_flow_keywords(sema, position) {
+    if let Some(res) = handle_control_flow_keywords(sema, &syntax, position) {
         return Some(vec![res]);
     }
 
@@ -219,7 +218,10 @@ fn retain_adt_literal_usages(
 }
 
 /// Returns `Some` if the cursor is at a position for an item to search for all its constructor/literal usages
-fn name_for_constructor_search(syntax: &SyntaxNode, position: FilePosition) -> Option<ast::Name> {
+fn name_for_constructor_search(
+    syntax: &SyntaxNode,
+    position: HirFilePosition,
+) -> Option<ast::Name> {
     let token = syntax.token_at_offset(position.offset).right_biased()?;
     let token_parent = token.parent()?;
     let kind = token.kind();
@@ -303,12 +305,11 @@ fn is_lit_name_ref(name_ref: &ast::NameRef) -> bool {
 
 fn handle_control_flow_keywords(
     sema: &Semantics<'_, RootDatabase>,
-    FilePosition { file_id, offset }: FilePosition,
+    syntax: &SyntaxNode,
+    HirFilePosition { file_id, offset }: HirFilePosition,
 ) -> Option<ReferenceSearchResult> {
-    let file = sema.parse_guess_edition(file_id);
-    let edition =
-        sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
-    let token = file.syntax().token_at_offset(offset).find(|t| t.kind().is_keyword(edition))?;
+    let edition = file_id.edition(sema.db);
+    let token = syntax.token_at_offset(offset).find(|t| t.kind().is_keyword(edition))?;
 
     let references = match token.kind() {
         T![fn] | T![return] | T![try] => highlight_related::highlight_exit_points(sema, token),
@@ -327,7 +328,7 @@ fn handle_control_flow_keywords(
             .into_iter()
             .map(|HighlightedRange { range, category }| (range, category))
             .collect();
-        (file_id.into(), ranges)
+        (file_id, ranges)
     })
     .collect();
 
@@ -1263,7 +1264,7 @@ impl Foo {
         expect: Expect,
     ) {
         let (analysis, pos) = fixture::position(ra_fixture);
-        let refs = analysis.find_all_refs(pos, search_scope).unwrap().unwrap();
+        let refs = analysis.find_all_refs(pos.into(), search_scope).unwrap().unwrap();
 
         let mut actual = String::new();
         for mut refs in refs {

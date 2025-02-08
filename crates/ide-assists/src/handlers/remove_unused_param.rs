@@ -80,7 +80,8 @@ pub(crate) fn remove_unused_param(acc: &mut Assists, ctx: &AssistContext<'_>) ->
         param.syntax().text_range(),
         |builder| {
             builder.delete(range_to_remove(param.syntax()));
-            for (file_id, references) in fn_def.usages(&ctx.sema).all() {
+            for (file_id, references) in fn_def.usages(&ctx.sema).all().map_out_of_macros(&ctx.sema)
+            {
                 process_usages(ctx, builder, file_id, references, param_position, is_self_present);
             }
         },

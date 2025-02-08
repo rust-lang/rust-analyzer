@@ -8,7 +8,7 @@ use either::Either;
 use hir::{Callable, Semantics};
 use ide_db::{famous_defs::FamousDefs, RootDatabase};
 
-use span::EditionedFileId;
+use span::HirFileId;
 use stdx::to_lower_snake_case;
 use syntax::{
     ast::{self, AstNode, HasArgList, HasName, UnaryOp},
@@ -21,7 +21,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     FamousDefs(sema, krate): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    _file_id: EditionedFileId,
+    _file_id: HirFileId,
     expr: ast::Expr,
 ) -> Option<()> {
     if !config.parameter_hints {
@@ -56,7 +56,7 @@ pub(super) fn hints(
                             _ => None,
                         },
                     }?;
-                    sema.original_range_opt(name_syntax.syntax()).map(Into::into)
+                    Some(source.with_value(name_syntax).node_file_range())
                 }),
             );
             InlayHint {

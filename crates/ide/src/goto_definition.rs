@@ -3,11 +3,11 @@ use std::{iter, mem::discriminant};
 use crate::{
     doc_links::token_as_doc_comment,
     navigation_target::{self, ToNav},
-    FilePosition, NavigationTarget, RangeInfo, TryToNav, UpmappingResult,
+    NavigationTarget, RangeInfo, TryToNav, UpmappingResult,
 };
 use hir::{
-    sym, AsAssocItem, AssocItem, CallableKind, FileRange, HasCrate, InFile, MacroFileIdExt,
-    ModuleDef, Semantics,
+    sym, AsAssocItem, AssocItem, CallableKind, HasCrate, HirFileId, HirFileIdExt, HirFilePosition,
+    InFile, MacroFileIdExt, ModuleDef, Semantics,
 };
 use ide_db::{
     base_db::{AnchoredPath, FileLoader, SourceDatabase},
@@ -17,7 +17,7 @@ use ide_db::{
     RootDatabase, SymbolKind,
 };
 use itertools::Itertools;
-use span::{Edition, FileId};
+use span::EditionedFileId;
 use syntax::{
     ast::{self, HasLoopBody},
     match_ast, AstNode, AstToken,
@@ -38,12 +38,12 @@ use syntax::{
 // ![Go to Definition](https://user-images.githubusercontent.com/48062697/113065563-025fbe00-91b1-11eb-83e4-a5a703610b23.gif)
 pub(crate) fn goto_definition(
     db: &RootDatabase,
-    FilePosition { file_id, offset }: FilePosition,
+    HirFilePosition { file_id, offset }: HirFilePosition,
 ) -> Option<RangeInfo<Vec<NavigationTarget>>> {
     let sema = &Semantics::new(db);
-    let file = sema.parse_guess_edition(file_id).syntax().clone();
-    let edition =
-        sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
+    let file_id = sema.adjust_edition(file_id);
+    let file = sema.parse_or_expand(sema.adjust_edition(file_id));
+    let edition = file_id.edition(sema.db);
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT
         | INT_NUMBER
@@ -205,7 +205,7 @@ fn find_definition_for_known_blanket_dual_impls(
 fn try_lookup_include_path(
     sema: &Semantics<'_, RootDatabase>,
     token: ast::String,
-    file_id: FileId,
+    hir_file_id: HirFileId,
 ) -> Option<NavigationTarget> {
     let file = sema.hir_file_for(&token.syntax().parent()?).macro_file()?;
     if !iter::successors(Some(file), |file| file.parent(sema.db).macro_file())
@@ -216,10 +216,13 @@ fn try_lookup_include_path(
     }
     let path = token.value().ok()?;
 
-    let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
+    let file_id = sema.db.resolve_path(AnchoredPath {
+        anchor: hir_file_id.original_file(sema.db).file_id(),
+        path: &path,
+    })?;
     let size = sema.db.file_text(file_id).len().try_into().ok()?;
     Some(NavigationTarget {
-        file_id,
+        file_id: EditionedFileId::new(file_id, hir_file_id.edition(sema.db)).into(),
         full_range: TextRange::new(0.into(), size),
         name: path.into(),
         alias: None,
@@ -352,22 +355,18 @@ fn nav_for_exit_points(
                             fn_.fn_token()?
                         };
 
-                        let focus_frange = InFile::new(file_id, focus_token.text_range())
-                            .original_node_file_range_opt(db)
-                            .map(|(frange, _)| frange);
 
-                        if let Some(FileRange { file_id, range }) = focus_frange {
-                            let contains_frange = |nav: &NavigationTarget| {
-                                nav.file_id == file_id && nav.full_range.contains_range(range)
-                            };
+                        let range =  focus_token.text_range();
+                        let contains_frange = |nav: &NavigationTarget| {
+                            nav.file_id == file_id && nav.full_range.contains_range(range)
+                        };
 
-                            if let Some(def_site) = nav.def_site.as_mut() {
-                                if contains_frange(def_site) {
-                                    def_site.focus_range = Some(range);
-                                }
-                            } else if contains_frange(&nav.call_site) {
-                                nav.call_site.focus_range = Some(range);
+                        if let Some(def_site) = nav.def_site.as_mut() {
+                            if contains_frange(def_site) {
+                                def_site.focus_range = Some(range);
                             }
+                        } else if contains_frange(&nav.call_site) {
+                            nav.call_site.focus_range = Some(range);
                         }
 
                         Some(nav)
@@ -496,6 +495,7 @@ fn expr_to_nav(
 #[cfg(test)]
 mod tests {
     use crate::fixture;
+    use hir::HirFileRange;
     use ide_db::FileRange;
     use itertools::Itertools;
     use syntax::SmolStr;
@@ -503,33 +503,33 @@ mod tests {
     #[track_caller]
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
+        let navs =
+            analysis.goto_definition(position.into()).unwrap().expect("no definition found").info;
 
         let cmp = |&FileRange { file_id, range }: &_| (file_id, range.start());
         let navs = navs
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| nav.focus_or_full_file_range(&analysis.db))
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
-        let expected = expected
-            .into_iter()
-            .map(|(FileRange { file_id, range }, _)| FileRange { file_id, range })
-            .sorted_by_key(cmp)
-            .collect::<Vec<_>>();
+        let expected =
+            expected.into_iter().map(|(r, _)| r.into()).sorted_by_key(cmp).collect::<Vec<_>>();
 
         assert_eq!(expected, navs);
     }
 
     fn check_unresolved(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
+        let navs =
+            analysis.goto_definition(position.into()).unwrap().expect("no definition found").info;
 
         assert!(navs.is_empty(), "didn't expect this to resolve anywhere: {navs:?}")
     }
 
     fn check_name(expected_name: &str, #[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, _) = fixture::annotations(ra_fixture);
-        let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
+        let navs =
+            analysis.goto_definition(position.into()).unwrap().expect("no definition found").info;
         assert!(navs.len() < 2, "expected single navigation target but encountered {}", navs.len());
         let Some(target) = navs.into_iter().next() else {
             panic!("expected single navigation target but encountered none");

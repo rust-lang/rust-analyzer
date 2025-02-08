@@ -19,7 +19,7 @@ export async function createClient(
     unlinkedFiles: vscode.Uri[],
 ): Promise<lc.LanguageClient> {
     const clientOptions: lc.LanguageClientOptions = {
-        documentSelector: [{ scheme: "file", language: "rust" }],
+        documentSelector: [{ scheme: "file", language: "rust" }, { scheme: "rust-macro-file" }],
         initializationOptions,
         diagnosticCollectionName: "rustc",
         traceOutputChannel,
