@@ -70,6 +70,8 @@ impl PartialEq<Name> for &Symbol {
 }
 
 impl Name {
+    pub const MISSING: &Name = &Name { symbol: sym::consts::missing, ctx: () };
+
     fn new_text(text: &str) -> Name {
         Name { symbol: Symbol::intern(text), ctx: () }
     }
