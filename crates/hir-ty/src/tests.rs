@@ -15,7 +15,8 @@ mod type_alias_impl_traits;
 use std::env;
 use std::sync::LazyLock;
 
-use base_db::SourceDatabaseFileInputExt as _;
+use base_db::SourceDatabase;
+use either::Either;
 use expect_test::Expect;
 use hir_def::{
     db::DefDatabase,
