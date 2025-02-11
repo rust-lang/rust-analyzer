@@ -347,6 +347,7 @@ pub trait HirFileIdExt {
 
     /// If this is a macro call, returns the syntax node of the very first macro call this file resides in.
     fn original_call_node(self, db: &dyn ExpandDatabase) -> Option<InRealFile<SyntaxNode>>;
+    fn call_node(self, db: &dyn ExpandDatabase) -> Option<InFile<SyntaxNode>>;
 
     fn as_builtin_derive_attr_node(&self, db: &dyn ExpandDatabase) -> Option<InFile<ast::Attr>>;
 }
@@ -403,6 +404,10 @@ impl HirFileIdExt for HirFileId {
                 }
             }
         }
+    }
+
+    fn call_node(self, db: &dyn ExpandDatabase) -> Option<InFile<SyntaxNode>> {
+        Some(db.lookup_intern_macro_call(self.macro_file()?.macro_call_id).to_node(db))
     }
 
     fn as_builtin_derive_attr_node(&self, db: &dyn ExpandDatabase) -> Option<InFile<ast::Attr>> {

@@ -24,11 +24,11 @@ use hir_expand::{
     attrs::collect_attrs,
     builtin::{BuiltinFnLikeExpander, EagerExpander},
     db::ExpandDatabase,
-    files::InRealFile,
+    files::{HirFileRange, InRealFile},
     hygiene::SyntaxContextExt as _,
     inert_attr_macro::find_builtin_attr_idx,
     name::AsName,
-    ExpandResult, FileRange, InMacroFile, MacroCallId, MacroFileId, MacroFileIdExt,
+    ExpandResult, FileRange, HirFileIdExt, InMacroFile, MacroCallId, MacroFileId, MacroFileIdExt,
 };
 use intern::{sym, Symbol};
 use itertools::Itertools;
@@ -239,8 +239,19 @@ impl<DB: HirDatabase> Semantics<'_, DB> {
         self.imp.file_to_module_defs(file.into()).next()
     }
 
+    pub fn hir_file_to_module_def(&self, file: impl Into<HirFileId>) -> Option<Module> {
+        self.imp.hir_file_to_module_defs(file.into()).next()
+    }
+
     pub fn file_to_module_defs(&self, file: impl Into<FileId>) -> impl Iterator<Item = Module> {
         self.imp.file_to_module_defs(file.into())
+    }
+
+    pub fn hir_file_to_module_defs(
+        &self,
+        file: impl Into<HirFileId>,
+    ) -> impl Iterator<Item = Module> {
+        self.imp.hir_file_to_module_defs(file.into())
     }
 
     pub fn to_adt_def(&self, a: &ast::Adt) -> Option<Adt> {
@@ -325,6 +336,14 @@ impl<'db> SemanticsImpl<'db> {
         let tree = self.db.parse(file_id).tree();
         self.cache(tree.syntax().clone(), file_id.into());
         tree
+    }
+
+    pub fn adjust_edition(&self, file_id: HirFileId) -> HirFileId {
+        if let Some(editioned_file_id) = file_id.file_id() {
+            self.attach_first_edition(editioned_file_id.file_id()).map_or(file_id, Into::into)
+        } else {
+            file_id
+        }
     }
 
     pub fn find_parent_file(&self, file_id: HirFileId) -> Option<InFile<SyntaxNode>> {
@@ -697,6 +716,28 @@ impl<'db> SemanticsImpl<'db> {
         })
     }
 
+    /// Retrieves the formatting part of the format_args! template string at the given offset.
+    pub fn check_for_format_args_template_with_file(
+        &self,
+        original_token: SyntaxToken,
+        offset: TextSize,
+    ) -> Option<(HirFileRange, Option<Either<PathResolution, InlineAsmOperand>>)> {
+        let string_start = original_token.text_range().start();
+        let original_token = self.wrap_token_infile(original_token);
+        self.descend_into_macros_breakable2(original_token, |token, _| {
+            (|| {
+                self.resolve_offset_in_format_args(
+                    ast::String::cast(token.value)?,
+                    offset.checked_sub(string_start)?,
+                )
+                .map(|(range, res)| {
+                    (HirFileRange { file_id: token.file_id, range: range + string_start }, res)
+                })
+            })()
+            .map_or(ControlFlow::Continue(()), ControlFlow::Break)
+        })
+    }
+
     fn resolve_offset_in_format_args(
         &self,
         string: ast::String,
@@ -891,6 +932,14 @@ impl<'db> SemanticsImpl<'db> {
         self.descend_into_macros_impl(token.clone(), &mut cb)
     }
 
+    pub fn descend_into_macros_breakable2<T>(
+        &self,
+        token: InFile<SyntaxToken>,
+        mut cb: impl FnMut(InFile<SyntaxToken>, SyntaxContextId) -> ControlFlow<T>,
+    ) -> Option<T> {
+        self.descend_into_macros_impl_(token.clone(), &mut cb)
+    }
+
     /// Descends the token into expansions, returning the tokens that matches the input
     /// token's [`SyntaxKind`] and text.
     pub fn descend_into_macros_exact(&self, token: SyntaxToken) -> SmallVec<[SyntaxToken; 1]> {
@@ -910,6 +959,32 @@ impl<'db> SemanticsImpl<'db> {
         });
         if r.is_empty() {
             r.push(token);
+        }
+        r
+    }
+
+    /// Descends the token into expansions, returning the tokens that matches the input
+    /// token's [`SyntaxKind`] and text.
+    pub fn descend_into_macros_exact_with_file(
+        &self,
+        token: SyntaxToken,
+    ) -> SmallVec<[InFile<SyntaxToken>; 1]> {
+        let mut r = smallvec![];
+        let text = token.text();
+        let kind = token.kind();
+
+        self.descend_into_macros_cb(token.clone(), |InFile { value, file_id }, ctx| {
+            let mapped_kind = value.kind();
+            let any_ident_match = || kind.is_any_identifier() && value.kind().is_any_identifier();
+            let matches = (kind == mapped_kind || any_ident_match())
+                && text == value.text()
+                && !ctx.is_opaque(self.db.upcast());
+            if matches {
+                r.push(InFile { value, file_id });
+            }
+        });
+        if r.is_empty() {
+            r.push(self.wrap_token_infile(token));
         }
         r
     }
@@ -946,9 +1021,17 @@ impl<'db> SemanticsImpl<'db> {
         InRealFile { value: token, file_id }: InRealFile<SyntaxToken>,
         f: &mut dyn FnMut(InFile<SyntaxToken>, SyntaxContextId) -> ControlFlow<T>,
     ) -> Option<T> {
+        self.descend_into_macros_impl_(InFile::new(file_id.into(), token), f)
+    }
+
+    fn descend_into_macros_impl_<T>(
+        &self,
+        InFile { value: token, file_id }: InFile<SyntaxToken>,
+        f: &mut dyn FnMut(InFile<SyntaxToken>, SyntaxContextId) -> ControlFlow<T>,
+    ) -> Option<T> {
         let _p = tracing::info_span!("descend_into_macros_impl").entered();
 
-        let span = self.db.real_span_map(file_id).span_for_range(token.text_range());
+        let span = self.db.span_map(file_id).span_for_range(token.text_range());
 
         // Process the expansion of a call, pushing all tokens with our span in the expansion back onto our stack
         let process_expansion_for_token = |stack: &mut Vec<_>, macro_file| {
@@ -972,17 +1055,16 @@ impl<'db> SemanticsImpl<'db> {
         // the tokens themselves aren't that interesting as the span that is being used to map
         // things down never changes.
         let mut stack: Vec<(_, SmallVec<[_; 2]>)> = vec![];
-        let include = self.s2d_cache.borrow_mut().get_or_insert_include_for(self.db, file_id);
+        let include = file_id.file_id().and_then(|file_id| {
+            self.s2d_cache.borrow_mut().get_or_insert_include_for(self.db, file_id)
+        });
         match include {
             Some(include) => {
                 // include! inputs are always from real files, so they only need to be handled once upfront
                 process_expansion_for_token(&mut stack, include)?;
             }
             None => {
-                stack.push((
-                    file_id.into(),
-                    smallvec![(token, SyntaxContextId::root(file_id.edition()))],
-                ));
+                stack.push((file_id, smallvec![(token, span.ctx)]));
             }
         }
 
@@ -1646,6 +1728,16 @@ impl<'db> SemanticsImpl<'db> {
 
     fn file_to_module_defs(&self, file: FileId) -> impl Iterator<Item = Module> {
         self.with_ctx(|ctx| ctx.file_to_def(file).to_owned()).into_iter().map(Module::from)
+    }
+
+    fn hir_file_to_module_defs(&self, file: HirFileId) -> impl Iterator<Item = Module> {
+        self.with_ctx(|ctx| {
+            // FIXME: Do this properly
+            ctx.file_to_def(file.original_file_respecting_includes(ctx.db.upcast()).file_id())
+                .to_owned()
+        })
+        .into_iter()
+        .map(Module::from)
     }
 
     pub fn scope(&self, node: &SyntaxNode) -> Option<SemanticsScope<'db>> {

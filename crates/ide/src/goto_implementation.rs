@@ -1,4 +1,4 @@
-use hir::{AsAssocItem, Impl, Semantics};
+use hir::{AsAssocItem, HirFilePosition, Impl, Semantics};
 use ide_db::{
     defs::{Definition, NameClass, NameRefClass},
     helpers::pick_best_token,
@@ -6,7 +6,7 @@ use ide_db::{
 };
 use syntax::{ast, AstNode, SyntaxKind::*, T};
 
-use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
+use crate::{NavigationTarget, RangeInfo, TryToNav};
 
 // Feature: Go to Implementation
 //
@@ -19,11 +19,11 @@ use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
 // ![Go to Implementation](https://user-images.githubusercontent.com/48062697/113065566-02f85480-91b1-11eb-9288-aaad8abd8841.gif)
 pub(crate) fn goto_implementation(
     db: &RootDatabase,
-    FilePosition { file_id, offset }: FilePosition,
+    HirFilePosition { file_id, offset }: HirFilePosition,
 ) -> Option<RangeInfo<Vec<NavigationTarget>>> {
     let sema = Semantics::new(db);
-    let source_file = sema.parse_guess_edition(file_id);
-    let syntax = source_file.syntax().clone();
+    let file_id = sema.adjust_edition(file_id);
+    let syntax = sema.parse_or_expand(sema.adjust_edition(file_id));
 
     let original_token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
         IDENT | T![self] | INT_NUMBER => 1,
@@ -122,7 +122,7 @@ fn impls_for_trait_item(
 
 #[cfg(test)]
 mod tests {
-    use ide_db::FileRange;
+    use hir::HirFileRange;
     use itertools::Itertools;
 
     use crate::fixture;
@@ -130,17 +130,17 @@ mod tests {
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
 
-        let navs = analysis.goto_implementation(position).unwrap().unwrap().info;
+        let navs = analysis.goto_implementation(position.into()).unwrap().unwrap().info;
 
-        let cmp = |frange: &FileRange| (frange.file_id, frange.range.start());
+        let cmp = |frange: &HirFileRange| (frange.file_id, frange.range.start());
 
         let actual = navs
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
         let expected =
-            expected.into_iter().map(|(range, _)| range).sorted_by_key(cmp).collect::<Vec<_>>();
+            expected.into_iter().map(|(r, _)| r.into()).sorted_by_key(cmp).collect::<Vec<_>>();
         assert_eq!(expected, actual);
     }
 

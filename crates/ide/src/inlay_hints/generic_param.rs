@@ -1,4 +1,5 @@
 //! Implementation of inlay hints for generic parameters.
+use hir::HirFileRange;
 use ide_db::{active_parameter::generic_def_for_node, famous_defs::FamousDefs};
 use syntax::{
     ast::{self, AnyHasGenericArgs, HasGenericArgs, HasName},
@@ -76,22 +77,21 @@ pub(crate) fn hints(
         let label = InlayHintLabel::simple(
             format!("{}{colon}", param_name.display(sema.db, krate.edition(sema.db))),
             None,
-            config.lazy_location_opt(|| {
-                let source_syntax = match param {
-                    hir::GenericParam::TypeParam(it) => {
-                        sema.source(it.merge()).map(|it| it.value.syntax().clone())
-                    }
-                    hir::GenericParam::ConstParam(it) => {
-                        let syntax = sema.source(it.merge())?.value.syntax().clone();
-                        let const_param = ast::ConstParam::cast(syntax)?;
-                        const_param.name().map(|it| it.syntax().clone())
-                    }
-                    hir::GenericParam::LifetimeParam(it) => {
-                        sema.source(it).map(|it| it.value.syntax().clone())
-                    }
-                };
-                let linked_location = source_syntax.and_then(|it| sema.original_range_opt(&it));
-                linked_location.map(Into::into)
+            config.lazy_location_opt(|| match param {
+                hir::GenericParam::TypeParam(it) => {
+                    sema.source(it.merge()).map(|it| it.node_file_range())
+                }
+                hir::GenericParam::ConstParam(it) => {
+                    let syntax = sema.source(it.merge())?;
+                    let const_param = ast::ConstParam::cast(syntax.value.syntax().clone())?;
+                    const_param.name().map(|it| HirFileRange {
+                        file_id: syntax.file_id,
+                        range: it.syntax().text_range(),
+                    })
+                }
+                hir::GenericParam::LifetimeParam(it) => {
+                    sema.source(it).map(|it| it.node_file_range())
+                }
             }),
         );
 

@@ -1,7 +1,7 @@
 //! This module provides `StaticIndex` which is used for powering
 //! read-only code browsers and emitting LSIF
 
-use hir::{db::HirDatabase, Crate, HirFileIdExt, Module, Semantics};
+use hir::{db::HirDatabase, Crate, HirFileIdExt, InFile, Module, Semantics};
 use ide_db::{
     base_db::{SourceRootDatabase, VfsPath},
     defs::Definition,
@@ -10,7 +10,7 @@ use ide_db::{
     helpers::get_definition,
     FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
 };
-use span::Edition;
+use span::{Edition, EditionedFileId};
 use syntax::{AstNode, SyntaxKind::*, SyntaxNode, TextRange, T};
 
 use crate::navigation_target::UpmappingResult;
@@ -129,8 +129,14 @@ pub enum VendoredLibrariesConfig<'a> {
 
 impl StaticIndex<'_> {
     fn add_file(&mut self, file_id: FileId) {
+        let sema = hir::Semantics::new(self.db);
+        let root = sema.parse_guess_edition(file_id).syntax().clone();
+        let editioned_file_id = sema
+            .attach_first_edition(file_id)
+            .unwrap_or_else(|| EditionedFileId::new(file_id, Edition::CURRENT));
+        let edition = editioned_file_id.edition();
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
-        let folds = self.analysis.folding_ranges(file_id).unwrap();
+        let folds = self.analysis.folding_ranges(editioned_file_id.into()).unwrap();
         let inlay_hints = self
             .analysis
             .inlay_hints(
@@ -164,15 +170,11 @@ impl StaticIndex<'_> {
                     fields_to_resolve: InlayFieldsToResolve::empty(),
                     range_exclusive_hints: false,
                 },
-                file_id,
+                editioned_file_id.into(),
                 None,
             )
             .unwrap();
         // hovers
-        let sema = hir::Semantics::new(self.db);
-        let root = sema.parse_guess_edition(file_id).syntax().clone();
-        let edition =
-            sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
         let tokens = root.descendants_with_tokens().filter_map(|it| match it {
             syntax::NodeOrToken::Node(_) => None,
             syntax::NodeOrToken::Token(it) => Some(it),
@@ -204,17 +206,19 @@ impl StaticIndex<'_> {
                     documentation: documentation_for_definition(&sema, def, scope_node),
                     hover: Some(hover_for_definition(
                         &sema,
-                        file_id,
+                        editioned_file_id.into(),
                         def,
                         None,
                         scope_node,
                         None,
                         false,
                         &hover_config,
-                        edition,
                     )),
                     definition: def.try_to_nav(self.db).map(UpmappingResult::call_site).map(|it| {
-                        FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
+                        InFile { file_id: it.file_id, value: it.focus_or_full_range() }
+                            .original_node_file_range(sema.db)
+                            .0
+                            .into()
                     }),
                     references: vec![],
                     moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
@@ -309,7 +313,7 @@ mod tests {
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
         let s = StaticIndex::compute(&analysis, vendored_libs_config);
-        let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
+        let mut range_set: FxHashSet<FileRange> = ranges.iter().map(|it| it.0.into()).collect();
         for f in s.files {
             for (range, _) in f.tokens {
                 if range.start() == TextSize::from(0) {
@@ -335,7 +339,7 @@ mod tests {
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
         let s = StaticIndex::compute(&analysis, vendored_libs_config);
-        let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
+        let mut range_set: FxHashSet<FileRange> = ranges.iter().map(|it| it.0.into()).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
                 if t.range.start() == TextSize::from(0) {

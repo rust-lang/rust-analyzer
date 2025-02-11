@@ -7,13 +7,14 @@ use std::{iter, ops::Not};
 
 use either::Either;
 use hir::{
-    db::DefDatabase, GenericDef, GenericSubstitution, HasCrate, HasSource, LangItem, Semantics,
+    db::DefDatabase, GenericDef, GenericSubstitution, HasCrate, HasSource, HirFileId, HirFileIdExt,
+    HirFileRange, LangItem, Semantics,
 };
 use ide_db::{
     defs::{Definition, IdentClass, NameRefClass, OperatorClass},
     famous_defs::FamousDefs,
     helpers::pick_best_token,
-    FileRange, FxIndexSet, Ranker, RootDatabase,
+    FxIndexSet, Ranker, RootDatabase,
 };
 use itertools::{multizip, Itertools};
 use span::Edition;
@@ -25,7 +26,7 @@ use crate::{
     markup::Markup,
     navigation_target::UpmappingResult,
     runnables::{runnable_fn, runnable_mod},
-    FileId, FilePosition, NavigationTarget, RangeInfo, Runnable, TryToNav,
+    HirFilePosition, NavigationTarget, RangeInfo, Runnable, TryToNav,
 };
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HoverConfig {
@@ -71,8 +72,8 @@ pub enum HoverDocFormat {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum HoverAction {
     Runnable(Runnable),
-    Implementation(FilePosition),
-    Reference(FilePosition),
+    Implementation(HirFilePosition),
+    Reference(HirFilePosition),
     GoToType(Vec<HoverGotoTypeData>),
 }
 
@@ -121,15 +122,22 @@ pub struct HoverResult {
 // ![Hover](https://user-images.githubusercontent.com/48062697/113020658-b5f98b80-917a-11eb-9f88-3dbc27320c95.gif)
 pub(crate) fn hover(
     db: &RootDatabase,
-    frange @ FileRange { file_id, range }: FileRange,
+    frange @ HirFileRange { file_id, range }: HirFileRange,
     config: &HoverConfig,
 ) -> Option<RangeInfo<HoverResult>> {
     let sema = &hir::Semantics::new(db);
-    let file = sema.parse_guess_edition(file_id).syntax().clone();
-    let edition =
-        sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
+    let file_id = sema.adjust_edition(file_id);
+    let file = sema.parse_or_expand(sema.adjust_edition(file_id));
+
+    let edition = file_id.edition(db);
     let mut res = if range.is_empty() {
-        hover_offset(sema, FilePosition { file_id, offset: range.start() }, file, config, edition)
+        hover_offset(
+            sema,
+            HirFilePosition { file_id, offset: range.start() },
+            file,
+            config,
+            edition,
+        )
     } else {
         hover_ranged(sema, frange, file, config, edition)
     }?;
@@ -143,7 +151,7 @@ pub(crate) fn hover(
 #[allow(clippy::field_reassign_with_default)]
 fn hover_offset(
     sema: &Semantics<'_, RootDatabase>,
-    FilePosition { file_id, offset }: FilePosition,
+    HirFilePosition { file_id, offset }: HirFilePosition,
     file: SyntaxNode,
     config: &HoverConfig,
     edition: Edition,
@@ -168,8 +176,7 @@ fn hover_offset(
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
         cov_mark::hit!(no_highlight_on_comment_hover);
         return doc_comment.get_definition_with_descend_at(sema, offset, |def, node, range| {
-            let res =
-                hover_for_definition(sema, file_id, def, None, &node, None, false, config, edition);
+            let res = hover_for_definition(sema, file_id, def, None, &node, None, false, config);
             Some(RangeInfo::new(range, res))
         });
     }
@@ -186,7 +193,6 @@ fn hover_offset(
             None,
             false,
             config,
-            edition,
         );
         return Some(RangeInfo::new(range, res));
     }
@@ -275,7 +281,6 @@ fn hover_offset(
                         macro_arm,
                         hovered_definition,
                         config,
-                        edition,
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -357,7 +362,7 @@ fn hover_offset(
 
 fn hover_ranged(
     sema: &Semantics<'_, RootDatabase>,
-    FileRange { range, .. }: FileRange,
+    HirFileRange { range, .. }: HirFileRange,
     file: SyntaxNode,
     config: &HoverConfig,
     edition: Edition,
@@ -392,14 +397,13 @@ fn hover_ranged(
 // FIXME: Why is this pub(crate)?
 pub(crate) fn hover_for_definition(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: HirFileId,
     def: Definition,
     subst: Option<GenericSubstitution>,
     scope_node: &SyntaxNode,
     macro_arm: Option<u32>,
     hovered_definition: bool,
     config: &HoverConfig,
-    edition: Edition,
 ) -> HoverResult {
     let famous_defs = match &def {
         Definition::BuiltinType(_) => sema.scope(scope_node).map(|it| FamousDefs(sema, it.krate())),
@@ -433,7 +437,7 @@ pub(crate) fn hover_for_definition(
         hovered_definition,
         subst_types.as_ref(),
         config,
-        edition,
+        file_id.edition(db),
     );
     HoverResult {
         markup: render::process_markup(sema.db, def, &markup, config),
@@ -441,7 +445,13 @@ pub(crate) fn hover_for_definition(
             show_fn_references_action(sema.db, def),
             show_implementations_action(sema.db, def),
             runnable_action(sema, def, file_id),
-            goto_type_action_for_def(sema.db, def, &notable_traits, subst_types, edition),
+            goto_type_action_for_def(
+                sema.db,
+                def,
+                &notable_traits,
+                subst_types,
+                file_id.edition(db),
+            ),
         ]
         .into_iter()
         .flatten()
@@ -477,7 +487,7 @@ fn notable_traits(
 
 fn show_implementations_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
     fn to_action(nav_target: NavigationTarget) -> HoverAction {
-        HoverAction::Implementation(FilePosition {
+        HoverAction::Implementation(HirFilePosition {
             file_id: nav_target.file_id,
             offset: nav_target.focus_or_full_range().start(),
         })
@@ -498,7 +508,7 @@ fn show_fn_references_action(db: &RootDatabase, def: Definition) -> Option<Hover
     match def {
         Definition::Function(it) => {
             it.try_to_nav(db).map(UpmappingResult::call_site).map(|nav_target| {
-                HoverAction::Reference(FilePosition {
+                HoverAction::Reference(HirFilePosition {
                     file_id: nav_target.file_id,
                     offset: nav_target.focus_or_full_range().start(),
                 })
@@ -511,7 +521,7 @@ fn show_fn_references_action(db: &RootDatabase, def: Definition) -> Option<Hover
 fn runnable_action(
     sema: &hir::Semantics<'_, RootDatabase>,
     def: Definition,
-    file_id: FileId,
+    file_id: HirFileId,
 ) -> Option<HoverAction> {
     match def {
         Definition::Module(it) => runnable_mod(sema, it).map(HoverAction::Runnable),

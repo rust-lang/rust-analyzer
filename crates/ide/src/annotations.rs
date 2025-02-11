@@ -1,8 +1,5 @@
-use hir::{HasSource, InFile, InRealFile, Semantics};
-use ide_db::{
-    defs::Definition, helpers::visit_file_defs, FileId, FilePosition, FileRange, FxHashSet,
-    RootDatabase,
-};
+use hir::{HasSource, HirFileId, HirFilePosition, HirFileRange, InFile, Semantics};
+use ide_db::{defs::Definition, helpers::visit_file_defs, FxHashSet, RootDatabase};
 use itertools::Itertools;
 use syntax::{ast::HasName, AstNode, TextRange};
 
@@ -31,8 +28,8 @@ pub struct Annotation {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum AnnotationKind {
     Runnable(Runnable),
-    HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget>> },
-    HasReferences { pos: FilePosition, data: Option<Vec<FileRange>> },
+    HasImpls { pos: HirFilePosition, data: Option<Vec<NavigationTarget>> },
+    HasReferences { pos: HirFilePosition, data: Option<Vec<HirFileRange>> },
 }
 
 pub struct AnnotationConfig {
@@ -53,7 +50,7 @@ pub enum AnnotationLocation {
 pub(crate) fn annotations(
     db: &RootDatabase,
     config: &AnnotationConfig,
-    file_id: FileId,
+    file_id: HirFileId,
 ) -> Vec<Annotation> {
     let mut annotations = FxHashSet::default();
 
@@ -75,17 +72,17 @@ pub(crate) fn annotations(
             AnnotationLocation::AboveName => cmd_target,
             AnnotationLocation::AboveWholeItem => range,
         };
-        let target_pos = FilePosition { file_id, offset: cmd_target.start() };
+        let target_pos = HirFilePosition { file_id, offset: cmd_target.start() };
         (annotation_range, target_pos)
     };
 
     visit_file_defs(&Semantics::new(db), file_id, &mut |def| {
         let range = match def {
             Definition::Const(konst) if config.annotate_references => {
-                konst.source(db).and_then(|node| name_range(db, node, file_id))
+                konst.source(db).and_then(|node| name_range(node, file_id))
             }
             Definition::Trait(trait_) if config.annotate_references || config.annotate_impls => {
-                trait_.source(db).and_then(|node| name_range(db, node, file_id))
+                trait_.source(db).and_then(|node| name_range(node, file_id))
             }
             Definition::Adt(adt) => match adt {
                 hir::Adt::Enum(enum_) => {
@@ -94,7 +91,7 @@ pub(crate) fn annotations(
                             .variants(db)
                             .into_iter()
                             .filter_map(|variant| {
-                                variant.source(db).and_then(|node| name_range(db, node, file_id))
+                                variant.source(db).and_then(|node| name_range(node, file_id))
                             })
                             .for_each(|range| {
                                 let (annotation_range, target_position) = mk_ranges(range);
@@ -108,14 +105,14 @@ pub(crate) fn annotations(
                             })
                     }
                     if config.annotate_references || config.annotate_impls {
-                        enum_.source(db).and_then(|node| name_range(db, node, file_id))
+                        enum_.source(db).and_then(|node| name_range(node, file_id))
                     } else {
                         None
                     }
                 }
                 _ => {
                     if config.annotate_references || config.annotate_impls {
-                        adt.source(db).and_then(|node| name_range(db, node, file_id))
+                        adt.source(db).and_then(|node| name_range(node, file_id))
                     } else {
                         None
                     }
@@ -144,17 +141,14 @@ pub(crate) fn annotations(
         }
 
         fn name_range<T: HasName>(
-            db: &RootDatabase,
             node: InFile<T>,
-            source_file_id: FileId,
+            source_file_id: HirFileId,
         ) -> Option<(TextRange, Option<TextRange>)> {
-            if let Some(InRealFile { file_id, value }) = node.original_ast_node_rooted(db) {
-                if file_id == source_file_id {
-                    return Some((
-                        value.syntax().text_range(),
-                        value.name().map(|name| name.syntax().text_range()),
-                    ));
-                }
+            if node.file_id == source_file_id {
+                return Some((
+                    node.value.syntax().text_range(),
+                    node.value.name().map(|name| name.syntax().text_range()),
+                ));
             }
             None
         }
@@ -184,7 +178,7 @@ pub(crate) fn resolve_annotation(db: &RootDatabase, mut annotation: Annotation) 
                     .into_iter()
                     .flat_map(|res| res.references)
                     .flat_map(|(file_id, access)| {
-                        access.into_iter().map(move |(range, _)| FileRange { file_id, range })
+                        access.into_iter().map(move |(range, _)| HirFileRange { file_id, range })
                     })
                     .collect()
             });
@@ -228,7 +222,7 @@ mod tests {
         let (analysis, file_id) = fixture::file(ra_fixture);
 
         let annotations: Vec<Annotation> = analysis
-            .annotations(config, file_id)
+            .annotations(config, file_id.into())
             .unwrap()
             .into_iter()
             .map(|annotation| analysis.resolve_annotation(annotation).unwrap())

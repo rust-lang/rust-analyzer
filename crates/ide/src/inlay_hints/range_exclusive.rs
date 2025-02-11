@@ -4,7 +4,7 @@
 //! if let ../* < */100 = 50 {}
 //! ```
 use ide_db::famous_defs::FamousDefs;
-use span::EditionedFileId;
+use span::HirFileId;
 use syntax::{ast, SyntaxToken, T};
 
 use crate::{InlayHint, InlayHintsConfig};
@@ -13,7 +13,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     FamousDefs(_sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    _file_id: EditionedFileId,
+    _file_id: HirFileId,
     range: impl ast::RangeItem,
 ) -> Option<()> {
     (config.range_exclusive_hints && range.end().is_some())

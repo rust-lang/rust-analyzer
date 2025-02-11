@@ -128,6 +128,7 @@ fn collect_data(ident_pat: IdentPat, ctx: &AssistContext<'_>) -> Option<TupleDat
             .usages(&ctx.sema)
             .in_scope(&SearchScope::single_file(ctx.file_id()))
             .all()
+            .map_out_of_macros(&ctx.sema)
             .iter()
             .next()
             .map(|(_, refs)| refs.to_vec())

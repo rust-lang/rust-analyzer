@@ -1,8 +1,14 @@
 //! Conversion lsp_types types to rust-analyzer specific ones.
 use anyhow::format_err;
+use hir::{HirFilePosition, HirFileRange};
 use ide::{Annotation, AnnotationKind, AssistKind, LineCol};
-use ide_db::{line_index::WideLineCol, FileId, FilePosition, FileRange};
+use ide_db::{
+    base_db::ra_salsa::{InternId, InternKey},
+    line_index::WideLineCol,
+    FilePosition, FileRange,
+};
 use paths::Utf8PathBuf;
+use span::MacroCallId;
 use syntax::{TextRange, TextSize};
 use vfs::AbsPathBuf;
 
@@ -12,13 +18,37 @@ use crate::{
     lsp_ext,
 };
 
-pub(crate) fn abs_path(url: &lsp_types::Url) -> anyhow::Result<AbsPathBuf> {
-    let path = url.to_file_path().map_err(|()| anyhow::format_err!("url is not a file"))?;
-    Ok(AbsPathBuf::try_from(Utf8PathBuf::from_path_buf(path).unwrap()).unwrap())
+#[derive(Clone)]
+pub(crate) enum VfsOrMacroPath {
+    Vfs(vfs::VfsPath),
+    Macro(MacroCallId),
 }
 
-pub(crate) fn vfs_path(url: &lsp_types::Url) -> anyhow::Result<vfs::VfsPath> {
-    abs_path(url).map(vfs::VfsPath::from)
+impl VfsOrMacroPath {
+    pub(crate) fn into_vfs(self) -> Option<vfs::VfsPath> {
+        if let Self::Vfs(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+pub(crate) fn url_to_vfs_path(url: &lsp_types::Url) -> anyhow::Result<VfsOrMacroPath> {
+    if url.scheme() == "rust-macro-file" {
+        // rust-macro-file:/id.macro-file.rs
+        let macro_call = url
+            .path()
+            .strip_suffix(".macro-file.rs")
+            .unwrap()
+            .parse::<u32>()
+            .unwrap_or_else(|_| panic!("{url:?}"));
+
+        return Ok(VfsOrMacroPath::Macro(MacroCallId::from_intern_id(InternId::from(macro_call))));
+    }
+    let path = url.to_file_path().map_err(|()| anyhow::format_err!("url is not a file"))?;
+    let path = AbsPathBuf::try_from(Utf8PathBuf::from_path_buf(path).unwrap()).unwrap();
+    Ok(VfsOrMacroPath::Vfs(vfs::VfsPath::from(path)))
 }
 
 pub(crate) fn offset(
@@ -35,18 +65,9 @@ pub(crate) fn offset(
                 .ok_or_else(|| format_err!("Invalid wide col offset"))?
         }
     };
-    let line_range = line_index.index.line(line_col.line).ok_or_else(|| {
+    line_index.offset(line_col).ok_or_else(|| {
         format_err!("Invalid offset {line_col:?} (line index length: {:?})", line_index.index.len())
-    })?;
-    let col = TextSize::from(line_col.col);
-    let clamped_len = col.min(line_range.len());
-    if clamped_len < col {
-        tracing::error!(
-            "Position {line_col:?} column exceeds line length {}, clamping it",
-            u32::from(line_range.len()),
-        );
-    }
-    Ok(line_range.start() + clamped_len)
+    })
 }
 
 pub(crate) fn text_range(
@@ -61,18 +82,24 @@ pub(crate) fn text_range(
     }
 }
 
-pub(crate) fn file_id(snap: &GlobalStateSnapshot, url: &lsp_types::Url) -> anyhow::Result<FileId> {
-    snap.url_to_file_id(url)
-}
-
 pub(crate) fn file_position(
     snap: &GlobalStateSnapshot,
     tdpp: lsp_types::TextDocumentPositionParams,
 ) -> anyhow::Result<FilePosition> {
-    let file_id = file_id(snap, &tdpp.text_document.uri)?;
+    let file_id = snap.url_to_file_id(&tdpp.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
     let offset = offset(&line_index, tdpp.position)?;
     Ok(FilePosition { file_id, offset })
+}
+
+pub(crate) fn hir_file_position(
+    snap: &GlobalStateSnapshot,
+    tdpp: lsp_types::TextDocumentPositionParams,
+) -> anyhow::Result<HirFilePosition> {
+    let call_path = snap.url_to_hir_file_id(&tdpp.text_document.uri)?;
+    let line_index = snap.hir_line_index(call_path)?;
+    let offset = offset(&line_index, tdpp.position)?;
+    Ok(HirFilePosition { file_id: call_path, offset })
 }
 
 pub(crate) fn file_range(
@@ -83,12 +110,23 @@ pub(crate) fn file_range(
     file_range_uri(snap, &text_document_identifier.uri, range)
 }
 
+pub(crate) fn hir_file_range(
+    snap: &GlobalStateSnapshot,
+    text_document_identifier: &lsp_types::TextDocumentIdentifier,
+    range: lsp_types::Range,
+) -> anyhow::Result<HirFileRange> {
+    let call_path = snap.url_to_hir_file_id(&text_document_identifier.uri)?;
+    let line_index = snap.hir_line_index(call_path)?;
+    let range = text_range(&line_index, range)?;
+    Ok(HirFileRange { file_id: call_path, range })
+}
+
 pub(crate) fn file_range_uri(
     snap: &GlobalStateSnapshot,
     document: &lsp_types::Url,
     range: lsp_types::Range,
 ) -> anyhow::Result<FileRange> {
-    let file_id = file_id(snap, document)?;
+    let file_id = snap.url_to_file_id(document)?;
     let line_index = snap.file_line_index(file_id)?;
     let range = text_range(&line_index, range)?;
     Ok(FileRange { file_id, range })
@@ -120,9 +158,9 @@ pub(crate) fn annotation(
             {
                 return Ok(None);
             }
-            let pos @ FilePosition { file_id, .. } =
-                file_position(snap, params.text_document_position_params)?;
-            let line_index = snap.file_line_index(file_id)?;
+            let pos @ HirFilePosition { file_id, .. } =
+                hir_file_position(snap, params.text_document_position_params)?;
+            let line_index = snap.hir_line_index(file_id)?;
 
             Ok(Annotation {
                 range: text_range(&line_index, range)?,
@@ -133,8 +171,8 @@ pub(crate) fn annotation(
             if snap.url_file_version(&params.text_document.uri) != Some(data.version) {
                 return Ok(None);
             }
-            let pos @ FilePosition { file_id, .. } = file_position(snap, params)?;
-            let line_index = snap.file_line_index(file_id)?;
+            let pos @ HirFilePosition { file_id, .. } = hir_file_position(snap, params)?;
+            let line_index = snap.hir_line_index(file_id)?;
 
             Ok(Annotation {
                 range: text_range(&line_index, range)?,

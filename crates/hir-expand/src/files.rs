@@ -38,11 +38,45 @@ pub type HirFilePosition = FilePositionWrapper<HirFileId>;
 pub type MacroFilePosition = FilePositionWrapper<MacroFileId>;
 pub type FilePosition = FilePositionWrapper<EditionedFileId>;
 
-impl From<FilePositionWrapper<EditionedFileId>> for FilePositionWrapper<span::FileId> {
-    fn from(value: FilePositionWrapper<EditionedFileId>) -> Self {
+impl From<FilePosition> for FilePositionWrapper<span::FileId> {
+    fn from(value: FilePosition) -> Self {
         FilePositionWrapper { file_id: value.file_id.into(), offset: value.offset }
     }
 }
+
+impl From<FileRange> for HirFileRange {
+    fn from(value: FileRange) -> Self {
+        HirFileRange { file_id: value.file_id.into(), range: value.range }
+    }
+}
+
+impl From<FilePosition> for HirFilePosition {
+    fn from(value: FilePosition) -> Self {
+        HirFilePosition { file_id: value.file_id.into(), offset: value.offset }
+    }
+}
+
+impl FilePositionWrapper<span::FileId> {
+    pub fn with_edition(self, edition: span::Edition) -> FilePosition {
+        FilePositionWrapper {
+            file_id: EditionedFileId::new(self.file_id, edition),
+            offset: self.offset,
+        }
+    }
+}
+
+impl FileRangeWrapper<span::FileId> {
+    pub fn with_edition(self, edition: span::Edition) -> FileRange {
+        FileRangeWrapper { file_id: EditionedFileId::new(self.file_id, edition), range: self.range }
+    }
+}
+
+impl<T> InFileWrapper<span::FileId, T> {
+    pub fn with_edition(self, edition: span::Edition) -> InRealFile<T> {
+        InRealFile { file_id: EditionedFileId::new(self.file_id, edition), value: self.value }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FileRangeWrapper<FileKind> {
     pub file_id: FileKind,
@@ -191,6 +225,9 @@ impl<FileId: Copy, N: AstNode> InFileWrapper<FileId, N> {
     pub fn syntax(&self) -> InFileWrapper<FileId, &SyntaxNode> {
         self.with_value(self.value.syntax())
     }
+    pub fn node_file_range(&self) -> FileRangeWrapper<FileId> {
+        FileRangeWrapper { file_id: self.file_id, range: self.value.syntax().text_range() }
+    }
 }
 
 impl<FileId: Copy, N: AstNode> InFileWrapper<FileId, &N> {
@@ -201,9 +238,9 @@ impl<FileId: Copy, N: AstNode> InFileWrapper<FileId, &N> {
 }
 
 // region:specific impls
-impl<SN: Borrow<SyntaxNode>> InRealFile<SN> {
-    pub fn file_range(&self) -> FileRange {
-        FileRange { file_id: self.file_id, range: self.value.borrow().text_range() }
+impl<FileId: Copy, SN: Borrow<SyntaxNode>> InFileWrapper<FileId, SN> {
+    pub fn file_range(&self) -> FileRangeWrapper<FileId> {
+        FileRangeWrapper { file_id: self.file_id, range: self.value.borrow().text_range() }
     }
 }
 

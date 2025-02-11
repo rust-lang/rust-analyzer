@@ -199,9 +199,9 @@ mod tests {
 
     fn apply_on_enter(before: &str) -> Option<String> {
         let (analysis, position) = fixture::position(before);
-        let result = analysis.on_enter(position).unwrap()?;
+        let result = analysis.on_enter(position.into()).unwrap()?;
 
-        let mut actual = analysis.file_text(position.file_id).unwrap().to_string();
+        let mut actual = analysis.file_text(position.file_id.into()).unwrap().to_string();
         result.apply(&mut actual);
         Some(actual)
     }

@@ -5,13 +5,13 @@ use std::fmt;
 use arrayvec::ArrayVec;
 use either::Either;
 use hir::{
-    db::ExpandDatabase, symbols::FileSymbol, AssocItem, FieldSource, HasContainer, HasCrate,
-    HasSource, HirDisplay, HirFileId, HirFileIdExt, InFile, LocalSource, ModuleSource,
+    symbols::FileSymbol, AssocItem, FieldSource, HasContainer, HasCrate, HasSource, HirDisplay,
+    HirFileId, HirFileIdExt, HirFileRange, InFile, LocalSource, ModuleSource,
 };
 use ide_db::{
     defs::Definition,
     documentation::{Documentation, HasDocs},
-    FileId, FileRange, RootDatabase, SymbolKind,
+    FileRange, RootDatabase, SymbolKind,
 };
 use span::Edition;
 use stdx::never;
@@ -27,7 +27,7 @@ use syntax::{
 /// code, like a function or a struct, but this is not strictly required.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct NavigationTarget {
-    pub file_id: FileId,
+    pub file_id: HirFileId,
     /// Range which encompasses the whole element.
     ///
     /// Should include body, doc comments, attributes, etc.
@@ -97,6 +97,13 @@ impl NavigationTarget {
         self.focus_range.unwrap_or(self.full_range)
     }
 
+    pub fn focus_or_full_file_range(&self, db: &RootDatabase) -> FileRange {
+        InFile { file_id: self.file_id, value: self.focus_or_full_range() }
+            .original_node_file_range(db)
+            .0
+            .into()
+    }
+
     pub(crate) fn from_module_to_decl(
         db: &RootDatabase,
         module: hir::Module,
@@ -107,7 +114,7 @@ impl NavigationTarget {
         match module.declaration_source(db) {
             Some(InFile { value, file_id }) => {
                 orig_range_with_focus(db, file_id, value.syntax(), value.name()).map(
-                    |(FileRange { file_id, range: full_range }, focus_range)| {
+                    |(HirFileRange { file_id, range: full_range }, focus_range)| {
                         let mut res = NavigationTarget::from_syntax(
                             file_id,
                             name.clone(),
@@ -152,14 +159,14 @@ impl NavigationTarget {
         let name: SmolStr = value.name().map(|it| it.text().into()).unwrap_or_else(|| "_".into());
 
         orig_range_with_focus(db, file_id, value.syntax(), value.name()).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget::from_syntax(file_id, name.clone(), focus_range, full_range, kind)
             },
         )
     }
 
     pub(crate) fn from_syntax(
-        file_id: FileId,
+        file_id: HirFileId,
         name: SmolStr,
         focus_range: Option<TextRange>,
         full_range: TextRange,
@@ -190,7 +197,7 @@ impl TryToNav for FileSymbol {
                 self.loc.ptr.text_range(),
                 Some(self.loc.name_ptr.text_range()),
             )
-            .map(|(FileRange { file_id, range: full_range }, focus_range)| {
+            .map(|(HirFileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget {
                     file_id,
                     name: self.is_alias.then(|| self.def.name(db)).flatten().map_or_else(
@@ -389,7 +396,7 @@ impl ToNav for hir::Module {
         };
 
         orig_range_with_focus(db, file_id, syntax, focus).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget::from_syntax(
                     file_id,
                     name.clone(),
@@ -419,7 +426,7 @@ impl TryToNav for hir::Impl {
         };
 
         Some(orig_range_with_focus(db, file_id, syntax, focus).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| {
                 NavigationTarget::from_syntax(
                     file_id,
                     "impl".into(),
@@ -442,7 +449,7 @@ impl TryToNav for hir::ExternCrateDecl {
         let edition = self.module(db).krate().edition(db);
 
         Some(orig_range_with_focus(db, file_id, value.syntax(), focus).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| {
                 let mut res = NavigationTarget::from_syntax(
                     file_id,
                     self.alias_or_name(db)
@@ -479,7 +486,7 @@ impl TryToNav for hir::Field {
                 )
             }
             FieldSource::Pos(it) => orig_range(db, src.file_id, it.syntax()).map(
-                |(FileRange { file_id, range: full_range }, focus_range)| {
+                |(HirFileRange { file_id, range: full_range }, focus_range)| {
                     NavigationTarget::from_syntax(
                         file_id,
                         format_smolstr!("{}", self.index()),
@@ -557,7 +564,7 @@ impl ToNav for LocalSource {
         let edition = self.local.parent(db).module(db).krate().edition(db);
 
         orig_range_with_focus(db, file_id, node, name).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| {
                 let name = local.name(db).display_no_db(edition).to_smolstr();
                 let kind = if local.is_self(db) {
                     SymbolKind::SelfParam
@@ -595,7 +602,7 @@ impl TryToNav for hir::Label {
         let name = self.name(db).display_no_db(Edition::Edition2015).to_smolstr();
 
         Some(orig_range_with_focus(db, file_id, value.syntax(), value.lifetime()).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
                 file_id,
                 name: name.clone(),
                 alias: None,
@@ -632,7 +639,7 @@ impl TryToNav for hir::TypeParam {
         let focus = value.as_ref().either(|it| it.name(), |it| it.name());
 
         Some(orig_range_with_focus(db, file_id, syntax, focus).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
                 file_id,
                 name: name.clone(),
                 alias: None,
@@ -660,7 +667,7 @@ impl TryToNav for hir::LifetimeParam {
         let name = self.name(db).display_no_db(Edition::Edition2015).to_smolstr();
 
         Some(orig_range(db, file_id, value.syntax()).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
                 file_id,
                 name: name.clone(),
                 alias: None,
@@ -690,7 +697,7 @@ impl TryToNav for hir::ConstParam {
         };
 
         Some(orig_range_with_focus(db, file_id, value.syntax(), value.name()).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| NavigationTarget {
                 file_id,
                 name: name.clone(),
                 alias: None,
@@ -710,7 +717,7 @@ impl TryToNav for hir::InlineAsmOperand {
         let InFile { file_id, value } = &self.source(db)?;
         let file_id = *file_id;
         Some(orig_range_with_focus(db, file_id, value.syntax(), value.name()).map(
-            |(FileRange { file_id, range: full_range }, focus_range)| {
+            |(HirFileRange { file_id, range: full_range }, focus_range)| {
                 let edition = self.parent(db).module(db).krate().edition(db);
                 NavigationTarget {
                     file_id,
@@ -776,7 +783,7 @@ fn orig_range_with_focus(
     hir_file: HirFileId,
     value: &SyntaxNode,
     name: Option<impl AstNode>,
-) -> UpmappingResult<(FileRange, Option<TextRange>)> {
+) -> UpmappingResult<(HirFileRange, Option<TextRange>)> {
     orig_range_with_focus_r(
         db,
         hir_file,
@@ -790,140 +797,136 @@ pub(crate) fn orig_range_with_focus_r(
     hir_file: HirFileId,
     value: TextRange,
     focus_range: Option<TextRange>,
-) -> UpmappingResult<(FileRange, Option<TextRange>)> {
+) -> UpmappingResult<(HirFileRange, Option<TextRange>)> {
     let Some(name) = focus_range else { return orig_range_r(db, hir_file, value) };
 
-    let call_kind =
-        || db.lookup_intern_macro_call(hir_file.macro_file().unwrap().macro_call_id).kind;
+    orig_range_r(db, hir_file, name)
+    // let call_kind =
+    //     || db.lookup_intern_macro_call(hir_file.macro_file().unwrap().macro_call_id).kind;
 
-    let def_range = || {
-        db.lookup_intern_macro_call(hir_file.macro_file().unwrap().macro_call_id)
-            .def
-            .definition_range(db)
-    };
+    // let def_range = || {
+    //     db.lookup_intern_macro_call(hir_file.macro_file().unwrap().macro_call_id)
+    //         .def
+    //         .definition_range(db)
+    // };
 
-    // FIXME: Also make use of the syntax context to determine which site we are at?
-    let value_range = InFile::new(hir_file, value).original_node_file_range_opt(db);
-    let ((call_site_range, call_site_focus), def_site) =
-        match InFile::new(hir_file, name).original_node_file_range_opt(db) {
-            // call site name
-            Some((focus_range, ctxt)) if ctxt.is_root() => {
-                // Try to upmap the node as well, if it ends up in the def site, go back to the call site
-                (
-                    (
-                        match value_range {
-                            // name is in the node in the macro input so we can return it
-                            Some((range, ctxt))
-                                if ctxt.is_root()
-                                    && range.file_id == focus_range.file_id
-                                    && range.range.contains_range(focus_range.range) =>
-                            {
-                                range
-                            }
-                            // name lies outside the node, so instead point to the macro call which
-                            // *should* contain the name
-                            _ => {
-                                let kind = call_kind();
-                                let range = kind.clone().original_call_range_with_body(db);
-                                //If the focus range is in the attribute/derive body, we
-                                // need to point the call site to the entire body, if not, fall back
-                                // to the name range of the attribute/derive call
-                                // FIXME: Do this differently, this is very inflexible the caller
-                                // should choose this behavior
-                                if range.file_id == focus_range.file_id
-                                    && range.range.contains_range(focus_range.range)
-                                {
-                                    range
-                                } else {
-                                    kind.original_call_range(db)
-                                }
-                            }
-                        },
-                        Some(focus_range),
-                    ),
-                    // no def site relevant
-                    None,
-                )
-            }
+    // // FIXME: Also make use of the syntax context to determine which site we are at?
+    // let value_range = InFile::new(hir_file, value).original_node_file_range_opt(db);
+    // let ((call_site_range, call_site_focus), def_site) =
+    //     match InFile::new(hir_file, name).original_node_file_range_opt(db) {
+    //         // call site name
+    //         Some((focus_range, ctxt)) if ctxt.is_root() => {
+    //             // Try to upmap the node as well, if it ends up in the def site, go back to the call site
+    //             (
+    //                 (
+    //                     match value_range {
+    //                         // name is in the node in the macro input so we can return it
+    //                         Some((range, ctxt))
+    //                             if ctxt.is_root()
+    //                                 && range.file_id == focus_range.file_id
+    //                                 && range.range.contains_range(focus_range.range) =>
+    //                         {
+    //                             range
+    //                         }
+    //                         // name lies outside the node, so instead point to the macro call which
+    //                         // *should* contain the name
+    //                         _ => {
+    //                             let kind = call_kind();
+    //                             let range = kind.clone().original_call_range_with_body(db);
+    //                             //If the focus range is in the attribute/derive body, we
+    //                             // need to point the call site to the entire body, if not, fall back
+    //                             // to the name range of the attribute/derive call
+    //                             // FIXME: Do this differently, this is very inflexible the caller
+    //                             // should choose this behavior
+    //                             if range.file_id == focus_range.file_id
+    //                                 && range.range.contains_range(focus_range.range)
+    //                             {
+    //                                 range
+    //                             } else {
+    //                                 kind.original_call_range(db)
+    //                             }
+    //                         }
+    //                     },
+    //                     Some(focus_range),
+    //                 ),
+    //                 // no def site relevant
+    //                 None,
+    //             )
+    //         }
 
-            // def site name
-            // FIXME: This can be de improved
-            Some((focus_range, _ctxt)) => {
-                match value_range {
-                    // but overall node is in macro input
-                    Some((range, ctxt)) if ctxt.is_root() => (
-                        // node mapped up in call site, show the node
-                        (range, None),
-                        // def site, if the name is in the (possibly) upmapped def site range, show the
-                        // def site
-                        {
-                            let (def_site, _) = def_range().original_node_file_range(db);
-                            (def_site.file_id == focus_range.file_id
-                                && def_site.range.contains_range(focus_range.range))
-                            .then_some((def_site, Some(focus_range)))
-                        },
-                    ),
-                    // node is in macro def, just show the focus
-                    _ => (
-                        // show the macro call
-                        (call_kind().original_call_range(db), None),
-                        Some((focus_range, Some(focus_range))),
-                    ),
-                }
-            }
-            // lost name? can't happen for single tokens
-            None => return orig_range_r(db, hir_file, value),
-        };
+    //         // def site name
+    //         // FIXME: This can be de improved
+    //         Some((focus_range, _ctxt)) => {
+    //             match value_range {
+    //                 // but overall node is in macro input
+    //                 Some((range, ctxt)) if ctxt.is_root() => (
+    //                     // node mapped up in call site, show the node
+    //                     (range, None),
+    //                     // def site, if the name is in the (possibly) upmapped def site range, show the
+    //                     // def site
+    //                     {
+    //                         let (def_site, _) = def_range().original_node_file_range(db);
+    //                         (def_site.file_id == focus_range.file_id
+    //                             && def_site.range.contains_range(focus_range.range))
+    //                         .then_some((def_site, Some(focus_range)))
+    //                     },
+    //                 ),
+    //                 // node is in macro def, just show the focus
+    //                 _ => (
+    //                     // show the macro call
+    //                     (call_kind().original_call_range(db), None),
+    //                     Some((focus_range, Some(focus_range))),
+    //                 ),
+    //             }
+    //         }
+    //         // lost name? can't happen for single tokens
+    //         None => return orig_range_r(db, hir_file, value),
+    //     };
 
-    UpmappingResult {
-        call_site: (
-            call_site_range.into(),
-            call_site_focus.and_then(|hir::FileRange { file_id, range }| {
-                if call_site_range.file_id == file_id && call_site_range.range.contains_range(range)
-                {
-                    Some(range)
-                } else {
-                    None
-                }
-            }),
-        ),
-        def_site: def_site.map(|(def_site_range, def_site_focus)| {
-            (
-                def_site_range.into(),
-                def_site_focus.and_then(|hir::FileRange { file_id, range }| {
-                    if def_site_range.file_id == file_id
-                        && def_site_range.range.contains_range(range)
-                    {
-                        Some(range)
-                    } else {
-                        None
-                    }
-                }),
-            )
-        }),
-    }
+    // UpmappingResult {
+    //     call_site: (
+    //         call_site_range.into(),
+    //         call_site_focus.and_then(|hir::FileRange { file_id, range }| {
+    //             if call_site_range.file_id == file_id && call_site_range.range.contains_range(range)
+    //             {
+    //                 Some(range)
+    //             } else {
+    //                 None
+    //             }
+    //         }),
+    //     ),
+    //     def_site: def_site.map(|(def_site_range, def_site_focus)| {
+    //         (
+    //             def_site_range.into(),
+    //             def_site_focus.and_then(|hir::FileRange { file_id, range }| {
+    //                 if def_site_range.file_id == file_id
+    //                     && def_site_range.range.contains_range(range)
+    //                 {
+    //                     Some(range)
+    //                 } else {
+    //                     None
+    //                 }
+    //             }),
+    //         )
+    //     }),
+    // }
 }
 
 fn orig_range(
     db: &RootDatabase,
-    hir_file: HirFileId,
+    file_id: HirFileId,
     value: &SyntaxNode,
-) -> UpmappingResult<(FileRange, Option<TextRange>)> {
-    UpmappingResult {
-        call_site: (InFile::new(hir_file, value).original_file_range_rooted(db).into(), None),
-        def_site: None,
-    }
+) -> UpmappingResult<(HirFileRange, Option<TextRange>)> {
+    let range = value.text_range();
+    UpmappingResult { call_site: (HirFileRange { file_id, range }, None), def_site: None }
 }
 
 fn orig_range_r(
     db: &RootDatabase,
-    hir_file: HirFileId,
-    value: TextRange,
-) -> UpmappingResult<(FileRange, Option<TextRange>)> {
-    UpmappingResult {
-        call_site: (InFile::new(hir_file, value).original_node_file_range(db).0.into(), None),
-        def_site: None,
-    }
+    file_id: HirFileId,
+    range: TextRange,
+) -> UpmappingResult<(HirFileRange, Option<TextRange>)> {
+    UpmappingResult { call_site: (HirFileRange { file_id, range }, None), def_site: None }
 }
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
 use std::iter;
 
-use hir::{db, FilePosition, FileRange, HirFileId, InFile, Semantics};
+use hir::{
+    db, FileRange, HirFileId, HirFileIdExt, HirFilePosition, HirFileRange, InFile, Semantics,
+};
 use ide_db::{
     defs::{Definition, IdentClass},
     helpers::pick_best_token,
@@ -11,7 +13,6 @@ use ide_db::{
     },
     FxHashMap, FxHashSet, RootDatabase,
 };
-use span::EditionedFileId;
 use syntax::{
     ast::{self, HasLoopBody},
     match_ast, AstNode,
@@ -54,18 +55,17 @@ pub struct HighlightRelatedConfig {
 pub(crate) fn highlight_related(
     sema: &Semantics<'_, RootDatabase>,
     config: HighlightRelatedConfig,
-    ide_db::FilePosition { offset, file_id }: ide_db::FilePosition,
+    HirFilePosition { offset, file_id }: HirFilePosition,
 ) -> Option<Vec<HighlightedRange>> {
     let _p = tracing::info_span!("highlight_related").entered();
-    let file_id = sema
-        .attach_first_edition(file_id)
-        .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let syntax = sema.parse(file_id).syntax().clone();
+
+    let file_id = sema.adjust_edition(file_id);
+    let syntax = sema.parse_or_expand(sema.adjust_edition(file_id));
 
     let token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
         T![?] => 4, // prefer `?` when the cursor is sandwiched like in `await$0?`
         T![->] => 4,
-        kind if kind.is_keyword(file_id.edition()) => 3,
+        kind if kind.is_keyword(file_id.edition(sema.db)) => 3,
         IDENT | INT_NUMBER => 2,
         T![|] => 1,
         _ => 0,
@@ -90,7 +90,7 @@ pub(crate) fn highlight_related(
         T![|] if config.closure_captures => highlight_closure_captures(sema, token, file_id),
         T![move] if config.closure_captures => highlight_closure_captures(sema, token, file_id),
         _ if config.references => {
-            highlight_references(sema, token, FilePosition { file_id, offset })
+            highlight_references(sema, token, HirFilePosition { file_id, offset })
         }
         _ => None,
     }
@@ -99,7 +99,7 @@ pub(crate) fn highlight_related(
 fn highlight_closure_captures(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
 ) -> Option<Vec<HighlightedRange>> {
     let closure = token.parent_ancestors().take(2).find_map(ast::ClosureExpr::cast)?;
     let search_range = closure.body()?.syntax().text_range();
@@ -112,7 +112,10 @@ fn highlight_closure_captures(
             .flat_map(|local| {
                 let usages = Definition::Local(local)
                     .usages(sema)
-                    .in_scope(&SearchScope::file_range(FileRange { file_id, range: search_range }))
+                    .in_scope(&SearchScope::hir_file_range(HirFileRange {
+                        file_id,
+                        range: search_range,
+                    }))
                     .include_self_refs()
                     .all()
                     .references
@@ -144,7 +147,7 @@ fn highlight_closure_captures(
 fn highlight_references(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-    FilePosition { file_id, offset }: FilePosition,
+    HirFilePosition { file_id, offset }: HirFilePosition,
 ) -> Option<Vec<HighlightedRange>> {
     let defs = if let Some((range, resolution)) =
         sema.check_for_format_args_template(token.clone(), offset)
@@ -162,7 +165,7 @@ fn highlight_references(
         .iter()
         .filter_map(|&d| {
             d.usages(sema)
-                .in_scope(&SearchScope::single_file(file_id))
+                .in_scope(&SearchScope::single_hir_file(file_id))
                 .include_self_refs()
                 .all()
                 .references
@@ -206,7 +209,7 @@ fn highlight_references(
                         .filter_map(|item| {
                             Definition::from(item)
                                 .usages(sema)
-                                .set_scope(Some(&SearchScope::file_range(FileRange {
+                                .set_scope(Some(&SearchScope::hir_file_range(HirFileRange {
                                     file_id,
                                     range: trait_item_use_scope.text_range(),
                                 })))
@@ -285,13 +288,13 @@ fn hl_exit_points(
     sema: &Semantics<'_, RootDatabase>,
     def_token: Option<SyntaxToken>,
     body: ast::Expr,
-) -> Option<FxHashMap<EditionedFileId, FxHashSet<HighlightedRange>>> {
-    let mut highlights: FxHashMap<EditionedFileId, FxHashSet<_>> = FxHashMap::default();
+) -> Option<FxHashMap<HirFileId, FxHashSet<HighlightedRange>>> {
+    let mut highlights: FxHashMap<HirFileId, FxHashSet<_>> = FxHashMap::default();
 
     let mut push_to_highlights = |file_id, range| {
         if let Some(FileRange { file_id, range }) = original_frange(sema.db, file_id, range) {
             let hrange = HighlightedRange { category: ReferenceCategory::empty(), range };
-            highlights.entry(file_id).or_default().insert(hrange);
+            highlights.entry(file_id.into()).or_default().insert(hrange);
         }
     };
 
@@ -356,7 +359,7 @@ fn hl_exit_points(
 pub(crate) fn highlight_exit_points(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-) -> FxHashMap<EditionedFileId, Vec<HighlightedRange>> {
+) -> FxHashMap<HirFileId, Vec<HighlightedRange>> {
     let mut res = FxHashMap::default();
     for def in goto_definition::find_fn_or_blocks(sema, &token) {
         let new_map = match_ast! {
@@ -385,20 +388,20 @@ pub(crate) fn highlight_exit_points(
 pub(crate) fn highlight_break_points(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-) -> FxHashMap<EditionedFileId, Vec<HighlightedRange>> {
+) -> FxHashMap<HirFileId, Vec<HighlightedRange>> {
     pub(crate) fn hl(
         sema: &Semantics<'_, RootDatabase>,
         cursor_token_kind: SyntaxKind,
         loop_token: Option<SyntaxToken>,
         label: Option<ast::Label>,
         expr: ast::Expr,
-    ) -> Option<FxHashMap<EditionedFileId, FxHashSet<HighlightedRange>>> {
-        let mut highlights: FxHashMap<EditionedFileId, FxHashSet<_>> = FxHashMap::default();
+    ) -> Option<FxHashMap<HirFileId, FxHashSet<HighlightedRange>>> {
+        let mut highlights: FxHashMap<HirFileId, FxHashSet<_>> = FxHashMap::default();
 
         let mut push_to_highlights = |file_id, range| {
             if let Some(FileRange { file_id, range }) = original_frange(sema.db, file_id, range) {
                 let hrange = HighlightedRange { category: ReferenceCategory::empty(), range };
-                highlights.entry(file_id).or_default().insert(hrange);
+                highlights.entry(file_id.into()).or_default().insert(hrange);
             }
         };
 
@@ -468,18 +471,18 @@ pub(crate) fn highlight_break_points(
 pub(crate) fn highlight_yield_points(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-) -> FxHashMap<EditionedFileId, Vec<HighlightedRange>> {
+) -> FxHashMap<HirFileId, Vec<HighlightedRange>> {
     fn hl(
         sema: &Semantics<'_, RootDatabase>,
         async_token: Option<SyntaxToken>,
         body: Option<ast::Expr>,
-    ) -> Option<FxHashMap<EditionedFileId, FxHashSet<HighlightedRange>>> {
-        let mut highlights: FxHashMap<EditionedFileId, FxHashSet<_>> = FxHashMap::default();
+    ) -> Option<FxHashMap<HirFileId, FxHashSet<HighlightedRange>>> {
+        let mut highlights: FxHashMap<HirFileId, FxHashSet<_>> = FxHashMap::default();
 
         let mut push_to_highlights = |file_id, range| {
             if let Some(FileRange { file_id, range }) = original_frange(sema.db, file_id, range) {
                 let hrange = HighlightedRange { category: ReferenceCategory::empty(), range };
-                highlights.entry(file_id).or_default().insert(hrange);
+                highlights.entry(file_id.into()).or_default().insert(hrange);
             }
         };
 
@@ -567,8 +570,8 @@ fn original_frange(
 }
 
 fn merge_map(
-    res: &mut FxHashMap<EditionedFileId, FxHashSet<HighlightedRange>>,
-    new: Option<FxHashMap<EditionedFileId, FxHashSet<HighlightedRange>>>,
+    res: &mut FxHashMap<HirFileId, FxHashSet<HighlightedRange>>,
+    new: Option<FxHashMap<HirFileId, FxHashSet<HighlightedRange>>>,
 ) {
     let Some(new) = new else {
         return;
@@ -695,7 +698,7 @@ mod tests {
     ) {
         let (analysis, pos, annotations) = fixture::annotations(ra_fixture);
 
-        let hls = analysis.highlight_related(config, pos).unwrap().unwrap_or_default();
+        let hls = analysis.highlight_related(config, pos.into()).unwrap().unwrap_or_default();
 
         let mut expected =
             annotations.into_iter().map(|(r, access)| (r.range, access)).collect::<Vec<_>>();

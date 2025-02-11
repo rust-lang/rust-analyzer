@@ -3,9 +3,9 @@
 //! fn g() {
 //! } /* fn g */
 //! ```
-use hir::{HirDisplay, Semantics};
-use ide_db::{FileRange, RootDatabase};
-use span::EditionedFileId;
+use hir::{HirDisplay, HirFileRange, Semantics};
+use ide_db::RootDatabase;
+use span::{Edition, HirFileId};
 use syntax::{
     ast::{self, AstNode, HasLoopBody, HasName},
     match_ast, SyntaxKind, SyntaxNode, T,
@@ -20,7 +20,8 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     sema: &Semantics<'_, RootDatabase>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
+    edition: Edition,
     original_node: SyntaxNode,
 ) -> Option<()> {
     let min_lines = config.closing_brace_hints_min_lines?;
@@ -42,10 +43,10 @@ pub(super) fn hints(
                     let hint_text = match trait_ {
                         Some(tr) => format!(
                             "impl {} for {}",
-                            tr.name(sema.db).display(sema.db, file_id.edition()),
-                            ty.display_truncated(sema.db, config.max_length, file_id.edition(),
+                            tr.name(sema.db).display(sema.db, edition),
+                            ty.display_truncated(sema.db, config.max_length, edition,
                         )),
-                        None => format!("impl {}", ty.display_truncated(sema.db, config.max_length, file_id.edition())),
+                        None => format!("impl {}", ty.display_truncated(sema.db, config.max_length, edition)),
                     };
                     (hint_text, None)
                 },
@@ -140,7 +141,7 @@ pub(super) fn hints(
         return None;
     }
 
-    let linked_location = name_range.map(|range| FileRange { file_id: file_id.into(), range });
+    let linked_location = name_range.map(|range| HirFileRange { file_id, range });
     acc.push(InlayHint {
         range: closing_token.text_range(),
         kind: InlayKind::ClosingBrace,

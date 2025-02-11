@@ -18,6 +18,14 @@ use paths::Utf8PathBuf;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
+pub enum MacroFileContent {}
+
+impl Request for MacroFileContent {
+    type Params = lsp_types::TextDocumentIdentifier;
+    type Result = String;
+    const METHOD: &'static str = "rust-analyzer/macroFileContent";
+}
+
 pub enum InternalTestingFetchConfig {}
 
 #[derive(Deserialize, Serialize, Debug)]

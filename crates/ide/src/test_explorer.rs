@@ -74,14 +74,16 @@ fn discover_tests_in_module(
         let module_id = format!("{prefix_id}::{module_name}");
         let module_children = discover_tests_in_module(db, c, module_id.clone(), only_in_this_file);
         if !module_children.is_empty() {
-            let nav = NavigationTarget::from_module_to_decl(sema.db, c).call_site;
+            let nav = NavigationTarget::from_module_to_decl(sema.db, c)
+                .call_site
+                .focus_or_full_file_range(db);
             r.push(TestItem {
                 id: module_id,
                 kind: TestItemKind::Module,
                 label: module_name,
                 parent: Some(prefix_id.clone()),
                 file: Some(nav.file_id),
-                text_range: Some(nav.focus_or_full_range()),
+                text_range: Some(nav.range),
                 runnable: None,
             });
             if !only_in_this_file || c.is_inline(db) {
@@ -96,7 +98,7 @@ fn discover_tests_in_module(
         if !f.is_test(db) {
             continue;
         }
-        let nav = f.try_to_nav(db).map(|r| r.call_site);
+        let nav = f.try_to_nav(db).map(|r| r.call_site.focus_or_full_file_range(db));
         let fn_name = f.name(db).as_str().to_owned();
         r.push(TestItem {
             id: format!("{prefix_id}::{fn_name}"),
@@ -104,7 +106,7 @@ fn discover_tests_in_module(
             label: fn_name,
             parent: Some(prefix_id.clone()),
             file: nav.as_ref().map(|n| n.file_id),
-            text_range: nav.as_ref().map(|n| n.focus_or_full_range()),
+            text_range: nav.as_ref().map(|n| n.range),
             runnable: runnable_fn(&sema, f),
         });
     }
@@ -158,14 +160,16 @@ fn find_module_id_and_test_parents(
     let module_name = &module.name(sema.db);
     let module_name = module_name.as_ref().map(|n| n.as_str()).unwrap_or("[mod without name]");
     id += module_name;
-    let nav = NavigationTarget::from_module_to_decl(sema.db, module).call_site;
+    let nav = NavigationTarget::from_module_to_decl(sema.db, module)
+        .call_site
+        .focus_or_full_file_range(sema.db);
     r.push(TestItem {
         id: id.clone(),
         kind: TestItemKind::Module,
         label: module_name.to_owned(),
         parent,
         file: Some(nav.file_id),
-        text_range: Some(nav.focus_or_full_range()),
+        text_range: Some(nav.range),
         runnable: None,
     });
     Some((r, id))

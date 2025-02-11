@@ -11,7 +11,7 @@ use ide_db::{
 };
 use syntax::{ast, AstNode, SyntaxKind::IDENT};
 
-use crate::{goto_definition, FilePosition, NavigationTarget, RangeInfo, TryToNav};
+use crate::{goto_definition, HirFilePosition, NavigationTarget, RangeInfo, TryToNav};
 
 #[derive(Debug, Clone)]
 pub struct CallItem {
@@ -27,7 +27,7 @@ pub struct CallHierarchyConfig {
 
 pub(crate) fn call_hierarchy(
     db: &RootDatabase,
-    position: FilePosition,
+    position: HirFilePosition,
 ) -> Option<RangeInfo<Vec<NavigationTarget>>> {
     goto_definition::goto_definition(db, position)
 }
@@ -35,12 +35,11 @@ pub(crate) fn call_hierarchy(
 pub(crate) fn incoming_calls(
     db: &RootDatabase,
     CallHierarchyConfig { exclude_tests }: CallHierarchyConfig,
-    FilePosition { file_id, offset }: FilePosition,
+    HirFilePosition { file_id, offset }: HirFilePosition,
 ) -> Option<Vec<CallItem>> {
     let sema = &Semantics::new(db);
 
-    let file = sema.parse_guess_edition(file_id);
-    let file = file.syntax();
+    let file = &sema.parse_or_expand(sema.adjust_edition(file_id));
     let mut calls = CallLocations::default();
 
     let references = sema
@@ -90,11 +89,10 @@ pub(crate) fn incoming_calls(
 pub(crate) fn outgoing_calls(
     db: &RootDatabase,
     CallHierarchyConfig { exclude_tests }: CallHierarchyConfig,
-    FilePosition { file_id, offset }: FilePosition,
+    HirFilePosition { file_id, offset }: HirFilePosition,
 ) -> Option<Vec<CallItem>> {
     let sema = Semantics::new(db);
-    let file = sema.parse_guess_edition(file_id);
-    let file = file.syntax();
+    let file = &sema.parse_or_expand(sema.adjust_edition(file_id));
     let token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT => 1,
         _ => 0,
@@ -166,7 +164,7 @@ impl CallLocations {
 #[cfg(test)]
 mod tests {
     use expect_test::{expect, Expect};
-    use ide_db::FilePosition;
+    use hir::HirFilePosition;
     use itertools::Itertools;
 
     use crate::fixture;
@@ -191,7 +189,7 @@ mod tests {
 
         let (analysis, pos) = fixture::position(ra_fixture);
 
-        let mut navs = analysis.call_hierarchy(pos).unwrap().unwrap().info;
+        let mut navs = analysis.call_hierarchy(pos.into()).unwrap().unwrap().info;
         assert_eq!(navs.len(), 1);
         let nav = navs.pop().unwrap();
         expected_nav.assert_eq(&nav.debug_render());
@@ -199,7 +197,7 @@ mod tests {
         let config = crate::CallHierarchyConfig { exclude_tests };
 
         let item_pos =
-            FilePosition { file_id: nav.file_id, offset: nav.focus_or_full_range().start() };
+            HirFilePosition { file_id: nav.file_id, offset: nav.focus_or_full_range().start() };
         let incoming_calls = analysis.incoming_calls(config, item_pos).unwrap().unwrap();
         expected_incoming.assert_eq(&incoming_calls.into_iter().map(debug_render).join("\n"));
 
