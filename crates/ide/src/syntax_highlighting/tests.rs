@@ -143,12 +143,15 @@ mod inner {}
 
 pub mod ops {
     #[lang = "fn_once"]
+    #[rustc_paren_sugar]
     pub trait FnOnce<Args> {}
 
     #[lang = "fn_mut"]
+    #[rustc_paren_sugar]
     pub trait FnMut<Args>: FnOnce<Args> {}
 
     #[lang = "fn"]
+    #[rustc_paren_sugar]
     pub trait Fn<Args>: FnMut<Args> {}
 }
 
