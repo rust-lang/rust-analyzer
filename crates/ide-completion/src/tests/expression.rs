@@ -2036,3 +2036,30 @@ fn foo() {
         "#]],
     );
 }
+
+#[test]
+fn completion_associated_type() {
+    check(
+        r#"
+        pub trait FieldPaths {
+            type T;
+        }
+        pub struct Person;
+        pub struct PersonPaths;
+        impl FieldPaths for Person {
+            type T = PersonPaths;
+        }
+        impl PersonPaths {
+            pub const NAME: &'static str = "name";
+            pub fn get_default() -> String { String::new() }
+        }
+        fn main() {
+            let x = <Person as FieldPaths>::T::$0
+        }
+        "#,
+        expect![[r#"
+            ct NAME pub const NAME: &'static str
+            fn get_default()   fn() -> {unknown}
+        "#]],
+    );
+}

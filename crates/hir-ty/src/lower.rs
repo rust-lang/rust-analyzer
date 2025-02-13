@@ -24,7 +24,7 @@ use chalk_ir::{
 use either::Either;
 use hir_def::{
     builtin_type::BuiltinType,
-    data::{adt::StructKind, TraitFlags},
+    data::{adt::StructKind, TraitFlags, TypeAliasData},
     expander::Expander,
     expr_store::HygieneId,
     generics::{
@@ -2435,20 +2435,68 @@ pub(crate) fn type_for_type_alias_with_diagnostics_query(
     t: TypeAliasId,
 ) -> (Binders<Ty>, Diagnostics) {
     let generics = generics(db.upcast(), t.into());
+    let type_alias_data = find_effective_type_alias_data(db, &generics, t);
+
     let resolver = t.resolver(db.upcast());
-    let type_alias_data = db.type_alias_data(t);
     let mut ctx = TyLoweringContext::new(db, &resolver, &type_alias_data.types_map, t.into())
         .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
         .with_type_param_mode(ParamLoweringMode::Variable);
-    let inner = if type_alias_data.is_extern {
-        TyKind::Foreign(crate::to_foreign_def_id(t)).intern(Interner)
-    } else {
-        type_alias_data
-            .type_ref
-            .map(|type_ref| ctx.lower_ty(type_ref))
-            .unwrap_or_else(|| TyKind::Error.intern(Interner))
+
+    let inner = match (type_alias_data.is_extern, type_alias_data.type_ref.as_ref()) {
+        (true, _) => TyKind::Foreign(crate::to_foreign_def_id(t)).intern(Interner),
+        (false, Some(type_ref)) => ctx.lower_ty(*type_ref),
+        (false, None) => TyKind::Error.intern(Interner),
     };
+
     (make_binders(db, &generics, inner), create_diagnostics(ctx.diagnostics))
+}
+
+// Attempt to find and type alias data from the trait implementation.
+// Falls back to the original type alias if no suitable implementation is found.
+fn find_effective_type_alias_data(
+    db: &dyn HirDatabase,
+    generics: &Generics,
+    t: TypeAliasId,
+) -> Arc<TypeAliasData> {
+    let original_data = db.type_alias_data(t);
+
+    let parent = match generics.parent_generics() {
+        Some(parent) => parent,
+        None => return original_data,
+    };
+
+    let trait_id = match parent.def() {
+        GenericDefId::TraitId(id) => id,
+        _ => return original_data,
+    };
+
+    let krate = trait_id.lookup(db.upcast()).container.krate();
+    let impls = db.trait_impls_in_crate(krate);
+    let trait_type_alias_name = original_data.name.clone();
+
+    let impl_type_alias_id = impls.all_impls().find_map(|impl_id| {
+        let impl_data = db.impl_data(impl_id);
+        impl_data.items.iter().find_map(|(name, item)| {
+            if name != &trait_type_alias_name {
+                return None;
+            }
+            match item {
+                AssocItemId::TypeAliasId(id) => Some(*id),
+                _ => None,
+            }
+        })
+    });
+
+    let Some(impl_type_alias_id) = impl_type_alias_id else {
+        return original_data;
+    };
+
+    let impl_data = db.type_alias_data(impl_type_alias_id);
+    if impl_data.name.as_str() == "Assoc" {
+        original_data
+    } else {
+        impl_data
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
