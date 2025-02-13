@@ -238,6 +238,8 @@ impl CustomProcMacroExpander {
                 let krate_graph = db.crate_graph();
                 // Proc macros have access to the environment variables of the invoking crate.
                 let env = &krate_graph[calling_crate].env;
+                let current_dir =
+                    env.get("CARGO_RUSTC_CURRENT_DIR").or_else(|| env.get("CARGO_MANIFEST_DIR"));
                 match proc_macro.expander.expand(
                     tt,
                     attr_arg,
@@ -245,10 +247,7 @@ impl CustomProcMacroExpander {
                     def_site,
                     call_site,
                     mixed_site,
-                    db.crate_workspace_data()[&calling_crate]
-                        .proc_macro_cwd
-                        .as_ref()
-                        .map(ToString::to_string),
+                    current_dir,
                 ) {
                     Ok(t) => ExpandResult::ok(t),
                     Err(err) => match err {
