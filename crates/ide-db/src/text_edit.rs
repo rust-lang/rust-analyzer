@@ -8,6 +8,8 @@ use itertools::Itertools;
 pub use span::{TextRange, TextSize};
 use std::cmp::max;
 
+use crate::source_change::ChangeAnnotationId;
+
 /// `InsertDelete` -- a single "atomic" change to text
 ///
 /// Must not overlap with other `InDel`s
@@ -16,6 +18,7 @@ pub struct Indel {
     pub insert: String,
     /// Refers to offsets in the original text
     pub delete: TextRange,
+    pub annotation: Option<ChangeAnnotationId>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -37,7 +40,10 @@ impl Indel {
         Indel::replace(range, String::new())
     }
     pub fn replace(range: TextRange, replace_with: String) -> Indel {
-        Indel { delete: range, insert: replace_with }
+        Indel { delete: range, insert: replace_with, annotation: None }
+    }
+    pub fn with_annotation(self, id: ChangeAnnotationId) -> Indel {
+        Indel { annotation: Some(id), ..self }
     }
 
     pub fn apply(&self, text: &mut String) {
@@ -180,7 +186,7 @@ impl TextEditBuilder {
     pub fn invalidates_offset(&self, offset: TextSize) -> bool {
         self.indels.iter().any(|indel| indel.delete.contains_inclusive(offset))
     }
-    fn indel(&mut self, indel: Indel) {
+    pub fn indel(&mut self, indel: Indel) {
         self.indels.push(indel);
         if self.indels.len() <= 16 {
             assert_disjoint_or_equal(&mut self.indels);

@@ -22,8 +22,11 @@
 //! Our current behavior is ¯\_(ツ)_/¯.
 use std::fmt;
 
-use crate::text_edit::{TextEdit, TextEditBuilder};
-use base_db::AnchoredPathBuf;
+use crate::{
+    source_change::ChangeAnnotation,
+    text_edit::{Indel, TextEdit, TextEditBuilder},
+};
+use base_db::{AnchoredPathBuf, SourceDatabase};
 use either::Either;
 use hir::{FieldSource, FileRange, HirFileIdExt, InFile, ModuleSource, Semantics};
 use span::{Edition, EditionedFileId, FileId, SyntaxContextId};
@@ -365,7 +368,7 @@ fn rename_reference(
     }));
 
     let mut insert_def_edit = |def| {
-        let (file_id, edit) = source_edit_from_def(sema, def, new_name)?;
+        let (file_id, edit) = source_edit_from_def(sema, def, new_name, &mut source_change)?;
         source_change.insert_source_edit(file_id, edit);
         Ok(())
     };
@@ -537,6 +540,7 @@ fn source_edit_from_def(
     sema: &Semantics<'_, RootDatabase>,
     def: Definition,
     new_name: &str,
+    source_change: &mut SourceChange,
 ) -> Result<(FileId, TextEdit)> {
     let new_name_edition_aware = |new_name: &str, file_id: EditionedFileId| {
         if is_raw_identifier(new_name, file_id.edition()) {
@@ -548,6 +552,33 @@ fn source_edit_from_def(
     let mut edit = TextEdit::builder();
     if let Definition::Local(local) = def {
         let mut file_id = None;
+
+        for conflicting_local in sema.rename_conflicts(&local, new_name) {
+            let annotation = source_change.insert_annotation(ChangeAnnotation {
+                label: "This variable will shadow or be shadowed".to_owned(),
+                needs_confirmation: true,
+                description: Some(
+                    "References to this variable will change \
+                        to refer to the renamed variable after the rename, \
+                        or references to the renamed variable will change \
+                        to refer to this variable"
+                        .to_owned(),
+                ),
+            });
+            for source in conflicting_local.sources(sema.db) {
+                match source.source.syntax().original_file_range_opt(sema.db).map(TupleExt::head) {
+                    Some(FileRange { file_id: file_id2, range }) => {
+                        // Create a dummy edit to warn the user.
+                        file_id = Some(file_id2);
+                        let text = sema.db.file_text(file_id2.file_id())[range].to_owned();
+                        edit.indel(Indel::replace(range, text).with_annotation(annotation));
+                        continue;
+                    }
+                    None => {}
+                };
+            }
+        }
+
         for source in local.sources(sema.db) {
             let source = match source.source.clone().original_ast_node_rooted(sema.db) {
                 Some(source) => source,
