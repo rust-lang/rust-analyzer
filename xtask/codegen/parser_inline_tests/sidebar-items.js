@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PARSER_CRATE_ROOT","PARSER_TEST_DATA","PARSER_TEST_DATA_INLINE"],"enum":["TestKind"],"fn":["collect_tests","existing_tests","generate","install_tests","tests_from_dir"],"struct":["Test","Tests"]};

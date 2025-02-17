@@ -1,0 +1,1 @@
+searchState.loadedDescShard("rust_analyzer_proc_macro_srv", 0, "A standalone binary for <code>proc-macro-srv</code>. Driver for proc …")
