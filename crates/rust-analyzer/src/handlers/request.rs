@@ -488,8 +488,7 @@ pub(crate) fn handle_document_diagnostics(
         Some(it) => it,
         None => return Ok(empty_diagnostic_report()),
     };
-    let source_root = snap.analysis.source_root_id(file_id)?;
-    if !snap.analysis.is_local_source_root(source_root)? {
+    if !snap.analysis.is_local_source_root(file_id)? {
         return Ok(empty_diagnostic_report());
     }
     let source_root = snap.analysis.source_root_id(file_id)?;
