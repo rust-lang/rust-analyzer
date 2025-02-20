@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-use base_db::ra_salsa::Cycle;
 use chalk_ir::{AdtId, FloatTy, IntTy, TyKind, UintTy};
 use hir_def::{
     layout::{
@@ -15,22 +14,21 @@ use hir_def::{
 use la_arena::{Idx, RawIdx};
 use rustc_abi::AddressSpace;
 use rustc_index::{IndexSlice, IndexVec};
+use salsa::Cycle;
 
 use triomphe::Arc;
 
 use crate::{
     consteval::try_const_usize,
-    db::{HirDatabase, InternedClosure},
+    db::{HirDatabase, HirDatabaseData, InternedClosure},
     infer::normalize,
     layout::adt::struct_variant_idx,
     utils::ClosureSubst,
     Interner, ProjectionTy, Substitution, TraitEnvironment, Ty,
 };
 
-pub use self::{
-    adt::{layout_of_adt_query, layout_of_adt_recover},
-    target::target_data_layout_query,
-};
+pub(crate) use self::adt::layout_of_adt_recover;
+pub use self::{adt::layout_of_adt_query, target::target_data_layout_query};
 
 mod adt;
 mod target;
@@ -449,11 +447,12 @@ pub fn layout_of_ty_query(
     Ok(Arc::new(result))
 }
 
-pub fn layout_of_ty_recover(
+pub(crate) fn layout_of_ty_recover(
     _: &dyn HirDatabase,
     _: &Cycle,
-    _: &Ty,
-    _: &Arc<TraitEnvironment>,
+    _: HirDatabaseData,
+    _: Ty,
+    _: Arc<TraitEnvironment>,
 ) -> Result<Arc<Layout>, LayoutError> {
     Err(LayoutError::RecursiveTypeWithoutIndirection)
 }

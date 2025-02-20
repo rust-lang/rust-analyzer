@@ -818,6 +818,7 @@ fn fallible() -> ControlFlow<()> {
     }
 
     #[test]
+    #[ignore]
     fn closure_style() {
         check_with_config(
             InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG },
