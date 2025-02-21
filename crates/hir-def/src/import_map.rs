@@ -132,6 +132,8 @@ impl ImportMap {
     fn collect_import_map(db: &dyn DefDatabase, krate: CrateId) -> ImportMapIndex {
         let _p = tracing::info_span!("collect_import_map").entered();
 
+        let is_local = db.crate_graph()[krate].origin.is_local();
+
         let def_map = db.crate_def_map(krate);
         let mut map = FxIndexMap::default();
 
@@ -154,7 +156,17 @@ impl ImportMap {
             };
 
             let visible_items = mod_data.scope.entries().filter_map(|(name, per_ns)| {
-                let per_ns = per_ns.filter_visibility(|vis| vis == Visibility::Public);
+                // Include only public items for third party crates. For
+                // local crates it's likely that the user is editing the
+                // code and forgot to make the method public, in which case
+                // the user experience is much better if we allow it to be
+                // auto-completed so they can easily navigate to the definition
+                // and make it public.
+                let per_ns = if is_local {
+                    per_ns
+                } else {
+                    per_ns.filter_visibility(|vis| vis == Visibility::Public)
+                };
                 if per_ns.is_none() {
                     None
                 } else {
