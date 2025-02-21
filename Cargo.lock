@@ -1665,7 +1665,6 @@ dependencies = [
 name = "rust-analyzer"
 version = "0.0.0"
 dependencies = [
- "always-assert",
  "anyhow",
  "base64",
  "cargo_metadata",

@@ -135,7 +135,7 @@ fn install_server(sh: &Shell, opts: ServerOpt) -> anyhow::Result<()> {
     let features = opts.malloc.to_features();
     let profile = if opts.dev_rel { "dev-rel" } else { "release" };
 
-    let cmd = cmd!(sh, "cargo install --path crates/rust-analyzer --profile={profile} --locked --force --features force-always-assert {features...}");
+    let cmd = cmd!(sh, "cargo install --path crates/rust-analyzer --profile={profile} --locked --force {features...}");
     cmd.run()?;
     Ok(())
 }

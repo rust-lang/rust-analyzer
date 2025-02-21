@@ -8,7 +8,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use always_assert::always;
 use crossbeam_channel::{select, Receiver};
 use ide_db::base_db::{SourceDatabase, SourceRootDatabase, VfsPath};
 use lsp_server::{Connection, Notification, Request};
@@ -840,7 +839,7 @@ impl GlobalState {
             }
             vfs::loader::Message::Progress { n_total, n_done, dir, config_version } => {
                 let _p = span!(Level::INFO, "GlobalState::handle_vfs_msg/progress").entered();
-                always!(config_version <= self.vfs_config_version);
+                assert!(config_version <= self.vfs_config_version);
 
                 let (n_done, state) = match n_done {
                     LoadingProgress::Started => {

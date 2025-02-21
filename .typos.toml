@@ -1,23 +1,23 @@
 [files]
 extend-exclude = [
-    "*.rast",
-    "bench_data/",
-    "crates/parser/test_data/lexer/err/",
-    "crates/project-model/test_data/",
+  "*.rast",
+  "bench_data/",
+  "crates/parser/test_data/lexer/err/",
+  "crates/project-model/test_data/",
 ]
 
 [default]
 extend-ignore-re = [
-    # ignore string which contains $0, which is used widely in tests
-    ".*\\$0.*",
-    # ignore generated content like `boxed....nner()`, `Defaul...efault`
-    "\\w*\\.{3,4}\\w*",
-    '"flate2"',
-    "raison d'être",
-    "inout",
-    "INOUT",
-    "optin",
-    "=Pn",
+  # ignore string which contains $0, which is used widely in tests
+  ".*\\$0.*",
+  # ignore generated content like `boxed....nner()`, `Defaul...efault`
+  "\\w*\\.{3,4}\\w*",
+  '"flate2"',
+  "raison d'être",
+  "inout",
+  "INOUT",
+  "optin",
+  "=Pn",
 ]
 
 [default.extend-words]
