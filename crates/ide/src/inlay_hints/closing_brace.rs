@@ -295,6 +295,7 @@ fn to_inlay_hint(
         let max_length = config.max_length;
         let mut label = label.replace('\n', " ");
 
+        label = format!("// {label}");
         match max_length {
             Some(max_length) => {
                 if label.len() > max_length {
@@ -369,82 +370,82 @@ fn f() {
 fn g() -> bool {
     false
   }
-//^ fn g() -> bool
+//^ // fn g() -> bool
 
 fn h<T>(with: T, arguments: u8, ...) {
   }
-//^ fn h<T>(with: T, arguments: u8, ...)
+//^ // fn h<T>(with: T, arguments: u8, ...)
 
 pub fn f_pub() {
   }
-//^ pub fn f_pub()
+//^ // pub fn f_pub()
 
 const fn f_const() {
   }
-//^ const fn f_const()
+//^ // const fn f_const()
 
 default fn f_default() {
   }
-//^ default fn f_default()
+//^ // default fn f_default()
 
 safe fn f_safe() {
   }
-//^ safe fn f_safe()
+//^ // safe fn f_safe()
 
 unsafe fn f_unsafe() {
   }
-//^ unsafe fn f_unsafe()
+//^ // unsafe fn f_unsafe()
 
 async fn f_async() {
   }
-//^ async fn f_async()
+//^ // async fn f_async()
 
 extern "C" fn f_abi() {
   }
-//^ extern "C" fn f_abi()
+//^ // extern "C" fn f_abi()
 
 trait Tr {
     fn f();
     fn g() {
     }
-  //^ fn g()
+  //^ // fn g()
   }
-//^ trait Tr
+//^ // trait Tr
 impl Tr for () {
   }
-//^ impl Tr for ()
+//^ // impl Tr for ()
 impl dyn Tr {
   }
-//^ impl dyn Tr
+//^ // impl dyn Tr
 
 static S0: () = 0;
 static S1: () = {};
 static S2: () = {
  };
-//^ static S2
+//^ // static S2
 const _: () = {
  };
-//^ const _: ()
+//^ // const _: ()
 
 mod m {
   }
-//^ mod m
+//^ // mod m
 
 m! {}
 m!();
 m!(
  );
-//^ m!
+//^ // m!
 
 m! {
   }
-//^ m!
+//^ // m!
 
 fn f() {
     let v = vec![
     ];
   }
-//^ fn f()
+//^ // fn f()
 "#,
         );
     }
@@ -459,11 +460,11 @@ fn wrap_loops() {
         loop {
             break 'a;
         }
-      //^ loop
+      //^ // loop
     }
-  //^ 'a: loop
+  //^ // 'a: loop
   }
-//^ fn wrap_loops()
+//^ // fn wrap_loops()
             "#,
         );
     }
@@ -486,24 +487,24 @@ fn wrap_blocks() {
         {
         }
     }
-  //^ 'a:
+  //^ // 'a:
 
     async {
         async move {
         }
-      //^ async move
+      //^ // async move
     }
-  //^ async
+  //^ // async
 
     unsafe {
     }
-  //^ unsafe
+  //^ // unsafe
 
     try {
     }
-  //^ try
+  //^ // try
   }
-//^ fn wrap_blocks()
+//^ // fn wrap_blocks()
             "#,
         );
     }
@@ -517,27 +518,27 @@ fn while_wrapper() {
     while true {
         'a: while true {
         }
-      //^ 'a: while true
+      //^ // 'a: while true
     }
-  //^ while true
+  //^ // while true
 
     let a = false;
     while a {
         'a: while a {
         }
-      //^ 'a: while a
+      //^ // 'a: while a
     }
-  //^ while a
+  //^ // while a
 
     fn b() -> bool { true }
     while b() {
         'b: while b() {
         }
-      //^ 'b: while b()
+      //^ // 'b: while b()
     }
-  //^ while b()
+  //^ // while b()
   }
-//^ fn while_wrapper()
+//^ // fn while_wrapper()
             "#,
         );
     }
@@ -550,9 +551,9 @@ fn while_wrapper() {
 fn while_let_wrapper() {
     while let Some(val) = None {
     }
-  //^ while let Some(val) = None
+  //^ // while let Some(val) = None
   }
-//^ fn while_let_wrapper()
+//^ // fn while_let_wrapper()
             "#,
         );
     }
@@ -566,11 +567,11 @@ fn for_in_wrapper() {
     for _ in 0..=10 {
         'a: for _ in 0..=10 {
         }
-      //^ 'a: for _ in 0..=10
+      //^ // 'a: for _ in 0..=10
     }
-  //^ for _ in 0..=10
+  //^ // for _ in 0..=10
   }
-//^ fn for_in_wrapper()
+//^ // fn for_in_wrapper()
             "#,
         );
     }
@@ -584,19 +585,19 @@ fn closure_wrapper() {
     let a = || {
         0
     };
-   //^||
+   //^ // ||
 
     let b = |_: u32| {
         0
     };
-   //^ |_: u32|
+   //^ // |_: u32|
 
    let c = |_: u64| -> u64 {
         0
    };
-  //^ |_: u64| -> u64
+  //^ // |_: u64| -> u64
   }
-//^ fn closure_wrapper()
+//^ // fn closure_wrapper()
             "#,
         );
     }
@@ -611,26 +612,26 @@ enum Example {
     B(u32, u32),
     C(u32, u32, u32)
   }
-//^ enum Example
+//^ // enum Example
 
 fn match_wrapper() {
     match Example::C(1, 2, 3) {
         Example::A(a) => {
             a
         },
-       //^ Example::A(a)
+       //^ // Example::A(a)
         Example::B(b1, b2) => {
             b1 + b2
         },
-       //^ Example::B(b1, b2)
+       //^ // Example::B(b1, b2)
         Example::C(c1, c2, c3) => {
             c1 * c2 * c3
         }
-      //^ Example::C(c1, c2, c3)
+      //^ // Example::C(c1, c2, c3)
     };
-   //^ match Example::C(1, 2, 3)
+   //^ // match Example::C(1, 2, 3)
   }
-//^ fn match_wrapper()
+//^ // fn match_wrapper()
             "#,
         );
     }
@@ -645,19 +646,19 @@ struct NoInlayHint
 
 pub(in crate::foo) struct A {
   }
-//^ pub(in crate::foo) struct A
+//^ // pub(in crate::foo) struct A
 
 struct B {
     a: u32,
     b: u32,
   }
-//^ struct B
+//^ // struct B
 
 struct C<'a, const T_A: u32, T_B> {
     a: &'a u32,
     b: T_B,
   }
-//^ struct C<'a, const T_A: u32, T_B>
+//^ // struct C<'a, const T_A: u32, T_B>
 
             "#,
         );
@@ -670,28 +671,28 @@ struct C<'a, const T_A: u32, T_B> {
             r#"
 pub(in crate::foo) enum A {
   }
-//^ pub(in crate::foo) enum A
+//^ // pub(in crate::foo) enum A
 
 enum B {
     A,
     B,
   }
-//^ enum B
+//^ // enum B
 
 enum C<'a, const T_A: u32, T_B> {
     A(&'a u32),
     B(T_B),
   }
-//^ enum C<'a, const T_A: u32, T_B>
+//^ // enum C<'a, const T_A: u32, T_B>
 
 enum EnumStructFieldWrapper {
     A {
         a: u32,
         b: u32,
     }
-  //^ A
+  //^ // A
   }
-//^ enum EnumStructFieldWrapper
+//^ // enum EnumStructFieldWrapper
             "#,
         );
     }
@@ -703,19 +704,19 @@ enum EnumStructFieldWrapper {
             r#"
 pub(in crate::foo) union A {
   }
-//^ pub(in crate::foo) union A
+//^ // pub(in crate::foo) union A
 
 union B {
     a: u32,
     b: u32,
   }
-//^ union B
+//^ // union B
 
 union C<'a, const T_A: u32, T_B> {
     a: &'a u32,
     b: T_B,
   }
-//^ union C<'a, const T_A: u32, T_B>
+//^ // union C<'a, const T_A: u32, T_B>
 
             "#,
         );
@@ -729,33 +730,33 @@ union C<'a, const T_A: u32, T_B> {
 fn if_wrapper() {
     if true {
     }
-  //^ if true
+  //^ // if true
 
     fn return_true() -> bool {
         true
     }
-  //^ fn return_true() -> bool
+  //^ // fn return_true() -> bool
 
     if true && return_true() {
     }
-  //^ if true && return_true()
+  //^ // if true && return_true()
 
     if false {
     } else {
     }
-  //^ else
+  //^ // else
 
     if 0 == 1 {
     }
-  //^ if 0 == 1
+  //^ // if 0 == 1
     else if 0 == 2 {
     }
-  //^ else if 0 == 2
+  //^ // else if 0 == 2
     else {
     }
-  //^ else
+  //^ // else
   }
-//^ fn if_wrapper()
+//^ // fn if_wrapper()
             "#,
         );
     }
@@ -768,14 +769,14 @@ fn if_wrapper() {
 fn if_let_wrapper() {
     if let Some(0) = Some(0) {
     }
-  //^ if let Some(0) = Some(0)
+  //^ // if let Some(0) = Some(0)
 
     if let Some(0) = None {
     } else {
     }
-  //^ else
+  //^ // else
   }
-//^ fn if_let_wrapper()
+//^ // fn if_let_wrapper()
             "#,
         );
     }
@@ -790,18 +791,20 @@ fn if_let_wrapper() {
             },
             r#"
 // Not truncated
-fn with_40_chars_including_params_____() {
+// 40 chars including beginning "// " and params
+fn with_40_chars_including_params_() {
   }
-//^ fn with_40_chars_including_params_____()
+//^ // fn with_40_chars_including_params_()
 
 // Truncated after 'o'
-fn with_39_chars_before_X_____________oXXXXXX() {
+// 39 chars before X including "// "
+fn with_39_chars_before_X__________oXXXXXX() {
   }
-//^ fn with_39_chars_before_X_____________o…
+//^ // fn with_39_chars_before_X__________o…
 
 pub(in crate::foo) enum C<'a, const T_A: u32, T_B> {
   }
-//^ pub(in crate::foo) enum C<'a, const T_A…
+//^ // pub(in crate::foo) enum C<'a, const …
             "#,
         );
     }
