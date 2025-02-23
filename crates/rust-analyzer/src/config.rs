@@ -497,7 +497,7 @@ config_data! {
         /// Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
         completion_postfix_enable: bool         = true,
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
-        completion_privateEditable_enable: bool = false,
+        completion_privateEditable_enable: bool = true,
         /// Whether to enable term search based snippets like `Some(foo.bar().baz())`.
         completion_termSearch_enable: bool = false,
         /// Term search fuel in "units of work" for autocompletion (Defaults to 1000).

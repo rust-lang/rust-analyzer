@@ -361,7 +361,7 @@ Note that the trait themselves can still be completed.
  Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
 
 
-**rust-analyzer.completion.privateEditable.enable** (default: false)
+**rust-analyzer.completion.privateEditable.enable** (default: true)
 
  Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
 
@@ -1202,5 +1202,3 @@ Other clients requires all results upfront and might require a higher limit.
 **rust-analyzer.workspace.symbol.search.scope** (default: "workspace")
 
  Workspace symbol search scope.
-
-
