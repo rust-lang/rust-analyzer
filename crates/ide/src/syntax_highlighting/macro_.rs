@@ -1,5 +1,5 @@
 //! Syntax highlighting for macro_rules!.
-use syntax::{SyntaxKind, SyntaxToken, TextRange, T};
+use syntax::{SyntaxKind, SyntaxToken, T, TextRange};
 
 use crate::{HlRange, HlTag};
 

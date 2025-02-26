@@ -6,8 +6,8 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    parse_macro_input, parse_quote, spanned::Spanned, Attribute, Error, FnArg, Ident, ItemTrait,
-    ReturnType, TraitItem, Type,
+    Attribute, Error, FnArg, Ident, ItemTrait, ReturnType, TraitItem, Type, parse_macro_input,
+    parse_quote, spanned::Spanned,
 };
 
 /// Implementation for `[ra_salsa::query_group]` decorator.

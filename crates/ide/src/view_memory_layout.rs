@@ -2,9 +2,9 @@ use std::fmt;
 
 use hir::{Field, HirDisplay, Layout, Semantics, Type};
 use ide_db::{
+    RootDatabase,
     defs::Definition,
     helpers::{get_definition, pick_best_token},
-    RootDatabase,
 };
 use span::Edition;
 use syntax::{AstNode, SyntaxKind};
