@@ -682,10 +682,9 @@ fn signature_help_for_tuple_pat_ish(
     res.signature.push(')');
     res
 }
+
 #[cfg(test)]
 mod tests {
-    
-
     use expect_test::{expect, Expect};
     use ide_db::FilePosition;
     use stdx::format_to;
