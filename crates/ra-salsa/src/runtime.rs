@@ -584,13 +584,16 @@ impl ActiveQuery {
     fn add_from(&mut self, other: &ActiveQuery) {
         self.changed_at = self.changed_at.max(other.changed_at);
         self.durability = self.durability.min(other.durability);
-        match &other.dependencies { Some(other_dependencies) => {
-            if let Some(my_dependencies) = &mut self.dependencies {
-                my_dependencies.extend(other_dependencies.iter().copied());
+        match &other.dependencies {
+            Some(other_dependencies) => {
+                if let Some(my_dependencies) = &mut self.dependencies {
+                    my_dependencies.extend(other_dependencies.iter().copied());
+                }
             }
-        } _ => {
-            self.dependencies = None;
-        }}
+            _ => {
+                self.dependencies = None;
+            }
+        }
     }
 
     /// Removes the participants in `cycle` from my dependencies.
