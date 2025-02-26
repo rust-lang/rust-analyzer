@@ -634,6 +634,11 @@ fn compute_ref_match(
     }
 
     if let Some(expected_without_ref) = &expected_without_ref {
+        if completion_ty == &expected_without_ref.add_reference(hir::Mutability::Shared)
+            || completion_ty == &expected_without_ref.add_reference(hir::Mutability::Mut)
+        {
+            return None;
+        }
         if completion_ty.autoderef(ctx.db).any(|ty| ty == *expected_without_ref) {
             cov_mark::hit!(suggest_ref);
             let mutability = if expected_type.is_mutable_reference() {
@@ -2003,6 +2008,30 @@ fn f() {
 "#,
             expect![[r#"
                 me aaa() fn(&self) -> u64 [name]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_avoid_redundant_suggestion() {
+        check_relevance(
+            r#"
+struct aa([u8]);
+
+impl aa {
+    fn from_bytes(bytes: &[u8]) -> &Self {
+        unsafe { &*(bytes as *const [u8] as *const aa) }
+    }
+}
+
+fn bb()-> &'static aa {
+    let bytes = b"hello";
+    aa::$0
+}
+"#,
+            expect![[r#"
+                ex bb()  [type]
+                fn from_bytes(…) fn(&[u8]) -> &aa [type_could_unify]
             "#]],
         );
     }
