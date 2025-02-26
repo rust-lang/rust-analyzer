@@ -98,6 +98,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest' || github.event_name == 'push'
         run: cargo test ${{ env.USE_SYSROOT_ABI }} -- --nocapture --quiet
 
+      - name: Doc Test
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest' || github.event_name == 'push'
+        run: cargo test ${{ env.USE_SYSROOT_ABI }} --doc -- --nocapture --quiet
+
       - name: Switch to stable toolchain
         run: |
           rustup update --no-self-update stable
