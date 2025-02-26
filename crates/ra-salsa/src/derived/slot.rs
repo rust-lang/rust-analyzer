@@ -236,16 +236,16 @@ where
                         cycle.throw()
                     }
                     crate::plumbing::CycleRecoveryStrategy::Fallback => {
-                        if let Some(c) = active_query.take_cycle() {
+                        match active_query.take_cycle() { Some(c) => {
                             assert!(c.is(&cycle));
                             Q::cycle_fallback(db, &cycle, key)
-                        } else {
+                        } _ => {
                             // we are not a participant in this cycle
                             debug_assert!(!cycle
                                 .participant_keys()
                                 .any(|k| k == self.database_key_index()));
                             cycle.throw()
-                        }
+                        }}
                     }
                 }
             }
