@@ -205,9 +205,9 @@ impl TestDB {
         let def_with_body = fn_def?.into();
         let (_, source_map) = self.body_with_source_map(def_with_body);
         let scopes = self.expr_scopes(def_with_body);
-        let root = self.parse(position.file_id);
+        let root_syntax_node = self.parse(position.file_id).syntax_node();
 
-        let scope_iter = algo::ancestors_at_offset(&root.syntax_node(), position.offset)
+        let scope_iter = algo::ancestors_at_offset(&root_syntax_node, position.offset)
             .filter_map(|node| {
                 let block = ast::BlockExpr::cast(node)?;
                 let expr = ast::Expr::from(block);
