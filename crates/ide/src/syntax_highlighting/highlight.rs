@@ -3,20 +3,20 @@
 use either::Either;
 use hir::{AsAssocItem, HasVisibility, MacroFileIdExt, Semantics};
 use ide_db::{
-    defs::{Definition, IdentClass, NameClass, NameRefClass},
     FxHashMap, RootDatabase, SymbolKind,
+    defs::{Definition, IdentClass, NameClass, NameRefClass},
 };
 use span::Edition;
 use stdx::hash_once;
 use syntax::{
-    ast, match_ast, AstNode, AstToken, NodeOrToken,
+    AstNode, AstToken, NodeOrToken,
     SyntaxKind::{self, *},
-    SyntaxNode, SyntaxToken, T,
+    SyntaxNode, SyntaxToken, T, ast, match_ast,
 };
 
 use crate::{
-    syntax_highlighting::tags::{HlOperator, HlPunct},
     Highlight, HlMod, HlTag,
+    syntax_highlighting::tags::{HlOperator, HlPunct},
 };
 
 pub(super) fn token(
@@ -103,11 +103,7 @@ fn punctuation(
             let is_unsafe = parent
                 .and_then(ast::RefExpr::cast)
                 .map(|ref_expr| sema.is_unsafe_ref_expr(&ref_expr));
-            if let Some(true) = is_unsafe {
-                h | HlMod::Unsafe
-            } else {
-                h
-            }
+            if let Some(true) = is_unsafe { h | HlMod::Unsafe } else { h }
         }
         (T![::] | T![->] | T![=>] | T![..] | T![..=] | T![=] | T![@] | T![.], _) => {
             HlOperator::Other.into()
@@ -159,7 +155,7 @@ fn punctuation(
                     .and_then(SyntaxNode::parent)
                     .is_some_and(|it| it.kind() == MACRO_RULES) =>
             {
-                return HlOperator::Other.into()
+                return HlOperator::Other.into();
             }
             T![<] | T![>] => HlPunct::Angle,
             T![,] => HlPunct::Comma,
@@ -217,7 +213,7 @@ fn keyword(
         // self, crate, super and `Self` are handled as either a Name or NameRef already, unless they
         // are inside unmapped token trees
         T![self] | T![crate] | T![super] | T![Self] if parent_matches::<ast::NameRef>(&token) => {
-            return None
+            return None;
         }
         T![self] if parent_matches::<ast::Name>(&token) => return None,
         T![ref] => match token.parent().and_then(ast::IdentPat::cast) {
@@ -246,7 +242,7 @@ fn highlight_name_ref(
     let name_class = match NameRefClass::classify(sema, &name_ref) {
         Some(name_kind) => name_kind,
         None if syntactic_name_ref_highlighting => {
-            return highlight_name_ref_by_syntax(name_ref, sema, krate, edition)
+            return highlight_name_ref_by_syntax(name_ref, sema, krate, edition);
         }
         // FIXME: This is required for helper attributes used by proc-macros, as those do not map down
         // to anything when used.
@@ -717,11 +713,7 @@ fn highlight_name_ref_by_syntax(
                     }
                     Either::Right(_) => false,
                 });
-            if is_union {
-                h | HlMod::Unsafe
-            } else {
-                h.into()
-            }
+            if is_union { h | HlMod::Unsafe } else { h.into() }
         }
         PATH_SEGMENT => {
             let name_based_fallback = || {

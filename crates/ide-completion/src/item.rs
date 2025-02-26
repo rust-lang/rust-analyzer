@@ -5,17 +5,17 @@ use std::{fmt, mem};
 use hir::Mutability;
 use ide_db::text_edit::TextEdit;
 use ide_db::{
-    documentation::Documentation, imports::import_assets::LocatedImport, RootDatabase, SnippetCap,
-    SymbolKind,
+    RootDatabase, SnippetCap, SymbolKind, documentation::Documentation,
+    imports::import_assets::LocatedImport,
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
 use stdx::{format_to, impl_from, never};
-use syntax::{format_smolstr, Edition, SmolStr, TextRange, TextSize};
+use syntax::{Edition, SmolStr, TextRange, TextSize, format_smolstr};
 
 use crate::{
     context::{CompletionContext, PathCompletionCtx},
-    render::{render_path_resolution, RenderContext},
+    render::{RenderContext, render_path_resolution},
 };
 
 /// `CompletionItem` describes a single completion entity which expands to 1 or more entries in the
@@ -149,9 +149,9 @@ pub struct CompletionRelevance {
     /// This is set when the identifier being completed matches up with the name that is expected,
     /// like in a function argument.
     ///
-    /// ```
+    /// ```ignore
     /// fn f(spam: String) {}
-    /// fn main {
+    /// fn main() {
     ///     let spam = 92;
     ///     f($0) // name of local matches the name of param
     /// }
@@ -161,7 +161,7 @@ pub struct CompletionRelevance {
     pub type_match: Option<CompletionRelevanceTypeMatch>,
     /// Set for local variables.
     ///
-    /// ```
+    /// ```ignore
     /// fn foo(a: u32) {
     ///     let b = 0;
     ///     $0 // `a` and `b` are local
@@ -195,7 +195,7 @@ pub struct CompletionRelevanceTraitInfo {
 pub enum CompletionRelevanceTypeMatch {
     /// This is set in cases like these:
     ///
-    /// ```
+    /// ```ignore
     /// enum Option<T> { Some(T), None }
     /// fn f(a: Option<u32>) {}
     /// fn main {
@@ -205,9 +205,9 @@ pub enum CompletionRelevanceTypeMatch {
     CouldUnify,
     /// This is set in cases where the type matches the expected type, like:
     ///
-    /// ```
+    /// ```ignore
     /// fn f(spam: String) {}
-    /// fn main {
+    /// fn main() {
     ///     let foo = String::new();
     ///     f($0) // type of local matches the type of param
     /// }
@@ -221,7 +221,7 @@ pub enum CompletionRelevancePostfixMatch {
     NonExact,
     /// This is set in cases like these:
     ///
-    /// ```
+    /// ```ignore
     /// (a > b).not$0
     /// ```
     ///

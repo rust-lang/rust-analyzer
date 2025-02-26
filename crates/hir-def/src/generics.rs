@@ -7,8 +7,8 @@ use std::{ops, sync::LazyLock};
 
 use either::Either;
 use hir_expand::{
-    name::{AsName, Name},
     ExpandResult,
+    name::{AsName, Name},
 };
 use la_arena::{Arena, RawIdx};
 use stdx::{
@@ -19,6 +19,8 @@ use syntax::ast::{self, HasGenericParams, HasName, HasTypeBounds};
 use triomphe::Arc;
 
 use crate::{
+    AdtId, ConstParamId, GenericDefId, HasModule, ItemTreeLoc, LifetimeParamId,
+    LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup, TypeOrConstParamId, TypeParamId,
     db::DefDatabase,
     expander::Expander,
     item_tree::{AttrOwner, FileItemTreeId, GenericModItem, GenericsItemTreeNode, ItemTree},
@@ -29,8 +31,6 @@ use crate::{
         ArrayType, ConstRef, FnType, LifetimeRef, PathId, RefType, TypeBound, TypeRef, TypeRefId,
         TypesMap, TypesSourceMap,
     },
-    AdtId, ConstParamId, GenericDefId, HasModule, ItemTreeLoc, LifetimeParamId,
-    LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup, TypeOrConstParamId, TypeParamId,
 };
 
 /// The index of the self param in the generic of the non-parent definition.
@@ -291,11 +291,7 @@ impl GenericParams {
         parent: GenericDefId,
     ) -> Option<LifetimeParamId> {
         self.lifetimes.iter().find_map(|(id, p)| {
-            if &p.name == name {
-                Some(LifetimeParamId { local_id: id, parent })
-            } else {
-                None
-            }
+            if &p.name == name { Some(LifetimeParamId { local_id: id, parent }) } else { None }
         })
     }
 

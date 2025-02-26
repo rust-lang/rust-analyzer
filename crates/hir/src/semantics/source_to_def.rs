@@ -5,7 +5,7 @@
 //!
 //! This module solves the following problem:
 //!
-//!     Given a piece of syntax, find the corresponding semantic definition (def).
+//! > Given a piece of syntax, find the corresponding semantic definition (def).
 //!
 //! This problem is a part of more-or-less every IDE feature implemented. Every
 //! IDE functionality (like goto to definition), conceptually starts with a
@@ -87,30 +87,30 @@
 
 use either::Either;
 use hir_def::{
-    dyn_map::{
-        keys::{self, Key},
-        DynMap,
-    },
-    hir::{BindingId, Expr, LabelId},
     AdtId, BlockId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId, ExternBlockId,
     ExternCrateId, FieldId, FunctionId, GenericDefId, GenericParamId, ImplId, LifetimeParamId,
     Lookup, MacroId, ModuleId, StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, TypeParamId,
     UnionId, UseId, VariantId,
+    dyn_map::{
+        DynMap,
+        keys::{self, Key},
+    },
+    hir::{BindingId, Expr, LabelId},
 };
 use hir_expand::{
-    attrs::AttrId, name::AsName, ExpansionInfo, HirFileId, HirFileIdExt, InMacroFile, MacroCallId,
-    MacroFileIdExt,
+    ExpansionInfo, HirFileId, HirFileIdExt, InMacroFile, MacroCallId, MacroFileIdExt,
+    attrs::AttrId, name::AsName,
 };
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use span::{EditionedFileId, FileId, MacroFileId};
 use stdx::impl_from;
 use syntax::{
-    ast::{self, HasName},
     AstNode, AstPtr, SyntaxNode,
+    ast::{self, HasName},
 };
 
-use crate::{db::HirDatabase, semantics::child_by_source::ChildBySource, InFile, InlineAsmOperand};
+use crate::{InFile, InlineAsmOperand, db::HirDatabase, semantics::child_by_source::ChildBySource};
 
 #[derive(Default)]
 pub(super) struct SourceToDefCache {

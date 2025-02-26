@@ -29,15 +29,15 @@ use std::{
 };
 
 use base_db::{
-    ra_salsa::{self, ParallelDatabase},
     SourceRootDatabase, SourceRootId, Upcast,
+    ra_salsa::{self, ParallelDatabase},
 };
-use fst::{raw::IndexedValue, Automaton, Streamer};
+use fst::{Automaton, Streamer, raw::IndexedValue};
 use hir::{
+    Crate, Module,
     db::HirDatabase,
     import_map::{AssocSearchMode, SearchMode},
     symbols::{FileSymbol, SymbolCollector},
-    Crate, Module,
 };
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;

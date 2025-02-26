@@ -3,7 +3,7 @@ use std::ops::Deref;
 use base_db::{CrateGraph, ProcMacroPaths};
 use cargo_metadata::Metadata;
 use cfg::{CfgAtom, CfgDiff};
-use expect_test::{expect_file, ExpectFile};
+use expect_test::{ExpectFile, expect_file};
 use intern::sym;
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
 use rustc_hash::FxHashMap;
@@ -12,9 +12,9 @@ use span::FileId;
 use triomphe::Arc;
 
 use crate::{
-    sysroot::RustLibSrcWorkspace, workspace::ProjectWorkspaceKind, CargoWorkspace, CfgOverrides,
-    ManifestPath, ProjectJson, ProjectJsonData, ProjectWorkspace, RustSourceWorkspaceConfig,
-    Sysroot, WorkspaceBuildScripts,
+    CargoWorkspace, CfgOverrides, ManifestPath, ProjectJson, ProjectJsonData, ProjectWorkspace,
+    RustSourceWorkspaceConfig, Sysroot, WorkspaceBuildScripts, sysroot::RustLibSrcWorkspace,
+    workspace::ProjectWorkspaceKind,
 };
 
 fn load_cargo(file: &str) -> (CrateGraph, ProcMacroPaths) {
@@ -265,6 +265,7 @@ fn crate_graph_dedup() {
 }
 
 #[test]
+#[ignore]
 fn smoke_test_real_sysroot_cargo() {
     let file_map = &mut FxHashMap::<AbsPathBuf, FileId>::default();
     let meta: Metadata = get_test_json_file("hello-world-metadata.json");

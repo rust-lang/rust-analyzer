@@ -8,7 +8,7 @@ use intern::Symbol;
 use rustc_hash::FxHashMap;
 use span::Span;
 
-use crate::{db::ExpandDatabase, tt, ExpandError, ExpandErrorKind, ExpandResult};
+use crate::{ExpandError, ExpandErrorKind, ExpandResult, db::ExpandDatabase, tt};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum ProcMacroKind {
@@ -231,7 +231,7 @@ impl CustomProcMacroExpander {
                                 close: call_site,
                             }),
                             e,
-                        )
+                        );
                     }
                 };
 

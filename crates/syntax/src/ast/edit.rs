@@ -4,8 +4,9 @@
 use std::{fmt, iter, ops};
 
 use crate::{
-    ast::{self, make, AstNode},
-    ted, AstToken, NodeOrToken, SyntaxElement, SyntaxNode, SyntaxToken,
+    AstToken, NodeOrToken, SyntaxElement, SyntaxNode, SyntaxToken,
+    ast::{self, AstNode, make},
+    ted,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,12 +73,14 @@ impl IndentLevel {
     }
 
     /// XXX: this intentionally doesn't change the indent of the very first token.
-    /// Ie, in something like
+    /// For example, in something like:
+    ///
     /// ```
-    /// fn foo() {
+    /// fn foo() -> i32 {
     ///    92
     /// }
     /// ```
+    ///
     /// if you indent the block, the `{` token would stay put.
     pub(super) fn increase_indent(self, node: &SyntaxNode) {
         let tokens = node.preorder_with_tokens().filter_map(|event| match event {

@@ -9,8 +9,8 @@ use base_db::ra_salsa::{self, InternKey};
 use hir_def::{LifetimeParamId, TraitId, TypeAliasId, TypeOrConstParamId};
 
 use crate::{
-    chalk_db, db::HirDatabase, AssocTypeId, CallableDefId, ChalkTraitId, FnDefId, ForeignDefId,
-    Interner, OpaqueTyId, PlaceholderIndex,
+    AssocTypeId, CallableDefId, ChalkTraitId, FnDefId, ForeignDefId, Interner, OpaqueTyId,
+    PlaceholderIndex, chalk_db, db::HirDatabase,
 };
 
 pub(crate) trait ToChalk {

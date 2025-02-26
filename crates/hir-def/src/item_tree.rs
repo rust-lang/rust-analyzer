@@ -46,24 +46,24 @@ use std::{
 use ast::{AstNode, StructKind};
 use base_db::CrateId;
 use either::Either;
-use hir_expand::{attrs::RawAttrs, name::Name, ExpandTo, HirFileId, InFile};
+use hir_expand::{ExpandTo, HirFileId, InFile, attrs::RawAttrs, name::Name};
 use intern::{Interned, Symbol};
 use la_arena::{Arena, Idx, RawIdx};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use span::{AstIdNode, Edition, FileAstId, SyntaxContextId};
 use stdx::never;
-use syntax::{ast, match_ast, SyntaxKind};
+use syntax::{SyntaxKind, ast, match_ast};
 use triomphe::Arc;
 
 use crate::{
+    BlockId, LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup,
     attr::Attrs,
     db::DefDatabase,
     generics::GenericParams,
     path::{GenericArgs, ImportAlias, ModPath, Path, PathKind},
     type_ref::{Mutability, TraitRef, TypeBound, TypeRefId, TypesMap, TypesSourceMap},
     visibility::{RawVisibility, VisibilityExplicitness},
-    BlockId, LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -883,20 +883,20 @@ pub struct UseTree {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum UseTreeKind {
-    /// ```
+    /// ```ignore
     /// use path::to::Item;
     /// use path::to::Item as Renamed;
     /// use path::to::Trait as _;
     /// ```
     Single { path: Interned<ModPath>, alias: Option<ImportAlias> },
 
-    /// ```
+    /// ```ignore
     /// use *;  // (invalid, but can occur in nested tree)
     /// use path::*;
     /// ```
     Glob { path: Option<Interned<ModPath>> },
 
-    /// ```
+    /// ```ignore
     /// use prefix::{self, Item, ...};
     /// ```
     Prefixed { prefix: Option<Interned<ModPath>>, list: Box<[UseTree]> },

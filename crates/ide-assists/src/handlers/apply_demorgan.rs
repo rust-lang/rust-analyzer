@@ -6,12 +6,12 @@ use ide_db::{
     syntax_helpers::node_ext::{for_each_tail_expr, walk_expr},
 };
 use syntax::{
-    ast::{self, syntax_factory::SyntaxFactory, AstNode, Expr::BinExpr, HasArgList},
-    syntax_editor::{Position, SyntaxEditor},
     SyntaxKind, SyntaxNode, T,
+    ast::{self, AstNode, Expr::BinExpr, HasArgList, syntax_factory::SyntaxFactory},
+    syntax_editor::{Position, SyntaxEditor},
 };
 
-use crate::{utils::invert_boolean_expression, AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, AssistKind, Assists, utils::invert_boolean_expression};
 
 // Assist: apply_demorgan
 //

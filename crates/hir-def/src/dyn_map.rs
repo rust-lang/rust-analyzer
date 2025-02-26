@@ -5,7 +5,9 @@
 //!
 //! It is used like this:
 //!
-//! ```
+//! ```ignore
+//! # use hir_def::dyn_map::DynMap;
+//! # use hir_def::dyn_map::Key;
 //! // keys define submaps of a `DynMap`
 //! const STRING_TO_U32: Key<String, u32> = Key::new();
 //! const U32_TO_VEC: Key<u32, Vec<bool>> = Key::new();
@@ -25,15 +27,15 @@
 pub mod keys {
     use std::marker::PhantomData;
 
-    use hir_expand::{attrs::AttrId, MacroCallId};
+    use hir_expand::{MacroCallId, attrs::AttrId};
     use rustc_hash::FxHashMap;
-    use syntax::{ast, AstNode, AstPtr};
+    use syntax::{AstNode, AstPtr, ast};
 
     use crate::{
-        dyn_map::{DynMap, Policy},
         BlockId, ConstId, EnumId, EnumVariantId, ExternBlockId, ExternCrateId, FieldId, FunctionId,
         ImplId, LifetimeParamId, Macro2Id, MacroRulesId, ProcMacroId, StaticId, StructId,
         TraitAliasId, TraitId, TypeAliasId, TypeOrConstParamId, UnionId, UseId,
+        dyn_map::{DynMap, Policy},
     };
 
     pub type Key<K, V> = crate::dyn_map::Key<AstPtr<K>, V, AstPtrPolicy<K, V>>;
@@ -110,8 +112,14 @@ pub struct Key<K, V, P = (K, V)> {
 }
 
 impl<K, V, P> Key<K, V, P> {
-    pub(crate) const fn new() -> Key<K, V, P> {
+    pub const fn new() -> Key<K, V, P> {
         Key { _phantom: PhantomData }
+    }
+}
+
+impl<K, V, P> Default for Key<K, V, P> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

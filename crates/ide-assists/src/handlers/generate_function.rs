@@ -3,26 +3,27 @@ use hir::{
     StructKind, Type, TypeInfo,
 };
 use ide_db::{
+    FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
     helpers::is_editable_crate,
     path_transform::PathTransform,
     source_change::SourceChangeBuilder,
-    FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
 };
 use itertools::Itertools;
 use stdx::to_lower_snake_case;
 use syntax::{
+    Edition, SyntaxKind, SyntaxNode, T, TextRange,
     ast::{
-        self, edit::IndentLevel, edit_in_place::Indent, make, AstNode, BlockExpr, CallExpr,
-        HasArgList, HasGenericParams, HasModuleItem, HasTypeBounds,
+        self, AstNode, BlockExpr, CallExpr, HasArgList, HasGenericParams, HasModuleItem,
+        HasTypeBounds, edit::IndentLevel, edit_in_place::Indent, make,
     },
-    ted, Edition, SyntaxKind, SyntaxNode, TextRange, T,
+    ted,
 };
 
 use crate::{
-    utils::{convert_reference_type, find_struct_impl},
     AssistContext, AssistId, AssistKind, Assists,
+    utils::{convert_reference_type, find_struct_impl},
 };
 
 // Assist: generate_function
@@ -178,9 +179,8 @@ fn add_func_to_accumulator(
         let edition = function_builder.target_edition;
         let func = function_builder.render(ctx.config.snippet_cap, edit);
 
-        if let Some(adt) =
-            adt_info
-                .and_then(|adt_info| if adt_info.impl_exists { None } else { Some(adt_info.adt) })
+        if let Some(adt) = adt_info
+            .and_then(|adt_info| if adt_info.impl_exists { None } else { Some(adt_info.adt) })
         {
             let name = make::ty_path(make::ext::ident_path(&format!(
                 "{}",
@@ -1037,7 +1037,7 @@ fn filter_bounds_in_scope(
 
 /// Makes duplicate argument names unique by appending incrementing numbers.
 ///
-/// ```
+/// ```ignore
 /// let mut names: Vec<String> =
 ///     vec!["foo".into(), "foo".into(), "bar".into(), "baz".into(), "bar".into()];
 /// deduplicate_arg_names(&mut names);

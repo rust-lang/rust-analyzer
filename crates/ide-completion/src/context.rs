@@ -11,20 +11,21 @@ use hir::{
     SemanticsScope, Symbol, Type, TypeInfo,
 };
 use ide_db::{
-    base_db::SourceDatabase, famous_defs::FamousDefs, helpers::is_editable_crate, FilePosition,
-    FxHashMap, FxHashSet, RootDatabase,
+    FilePosition, FxHashMap, FxHashSet, RootDatabase, base_db::SourceDatabase,
+    famous_defs::FamousDefs, helpers::is_editable_crate,
 };
 use syntax::{
-    ast::{self, AttrKind, NameOrNameRef},
-    match_ast, AstNode, Edition, SmolStr,
+    AstNode, Edition, SmolStr,
     SyntaxKind::{self, *},
-    SyntaxToken, TextRange, TextSize, T,
+    SyntaxToken, T, TextRange, TextSize,
+    ast::{self, AttrKind, NameOrNameRef},
+    match_ast,
 };
 
 use crate::{
-    config::AutoImportExclusionType,
-    context::analysis::{expand_and_analyze, AnalysisResult},
     CompletionConfig,
+    config::AutoImportExclusionType,
+    context::analysis::{AnalysisResult, expand_and_analyze},
 };
 
 const COMPLETION_MARKER: &str = "raCompletionMarker";
@@ -249,8 +250,8 @@ pub(crate) enum Qualified {
         /// This would be None, if path is not solely made of
         /// `super` segments, e.g.
         ///
-        /// ```rust
-        ///   use super::foo;
+        /// ```ignore
+        /// use super::foo;
         /// ```
         ///
         /// Otherwise it should be Some(count of `super`)
@@ -674,11 +675,7 @@ impl CompletionContext<'_> {
             };
         }
 
-        if self.is_doc_hidden(attrs, defining_crate) {
-            Visible::No
-        } else {
-            Visible::Yes
-        }
+        if self.is_doc_hidden(attrs, defining_crate) { Visible::No } else { Visible::Yes }
     }
 
     pub(crate) fn is_doc_hidden(&self, attrs: &hir::Attrs, defining_crate: hir::Crate) -> bool {

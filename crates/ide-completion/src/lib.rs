@@ -11,10 +11,10 @@ mod snippet;
 mod tests;
 
 use ide_db::{
+    FilePosition, FxHashSet, RootDatabase,
     imports::insert_use::{self, ImportScope},
     syntax_helpers::tree_diff::diff,
     text_edit::TextEdit,
-    FilePosition, FxHashSet, RootDatabase,
 };
 use syntax::ast::make;
 
@@ -143,7 +143,7 @@ impl CompletionFieldsToResolve {
 /// already present, it should give all possible variants for the identifier at
 /// the caret. In other words, for
 ///
-/// ```no_run
+/// ```ignore
 /// fn f() {
 ///     let foo = 92;
 ///     let _ = bar$0

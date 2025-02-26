@@ -1,7 +1,7 @@
 //! Test setting LRU actually limits the number of things in the database;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 #[derive(Debug, PartialEq, Eq)]

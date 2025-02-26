@@ -14,18 +14,21 @@ use std::{
     ops::{self, Not as _},
 };
 
-use base_db::{ra_salsa::Cycle, CrateId};
+use base_db::{CrateId, ra_salsa::Cycle};
 use chalk_ir::{
+    Mutability, Safety, TypeOutlives,
     cast::Cast,
     fold::{Shift, TypeFoldable},
     interner::HasInterner,
-    Mutability, Safety, TypeOutlives,
 };
 
 use either::Either;
 use hir_def::{
+    AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId,
+    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, InTypeConstLoc, LocalFieldId,
+    Lookup, StaticId, StructId, TypeAliasId, TypeOrConstParamId, TypeOwnerId, UnionId, VariantId,
     builtin_type::BuiltinType,
-    data::{adt::StructKind, TraitFlags},
+    data::{TraitFlags, adt::StructKind},
     expander::Expander,
     generics::{
         GenericParamDataRef, TypeOrConstParamData, TypeParamProvenance, WherePredicate,
@@ -39,11 +42,8 @@ use hir_def::{
         ConstRef, LifetimeRef, PathId, TraitBoundModifier, TraitRef as HirTraitRef, TypeBound,
         TypeRef, TypeRefId, TypesMap, TypesSourceMap,
     },
-    AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId,
-    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, InTypeConstLoc, LocalFieldId,
-    Lookup, StaticId, StructId, TypeAliasId, TypeOrConstParamId, TypeOwnerId, UnionId, VariantId,
 };
-use hir_expand::{name::Name, ExpandResult};
+use hir_expand::{ExpandResult, name::Name};
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashSet;
 use rustc_pattern_analysis::Captures;
@@ -52,27 +52,26 @@ use syntax::ast;
 use triomphe::{Arc, ThinArc};
 
 use crate::{
-    all_super_traits,
+    AliasTy, Binders, BoundVar, CallableSig, Const, ConstScalar, DebruijnIndex, DynTy, FnAbi,
+    FnPointer, FnSig, FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime,
+    LifetimeData, LifetimeOutlives, ParamKind, PolyFnSig, ProgramClause, QuantifiedWhereClause,
+    QuantifiedWhereClauses, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder,
+    TyKind, WhereClause, all_super_traits,
     consteval::{
         intern_const_ref, intern_const_scalar, path_to_const, unknown_const,
         unknown_const_as_generic,
     },
     db::HirDatabase,
     error_lifetime,
-    generics::{generics, trait_self_param_idx, Generics},
+    generics::{Generics, generics, trait_self_param_idx},
     lower::{
         diagnostics::*,
         path::{PathDiagnosticCallback, PathLoweringContext},
     },
     make_binders,
-    mapping::{from_chalk_trait_id, lt_to_placeholder_idx, ToChalk},
+    mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
-    utils::{all_super_trait_refs, InTypeConstIdMetadata},
-    AliasTy, Binders, BoundVar, CallableSig, Const, ConstScalar, DebruijnIndex, DynTy, FnAbi,
-    FnPointer, FnSig, FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime,
-    LifetimeData, LifetimeOutlives, ParamKind, PolyFnSig, ProgramClause, QuantifiedWhereClause,
-    QuantifiedWhereClauses, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder,
-    TyKind, WhereClause,
+    utils::{InTypeConstIdMetadata, all_super_trait_refs},
 };
 
 #[derive(Debug, Default)]
@@ -1298,11 +1297,7 @@ fn implicitly_sized_clauses<'a, 'subst: 'a>(
             .enumerate()
             .filter_map(
                 move |(idx, generic_arg)| {
-                    if Some(idx) == trait_self_idx {
-                        None
-                    } else {
-                        Some(generic_arg)
-                    }
+                    if Some(idx) == trait_self_idx { None } else { Some(generic_arg) }
                 },
             )
             .filter_map(|generic_arg| generic_arg.ty(Interner))

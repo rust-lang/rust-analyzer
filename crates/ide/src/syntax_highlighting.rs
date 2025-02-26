@@ -19,13 +19,14 @@ use hir::{InRealFile, Name, Semantics};
 use ide_db::{FxHashMap, Ranker, RootDatabase, SymbolKind};
 use span::EditionedFileId;
 use syntax::{
-    ast::{self, IsString},
     AstNode, AstToken, NodeOrToken,
     SyntaxKind::*,
-    SyntaxNode, TextRange, WalkEvent, T,
+    SyntaxNode, T, TextRange, WalkEvent,
+    ast::{self, IsString},
 };
 
 use crate::{
+    FileId, HlMod, HlOperator, HlPunct, HlTag,
     syntax_highlighting::{
         escape::{highlight_escape_byte, highlight_escape_char, highlight_escape_string},
         format::highlight_format_string,
@@ -33,7 +34,6 @@ use crate::{
         macro_::MacroHighlighter,
         tags::Highlight,
     },
-    FileId, HlMod, HlOperator, HlPunct, HlTag,
 };
 
 pub(crate) use html::highlight_as_html;

@@ -1,29 +1,14 @@
 //! Defines database & queries for name resolution.
-use base_db::{ra_salsa, CrateId, SourceDatabase, Upcast};
+use base_db::{CrateId, SourceDatabase, Upcast, ra_salsa};
 use either::Either;
-use hir_expand::{db::ExpandDatabase, HirFileId, MacroDefId};
+use hir_expand::{HirFileId, MacroDefId, db::ExpandDatabase};
 use intern::sym;
 use la_arena::ArenaMap;
 use span::{EditionedFileId, MacroCallId};
-use syntax::{ast, AstPtr};
+use syntax::{AstPtr, ast};
 use triomphe::Arc;
 
 use crate::{
-    attr::{Attrs, AttrsWithOwner},
-    data::{
-        adt::{EnumData, EnumVariantData, StructData, VariantData},
-        ConstData, ExternCrateDeclData, FunctionData, ImplData, Macro2Data, MacroRulesData,
-        ProcMacroData, StaticData, TraitAliasData, TraitData, TypeAliasData,
-    },
-    expr_store::{scope::ExprScopes, Body, BodySourceMap},
-    generics::GenericParams,
-    import_map::ImportMap,
-    item_tree::{AttrOwner, ItemTree, ItemTreeSourceMaps},
-    lang_item::{self, LangItem, LangItemTarget, LangItems},
-    nameres::{diagnostics::DefDiagnostics, DefMap},
-    tt,
-    type_ref::TypesSourceMap,
-    visibility::{self, Visibility},
     AttrDefId, BlockId, BlockLoc, ConstBlockId, ConstBlockLoc, ConstId, ConstLoc, DefWithBodyId,
     EnumId, EnumLoc, EnumVariantId, EnumVariantLoc, ExternBlockId, ExternBlockLoc, ExternCrateId,
     ExternCrateLoc, FunctionId, FunctionLoc, GenericDefId, ImplId, ImplLoc, InTypeConstId,
@@ -31,6 +16,21 @@ use crate::{
     MacroRulesLocFlags, ProcMacroId, ProcMacroLoc, StaticId, StaticLoc, StructId, StructLoc,
     TraitAliasId, TraitAliasLoc, TraitId, TraitLoc, TypeAliasId, TypeAliasLoc, UnionId, UnionLoc,
     UseId, UseLoc, VariantId,
+    attr::{Attrs, AttrsWithOwner},
+    data::{
+        ConstData, ExternCrateDeclData, FunctionData, ImplData, Macro2Data, MacroRulesData,
+        ProcMacroData, StaticData, TraitAliasData, TraitData, TypeAliasData,
+        adt::{EnumData, EnumVariantData, StructData, VariantData},
+    },
+    expr_store::{Body, BodySourceMap, scope::ExprScopes},
+    generics::GenericParams,
+    import_map::ImportMap,
+    item_tree::{AttrOwner, ItemTree, ItemTreeSourceMaps},
+    lang_item::{self, LangItem, LangItemTarget, LangItems},
+    nameres::{DefMap, diagnostics::DefDiagnostics},
+    tt,
+    type_ref::TypesSourceMap,
+    visibility::{self, Visibility},
 };
 
 #[ra_salsa::query_group(InternDatabaseStorage)]
@@ -304,7 +304,7 @@ fn crate_supports_no_std(db: &dyn DefDatabase, crate_id: CrateId) -> bool {
         for output in segments.skip(1) {
             match output.flat_tokens() {
                 [tt::TokenTree::Leaf(tt::Leaf::Ident(ident))] if ident.sym == sym::no_std => {
-                    return true
+                    return true;
                 }
                 _ => {}
             }

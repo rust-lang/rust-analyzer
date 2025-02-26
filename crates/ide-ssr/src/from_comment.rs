@@ -1,10 +1,10 @@
 //! This module allows building an SSR MatchFinder by parsing the SSR rule
 //! from a comment.
 
-use ide_db::{base_db::SourceDatabase, EditionedFileId, FilePosition, FileRange, RootDatabase};
+use ide_db::{EditionedFileId, FilePosition, FileRange, RootDatabase, base_db::SourceDatabase};
 use syntax::{
-    ast::{self, AstNode, AstToken},
     TextRange,
+    ast::{self, AstNode, AstToken},
 };
 
 use crate::MatchFinder;

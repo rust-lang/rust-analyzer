@@ -1,11 +1,11 @@
 use tracing::trace;
 use triomphe::ThinArc;
 
+use crate::Cycle;
+use crate::DatabaseKeyIndex;
 use crate::durability::Durability;
 use crate::runtime::ActiveQuery;
 use crate::runtime::Revision;
-use crate::Cycle;
-use crate::DatabaseKeyIndex;
 use std::cell::RefCell;
 
 /// State that is specific to a single execution thread.

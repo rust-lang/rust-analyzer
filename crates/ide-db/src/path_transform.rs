@@ -7,8 +7,9 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use span::Edition;
 use syntax::{
-    ast::{self, make, AstNode, HasGenericArgs},
-    ted, NodeOrToken, SyntaxNode,
+    NodeOrToken, SyntaxNode,
+    ast::{self, AstNode, HasGenericArgs, make},
+    ted,
 };
 
 #[derive(Default)]
@@ -32,7 +33,7 @@ type DefaultedParam = Either<hir::TypeParam, hir::ConstParam>;
 /// block), you generally want to appropriately qualify the names, and sometimes
 /// you might want to substitute generic parameters as well:
 ///
-/// ```
+/// ```ignore
 /// mod x {
 ///   pub struct A<V>;
 ///   pub trait T<U> { fn foo(&self, _: U) -> A<U>; }

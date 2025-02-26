@@ -1,3 +1,5 @@
+use crate::Query;
+use crate::QueryTable;
 use crate::debug::TableEntry;
 use crate::durability::Durability;
 use crate::intern_id::InternId;
@@ -6,8 +8,6 @@ use crate::plumbing::HasQueryGroup;
 use crate::plumbing::QueryStorageMassOps;
 use crate::plumbing::QueryStorageOps;
 use crate::revision::Revision;
-use crate::Query;
-use crate::QueryTable;
 use crate::{Database, DatabaseKeyIndex, QueryDb};
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;

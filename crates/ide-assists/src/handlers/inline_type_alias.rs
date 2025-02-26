@@ -10,13 +10,14 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    ast::{self, make, HasGenericParams, HasName},
-    ted, AstNode, NodeOrToken, SyntaxNode,
+    AstNode, NodeOrToken, SyntaxNode,
+    ast::{self, HasGenericParams, HasName, make},
+    ted,
 };
 
 use crate::{
-    assist_context::{AssistContext, Assists},
     AssistId, AssistKind,
+    assist_context::{AssistContext, Assists},
 };
 
 use super::inline_call::split_refs_and_uses;
@@ -276,7 +277,7 @@ impl ConstAndTypeMap {
 /// 1. Map the provided instance's generic args to the type alias's generic
 ///    params:
 ///
-///    ```
+///    ```ignore
 ///    type A<'a, const N: usize, T = u64> = &'a [T; N];
 ///          ^ alias generic params
 ///    let a: A<100>;

@@ -2,7 +2,7 @@ use crate::setup::{ParDatabase, ParDatabaseImpl};
 use crate::signal::Signal;
 use ra_salsa::{Database, ParallelDatabase};
 use std::{
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::Arc,
 };
 
@@ -29,9 +29,11 @@ fn in_par_get_set_cancellation() {
             signal.signal(1);
 
             // Wait for other thread to signal cancellation
-            catch_unwind(AssertUnwindSafe(|| loop {
-                db.unwind_if_cancelled();
-                std::thread::yield_now();
+            catch_unwind(AssertUnwindSafe(|| {
+                loop {
+                    db.unwind_if_cancelled();
+                    std::thread::yield_now();
+                }
             }))
             .unwrap_err();
         }

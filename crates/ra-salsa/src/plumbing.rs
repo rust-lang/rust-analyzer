@@ -1,12 +1,12 @@
 #![allow(missing_docs)]
 
-use crate::debug::TableEntry;
-use crate::durability::Durability;
 use crate::Cycle;
 use crate::Database;
 use crate::Query;
 use crate::QueryTable;
 use crate::QueryTableMut;
+use crate::debug::TableEntry;
+use crate::durability::Durability;
 use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -18,7 +18,7 @@ pub use crate::derived_lru::MemoizedStorage as LruMemoizedStorage;
 pub use crate::input::{InputStorage, UnitInputStorage};
 pub use crate::interned::InternedStorage;
 pub use crate::interned::LookupInternedStorage;
-pub use crate::{revision::Revision, DatabaseKeyIndex, QueryDb, Runtime};
+pub use crate::{DatabaseKeyIndex, QueryDb, Runtime, revision::Revision};
 
 /// Defines various associated types. An impl of this
 /// should be generated for your query-context type automatically by

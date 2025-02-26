@@ -1,17 +1,17 @@
 //! Applies changes to the IDE state transactionally.
 
 use base_db::{
-    ra_salsa::{
-        debug::{DebugQueryTable, TableEntry},
-        Database, Durability, Query, QueryTable,
-    },
     SourceRootId,
+    ra_salsa::{
+        Database, Durability, Query, QueryTable,
+        debug::{DebugQueryTable, TableEntry},
+    },
 };
-use profile::{memory_usage, Bytes};
+use profile::{Bytes, memory_usage};
 use rustc_hash::FxHashSet;
 use triomphe::Arc;
 
-use crate::{symbol_index::SymbolsDatabase, ChangeWithProcMacros, RootDatabase};
+use crate::{ChangeWithProcMacros, RootDatabase, symbol_index::SymbolsDatabase};
 
 impl RootDatabase {
     pub fn request_cancellation(&mut self) {

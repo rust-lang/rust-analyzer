@@ -2,35 +2,35 @@
 use std::{fmt, iter, mem};
 
 use base_db::CrateId;
-use hir_expand::{name::Name, MacroDefId};
+use hir_expand::{MacroDefId, name::Name};
 use intern::sym;
 use itertools::Itertools as _;
 use rustc_hash::FxHashSet;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use triomphe::Arc;
 
 use crate::{
+    AdtId, ConstId, ConstParamId, CrateRootModuleId, DefWithBodyId, EnumId, EnumVariantId,
+    ExternBlockId, ExternCrateId, FunctionId, FxIndexMap, GenericDefId, GenericParamId, HasModule,
+    ImplId, ItemContainerId, ItemTreeLoc, LifetimeParamId, LocalModuleId, Lookup, Macro2Id,
+    MacroId, MacroRulesId, ModuleDefId, ModuleId, ProcMacroId, StaticId, StructId, TraitAliasId,
+    TraitId, TypeAliasId, TypeOrConstParamId, TypeOwnerId, TypeParamId, UseId, VariantId,
     builtin_type::BuiltinType,
     data::ExternCrateDeclData,
     db::DefDatabase,
     expr_store::{
-        scope::{ExprScopes, ScopeId},
         HygieneId,
+        scope::{ExprScopes, ScopeId},
     },
     generics::{GenericParams, TypeOrConstParamData},
     hir::{BindingId, ExprId, LabelId},
-    item_scope::{BuiltinShadowMode, ImportOrExternCrate, ImportOrGlob, BUILTIN_SCOPE},
+    item_scope::{BUILTIN_SCOPE, BuiltinShadowMode, ImportOrExternCrate, ImportOrGlob},
     lang_item::LangItemTarget,
     nameres::{DefMap, MacroSubNs, ResolvePathResultPrefixInfo},
     path::{ModPath, Path, PathKind},
     per_ns::PerNs,
     type_ref::{LifetimeRef, TypesMap},
     visibility::{RawVisibility, Visibility},
-    AdtId, ConstId, ConstParamId, CrateRootModuleId, DefWithBodyId, EnumId, EnumVariantId,
-    ExternBlockId, ExternCrateId, FunctionId, FxIndexMap, GenericDefId, GenericParamId, HasModule,
-    ImplId, ItemContainerId, ItemTreeLoc, LifetimeParamId, LocalModuleId, Lookup, Macro2Id,
-    MacroId, MacroRulesId, ModuleDefId, ModuleId, ProcMacroId, StaticId, StructId, TraitAliasId,
-    TraitId, TypeAliasId, TypeOrConstParamId, TypeOwnerId, TypeParamId, UseId, VariantId,
 };
 
 #[derive(Debug, Clone)]
@@ -313,7 +313,7 @@ impl Resolver {
                         None,
                     ),
                     ResolvePathResultPrefixInfo::default(),
-                ))
+                ));
             }
             Path::LangItem(l, Some(_)) => {
                 let type_ns = match *l {
@@ -532,16 +532,17 @@ impl Resolver {
     /// Note that in Rust one name can be bound to several items:
     ///
     /// ```
+    /// # #![allow(non_camel_case_types)]
     /// macro_rules! t { () => (()) }
     /// type t = t!();
-    /// const t: t = t!()
+    /// const t: t = t!();
     /// ```
     ///
     /// That's why we return a multimap.
     ///
     /// The shadowing is accounted for: in
     ///
-    /// ```
+    /// ```ignore
     /// let it = 92;
     /// {
     ///     let it = 92;

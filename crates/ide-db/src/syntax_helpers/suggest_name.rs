@@ -7,8 +7,9 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use stdx::to_lower_snake_case;
 use syntax::{
+    AstNode, Edition, SmolStr, SmolStrBuilder, ToSmolStr,
     ast::{self, HasName},
-    match_ast, AstNode, Edition, SmolStr, SmolStrBuilder, ToSmolStr,
+    match_ast,
 };
 
 use crate::RootDatabase;
@@ -79,7 +80,9 @@ const USELESS_METHODS: &[&str] = &[
 /// the name, e.g. `a`, `a1`, `a2`, ...
 ///
 /// # Examples
-/// ```rust
+///
+/// ```
+/// # use ide_db::syntax_helpers::suggest_name::NameGenerator;
 /// let mut generator = NameGenerator::new();
 /// assert_eq!(generator.suggest_name("a"), "a");
 /// assert_eq!(generator.suggest_name("a"), "a1");

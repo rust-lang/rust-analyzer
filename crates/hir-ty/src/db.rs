@@ -4,14 +4,14 @@
 use std::sync;
 
 use base_db::{
-    impl_intern_key,
+    CrateId, Upcast, impl_intern_key,
     ra_salsa::{self, InternValueTrivial},
-    CrateId, Upcast,
 };
 use hir_def::{
-    db::DefDatabase, hir::ExprId, layout::TargetDataLayout, AdtId, BlockId, CallableDefId,
-    ConstParamId, DefWithBodyId, EnumVariantId, FunctionId, GeneralConstId, GenericDefId, ImplId,
-    LifetimeParamId, LocalFieldId, StaticId, TraitId, TypeAliasId, TypeOrConstParamId, VariantId,
+    AdtId, BlockId, CallableDefId, ConstParamId, DefWithBodyId, EnumVariantId, FunctionId,
+    GeneralConstId, GenericDefId, ImplId, LifetimeParamId, LocalFieldId, StaticId, TraitId,
+    TypeAliasId, TypeOrConstParamId, VariantId, db::DefDatabase, hir::ExprId,
+    layout::TargetDataLayout,
 };
 use hir_expand::name::Name;
 use la_arena::ArenaMap;
@@ -19,7 +19,8 @@ use smallvec::SmallVec;
 use triomphe::Arc;
 
 use crate::{
-    chalk_db,
+    Binders, ClosureId, Const, FnDefId, ImplTraitId, ImplTraits, InferenceResult, Interner,
+    PolyFnSig, Substitution, TraitEnvironment, TraitRef, Ty, TyDefId, ValueTyDefId, chalk_db,
     consteval::ConstEvalError,
     drop::DropGlue,
     dyn_compatibility::DynCompatibilityViolation,
@@ -27,8 +28,6 @@ use crate::{
     lower::{Diagnostics, GenericDefaults, GenericPredicates},
     method_resolution::{InherentImpls, TraitImpls, TyFingerprint},
     mir::{BorrowckResult, MirBody, MirLowerError},
-    Binders, ClosureId, Const, FnDefId, ImplTraitId, ImplTraits, InferenceResult, Interner,
-    PolyFnSig, Substitution, TraitEnvironment, TraitRef, Ty, TyDefId, ValueTyDefId,
 };
 
 #[ra_salsa::query_group(HirDatabaseStorage)]

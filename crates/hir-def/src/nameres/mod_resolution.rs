@@ -1,10 +1,10 @@
 //! This module resolves `mod foo;` declaration to file.
 use arrayvec::ArrayVec;
 use base_db::AnchoredPath;
-use hir_expand::{name::Name, HirFileIdExt};
+use hir_expand::{HirFileIdExt, name::Name};
 use span::EditionedFileId;
 
-use crate::{db::DefDatabase, HirFileId};
+use crate::{HirFileId, db::DefDatabase};
 
 const MOD_DEPTH_LIMIT: usize = 32;
 
@@ -134,7 +134,7 @@ impl DirPath {
     /// So this is the case which doesn't really work I think if we try to be
     /// 100% platform agnostic:
     ///
-    /// ```
+    /// ```ignore
     /// mod a {
     ///     #[path="C://sad/face"]
     ///     mod b { mod c; }

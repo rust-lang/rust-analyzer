@@ -693,11 +693,12 @@ struct SeverityAttr {
     ///
     /// This is necessary even though we take care to never overwrite a value from deeper nesting
     /// because of lint groups. For example, in the following code:
+    ///
     /// ```
     /// #[warn(non_snake_case)]
     /// mod foo {
     ///     #[allow(nonstandard_style)]
-    ///     mod bar;
+    ///     mod bar {}
     /// }
     /// ```
     /// We want to not warn on non snake case inside `bar`. If we are traversing this for the first

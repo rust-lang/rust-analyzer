@@ -1,20 +1,21 @@
-use hir::{sym, AsAssocItem, Semantics};
+use hir::{AsAssocItem, Semantics, sym};
 use ide_db::{
+    RootDatabase,
     famous_defs::FamousDefs,
     syntax_helpers::node_ext::{
         block_as_lone_tail, for_each_tail_expr, is_pattern_cond, preorder_expr,
     },
-    RootDatabase,
 };
 use itertools::Itertools;
 use syntax::{
-    ast::{self, edit::AstNodeEdit, make, HasArgList},
-    ted, AstNode, SyntaxNode,
+    AstNode, SyntaxNode,
+    ast::{self, HasArgList, edit::AstNodeEdit, make},
+    ted,
 };
 
 use crate::{
-    utils::{invert_boolean_expression_legacy, unwrap_trivial_block},
     AssistContext, AssistId, AssistKind, Assists,
+    utils::{invert_boolean_expression_legacy, unwrap_trivial_block},
 };
 
 // Assist: convert_if_to_bool_then

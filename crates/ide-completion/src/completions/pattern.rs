@@ -1,12 +1,12 @@
 //! Completes constants and paths in unqualified patterns.
 
-use hir::{db::DefDatabase, AssocItem, ScopeDef};
+use hir::{AssocItem, ScopeDef, db::DefDatabase};
 use ide_db::syntax_helpers::suggest_name;
 use syntax::ast::Pat;
 
 use crate::{
-    context::{PathCompletionCtx, PatternContext, PatternRefutability, Qualified},
     CompletionContext, Completions,
+    context::{PathCompletionCtx, PatternContext, PatternRefutability, Qualified},
 };
 
 /// Completes constants and paths in unqualified patterns.

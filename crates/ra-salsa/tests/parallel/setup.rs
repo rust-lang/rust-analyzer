@@ -5,7 +5,7 @@ use ra_salsa::Snapshot;
 use std::sync::Arc;
 use std::{
     cell::Cell,
-    panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
 };
 
 #[ra_salsa::query_group(Par)]

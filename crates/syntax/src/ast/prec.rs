@@ -1,8 +1,9 @@
 //! Precedence representation.
 
 use crate::{
+    AstNode, SyntaxNode,
     ast::{self, BinaryOp, Expr, HasArgList, RangeItem},
-    match_ast, AstNode, SyntaxNode,
+    match_ast,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -227,7 +228,7 @@ impl Expr {
                             .map(|op| matches!(op, BinaryOp::LogicOp(_)))
                             .unwrap_or(false) =>
                     {
-                        return true
+                        return true;
                     }
                     _ if self.clone().trailing_brace().is_some() => return true,
                     _ => {}

@@ -10,18 +10,17 @@ use hir_def::{
     resolver::HasResolver,
 };
 use hir_expand::name::Name;
-use intern::{sym, Symbol};
+use intern::{Symbol, sym};
 use stdx::never;
 
 use crate::{
-    error_lifetime,
+    DropGlue, error_lifetime,
     mir::eval::{
-        pad16, Address, AdtId, Arc, BuiltinType, Evaluator, FunctionId, HasModule, HirDisplay,
+        Address, AdtId, Arc, BuiltinType, Evaluator, FunctionId, HasModule, HirDisplay,
         InternedClosure, Interner, Interval, IntervalAndTy, IntervalOrOwned, ItemContainerId,
         LangItem, Layout, Locals, Lookup, MirEvalError, MirSpan, Mutability, Result, Substitution,
-        Ty, TyBuilder, TyExt,
+        Ty, TyBuilder, TyExt, pad16,
     },
-    DropGlue,
 };
 
 mod simd;
@@ -1357,7 +1356,7 @@ impl Evaluator<'_> {
                     _ => {
                         return Err(MirEvalError::InternalError(
                             "three_way_compare expects an integral type".into(),
-                        ))
+                        ));
                     }
                 };
                 let rhs = rhs.get(self)?;

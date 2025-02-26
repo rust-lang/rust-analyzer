@@ -1,4 +1,4 @@
-use crate::{plumbing::DatabaseStorageTypes, Runtime};
+use crate::{Runtime, plumbing::DatabaseStorageTypes};
 use triomphe::Arc;
 
 /// Stores the cached results and dependency information for all the queries

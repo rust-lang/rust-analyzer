@@ -2,12 +2,12 @@
 
 use hir::{Crate, Module, ModuleDef, Semantics};
 use ide_db::{
-    base_db::{CrateGraph, CrateId, SourceDatabase},
     FileId, RootDatabase,
+    base_db::{CrateGraph, CrateId, SourceDatabase},
 };
 use syntax::TextRange;
 
-use crate::{runnables::runnable_fn, NavigationTarget, Runnable, TryToNav};
+use crate::{NavigationTarget, Runnable, TryToNav, runnables::runnable_fn};
 
 #[derive(Debug)]
 pub enum TestItemKind {

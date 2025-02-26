@@ -7,7 +7,7 @@ use std::{
 use ide::Cancelled;
 use ide_db::base_db::ra_salsa::Cycle;
 use lsp_server::{ExtractError, Response, ResponseError};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use stdx::thread::ThreadIntent;
 
 use crate::{

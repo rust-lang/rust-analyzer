@@ -75,28 +75,27 @@ use std::{
 };
 
 use base_db::{
-    impl_intern_key,
+    CrateId, impl_intern_key,
     ra_salsa::{self, InternValueTrivial},
-    CrateId,
 };
 use hir_expand::{
+    AstId, ExpandError, ExpandResult, ExpandTo, HirFileId, InFile, MacroCallId, MacroCallKind,
+    MacroDefId, MacroDefKind,
     builtin::{BuiltinAttrExpander, BuiltinDeriveExpander, BuiltinFnLikeExpander, EagerExpander},
     db::ExpandDatabase,
     eager::expand_eager_macro_input,
     impl_intern_lookup,
     name::Name,
     proc_macro::{CustomProcMacroExpander, ProcMacroKind},
-    AstId, ExpandError, ExpandResult, ExpandTo, HirFileId, InFile, MacroCallId, MacroCallKind,
-    MacroDefId, MacroDefKind,
 };
 use item_tree::ExternBlock;
 use la_arena::Idx;
 use nameres::DefMap;
 use span::{AstIdNode, Edition, FileAstId, SyntaxContextId};
 use stdx::impl_from;
-use syntax::{ast, AstNode};
+use syntax::{AstNode, ast};
 
-pub use hir_expand::{tt, Intern, Lookup};
+pub use hir_expand::{Intern, Lookup, tt};
 
 use crate::{
     builtin_type::BuiltinType,
@@ -470,11 +469,7 @@ impl ModuleId {
         let def_map = self.def_map(db);
         let parent = def_map[self.local_id].parent?;
         def_map[parent].children.iter().find_map(|(name, module_id)| {
-            if *module_id == self.local_id {
-                Some(name.clone())
-            } else {
-                None
-            }
+            if *module_id == self.local_id { Some(name.clone()) } else { None }
         })
     }
 
