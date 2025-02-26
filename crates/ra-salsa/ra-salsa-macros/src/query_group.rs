@@ -499,7 +499,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
             };
             let invoke = query.invoke_tt();
 
-            let recover = if let Some(cycle_recovery_fn) = &query.cycle {
+            let recover = match &query.cycle { Some(cycle_recovery_fn) => {
                 quote! {
                     const CYCLE_STRATEGY: ra_salsa::plumbing::CycleRecoveryStrategy =
                         ra_salsa::plumbing::CycleRecoveryStrategy::Fallback;
@@ -512,12 +512,12 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
                         )
                     }
                 }
-            } else {
+            } _ => {
                 quote! {
                     const CYCLE_STRATEGY: ra_salsa::plumbing::CycleRecoveryStrategy =
                         ra_salsa::plumbing::CycleRecoveryStrategy::Panic;
                 }
-            };
+            }};
 
             output.extend(quote_spanned! {span=>
                 // ANCHOR:QueryFunction_impl
