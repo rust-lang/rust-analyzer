@@ -3,18 +3,14 @@
 use base_db::CrateId;
 use bitflags::bitflags;
 use cfg::CfgOptions;
-use either::Either;
 
 use hir_expand::name::Name;
 use intern::sym;
 use la_arena::Arena;
-use rustc_abi::{Align, Integer, IntegerType, ReprFlags, ReprOptions};
-use rustc_hashes::Hash64;
+use rustc_abi::{IntegerType, ReprOptions};
 use triomphe::Arc;
-use tt::iter::TtElement;
 
 use crate::{
-    builtin_type::{BuiltinInt, BuiltinUint},
     db::DefDatabase,
     hir::Expr,
     item_tree::{
@@ -22,7 +18,6 @@ use crate::{
     },
     lang_item::LangItem,
     nameres::diagnostics::{DefDiagnostic, DefDiagnostics},
-    tt::{Delimiter, DelimiterKind, Leaf, TopSubtree},
     type_ref::{TypeRefId, TypesMap},
     visibility::RawVisibility,
     EnumId, EnumVariantId, LocalFieldId, LocalModuleId, Lookup, StructId, UnionId, VariantId,
@@ -61,10 +56,14 @@ bitflags! {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumData {
     pub name: Name,
-    pub variants: Box<[(EnumVariantId, Name)]>,
     pub repr: Option<ReprOptions>,
     pub visibility: RawVisibility,
     pub rustc_has_incoherent_inherent_impls: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariants {
+    pub variants: Box<[(EnumVariantId, Name)]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,92 +93,7 @@ fn repr_from_value(
     item_tree: &ItemTree,
     of: AttrOwner,
 ) -> Option<ReprOptions> {
-    item_tree.attrs(db, krate, of).by_key(&sym::repr).tt_values().find_map(parse_repr_tt)
-}
-
-fn parse_repr_tt(tt: &TopSubtree) -> Option<ReprOptions> {
-    match tt.top_subtree().delimiter {
-        Delimiter { kind: DelimiterKind::Parenthesis, .. } => {}
-        _ => return None,
-    }
-
-    let mut flags = ReprFlags::empty();
-    let mut int = None;
-    let mut max_align: Option<Align> = None;
-    let mut min_pack: Option<Align> = None;
-
-    let mut tts = tt.iter();
-    while let Some(tt) = tts.next() {
-        if let TtElement::Leaf(Leaf::Ident(ident)) = tt {
-            flags.insert(match &ident.sym {
-                s if *s == sym::packed => {
-                    let pack = if let Some(TtElement::Subtree(_, mut tt_iter)) = tts.peek() {
-                        tts.next();
-                        if let Some(TtElement::Leaf(Leaf::Literal(lit))) = tt_iter.next() {
-                            lit.symbol.as_str().parse().unwrap_or_default()
-                        } else {
-                            0
-                        }
-                    } else {
-                        0
-                    };
-                    let pack = Align::from_bytes(pack).unwrap_or(Align::ONE);
-                    min_pack =
-                        Some(if let Some(min_pack) = min_pack { min_pack.min(pack) } else { pack });
-                    ReprFlags::empty()
-                }
-                s if *s == sym::align => {
-                    if let Some(TtElement::Subtree(_, mut tt_iter)) = tts.peek() {
-                        tts.next();
-                        if let Some(TtElement::Leaf(Leaf::Literal(lit))) = tt_iter.next() {
-                            if let Ok(align) = lit.symbol.as_str().parse() {
-                                let align = Align::from_bytes(align).ok();
-                                max_align = max_align.max(align);
-                            }
-                        }
-                    }
-                    ReprFlags::empty()
-                }
-                s if *s == sym::C => ReprFlags::IS_C,
-                s if *s == sym::transparent => ReprFlags::IS_TRANSPARENT,
-                s if *s == sym::simd => ReprFlags::IS_SIMD,
-                repr => {
-                    if let Some(builtin) = BuiltinInt::from_suffix_sym(repr)
-                        .map(Either::Left)
-                        .or_else(|| BuiltinUint::from_suffix_sym(repr).map(Either::Right))
-                    {
-                        int = Some(match builtin {
-                            Either::Left(bi) => match bi {
-                                BuiltinInt::Isize => IntegerType::Pointer(true),
-                                BuiltinInt::I8 => IntegerType::Fixed(Integer::I8, true),
-                                BuiltinInt::I16 => IntegerType::Fixed(Integer::I16, true),
-                                BuiltinInt::I32 => IntegerType::Fixed(Integer::I32, true),
-                                BuiltinInt::I64 => IntegerType::Fixed(Integer::I64, true),
-                                BuiltinInt::I128 => IntegerType::Fixed(Integer::I128, true),
-                            },
-                            Either::Right(bu) => match bu {
-                                BuiltinUint::Usize => IntegerType::Pointer(false),
-                                BuiltinUint::U8 => IntegerType::Fixed(Integer::I8, false),
-                                BuiltinUint::U16 => IntegerType::Fixed(Integer::I16, false),
-                                BuiltinUint::U32 => IntegerType::Fixed(Integer::I32, false),
-                                BuiltinUint::U64 => IntegerType::Fixed(Integer::I64, false),
-                                BuiltinUint::U128 => IntegerType::Fixed(Integer::I128, false),
-                            },
-                        });
-                    }
-                    ReprFlags::empty()
-                }
-            })
-        }
-    }
-
-    Some(ReprOptions {
-        int,
-        align: max_align,
-        pack: min_pack,
-        flags,
-        field_shuffle_seed: Hash64::ZERO,
-    })
+    item_tree.attrs(db, krate, of).repr()
 }
 
 impl StructData {
@@ -292,41 +206,22 @@ impl StructData {
     }
 }
 
-impl EnumData {
-    pub(crate) fn enum_data_query(db: &dyn DefDatabase, e: EnumId) -> Arc<EnumData> {
+impl EnumVariants {
+    pub(crate) fn enum_variants_query(db: &dyn DefDatabase, e: EnumId) -> Arc<EnumVariants> {
         let loc = e.lookup(db);
-        let krate = loc.container.krate;
         let item_tree = loc.id.item_tree(db);
-        let repr = repr_from_value(db, krate, &item_tree, ModItem::from(loc.id.value).into());
-        let rustc_has_incoherent_inherent_impls = item_tree
-            .attrs(db, loc.container.krate, ModItem::from(loc.id.value).into())
-            .by_key(&sym::rustc_has_incoherent_inherent_impls)
-            .exists();
 
-        let enum_ = &item_tree[loc.id.value];
-
-        Arc::new(EnumData {
-            name: enum_.name.clone(),
+        Arc::new(EnumVariants {
             variants: loc.container.def_map(db).enum_definitions[&e]
                 .iter()
                 .map(|&id| (id, item_tree[id.lookup(db).id.value].name.clone()))
                 .collect(),
-            repr,
-            visibility: item_tree[enum_.visibility].clone(),
-            rustc_has_incoherent_inherent_impls,
         })
     }
 
     pub fn variant(&self, name: &Name) -> Option<EnumVariantId> {
         let &(id, _) = self.variants.iter().find(|(_id, n)| n == name)?;
         Some(id)
-    }
-
-    pub fn variant_body_type(&self) -> IntegerType {
-        match self.repr {
-            Some(ReprOptions { int: Some(builtin), .. }) => builtin,
-            _ => IntegerType::Pointer(true),
-        }
     }
 
     // [Adopted from rustc](https://github.com/rust-lang/rust/blob/bd53aa3bf7a24a70d763182303bd75e5fc51a9af/compiler/rustc_middle/src/ty/adt.rs#L446-L448)
@@ -348,6 +243,35 @@ impl EnumData {
             }
             true
         })
+    }
+}
+
+impl EnumData {
+    pub(crate) fn enum_data_query(db: &dyn DefDatabase, e: EnumId) -> Arc<EnumData> {
+        let loc = e.lookup(db);
+        let krate = loc.container.krate;
+        let item_tree = loc.id.item_tree(db);
+        let repr = repr_from_value(db, krate, &item_tree, ModItem::from(loc.id.value).into());
+        let rustc_has_incoherent_inherent_impls = item_tree
+            .attrs(db, loc.container.krate, ModItem::from(loc.id.value).into())
+            .by_key(&sym::rustc_has_incoherent_inherent_impls)
+            .exists();
+
+        let enum_ = &item_tree[loc.id.value];
+
+        Arc::new(EnumData {
+            name: enum_.name.clone(),
+            repr,
+            visibility: item_tree[enum_.visibility].clone(),
+            rustc_has_incoherent_inherent_impls,
+        })
+    }
+
+    pub fn variant_body_type(&self) -> IntegerType {
+        match self.repr {
+            Some(ReprOptions { int: Some(builtin), .. }) => builtin,
+            _ => IntegerType::Pointer(true),
+        }
     }
 }
 

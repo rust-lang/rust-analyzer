@@ -167,7 +167,7 @@ impl RootDatabase {
             hir::db::FunctionVisibilityQuery
             hir::db::GenericParamsQuery
             hir::db::GenericParamsWithSourceMapQuery
-            hir::db::ImplDataWithDiagnosticsQuery
+            hir::db::ImplItemsWithDiagnosticsQuery
             hir::db::ImportMapQuery
             hir::db::IncludeMacroInvocQuery
             hir::db::InternAnonymousConstQuery
@@ -198,7 +198,7 @@ impl RootDatabase {
             hir::db::StaticDataQuery
             hir::db::StructDataWithDiagnosticsQuery
             hir::db::TraitAliasDataQuery
-            hir::db::TraitDataWithDiagnosticsQuery
+            hir::db::TraitItemsWithDiagnosticsQuery
             hir::db::TypeAliasDataQuery
             hir::db::UnionDataWithDiagnosticsQuery
 
