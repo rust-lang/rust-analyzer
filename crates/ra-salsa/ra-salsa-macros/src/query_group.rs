@@ -499,26 +499,23 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
             };
             let invoke = query.invoke_tt();
 
-            let recover = match &query.cycle {
-                Some(cycle_recovery_fn) => {
-                    quote! {
-                        const CYCLE_STRATEGY: ra_salsa::plumbing::CycleRecoveryStrategy =
-                            ra_salsa::plumbing::CycleRecoveryStrategy::Fallback;
-                        fn cycle_fallback(db: &<Self as ra_salsa::QueryDb<'_>>::DynDb, cycle: &ra_salsa::Cycle, #key_pattern: &<Self as ra_salsa::Query>::Key)
-                            -> <Self as ra_salsa::Query>::Value {
-                            #cycle_recovery_fn(
-                                    db,
-                                    cycle,
-                                    #(#key_names),*
-                            )
-                        }
+            let recover = if let Some(cycle_recovery_fn) = &query.cycle {
+                quote! {
+                    const CYCLE_STRATEGY: ra_salsa::plumbing::CycleRecoveryStrategy =
+                        ra_salsa::plumbing::CycleRecoveryStrategy::Fallback;
+                    fn cycle_fallback(db: &<Self as ra_salsa::QueryDb<'_>>::DynDb, cycle: &ra_salsa::Cycle, #key_pattern: &<Self as ra_salsa::Query>::Key)
+                        -> <Self as ra_salsa::Query>::Value {
+                        #cycle_recovery_fn(
+                                db,
+                                cycle,
+                                #(#key_names),*
+                        )
                     }
                 }
-                _ => {
-                    quote! {
-                        const CYCLE_STRATEGY: ra_salsa::plumbing::CycleRecoveryStrategy =
-                            ra_salsa::plumbing::CycleRecoveryStrategy::Panic;
-                    }
+            } else {
+                quote! {
+                    const CYCLE_STRATEGY: ra_salsa::plumbing::CycleRecoveryStrategy =
+                        ra_salsa::plumbing::CycleRecoveryStrategy::Panic;
                 }
             };
 
