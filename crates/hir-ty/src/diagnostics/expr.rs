@@ -644,7 +644,7 @@ fn missing_match_arms<'p>(
 
     let edition = cx.db.crate_graph()[krate].edition;
     let non_empty_enum = match scrut_ty.as_adt() {
-        Some((AdtId::EnumId(e), _)) => !cx.db.enum_data(e).variants.is_empty(),
+        Some((AdtId::EnumId(e), _)) => !cx.db.enum_variants(e).variants.is_empty(),
         _ => false,
     };
     if arms_is_empty && !non_empty_enum {

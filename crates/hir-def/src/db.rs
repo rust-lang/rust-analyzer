@@ -11,7 +11,7 @@ use triomphe::Arc;
 use crate::{
     attr::{Attrs, AttrsWithOwner},
     data::{
-        adt::{EnumData, EnumVariantData, StructData, VariantData},
+        adt::{EnumData, EnumVariantData, EnumVariants, StructData, VariantData},
         ConstData, ExternCrateDeclData, FunctionData, ImplData, Macro2Data, MacroRulesData,
         ProcMacroData, StaticData, TraitAliasData, TraitData, TypeAliasData,
     },
@@ -137,6 +137,9 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     #[ra_salsa::invoke(EnumData::enum_data_query)]
     fn enum_data(&self, e: EnumId) -> Arc<EnumData>;
+
+    #[ra_salsa::invoke(EnumVariants::enum_variants_query)]
+    fn enum_variants(&self, e: EnumId) -> Arc<EnumVariants>;
 
     #[ra_salsa::transparent]
     #[ra_salsa::invoke(EnumVariantData::enum_variant_data_query)]
