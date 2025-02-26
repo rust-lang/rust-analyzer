@@ -25,7 +25,7 @@ use crate::{
     infer::normalize,
     layout::adt::struct_variant_idx,
     utils::ClosureSubst,
-    Interner, ProjectionTy, Substitution, TraitEnvironment, Ty,
+    AliasTy, Interner, ProjectionTy, Substitution, TraitEnvironment, Ty,
 };
 
 pub use self::{
@@ -435,14 +435,21 @@ pub fn layout_of_ty_query(
         TyKind::Error => return Err(LayoutError::HasErrorType),
         TyKind::AssociatedType(id, subst) => {
             // Try again with `TyKind::Alias` to normalize the associated type.
-            let ty = TyKind::Alias(chalk_ir::AliasTy::Projection(ProjectionTy {
+            let ty = TyKind::Alias(AliasTy::Projection(ProjectionTy {
                 associated_ty_id: *id,
                 substitution: subst.clone(),
             }))
             .intern(Interner);
             return db.layout_of_ty(ty, trait_env);
         }
-        TyKind::Alias(_)
+        TyKind::Alias(AliasTy::Projection(projection)) => {
+            let normalized = db.normalize_projection(projection.clone(), trait_env.clone());
+            return match normalized.kind(Interner) {
+                TyKind::Alias(_) | TyKind::AssociatedType(..) => Err(LayoutError::HasPlaceholder),
+                _ => db.layout_of_ty(normalized, trait_env),
+            };
+        }
+        TyKind::Alias(AliasTy::Opaque(_))
         | TyKind::Placeholder(_)
         | TyKind::BoundVar(_)
         | TyKind::InferenceVar(_, _) => return Err(LayoutError::HasPlaceholder),

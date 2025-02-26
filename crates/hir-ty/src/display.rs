@@ -890,12 +890,32 @@ fn render_const_scalar(
         TyKind::Closure(_, _) => f.write_str("<closure>"),
         TyKind::Coroutine(_, _) => f.write_str("<coroutine>"),
         TyKind::CoroutineWitness(_, _) => f.write_str("<coroutine-witness>"),
+        TyKind::AssociatedType(id, subst) => render_const_scalar(
+            f,
+            b,
+            memory_map,
+            &TyKind::Alias(AliasTy::Projection(ProjectionTy {
+                associated_ty_id: *id,
+                substitution: subst.clone(),
+            }))
+            .intern(Interner),
+        ),
+        TyKind::Alias(AliasTy::Projection(projection)) => {
+            let normalized = f.db.normalize_projection(projection.clone(), trait_env);
+            if !matches!(
+                normalized.kind(Interner),
+                TyKind::Alias(AliasTy::Projection(_)) | TyKind::AssociatedType(..)
+            ) {
+                render_const_scalar(f, b, memory_map, &normalized)
+            } else {
+                f.write_str("<placeholder-or-unknown-type>")
+            }
+        }
         // The below arms are unreachable, since const eval will bail out before here.
         TyKind::Foreign(_) => f.write_str("<extern-type>"),
         TyKind::Error
         | TyKind::Placeholder(_)
-        | TyKind::Alias(_)
-        | TyKind::AssociatedType(_, _)
+        | TyKind::Alias(AliasTy::Opaque(_))
         | TyKind::OpaqueType(_, _)
         | TyKind::BoundVar(_)
         | TyKind::InferenceVar(_, _) => f.write_str("<placeholder-or-unknown-type>"),
