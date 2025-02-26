@@ -12,8 +12,8 @@ use intern::sym;
 use triomphe::Arc;
 
 use crate::{
-    db::HirDatabase, infer::unify::InferenceTable, Canonical, Goal, Interner, ProjectionTyExt,
-    TraitEnvironment, Ty, TyBuilder, TyKind,
+    Canonical, Goal, Interner, ProjectionTyExt, TraitEnvironment, Ty, TyBuilder, TyKind,
+    db::HirDatabase, infer::unify::InferenceTable,
 };
 
 const AUTODEREF_RECURSION_LIMIT: usize = 20;
@@ -35,7 +35,7 @@ pub fn autoderef(
     db: &dyn HirDatabase,
     env: Arc<TraitEnvironment>,
     ty: Canonical<Ty>,
-) -> impl Iterator<Item = Ty> {
+) -> impl Iterator<Item = Ty> + use<'_> {
     let mut table = InferenceTable::new(db, env);
     let ty = table.instantiate_canonical(ty);
     let mut autoderef = Autoderef::new_no_tracking(&mut table, ty, false, false);

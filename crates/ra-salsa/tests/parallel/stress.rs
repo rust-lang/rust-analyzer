@@ -1,5 +1,5 @@
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 use ra_salsa::ParallelDatabase;
 use ra_salsa::Snapshot;
@@ -72,12 +72,12 @@ impl rand::distributions::Distribution<Query> for rand::distributions::Standard 
 
 impl rand::distributions::Distribution<MutatorOp> for rand::distributions::Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> MutatorOp {
-        if rng.gen_bool(0.5) {
-            MutatorOp::WriteOp(rng.gen())
+        if rng.r#gen_bool(0.5) {
+            MutatorOp::WriteOp(rng.r#gen())
         } else {
             MutatorOp::LaunchReader {
-                ops: (0..N_READER_OPS).map(|_| rng.gen()).collect(),
-                check_cancellation: rng.gen(),
+                ops: (0..N_READER_OPS).map(|_| rng.r#gen()).collect(),
+                check_cancellation: rng.r#gen(),
             }
         }
     }
@@ -85,16 +85,16 @@ impl rand::distributions::Distribution<MutatorOp> for rand::distributions::Stand
 
 impl rand::distributions::Distribution<WriteOp> for rand::distributions::Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> WriteOp {
-        let key = rng.gen::<usize>() % 10;
-        let value = rng.gen::<usize>() % 10;
+        let key = rng.r#gen::<usize>() % 10;
+        let value = rng.r#gen::<usize>() % 10;
         WriteOp::SetA(key, value)
     }
 }
 
 impl rand::distributions::Distribution<ReadOp> for rand::distributions::Standard {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> ReadOp {
-        let query = rng.gen::<Query>();
-        let key = rng.gen::<usize>() % 10;
+        let query = rng.r#gen::<Query>();
+        let key = rng.r#gen::<usize>() % 10;
         ReadOp::Get(query, key)
     }
 }
@@ -146,7 +146,7 @@ fn stress_test() {
     let mut rng = rand::thread_rng();
 
     // generate the ops that the mutator thread will perform
-    let write_ops: Vec<MutatorOp> = (0..N_MUTATOR_OPS).map(|_| rng.gen()).collect();
+    let write_ops: Vec<MutatorOp> = (0..N_MUTATOR_OPS).map(|_| rng.r#gen()).collect();
 
     // execute the "main thread", which sometimes snapshots off other threads
     let mut all_threads = vec![];

@@ -5,10 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 use time::OffsetDateTime;
-use xshell::{cmd, Shell};
-use zip::{write::FileOptions, DateTime, ZipWriter};
+use xshell::{Shell, cmd};
+use zip::{DateTime, ZipWriter, write::FileOptions};
 
 use crate::{
     date_iso,
@@ -93,7 +93,10 @@ fn dist_server(
     // let _e = sh.push_env("CARGO_PROFILE_RELEASE_DEBUG", "1");
 
     if target.name.contains("-linux-") {
-        env::set_var("CC", "clang");
+        // SAFETY: this program is single-threaded
+        unsafe {
+            env::set_var("CC", "clang");
+        }
     }
 
     let target_name = &target.name;

@@ -11,18 +11,18 @@ use std::{
     process::Command,
 };
 
-use anyhow::{format_err, Result};
+use anyhow::{Result, format_err};
 use base_db::CrateName;
 use itertools::Itertools;
 use la_arena::{Arena, Idx};
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
 use stdx::format_to;
-use toolchain::{probe_for_binary, Tool};
+use toolchain::{Tool, probe_for_binary};
 
 use crate::{
-    cargo_workspace::CargoMetadataConfig, utf8_stdout, CargoWorkspace, ManifestPath,
-    RustSourceWorkspaceConfig,
+    CargoWorkspace, ManifestPath, RustSourceWorkspaceConfig, cargo_workspace::CargoMetadataConfig,
+    utf8_stdout,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,7 +258,7 @@ impl Sysroot {
         let mut stitched = Stitched { crates: Arena::default() };
 
         for path in SYSROOT_CRATES.trim().lines() {
-            let name = path.split('/').last().unwrap();
+            let name = path.split('/').next_back().unwrap();
             let root = [format!("{path}/src/lib.rs"), format!("lib{path}/lib.rs")]
                 .into_iter()
                 .map(|it| src_root.join(it))
@@ -468,21 +468,13 @@ fn get_rustc_src(sysroot_path: &AbsPath) -> Option<ManifestPath> {
     let rustc_src = sysroot_path.join("lib/rustlib/rustc-src/rust/compiler/rustc/Cargo.toml");
     let rustc_src = ManifestPath::try_from(rustc_src).ok()?;
     tracing::debug!("checking for rustc source code: {rustc_src}");
-    if fs::metadata(&rustc_src).is_ok() {
-        Some(rustc_src)
-    } else {
-        None
-    }
+    if fs::metadata(&rustc_src).is_ok() { Some(rustc_src) } else { None }
 }
 
 fn get_rust_lib_src(sysroot_path: &AbsPath) -> Option<AbsPathBuf> {
     let rust_lib_src = sysroot_path.join("lib/rustlib/src/rust/library");
     tracing::debug!("checking sysroot library: {rust_lib_src}");
-    if fs::metadata(&rust_lib_src).is_ok() {
-        Some(rust_lib_src)
-    } else {
-        None
-    }
+    if fs::metadata(&rust_lib_src).is_ok() { Some(rust_lib_src) } else { None }
 }
 
 const SYSROOT_CRATES: &str = "

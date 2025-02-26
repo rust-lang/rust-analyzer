@@ -6,17 +6,17 @@ use std::collections::BTreeSet;
 use either::Either;
 use hir::{AssocItem, GenericParam, HirDisplay, ModuleDef, PathResolution, Semantics, Trait};
 use ide_db::{
+    FilePosition, FxIndexMap,
     active_parameter::{callable_for_node, generic_def_for_node},
     documentation::{Documentation, HasDocs},
-    FilePosition, FxIndexMap,
 };
 use span::Edition;
 use stdx::format_to;
 use syntax::{
-    algo,
+    AstNode, Direction, NodeOrToken, SyntaxElementChildren, SyntaxNode, SyntaxToken, T, TextRange,
+    TextSize, ToSmolStr, algo,
     ast::{self, AstChildren, HasArgList},
-    match_ast, AstNode, Direction, NodeOrToken, SyntaxElementChildren, SyntaxNode, SyntaxToken,
-    TextRange, TextSize, ToSmolStr, T,
+    match_ast,
 };
 
 use crate::RootDatabase;
@@ -322,7 +322,7 @@ fn signature_help_for_generics(
         }
         // These don't have generic args that can be specified
         hir::GenericDef::Impl(_) | hir::GenericDef::Const(_) | hir::GenericDef::Static(_) => {
-            return None
+            return None;
         }
     }
 
@@ -684,9 +684,7 @@ fn signature_help_for_tuple_pat_ish(
 }
 #[cfg(test)]
 mod tests {
-    use std::iter;
-
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
     use ide_db::FilePosition;
     use stdx::format_to;
     use test_fixture::ChangeFixture;
@@ -731,11 +729,11 @@ mod tests {
                     let gap = start.checked_sub(offset).unwrap_or_else(|| {
                         panic!("parameter ranges out of order: {:?}", sig_help.parameter_ranges())
                     });
-                    rendered.extend(iter::repeat(' ').take(gap as usize));
+                    rendered.extend(std::iter::repeat_n(' ', gap as usize));
                     let param_text = &sig_help.signature[*range];
                     let width = param_text.chars().count(); // …
                     let marker = if is_active { '^' } else { '-' };
-                    rendered.extend(iter::repeat(marker).take(width));
+                    rendered.extend(std::iter::repeat_n(marker, width));
                     offset += gap + u32::from(range.len());
                 }
                 if !sig_help.parameter_ranges().is_empty() {

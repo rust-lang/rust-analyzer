@@ -10,11 +10,12 @@ use parser::SyntaxKind;
 use rowan::{GreenNodeData, GreenTokenData};
 
 use crate::{
+    NodeOrToken, SmolStr, SyntaxElement, SyntaxToken, T, TokenText,
     ast::{
-        self, support, AstNode, AstToken, HasAttrs, HasGenericArgs, HasGenericParams, HasName,
-        SyntaxNode,
+        self, AstNode, AstToken, HasAttrs, HasGenericArgs, HasGenericParams, HasName, SyntaxNode,
+        support,
     },
-    ted, NodeOrToken, SmolStr, SyntaxElement, SyntaxToken, TokenText, T,
+    ted,
 };
 
 use super::{GenericParam, RangeItem, RangeOp};
@@ -317,11 +318,7 @@ impl ast::Path {
         let path_range = self.syntax().text_range();
         successors(self.first_segment(), move |p| {
             p.parent_path().parent_path().and_then(|p| {
-                if path_range.contains_range(p.syntax().text_range()) {
-                    p.segment()
-                } else {
-                    None
-                }
+                if path_range.contains_range(p.syntax().text_range()) { p.segment() } else { None }
             })
         })
     }
@@ -506,11 +503,7 @@ impl ast::Union {
 impl ast::RecordExprField {
     pub fn for_field_name(field_name: &ast::NameRef) -> Option<ast::RecordExprField> {
         let candidate = Self::for_name_ref(field_name)?;
-        if candidate.field_name().as_ref() == Some(field_name) {
-            Some(candidate)
-        } else {
-            None
-        }
+        if candidate.field_name().as_ref() == Some(field_name) { Some(candidate) } else { None }
     }
 
     pub fn for_name_ref(name_ref: &ast::NameRef) -> Option<ast::RecordExprField> {
@@ -785,11 +778,7 @@ pub enum SelfParamKind {
 impl ast::SelfParam {
     pub fn kind(&self) -> SelfParamKind {
         if self.amp_token().is_some() {
-            if self.mut_token().is_some() {
-                SelfParamKind::MutRef
-            } else {
-                SelfParamKind::Ref
-            }
+            if self.mut_token().is_some() { SelfParamKind::MutRef } else { SelfParamKind::Ref }
         } else {
             SelfParamKind::Owned
         }
@@ -1051,7 +1040,7 @@ impl ast::Meta {
 }
 
 impl ast::GenericArgList {
-    pub fn lifetime_args(&self) -> impl Iterator<Item = ast::LifetimeArg> {
+    pub fn lifetime_args(&self) -> impl Iterator<Item = ast::LifetimeArg> + use<> {
         self.generic_args().filter_map(|arg| match arg {
             ast::GenericArg::LifetimeArg(it) => Some(it),
             _ => None,
@@ -1060,13 +1049,13 @@ impl ast::GenericArgList {
 }
 
 impl ast::GenericParamList {
-    pub fn lifetime_params(&self) -> impl Iterator<Item = ast::LifetimeParam> {
+    pub fn lifetime_params(&self) -> impl Iterator<Item = ast::LifetimeParam> + use<> {
         self.generic_params().filter_map(|param| match param {
             ast::GenericParam::LifetimeParam(it) => Some(it),
             ast::GenericParam::TypeParam(_) | ast::GenericParam::ConstParam(_) => None,
         })
     }
-    pub fn type_or_const_params(&self) -> impl Iterator<Item = ast::TypeOrConstParam> {
+    pub fn type_or_const_params(&self) -> impl Iterator<Item = ast::TypeOrConstParam> + use<> {
         self.generic_params().filter_map(|param| match param {
             ast::GenericParam::TypeParam(it) => Some(ast::TypeOrConstParam::Type(it)),
             ast::GenericParam::LifetimeParam(_) => None,
