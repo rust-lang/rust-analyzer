@@ -5,21 +5,22 @@ use std::{
 
 use either::Either;
 use hir::{
-    sym, ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef,
-    ModuleDefId, Semantics,
+    ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef, ModuleDefId,
+    Semantics, sym,
 };
-use ide_db::{famous_defs::FamousDefs, FileRange, RootDatabase};
-use ide_db::{text_edit::TextEdit, FxHashSet};
+use ide_db::{FileRange, RootDatabase, famous_defs::FamousDefs};
+use ide_db::{FxHashSet, text_edit::TextEdit};
 use itertools::Itertools;
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use span::{Edition, EditionedFileId};
 use stdx::never;
 use syntax::{
+    SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
     ast::{self, AstNode, HasGenericParams},
-    format_smolstr, match_ast, SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
+    format_smolstr, match_ast,
 };
 
-use crate::{navigation_target::TryToNav, FileId};
+use crate::{FileId, navigation_target::TryToNav};
 
 mod adjustment;
 mod bind_pat;
@@ -834,9 +835,9 @@ mod tests {
     use itertools::Itertools;
     use test_utils::extract_annotations;
 
-    use crate::inlay_hints::{AdjustmentHints, AdjustmentHintsMode};
     use crate::DiscriminantHints;
-    use crate::{fixture, inlay_hints::InlayHintsConfig, LifetimeElisionHints};
+    use crate::inlay_hints::{AdjustmentHints, AdjustmentHintsMode};
+    use crate::{LifetimeElisionHints, fixture, inlay_hints::InlayHintsConfig};
 
     use super::{ClosureReturnTypeHints, GenericParameterHints, InlayFieldsToResolve};
 

@@ -1,8 +1,8 @@
 //! Defines a unit of change that can applied to the database to get the next
 //! state. Changes are transactional.
 use base_db::{
-    ra_salsa::Durability, CrateGraph, CrateId, CrateWorkspaceData, FileChange, SourceRoot,
-    SourceRootDatabase,
+    CrateGraph, CrateId, CrateWorkspaceData, FileChange, SourceRoot, SourceRootDatabase,
+    ra_salsa::Durability,
 };
 use rustc_hash::FxHashMap;
 use span::FileId;

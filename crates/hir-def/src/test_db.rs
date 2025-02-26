@@ -3,19 +3,19 @@
 use std::{fmt, panic, sync::Mutex};
 
 use base_db::{
-    ra_salsa::{self, Durability},
     AnchoredPath, CrateId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
+    ra_salsa::{self, Durability},
 };
-use hir_expand::{db::ExpandDatabase, files::FilePosition, InFile};
+use hir_expand::{InFile, db::ExpandDatabase, files::FilePosition};
 use span::{EditionedFileId, FileId};
-use syntax::{algo, ast, AstNode};
+use syntax::{AstNode, algo, ast};
 use triomphe::Arc;
 
 use crate::{
+    LocalModuleId, Lookup, ModuleDefId, ModuleId,
     db::DefDatabase,
     nameres::{DefMap, ModuleSource},
     src::HasSource,
-    LocalModuleId, Lookup, ModuleDefId, ModuleId,
 };
 
 #[ra_salsa::database(
@@ -207,8 +207,8 @@ impl TestDB {
         let scopes = self.expr_scopes(def_with_body);
         let root_syntax_node = self.parse(position.file_id).syntax_node();
 
-        let scope_iter = algo::ancestors_at_offset(&root_syntax_node, position.offset)
-            .filter_map(|node| {
+        let scope_iter =
+            algo::ancestors_at_offset(&root_syntax_node, position.offset).filter_map(|node| {
                 let block = ast::BlockExpr::cast(node)?;
                 let expr = ast::Expr::from(block);
                 let expr_id = source_map

@@ -6,14 +6,14 @@
 
 use hir::{AsAssocItem, HirFileIdExt, InFile, Semantics};
 use ide_db::{
-    defs::{Definition, NameClass, NameRefClass},
-    rename::{bail, format_err, source_edit_from_references, IdentifierKind},
-    source_change::SourceChangeBuilder,
     FileId, FileRange, RootDatabase,
+    defs::{Definition, NameClass, NameRefClass},
+    rename::{IdentifierKind, bail, format_err, source_edit_from_references},
+    source_change::SourceChangeBuilder,
 };
 use itertools::Itertools;
 use stdx::{always, never};
-use syntax::{ast, AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
+use syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize, ast};
 
 use ide_db::text_edit::TextEdit;
 
@@ -443,7 +443,7 @@ fn text_edit_from_self_param(self_param: &ast::SelfParam, new_name: &str) -> Opt
 
 #[cfg(test)]
 mod tests {
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
     use ide_db::source_change::SourceChange;
     use ide_db::text_edit::TextEdit;
     use stdx::trim_indent;

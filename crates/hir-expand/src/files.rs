@@ -9,8 +9,9 @@ use span::{
 use syntax::{AstNode, AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize};
 
 use crate::{
+    MacroFileIdExt, MacroFileIdExt, MacroKind,
     db::{self, ExpandDatabase},
-    map_node_range_up, map_node_range_up_rooted, span_for_offset, MacroFileIdExt, MacroKind,
+    map_node_range_up, map_node_range_up_rooted, span_for_offset,
 };
 
 /// `InFile<T>` stores a value of `T` inside a particular file/syntax tree.
@@ -274,7 +275,7 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
         // as we don't have node inputs otherwise and therefore can't find an `N` node in the input
         let file_id = match self.file_id.repr() {
             HirFileIdRepr::FileId(file_id) => {
-                return Some(InRealFile { file_id, value: self.value.borrow().clone() })
+                return Some(InRealFile { file_id, value: self.value.borrow().clone() });
             }
             HirFileIdRepr::MacroFile(m)
                 if matches!(m.kind(db), MacroKind::Attr | MacroKind::AttrBuiltIn) =>
@@ -361,11 +362,7 @@ impl InFile<SyntaxToken> {
 
                 // FIXME: Figure out an API that makes proper use of ctx, this only exists to
                 // keep pre-token map rewrite behaviour.
-                if ctxt.is_root() {
-                    Some(range)
-                } else {
-                    None
-                }
+                if ctxt.is_root() { Some(range) } else { None }
             }
         }
     }
@@ -453,7 +450,7 @@ impl<N: AstNode> InFile<N> {
         // as we don't have node inputs otherwise and therefore can't find an `N` node in the input
         let file_id = match self.file_id.repr() {
             HirFileIdRepr::FileId(file_id) => {
-                return Some(InRealFile { file_id, value: self.value })
+                return Some(InRealFile { file_id, value: self.value });
             }
             HirFileIdRepr::MacroFile(m) => m,
         };

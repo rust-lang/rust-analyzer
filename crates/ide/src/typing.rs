@@ -17,12 +17,12 @@ mod on_enter;
 
 use std::iter;
 
-use ide_db::{base_db::SourceDatabase, FilePosition, RootDatabase};
+use ide_db::{FilePosition, RootDatabase, base_db::SourceDatabase};
 use span::{Edition, EditionedFileId};
 use syntax::{
-    algo::{ancestors_at_offset, find_node_at_offset},
-    ast::{self, edit::IndentLevel, AstToken},
     AstNode, Parse, SourceFile, SyntaxKind, TextRange, TextSize,
+    algo::{ancestors_at_offset, find_node_at_offset},
+    ast::{self, AstToken, edit::IndentLevel},
 };
 
 use ide_db::text_edit::TextEdit;

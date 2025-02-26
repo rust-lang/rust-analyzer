@@ -5,6 +5,8 @@ use std::{fmt::Write, iter, mem};
 use base_db::ra_salsa::Cycle;
 use chalk_ir::{BoundVar, ConstData, DebruijnIndex, TyKind};
 use hir_def::{
+    AdtId, DefWithBodyId, EnumVariantId, GeneralConstId, HasModule, ItemContainerId, LocalFieldId,
+    Lookup, TraitId, TupleId, TypeOrConstParamId,
     data::adt::{StructKind, VariantData},
     expr_store::{Body, HygieneId},
     hir::{
@@ -15,8 +17,6 @@ use hir_def::{
     path::Path,
     resolver::{HasResolver, ResolveValueResult, Resolver, ValueNs},
     type_ref::TypesMap,
-    AdtId, DefWithBodyId, EnumVariantId, GeneralConstId, HasModule, ItemContainerId, LocalFieldId,
-    Lookup, TraitId, TupleId, TypeOrConstParamId,
 };
 use hir_expand::name::Name;
 use la_arena::ArenaMap;
@@ -27,27 +27,27 @@ use syntax::TextRange;
 use triomphe::Arc;
 
 use crate::{
+    Adjust, Adjustment, AutoBorrow, CallableDefId, TyBuilder, TyExt,
     consteval::ConstEvalError,
     db::{HirDatabase, InternedClosure},
-    display::{hir_display_with_types_map, HirDisplay},
+    display::{HirDisplay, hir_display_with_types_map},
     error_lifetime,
     generics::generics,
-    infer::{cast::CastTy, unify::InferenceTable, CaptureKind, CapturedItem, TypeMismatch},
+    infer::{CaptureKind, CapturedItem, TypeMismatch, cast::CastTy, unify::InferenceTable},
     inhabitedness::is_ty_uninhabited_from,
     layout::LayoutError,
     mapping::ToChalk,
     mir::{
-        intern_const_scalar, return_slot, AggregateKind, Arena, BasicBlock, BasicBlockId, BinOp,
-        BorrowKind, CastKind, ClosureId, ConstScalar, Either, Expr, FieldId, Idx, InferenceResult,
-        Interner, Local, LocalId, MemoryMap, MirBody, MirSpan, Mutability, Operand, Place,
-        PlaceElem, PointerCast, ProjectionElem, ProjectionStore, RawIdx, Rvalue, Statement,
-        StatementKind, Substitution, SwitchTargets, Terminator, TerminatorKind, TupleFieldId, Ty,
-        UnOp, VariantId,
+        AggregateKind, Arena, BasicBlock, BasicBlockId, BinOp, BorrowKind, CastKind, ClosureId,
+        ConstScalar, Either, Expr, FieldId, Idx, InferenceResult, Interner, Local, LocalId,
+        MemoryMap, MirBody, MirSpan, Mutability, Operand, Place, PlaceElem, PointerCast,
+        ProjectionElem, ProjectionStore, RawIdx, Rvalue, Statement, StatementKind, Substitution,
+        SwitchTargets, Terminator, TerminatorKind, TupleFieldId, Ty, UnOp, VariantId,
+        intern_const_scalar, return_slot,
     },
     static_lifetime,
     traits::FnTrait,
     utils::ClosureSubst,
-    Adjust, Adjustment, AutoBorrow, CallableDefId, TyBuilder, TyExt,
 };
 
 mod as_place;
@@ -1276,7 +1276,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         _ => {
                             return Err(MirLowerError::TypeError(
                                 "Array expression with non array type",
-                            ))
+                            ));
                         }
                     };
                     let Some(values) = elements
@@ -1308,7 +1308,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         _ => {
                             return Err(MirLowerError::TypeError(
                                 "Array repeat expression with non array type",
-                            ))
+                            ));
                         }
                     };
                     let r = Rvalue::Repeat(init, len);
@@ -1432,7 +1432,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                 _ => {
                     return Err(MirLowerError::TypeError(
                         "float with size other than 2, 4, 8 or 16 bytes",
-                    ))
+                    ));
                 }
             },
         };
@@ -2157,11 +2157,7 @@ pub fn lower_to_mir(
     ctx.result.locals.alloc(Local { ty: ctx.expr_ty_after_adjustments(root_expr) });
     let binding_picker = |b: BindingId| {
         let owner = ctx.body.binding_owners.get(&b).copied();
-        if root_expr == body.body_expr {
-            owner.is_none()
-        } else {
-            owner == Some(root_expr)
-        }
+        if root_expr == body.body_expr { owner.is_none() } else { owner == Some(root_expr) }
     };
     // 1 to param_len is for params
     // FIXME: replace with let chain once it becomes stable

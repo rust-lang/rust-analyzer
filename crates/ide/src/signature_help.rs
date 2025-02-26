@@ -6,17 +6,17 @@ use std::collections::BTreeSet;
 use either::Either;
 use hir::{AssocItem, GenericParam, HirDisplay, ModuleDef, PathResolution, Semantics, Trait};
 use ide_db::{
+    FilePosition, FxIndexMap,
     active_parameter::{callable_for_node, generic_def_for_node},
     documentation::{Documentation, HasDocs},
-    FilePosition, FxIndexMap,
 };
 use span::Edition;
 use stdx::format_to;
 use syntax::{
-    algo,
+    AstNode, Direction, NodeOrToken, SyntaxElementChildren, SyntaxNode, SyntaxToken, T, TextRange,
+    TextSize, ToSmolStr, algo,
     ast::{self, AstChildren, HasArgList},
-    match_ast, AstNode, Direction, NodeOrToken, SyntaxElementChildren, SyntaxNode, SyntaxToken,
-    TextRange, TextSize, ToSmolStr, T,
+    match_ast,
 };
 
 use crate::RootDatabase;
@@ -322,7 +322,7 @@ fn signature_help_for_generics(
         }
         // These don't have generic args that can be specified
         hir::GenericDef::Impl(_) | hir::GenericDef::Const(_) | hir::GenericDef::Static(_) => {
-            return None
+            return None;
         }
     }
 
@@ -685,7 +685,7 @@ fn signature_help_for_tuple_pat_ish(
 
 #[cfg(test)]
 mod tests {
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
     use ide_db::FilePosition;
     use stdx::format_to;
     use test_fixture::ChangeFixture;
