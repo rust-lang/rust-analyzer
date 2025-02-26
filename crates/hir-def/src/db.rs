@@ -20,7 +20,11 @@ use crate::{
     import_map::ImportMap,
     item_tree::{AttrOwner, ItemTree, ItemTreeSourceMaps},
     lang_item::{self, LangItem, LangItemTarget, LangItems},
-    nameres::{diagnostics::DefDiagnostics, DefMap},
+    nameres::{
+        assoc::{ImplItems, TraitItems},
+        diagnostics::DefDiagnostics,
+        DefMap,
+    },
     tt,
     type_ref::TypesSourceMap,
     visibility::{self, Visibility},
@@ -147,19 +151,25 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     #[ra_salsa::transparent]
     #[ra_salsa::invoke(VariantData::variant_data)]
     fn variant_data(&self, id: VariantId) -> Arc<VariantData>;
-    #[ra_salsa::transparent]
     #[ra_salsa::invoke(ImplData::impl_data_query)]
     fn impl_data(&self, e: ImplId) -> Arc<ImplData>;
 
-    #[ra_salsa::invoke(ImplData::impl_data_with_diagnostics_query)]
-    fn impl_data_with_diagnostics(&self, e: ImplId) -> (Arc<ImplData>, DefDiagnostics);
-
     #[ra_salsa::transparent]
+    #[ra_salsa::invoke(ImplItems::impl_items_query)]
+    fn impl_items(&self, e: ImplId) -> Arc<ImplItems>;
+
+    #[ra_salsa::invoke(ImplItems::impl_items_with_diagnostics_query)]
+    fn impl_items_with_diagnostics(&self, e: ImplId) -> (Arc<ImplItems>, DefDiagnostics);
+
     #[ra_salsa::invoke(TraitData::trait_data_query)]
     fn trait_data(&self, e: TraitId) -> Arc<TraitData>;
 
-    #[ra_salsa::invoke(TraitData::trait_data_with_diagnostics_query)]
-    fn trait_data_with_diagnostics(&self, tr: TraitId) -> (Arc<TraitData>, DefDiagnostics);
+    #[ra_salsa::transparent]
+    #[ra_salsa::invoke(TraitItems::trait_items_query)]
+    fn trait_items(&self, e: TraitId) -> Arc<TraitItems>;
+
+    #[ra_salsa::invoke(TraitItems::trait_items_with_diagnostics_query)]
+    fn trait_items_with_diagnostics(&self, tr: TraitId) -> (Arc<TraitItems>, DefDiagnostics);
 
     #[ra_salsa::invoke(TraitAliasData::trait_alias_query)]
     fn trait_alias_data(&self, e: TraitAliasId) -> Arc<TraitAliasData>;

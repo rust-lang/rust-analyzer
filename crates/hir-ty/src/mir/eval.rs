@@ -658,19 +658,19 @@ impl Evaluator<'_> {
                 .lang_item(crate_id, LangItem::Fn)
                 .and_then(|x| x.as_trait())
                 .and_then(|x| {
-                    db.trait_data(x).method_by_name(&Name::new_symbol_root(sym::call.clone()))
+                    db.trait_items(x).method_by_name(&Name::new_symbol_root(sym::call.clone()))
                 }),
             cached_fn_mut_trait_func: db
                 .lang_item(crate_id, LangItem::FnMut)
                 .and_then(|x| x.as_trait())
                 .and_then(|x| {
-                    db.trait_data(x).method_by_name(&Name::new_symbol_root(sym::call_mut.clone()))
+                    db.trait_items(x).method_by_name(&Name::new_symbol_root(sym::call_mut.clone()))
                 }),
             cached_fn_once_trait_func: db
                 .lang_item(crate_id, LangItem::FnOnce)
                 .and_then(|x| x.as_trait())
                 .and_then(|x| {
-                    db.trait_data(x).method_by_name(&Name::new_symbol_root(sym::call_once.clone()))
+                    db.trait_items(x).method_by_name(&Name::new_symbol_root(sym::call_once.clone()))
                 }),
         })
     }
@@ -2814,7 +2814,9 @@ impl Evaluator<'_> {
     ) -> Result<()> {
         let Some(drop_fn) = (|| {
             let drop_trait = self.db.lang_item(self.crate_id, LangItem::Drop)?.as_trait()?;
-            self.db.trait_data(drop_trait).method_by_name(&Name::new_symbol_root(sym::drop.clone()))
+            self.db
+                .trait_items(drop_trait)
+                .method_by_name(&Name::new_symbol_root(sym::drop.clone()))
         })() else {
             // in some tests we don't have drop trait in minicore, and
             // we can ignore drop in them.
@@ -2924,7 +2926,7 @@ pub fn render_const_using_debug_impl(
         not_supported!("core::fmt::Debug not found");
     };
     let Some(debug_fmt_fn) =
-        db.trait_data(debug_trait).method_by_name(&Name::new_symbol_root(sym::fmt.clone()))
+        db.trait_items(debug_trait).method_by_name(&Name::new_symbol_root(sym::fmt.clone()))
     else {
         not_supported!("core::fmt::Debug::fmt not found");
     };
