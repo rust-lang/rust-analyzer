@@ -684,7 +684,7 @@ fn signature_help_for_tuple_pat_ish(
 }
 #[cfg(test)]
 mod tests {
-    use std::iter;
+    
 
     use expect_test::{expect, Expect};
     use ide_db::FilePosition;
@@ -731,11 +731,11 @@ mod tests {
                     let gap = start.checked_sub(offset).unwrap_or_else(|| {
                         panic!("parameter ranges out of order: {:?}", sig_help.parameter_ranges())
                     });
-                    rendered.extend(iter::repeat(' ').take(gap as usize));
+                    rendered.extend(std::iter::repeat_n(' ', gap as usize));
                     let param_text = &sig_help.signature[*range];
                     let width = param_text.chars().count(); // …
                     let marker = if is_active { '^' } else { '-' };
-                    rendered.extend(iter::repeat(marker).take(width));
+                    rendered.extend(std::iter::repeat_n(marker, width));
                     offset += gap + u32::from(range.len());
                 }
                 if !sig_help.parameter_ranges().is_empty() {
