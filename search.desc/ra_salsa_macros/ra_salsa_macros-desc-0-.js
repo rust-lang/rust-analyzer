@@ -1,0 +1,1 @@
+searchState.loadedDescShard("ra_salsa_macros", 0, "This crate provides salsa’s macros and attributes.\nThis attribute is placed on your database struct. It takes …\nThe decorator that defines a salsa “query group” …")
