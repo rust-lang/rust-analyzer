@@ -24,19 +24,16 @@ fn parallel_cycle_none_recover() {
     // We expect B to panic because it detects a cycle (it is the one that calls A, ultimately).
     // Right now, it panics with a string.
     let err_b = thread_b.join().unwrap_err();
-    match err_b.downcast_ref::<ra_salsa::Cycle>() {
-        Some(c) => {
-            expect![[r#"
+    if let Some(c) = err_b.downcast_ref::<ra_salsa::Cycle>() {
+        expect![[r#"
             [
                 "parallel::parallel_cycle_none_recover::AQuery::a(-1)",
                 "parallel::parallel_cycle_none_recover::BQuery::b(-1)",
             ]
         "#]]
-            .assert_debug_eq(&c.unexpected_participants(&db));
-        }
-        _ => {
-            panic!("b failed in an unexpected way: {err_b:?}");
-        }
+        .assert_debug_eq(&c.unexpected_participants(&db));
+    } else {
+        panic!("b failed in an unexpected way: {err_b:?}");
     }
 
     // We expect A to propagate a panic, which causes us to use the sentinel

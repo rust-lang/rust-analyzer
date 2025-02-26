@@ -254,20 +254,15 @@ where
                         cycle.throw()
                     }
                     crate::plumbing::CycleRecoveryStrategy::Fallback => {
-                        match active_query.take_cycle() {
-                            Some(c) => {
-                                assert!(c.is(&cycle));
-                                Q::cycle_fallback(db, &cycle, key)
-                            }
-                            _ => {
-                                // we are not a participant in this cycle
-                                debug_assert!(
-                                    !cycle
-                                        .participant_keys()
-                                        .any(|k| k == self.database_key_index())
-                                );
-                                cycle.throw()
-                            }
+                        if let Some(c) = active_query.take_cycle() {
+                            assert!(c.is(&cycle));
+                            Q::cycle_fallback(db, &cycle, key)
+                        } else {
+                            // we are not a participant in this cycle
+                            debug_assert!(!cycle
+                                .participant_keys()
+                                .any(|k| k == self.database_key_index()));
+                            cycle.throw()
                         }
                     }
                 }
@@ -376,25 +371,22 @@ where
                     return ProbeState::Stale(state);
                 }
 
-                match &memo.value {
-                    Some(value) => {
-                        let value = StampedValue {
-                            durability: memo.revisions.durability,
-                            changed_at: memo.revisions.changed_at,
-                            value: value.clone(),
-                        };
+                if let Some(value) = &memo.value {
+                    let value = StampedValue {
+                        durability: memo.revisions.durability,
+                        changed_at: memo.revisions.changed_at,
+                        value: value.clone(),
+                    };
 
                         trace!(
                             "{:?}: returning memoized value changed at {:?}",
                             self, value.changed_at
                         );
 
-                        ProbeState::UpToDate(value)
-                    }
-                    _ => {
-                        let changed_at = memo.revisions.changed_at;
-                        ProbeState::NoValue(state, changed_at)
-                    }
+                    ProbeState::UpToDate(value)
+                } else {
+                    let changed_at = memo.revisions.changed_at;
+                    ProbeState::NoValue(state, changed_at)
                 }
             }
         }
