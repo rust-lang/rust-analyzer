@@ -2,12 +2,12 @@ use std::{iter, mem::discriminant};
 
 use crate::{
     doc_links::token_as_doc_comment,
-    navigation_target::{self, ToNav},
-    FilePosition, NavigationTarget, RangeInfo, TryToNav, UpmappingResult,
+    navigation_target::{HirNavigationTarget, ToNav},
+    RangeInfo, TryToNav,
 };
 use hir::{
-    sym, AsAssocItem, AssocItem, CallableKind, FileRange, HasCrate, InFile, MacroFileIdExt,
-    ModuleDef, Semantics,
+    sym, AsAssocItem, AssocItem, CallableKind, HasCrate, HirFileId, HirFileIdExt, HirFilePosition,
+    InFile, MacroFileIdExt, ModuleDef, Semantics,
 };
 use ide_db::{
     base_db::{AnchoredPath, FileLoader, SourceDatabase},
@@ -17,7 +17,7 @@ use ide_db::{
     RootDatabase, SymbolKind,
 };
 use itertools::Itertools;
-use span::{Edition, FileId};
+use span::EditionedFileId;
 use syntax::{
     ast::{self, HasLoopBody},
     match_ast, AstNode, AstToken,
@@ -38,12 +38,12 @@ use syntax::{
 // ![Go to Definition](https://user-images.githubusercontent.com/48062697/113065563-025fbe00-91b1-11eb-83e4-a5a703610b23.gif)
 pub(crate) fn goto_definition(
     db: &RootDatabase,
-    FilePosition { file_id, offset }: FilePosition,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+    HirFilePosition { file_id, offset }: HirFilePosition,
+) -> Option<RangeInfo<Vec<HirNavigationTarget>>> {
     let sema = &Semantics::new(db);
-    let file = sema.parse_guess_edition(file_id).syntax().clone();
-    let edition =
-        sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
+    let file_id = sema.adjust_edition(file_id);
+    let file = sema.parse_or_expand(sema.adjust_edition(file_id));
+    let edition = file_id.edition(sema.db);
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT
         | INT_NUMBER
@@ -62,16 +62,16 @@ pub(crate) fn goto_definition(
     })?;
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
         return doc_comment.get_definition_with_descend_at(sema, offset, |def, _, link_range| {
-            let nav = def.try_to_nav(db)?;
-            Some(RangeInfo::new(link_range, nav.collect()))
+            let nav = def.try_to_nav_hir(db)?;
+            Some(RangeInfo::new(link_range, vec![nav]))
         });
     }
 
-    if let Some((range, resolution)) =
+    if let Some((range, token, resolution)) =
         sema.check_for_format_args_template(original_token.clone(), offset)
     {
         return Some(RangeInfo::new(
-            range,
+            range.range,
             match resolution {
                 Some(res) => def_to_nav(db, Definition::from(res)),
                 None => vec![],
@@ -113,9 +113,8 @@ pub(crate) fn goto_definition(
                         if let Definition::ExternCrateDecl(crate_def) = def {
                             return crate_def
                                 .resolved_crate(db)
-                                .map(|it| it.root_module().to_nav(sema.db))
+                                .map(|it| it.root_module().to_nav_hir(sema.db))
                                 .into_iter()
-                                .flatten()
                                 .collect();
                         }
                         try_filter_trait_item_definition(sema, &def)
@@ -126,7 +125,7 @@ pub(crate) fn goto_definition(
         })
         .flatten()
         .unique()
-        .collect::<Vec<NavigationTarget>>();
+        .collect::<Vec<HirNavigationTarget>>();
 
     Some(RangeInfo::new(original_token.text_range(), navs))
 }
@@ -135,7 +134,7 @@ pub(crate) fn goto_definition(
 fn find_definition_for_known_blanket_dual_impls(
     sema: &Semantics<'_, RootDatabase>,
     original_token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<HirNavigationTarget>> {
     let method_call = ast::MethodCallExpr::cast(original_token.parent()?.parent()?)?;
     let callable = sema.resolve_method_call_as_callable(&method_call)?;
     let CallableKind::Function(f) = callable.kind() else { return None };
@@ -205,8 +204,8 @@ fn find_definition_for_known_blanket_dual_impls(
 fn try_lookup_include_path(
     sema: &Semantics<'_, RootDatabase>,
     token: ast::String,
-    file_id: FileId,
-) -> Option<NavigationTarget> {
+    hir_file_id: HirFileId,
+) -> Option<HirNavigationTarget> {
     let file = sema.hir_file_for(&token.syntax().parent()?).macro_file()?;
     if !iter::successors(Some(file), |file| file.parent(sema.db).macro_file())
         // Check that we are in the eager argument expansion of an include macro
@@ -216,10 +215,13 @@ fn try_lookup_include_path(
     }
     let path = token.value().ok()?;
 
-    let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
+    let file_id = sema.db.resolve_path(AnchoredPath {
+        anchor: hir_file_id.original_file(sema.db).file_id(),
+        path: &path,
+    })?;
     let size = sema.db.file_text(file_id).len().try_into().ok()?;
-    Some(NavigationTarget {
-        file_id,
+    Some(HirNavigationTarget {
+        file_id: EditionedFileId::new(file_id, hir_file_id.edition(sema.db)).into(),
         full_range: TextRange::new(0.into(), size),
         name: path.into(),
         alias: None,
@@ -234,7 +236,7 @@ fn try_lookup_include_path(
 fn try_lookup_macro_def_in_macro_use(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-) -> Option<NavigationTarget> {
+) -> Option<HirNavigationTarget> {
     let extern_crate = token.parent()?.ancestors().find_map(ast::ExternCrate::cast)?;
     let extern_crate = sema.to_def(&extern_crate)?;
     let krate = extern_crate.resolved_crate(sema.db)?;
@@ -242,8 +244,8 @@ fn try_lookup_macro_def_in_macro_use(
     for mod_def in krate.root_module().declarations(sema.db) {
         if let ModuleDef::Macro(mac) = mod_def {
             if mac.name(sema.db).as_str() == token.text() {
-                if let Some(nav) = mac.try_to_nav(sema.db) {
-                    return Some(nav.call_site);
+                if let Some(nav) = mac.try_to_nav_hir(sema.db) {
+                    return Some(nav);
                 }
             }
         }
@@ -262,7 +264,7 @@ fn try_lookup_macro_def_in_macro_use(
 fn try_filter_trait_item_definition(
     sema: &Semantics<'_, RootDatabase>,
     def: &Definition,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<HirNavigationTarget>> {
     let db = sema.db;
     let assoc = def.as_assoc_item(db)?;
     match assoc {
@@ -275,8 +277,8 @@ fn try_filter_trait_item_definition(
                 .items(db)
                 .iter()
                 .filter(|itm| discriminant(*itm) == discriminant_value)
-                .find_map(|itm| (itm.name(db)? == name).then(|| itm.try_to_nav(db)).flatten())
-                .map(|it| it.collect())
+                .find_map(|itm| (itm.name(db)? == name).then(|| itm.try_to_nav_hir(db)).flatten())
+                .map(|it| vec![it])
         }
     }
 }
@@ -284,7 +286,7 @@ fn try_filter_trait_item_definition(
 fn handle_control_flow_keywords(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<HirNavigationTarget>> {
     match token.kind() {
         // For `fn` / `loop` / `while` / `for` / `async`, return the keyword it self,
         // so that VSCode will find the references when using `ctrl + click`
@@ -331,7 +333,7 @@ pub(crate) fn find_fn_or_blocks(
 fn nav_for_exit_points(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<HirNavigationTarget>> {
     let db = sema.db;
     let token_kind = token.kind();
 
@@ -343,31 +345,16 @@ fn nav_for_exit_points(
             match_ast! {
                 match node {
                     ast::Fn(fn_) => {
-                        let mut nav = sema.to_def(&fn_)?.try_to_nav(db)?;
+                        let mut nav = sema.to_def(&fn_)?.try_to_nav_hir(db)?;
                         // For async token, we navigate to itself, which triggers
                         // VSCode to find the references
-                        let focus_token = if matches!(token_kind, T![async]) {
+                        let range = if matches!(token_kind, T![async]) {
                             fn_.async_token()?
                         } else {
                             fn_.fn_token()?
-                        };
-
-                        let focus_frange = InFile::new(file_id, focus_token.text_range())
-                            .original_node_file_range_opt(db)
-                            .map(|(frange, _)| frange);
-
-                        if let Some(FileRange { file_id, range }) = focus_frange {
-                            let contains_frange = |nav: &NavigationTarget| {
-                                nav.file_id == file_id && nav.full_range.contains_range(range)
-                            };
-
-                            if let Some(def_site) = nav.def_site.as_mut() {
-                                if contains_frange(def_site) {
-                                    def_site.focus_range = Some(range);
-                                }
-                            } else if contains_frange(&nav.call_site) {
-                                nav.call_site.focus_range = Some(range);
-                            }
+                        }.text_range();
+                        if nav.file_id == file_id && nav.full_range.contains_range(range) {
+                            nav.focus_range = Some(range);
                         }
 
                         Some(nav)
@@ -375,19 +362,19 @@ fn nav_for_exit_points(
                     ast::ClosureExpr(c) => {
                         let pipe_tok = c.param_list().and_then(|it| it.pipe_token())?.text_range();
                         let closure_in_file = InFile::new(file_id, c.into());
-                        Some(expr_to_nav(db, closure_in_file, Some(pipe_tok)))
+                        Some(expr_to_nav(closure_in_file, Some(pipe_tok)))
                     },
                     ast::BlockExpr(blk) => {
                         match blk.modifier() {
                             Some(ast::BlockModifier::Async(_)) => {
                                 let async_tok = blk.async_token()?.text_range();
                                 let blk_in_file = InFile::new(file_id, blk.into());
-                                Some(expr_to_nav(db, blk_in_file, Some(async_tok)))
+                                Some(expr_to_nav(blk_in_file, Some(async_tok)))
                             },
                             Some(ast::BlockModifier::Try(_)) if token_kind != T![return] => {
                                 let try_tok = blk.try_token()?.text_range();
                                 let blk_in_file = InFile::new(file_id, blk.into());
-                                Some(expr_to_nav(db, blk_in_file, Some(try_tok)))
+                                Some(expr_to_nav(blk_in_file, Some(try_tok)))
                             },
                             _ => None,
                         }
@@ -396,8 +383,7 @@ fn nav_for_exit_points(
                 }
             }
         })
-        .flatten()
-        .collect_vec();
+        .collect();
 
     Some(navs)
 }
@@ -450,9 +436,7 @@ pub(crate) fn find_loops(
 fn nav_for_break_points(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
-    let db = sema.db;
-
+) -> Option<Vec<HirNavigationTarget>> {
     let navs = find_loops(sema, token)?
         .into_iter()
         .filter_map(|expr| {
@@ -466,31 +450,26 @@ fn nav_for_break_points(
                 ast::Expr::BlockExpr(blk) => blk.label().unwrap().syntax().text_range(),
                 _ => return None,
             };
-            let nav = expr_to_nav(db, expr_in_file, Some(focus_range));
+            let nav = expr_to_nav(expr_in_file, Some(focus_range));
             Some(nav)
         })
-        .flatten()
-        .collect_vec();
+        .collect();
 
     Some(navs)
 }
 
-fn def_to_nav(db: &RootDatabase, def: Definition) -> Vec<NavigationTarget> {
-    def.try_to_nav(db).map(|it| it.collect()).unwrap_or_default()
+fn def_to_nav(db: &RootDatabase, def: Definition) -> Vec<HirNavigationTarget> {
+    def.try_to_nav_hir(db).map(|it| vec![it]).unwrap_or_default()
 }
 
 fn expr_to_nav(
-    db: &RootDatabase,
     InFile { file_id, value }: InFile<ast::Expr>,
     focus_range: Option<TextRange>,
-) -> UpmappingResult<NavigationTarget> {
+) -> HirNavigationTarget {
     let kind = SymbolKind::Label;
 
     let value_range = value.syntax().text_range();
-    let navs = navigation_target::orig_range_with_focus_r(db, file_id, value_range, focus_range);
-    navs.map(|(hir::FileRangeWrapper { file_id, range }, focus_range)| {
-        NavigationTarget::from_syntax(file_id, "<expr>".into(), focus_range, range, kind)
-    })
+    HirNavigationTarget::from_syntax(file_id, "<expr>".into(), focus_range, value_range, kind)
 }
 
 #[cfg(test)]
@@ -503,33 +482,34 @@ mod tests {
     #[track_caller]
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
+        let navs =
+            analysis.goto_definition(position.into()).unwrap().expect("no definition found").info;
 
         let cmp = |&FileRange { file_id, range }: &_| (file_id, range.start());
         let navs = navs
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .flat_map(|nav| nav.upmap(&analysis.db))
+            .map(|nav| nav.focus_or_full_file_range())
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
-        let expected = expected
-            .into_iter()
-            .map(|(FileRange { file_id, range }, _)| FileRange { file_id, range })
-            .sorted_by_key(cmp)
-            .collect::<Vec<_>>();
+        let expected =
+            expected.into_iter().map(|(r, _)| r.into()).sorted_by_key(cmp).collect::<Vec<_>>();
 
         assert_eq!(expected, navs);
     }
 
     fn check_unresolved(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
+        let navs =
+            analysis.goto_definition(position.into()).unwrap().expect("no definition found").info;
 
         assert!(navs.is_empty(), "didn't expect this to resolve anywhere: {navs:?}")
     }
 
     fn check_name(expected_name: &str, #[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, _) = fixture::annotations(ra_fixture);
-        let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
+        let navs =
+            analysis.goto_definition(position.into()).unwrap().expect("no definition found").info;
         assert!(navs.len() < 2, "expected single navigation target but encountered {}", navs.len());
         let Some(target) = navs.into_iter().next() else {
             panic!("expected single navigation target but encountered none");

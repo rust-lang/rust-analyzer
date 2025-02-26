@@ -12,8 +12,9 @@ use ide_db::{
     FileId, FileRange, RootDatabase,
 };
 use itertools::Itertools;
+use span::EditionedFileId;
 use stdx::{always, never};
-use syntax::{ast, AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
+use syntax::{ast, AstNode, AstToken, SyntaxKind, SyntaxNode, TextRange, TextSize};
 
 use ide_db::text_edit::TextEdit;
 
@@ -30,10 +31,13 @@ pub(crate) fn prepare_rename(
     position: FilePosition,
 ) -> RenameResult<RangeInfo<()>> {
     let sema = Semantics::new(db);
-    let source_file = sema.parse_guess_edition(position.file_id);
+    let file_id = sema
+        .attach_first_edition(position.file_id)
+        .ok_or_else(|| format_err!("No references found at position"))?;
+    let source_file = sema.parse(file_id);
     let syntax = source_file.syntax();
 
-    let res = find_definitions(&sema, syntax, position)?
+    let res = find_definitions(&sema, syntax, file_id, position.offset)?
         .map(|(frange, kind, def)| {
             // ensure all ranges are valid
 
@@ -88,7 +92,7 @@ pub(crate) fn rename(
     let source_file = sema.parse(file_id);
     let syntax = source_file.syntax();
 
-    let defs = find_definitions(&sema, syntax, position)?;
+    let defs = find_definitions(&sema, syntax, file_id, position.offset)?;
     let alias_fallback = alias_fallback(syntax, position, new_name);
 
     let ops: RenameResult<Vec<SourceChange>> = match alias_fallback {
@@ -104,7 +108,7 @@ pub(crate) fn rename(
                     IdentifierKind::Underscore => bail!("Cannot alias reference to `_`"),
                 };
 
-                let mut usages = def.usages(&sema).all();
+                let mut usages = def.usages(&sema).all().map_out_of_macros(&sema);
 
                 // FIXME: hack - removes the usage that triggered this rename operation.
                 match usages.references.get_mut(&file_id).and_then(|refs| {
@@ -157,7 +161,7 @@ pub(crate) fn will_rename_file(
     new_name_stem: &str,
 ) -> Option<SourceChange> {
     let sema = Semantics::new(db);
-    let module = sema.file_to_module_def(file_id)?;
+    let module = sema.file_to_module_def(EditionedFileId::current_edition(file_id))?;
     let def = Definition::Module(module);
     let mut change = def.rename(&sema, new_name_stem).ok()?;
     change.file_system_edits.clear();
@@ -199,19 +203,19 @@ fn alias_fallback(
 fn find_definitions(
     sema: &Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
-    FilePosition { file_id, offset }: FilePosition,
+    file_id: EditionedFileId,
+    offset: TextSize,
 ) -> RenameResult<impl Iterator<Item = (FileRange, SyntaxKind, Definition)>> {
-    let token = syntax.token_at_offset(offset).find(|t| matches!(t.kind(), SyntaxKind::STRING));
+    let token = syntax.token_at_offset(offset).find_map(ast::String::cast);
 
-    if let Some((range, Some(resolution))) =
-        token.and_then(|token| sema.check_for_format_args_template(token, offset))
-    {
-        return Ok(vec![(
-            FileRange { file_id, range },
-            SyntaxKind::STRING,
-            Definition::from(resolution),
-        )]
-        .into_iter());
+    if let Some((range, _, Some(resolution))) = token.and_then(|token| {
+        sema.check_for_format_args_template_with_file(InFile::new(file_id.into(), token), offset)
+    }) {
+        let frange =
+            InFile::new(range.file_id, range.range).original_node_file_range_rooted(sema.db);
+        return Ok(
+            vec![(frange.into(), SyntaxKind::STRING, Definition::from(resolution))].into_iter()
+        );
     }
 
     let symbols =
@@ -365,7 +369,7 @@ fn rename_to_self(
         .ok_or_else(|| format_err!("No source for parameter found"))?;
 
     let def = Definition::Local(local);
-    let usages = def.usages(sema).all();
+    let usages = def.usages(sema).all().map_out_of_macros(sema);
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (file_id.into(), source_edit_from_references(references, def, "self", file_id.edition()))
@@ -395,7 +399,7 @@ fn rename_self_to_param(
         sema.source(self_param).ok_or_else(|| format_err!("cannot find function source"))?;
 
     let def = Definition::Local(local);
-    let usages = def.usages(sema).all();
+    let usages = def.usages(sema).all().map_out_of_macros(sema);
     let edit = text_edit_from_self_param(&self_param, new_name)
         .ok_or_else(|| format_err!("No target type found"))?;
     if usages.len() > 1 && identifier_kind == IdentifierKind::Underscore {
@@ -404,7 +408,10 @@ fn rename_self_to_param(
     let mut source_change = SourceChange::default();
     source_change.insert_source_edit(file_id.original_file(sema.db), edit);
     source_change.extend(usages.iter().map(|(file_id, references)| {
-        (file_id.into(), source_edit_from_references(references, def, new_name, file_id.edition()))
+        (
+            file_id.file_id(),
+            source_edit_from_references(references, def, new_name, file_id.edition()),
+        )
     }));
     Ok(source_change)
 }
@@ -462,12 +469,12 @@ mod tests {
         let ra_fixture_after = &trim_indent(ra_fixture_after);
         let (analysis, position) = fixture::position(ra_fixture_before);
         if !ra_fixture_after.starts_with("error: ") {
-            if let Err(err) = analysis.prepare_rename(position).unwrap() {
+            if let Err(err) = analysis.prepare_rename(position.into()).unwrap() {
                 panic!("Prepare rename to '{new_name}' was failed: {err}")
             }
         }
         let rename_result = analysis
-            .rename(position, new_name)
+            .rename(position.into(), new_name)
             .unwrap_or_else(|err| panic!("Rename to '{new_name}' was cancelled: {err}"));
         match rename_result {
             Ok(source_change) => {
@@ -502,8 +509,10 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let source_change =
-            analysis.rename(position, new_name).unwrap().expect("Expect returned a RenameError");
+        let source_change = analysis
+            .rename(position.into(), new_name)
+            .unwrap()
+            .expect("Expect returned a RenameError");
         expect.assert_eq(&filter_expect(source_change))
     }
 
@@ -514,7 +523,7 @@ mod tests {
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
         let source_change = analysis
-            .will_rename_file(position.file_id, new_name)
+            .will_rename_file(position.file_id.into(), new_name)
             .unwrap()
             .expect("Expect returned a RenameError");
         expect.assert_eq(&filter_expect(source_change))
@@ -523,11 +532,11 @@ mod tests {
     fn check_prepare(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         let (analysis, position) = fixture::position(ra_fixture);
         let result = analysis
-            .prepare_rename(position)
+            .prepare_rename(position.into())
             .unwrap_or_else(|err| panic!("PrepareRename was cancelled: {err}"));
         match result {
             Ok(RangeInfo { range, info: () }) => {
-                let source = analysis.file_text(position.file_id).unwrap();
+                let source = analysis.file_text(position.file_id.into()).unwrap();
                 expect.assert_eq(&format!("{range:?}: {}", &source[range]))
             }
             Err(RenameError(err)) => expect.assert_eq(&err),

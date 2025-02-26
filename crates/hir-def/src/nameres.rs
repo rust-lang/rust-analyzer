@@ -67,7 +67,7 @@ use intern::Symbol;
 use itertools::Itertools;
 use la_arena::Arena;
 use rustc_hash::{FxHashMap, FxHashSet};
-use span::{Edition, EditionedFileId, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
+use span::{Edition, EditionedFileId, FileAstId, FileId, MacroFileId, ROOT_ERASED_FILE_AST_ID};
 use stdx::format_to;
 use syntax::{ast, AstNode, SmolStr, SyntaxNode};
 use triomphe::Arc;
@@ -437,6 +437,23 @@ impl DefMap {
             .iter()
             .filter(move |(_id, data)| {
                 data.origin.file_id().map(EditionedFileId::file_id) == Some(file_id)
+            })
+            .map(|(id, _data)| id)
+    }
+
+    pub fn inline_modules_for_macro_file(
+        &self,
+        file_id: MacroFileId,
+    ) -> impl Iterator<Item = LocalModuleId> + '_ {
+        self.modules
+            .iter()
+            .filter(move |(_id, data)| {
+                (match data.origin {
+                    ModuleOrigin::Inline { definition_tree_id, .. } => {
+                        definition_tree_id.file_id().macro_file()
+                    }
+                    _ => None,
+                }) == Some(file_id)
             })
             .map(|(id, _data)| id)
     }

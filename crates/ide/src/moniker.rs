@@ -419,7 +419,7 @@ mod tests {
     #[track_caller]
     fn no_moniker(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position) = fixture::position(ra_fixture);
-        if let Some(x) = analysis.moniker(position).unwrap() {
+        if let Some(x) = analysis.moniker(position.into()).unwrap() {
             assert_eq!(x.info.len(), 0, "Moniker found but no moniker expected: {x:?}");
         }
     }
@@ -432,7 +432,7 @@ mod tests {
         kind: MonikerKind,
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let x = analysis.moniker(position).unwrap().expect("no moniker found").info;
+        let x = analysis.moniker(position.into()).unwrap().expect("no moniker found").info;
         assert_eq!(x.len(), 1);
         match x.into_iter().next().unwrap() {
             MonikerResult::Local { enclosing_moniker: Some(x) } => {
@@ -457,7 +457,7 @@ mod tests {
         kind: MonikerKind,
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let x = analysis.moniker(position).unwrap().expect("no moniker found").info;
+        let x = analysis.moniker(position.into()).unwrap().expect("no moniker found").info;
         assert_eq!(x.len(), 1);
         match x.into_iter().next().unwrap() {
             MonikerResult::Local { enclosing_moniker } => {

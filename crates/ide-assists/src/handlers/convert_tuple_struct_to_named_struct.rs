@@ -134,7 +134,8 @@ fn edit_struct_references(
         Either::Left(s) => Definition::Adt(hir::Adt::Struct(s)),
         Either::Right(v) => Definition::Variant(v),
     };
-    let usages = strukt_def.usages(&ctx.sema).include_self_refs().all();
+    let usages =
+        strukt_def.usages(&ctx.sema).include_self_refs().all().map_out_of_macros(&ctx.sema);
 
     let edit_node = |edit: &mut SourceChangeBuilder, node: SyntaxNode| -> Option<()> {
         match_ast! {
@@ -219,7 +220,7 @@ fn edit_field_references(
             None => continue,
         };
         let def = Definition::Field(field);
-        let usages = def.usages(&ctx.sema).all();
+        let usages = def.usages(&ctx.sema).all().map_out_of_macros(&ctx.sema);
         for (file_id, refs) in usages {
             edit.edit_file(file_id.file_id());
             for r in refs {

@@ -61,7 +61,9 @@ use std::{iter, panic::UnwindSafe};
 
 use cfg::CfgOptions;
 use fetch_crates::CrateInfo;
-use hir::{sym, ChangeWithProcMacros};
+use hir::{
+    db::ExpandDatabase, sym, ChangeWithProcMacros, HirFileId, HirFilePosition, HirFileRange,
+};
 use ide_db::{
     base_db::{
         ra_salsa::{self, ParallelDatabase},
@@ -101,7 +103,7 @@ pub use crate::{
         PackageInformation, SymbolInformationKind,
     },
     move_item::Direction,
-    navigation_target::{NavigationTarget, TryToNav, UpmappingResult},
+    navigation_target::{HirNavigationTarget, NavigationTarget, TryToNav, UpmappingResult},
     references::ReferenceSearchResult,
     rename::RenameError,
     runnables::{Runnable, RunnableKind, TestId, UpdateTest},
@@ -230,7 +232,7 @@ impl Analysis {
     // Creates an analysis instance for a single file, without any external
     // dependencies, stdlib support or ability to apply changes. See
     // `AnalysisHost` for creating a fully-featured analysis.
-    pub fn from_single_file(text: String) -> (Analysis, FileId) {
+    pub fn from_single_file(text: String) -> (Analysis, EditionedFileId) {
         let mut host = AnalysisHost::default();
         let file_id = FileId::from_raw(0);
         let mut file_set = FileSet::default();
@@ -267,7 +269,7 @@ impl Analysis {
         change.set_crate_graph(crate_graph, ws_data);
 
         host.apply_change(change);
-        (host.analysis(), file_id)
+        (host.analysis(), EditionedFileId::new(file_id, Edition::CURRENT))
     }
 
     /// Debug info about the current state of the analysis.
@@ -375,7 +377,7 @@ impl Analysis {
         self.with_db(fetch_crates::fetch_crates)
     }
 
-    pub fn expand_macro(&self, position: FilePosition) -> Cancellable<Option<ExpandedMacro>> {
+    pub fn expand_macro(&self, position: HirFilePosition) -> Cancellable<Option<ExpandedMacro>> {
         self.with_db(|db| expand_macro::expand_macro(db, position))
     }
 
@@ -416,20 +418,16 @@ impl Analysis {
 
     /// Returns a tree representation of symbols in the file. Useful to draw a
     /// file outline.
-    pub fn file_structure(&self, file_id: FileId) -> Cancellable<Vec<StructureNode>> {
+    pub fn file_structure(&self, file_id: HirFileId) -> Cancellable<Vec<StructureNode>> {
         // FIXME: Edition
-        self.with_db(|db| {
-            file_structure::file_structure(
-                &db.parse(EditionedFileId::current_edition(file_id)).tree(),
-            )
-        })
+        self.with_db(|db| file_structure::file_structure(&db.parse_or_expand(file_id)))
     }
 
     /// Returns a list of the places in the file where type hints can be displayed.
     pub fn inlay_hints(
         &self,
         config: &InlayHintsConfig,
-        file_id: FileId,
+        file_id: HirFileId,
         range: Option<TextRange>,
     ) -> Cancellable<Vec<InlayHint>> {
         self.with_db(|db| inlay_hints::inlay_hints(db, file_id, range, config))
@@ -437,7 +435,7 @@ impl Analysis {
     pub fn inlay_hints_resolve(
         &self,
         config: &InlayHintsConfig,
-        file_id: FileId,
+        file_id: HirFileId,
         resolve_range: TextRange,
         hash: u64,
         hasher: impl Fn(&InlayHint) -> u64 + Send + UnwindSafe,
@@ -448,22 +446,21 @@ impl Analysis {
     }
 
     /// Returns the set of folding ranges.
-    pub fn folding_ranges(&self, file_id: FileId) -> Cancellable<Vec<Fold>> {
-        self.with_db(|db| {
-            folding_ranges::folding_ranges(
-                &db.parse(EditionedFileId::current_edition(file_id)).tree(),
-            )
-        })
+    pub fn folding_ranges(&self, file_id: HirFileId) -> Cancellable<Vec<Fold>> {
+        self.with_db(|db| folding_ranges::folding_ranges(&db.parse_or_expand(file_id)))
     }
 
     /// Fuzzy searches for a symbol.
-    pub fn symbol_search(&self, query: Query, limit: usize) -> Cancellable<Vec<NavigationTarget>> {
+    pub fn symbol_search(
+        &self,
+        query: Query,
+        limit: usize,
+    ) -> Cancellable<Vec<HirNavigationTarget>> {
         self.with_db(|db| {
             symbol_index::world_symbols(db, query)
-                .into_iter() // xx: should we make this a par iter?
-                .filter_map(|s| s.try_to_nav(db))
+                .into_iter()
+                .filter_map(|s| s.try_to_nav_hir(db))
                 .take(limit)
-                .map(UpmappingResult::call_site)
                 .collect::<Vec<_>>()
         })
     }
@@ -471,39 +468,39 @@ impl Analysis {
     /// Returns the definitions from the symbol at `position`.
     pub fn goto_definition(
         &self,
-        position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+        position: HirFilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<HirNavigationTarget>>>> {
         self.with_db(|db| goto_definition::goto_definition(db, position))
     }
 
     /// Returns the declaration from the symbol at `position`.
     pub fn goto_declaration(
         &self,
-        position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+        position: HirFilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<HirNavigationTarget>>>> {
         self.with_db(|db| goto_declaration::goto_declaration(db, position))
     }
 
     /// Returns the impls from the symbol at `position`.
     pub fn goto_implementation(
         &self,
-        position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+        position: HirFilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<HirNavigationTarget>>>> {
         self.with_db(|db| goto_implementation::goto_implementation(db, position))
     }
 
     /// Returns the type definitions for the symbol at `position`.
     pub fn goto_type_definition(
         &self,
-        position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+        position: HirFilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<HirNavigationTarget>>>> {
         self.with_db(|db| goto_type_definition::goto_type_definition(db, position))
     }
 
     /// Finds all usages of the reference at point.
     pub fn find_all_refs(
         &self,
-        position: FilePosition,
+        position: HirFilePosition,
         search_scope: Option<SearchScope>,
     ) -> Cancellable<Option<Vec<ReferenceSearchResult>>> {
         self.with_db(|db| references::find_all_refs(&Semantics::new(db), position, search_scope))
@@ -513,7 +510,7 @@ impl Analysis {
     pub fn hover(
         &self,
         config: &HoverConfig,
-        range: FileRange,
+        range: HirFileRange,
     ) -> Cancellable<Option<RangeInfo<HoverResult>>> {
         self.with_db(|db| hover::hover(db, range, config))
     }
@@ -549,8 +546,8 @@ impl Analysis {
     /// Computes call hierarchy candidates for the given file position.
     pub fn call_hierarchy(
         &self,
-        position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+        position: HirFilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<HirNavigationTarget>>>> {
         self.with_db(|db| call_hierarchy::call_hierarchy(db, position))
     }
 
@@ -558,7 +555,7 @@ impl Analysis {
     pub fn incoming_calls(
         &self,
         config: CallHierarchyConfig,
-        position: FilePosition,
+        position: HirFilePosition,
     ) -> Cancellable<Option<Vec<CallItem>>> {
         self.with_db(|db| call_hierarchy::incoming_calls(db, config, position))
     }
@@ -567,13 +564,16 @@ impl Analysis {
     pub fn outgoing_calls(
         &self,
         config: CallHierarchyConfig,
-        position: FilePosition,
+        position: HirFilePosition,
     ) -> Cancellable<Option<Vec<CallItem>>> {
         self.with_db(|db| call_hierarchy::outgoing_calls(db, config, position))
     }
 
     /// Returns a `mod name;` declaration which created the current module.
-    pub fn parent_module(&self, position: FilePosition) -> Cancellable<Vec<NavigationTarget>> {
+    pub fn parent_module(
+        &self,
+        position: HirFilePosition,
+    ) -> Cancellable<Vec<HirNavigationTarget>> {
         self.with_db(|db| parent_module::parent_module(db, position))
     }
 
@@ -608,7 +608,7 @@ impl Analysis {
     }
 
     /// Returns the set of possible targets to run for the current file.
-    pub fn runnables(&self, file_id: FileId) -> Cancellable<Vec<Runnable>> {
+    pub fn runnables(&self, file_id: HirFileId) -> Cancellable<Vec<Runnable>> {
         self.with_db(|db| runnables::runnables(db, file_id))
     }
 
@@ -625,7 +625,7 @@ impl Analysis {
     pub fn highlight(
         &self,
         highlight_config: HighlightConfig,
-        file_id: FileId,
+        file_id: HirFileId,
     ) -> Cancellable<Vec<HlRange>> {
         self.with_db(|db| syntax_highlighting::highlight(db, highlight_config, file_id, None))
     }
@@ -634,7 +634,7 @@ impl Analysis {
     pub fn highlight_related(
         &self,
         config: HighlightRelatedConfig,
-        position: FilePosition,
+        position: HirFilePosition,
     ) -> Cancellable<Option<Vec<HighlightedRange>>> {
         self.with_db(|db| {
             highlight_related::highlight_related(&Semantics::new(db), config, position)
@@ -645,7 +645,7 @@ impl Analysis {
     pub fn highlight_range(
         &self,
         highlight_config: HighlightConfig,
-        frange: FileRange,
+        frange: HirFileRange,
     ) -> Cancellable<Vec<HlRange>> {
         self.with_db(|db| {
             syntax_highlighting::highlight(db, highlight_config, frange.file_id, Some(frange.range))
@@ -653,7 +653,7 @@ impl Analysis {
     }
 
     /// Computes syntax highlighting for the given file.
-    pub fn highlight_as_html(&self, file_id: FileId, rainbow: bool) -> Cancellable<String> {
+    pub fn highlight_as_html(&self, file_id: HirFileId, rainbow: bool) -> Cancellable<String> {
         self.with_db(|db| syntax_highlighting::highlight_as_html(db, file_id, rainbow))
     }
 
@@ -787,7 +787,7 @@ impl Analysis {
     pub fn annotations(
         &self,
         config: &AnnotationConfig,
-        file_id: FileId,
+        file_id: HirFileId,
     ) -> Cancellable<Vec<Annotation>> {
         self.with_db(|db| annotations::annotations(db, config, file_id))
     }
@@ -824,7 +824,7 @@ impl Analysis {
     ///
     /// Salsa implements cancellation by unwinding with a special value and
     /// catching it on the API boundary.
-    fn with_db<F, T>(&self, f: F) -> Cancellable<T>
+    pub fn with_db<F, T>(&self, f: F) -> Cancellable<T>
     where
         F: FnOnce(&RootDatabase) -> T + std::panic::UnwindSafe,
     {

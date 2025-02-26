@@ -347,6 +347,7 @@ pub trait HirFileIdExt {
 
     /// If this is a macro call, returns the syntax node of the very first macro call this file resides in.
     fn original_call_node(self, db: &dyn ExpandDatabase) -> Option<InRealFile<SyntaxNode>>;
+    fn call_node(self, db: &dyn ExpandDatabase) -> Option<InFile<SyntaxNode>>;
 
     fn as_builtin_derive_attr_node(&self, db: &dyn ExpandDatabase) -> Option<InFile<ast::Attr>>;
 }
@@ -403,6 +404,10 @@ impl HirFileIdExt for HirFileId {
                 }
             }
         }
+    }
+
+    fn call_node(self, db: &dyn ExpandDatabase) -> Option<InFile<SyntaxNode>> {
+        Some(db.lookup_intern_macro_call(self.macro_file()?.macro_call_id).to_node(db))
     }
 
     fn as_builtin_derive_attr_node(&self, db: &dyn ExpandDatabase) -> Option<InFile<ast::Attr>> {
@@ -873,7 +878,10 @@ impl ExpansionInfo {
         map_node_range_up(db, &self.exp_map, range)
     }
 
-    /// Maps up the text range out of the expansion into is macro call.
+    /// Maps up the text range out of the expansion into its macro call.
+    ///
+    /// Note that this may return multiple ranges as we lose the precise association between input to output
+    /// and as such we may consider inputs that are unrelated.
     pub fn map_range_up_once(
         &self,
         db: &dyn ExpandDatabase,
@@ -889,11 +897,10 @@ impl ExpansionInfo {
                 InFile { file_id, value: smallvec::smallvec![span.range + anchor_offset] }
             }
             SpanMap::ExpansionSpanMap(arg_map) => {
-                let arg_range = self
-                    .arg
-                    .value
-                    .as_ref()
-                    .map_or_else(|| TextRange::empty(TextSize::from(0)), |it| it.text_range());
+                let Some(arg_node) = &self.arg.value else {
+                    return InFile::new(self.arg.file_id, smallvec::smallvec![]);
+                };
+                let arg_range = arg_node.text_range();
                 InFile::new(
                     self.arg.file_id,
                     arg_map

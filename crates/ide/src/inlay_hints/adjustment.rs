@@ -12,7 +12,7 @@ use hir::{
 use ide_db::famous_defs::FamousDefs;
 
 use ide_db::text_edit::TextEditBuilder;
-use span::EditionedFileId;
+use span::Edition;
 use syntax::ast::{self, prec::ExprPrecedence, AstNode};
 
 use crate::{
@@ -24,7 +24,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    edition: Edition,
     expr: &ast::Expr,
 ) -> Option<()> {
     if config.adjustment_hints_hide_outside_unsafe && !sema.is_inside_unsafe(expr) {
@@ -163,8 +163,8 @@ pub(super) fn hints(
             tooltip: Some(config.lazy_tooltip(|| {
                 InlayTooltip::Markdown(format!(
                     "`{}` → `{}` ({coercion} coercion)",
-                    source.display(sema.db, file_id.edition()),
-                    target.display(sema.db, file_id.edition()),
+                    source.display(sema.db, edition),
+                    target.display(sema.db, edition),
                 ))
             })),
         };

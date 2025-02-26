@@ -7,7 +7,7 @@ impl flags::Symbols {
     pub fn run(self) -> anyhow::Result<()> {
         let text = read_stdin()?;
         let (analysis, file_id) = Analysis::from_single_file(text);
-        let structure = analysis.file_structure(file_id).unwrap();
+        let structure = analysis.file_structure(file_id.into()).unwrap();
         for s in structure {
             println!("{s:?}");
         }
