@@ -634,6 +634,11 @@ fn compute_ref_match(
     }
 
     if let Some(expected_without_ref) = &expected_without_ref {
+        if completion_ty == &expected_without_ref.add_reference(hir::Mutability::Shared)
+            || completion_ty == &expected_without_ref.add_reference(hir::Mutability::Mut)
+        {
+            return None;
+        }
         if completion_ty.autoderef(ctx.db).any(|ty| ty == *expected_without_ref) {
             cov_mark::hit!(suggest_ref);
             let mutability = if expected_type.is_mutable_reference() {
