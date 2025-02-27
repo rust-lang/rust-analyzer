@@ -6,7 +6,7 @@
 
 use std::{env, fs, ops::Not, path::Path, process::Command};
 
-use anyhow::{format_err, Result};
+use anyhow::{Result, format_err};
 use itertools::Itertools;
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
@@ -14,8 +14,8 @@ use stdx::format_to;
 use toolchain::{Tool, probe_for_binary};
 
 use crate::{
-    cargo_workspace::CargoMetadataConfig, utf8_stdout, CargoWorkspace, ManifestPath, ProjectJson,
-    RustSourceWorkspaceConfig,
+    CargoWorkspace, ManifestPath, ProjectJson, RustSourceWorkspaceConfig,
+    cargo_workspace::CargoMetadataConfig, utf8_stdout,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

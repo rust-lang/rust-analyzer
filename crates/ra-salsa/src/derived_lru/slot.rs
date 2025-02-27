@@ -259,9 +259,9 @@ where
                             Q::cycle_fallback(db, &cycle, key)
                         } else {
                             // we are not a participant in this cycle
-                            debug_assert!(!cycle
-                                .participant_keys()
-                                .any(|k| k == self.database_key_index()));
+                            debug_assert!(
+                                !cycle.participant_keys().any(|k| k == self.database_key_index())
+                            );
                             cycle.throw()
                         }
                     }
@@ -378,10 +378,10 @@ where
                         value: value.clone(),
                     };
 
-                        trace!(
-                            "{:?}: returning memoized value changed at {:?}",
-                            self, value.changed_at
-                        );
+                    trace!(
+                        "{:?}: returning memoized value changed at {:?}",
+                        self, value.changed_at
+                    );
 
                     ProbeState::UpToDate(value)
                 } else {

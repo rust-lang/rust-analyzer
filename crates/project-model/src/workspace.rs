@@ -27,7 +27,7 @@ use crate::{
     env::{cargo_config_env, inject_cargo_env, inject_cargo_package_env, inject_rustc_tool_env},
     project_json::{Crate, CrateArrayIdx},
     sysroot::RustLibSrcWorkspace,
-    toolchain_info::{rustc_cfg, target_data_layout, target_tuple, version, QueryConfig},
+    toolchain_info::{QueryConfig, rustc_cfg, target_data_layout, target_tuple, version},
 };
 use tracing::{debug, error, info};
 
