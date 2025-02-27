@@ -9,7 +9,7 @@ use span::{
 use syntax::{AstNode, AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize};
 
 use crate::{
-    MacroFileIdExt, MacroFileIdExt, MacroKind,
+    MacroFileIdExt, MacroKind,
     db::{self, ExpandDatabase},
     map_node_range_up, map_node_range_up_rooted, span_for_offset,
 };

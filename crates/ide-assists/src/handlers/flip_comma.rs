@@ -1,6 +1,5 @@
 use syntax::{
-    AstNode, AstNode, Direction, Direction, NodeOrToken, NodeOrToken, SyntaxElement, SyntaxKind,
-    SyntaxKind, SyntaxToken, SyntaxToken, T, T,
+    AstNode, Direction, NodeOrToken, SyntaxKind, SyntaxToken, T,
     algo::non_trivia_sibling,
     ast::{self, syntax_factory::SyntaxFactory},
     syntax_editor::SyntaxMapping,

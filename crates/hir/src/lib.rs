@@ -130,8 +130,7 @@ pub use {
         {ModuleDefId, TraitId},
     },
     hir_expand::{
-        ExpandResult, ExpandResult, HirFileId, HirFileId, HirFileIdExt, HirFileIdExt, MacroFileId,
-        MacroFileId, MacroFileIdExt, MacroFileIdExt, MacroKind,
+        ExpandResult, HirFileId, HirFileIdExt, MacroFileId, MacroFileIdExt, MacroKind,
         attrs::{Attr, AttrId},
         change::ChangeWithProcMacros,
         files::{

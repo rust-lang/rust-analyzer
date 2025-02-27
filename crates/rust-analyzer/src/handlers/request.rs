@@ -38,7 +38,7 @@ use crate::{
     hack_recover_crate_name,
     line_index::LineEndings,
     lsp::{
-        completion_item_hash,
+        LspError, completion_item_hash,
         ext::{
             InternalTestingFetchConfigOption, InternalTestingFetchConfigParams,
             InternalTestingFetchConfigResponse,

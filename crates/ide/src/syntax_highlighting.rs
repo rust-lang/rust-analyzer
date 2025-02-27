@@ -18,7 +18,10 @@ use hir::{HirFileIdExt, InFile, InRealFile, MacroFileIdExt, MacroKind, Name, Sem
 use ide_db::{FxHashMap, Ranker, RootDatabase, SymbolKind};
 use span::EditionedFileId;
 use syntax::{
-    AstNode, AstToken, NodeOrToken, SyntaxKind::*, SyntaxNode, SyntaxToken, T, TextRange, WalkEvent,
+    AstNode, AstToken, NodeOrToken,
+    SyntaxKind::*,
+    SyntaxNode, SyntaxToken, T, TextRange, WalkEvent,
+    ast::{self, IsString},
 };
 
 use crate::{

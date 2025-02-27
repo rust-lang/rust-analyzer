@@ -19,8 +19,7 @@ use std::{iter, ops::Range, sync};
 use base_db::SourceDatabase;
 use expect_test::Expect;
 use hir_expand::{
-    InFile, InFile, MacroCallKind, MacroCallKind, MacroFileId, MacroFileId, MacroFileIdExt,
-    MacroFileIdExt, MacroKind,
+    InFile, MacroCallKind, MacroFileId, MacroFileIdExt, MacroKind,
     db::ExpandDatabase,
     proc_macro::{ProcMacro, ProcMacroExpander, ProcMacroExpansionError, ProcMacroKind},
     span_map::SpanMapRef,

@@ -37,6 +37,8 @@ use crate::{
     target_spec::{CargoTargetSpec, TargetSpec},
 };
 
+use super::LspError;
+
 pub(crate) fn position(line_index: &LineIndex, offset: TextSize) -> lsp_types::Position {
     let line_col = line_index.index.line_col(offset);
     match line_index.encoding {

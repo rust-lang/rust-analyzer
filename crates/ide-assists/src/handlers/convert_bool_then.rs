@@ -16,7 +16,6 @@ use syntax::{
 use crate::{
     AssistContext, AssistId, AssistKind, Assists,
     utils::{invert_boolean_expression, unwrap_trivial_block},
-    utils::{invert_boolean_expression_legacy, unwrap_trivial_block},
 };
 
 // Assist: convert_if_to_bool_then
