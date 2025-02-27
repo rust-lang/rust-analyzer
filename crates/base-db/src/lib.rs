@@ -51,15 +51,6 @@ pub const DEFAULT_FILE_TEXT_LRU_CAP: u16 = 16;
 pub const DEFAULT_PARSE_LRU_CAP: u16 = 128;
 pub const DEFAULT_BORROWCK_LRU_CAP: u16 = 2024;
 
-/// Crate related data shared by the whole workspace.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct CrateWorkspaceData {
-    // FIXME: Consider removing this, making HirDatabase::target_data_layout an input query
-    pub data_layout: TargetLayoutLoadResult,
-    /// Toolchain version used to compile the crate.
-    pub toolchain: Option<Version>,
-}
-
 #[derive(Debug, Default)]
 pub struct Files {
     files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
