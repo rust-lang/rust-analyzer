@@ -122,18 +122,17 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     // region:data
 
     #[ra_salsa::transparent]
+    #[ra_salsa::invoke(VariantData::variant_data_query)]
+    fn variant_data(&self, id: VariantId) -> Arc<VariantData>;
+
+    #[ra_salsa::invoke(VariantData::variant_data_with_diagnostics_query)]
+    fn variant_data_with_diagnostics(&self, id: VariantId) -> (Arc<VariantData>, DefDiagnostics);
+
     #[ra_salsa::invoke(StructData::struct_data_query)]
     fn struct_data(&self, id: StructId) -> Arc<StructData>;
 
-    #[ra_salsa::invoke(StructData::struct_data_with_diagnostics_query)]
-    fn struct_data_with_diagnostics(&self, id: StructId) -> (Arc<StructData>, DefDiagnostics);
-
-    #[ra_salsa::transparent]
     #[ra_salsa::invoke(StructData::union_data_query)]
     fn union_data(&self, id: UnionId) -> Arc<StructData>;
-
-    #[ra_salsa::invoke(StructData::union_data_with_diagnostics_query)]
-    fn union_data_with_diagnostics(&self, id: UnionId) -> (Arc<StructData>, DefDiagnostics);
 
     #[ra_salsa::invoke(EnumData::enum_data_query)]
     fn enum_data(&self, e: EnumId) -> Arc<EnumData>;
@@ -141,19 +140,9 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     #[ra_salsa::invoke(EnumVariants::enum_variants_query)]
     fn enum_variants(&self, e: EnumId) -> Arc<EnumVariants>;
 
-    #[ra_salsa::transparent]
     #[ra_salsa::invoke(EnumVariantData::enum_variant_data_query)]
     fn enum_variant_data(&self, id: EnumVariantId) -> Arc<EnumVariantData>;
 
-    #[ra_salsa::invoke(EnumVariantData::enum_variant_data_with_diagnostics_query)]
-    fn enum_variant_data_with_diagnostics(
-        &self,
-        id: EnumVariantId,
-    ) -> (Arc<EnumVariantData>, DefDiagnostics);
-
-    #[ra_salsa::transparent]
-    #[ra_salsa::invoke(VariantData::variant_data)]
-    fn variant_data(&self, id: VariantId) -> Arc<VariantData>;
     #[ra_salsa::invoke(ImplData::impl_data_query)]
     fn impl_data(&self, e: ImplId) -> Arc<ImplData>;
 

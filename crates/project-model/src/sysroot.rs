@@ -258,7 +258,7 @@ impl Sysroot {
         let mut stitched = Stitched { crates: Arena::default() };
 
         for path in SYSROOT_CRATES.trim().lines() {
-            let name = path.split('/').last().unwrap();
+            let name = path.split('/').next_back().unwrap();
             let root = [format!("{path}/src/lib.rs"), format!("lib{path}/lib.rs")]
                 .into_iter()
                 .map(|it| src_root.join(it))

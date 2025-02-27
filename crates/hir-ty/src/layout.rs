@@ -471,12 +471,12 @@ fn layout_of_unit(cx: &LayoutCx<'_>) -> Result<Layout, LayoutError> {
 
 fn struct_tail_erasing_lifetimes(db: &dyn HirDatabase, pointee: Ty) -> Ty {
     match pointee.kind(Interner) {
-        TyKind::Adt(AdtId(hir_def::AdtId::StructId(i)), subst) => {
-            let data = db.struct_data(*i);
-            let mut it = data.variant_data.fields().iter().rev();
+        &TyKind::Adt(AdtId(hir_def::AdtId::StructId(i)), ref subst) => {
+            let data = db.variant_data(i.into());
+            let mut it = data.fields().iter().rev();
             match it.next() {
                 Some((f, _)) => {
-                    let last_field_ty = field_ty(db, (*i).into(), f, subst);
+                    let last_field_ty = field_ty(db, i.into(), f, subst);
                     struct_tail_erasing_lifetimes(db, last_field_ty)
                 }
                 None => pointee,

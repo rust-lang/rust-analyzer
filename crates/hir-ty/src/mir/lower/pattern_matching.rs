@@ -592,7 +592,7 @@ impl MirLowerCtx<'_> {
                 }
                 self.pattern_matching_variant_fields(
                     shape,
-                    &self.db.enum_variant_data(v).variant_data,
+                    &self.db.variant_data(v.into()),
                     variant,
                     current,
                     current_else,
@@ -602,7 +602,7 @@ impl MirLowerCtx<'_> {
             }
             VariantId::StructId(s) => self.pattern_matching_variant_fields(
                 shape,
-                &self.db.struct_data(s).variant_data,
+                &self.db.variant_data(s.into()),
                 variant,
                 current,
                 current_else,
