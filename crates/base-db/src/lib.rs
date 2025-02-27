@@ -22,7 +22,7 @@ pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
 use syntax::{ast, Parse, SyntaxError};
 use triomphe::Arc;
 pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
-use vfs::{AbsPathBuf, FileId};
+use vfs::FileId;
 
 #[macro_export]
 macro_rules! impl_intern_key {

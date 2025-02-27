@@ -317,9 +317,9 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> + std::fmt::Debug {
         env: chalk_ir::Environment<Interner>,
     ) -> chalk_ir::ProgramClauses<Interner>;
 
-    #[ra_salsa::invoke(crate::drop::has_drop_glue)]
-    #[ra_salsa::cycle(crate::drop::has_drop_glue_recover)]
-    fn has_drop_glue(&self, ty: Ty, env: Arc<TraitEnvironment>) -> DropGlue {}
+    #[db_ext_macro::invoke(crate::drop::has_drop_glue)]
+    #[db_ext_macro::cycle(crate::drop::has_drop_glue_recover)]
+    fn has_drop_glue(&self, ty: Ty, env: Arc<TraitEnvironment>) -> DropGlue;
 }
 
 #[test]
