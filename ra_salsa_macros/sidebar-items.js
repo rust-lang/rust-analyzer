@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["database","query_group"]};
