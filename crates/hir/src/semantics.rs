@@ -12,15 +12,16 @@ use std::{
 
 use either::Either;
 use hir_def::{
+    AsMacroCall, DefWithBodyId, FunctionId, MacroId, StructId, TraitId, VariantId,
     hir::{Expr, ExprOrPatId},
     lower::LowerCtx,
     nameres::{MacroSubNs, ModuleOrigin},
     path::ModPath,
     resolver::{self, HasResolver, Resolver, TypeNs},
     type_ref::{Mutability, TypesMap, TypesSourceMap},
-    AsMacroCall, DefWithBodyId, FunctionId, MacroId, StructId, TraitId, VariantId,
 };
 use hir_expand::{
+    ExpandResult, FileRange, InMacroFile, MacroCallId, MacroFileId, MacroFileIdExt,
     attrs::collect_attrs,
     builtin::{BuiltinFnLikeExpander, EagerExpander},
     db::ExpandDatabase,
@@ -28,31 +29,30 @@ use hir_expand::{
     hygiene::SyntaxContextExt as _,
     inert_attr_macro::find_builtin_attr_idx,
     name::AsName,
-    ExpandResult, FileRange, InMacroFile, MacroCallId, MacroFileId, MacroFileIdExt,
 };
-use intern::{sym, Symbol};
+use intern::{Symbol, sym};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use span::{AstIdMap, EditionedFileId, FileId, HirFileIdRepr, SyntaxContextId};
 use stdx::TupleExt;
 use syntax::{
-    algo::skip_trivia_token,
-    ast::{self, HasAttrs as _, HasGenericParams},
     AstNode, AstToken, Direction, SyntaxKind, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange,
     TextSize,
+    algo::skip_trivia_token,
+    ast::{self, HasAttrs as _, HasGenericParams},
 };
 use triomphe::Arc;
 
 use crate::{
-    db::HirDatabase,
-    semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
-    source_analyzer::{name_hygiene, resolve_hir_path, SourceAnalyzer},
     Access, Adjust, Adjustment, Adt, AutoBorrow, BindingMode, BuiltinAttr, Callable, Const,
     ConstParam, Crate, DeriveHelper, Enum, Field, Function, GenericSubstitution, HasSource,
     HirFileId, Impl, InFile, InlineAsmOperand, ItemInNs, Label, LifetimeParam, Local, Macro,
     Module, ModuleDef, Name, OverloadedDeref, Path, ScopeDef, Static, Struct, ToolModule, Trait,
     TraitAlias, TupleField, Type, TypeAlias, TypeParam, Union, Variant, VariantDef,
+    db::HirDatabase,
+    semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
+    source_analyzer::{SourceAnalyzer, name_hygiene, resolve_hir_path},
 };
 
 const CONTINUE_NO_BREAKS: ControlFlow<Infallible, ()> = ControlFlow::Continue(());
@@ -928,11 +928,7 @@ impl<'db> SemanticsImpl<'db> {
                         || kind.is_any_identifier() && value.kind().is_any_identifier();
                     let matches =
                         (kind == mapped_kind || any_ident_match()) && text == value.text();
-                    if matches {
-                        ControlFlow::Break(value)
-                    } else {
-                        ControlFlow::Continue(())
-                    }
+                    if matches { ControlFlow::Break(value) } else { ControlFlow::Continue(()) }
                 },
             )
         } else {
@@ -1718,7 +1714,7 @@ impl<'db> SemanticsImpl<'db> {
                     SourceAnalyzer::new_for_body(self.db, def, node, offset)
                 } else {
                     SourceAnalyzer::new_for_body_no_infer(self.db, def, node, offset)
-                })
+                });
             }
             ChildContainer::TraitId(it) => it.resolver(self.db.upcast()),
             ChildContainer::TraitAliasId(it) => it.resolver(self.db.upcast()),
@@ -2106,7 +2102,7 @@ impl SemanticsScope<'_> {
         )
     }
 
-    pub fn resolve_mod_path(&self, path: &ModPath) -> impl Iterator<Item = ItemInNs> {
+    pub fn resolve_mod_path(&self, path: &ModPath) -> impl Iterator<Item = ItemInNs> + use<> {
         let items = self.resolver.resolve_module_path_in_items(self.db.upcast(), path);
         items.iter_items().map(|(item, _)| item.into())
     }

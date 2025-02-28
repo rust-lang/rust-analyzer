@@ -14,7 +14,7 @@ use la_arena::{Arena, Idx, RawIdx};
 use rustc_hash::{FxHashMap, FxHashSet};
 use span::{Edition, EditionedFileId};
 use triomphe::Arc;
-use vfs::{file_set::FileSet, AbsPathBuf, AnchoredPath, FileId, VfsPath};
+use vfs::{AbsPathBuf, AnchoredPath, FileId, VfsPath, file_set::FileSet};
 
 pub type ProcMacroPaths = FxHashMap<CrateId, Result<(String, AbsPathBuf), String>>;
 
@@ -105,11 +105,7 @@ impl CrateName {
     /// Dashes are not allowed in the crate names,
     /// hence the input string is returned as `Err` for those cases.
     pub fn new(name: &str) -> Result<CrateName, &str> {
-        if name.contains('-') {
-            Err(name)
-        } else {
-            Ok(Self(Symbol::intern(name)))
-        }
+        if name.contains('-') { Err(name) } else { Ok(Self(Symbol::intern(name))) }
     }
 
     /// Creates a crate name, unconditionally replacing the dashes with underscores.
@@ -442,7 +438,7 @@ impl CrateGraph {
 
     /// Returns all transitive reverse dependencies of the given crate,
     /// including the crate itself.
-    pub fn transitive_rev_deps(&self, of: CrateId) -> impl Iterator<Item = CrateId> {
+    pub fn transitive_rev_deps(&self, of: CrateId) -> impl Iterator<Item = CrateId> + use<> {
         let mut worklist = vec![of];
         let mut rev_deps = FxHashSet::default();
         rev_deps.insert(of);
@@ -731,15 +727,21 @@ mod tests {
             false,
             None,
         );
-        assert!(graph
-            .add_dep(crate1, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
-            .is_ok());
-        assert!(graph
-            .add_dep(crate2, Dependency::new(CrateName::new("crate3").unwrap(), crate3,))
-            .is_ok());
-        assert!(graph
-            .add_dep(crate3, Dependency::new(CrateName::new("crate1").unwrap(), crate1,))
-            .is_err());
+        assert!(
+            graph
+                .add_dep(crate1, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
+                .is_ok()
+        );
+        assert!(
+            graph
+                .add_dep(crate2, Dependency::new(CrateName::new("crate3").unwrap(), crate3,))
+                .is_ok()
+        );
+        assert!(
+            graph
+                .add_dep(crate3, Dependency::new(CrateName::new("crate1").unwrap(), crate1,))
+                .is_err()
+        );
     }
 
     #[test]
@@ -769,12 +771,16 @@ mod tests {
             false,
             None,
         );
-        assert!(graph
-            .add_dep(crate1, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
-            .is_ok());
-        assert!(graph
-            .add_dep(crate2, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
-            .is_err());
+        assert!(
+            graph
+                .add_dep(crate1, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
+                .is_ok()
+        );
+        assert!(
+            graph
+                .add_dep(crate2, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
+                .is_err()
+        );
     }
 
     #[test]
@@ -816,12 +822,16 @@ mod tests {
             false,
             None,
         );
-        assert!(graph
-            .add_dep(crate1, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
-            .is_ok());
-        assert!(graph
-            .add_dep(crate2, Dependency::new(CrateName::new("crate3").unwrap(), crate3,))
-            .is_ok());
+        assert!(
+            graph
+                .add_dep(crate1, Dependency::new(CrateName::new("crate2").unwrap(), crate2,))
+                .is_ok()
+        );
+        assert!(
+            graph
+                .add_dep(crate2, Dependency::new(CrateName::new("crate3").unwrap(), crate3,))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -851,12 +861,14 @@ mod tests {
             false,
             None,
         );
-        assert!(graph
-            .add_dep(
-                crate1,
-                Dependency::new(CrateName::normalize_dashes("crate-name-with-dashes"), crate2,)
-            )
-            .is_ok());
+        assert!(
+            graph
+                .add_dep(
+                    crate1,
+                    Dependency::new(CrateName::normalize_dashes("crate-name-with-dashes"), crate2,)
+                )
+                .is_ok()
+        );
         assert_eq!(
             graph[crate1].dependencies,
             vec![Dependency::new(CrateName::new("crate_name_with_dashes").unwrap(), crate2,)]

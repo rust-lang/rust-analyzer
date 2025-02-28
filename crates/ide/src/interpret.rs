@@ -1,9 +1,9 @@
 use hir::{ConstEvalError, DefWithBody, Semantics};
-use ide_db::{base_db::SourceRootDatabase, FilePosition, LineIndexDatabase, RootDatabase};
+use ide_db::{FilePosition, LineIndexDatabase, RootDatabase, base_db::SourceRootDatabase};
 use span::Edition;
 use std::time::{Duration, Instant};
 use stdx::format_to;
-use syntax::{algo::ancestors_at_offset, ast, AstNode, TextRange};
+use syntax::{AstNode, TextRange, algo::ancestors_at_offset, ast};
 
 // Feature: Interpret A Function, Static Or Const.
 //

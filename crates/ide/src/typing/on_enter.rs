@@ -2,14 +2,14 @@
 //! comments, but should handle indent some time in the future as well.
 
 use ide_db::RootDatabase;
-use ide_db::{base_db::SourceDatabase, FilePosition};
+use ide_db::{FilePosition, base_db::SourceDatabase};
 use span::EditionedFileId;
 use syntax::{
-    algo::find_node_at_offset,
-    ast::{self, edit::IndentLevel, AstToken},
     AstNode, SmolStr, SourceFile,
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, TextRange, TextSize, TokenAtOffset,
+    algo::find_node_at_offset,
+    ast::{self, AstToken, edit::IndentLevel},
 };
 
 use ide_db::text_edit::TextEdit;

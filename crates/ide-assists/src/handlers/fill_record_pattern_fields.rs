@@ -1,6 +1,6 @@
 use syntax::{
-    ast::{self, make},
     AstNode, ToSmolStr,
+    ast::{self, make},
 };
 
 use crate::{AssistContext, AssistId, Assists};

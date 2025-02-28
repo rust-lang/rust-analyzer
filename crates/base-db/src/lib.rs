@@ -8,7 +8,7 @@ use std::panic;
 use ra_salsa::Durability;
 use rustc_hash::FxHashMap;
 use span::EditionedFileId;
-use syntax::{ast, Parse, SourceFile, SyntaxError};
+use syntax::{Parse, SourceFile, SyntaxError, ast};
 use triomphe::Arc;
 use vfs::FileId;
 
@@ -21,7 +21,7 @@ pub use crate::{
     },
 };
 pub use ra_salsa::{self, Cancelled};
-pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
+pub use vfs::{AnchoredPath, AnchoredPathBuf, VfsPath, file_set::FileSet};
 
 pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
 

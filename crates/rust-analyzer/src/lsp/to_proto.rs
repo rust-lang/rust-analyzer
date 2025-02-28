@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::{Engine, prelude::BASE64_STANDARD};
 use ide::{
     Annotation, AnnotationKind, Assist, AssistKind, Cancellable, CompletionFieldsToResolve,
     CompletionItem, CompletionItemKind, CompletionRelevance, Documentation, FileId, FileRange,
@@ -16,7 +16,7 @@ use ide::{
     SnippetEdit, SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
     UpdateTest,
 };
-use ide_db::{assists, rust_doc::format_docs, FxHasher};
+use ide_db::{FxHasher, assists, rust_doc::format_docs};
 use itertools::Itertools;
 use paths::{Utf8Component, Utf8Prefix};
 use semver::VersionReq;
@@ -29,10 +29,10 @@ use crate::{
     global_state::GlobalStateSnapshot,
     line_index::{LineEndings, LineIndex, PositionEncoding},
     lsp::{
+        LspError,
         ext::ShellRunnableArgs,
         semantic_tokens::{self, standard_fallback_type},
         utils::invalid_params_error,
-        LspError,
     },
     lsp_ext::{self, SnippetTextEdit},
     target_spec::{CargoTargetSpec, TargetSpec},
@@ -734,7 +734,7 @@ pub(crate) fn semantic_tokens(
                 | HlTag::None
                     if highlight_range.highlight.mods.is_empty() =>
                 {
-                    continue
+                    continue;
                 }
                 _ => (),
             }
@@ -1500,7 +1500,7 @@ pub(crate) fn runnable(
             );
 
             let cwd = match runnable.kind {
-                ide::RunnableKind::Bin { .. } => workspace_root.clone(),
+                ide::RunnableKind::Bin => workspace_root.clone(),
                 _ => spec.cargo_toml.parent().to_owned(),
             };
 
@@ -1891,19 +1891,11 @@ pub(crate) fn make_update_runnable(
 }
 
 pub(crate) fn implementation_title(count: usize) -> String {
-    if count == 1 {
-        "1 implementation".into()
-    } else {
-        format!("{count} implementations")
-    }
+    if count == 1 { "1 implementation".into() } else { format!("{count} implementations") }
 }
 
 pub(crate) fn reference_title(count: usize) -> String {
-    if count == 1 {
-        "1 reference".into()
-    } else {
-        format!("{count} references")
-    }
+    if count == 1 { "1 reference".into() } else { format!("{count} references") }
 }
 
 pub(crate) fn markup_content(
@@ -1926,7 +1918,7 @@ pub(crate) fn rename_error(err: RenameError) -> LspError {
 
 #[cfg(test)]
 mod tests {
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
     use ide::{Analysis, FilePosition};
     use ide_db::source_change::Snippet;
     use test_utils::extract_offset;
