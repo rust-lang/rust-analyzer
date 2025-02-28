@@ -274,6 +274,7 @@ where
                     // We also close any open inner subtrees that might be missing their delimiter.
                     if let Some((idx, _)) = found_expected_delimiter {
                         for _ in 0..=idx {
+                            // FIXME: record an error somewhere if we're closing more than one tree here?
                             builder.close(conv.span_for(abs_range));
                         }
                         continue;
@@ -353,6 +354,11 @@ where
         };
 
         builder.push(tt);
+    }
+
+    while builder.expected_delimiters().next().is_some() {
+        // FIXME: record an error somewhere?
+        builder.close(conv.call_site());
     }
     builder.build_skip_top_subtree()
 }
