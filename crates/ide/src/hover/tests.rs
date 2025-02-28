@@ -1,9 +1,9 @@
-use expect_test::{expect, Expect};
-use ide_db::{base_db::SourceDatabase, FileRange};
+use expect_test::{Expect, expect};
+use ide_db::{FileRange, base_db::SourceDatabase};
 use syntax::TextRange;
 
 use crate::{
-    fixture, HoverConfig, HoverDocFormat, MemoryLayoutHoverConfig, MemoryLayoutHoverRenderKind,
+    HoverConfig, HoverDocFormat, MemoryLayoutHoverConfig, MemoryLayoutHoverRenderKind, fixture,
 };
 
 const HOVER_BASE_CONFIG: HoverConfig = HoverConfig {
@@ -28,11 +28,21 @@ fn check_hover_no_result(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            &HoverConfig {
+                links_in_hover: true,
+                ..HOVER_BASE_CONFIG
+            },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap();
-    assert!(hover.is_none(), "hover not expected but found: {:?}", hover.unwrap());
+    assert!(
+        hover.is_none(),
+        "hover not expected but found: {:?}",
+        hover.unwrap()
+    );
 }
 
 #[track_caller]
@@ -40,14 +50,20 @@ fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            &HoverConfig {
+                links_in_hover: true,
+                ..HOVER_BASE_CONFIG
+            },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
     let content = analysis.db.file_text(position.file_id);
-    let hovered_element = &content[hover.range];
+    let hovered_element = &content.text(&analysis.db)[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
@@ -67,12 +83,15 @@ fn check_hover_fields_limit(
                 max_fields_count: fields_count.into(),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -93,12 +112,15 @@ fn check_hover_enum_variants_limit(
                 max_enum_variants_count: variants_count.into(),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -119,12 +141,15 @@ fn check_assoc_count(
                 max_trait_assoc_items_count: Some(count),
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -134,14 +159,14 @@ fn check_assoc_count(
 fn check_hover_no_links(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
-        .hover(
-            &HOVER_BASE_CONFIG,
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
-        )
+        .hover(&HOVER_BASE_CONFIG, FileRange {
+            file_id: position.file_id,
+            range: TextRange::empty(position.offset),
+        })
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -152,13 +177,19 @@ fn check_hover_no_memory_layout(#[rust_analyzer::rust_fixture] ra_fixture: &str,
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { memory_layout: None, ..HOVER_BASE_CONFIG },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            &HoverConfig {
+                memory_layout: None,
+                ..HOVER_BASE_CONFIG
+            },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -174,12 +205,15 @@ fn check_hover_no_markdown(#[rust_analyzer::rust_fixture] ra_fixture: &str, expe
                 format: HoverDocFormat::PlainText,
                 ..HOVER_BASE_CONFIG
             },
-            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+            FileRange {
+                file_id: position.file_id,
+                range: TextRange::empty(position.offset),
+            },
         )
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_text(position.file_id).text(&analysis.db);
     let hovered_element = &content[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -190,24 +224,34 @@ fn check_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect
     let (analysis, file_id, position) = fixture::range_or_position(ra_fixture);
     let mut hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
-            FileRange { file_id, range: position.range_or_empty() },
+            &HoverConfig {
+                links_in_hover: true,
+                ..HOVER_BASE_CONFIG
+            },
+            FileRange {
+                file_id,
+                range: position.range_or_empty(),
+            },
         )
         .unwrap()
         .unwrap();
     // stub out ranges into minicore as they can change every now and then
-    hover.info.actions.iter_mut().for_each(|action| match action {
-        super::HoverAction::GoToType(act) => act.iter_mut().for_each(|data| {
-            if data.nav.file_id == file_id {
-                return;
-            }
-            data.nav.full_range = TextRange::empty(span::TextSize::new(!0));
-            if let Some(range) = &mut data.nav.focus_range {
-                *range = TextRange::empty(span::TextSize::new(!0));
-            }
-        }),
-        _ => (),
-    });
+    hover
+        .info
+        .actions
+        .iter_mut()
+        .for_each(|action| match action {
+            super::HoverAction::GoToType(act) => act.iter_mut().for_each(|data| {
+                if data.nav.file_id == file_id {
+                    return;
+                }
+                data.nav.full_range = TextRange::empty(span::TextSize::new(!0));
+                if let Some(range) = &mut data.nav.focus_range {
+                    *range = TextRange::empty(span::TextSize::new(!0));
+                }
+            }),
+            _ => (),
+        });
     expect.assert_debug_eq(&hover.info.actions)
 }
 
@@ -220,22 +264,32 @@ fn check_hover_range(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Ex
 fn check_hover_range_actions(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
     let mut hover = analysis
-        .hover(&HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG }, range)
+        .hover(
+            &HoverConfig {
+                links_in_hover: true,
+                ..HOVER_BASE_CONFIG
+            },
+            range,
+        )
         .unwrap()
         .unwrap();
     // stub out ranges into minicore as they can change every now and then
-    hover.info.actions.iter_mut().for_each(|action| match action {
-        super::HoverAction::GoToType(act) => act.iter_mut().for_each(|data| {
-            if data.nav.file_id == range.file_id {
-                return;
-            }
-            data.nav.full_range = TextRange::empty(span::TextSize::new(!0));
-            if let Some(range) = &mut data.nav.focus_range {
-                *range = TextRange::empty(span::TextSize::new(!0));
-            }
-        }),
-        _ => (),
-    });
+    hover
+        .info
+        .actions
+        .iter_mut()
+        .for_each(|action| match action {
+            super::HoverAction::GoToType(act) => act.iter_mut().for_each(|data| {
+                if data.nav.file_id == range.file_id {
+                    return;
+                }
+                data.nav.full_range = TextRange::empty(span::TextSize::new(!0));
+                if let Some(range) = &mut data.nav.focus_range {
+                    *range = TextRange::empty(span::TextSize::new(!0));
+                }
+            }),
+            _ => (),
+        });
     expect.assert_debug_eq(&hover.info.actions);
 }
 
@@ -1311,10 +1365,7 @@ fn hover_record_variant_limit() {
 
 #[test]
 fn hover_enum_limit() {
-    check_hover_enum_variants_limit(
-        5,
-        r#"enum Foo$0 { A, B }"#,
-        expect![[r#"
+    check_hover_enum_variants_limit(5, r#"enum Foo$0 { A, B }"#, expect![[r#"
             *Foo*
 
             ```rust
@@ -1454,10 +1505,7 @@ fn hover_enum_limit() {
 
 #[test]
 fn hover_union_limit() {
-    check_hover_fields_limit(
-        5,
-        r#"union Foo$0 { a: u32, b: i32 }"#,
-        expect![[r#"
+    check_hover_fields_limit(5, r#"union Foo$0 { a: u32, b: i32 }"#, expect![[r#"
             *Foo*
 
             ```rust
@@ -1612,9 +1660,7 @@ type Fo$0o: Trait = S where T: Trait;
 
 #[test]
 fn hover_const_static() {
-    check(
-        r#"const foo$0: u32 = 123;"#,
-        expect![[r#"
+    check(r#"const foo$0: u32 = 123;"#, expect![[r#"
             *foo*
 
             ```rust
@@ -1624,8 +1670,7 @@ fn hover_const_static() {
             ```rust
             const foo: u32 = 123 (0x7B)
             ```
-        "#]],
-    );
+        "#]]);
     check(
         r#"
 const foo$0: u32 = {
@@ -1648,9 +1693,7 @@ const foo$0: u32 = {
         "#]],
     );
 
-    check(
-        r#"static foo$0: u32 = 456;"#,
-        expect![[r#"
+    check(r#"static foo$0: u32 = 456;"#, expect![[r#"
             *foo*
 
             ```rust
@@ -1660,12 +1703,9 @@ const foo$0: u32 = {
             ```rust
             static foo: u32 = 456 (0x1C8)
             ```
-        "#]],
-    );
+        "#]]);
 
-    check(
-        r#"const FOO$0: i32 = -2147483648;"#,
-        expect![[r#"
+    check(r#"const FOO$0: i32 = -2147483648;"#, expect![[r#"
             *FOO*
 
             ```rust
@@ -1675,8 +1715,7 @@ const foo$0: u32 = {
             ```rust
             const FOO: i32 = -2147483648 (0x80000000)
             ```
-        "#]],
-    );
+        "#]]);
 
     check(
         r#"
@@ -1699,9 +1738,7 @@ const foo$0: u32 = {
 
 #[test]
 fn hover_unsigned_max_const() {
-    check(
-        r#"const $0A: u128 = -1_i128 as u128;"#,
-        expect![[r#"
+    check(r#"const $0A: u128 = -1_i128 as u128;"#, expect![[r#"
             *A*
 
             ```rust
@@ -1711,8 +1748,7 @@ fn hover_unsigned_max_const() {
             ```rust
             const A: u128 = 340282366920938463463374607431768211455 (0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
             ```
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
@@ -1883,23 +1919,18 @@ fn main() {
 
 #[test]
 fn hover_for_local_variable() {
-    check(
-        r#"fn func(foo: i32) { fo$0o; }"#,
-        expect![[r#"
+    check(r#"fn func(foo: i32) { fo$0o; }"#, expect![[r#"
             *foo*
 
             ```rust
             foo: i32
             ```
-        "#]],
-    )
+        "#]])
 }
 
 #[test]
 fn hover_for_local_variable_pat() {
-    check(
-        r#"fn func(fo$0o: i32) {}"#,
-        expect![[r#"
+    check(r#"fn func(fo$0o: i32) {}"#, expect![[r#"
             *foo*
 
             ```rust
@@ -1919,23 +1950,20 @@ fn hover_for_local_variable_pat() {
 
 #[test]
 fn hover_local_var_edge() {
-    check(
-        r#"fn func(foo: i32) { if true { $0foo; }; }"#,
-        expect![[r#"
+    check(r#"fn func(foo: i32) { if true { $0foo; }; }"#, expect![[
+        r#"
             *foo*
 
             ```rust
             foo: i32
             ```
-        "#]],
-    )
+        "#
+    ]])
 }
 
 #[test]
 fn hover_for_param_edge() {
-    check(
-        r#"fn func($0foo: i32) {}"#,
-        expect![[r#"
+    check(r#"fn func($0foo: i32) {}"#, expect![[r#"
             *foo*
 
             ```rust
@@ -2288,16 +2316,13 @@ fn f() { fo$0o!(); }
 
 #[test]
 fn test_hover_tuple_field() {
-    check(
-        r#"struct TS(String, i32$0);"#,
-        expect![[r#"
+    check(r#"struct TS(String, i32$0);"#, expect![[r#"
             *i32*
 
             ```rust
             i32
             ```
-        "#]],
-    )
+        "#]])
 }
 
 #[test]
@@ -2630,9 +2655,7 @@ fn bar() { fo$0o(); }
 
 #[test]
 fn test_hover_function_show_qualifiers() {
-    check(
-        r#"async fn foo$0() {}"#,
-        expect![[r#"
+    check(r#"async fn foo$0() {}"#, expect![[r#"
             *foo*
 
             ```rust
@@ -2642,11 +2665,8 @@ fn test_hover_function_show_qualifiers() {
             ```rust
             async fn foo()
             ```
-        "#]],
-    );
-    check(
-        r#"pub const unsafe fn foo$0() {}"#,
-        expect![[r#"
+        "#]]);
+    check(r#"pub const unsafe fn foo$0() {}"#, expect![[r#"
             *foo*
 
             ```rust
@@ -2656,8 +2676,7 @@ fn test_hover_function_show_qualifiers() {
             ```rust
             pub const unsafe fn foo()
             ```
-        "#]],
-    );
+        "#]]);
     // Top level `pub(crate)` will be displayed as no visibility.
     check(
         r#"mod m { pub(crate) async unsafe extern "C" fn foo$0() {} }"#,
@@ -2677,9 +2696,7 @@ fn test_hover_function_show_qualifiers() {
 
 #[test]
 fn test_hover_function_show_types() {
-    check(
-        r#"fn foo$0(a: i32, b:i32) -> i32 { 0 }"#,
-        expect![[r#"
+    check(r#"fn foo$0(a: i32, b:i32) -> i32 { 0 }"#, expect![[r#"
             *foo*
 
             ```rust
@@ -2689,8 +2706,7 @@ fn test_hover_function_show_types() {
             ```rust
             fn foo(a: i32, b: i32) -> i32
             ```
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
@@ -2738,9 +2754,7 @@ fn main() { foo$0; }
 
 #[test]
 fn test_hover_function_pointer_show_identifiers() {
-    check(
-        r#"type foo$0 = fn(a: i32, b: i32) -> i32;"#,
-        expect![[r#"
+    check(r#"type foo$0 = fn(a: i32, b: i32) -> i32;"#, expect![[r#"
             *foo*
 
             ```rust
@@ -2764,9 +2778,7 @@ fn test_hover_function_pointer_show_identifiers() {
 
 #[test]
 fn test_hover_function_pointer_no_identifier() {
-    check(
-        r#"type foo$0 = fn(i32, _: i32) -> i32;"#,
-        expect![[r#"
+    check(r#"type foo$0 = fn(i32, _: i32) -> i32;"#, expect![[r#"
             *foo*
 
             ```rust
@@ -2790,9 +2802,7 @@ fn test_hover_function_pointer_no_identifier() {
 
 #[test]
 fn test_hover_trait_show_qualifiers() {
-    check_actions(
-        r"unsafe trait foo$0() {}",
-        expect![[r#"
+    check_actions(r"unsafe trait foo$0() {}", expect![[r#"
             [
                 Implementation(
                     FilePositionWrapper {
@@ -2803,8 +2813,7 @@ fn test_hover_trait_show_qualifiers() {
                     },
                 ),
             ]
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
@@ -3396,9 +3405,7 @@ fn main() { let foo_test = unsafe { fo$0o(1, 2, 3); } }
 
 #[test]
 fn test_hover_trait_has_impl_action() {
-    check_actions(
-        r#"trait foo$0() {}"#,
-        expect![[r#"
+    check_actions(r#"trait foo$0() {}"#, expect![[r#"
             [
                 Implementation(
                     FilePositionWrapper {
@@ -3409,15 +3416,12 @@ fn test_hover_trait_has_impl_action() {
                     },
                 ),
             ]
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
 fn test_hover_struct_has_impl_action() {
-    check_actions(
-        r"struct foo$0() {}",
-        expect![[r#"
+    check_actions(r"struct foo$0() {}", expect![[r#"
             [
                 Implementation(
                     FilePositionWrapper {
@@ -3428,15 +3432,12 @@ fn test_hover_struct_has_impl_action() {
                     },
                 ),
             ]
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
 fn test_hover_union_has_impl_action() {
-    check_actions(
-        r#"union foo$0() {}"#,
-        expect![[r#"
+    check_actions(r#"union foo$0() {}"#, expect![[r#"
             [
                 Implementation(
                     FilePositionWrapper {
@@ -3447,15 +3448,12 @@ fn test_hover_union_has_impl_action() {
                     },
                 ),
             ]
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
 fn test_hover_enum_has_impl_action() {
-    check_actions(
-        r"enum foo$0() { A, B }",
-        expect![[r#"
+    check_actions(r"enum foo$0() { A, B }", expect![[r#"
             [
                 Implementation(
                     FilePositionWrapper {
@@ -3466,15 +3464,12 @@ fn test_hover_enum_has_impl_action() {
                     },
                 ),
             ]
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
 fn test_hover_self_has_impl_action() {
-    check_actions(
-        r#"struct foo where Self$0:;"#,
-        expect![[r#"
+    check_actions(r#"struct foo where Self$0:;"#, expect![[r#"
             [
                 Implementation(
                     FilePositionWrapper {
@@ -3485,8 +3480,7 @@ fn test_hover_self_has_impl_action() {
                     },
                 ),
             ]
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
@@ -5016,9 +5010,8 @@ fn foo() {
 
 #[test]
 fn hover_lifetime() {
-    check(
-        r#"fn foo<'lifetime>(_: &'lifetime$0 ()) {}"#,
-        expect![[r#"
+    check(r#"fn foo<'lifetime>(_: &'lifetime$0 ()) {}"#, expect![[
+        r#"
             *'lifetime*
 
             ```rust
@@ -5028,18 +5021,15 @@ fn hover_lifetime() {
             ```rust
             'lifetime
             ```
-        "#]],
-    );
-    check(
-        r#"fn foo(_: &'static$0 ()) {}"#,
-        expect![[r#"
+        "#
+    ]]);
+    check(r#"fn foo(_: &'static$0 ()) {}"#, expect![[r#"
             *'static*
 
             ```rust
             'static
             ```
-        "#]],
-    );
+        "#]]);
 }
 
 #[test]
@@ -6882,9 +6872,7 @@ pub fn foo() {}
 
 #[test]
 fn hover_feature() {
-    check(
-        r#"#![feature(intrinsics$0)]"#,
-        expect![[r#"
+    check(r#"#![feature(intrinsics$0)]"#, expect![[r#"
             *intrinsics*
             ```
             intrinsics
@@ -6983,15 +6971,12 @@ fn hover_feature() {
             As with any other FFI functions, these are by default always `unsafe` to call.
             You can add `#[rustc_safe_intrinsic]` to the intrinsic to make it safe to call.
 
-        "#]],
-    )
+        "#]])
 }
 
 #[test]
 fn hover_lint() {
-    check(
-        r#"#![allow(arithmetic_overflow$0)]"#,
-        expect![[r#"
+    check(r#"#![allow(arithmetic_overflow$0)]"#, expect![[r#"
                 *arithmetic_overflow*
                 ```
                 arithmetic_overflow
@@ -6999,11 +6984,8 @@ fn hover_lint() {
                 ___
 
                 arithmetic operation overflows
-            "#]],
-    );
-    check(
-        r#"#![expect(arithmetic_overflow$0)]"#,
-        expect![[r#"
+            "#]]);
+    check(r#"#![expect(arithmetic_overflow$0)]"#, expect![[r#"
                 *arithmetic_overflow*
                 ```
                 arithmetic_overflow
@@ -7011,15 +6993,12 @@ fn hover_lint() {
                 ___
 
                 arithmetic operation overflows
-            "#]],
-    );
+            "#]]);
 }
 
 #[test]
 fn hover_clippy_lint() {
-    check(
-        r#"#![allow(clippy::almost_swapped$0)]"#,
-        expect![[r#"
+    check(r#"#![allow(clippy::almost_swapped$0)]"#, expect![[r#"
                 *almost_swapped*
                 ```
                 clippy::almost_swapped
@@ -7027,11 +7006,8 @@ fn hover_clippy_lint() {
                 ___
 
                 Checks for `foo = bar; bar = foo` sequences.
-            "#]],
-    );
-    check(
-        r#"#![expect(clippy::almost_swapped$0)]"#,
-        expect![[r#"
+            "#]]);
+    check(r#"#![expect(clippy::almost_swapped$0)]"#, expect![[r#"
                 *almost_swapped*
                 ```
                 clippy::almost_swapped
@@ -7039,8 +7015,7 @@ fn hover_clippy_lint() {
                 ___
 
                 Checks for `foo = bar; bar = foo` sequences.
-            "#]],
-    );
+            "#]]);
 }
 
 #[test]
@@ -9571,9 +9546,7 @@ fn test_hover_function_with_pat_param() {
     );
 
     // Test case with tuple pattern and mutable parameters
-    check(
-        r#"fn test_2$0((mut x, y): (i32, i32)) {}"#,
-        expect![[r#"
+    check(r#"fn test_2$0((mut x, y): (i32, i32)) {}"#, expect![[r#"
             *test_2*
 
             ```rust
@@ -9583,13 +9556,10 @@ fn test_hover_function_with_pat_param() {
             ```rust
             fn test_2((mut x, y): (i32, i32))
             ```
-        "#]],
-    );
+        "#]]);
 
     // Test case with a pattern in a reference type
-    check(
-        r#"fn test_3$0(&(a, b): &(i32, i32)) {}"#,
-        expect![[r#"
+    check(r#"fn test_3$0(&(a, b): &(i32, i32)) {}"#, expect![[r#"
             *test_3*
 
             ```rust
@@ -9599,8 +9569,7 @@ fn test_hover_function_with_pat_param() {
             ```rust
             fn test_3(&(a, b): &(i32, i32))
             ```
-        "#]],
-    );
+        "#]]);
 
     // Test case with complex pattern (struct destructuring)
     check(
@@ -9635,9 +9604,7 @@ fn test_hover_function_with_pat_param() {
     );
 
     // Test case with an unused variable in the pattern
-    check(
-        r#"fn test_6$0((_, y): (i32, i64)) {}"#,
-        expect![[r#"
+    check(r#"fn test_6$0((_, y): (i32, i64)) {}"#, expect![[r#"
             *test_6*
 
             ```rust
@@ -9647,8 +9614,7 @@ fn test_hover_function_with_pat_param() {
             ```rust
             fn test_6((_, y): (i32, i64))
             ```
-        "#]],
-    );
+        "#]]);
 
     // Test case with a complex pattern involving both tuple and struct
     check(
