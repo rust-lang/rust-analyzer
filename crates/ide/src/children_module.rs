@@ -45,7 +45,6 @@ pub(crate) fn children_module(db: &RootDatabase, position: FilePosition) -> Vec<
                 .flat_map(|it| it.syntax().children())
                 .filter_map(ast::Module::cast)
                 .flat_map(|m| {
-                    println!("found child module {:?}", m);
                     sema.to_def(&m)
                         .into_iter()
                         .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
@@ -59,7 +58,6 @@ pub(crate) fn children_module(db: &RootDatabase, position: FilePosition) -> Vec<
                 .children()
                 .filter_map(ast::Module::cast)
                 .flat_map(|m| {
-                    println!("found child module {:?}", m);
                     sema.to_def(&m)
                         .into_iter()
                         .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
@@ -77,7 +75,6 @@ mod tests {
 
     fn check_children_module(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        println!("{:?}", position);
         let navs = analysis.children_module(position).unwrap();
         let navs = navs
             .iter()
