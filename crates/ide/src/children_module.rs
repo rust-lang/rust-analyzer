@@ -1,7 +1,5 @@
 use hir::Semantics;
-use ide_db::{
-    FilePosition, RootDatabase,
-};
+use ide_db::{FilePosition, RootDatabase};
 use syntax::{
     algo::find_node_at_offset,
     ast::{self, AstNode},
@@ -9,7 +7,7 @@ use syntax::{
 
 use crate::NavigationTarget;
 
-// Feature: Parent Module
+// Feature: Children Module
 //
 // Navigates to the children modules of the current module.
 //
@@ -23,7 +21,7 @@ use crate::NavigationTarget;
 pub(crate) fn children_module(db: &RootDatabase, position: FilePosition) -> Vec<NavigationTarget> {
     let sema = Semantics::new(db);
     let source_file = sema.parse_guess_edition(position.file_id);
-    // First go to the parent module which contains the cursor 
+    // First go to the parent module which contains the cursor
     let mut module = find_node_at_offset::<ast::Module>(source_file.syntax(), position.offset);
 
     // If cursor is literally on `mod foo`, go to the grandpa.
@@ -39,7 +37,7 @@ pub(crate) fn children_module(db: &RootDatabase, position: FilePosition) -> Vec<
 
     match module {
         Some(module) => {
-            // Return all the children module inside the ItemList of the parent module 
+            // Return all the children module inside the ItemList of the parent module
             module
                 .syntax()
                 .children()
@@ -56,17 +54,20 @@ pub(crate) fn children_module(db: &RootDatabase, position: FilePosition) -> Vec<
         }
         None => {
             // Return all the children module inside the source file
-            source_file.syntax().children().filter_map(ast::Module::cast).flat_map(|m| {
-                println!("found child module {:?}", m);
-                sema.to_def(&m)
-                    .into_iter()
-                    .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
-            })
-            .collect()
-        },
+            source_file
+                .syntax()
+                .children()
+                .filter_map(ast::Module::cast)
+                .flat_map(|m| {
+                    println!("found child module {:?}", m);
+                    sema.to_def(&m)
+                        .into_iter()
+                        .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
+                })
+                .collect()
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
