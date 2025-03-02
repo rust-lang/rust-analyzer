@@ -1,7 +1,9 @@
 use itertools::Itertools;
 use syntax::{
     ast::{self, make, AstNode, AstToken},
-    match_ast, ted, Edition, NodeOrToken, SyntaxElement, TextRange, TextSize, T,
+    match_ast,
+    syntax_editor::SyntaxEditor,
+    Edition, NodeOrToken, SyntaxElement, TextRange, TextSize, T,
 };
 
 use crate::{AssistContext, AssistId, AssistKind, Assists};
@@ -37,22 +39,18 @@ pub(crate) fn remove_dbg(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
             .collect()
     };
 
-    let replacements =
-        macro_calls.into_iter().filter_map(compute_dbg_replacement).collect::<Vec<_>>();
+    let root = match ctx.covering_element() {
+        NodeOrToken::Node(node) => node.ancestors().last().unwrap(),
+        NodeOrToken::Token(token) => token.parent_ancestors().last().unwrap(),
+    };
+    let mut editor = SyntaxEditor::new(root);
+    let replacements = macro_calls.iter().filter_map(|mc| run_dbg_replacement(mc, &mut editor));
 
     acc.add(
         AssistId("remove_dbg", AssistKind::QuickFix),
         "Remove dbg!()",
-        replacements.iter().map(|&(range, _)| range).reduce(|acc, range| acc.cover(range))?,
-        |builder| {
-            for (range, expr) in replacements {
-                if let Some(expr) = expr {
-                    builder.replace(range, expr.to_string());
-                } else {
-                    builder.delete(range);
-                }
-            }
-        },
+        replacements.map(|(range, _)| range).reduce(|acc, range| acc.cover(range))?,
+        |builder| builder.add_file_edits(ctx.file_id(), editor),
     )
 }
 
@@ -62,7 +60,10 @@ pub(crate) fn remove_dbg(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
 /// - (`macro_expr` has no parent - is that possible?)
 ///
 /// Returns `Some(_, None)` when the macro call should just be removed.
-fn compute_dbg_replacement(macro_expr: ast::MacroExpr) -> Option<(TextRange, Option<ast::Expr>)> {
+fn run_dbg_replacement(
+    macro_expr: &ast::MacroExpr,
+    editor: &mut SyntaxEditor,
+) -> Option<(TextRange, Option<ast::Expr>)> {
     let macro_call = macro_expr.macro_call()?;
     let tt = macro_call.token_tree()?;
     let r_delim = NodeOrToken::Token(tt.right_delimiter_token()?);
@@ -92,6 +93,7 @@ fn compute_dbg_replacement(macro_expr: ast::MacroExpr) -> Option<(TextRange, Opt
                             Some(start) => range.cover_offset(start),
                             None => range,
                         };
+                        editor.delete(macro_expr.syntax());
                         (range, None)
                     },
                     ast::ExprStmt(it) => {
@@ -100,15 +102,18 @@ fn compute_dbg_replacement(macro_expr: ast::MacroExpr) -> Option<(TextRange, Opt
                             Some(start) => range.cover_offset(start),
                             None => range,
                         };
+                        editor.delete(macro_expr.syntax());
                         (range, None)
                     },
-                    _ => (macro_call.syntax().text_range(), Some(make::ext::expr_unit())),
+                    _ => {
+                        editor.replace(macro_call.syntax(), make::ext::expr_unit().syntax().clone_for_update());
+                        (macro_call.syntax().text_range(), Some(make::ext::expr_unit()))
+                    },
                 }
             }
         }
         // dbg!(expr0)
         [expr] => {
-            // dbg!(expr, &parent);
             let wrap = match ast::Expr::cast(parent) {
                 Some(parent) => match (expr, parent) {
                     (ast::Expr::CastExpr(_), ast::Expr::CastExpr(_)) => false,
@@ -144,25 +149,27 @@ fn compute_dbg_replacement(macro_expr: ast::MacroExpr) -> Option<(TextRange, Opt
                 },
                 None => false,
             };
-            let expr = replace_nested_dbgs(expr.clone());
-            let expr = if wrap { make::expr_paren(expr) } else { expr.clone_subtree() };
+            let expr = replace_nested_dbgs(expr.clone(), editor);
+            let expr = if wrap { make::expr_paren(expr.clone()) } else { expr.clone_subtree() };
+            editor.replace(macro_call.syntax(), expr.syntax().clone_for_update());
             (macro_call.syntax().text_range(), Some(expr))
         }
         // dbg!(expr0, expr1, ...)
         exprs => {
-            let exprs = exprs.iter().cloned().map(replace_nested_dbgs);
+            let exprs = exprs.iter().map(|expr| replace_nested_dbgs(expr.clone(), editor));
             let expr = make::expr_tuple(exprs);
+            editor.replace(macro_call.syntax(), expr.syntax().clone_for_update());
             (macro_call.syntax().text_range(), Some(expr.into()))
         }
     })
 }
 
-fn replace_nested_dbgs(expanded: ast::Expr) -> ast::Expr {
+fn replace_nested_dbgs(expanded: ast::Expr, editor: &mut SyntaxEditor) -> ast::Expr {
     if let ast::Expr::MacroExpr(mac) = &expanded {
         // Special-case when `expanded` itself is `dbg!()` since we cannot replace the whole tree
         // with `ted`. It should be fairly rare as it means the user wrote `dbg!(dbg!(..))` but you
         // never know how code ends up being!
-        let replaced = if let Some((_, expr_opt)) = compute_dbg_replacement(mac.clone()) {
+        let replaced = if let Some((_, expr_opt)) = run_dbg_replacement(mac, editor) {
             match expr_opt {
                 Some(expr) => expr,
                 None => {
@@ -177,22 +184,18 @@ fn replace_nested_dbgs(expanded: ast::Expr) -> ast::Expr {
         return replaced;
     }
 
-    let expanded = expanded.clone_for_update();
-
-    // We need to collect to avoid mutation during traversal.
-    let macro_exprs: Vec<_> =
-        expanded.syntax().descendants().filter_map(ast::MacroExpr::cast).collect();
+    let macro_exprs = expanded.syntax().descendants().filter_map(ast::MacroExpr::cast);
 
     for mac in macro_exprs {
-        let expr_opt = match compute_dbg_replacement(mac.clone()) {
+        let expr_opt = match run_dbg_replacement(&mac, editor) {
             Some((_, expr)) => expr,
             None => continue,
         };
 
         if let Some(expr) = expr_opt {
-            ted::replace(mac.syntax(), expr.syntax().clone_for_update());
+            editor.replace(mac.syntax(), expr.syntax().clone_for_update());
         } else {
-            ted::remove(mac.syntax());
+            editor.delete(mac.syntax());
         }
     }
 
