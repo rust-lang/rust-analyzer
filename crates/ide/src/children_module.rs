@@ -138,8 +138,12 @@ mod foo;
   //^^^
 mod bar;
   //^^^
+  
 //- /foo.rs
+// empty
+
 //- /bar.rs
+// empty
 "#,
         );
     }

@@ -2258,7 +2258,7 @@ fn bar() {
 
 
 ### `inline_local_variable`
-**Source:**  [inline_local_variable.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/inline_local_variable.rs#L17) 
+**Source:**  [inline_local_variable.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/inline_local_variable.rs#L21) 
 
 Inlines a local variable.
 
