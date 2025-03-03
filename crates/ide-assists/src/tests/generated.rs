@@ -440,6 +440,29 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_for_loop_to_while_let() {
+    check_doc_test(
+        "convert_for_loop_to_while_let",
+        r#####"
+fn main() {
+    let x = vec![1, 2, 3];
+    for$0 v in x {
+        let y = v * 2;
+    };
+}
+"#####,
+        r#####"
+fn main() {
+    let x = vec![1, 2, 3];
+    while let Some(v) = x.into_iter().next() {
+        let y = v * 2;
+    };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_for_loop_with_for_each() {
     check_doc_test(
         "convert_for_loop_with_for_each",
