@@ -920,6 +920,79 @@ pub(crate) fn handle_parent_module(
     Ok(Some(res))
 }
 
+pub(crate) fn handle_children_module(
+    snap: GlobalStateSnapshot,
+    params: lsp_types::TextDocumentPositionParams,
+) -> anyhow::Result<Option<lsp_types::GotoDefinitionResponse>> {
+    let _p = tracing::info_span!("handle_children_module").entered();
+    if let Ok(file_path) = &params.text_document.uri.to_file_path() {
+        if file_path.file_name().unwrap_or_default() == "Cargo.toml" {
+            // search workspaces for parent packages or fallback to workspace root
+            let abs_path_buf = match Utf8PathBuf::from_path_buf(file_path.to_path_buf())
+                .ok()
+                .map(AbsPathBuf::try_from)
+            {
+                Some(Ok(abs_path_buf)) => abs_path_buf,
+                _ => return Ok(None),
+            };
+
+            let manifest_path = match ManifestPath::try_from(abs_path_buf).ok() {
+                Some(manifest_path) => manifest_path,
+                None => return Ok(None),
+            };
+
+            let links: Vec<LocationLink> = snap
+                .workspaces
+                .iter()
+                .filter_map(|ws| match &ws.kind {
+                    ProjectWorkspaceKind::Cargo { cargo, .. }
+                    | ProjectWorkspaceKind::DetachedFile { cargo: Some((cargo, _, _)), .. } => {
+                        cargo.parent_manifests(&manifest_path)
+                    }
+                    _ => None,
+                })
+                .flatten()
+                .map(|parent_manifest_path| LocationLink {
+                    origin_selection_range: None,
+                    target_uri: to_proto::url_from_abs_path(&parent_manifest_path),
+                    target_range: Range::default(),
+                    target_selection_range: Range::default(),
+                })
+                .collect::<_>();
+            return Ok(Some(links.into()));
+        }
+
+        // check if invoked at the crate root
+        let file_id = try_default!(from_proto::file_id(&snap, &params.text_document.uri)?);
+        let crate_id = match snap.analysis.crates_for(file_id)?.first() {
+            Some(&crate_id) => crate_id,
+            None => return Ok(None),
+        };
+        let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
+            Some(TargetSpec::Cargo(it)) => it,
+            Some(TargetSpec::ProjectJson(_)) | None => return Ok(None),
+        };
+
+        if snap.analysis.crate_root(crate_id)? == file_id {
+            let cargo_toml_url = to_proto::url_from_abs_path(&cargo_spec.cargo_toml);
+            let res = vec![LocationLink {
+                origin_selection_range: None,
+                target_uri: cargo_toml_url,
+                target_range: Range::default(),
+                target_selection_range: Range::default(),
+            }]
+            .into();
+            return Ok(Some(res));
+        }
+    }
+
+    // locate children module by semantics
+    let position = try_default!(from_proto::file_position(&snap, params)?);
+    let navs = snap.analysis.children_module(position)?;
+    let res = to_proto::goto_definition_response(&snap, None, navs)?;
+    Ok(Some(res))
+}
+
 pub(crate) fn handle_runnables(
     snap: GlobalStateSnapshot,
     params: lsp_ext::RunnablesParams,

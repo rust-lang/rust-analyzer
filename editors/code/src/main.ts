@@ -158,6 +158,7 @@ function createCommands(): Record<string, CommandFactory> {
         matchingBrace: { enabled: commands.matchingBrace },
         joinLines: { enabled: commands.joinLines },
         parentModule: { enabled: commands.parentModule },
+        childrenModule: { enabled: commands.childrenModule },
         viewHir: { enabled: commands.viewHir },
         viewMir: { enabled: commands.viewMir },
         interpretFunction: { enabled: commands.interpretFunction },
