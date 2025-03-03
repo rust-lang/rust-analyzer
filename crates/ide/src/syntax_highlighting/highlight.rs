@@ -9,9 +9,9 @@ use ide_db::{
 use span::Edition;
 use stdx::hash_once;
 use syntax::{
-    ast, match_ast, AstNode, AstToken, NodeOrToken,
+    ast, match_ast, AstNode, AstPtr, AstToken, NodeOrToken,
     SyntaxKind::{self, *},
-    SyntaxNode, SyntaxToken, T,
+    SyntaxNode, SyntaxNodePtr, SyntaxToken, T,
 };
 
 use crate::{
@@ -20,9 +20,9 @@ use crate::{
 };
 
 pub(super) fn token(
-    sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
     edition: Edition,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
     in_tt: bool,
 ) -> Option<Highlight> {
     if let Some(comment) = ast::Comment::cast(token.clone()) {
@@ -46,13 +46,13 @@ pub(super) fn token(
             // that were not mapped down into macro invocations
             HlTag::None.into()
         }
-        p if p.is_punct() => punctuation(sema, token, p),
+        p if p.is_punct() => punctuation(token, p, is_unsafe_node),
         k if k.is_keyword(edition) => {
             if in_tt && token.prev_token().is_some_and(|t| t.kind() == T![$]) {
                 // we are likely within a macro definition where our keyword is a fragment name
                 HlTag::None.into()
             } else {
-                keyword(sema, token, k)?
+                keyword(token, k, is_unsafe_node)?
             }
         }
         _ => return None,
@@ -63,7 +63,8 @@ pub(super) fn token(
 pub(super) fn name_like(
     sema: &Semantics<'_, RootDatabase>,
     krate: hir::Crate,
-    bindings_shadow_count: &mut FxHashMap<hir::Name, u32>,
+    bindings_shadow_count: Option<&mut FxHashMap<hir::Name, u32>>,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
     syntactic_name_ref_highlighting: bool,
     name_like: ast::NameLike,
     edition: Edition,
@@ -75,6 +76,7 @@ pub(super) fn name_like(
             krate,
             bindings_shadow_count,
             &mut binding_hash,
+            is_unsafe_node,
             syntactic_name_ref_highlighting,
             name_ref,
             edition,
@@ -84,10 +86,10 @@ pub(super) fn name_like(
         }
         ast::NameLike::Lifetime(lifetime) => match IdentClass::classify_lifetime(sema, &lifetime) {
             Some(IdentClass::NameClass(NameClass::Definition(def))) => {
-                highlight_def(sema, krate, def, edition) | HlMod::Definition
+                highlight_def(sema, krate, def, edition, false) | HlMod::Definition
             }
             Some(IdentClass::NameRefClass(NameRefClass::Definition(def, _))) => {
-                highlight_def(sema, krate, def, edition)
+                highlight_def(sema, krate, def, edition, true)
             }
             // FIXME: Fallback for '_, as we do not resolve these yet
             _ => SymbolKind::LifetimeParam.into(),
@@ -97,26 +99,17 @@ pub(super) fn name_like(
 }
 
 fn punctuation(
-    sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
     kind: SyntaxKind,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
 ) -> Highlight {
     let parent = token.parent();
     let parent_kind = parent.as_ref().map_or(EOF, SyntaxNode::kind);
-    match (kind, parent_kind) {
+    let ptr = parent.as_ref().and_then(|it| AstPtr::try_from_raw(SyntaxNodePtr::new(it)));
+    let h = match (kind, parent_kind) {
         (T![?], TRY_EXPR) => HlTag::Operator(HlOperator::Other) | HlMod::ControlFlow,
         (T![&], BIN_EXPR) => HlOperator::Bitwise.into(),
-        (T![&], REF_EXPR) => {
-            let h = HlTag::Operator(HlOperator::Other).into();
-            let is_unsafe = parent
-                .and_then(ast::RefExpr::cast)
-                .map(|ref_expr| sema.is_unsafe_ref_expr(&ref_expr));
-            if let Some(true) = is_unsafe {
-                h | HlMod::Unsafe
-            } else {
-                h
-            }
-        }
+        (T![&], REF_EXPR) => HlTag::Operator(HlOperator::Other).into(),
         (T![::] | T![->] | T![=>] | T![..] | T![..=] | T![=] | T![@] | T![.], _) => {
             HlOperator::Other.into()
         }
@@ -124,18 +117,7 @@ fn punctuation(
         (T![!], NEVER_TYPE) => HlTag::BuiltinType.into(),
         (T![!], PREFIX_EXPR) => HlOperator::Logical.into(),
         (T![*], PTR_TYPE) => HlTag::Keyword.into(),
-        (T![*], PREFIX_EXPR) => {
-            let is_raw_ptr = (|| {
-                let prefix_expr = parent.and_then(ast::PrefixExpr::cast)?;
-                let expr = prefix_expr.expr()?;
-                sema.type_of_expr(&expr)?.original.is_raw_ptr().then_some(())
-            })();
-            if let Some(()) = is_raw_ptr {
-                HlTag::Operator(HlOperator::Other) | HlMod::Unsafe
-            } else {
-                HlOperator::Other.into()
-            }
-        }
+        (T![*], PREFIX_EXPR) => HlTag::Operator(HlOperator::Other).into(),
         (T![-], PREFIX_EXPR) => {
             let prefix_expr = parent.and_then(ast::PrefixExpr::cast).and_then(|e| e.expr());
             match prefix_expr {
@@ -157,18 +139,18 @@ fn punctuation(
             HlOperator::Comparison.into()
         }
         (_, ATTR) => HlTag::AttributeBracket.into(),
+        (T![>], _)
+            if parent
+                .as_ref()
+                .and_then(SyntaxNode::parent)
+                .is_some_and(|it| it.kind() == MACRO_RULES) =>
+        {
+            HlOperator::Other.into()
+        }
         (kind, _) => match kind {
             T!['['] | T![']'] => HlPunct::Bracket,
             T!['{'] | T!['}'] => HlPunct::Brace,
             T!['('] | T![')'] => HlPunct::Parenthesis,
-            T![>]
-                if parent
-                    .as_ref()
-                    .and_then(SyntaxNode::parent)
-                    .is_some_and(|it| it.kind() == MACRO_RULES) =>
-            {
-                return HlOperator::Other.into()
-            }
             T![<] | T![>] => HlPunct::Angle,
             T![,] => HlPunct::Comma,
             T![:] => HlPunct::Colon,
@@ -177,13 +159,18 @@ fn punctuation(
             _ => HlPunct::Other,
         }
         .into(),
+    };
+    if ptr.is_some_and(is_unsafe_node) {
+        h | HlMod::Unsafe
+    } else {
+        h
     }
 }
 
 fn keyword(
-    sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
     kind: SyntaxKind,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
 ) -> Option<Highlight> {
     let h = Highlight::new(HlTag::Keyword);
     let h = match kind {
@@ -222,8 +209,8 @@ fn keyword(
         T![true] | T![false] => HlTag::BoolLiteral.into(),
         // crate is handled just as a token if it's in an `extern crate`
         T![crate] if parent_matches::<ast::ExternCrate>(&token) => h,
-        T![ref] => match token.parent().and_then(ast::IdentPat::cast) {
-            Some(ident) if sema.is_unsafe_ident_pat(&ident) => h | HlMod::Unsafe,
+        T![ref] => match token.parent().and_then(ast::Pat::cast) {
+            Some(pat) if is_unsafe_node(AstPtr::new(&pat).wrap_right()) => h | HlMod::Unsafe,
             _ => h,
         },
         _ => h,
@@ -234,21 +221,22 @@ fn keyword(
 fn highlight_name_ref(
     sema: &Semantics<'_, RootDatabase>,
     krate: hir::Crate,
-    bindings_shadow_count: &mut FxHashMap<hir::Name, u32>,
+    bindings_shadow_count: Option<&mut FxHashMap<hir::Name, u32>>,
     binding_hash: &mut Option<u64>,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
     syntactic_name_ref_highlighting: bool,
     name_ref: ast::NameRef,
     edition: Edition,
 ) -> Highlight {
     let db = sema.db;
-    if let Some(res) = highlight_method_call_by_name_ref(sema, krate, &name_ref, edition) {
+    if let Some(res) = highlight_method_call_by_name_ref(sema, krate, &name_ref, is_unsafe_node) {
         return res;
     }
 
     let name_class = match NameRefClass::classify(sema, &name_ref) {
         Some(name_kind) => name_kind,
         None if syntactic_name_ref_highlighting => {
-            return highlight_name_ref_by_syntax(name_ref, sema, krate, edition)
+            return highlight_name_ref_by_syntax(name_ref, sema, krate, is_unsafe_node)
         }
         // FIXME: This is required for helper attributes used by proc-macros, as those do not map down
         // to anything when used.
@@ -267,17 +255,20 @@ fn highlight_name_ref(
     let mut h = match name_class {
         NameRefClass::Definition(def, _) => {
             if let Definition::Local(local) = &def {
-                let name = local.name(db);
-                let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
-                *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
+                if let Some(bindings_shadow_count) = bindings_shadow_count {
+                    let name = local.name(sema.db);
+                    let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
+                    *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
+                }
             };
 
-            let mut h = highlight_def(sema, krate, def, edition);
+            let mut h = highlight_def(sema, krate, def, edition, true);
 
             match def {
                 Definition::Local(local) if is_consumed_lvalue(name_ref.syntax(), &local, db) => {
                     h |= HlMod::Consuming;
                 }
+                // highlight unsafe traits as unsafe only in their implementations
                 Definition::Trait(trait_) if trait_.is_unsafe(db) => {
                     if ast::Impl::for_trait_name_ref(&name_ref)
                         .is_some_and(|impl_| impl_.unsafe_token().is_some())
@@ -285,13 +276,14 @@ fn highlight_name_ref(
                         h |= HlMod::Unsafe;
                     }
                 }
-                Definition::Field(field) => {
-                    if let Some(parent) = name_ref.syntax().parent() {
-                        if matches!(parent.kind(), FIELD_EXPR | RECORD_PAT_FIELD) {
-                            if let hir::VariantDef::Union(_) = field.parent_def(db) {
-                                h |= HlMod::Unsafe;
-                            }
-                        }
+                Definition::Field(_) => {
+                    let is_unsafe = name_ref
+                        .syntax()
+                        .parent()
+                        .and_then(Either::cast)
+                        .is_some_and(|it| is_unsafe_node(AstPtr::new(&it)));
+                    if is_unsafe {
+                        h |= HlMod::Unsafe;
                     }
                 }
                 Definition::Macro(_) => {
@@ -310,7 +302,17 @@ fn highlight_name_ref(
             h
         }
         NameRefClass::FieldShorthand { field_ref, .. } => {
-            highlight_def(sema, krate, field_ref.into(), edition)
+            let mut h = highlight_def(sema, krate, field_ref.into(), edition, true);
+
+            let is_unsafe = name_ref
+                .syntax()
+                .parent()
+                .and_then(Either::cast)
+                .is_some_and(|it| is_unsafe_node(AstPtr::new(&it)));
+            if is_unsafe {
+                h |= HlMod::Unsafe;
+            }
+            h
         }
         NameRefClass::ExternCrateShorthand { decl, krate: resolved_krate } => {
             let mut h = HlTag::Symbol(SymbolKind::Module).into();
@@ -342,7 +344,7 @@ fn highlight_name_ref(
 
 fn highlight_name(
     sema: &Semantics<'_, RootDatabase>,
-    bindings_shadow_count: &mut FxHashMap<hir::Name, u32>,
+    bindings_shadow_count: Option<&mut FxHashMap<hir::Name, u32>>,
     binding_hash: &mut Option<u64>,
     krate: hir::Crate,
     name: ast::Name,
@@ -350,14 +352,16 @@ fn highlight_name(
 ) -> Highlight {
     let name_kind = NameClass::classify(sema, &name);
     if let Some(NameClass::Definition(Definition::Local(local))) = &name_kind {
-        let name = local.name(sema.db);
-        let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
-        *shadow_count += 1;
-        *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
+        if let Some(bindings_shadow_count) = bindings_shadow_count {
+            let name = local.name(sema.db);
+            let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
+            *shadow_count += 1;
+            *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
+        }
     };
     match name_kind {
         Some(NameClass::Definition(def)) => {
-            let mut h = highlight_def(sema, krate, def, edition) | HlMod::Definition;
+            let mut h = highlight_def(sema, krate, def, edition, false) | HlMod::Definition;
             if let Definition::Trait(trait_) = &def {
                 if trait_.is_unsafe(sema.db) {
                     h |= HlMod::Unsafe;
@@ -365,7 +369,7 @@ fn highlight_name(
             }
             h
         }
-        Some(NameClass::ConstReference(def)) => highlight_def(sema, krate, def, edition),
+        Some(NameClass::ConstReference(def)) => highlight_def(sema, krate, def, edition, true),
         Some(NameClass::PatFieldShorthand { field_ref, .. }) => {
             let mut h = HlTag::Symbol(SymbolKind::Field).into();
             if let hir::VariantDef::Union(_) = field_ref.parent_def(sema.db) {
@@ -386,6 +390,7 @@ pub(super) fn highlight_def(
     krate: hir::Crate,
     def: Definition,
     edition: Edition,
+    is_ref: bool,
 ) -> Highlight {
     let db = sema.db;
     let mut h = match def {
@@ -439,7 +444,7 @@ pub(super) fn highlight_def(
             // We probably should consider checking the current function, but I found no easy way to do
             // that (also I'm worried about perf). There's also an instance below.
             // FIXME: This should be the edition of the call.
-            if func.is_unsafe_to_call(db, None, edition) {
+            if !is_ref && func.is_unsafe_to_call(db, None, edition) {
                 h |= HlMod::Unsafe;
             }
             if func.is_async(db) {
@@ -509,7 +514,9 @@ pub(super) fn highlight_def(
 
             if s.is_mut(db) {
                 h |= HlMod::Mutable;
-                h |= HlMod::Unsafe;
+                if !is_ref {
+                    h |= HlMod::Unsafe;
+                }
             }
 
             h
@@ -587,23 +594,24 @@ fn highlight_method_call_by_name_ref(
     sema: &Semantics<'_, RootDatabase>,
     krate: hir::Crate,
     name_ref: &ast::NameRef,
-    edition: Edition,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
 ) -> Option<Highlight> {
     let mc = name_ref.syntax().parent().and_then(ast::MethodCallExpr::cast)?;
-    highlight_method_call(sema, krate, &mc, edition)
+    highlight_method_call(sema, krate, &mc, is_unsafe_node)
 }
 
 fn highlight_method_call(
     sema: &Semantics<'_, RootDatabase>,
     krate: hir::Crate,
     method_call: &ast::MethodCallExpr,
-    edition: Edition,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
 ) -> Option<Highlight> {
     let func = sema.resolve_method_call(method_call)?;
 
     let mut h = SymbolKind::Method.into();
 
-    if func.is_unsafe_to_call(sema.db, None, edition) || sema.is_unsafe_method_call(method_call) {
+    let is_unsafe = is_unsafe_node(AstPtr::new(method_call).upcast::<ast::Expr>().wrap_left());
+    if is_unsafe {
         h |= HlMod::Unsafe;
     }
     if func.is_async(sema.db) {
@@ -695,7 +703,7 @@ fn highlight_name_ref_by_syntax(
     name: ast::NameRef,
     sema: &Semantics<'_, RootDatabase>,
     krate: hir::Crate,
-    edition: Edition,
+    is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
 ) -> Highlight {
     let default = HlTag::UnresolvedReference;
 
@@ -707,19 +715,13 @@ fn highlight_name_ref_by_syntax(
     match parent.kind() {
         EXTERN_CRATE => HlTag::Symbol(SymbolKind::Module) | HlMod::CrateRoot,
         METHOD_CALL_EXPR => ast::MethodCallExpr::cast(parent)
-            .and_then(|it| highlight_method_call(sema, krate, &it, edition))
+            .and_then(|it| highlight_method_call(sema, krate, &it, is_unsafe_node))
             .unwrap_or_else(|| SymbolKind::Method.into()),
         FIELD_EXPR => {
             let h = HlTag::Symbol(SymbolKind::Field);
-            let is_union = ast::FieldExpr::cast(parent)
-                .and_then(|field_expr| sema.resolve_field(&field_expr))
-                .is_some_and(|field| match field {
-                    Either::Left(field) => {
-                        matches!(field.parent_def(sema.db), hir::VariantDef::Union(_))
-                    }
-                    Either::Right(_) => false,
-                });
-            if is_union {
+            let is_unsafe = ast::Expr::cast(parent)
+                .is_some_and(|it| is_unsafe_node(AstPtr::new(&it).wrap_left()));
+            if is_unsafe {
                 h | HlMod::Unsafe
             } else {
                 h.into()

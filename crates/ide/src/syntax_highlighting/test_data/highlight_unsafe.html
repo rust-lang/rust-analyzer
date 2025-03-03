@@ -101,29 +101,29 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
         <span class="macro public unsafe">id</span><span class="macro_bang">!</span> <span class="brace">{</span> <span class="macro macro public unsafe">unsafe_deref</span><span class="macro_bang macro">!</span><span class="parenthesis macro">(</span><span class="parenthesis macro">)</span> <span class="brace">}</span><span class="semicolon">;</span>
 
         <span class="comment">// unsafe fn and method calls</span>
-        <span class="function unsafe">unsafe_fn</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
-        <span class="keyword">let</span> <span class="variable declaration">b</span> <span class="operator">=</span> <span class="variable">u</span><span class="operator">.</span><span class="field unsafe">b</span><span class="semicolon">;</span>
+        <span class="function">unsafe_fn</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
+        <span class="keyword">let</span> <span class="variable declaration">b</span> <span class="operator">=</span> <span class="variable">u</span><span class="operator unsafe">.</span><span class="field unsafe">b</span><span class="semicolon">;</span>
         <span class="keyword control">match</span> <span class="variable">u</span> <span class="brace">{</span>
-            <span class="union">Union</span> <span class="brace">{</span> <span class="field unsafe">b</span><span class="colon">:</span> <span class="numeric_literal">0</span> <span class="brace">}</span> <span class="operator">=&gt;</span> <span class="parenthesis">(</span><span class="parenthesis">)</span><span class="comma">,</span>
+            <span class="union">Union</span> <span class="brace">{</span> <span class="field">b</span><span class="colon">:</span> <span class="numeric_literal">0</span> <span class="brace">}</span> <span class="operator">=&gt;</span> <span class="parenthesis">(</span><span class="parenthesis">)</span><span class="comma">,</span>
             <span class="union">Union</span> <span class="brace">{</span> <span class="field unsafe">a</span> <span class="brace">}</span> <span class="operator">=&gt;</span> <span class="parenthesis">(</span><span class="parenthesis">)</span><span class="comma">,</span>
         <span class="brace">}</span>
-        <span class="struct">Struct</span> <span class="brace">{</span> <span class="field">field</span><span class="colon">:</span> <span class="numeric_literal">0</span> <span class="brace">}</span><span class="operator">.</span><span class="method reference unsafe">unsafe_method</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
+        <span class="struct">Struct</span> <span class="brace">{</span> <span class="field">field</span><span class="colon">:</span> <span class="numeric_literal">0</span> <span class="brace">}</span><span class="operator unsafe">.</span><span class="method reference unsafe">unsafe_method</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
 
         <span class="comment">// unsafe deref</span>
         <span class="operator unsafe">*</span><span class="variable">x</span><span class="semicolon">;</span>
 
         <span class="comment">// unsafe access to a static mut</span>
-        <span class="static mutable unsafe">MUT_GLOBAL</span><span class="operator">.</span><span class="field">field</span><span class="semicolon">;</span>
+        <span class="static mutable">MUT_GLOBAL</span><span class="operator">.</span><span class="field">field</span><span class="semicolon">;</span>
         <span class="static">GLOBAL</span><span class="operator">.</span><span class="field">field</span><span class="semicolon">;</span>
 
         <span class="comment">// unsafe ref of packed fields</span>
         <span class="keyword">let</span> <span class="variable declaration">packed</span> <span class="operator">=</span> <span class="struct">Packed</span> <span class="brace">{</span> <span class="field">a</span><span class="colon">:</span> <span class="numeric_literal">0</span> <span class="brace">}</span><span class="semicolon">;</span>
-        <span class="keyword">let</span> <span class="variable declaration reference">a</span> <span class="operator">=</span> <span class="operator unsafe">&</span><span class="variable">packed</span><span class="operator">.</span><span class="field">a</span><span class="semicolon">;</span>
-        <span class="keyword">let</span> <span class="keyword unsafe">ref</span> <span class="variable declaration reference">a</span> <span class="operator">=</span> <span class="variable">packed</span><span class="operator">.</span><span class="field">a</span><span class="semicolon">;</span>
-        <span class="keyword">let</span> <span class="struct">Packed</span> <span class="brace">{</span> <span class="keyword unsafe">ref</span> <span class="field">a</span> <span class="brace">}</span> <span class="operator">=</span> <span class="variable">packed</span><span class="semicolon">;</span>
-        <span class="keyword">let</span> <span class="struct">Packed</span> <span class="brace">{</span> <span class="field">a</span><span class="colon">:</span> <span class="keyword unsafe">ref</span> <span class="variable declaration reference">_a</span> <span class="brace">}</span> <span class="operator">=</span> <span class="variable">packed</span><span class="semicolon">;</span>
+        <span class="keyword">let</span> <span class="variable declaration reference">a</span> <span class="operator">=</span> <span class="operator">&</span><span class="variable">packed</span><span class="operator">.</span><span class="field">a</span><span class="semicolon">;</span>
+        <span class="keyword">let</span> <span class="keyword">ref</span> <span class="variable declaration reference">a</span> <span class="operator">=</span> <span class="variable">packed</span><span class="operator">.</span><span class="field">a</span><span class="semicolon">;</span>
+        <span class="keyword">let</span> <span class="struct">Packed</span> <span class="brace">{</span> <span class="keyword">ref</span> <span class="field">a</span> <span class="brace">}</span> <span class="operator">=</span> <span class="variable">packed</span><span class="semicolon">;</span>
+        <span class="keyword">let</span> <span class="struct">Packed</span> <span class="brace">{</span> <span class="field">a</span><span class="colon">:</span> <span class="keyword">ref</span> <span class="variable declaration reference">_a</span> <span class="brace">}</span> <span class="operator">=</span> <span class="variable">packed</span><span class="semicolon">;</span>
 
         <span class="comment">// unsafe auto ref of packed field</span>
-        <span class="variable">packed</span><span class="operator">.</span><span class="field">a</span><span class="operator">.</span><span class="method reference trait unsafe">calls_autoref</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
+        <span class="variable">packed</span><span class="operator">.</span><span class="field">a</span><span class="operator">.</span><span class="method reference trait">calls_autoref</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
     <span class="brace">}</span>
 <span class="brace">}</span></code></pre>
