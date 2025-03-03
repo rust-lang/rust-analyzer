@@ -215,7 +215,7 @@ struct Point<'a> {
 
 
 ### `add_missing_match_arms`
-**Source:**  [add_missing_match_arms.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/add_missing_match_arms.rs#L16) 
+**Source:**  [add_missing_match_arms.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/add_missing_match_arms.rs#L17) 
 
 Adds missing clauses to a `match` expression.
 
@@ -469,7 +469,7 @@ fn main() {
 
 
 ### `convert_closure_to_fn`
-**Source:**  [convert_closure_to_fn.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/convert_closure_to_fn.rs#L27) 
+**Source:**  [convert_closure_to_fn.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/convert_closure_to_fn.rs#L25) 
 
 This converts a closure to a freestanding function, changing all captures to parameters.
 
@@ -1070,7 +1070,7 @@ pub use foo::{Bar, Baz};
 
 
 ### `expand_record_rest_pattern`
-**Source:**  [expand_rest_pattern.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/expand_rest_pattern.rs#L24) 
+**Source:**  [expand_rest_pattern.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/expand_rest_pattern.rs#L26) 
 
 Fills fields by replacing rest pattern in record patterns.
 
@@ -1094,7 +1094,7 @@ fn foo(bar: Bar) {
 
 
 ### `expand_tuple_struct_rest_pattern`
-**Source:**  [expand_rest_pattern.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/expand_rest_pattern.rs#L80) 
+**Source:**  [expand_rest_pattern.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/expand_rest_pattern.rs#L82) 
 
 Fills fields by replacing rest pattern in tuple struct patterns.
 
@@ -1191,7 +1191,7 @@ fn ┃fun_name(n: i32) {
 
 
 ### `extract_module`
-**Source:**  [extract_module.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/extract_module.rs#L29) 
+**Source:**  [extract_module.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/extract_module.rs#L30) 
 
 Extracts a selected region as separate module. All the references, visibility and imports are
 resolved.
@@ -1372,7 +1372,7 @@ fn main() {
 ### `flip_or_pattern`
 **Source:**  [flip_or_pattern.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/flip_or_pattern.rs#L9) 
 
-Flips two trait bounds.
+Flips two patterns in an or-pattern.
 
 #### Before
 ```rust
@@ -1900,7 +1900,7 @@ impl From<u32> for A {
 
 
 ### `generate_function`
-**Source:**  [generate_function.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/generate_function.rs#L28) 
+**Source:**  [generate_function.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/generate_function.rs#L29) 
 
 Adds a stub function with a signature matching the function under the cursor.
 
@@ -2302,7 +2302,7 @@ fn bar() {
 
 
 ### `inline_local_variable`
-**Source:**  [inline_local_variable.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/inline_local_variable.rs#L21) 
+**Source:**  [inline_local_variable.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/inline_local_variable.rs#L17) 
 
 Inlines a local variable.
 
@@ -3059,7 +3059,7 @@ mod foo {
 
 
 ### `remove_unused_param`
-**Source:**  [remove_unused_param.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/remove_unused_param.rs#L16) 
+**Source:**  [remove_unused_param.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/ide-assists/src/handlers/remove_unused_param.rs#L18) 
 
 Removes unused function parameter.
 

@@ -72,7 +72,6 @@ proc-macro-srv = { path = "./crates/proc-macro-srv", version = "0.0.0" }
 proc-macro-srv-cli = { path = "./crates/proc-macro-srv-cli", version = "0.0.0" }
 profile = { path = "./crates/profile", version = "0.0.0" }
 project-model = { path = "./crates/project-model", version = "0.0.0" }
-ra-salsa = { path = "./crates/ra-salsa", package = "salsa", version = "0.0.0" }
 span = { path = "./crates/span", version = "0.0.0" }
 stdx = { path = "./crates/stdx", version = "0.0.0" }
 syntax = { path = "./crates/syntax", version = "0.0.0" }
@@ -135,6 +134,8 @@ process-wrap = { version = "8.0.2", features = ["std"] }
 pulldown-cmark-to-cmark = "10.0.4"
 pulldown-cmark = { version = "0.9.0", default-features = false }
 rayon = "1.8.0"
+salsa = { git = "https://github.com/salsa-rs/salsa.git", rev = "4d9225342ec19ebcc90f3f1f02a3765105d7f330" }
+db-ext-macro = { git = "https://github.com/davidbarsky/db-ext-macro.git", rev = "c88f2f058ac4e6a8a09e87e41d7b30b147235514" }
 rustc-hash = "2.0.0"
 semver = "1.0.14"
 serde = { version = "1.0.192" }
