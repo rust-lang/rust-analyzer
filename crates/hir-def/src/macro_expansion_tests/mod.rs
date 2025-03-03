@@ -16,7 +16,7 @@ mod proc_macros;
 
 use std::{iter, ops::Range, sync};
 
-use base_db::{RootQueryDb, SourceDatabase};
+use base_db::{RootQueryDb};
 use expect_test::Expect;
 use hir_expand::{
     db::ExpandDatabase,
@@ -67,8 +67,7 @@ fn check_errors(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
 
             let editioned_file_id = ast_id.file_id.file_id().expect("unable to get FileId; this is a bug");
             let (file_id, _) = editioned_file_id.unpack();
-            let file_text = db.file_text(file_id);
-            let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_text, editioned_file_id);
+            let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
             let ast = db
                 .parse(editioned_file_id_wrapper)

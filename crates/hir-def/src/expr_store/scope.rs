@@ -324,7 +324,7 @@ fn compute_expr_scopes(
 
 #[cfg(test)]
 mod tests {
-    use base_db::{RootQueryDb, SourceDatabase};
+    use base_db::{RootQueryDb};
     use hir_expand::{name::AsName, InFile};
     use salsa::AsDynDatabase;
     use span::FileId;
@@ -362,8 +362,7 @@ mod tests {
         let offset = position.offset;
 
         let (file_id, _) = editioned_file_id.unpack();
-        let file_text = db.file_text(file_id);
-        let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_text, editioned_file_id);
+        let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
         let file_syntax = db.parse(editioned_file_id_wrapper).syntax_node();
         let marker: ast::PathExpr = find_node_at_offset(&file_syntax, offset).unwrap();
@@ -520,8 +519,7 @@ fn foo() {
         let offset = position.offset;
 
         let (file_id, _) = editioned_file_id.unpack();
-        let file_text = db.file_text(file_id);
-        let file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_text, editioned_file_id);
+        let file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
         let file = db.parse(file_id_wrapper).ok().unwrap();
         let expected_name = find_node_at_offset::<ast::Name>(file.syntax(), expected_offset.into())

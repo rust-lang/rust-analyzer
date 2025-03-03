@@ -160,8 +160,7 @@ trait FileIdToSyntax: Copy {
 impl FileIdToSyntax for EditionedFileId {
     fn file_syntax(self, db: &dyn db::ExpandDatabase) -> SyntaxNode {
         let (file_id, _) = self.unpack();
-        let file_text = db.file_text(file_id);
-        let file_id = base_db::EditionedFileId::new(db, file_text, self);
+        let file_id = base_db::EditionedFileId::new(db, file_id, self);
 
         db.parse(file_id).syntax_node()
     }
@@ -295,8 +294,7 @@ impl<SN: Borrow<SyntaxNode>> InFile<SN> {
         )?;
 
         let (file_id, _) = editioned_file_id.unpack();
-        let file_text = db.file_text(file_id);
-        let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+        let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
 
         let kind = self.kind();
         let value = db
@@ -476,8 +474,7 @@ impl<N: AstNode> InFile<N> {
         )?;
 
         let (file_id, _) = editioned_file_id.unpack();
-        let file_text = db.file_text(file_id);
-        let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+        let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
 
         // FIXME: This heuristic is brittle and with the right macro may select completely unrelated nodes?
         let anc = db.parse(file_id).syntax_node().covering_element(range);

@@ -654,7 +654,7 @@ impl<'a> FindUsages<'a> {
                 {
                     let file_id = crate::base_db::EditionedFileId::new(
                         db,
-                        db.file_text(file_id.file_id()),
+                        file_id.file_id(),
                         file_id,
                     );
 
@@ -819,7 +819,7 @@ impl<'a> FindUsages<'a> {
             for (file_text, file_id, search_range) in files {
                 let file_id_wrapper = crate::base_db::EditionedFileId::new(
                     this.sema.db,
-                    this.sema.db.file_text(file_id.file_id()),
+                    file_id.file_id(),
                     file_id,
                 );
 
@@ -964,7 +964,7 @@ impl<'a> FindUsages<'a> {
         for (text, file_id, search_range) in Self::scope_files(sema.db, &search_scope) {
             let file_id_wrapper = crate::base_db::EditionedFileId::new(
                 sema.db,
-                sema.db.file_text(file_id.file_id()),
+                file_id.file_id(),
                 file_id,
             );
 
@@ -1025,7 +1025,7 @@ impl<'a> FindUsages<'a> {
 
                 let file_id_wrapper = crate::base_db::EditionedFileId::new(
                     sema.db,
-                    sema.db.file_text(file_id.file_id()),
+                    file_id.file_id(),
                     file_id,
                 );
                 let tree = LazyCell::new(move || sema.parse(file_id_wrapper).syntax().clone());
@@ -1081,7 +1081,7 @@ impl<'a> FindUsages<'a> {
                 let search_range =
                     search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&*text)));
 
-                let file_id = crate::base_db::EditionedFileId::new(sema.db, file_text, file_id);
+                let file_id = crate::base_db::EditionedFileId::new(sema.db, file_id.file_id(), file_id);
 
                 let tree = LazyCell::new(|| sema.parse(file_id).syntax().clone());
                 let finder = &Finder::new("self");

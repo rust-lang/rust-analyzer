@@ -1,7 +1,7 @@
 //! Renders a bit of code as HTML.
 
 use hir::Semantics;
-use ide_db::base_db::{salsa::AsDynDatabase, SourceDatabase};
+use ide_db::base_db::salsa::AsDynDatabase;
 use oorandom::Rand32;
 use span::EditionedFileId;
 use stdx::format_to;
@@ -19,7 +19,7 @@ pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: boo
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         db.as_dyn_database(),
-        db.file_text(file_id.file_id()),
+        file_id.file_id(),
         file_id,
     );
     let file = sema.parse(editioned_file_id_wrapper);

@@ -2,7 +2,7 @@ use std::iter;
 
 use hir::{db, FilePosition, FileRange, HirFileId, InFile, Semantics};
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::{salsa::AsDynDatabase},
     defs::{Definition, IdentClass},
     helpers::pick_best_token,
     search::{FileReference, ReferenceCategory, SearchScope},
@@ -63,7 +63,7 @@ pub(crate) fn highlight_related(
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         sema.db.as_dyn_database(),
-        sema.db.file_text(file_id.file_id()),
+        file_id.file_id(),
         file_id,
     );
 

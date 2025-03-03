@@ -4,7 +4,6 @@ mod analysis;
 #[cfg(test)]
 mod tests;
 
-use base_db::SourceDatabase;
 use std::{iter, ops::ControlFlow};
 
 use base_db::{salsa::AsDynDatabase, RootQueryDb as _};
@@ -708,10 +707,9 @@ impl<'a> CompletionContext<'a> {
         let sema = Semantics::new(db);
 
         let editioned_file_id = sema.attach_first_edition(file_id)?;
-        let file_text = sema.db.file_text(editioned_file_id.file_id());
         let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
             sema.db.as_dyn_database(),
-            file_text,
+            file_id,
             editioned_file_id,
         );
 
@@ -722,9 +720,8 @@ impl<'a> CompletionContext<'a> {
         // actual completion.
         let file_with_fake_ident = {
             let (file_id, edition) = editioned_file_id.unpack();
-            let file_text = db.file_text(file_id);
             let file_id_wrapper =
-                base_db::EditionedFileId::new(db.as_dyn_database(), file_text, editioned_file_id);
+                base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
             let parse = db.parse(file_id_wrapper);
             parse.reparse(TextRange::empty(offset), COMPLETION_MARKER, edition).tree()

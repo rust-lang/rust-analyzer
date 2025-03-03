@@ -143,7 +143,7 @@ fn all_unresolved_references(
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         sema.db.as_dyn_database(),
-        sema.db.file_text(file_id.file_id()),
+        file_id.file_id(),
         file_id,
     );
     let file = sema.parse(editioned_file_id_wrapper);

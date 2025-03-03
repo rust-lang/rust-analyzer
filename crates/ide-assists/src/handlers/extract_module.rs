@@ -2,7 +2,7 @@ use std::iter;
 
 use either::Either;
 use hir::{HasSource, HirFileIdExt, ModuleSource};
-use ide_db::base_db::{salsa::AsDynDatabase, SourceDatabase};
+use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{
     assists::{AssistId, AssistKind},
     defs::{Definition, NameClass, NameRefClass},
@@ -332,10 +332,9 @@ impl Module {
         let mut use_stmts_set = FxHashSet::default();
 
         for (file_id, refs) in node_def.usages(&ctx.sema).all() {
-            let file_text = ctx.sema.db.file_text(file_id.file_id());
             let editioned_file_id = ide_db::base_db::EditionedFileId::new(
                 ctx.sema.db.as_dyn_database(),
-                file_text,
+                file_id.file_id(),
                 file_id,
             );
 
@@ -466,10 +465,9 @@ impl Module {
         let file_id = ctx.file_id();
         let usage_res = def.usages(&ctx.sema).in_scope(&SearchScope::single_file(file_id)).all();
 
-        let file_text = ctx.sema.db.file_text(file_id.file_id());
         let editioned_file_id = ide_db::base_db::EditionedFileId::new(
             ctx.sema.db.as_dyn_database(),
-            file_text,
+            file_id.file_id(),
             file_id,
         );
 

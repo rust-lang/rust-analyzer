@@ -230,7 +230,7 @@ impl<'db> MatchFinder<'db> {
     ) -> Vec<MatchDebugInfo> {
         let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
             self.sema.db.as_dyn_database(),
-            self.sema.db.file_text(file_id.file_id()),
+            file_id.file_id(),
             file_id,
         );
 

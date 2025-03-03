@@ -1,5 +1,5 @@
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::salsa::AsDynDatabase,
     defs::Definition,
     search::FileReference,
     EditionedFileId,
@@ -107,9 +107,9 @@ fn process_usages(
     arg_to_remove: usize,
     is_self_present: bool,
 ) {
-    let file_text = ctx.sema.db.file_text(file_id.file_id());
+
     let editioned_file_id_wrapper =
-        ide_db::base_db::EditionedFileId::new(ctx.sema.db.as_dyn_database(), file_text, file_id);
+        ide_db::base_db::EditionedFileId::new(ctx.sema.db.as_dyn_database(), file_id.file_id(), file_id);
 
     let source_file = ctx.sema.parse(editioned_file_id_wrapper);
     builder.edit_file(file_id);

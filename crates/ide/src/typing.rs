@@ -16,7 +16,7 @@
 mod on_enter;
 
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, RootQueryDb, SourceDatabase},
+    base_db::{salsa::AsDynDatabase, RootQueryDb},
     FilePosition, RootDatabase,
 };
 use span::{Edition, EditionedFileId};
@@ -78,7 +78,7 @@ pub(crate) fn on_char_typed(
     let edition = Edition::CURRENT_FIXME;
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         db.as_dyn_database(),
-        db.file_text(position.file_id),
+        position.file_id,
         EditionedFileId::current_edition(position.file_id),
     );
     let file = &db.parse(editioned_file_id_wrapper);

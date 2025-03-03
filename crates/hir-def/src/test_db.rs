@@ -271,8 +271,7 @@ impl TestDB {
         let scopes = db.expr_scopes(def_with_body);
 
         let (file_id, _) = position.file_id.unpack();
-        let file_text = db.file_text(file_id);
-        let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_text, position.file_id);
+        let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_id, position.file_id);
 
         let root = db.parse(editioned_file_id_wrapper);
         let scope_iter = algo::ancestors_at_offset(&root.syntax_node(), position.offset)

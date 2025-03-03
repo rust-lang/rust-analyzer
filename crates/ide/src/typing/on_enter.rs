@@ -3,7 +3,7 @@
 
 use ide_db::base_db::RootQueryDb;
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::salsa::AsDynDatabase,
     FilePosition, RootDatabase,
 };
 use span::EditionedFileId;
@@ -56,7 +56,7 @@ use ide_db::text_edit::TextEdit;
 pub(crate) fn on_enter(db: &RootDatabase, position: FilePosition) -> Option<TextEdit> {
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         db.as_dyn_database(),
-        db.file_text(position.file_id),
+        position.file_id,
         EditionedFileId::current_edition(position.file_id),
     );
     let parse = db.parse(editioned_file_id_wrapper);

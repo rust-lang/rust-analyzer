@@ -2,7 +2,7 @@
 //! from a comment.
 
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, RootQueryDb, SourceDatabase},
+    base_db::{salsa::AsDynDatabase, RootQueryDb},
     EditionedFileId, FilePosition, FileRange, RootDatabase,
 };
 use syntax::{
@@ -22,10 +22,9 @@ pub fn ssr_from_comment(
     let comment = {
         let editioned_file_id = EditionedFileId::current_edition(frange.file_id);
         let (file_id, _) = editioned_file_id.unpack();
-        let file_text = db.file_text(file_id);
         let file_id = ide_db::base_db::EditionedFileId::new(
             db.as_dyn_database(),
-            file_text,
+            file_id,
             editioned_file_id,
         );
 

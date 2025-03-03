@@ -377,8 +377,7 @@ fn parse_or_expand(db: &dyn ExpandDatabase, file_id: HirFileId) -> SyntaxNode {
     match file_id.repr() {
         HirFileIdRepr::FileId(editioned_file_id) => {
             let (file_id, _) = editioned_file_id.unpack();
-            let file_text = db.file_text(file_id);
-            let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+            let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
             db.parse(file_id).syntax_node()
         }
 
@@ -441,8 +440,7 @@ pub(crate) fn parse_with_map(
     match file_id.repr() {
         HirFileIdRepr::FileId(editioned_file_id) => {
             let (file_id, _) = editioned_file_id.unpack();
-            let file_text = db.file_text(file_id);
-            let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+            let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
 
             (
                 db.parse(file_id).to_syntax(),

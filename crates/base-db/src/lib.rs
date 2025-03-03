@@ -158,7 +158,7 @@ impl Files {
 
 #[salsa::interned(no_lifetime)]
 pub struct EditionedFileId {
-    pub file_id: FileText,
+    pub file_id: vfs::FileId,
     pub editioned_file_id: span::EditionedFileId,
 }
 
@@ -268,9 +268,9 @@ fn toolchain_channel(db: &dyn RootQueryDb, krate: CrateId) -> Option<ReleaseChan
 
 fn parse(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Parse<ast::SourceFile> {
     let _p = tracing::info_span!("parse", ?file_id).entered();
-    let (text, editioned_file_id) = (file_id.file_id(db), file_id.editioned_file_id(db));
+    let (text, editioned_file_id) = (db.file_text(file_id.file_id(db)).text(db), file_id.editioned_file_id(db));
     let (_, edition) = editioned_file_id.unpack();
-    ast::SourceFile::parse(&text.text(db), edition)
+    ast::SourceFile::parse(&text, edition)
 }
 
 fn parse_errors(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Option<Arc<[SyntaxError]>> {

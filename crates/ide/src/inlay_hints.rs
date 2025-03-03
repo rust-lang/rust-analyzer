@@ -9,7 +9,7 @@ use hir::{
     ModuleDefId, Semantics,
 };
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::{salsa::AsDynDatabase},
     famous_defs::FamousDefs,
     FileRange, RootDatabase,
 };
@@ -92,7 +92,7 @@ pub(crate) fn inlay_hints(
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         sema.db.as_dyn_database(),
-        sema.db.file_text(file_id.file_id()),
+        file_id.file_id(),
         file_id,
     );
     let file = sema.parse(editioned_file_id_wrapper);
@@ -148,7 +148,7 @@ pub(crate) fn inlay_hints_resolve(
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         sema.db.as_dyn_database(),
-        sema.db.file_text(file_id.file_id()),
+        file_id.file_id(),
         file_id,
     );
     let file = sema.parse(editioned_file_id_wrapper);

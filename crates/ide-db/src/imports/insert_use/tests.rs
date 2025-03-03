@@ -1,4 +1,3 @@
-use crate::base_db::SourceDatabase;
 use salsa::AsDynDatabase;
 use stdx::trim_indent;
 use test_fixture::WithFixture;
@@ -1253,17 +1252,15 @@ fn check_with_config(
     let (db, file_id, pos) = if ra_fixture_before.contains(CURSOR_MARKER) {
         let (db, file_id, range_or_offset) = RootDatabase::with_range_or_offset(ra_fixture_before);
 
-        let file_text = db.file_text(file_id.file_id());
         let file_id =
-            crate::base_db::EditionedFileId::new(db.as_dyn_database(), file_text, file_id);
+            crate::base_db::EditionedFileId::new(db.as_dyn_database(), file_id.file_id(), file_id);
 
         (db, file_id, Some(range_or_offset))
     } else {
         let (db, file_id) = RootDatabase::with_single_file(ra_fixture_before);
 
-        let file_text = db.file_text(file_id.file_id());
         let file_id =
-            crate::base_db::EditionedFileId::new(db.as_dyn_database(), file_text, file_id);
+            crate::base_db::EditionedFileId::new(db.as_dyn_database(), file_id.file_id(), file_id);
 
         (db, file_id, None)
     };

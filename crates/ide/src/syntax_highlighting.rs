@@ -16,7 +16,7 @@ use std::ops::ControlFlow;
 
 use hir::{HirFileIdExt, InFile, InRealFile, MacroFileIdExt, MacroKind, Name, Semantics};
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::salsa::AsDynDatabase,
     FxHashMap, Ranker, RootDatabase, SymbolKind,
 };
 use span::EditionedFileId;
@@ -205,7 +205,7 @@ pub(crate) fn highlight(
     let (root, range_to_highlight) = {
         let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
             db.as_dyn_database(),
-            db.file_text(file_id.file_id()),
+            file_id.file_id(),
             file_id,
         );
         let file = sema.parse(editioned_file_id_wrapper);

@@ -6,7 +6,7 @@
 
 use hir::{AsAssocItem, HirFileIdExt, InFile, Semantics};
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::{salsa::AsDynDatabase},
     defs::{Definition, NameClass, NameRefClass},
     rename::{bail, format_err, source_edit_from_references, IdentifierKind},
     source_change::SourceChangeBuilder,
@@ -88,7 +88,7 @@ pub(crate) fn rename(
         .ok_or_else(|| format_err!("No references found at position"))?;
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         db.as_dyn_database(),
-        db.file_text(file_id.file_id()),
+        file_id.file_id(),
         file_id,
     );
     let source_file = sema.parse(editioned_file_id_wrapper);

@@ -731,8 +731,7 @@ fn include_expand(
     let (file_id, editioned_file_id) = match include_input_to_file_id(db, arg_id, tt) {
         Ok(editioned_file_id) => {
             let (file_id, _) = editioned_file_id.unpack();
-            let file_text = db.file_text(file_id);
-            let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+            let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
             (file_id, editioned_file_id)
         },
         Err(e) => {

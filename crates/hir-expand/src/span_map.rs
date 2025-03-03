@@ -85,8 +85,7 @@ pub(crate) fn real_span_map(db: &dyn ExpandDatabase, editioned_file_id: Editione
     let ast_id_map = db.ast_id_map(editioned_file_id.into());
 
     let (file_id, _) = editioned_file_id.unpack();
-    let file_text = db.file_text(file_id);
-    let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+    let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
 
     let tree = db.parse(file_id).tree();
     // This is an incrementality layer. Basically we can't use absolute ranges for our spans as that

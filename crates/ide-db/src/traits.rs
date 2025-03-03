@@ -113,7 +113,6 @@ fn assoc_item_of_trait(
 
 #[cfg(test)]
 mod tests {
-    use base_db::SourceDatabase;
     use expect_test::{expect, Expect};
     use hir::FilePosition;
     use hir::Semantics;
@@ -141,10 +140,9 @@ mod tests {
         let (db, position) = position(ra_fixture);
         let sema = Semantics::new(&db);
 
-        let file_text = sema.db.file_text(position.file_id.file_id());
         let editioned_file_id = crate::base_db::EditionedFileId::new(
             sema.db.as_dyn_database(),
-            file_text,
+            position.file_id.file_id(),
             position.file_id,
         );
 
@@ -163,10 +161,9 @@ mod tests {
         let (db, position) = position(ra_fixture);
         let sema = Semantics::new(&db);
 
-        let file_text = sema.db.file_text(position.file_id.file_id());
         let editioned_file_id = crate::base_db::EditionedFileId::new(
             sema.db.as_dyn_database(),
-            file_text,
+            position.file_id.file_id(),
             position.file_id,
         );
 

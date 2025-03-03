@@ -2,7 +2,7 @@
 
 use hir::AsAssocItem;
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::{salsa::AsDynDatabase},
     FxHashMap,
 };
 use parsing::Placeholder;
@@ -203,7 +203,7 @@ impl<'db> ResolutionScope<'db> {
         use syntax::ast::AstNode;
         let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
             sema.db.as_dyn_database(),
-            sema.db.file_text(resolve_context.file_id.file_id()),
+            resolve_context.file_id.file_id(),
             resolve_context.file_id,
         );
 

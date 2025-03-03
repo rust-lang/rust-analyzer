@@ -325,8 +325,7 @@ impl<'db> SemanticsImpl<'db> {
             .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
 
         let (file_id, _) = editioned_file_id.unpack();
-        let file_text = self.db.file_text(file_id);
-        let file_id = base_db::EditionedFileId::new(self.db, file_text, editioned_file_id);
+        let file_id = base_db::EditionedFileId::new(self.db, file_id, editioned_file_id);
 
         let tree = self.db.parse(file_id).tree();
         self.cache(tree.syntax().clone(), editioned_file_id.into());
@@ -1939,8 +1938,7 @@ fn macro_call_to_macro_id(
             let node = match it.file_id.repr() {
                 HirFileIdRepr::FileId(editioned_file_id) => {
                     let (file_id, _) = editioned_file_id.unpack();
-                    let file_text = db.file_text(file_id);
-                    let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+                    let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
 
                     it.to_ptr(db).to_node(&db.parse(file_id).syntax_node())
                 }
@@ -1955,8 +1953,7 @@ fn macro_call_to_macro_id(
             let node = match it.file_id.repr() {
                 HirFileIdRepr::FileId(editioned_file_id) => {
                     let (file_id, _) = editioned_file_id.unpack();
-                    let file_text = db.file_text(file_id);
-                    let file_id = base_db::EditionedFileId::new(db, file_text, editioned_file_id);
+                    let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
 
                     it.to_ptr(db).to_node(&db.parse(file_id).syntax_node())
                 }

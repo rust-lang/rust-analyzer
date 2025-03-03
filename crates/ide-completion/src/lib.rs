@@ -11,7 +11,7 @@ mod snippet;
 mod tests;
 
 use ide_db::{
-    base_db::{salsa::AsDynDatabase, SourceDatabase},
+    base_db::salsa::AsDynDatabase,
     imports::insert_use::{self, ImportScope},
     syntax_helpers::tree_diff::diff,
     text_edit::TextEdit,
@@ -279,7 +279,7 @@ pub fn resolve_completion_edits(
     let editioned_file_id = sema.attach_first_edition(file_id)?;
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         db.as_dyn_database(),
-        db.file_text(editioned_file_id.file_id()),
+        editioned_file_id.file_id(),
         editioned_file_id,
     );
 

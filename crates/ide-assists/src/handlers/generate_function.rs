@@ -2,7 +2,7 @@ use hir::{
     Adt, AsAssocItem, HasSource, HirDisplay, HirFileIdExt, Module, PathResolution, Semantics,
     StructKind, Type, TypeInfo,
 };
-use ide_db::base_db::{salsa::AsDynDatabase, SourceDatabase};
+use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
@@ -207,10 +207,9 @@ fn get_adt_source(
 ) -> Option<(Option<ast::Impl>, FileId)> {
     let range = adt.source(ctx.sema.db)?.syntax().original_file_range_rooted(ctx.sema.db);
 
-    let file_text = ctx.sema.db.file_text(range.file_id.file_id());
     let editioned_file_id = ide_db::base_db::EditionedFileId::new(
         ctx.sema.db.as_dyn_database(),
-        file_text,
+        range.file_id.file_id(),
         range.file_id,
     );
 

@@ -82,7 +82,7 @@ use std::{collections::hash_map, iter, sync::LazyLock};
 
 use either::Either;
 use hir::{db::ExpandDatabase, diagnostics::AnyDiagnostic, Crate, HirFileId, InFile, Semantics};
-use ide_db::base_db::{salsa::AsDynDatabase, SourceDatabase};
+use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{
     assists::{Assist, AssistId, AssistKind, AssistResolveStrategy},
     base_db::{ReleaseChannel, RootQueryDb as _},
@@ -321,9 +321,9 @@ pub fn syntax_diagnostics(
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
 
     let (file_id, _) = editioned_file_id.unpack();
-    let file_text = db.file_text(file_id);
+
     let editioned_file_id_wrapper =
-        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), file_text, editioned_file_id);
+        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
     // [#3434] Only take first 128 errors to prevent slowing down editor/ide, the number 128 is chosen arbitrarily.
     db.parse_errors(editioned_file_id_wrapper)
@@ -358,7 +358,7 @@ pub fn semantic_diagnostics(
     let (file_id, edition) = editioned_file_id.unpack();
     let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
         db.as_dyn_database(),
-        db.file_text(file_id),
+        file_id,
         editioned_file_id,
     );
 

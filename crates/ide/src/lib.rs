@@ -302,11 +302,10 @@ impl Analysis {
     pub fn parse(&self, file_id: FileId) -> Cancellable<SourceFile> {
         // FIXME edition
         self.with_db(|db| {
-            let file_id = EditionedFileId::current_edition(file_id);
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
-                self.db.file_text(file_id.file_id()),
                 file_id,
+                EditionedFileId::current_edition(file_id)
             );
 
             db.parse(editioned_file_id_wrapper).tree()
@@ -336,11 +335,11 @@ impl Analysis {
     /// supported).
     pub fn matching_brace(&self, position: FilePosition) -> Cancellable<Option<TextSize>> {
         self.with_db(|db| {
-            let file_id = EditionedFileId::current_edition(position.file_id);
+            let file_id = position.file_id;
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
-                self.db.file_text(file_id.file_id()),
                 file_id,
+                EditionedFileId::current_edition(file_id),
             );
             let parse = db.parse(editioned_file_id_wrapper);
             let file = parse.tree();
@@ -401,11 +400,10 @@ impl Analysis {
     /// stuff like trailing commas.
     pub fn join_lines(&self, config: &JoinLinesConfig, frange: FileRange) -> Cancellable<TextEdit> {
         self.with_db(|db| {
-            let file_id = EditionedFileId::current_edition(frange.file_id);
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
-                self.db.file_text(file_id.file_id()),
-                file_id,
+                frange.file_id,
+                EditionedFileId::current_edition(frange.file_id),
             );
             let parse = db.parse(editioned_file_id_wrapper);
             join_lines::join_lines(config, &parse.tree(), frange.range)
@@ -443,11 +441,10 @@ impl Analysis {
     pub fn file_structure(&self, file_id: FileId) -> Cancellable<Vec<StructureNode>> {
         // FIXME: Edition
         self.with_db(|db| {
-            let file_id = EditionedFileId::current_edition(file_id);
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
-                self.db.file_text(file_id.file_id()),
                 file_id,
+                EditionedFileId::current_edition(file_id),
             );
 
             file_structure::file_structure(&db.parse(editioned_file_id_wrapper).tree())
@@ -479,11 +476,10 @@ impl Analysis {
     /// Returns the set of folding ranges.
     pub fn folding_ranges(&self, file_id: FileId) -> Cancellable<Vec<Fold>> {
         self.with_db(|db| {
-            let file_id = EditionedFileId::current_edition(file_id);
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
-                self.db.file_text(file_id.file_id()),
                 file_id,
+                EditionedFileId::current_edition(file_id)
             );
 
             folding_ranges::folding_ranges(&db.parse(editioned_file_id_wrapper).tree())
