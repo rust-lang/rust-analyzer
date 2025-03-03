@@ -79,7 +79,10 @@ impl SpanMapRef<'_> {
     }
 }
 
-pub(crate) fn real_span_map(db: &dyn ExpandDatabase, editioned_file_id: EditionedFileId) -> Arc<RealSpanMap> {
+pub(crate) fn real_span_map(
+    db: &dyn ExpandDatabase,
+    editioned_file_id: EditionedFileId,
+) -> Arc<RealSpanMap> {
     use syntax::ast::HasModuleItem;
     let mut pairs = vec![(syntax::TextSize::new(0), span::ROOT_ERASED_FILE_AST_ID)];
     let ast_id_map = db.ast_id_map(editioned_file_id.into());

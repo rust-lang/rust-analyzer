@@ -22,11 +22,8 @@ pub fn ssr_from_comment(
     let comment = {
         let editioned_file_id = EditionedFileId::current_edition(frange.file_id);
         let (file_id, _) = editioned_file_id.unpack();
-        let file_id = ide_db::base_db::EditionedFileId::new(
-            db.as_dyn_database(),
-            file_id,
-            editioned_file_id,
-        );
+        let file_id =
+            ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
         let file = db.parse(file_id);
         file.tree().syntax().token_at_offset(frange.range.start()).find_map(ast::Comment::cast)

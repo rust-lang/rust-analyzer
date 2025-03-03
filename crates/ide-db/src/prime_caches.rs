@@ -6,14 +6,12 @@ mod topologic_sort;
 
 use std::time::Duration;
 
-use hir::{Symbol, db::DefDatabase};
+use hir::{db::DefDatabase, Symbol};
 use itertools::Itertools;
 use salsa::{Cancelled, Database};
 
 use crate::{
-    base_db::{
-        CrateId, RootQueryDb,
-    },
+    base_db::{CrateId, RootQueryDb},
     symbol_index::SymbolsDatabase,
     FxIndexMap, RootDatabase,
 };
@@ -42,23 +40,15 @@ pub fn parallel_prime_caches(
         let mut builder = topologic_sort::TopologicalSortIter::builder();
 
         for crate_id in graph.iter() {
-            builder.add(
-                crate_id,
-                graph[crate_id].dependencies.iter().map(|d| d.crate_id),
-            );
+            builder.add(crate_id, graph[crate_id].dependencies.iter().map(|d| d.crate_id));
         }
 
         builder.build()
     };
 
     enum ParallelPrimeCacheWorkerProgress {
-        BeginCrate {
-            crate_id: CrateId,
-            crate_name: Symbol,
-        },
-        EndCrate {
-            crate_id: CrateId,
-        },
+        BeginCrate { crate_id: CrateId, crate_name: Symbol },
+        EndCrate { crate_id: CrateId },
     }
 
     // We split off def map computation from other work,
@@ -140,9 +130,7 @@ pub fn parallel_prime_caches(
                 additional_phases.push((crate_id, name.clone(), PrimingPhase::CrateSymbols));
             }
 
-            work_sender
-                .send((crate_id, name, PrimingPhase::DefMap))
-                .ok();
+            work_sender.send((crate_id, name, PrimingPhase::DefMap)).ok();
         }
 
         // recv_timeout is somewhat a hack, we need a way to from this thread check to see if the current salsa revision
@@ -160,10 +148,7 @@ pub fn parallel_prime_caches(
             }
         };
         match worker_progress {
-            ParallelPrimeCacheWorkerProgress::BeginCrate {
-                crate_id,
-                crate_name,
-            } => {
+            ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name } => {
                 crates_currently_indexing.insert(crate_id, crate_name);
             }
             ParallelPrimeCacheWorkerProgress::EndCrate { crate_id } => {
@@ -185,10 +170,7 @@ pub fn parallel_prime_caches(
 
     let mut crates_done = 0;
     let crates_total = additional_phases.len();
-    for w in additional_phases
-        .into_iter()
-        .sorted_by_key(|&(_, _, phase)| phase)
-    {
+    for w in additional_phases.into_iter().sorted_by_key(|&(_, _, phase)| phase) {
         work_sender.send(w).ok();
     }
 
@@ -210,10 +192,7 @@ pub fn parallel_prime_caches(
             }
         };
         match worker_progress {
-            ParallelPrimeCacheWorkerProgress::BeginCrate {
-                crate_id,
-                crate_name,
-            } => {
+            ParallelPrimeCacheWorkerProgress::BeginCrate { crate_id, crate_name } => {
                 crates_currently_indexing.insert(crate_id, crate_name);
             }
             ParallelPrimeCacheWorkerProgress::EndCrate { crate_id } => {

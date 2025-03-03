@@ -2,7 +2,7 @@ use std::iter;
 
 use hir::{db, FilePosition, FileRange, HirFileId, InFile, Semantics};
 use ide_db::{
-    base_db::{salsa::AsDynDatabase},
+    base_db::salsa::AsDynDatabase,
     defs::{Definition, IdentClass},
     helpers::pick_best_token,
     search::{FileReference, ReferenceCategory, SearchScope},

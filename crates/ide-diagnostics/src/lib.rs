@@ -356,11 +356,8 @@ pub fn semantic_diagnostics(
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
 
     let (file_id, edition) = editioned_file_id.unpack();
-    let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
-        db.as_dyn_database(),
-        file_id,
-        editioned_file_id,
-    );
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
     let mut res = Vec::new();
 

@@ -16,7 +16,7 @@ mod proc_macros;
 
 use std::{iter, ops::Range, sync};
 
-use base_db::{RootQueryDb};
+use base_db::RootQueryDb;
 use expect_test::Expect;
 use hir_expand::{
     db::ExpandDatabase,
@@ -65,13 +65,13 @@ fn check_errors(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
                 MacroCallKind::Attr { ast_id, .. } => ast_id.map(|it| it.erase()),
             };
 
-            let editioned_file_id = ast_id.file_id.file_id().expect("unable to get FileId; this is a bug");
+            let editioned_file_id =
+                ast_id.file_id.file_id().expect("unable to get FileId; this is a bug");
             let (file_id, _) = editioned_file_id.unpack();
-            let editioned_file_id_wrapper = base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
+            let editioned_file_id_wrapper =
+                base_db::EditionedFileId::new(db.as_dyn_database(), file_id, editioned_file_id);
 
-            let ast = db
-                .parse(editioned_file_id_wrapper)
-                .syntax_node();
+            let ast = db.parse(editioned_file_id_wrapper).syntax_node();
             let ast_id_map = db.ast_id_map(ast_id.file_id);
             let node = ast_id_map.get_erased(ast_id.value).to_node(&ast);
             Some((node.text_range(), errors))

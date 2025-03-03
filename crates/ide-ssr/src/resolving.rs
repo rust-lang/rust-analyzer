@@ -1,10 +1,7 @@
 //! This module is responsible for resolving paths within rules.
 
 use hir::AsAssocItem;
-use ide_db::{
-    base_db::{salsa::AsDynDatabase},
-    FxHashMap,
-};
+use ide_db::{base_db::salsa::AsDynDatabase, FxHashMap};
 use parsing::Placeholder;
 use syntax::{
     ast::{self, HasGenericArgs},

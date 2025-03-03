@@ -13,7 +13,7 @@
 //! by the next salsa version. If not, we will likely have to adapt and go with the rustc approach
 //! while installing firewall per item queries to prevent invalidation issues.
 
-use crate::db::{HirDatabase};
+use crate::db::HirDatabase;
 use crate::generics::{generics, Generics};
 use crate::{
     AliasTy, Const, ConstScalar, DynTyExt, GenericArg, GenericArgData, Interner, Lifetime,

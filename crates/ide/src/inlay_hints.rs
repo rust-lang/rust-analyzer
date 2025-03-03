@@ -8,11 +8,7 @@ use hir::{
     sym, ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef,
     ModuleDefId, Semantics,
 };
-use ide_db::{
-    base_db::{salsa::AsDynDatabase},
-    famous_defs::FamousDefs,
-    FileRange, RootDatabase,
-};
+use ide_db::{base_db::salsa::AsDynDatabase, famous_defs::FamousDefs, FileRange, RootDatabase};
 use ide_db::{text_edit::TextEdit, FxHashSet};
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};

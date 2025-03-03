@@ -733,7 +733,7 @@ fn include_expand(
             let (file_id, _) = editioned_file_id.unpack();
             let file_id = base_db::EditionedFileId::new(db, file_id, editioned_file_id);
             (file_id, editioned_file_id)
-        },
+        }
         Err(e) => {
             return ExpandResult::new(
                 tt::TopSubtree::empty(DelimSpan { open: span, close: span }),

@@ -2,10 +2,7 @@
 //! comments, but should handle indent some time in the future as well.
 
 use ide_db::base_db::RootQueryDb;
-use ide_db::{
-    base_db::salsa::AsDynDatabase,
-    FilePosition, RootDatabase,
-};
+use ide_db::{base_db::salsa::AsDynDatabase, FilePosition, RootDatabase};
 use span::EditionedFileId;
 use syntax::{
     algo::find_node_at_offset,

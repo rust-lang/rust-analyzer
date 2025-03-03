@@ -459,7 +459,8 @@ mod tests {
         let frange = FileRange { file_id, range: range_or_offset.into() };
         let sema = Semantics::new(&db);
 
-        let file_id = crate::base_db::EditionedFileId::new(sema.db, frange.file_id.file_id(), frange.file_id);
+        let file_id =
+            crate::base_db::EditionedFileId::new(sema.db, frange.file_id.file_id(), frange.file_id);
         let source_file = sema.parse(file_id);
 
         let element = source_file.syntax().covering_element(frange.range);

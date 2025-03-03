@@ -21,8 +21,8 @@ use salsa::{Durability, Setter};
 pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
 use syntax::{ast, Parse, SyntaxError};
 use triomphe::Arc;
-pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
 use vfs::FileId;
+pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
 
 #[macro_export]
 macro_rules! impl_intern_key {
@@ -268,7 +268,8 @@ fn toolchain_channel(db: &dyn RootQueryDb, krate: CrateId) -> Option<ReleaseChan
 
 fn parse(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Parse<ast::SourceFile> {
     let _p = tracing::info_span!("parse", ?file_id).entered();
-    let (text, editioned_file_id) = (db.file_text(file_id.file_id(db)).text(db), file_id.editioned_file_id(db));
+    let (text, editioned_file_id) =
+        (db.file_text(file_id.file_id(db)).text(db), file_id.editioned_file_id(db));
     let (_, edition) = editioned_file_id.unpack();
     ast::SourceFile::parse(&text, edition)
 }

@@ -170,7 +170,7 @@ impl Tester {
                                 ide::AssistResolveStrategy::None,
                                 root_file,
                             )
-                            }));
+                        }));
                         main.unpark();
                         res
                     }

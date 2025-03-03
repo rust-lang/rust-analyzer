@@ -305,7 +305,7 @@ impl Analysis {
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
                 file_id,
-                EditionedFileId::current_edition(file_id)
+                EditionedFileId::current_edition(file_id),
             );
 
             db.parse(editioned_file_id_wrapper).tree()
@@ -479,7 +479,7 @@ impl Analysis {
             let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
                 self.db.as_dyn_database(),
                 file_id,
-                EditionedFileId::current_edition(file_id)
+                EditionedFileId::current_edition(file_id),
             );
 
             folding_ranges::folding_ranges(&db.parse(editioned_file_id_wrapper).tree())

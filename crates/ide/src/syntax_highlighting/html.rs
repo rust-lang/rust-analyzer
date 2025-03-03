@@ -17,11 +17,8 @@ pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: boo
     let file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
-        db.as_dyn_database(),
-        file_id.file_id(),
-        file_id,
-    );
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), file_id.file_id(), file_id);
     let file = sema.parse(editioned_file_id_wrapper);
     let file = file.syntax();
     fn rainbowify(seed: u64) -> String {

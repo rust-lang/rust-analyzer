@@ -51,7 +51,9 @@ use salsa::Durability;
 use std::{fmt, mem::ManuallyDrop};
 
 use base_db::{
-    db_ext_macro::{self}, FileSourceRootInput, FileText, Files, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId, SourceRootInput, Upcast, DEFAULT_FILE_TEXT_LRU_CAP
+    db_ext_macro::{self},
+    FileSourceRootInput, FileText, Files, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
+    SourceRootInput, Upcast, DEFAULT_FILE_TEXT_LRU_CAP,
 };
 use hir::{
     db::{DefDatabase, ExpandDatabase, HirDatabase},
@@ -100,10 +102,7 @@ impl Drop for RootDatabase {
 
 impl Clone for RootDatabase {
     fn clone(&self) -> Self {
-        Self {
-            storage: self.storage.clone(),
-            files: self.files.clone(),
-        }
+        Self { storage: self.storage.clone(), files: self.files.clone() }
     }
 }
 
@@ -258,10 +257,7 @@ impl RootDatabase {
     }
 
     pub fn snapshot(&self) -> Self {
-        Self {
-            storage: self.storage.clone(),
-            files: self.files.clone(),
-        }
+        Self { storage: self.storage.clone(), files: self.files.clone() }
     }
 }
 
