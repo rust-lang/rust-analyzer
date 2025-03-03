@@ -2185,19 +2185,6 @@ dependencies = [
 [[package]]
 name = "salsa"
 version = "0.18.0"
-dependencies = [
- "dashmap 6.1.0",
- "indexmap",
- "parking_lot",
- "rayon",
- "rustc-hash 2.1.1",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "salsa"
-version = "0.18.0"
 source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
 dependencies = [
  "append-only-vec",
@@ -2216,13 +2203,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "salsa-macro-rules"
-version = "0.1.0"
+name = "salsa"
+version = "0.18.0"
+source = "git+https://github.com/salsa-rs/salsa.git?rev=4d9225342ec19ebcc90f3f1f02a3765105d7f330#4d9225342ec19ebcc90f3f1f02a3765105d7f330"
+dependencies = [
+ "boxcar",
+ "crossbeam-queue",
+ "dashmap 6.1.0",
+ "hashbrown 0.15.2",
+ "hashlink 0.10.0",
+ "indexmap",
+ "parking_lot",
+ "rayon",
+ "rustc-hash 2.1.1",
+ "salsa-macro-rules 0.1.0 (git+https://github.com/salsa-rs/salsa.git?rev=4d9225342ec19ebcc90f3f1f02a3765105d7f330)",
+ "salsa-macros 0.18.0 (git+https://github.com/salsa-rs/salsa.git?rev=4d9225342ec19ebcc90f3f1f02a3765105d7f330)",
+ "smallvec",
+ "tracing",
+]
 
 [[package]]
 name = "salsa-macro-rules"
 version = "0.1.0"
 source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
+
+[[package]]
+name = "salsa-macro-rules"
+version = "0.1.0"
+source = "git+https://github.com/salsa-rs/salsa.git?rev=4d9225342ec19ebcc90f3f1f02a3765105d7f330#4d9225342ec19ebcc90f3f1f02a3765105d7f330"
 
 [[package]]
 name = "salsa-macros"
@@ -2237,6 +2245,7 @@ dependencies = [
 [[package]]
 name = "salsa-macros"
 version = "0.18.0"
+source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2248,7 +2257,7 @@ dependencies = [
 [[package]]
 name = "salsa-macros"
 version = "0.18.0"
-source = "git+https://github.com/davidbarsky/salsa.git?branch=davidbarsky/add-interned-sans-lifetime-macro#2cc51938169ca4e9d56631041e8532ba52023326"
+source = "git+https://github.com/salsa-rs/salsa.git?rev=4d9225342ec19ebcc90f3f1f02a3765105d7f330#4d9225342ec19ebcc90f3f1f02a3765105d7f330"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
