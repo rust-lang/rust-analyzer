@@ -818,7 +818,6 @@ fn fallible() -> ControlFlow<()> {
     }
 
     #[test]
-    #[ignore]
     fn closure_style() {
         check_with_config(
             InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG },
@@ -870,15 +869,15 @@ fn main() {
 //- minicore: fn
 fn main() {
     let x = || 2;
-      //^ {closure#0}
+      //^ {closure#26624}
     let y = |t: i32| x() + t;
-      //^ {closure#1}
+      //^ {closure#26625}
     let mut t = 5;
           //^ i32
     let z = |k: i32| { t += k; };
-      //^ {closure#2}
+      //^ {closure#26626}
     let p = (y, z);
-      //^ ({closure#1}, {closure#2})
+      //^ ({closure#26625}, {closure#26626})
 }
             "#,
         );
