@@ -215,7 +215,6 @@ impl RootDatabase {
         db.set_library_roots_with_durability(Default::default(), Durability::HIGH);
         db.set_expand_proc_attr_macros_with_durability(false, Durability::HIGH);
         db.update_base_query_lru_capacities(lru_capacity);
-        // hir::setup_syntax_context_root(db.as_dyn_database());
         db
     }
 

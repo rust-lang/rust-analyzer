@@ -49,6 +49,7 @@ impl HygieneId {
         Self(ctx)
     }
 
+    // FIXME: Inline this
     pub(crate) fn lookup(self) -> SyntaxContext {
         self.0
     }

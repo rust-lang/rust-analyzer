@@ -103,7 +103,6 @@ fn baz() -> i32 {
                 }
             });
         });
-        // todo: figire this out
         assert!(format!("{events:?}").matches("infer_shim").count() == 1, "{events:#?}")
     }
 }

@@ -908,7 +908,7 @@ impl GenericDefId {
     ) -> (HirFileId, Option<ast::GenericParamList>) {
         fn file_id_and_params_of_item_loc<Loc>(
             db: &dyn DefDatabase,
-            def: impl for<'db> Lookup<Database = dyn DefDatabase, Data = Loc>,
+            def: impl Lookup<Database = dyn DefDatabase, Data = Loc>,
         ) -> (HirFileId, Option<ast::GenericParamList>)
         where
             Loc: src::HasSource,
@@ -1141,7 +1141,7 @@ pub trait HasModule {
 impl<N, ItemId> HasModule for ItemId
 where
     N: ItemTreeNode,
-    ItemId: for<'db> Lookup<Database = dyn DefDatabase, Data = ItemLoc<N>> + Copy,
+    ItemId: Lookup<Database = dyn DefDatabase, Data = ItemLoc<N>> + Copy,
 {
     #[inline]
     fn module(&self, db: &dyn DefDatabase) -> ModuleId {

@@ -318,7 +318,7 @@ pub type Ty = ();
         assert_eq!(n_parsed_files, 1);
     }
 
-    // Delete the parse tree.
+    // FIXME(salsa-transition): bring this back
     // base_db::ParseQuery.in_db(&db).purge();
 
     {

@@ -362,7 +362,7 @@ impl GenericParams {
             };
         fn id_to_generics<Id: GenericsItemTreeNode>(
             db: &dyn DefDatabase,
-            id: impl for<'db> Lookup<Database = dyn DefDatabase, Data = impl ItemTreeLoc<Id = Id>>,
+            id: impl Lookup<Database = dyn DefDatabase, Data = impl ItemTreeLoc<Id = Id>>,
             enabled_params: impl Fn(
                 &Arc<GenericParams>,
                 &ItemTree,
