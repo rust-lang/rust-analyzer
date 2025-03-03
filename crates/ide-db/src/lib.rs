@@ -53,7 +53,7 @@ use std::{fmt, mem::ManuallyDrop};
 use base_db::{
     db_ext_macro::{self},
     FileSourceRootInput, FileText, Files, RootQueryDb, SourceDatabase, SourceRoot, SourceRootId,
-    SourceRootInput, Upcast, DEFAULT_FILE_TEXT_LRU_CAP,
+    SourceRootInput, Upcast,
 };
 use hir::{
     db::{DefDatabase, ExpandDatabase, HirDatabase},

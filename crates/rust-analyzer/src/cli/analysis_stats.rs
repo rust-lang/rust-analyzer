@@ -26,11 +26,11 @@ use ide_db::{base_db::SourceDatabase, EditionedFileId, LineIndexDatabase, Snippe
 use itertools::Itertools;
 use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};
 use oorandom::Rand32;
-use profile::{Bytes, StopWatch};
+use profile::StopWatch;
 use project_model::{CargoConfig, CfgOverrides, ProjectManifest, ProjectWorkspace, RustLibSource};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use syntax::{AstNode, SyntaxNode};
+use syntax::AstNode;
 use vfs::{AbsPathBuf, Vfs, VfsPath};
 
 use crate::cli::{
@@ -258,17 +258,21 @@ impl flags::AnalysisStats {
         report_metric("total memory", total_span.memory.allocated.megabytes() as u64, "MB");
 
         if self.source_stats {
-            let mut total_file_size = Bytes::default();
+            // FIXME(salsa-transition): bring back stats for ParseQuery (file size)
+            // and ParseMacroExpansionQuery (mcaro expansion "file") size whenever we implement
+            // Salsa's memory usage tracking works with tracked functions.
+
+            // let mut total_file_size = Bytes::default();
             // for e in ide_db::base_db::ParseQuery.in_db(db).entries::<Vec<_>>() {
             //     total_file_size += syntax_len(db.parse(e.key).syntax_node())
             // }
 
-            let mut total_macro_file_size = Bytes::default();
+            // let mut total_macro_file_size = Bytes::default();
             // for e in hir::db::ParseMacroExpansionQuery.in_db(db).entries::<Vec<_>>() {
             //     let val = db.parse_macro_expansion(e.key).value.0;
             //     total_macro_file_size += syntax_len(val.syntax_node())
             // }
-            eprintln!("source files: {total_file_size}, macro files: {total_macro_file_size}");
+            // eprintln!("source files: {total_file_size}, macro files: {total_macro_file_size}");
         }
 
         if verbosity.is_verbose() {
@@ -1201,8 +1205,10 @@ fn percentage(n: u64, total: u64) -> u64 {
     (n * 100).checked_div(total).unwrap_or(100)
 }
 
-fn syntax_len(node: SyntaxNode) -> usize {
-    // Macro expanded code doesn't contain whitespace, so erase *all* whitespace
-    // to make macro and non-macro code comparable.
-    node.to_string().replace(|it: char| it.is_ascii_whitespace(), "").len()
-}
+// FIXME(salsa-transition): bring this back whenever we implement
+// Salsa's memory usage tracking to work with tracked functions.
+// fn syntax_len(node: SyntaxNode) -> usize {
+//     // Macro expanded code doesn't contain whitespace, so erase *all* whitespace
+//     // to make macro and non-macro code comparable.
+//     node.to_string().replace(|it: char| it.is_ascii_whitespace(), "").len()
+// }
