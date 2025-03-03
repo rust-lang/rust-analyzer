@@ -58,7 +58,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-tree.workspace = true
 project-model.workspace = true
-vfs.workspace = true
 
 # local deps
 test-utils.workspace = true

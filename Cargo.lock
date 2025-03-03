@@ -736,7 +736,6 @@ dependencies = [
  "tracing",
  "triomphe",
  "tt",
- "vfs",
 ]
 
 [[package]]
@@ -812,7 +811,6 @@ dependencies = [
  "tracing-tree",
  "triomphe",
  "typed-arena",
- "vfs",
 ]
 
 [[package]]

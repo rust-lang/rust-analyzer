@@ -86,18 +86,18 @@ impl panic::RefUnwindSafe for TestDB {}
 
 #[salsa::db]
 impl SourceDatabase for TestDB {
-    fn file_text(&self, file_id: vfs::FileId) -> FileText {
+    fn file_text(&self, file_id: base_db::FileId) -> FileText {
         self.files.file_text(file_id)
     }
 
-    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
+    fn set_file_text(&mut self, file_id: base_db::FileId, text: &str) {
         let files = Arc::clone(&self.files);
         files.set_file_text(self, file_id, text);
     }
 
     fn set_file_text_with_durability(
         &mut self,
-        file_id: vfs::FileId,
+        file_id: base_db::FileId,
         text: &str,
         durability: Durability,
     ) {
@@ -120,13 +120,13 @@ impl SourceDatabase for TestDB {
         files.set_source_root_with_durability(self, source_root_id, source_root, durability);
     }
 
-    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
+    fn file_source_root(&self, id: base_db::FileId) -> FileSourceRootInput {
         self.files.file_source_root(id)
     }
 
     fn set_file_source_root_with_durability(
         &mut self,
-        id: vfs::FileId,
+        id: base_db::FileId,
         source_root_id: SourceRootId,
         durability: Durability,
     ) {

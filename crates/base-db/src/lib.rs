@@ -21,8 +21,7 @@ use salsa::{Durability, Setter};
 pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
 use syntax::{ast, Parse, SyntaxError};
 use triomphe::Arc;
-use vfs::FileId;
-pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath};
+pub use vfs::{file_set::FileSet, AnchoredPath, AnchoredPathBuf, VfsPath, FileId};
 
 #[macro_export]
 macro_rules! impl_intern_key {
