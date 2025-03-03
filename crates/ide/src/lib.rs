@@ -279,10 +279,10 @@ impl Analysis {
         self.with_db(|db| db.file_source_root(file_id).source_root_id(db))
     }
 
-    pub fn is_local_source_root(&self, file_id: FileId) -> Cancellable<bool> {
+    pub fn is_local_source_root(&self, source_root_id: SourceRootId) -> Cancellable<bool> {
         self.with_db(|db| {
-            let source_root = db.file_source_root(file_id).source_root_id(db);
-            !db.source_root(source_root).source_root(db).is_library
+            let sr = db.source_root(source_root_id).source_root(db);
+            !sr.is_library
         })
     }
 
