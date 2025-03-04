@@ -1,3 +1,6 @@
+use crate::Database;
+use crate::Query;
+use crate::Runtime;
 use crate::debug::TableEntry;
 use crate::durability::Durability;
 use crate::hash::FxIndexMap;
@@ -7,9 +10,6 @@ use crate::plumbing::QueryStorageMassOps;
 use crate::plumbing::QueryStorageOps;
 use crate::revision::Revision;
 use crate::runtime::StampedValue;
-use crate::Database;
-use crate::Query;
-use crate::Runtime;
 use crate::{DatabaseKeyIndex, QueryDb};
 use indexmap::map::Entry;
 use parking_lot::RwLock;

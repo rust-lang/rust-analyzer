@@ -1,5 +1,5 @@
 use base_db::ra_salsa::InternKey;
-use expect_test::{expect, Expect};
+use expect_test::{Expect, expect};
 use hir_def::db::DefDatabase;
 use hir_expand::files::InFileWrapper;
 use itertools::Itertools;
@@ -380,7 +380,9 @@ fn main() {
     };
 }
 "#,
-        expect!["57..149;20..25;78..80,98..100,118..124,134..135 ByRef(Mut { kind: Default }) a &'? mut bool"],
+        expect![
+            "57..149;20..25;78..80,98..100,118..124,134..135 ByRef(Mut { kind: Default }) a &'? mut bool"
+        ],
     );
 }
 

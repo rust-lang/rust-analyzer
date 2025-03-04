@@ -3,10 +3,10 @@
 use std::{fmt, panic, sync::Mutex};
 
 use base_db::{
-    ra_salsa::{self, Durability},
     AnchoredPath, CrateId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
+    ra_salsa::{self, Durability},
 };
-use hir_def::{db::DefDatabase, ModuleId};
+use hir_def::{ModuleId, db::DefDatabase};
 use hir_expand::db::ExpandDatabase;
 use rustc_hash::FxHashMap;
 use span::{EditionedFileId, FileId};

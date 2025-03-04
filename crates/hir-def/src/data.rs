@@ -4,32 +4,32 @@ pub mod adt;
 
 use base_db::CrateId;
 use hir_expand::{
-    name::Name, AstId, ExpandResult, HirFileId, InFile, MacroCallId, MacroCallKind, MacroDefKind,
+    AstId, ExpandResult, HirFileId, InFile, MacroCallId, MacroCallKind, MacroDefKind, name::Name,
 };
-use intern::{sym, Symbol};
+use intern::{Symbol, sym};
 use la_arena::{Idx, RawIdx};
 use smallvec::SmallVec;
-use syntax::{ast, Parse};
+use syntax::{Parse, ast};
 use triomphe::Arc;
 use tt::iter::TtElement;
 
 use crate::{
+    AssocItemId, AstIdWithPath, ConstId, ConstLoc, ExternCrateId, FunctionId, FunctionLoc,
+    HasModule, ImplId, Intern, ItemContainerId, ItemLoc, Lookup, Macro2Id, MacroRulesId, ModuleId,
+    ProcMacroId, StaticId, TraitAliasId, TraitId, TypeAliasId, TypeAliasLoc,
     db::DefDatabase,
     expander::{Expander, Mark},
     item_tree::{self, AssocItem, FnFlags, ItemTree, ItemTreeId, MacroCall, ModItem, TreeId},
     macro_call_as_call_id,
     nameres::{
+        DefMap, MacroSubNs,
         attr_resolution::ResolvedAttr,
         diagnostics::{DefDiagnostic, DefDiagnostics},
-        proc_macro::{parse_macro_name_and_helper_attrs, ProcMacroKind},
-        DefMap, MacroSubNs,
+        proc_macro::{ProcMacroKind, parse_macro_name_and_helper_attrs},
     },
     path::ImportAlias,
     type_ref::{TraitRef, TypeBound, TypeRefId, TypesMap},
     visibility::RawVisibility,
-    AssocItemId, AstIdWithPath, ConstId, ConstLoc, ExternCrateId, FunctionId, FunctionLoc,
-    HasModule, ImplId, Intern, ItemContainerId, ItemLoc, Lookup, Macro2Id, MacroRulesId, ModuleId,
-    ProcMacroId, StaticId, TraitAliasId, TraitId, TypeAliasId, TypeAliasLoc,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -543,11 +543,7 @@ impl ExternCrateDeclData {
             Some(krate)
         } else {
             db.crate_graph()[krate].dependencies.iter().find_map(|dep| {
-                if dep.name.symbol() == name.symbol() {
-                    Some(dep.crate_id)
-                } else {
-                    None
-                }
+                if dep.name.symbol() == name.symbol() { Some(dep.crate_id) } else { None }
             })
         };
 

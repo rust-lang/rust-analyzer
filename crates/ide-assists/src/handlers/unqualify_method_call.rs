@@ -1,7 +1,8 @@
 use ide_db::imports::insert_use::ImportScope;
 use syntax::{
-    ast::{self, prec::ExprPrecedence, AstNode, HasArgList},
     TextRange,
+    ast::prec::ExprPrecedence,
+    ast::{self, AstNode, HasArgList},
 };
 
 use crate::{AssistContext, AssistId, AssistKind, Assists};
