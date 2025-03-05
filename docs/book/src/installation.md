@@ -13,7 +13,7 @@ editor](./other_editors.html).
 rust-analyzer will attempt to install the standard library source code
 automatically. You can also install it manually with `rustup`.
 
-    $ rustup component add rust-src
+    $ rustup component add rust-analyzer
 
 Only the latest stable standard library source is officially supported
 for use with rust-analyzer. If you are using an older toolchain or have
