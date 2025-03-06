@@ -3276,7 +3276,7 @@ mod foo {
         size: usize,
     }
 
-    pub fn bar() -> bar {
+    pub fn bar(size: usize) -> bar {
         bar { size: 0 }
     }
 }
@@ -3294,7 +3294,7 @@ mod foo {
         size: usize,
     }
 
-    pub fn baz() -> baz {
+    pub fn baz(size: usize) -> baz {
         baz { size: 0 }
     }
 }
