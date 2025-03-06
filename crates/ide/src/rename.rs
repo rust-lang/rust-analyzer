@@ -12,7 +12,7 @@ use ide_db::{
     FileId, FileRange, RootDatabase,
 };
 use itertools::Itertools;
-use stdx::{always, never};
+use stdx::never;
 use syntax::{ast, AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
 
 use ide_db::text_edit::TextEdit;
@@ -33,19 +33,22 @@ pub(crate) fn prepare_rename(
     let source_file = sema.parse_guess_edition(position.file_id);
     let syntax = source_file.syntax();
 
-    let res = find_definitions(&sema, syntax, position)?
-        .map(|(frange, kind, def)| {
-            // ensure all ranges are valid
+    let primary_defs: Vec<_> = find_definitions(&sema, syntax, position)?
+        .filter(|(frange, _, _)| {
+            frange.range.contains_inclusive(position.offset) && frange.file_id == position.file_id
+        })
+        .collect();
 
+    if primary_defs.is_empty() {
+        bail!("No references found at position");
+    }
+
+    let merged_range_result = primary_defs
+        .into_iter()
+        .map(|(frange, kind, def)| {
             if def.range_for_rename(&sema).is_none() {
                 bail!("No references found at position")
             }
-
-            always!(
-                frange.range.contains_inclusive(position.offset)
-                    && frange.file_id == position.file_id
-            );
-
             Ok(match kind {
                 SyntaxKind::LIFETIME => {
                     TextRange::new(frange.range.start() + TextSize::from(1), frange.range.end())
@@ -54,17 +57,15 @@ pub(crate) fn prepare_rename(
             })
         })
         .reduce(|acc, cur| match (acc, cur) {
-            // ensure all ranges are the same
             (Ok(acc_inner), Ok(cur_inner)) if acc_inner == cur_inner => Ok(acc_inner),
             (e @ Err(_), _) | (_, e @ Err(_)) => e,
             _ => bail!("inconsistent text range"),
         });
 
-    match res {
-        // ensure at least one definition was found
-        Some(res) => res.map(|range| RangeInfo::new(range, ())),
-        None => bail!("No references found at position"),
-    }
+    let merged_range =
+        merged_range_result.ok_or_else(|| format_err!("No references found at position"))??;
+
+    Ok(RangeInfo::new(merged_range, ()))
 }
 
 // Feature: Rename
@@ -294,12 +295,74 @@ fn find_definitions(
                 // FIXME: some semantic duplication between "empty vec" and "Err()"
                 Err(format_err!("No references found at position"))
             } else {
-                // remove duplicates, comparing `Definition`s
-                Ok(v.into_iter()
+                let mut defs = v
+                    .into_iter()
                     .unique_by(|&(.., def)| def)
                     .map(|(a, b, c)| (a.into(), b, c))
-                    .collect::<Vec<_>>()
-                    .into_iter())
+                    .collect::<Vec<_>>();
+
+                // Determine whether related definitions with the same name
+                // (e.g., a function and a struct) should also be included.
+                let mut additional_defs = Vec::new();
+
+                for (_, _, def) in &defs {
+                    if let Some(name) = def.name(sema.db) {
+                        let name_str = name.as_str().to_owned();
+
+                        // For structs, look for functions with the same name
+                        if let Definition::Adt(adt) = def {
+                            let module = adt.module(sema.db);
+                            for item in module.declarations(sema.db) {
+                                if let hir::ModuleDef::Function(func) = item {
+                                    let func_name = func.name(sema.db);
+                                    if func_name.as_str() == name_str {
+                                        let func_def = Definition::Function(func);
+                                        if !defs.iter().any(|(.., d)| d == &func_def) {
+                                            if let Some(range) = func_def.range_for_rename(sema) {
+                                                if range.file_id == file_id {
+                                                    additional_defs.push((
+                                                        FileRange { file_id, range: range.range },
+                                                        SyntaxKind::FN_KW,
+                                                        func_def,
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // For functions, look for structs with the same name
+                        if let Definition::Function(func) = def {
+                            let module = func.module(sema.db);
+                            for item in module.declarations(sema.db) {
+                                if let hir::ModuleDef::Adt(adt) = item {
+                                    let adt_name = adt.name(sema.db);
+                                    if adt_name.as_str() == name_str {
+                                        let adt_def = Definition::Adt(adt);
+                                        if !defs.iter().any(|(.., d)| d == &adt_def) {
+                                            if let Some(range) = adt_def.range_for_rename(sema) {
+                                                if range.file_id == file_id {
+                                                    additional_defs.push((
+                                                        FileRange { file_id, range: range.range },
+                                                        SyntaxKind::STRUCT_KW,
+                                                        adt_def,
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add the additional definitions to our list
+                defs.extend(additional_defs);
+
+                Ok(defs.into_iter())
             }
         }
         Err(e) => Err(e),
@@ -3196,6 +3259,49 @@ trait Trait<T> {
             r#"
 trait Trait<U> {
     fn foo() -> impl use<U> Trait {}
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn rename_both_struct_and_fn() {
+        check(
+            "baz",
+            r#"
+pub use foo::bar;
+
+mod foo {
+    pub struct bar$0 {
+        size: usize,
+    }
+
+    pub fn bar() -> bar {
+        bar { size: 0 }
+    }
+}
+
+#[test]
+fn test_bar() {
+    bar(5);
+}
+"#,
+            r#"
+pub use foo::baz;
+
+mod foo {
+    pub struct baz {
+        size: usize,
+    }
+
+    pub fn baz() -> baz {
+        baz { size: 0 }
+    }
+}
+
+#[test]
+fn test_bar() {
+    baz(5);
 }
 "#,
         );
