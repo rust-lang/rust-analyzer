@@ -1259,3 +1259,18 @@ fn main() {
             "#,
     );
 }
+
+#[test]
+fn type_mismatch_string_str() {
+    check_no_mismatches(
+        r#"
+fn main() {
+    match String::new() {
+        "" => (),
+        _ => (),
+    }
+}
+
+            "#,
+    );
+}
