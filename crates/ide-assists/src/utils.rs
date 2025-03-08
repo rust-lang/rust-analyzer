@@ -21,7 +21,8 @@ use syntax::{
         syntax_factory::SyntaxFactory,
         HasArgList, HasAttrs, HasGenericParams, HasName, HasTypeBounds, Whitespace,
     },
-    ted, AstNode, AstToken, Direction, Edition, NodeOrToken, SourceFile,
+    ted::{self, Position},
+    AstNode, AstToken, Direction, Edition, NodeOrToken, SourceFile,
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, TextRange, TextSize, WalkEvent, T,
 };
@@ -215,6 +216,10 @@ pub fn add_trait_assoc_items_to_impl(
     });
 
     let assoc_item_list = impl_.get_or_create_assoc_item_list();
+    if trait_.is_unsafe(sema.db) {
+        ted::insert(Position::first_child_of(impl_.syntax()), make::token(T![unsafe]));
+    }
+
     let mut first_item = None;
     for item in items {
         first_item.get_or_insert_with(|| item.clone());
