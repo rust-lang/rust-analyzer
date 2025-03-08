@@ -5,6 +5,7 @@ use std::iter::repeat_with;
 use hir_def::{
     expr_store::Body,
     hir::{Binding, BindingAnnotation, BindingId, Expr, ExprId, Literal, Pat, PatId},
+    lang_item::LangItem,
     path::Path,
     HasModule,
 };
@@ -12,6 +13,7 @@ use hir_expand::name::Name;
 use stdx::TupleExt;
 
 use crate::{
+    chalk_db::AdtId,
     consteval::{self, try_const_usize, usize_const},
     infer::{
         coerce::CoerceNever, expr::ExprIsRead, BindingMode, Expectation, InferenceContext,
@@ -550,6 +552,18 @@ impl InferenceContext<'_> {
                     self.write_expr_ty(expr, ty.clone());
                     return ty;
                 }
+            }
+        } else if let Expr::Literal(Literal::String(_)) = self.body[expr] {
+            match expected.kind(Interner) {
+                TyKind::Adt(chalk_ir::AdtId(hir_def::AdtId::StructId(struct_id)), _) => {
+                    let struct_data = self
+                        .resolve_lang_item(LangItem::String)
+                        .and_then(|lang_item| lang_item.as_struct());
+                    if Some(*struct_id) == struct_data {
+                        return expected.clone();
+                    }
+                }
+                _ => {}
             }
         }
 
