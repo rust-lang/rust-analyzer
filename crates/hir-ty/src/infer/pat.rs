@@ -13,7 +13,6 @@ use hir_expand::name::Name;
 use stdx::TupleExt;
 
 use crate::{
-    chalk_db::AdtId,
     consteval::{self, try_const_usize, usize_const},
     infer::{
         coerce::CoerceNever, expr::ExprIsRead, BindingMode, Expectation, InferenceContext,
@@ -554,16 +553,15 @@ impl InferenceContext<'_> {
                 }
             }
         } else if let Expr::Literal(Literal::String(_)) = self.body[expr] {
-            match expected.kind(Interner) {
-                TyKind::Adt(chalk_ir::AdtId(hir_def::AdtId::StructId(struct_id)), _) => {
-                    let struct_data = self
-                        .resolve_lang_item(LangItem::String)
-                        .and_then(|lang_item| lang_item.as_struct());
-                    if Some(*struct_id) == struct_data {
-                        return expected.clone();
-                    }
+            if let TyKind::Adt(chalk_ir::AdtId(hir_def::AdtId::StructId(struct_id)), _) =
+                expected.kind(Interner)
+            {
+                let struct_data = self
+                    .resolve_lang_item(LangItem::String)
+                    .and_then(|lang_item| lang_item.as_struct());
+                if Some(*struct_id) == struct_data {
+                    return expected.clone();
                 }
-                _ => {}
             }
         }
 
