@@ -3,7 +3,7 @@ use ide_db::{helpers::mod_path_to_ast, imports::import_assets::NameToImport, ite
 use itertools::Itertools;
 use syntax::{
     ast::{self, make, AstNode, HasName},
-    ted,
+    ted::{self, Position},
     SyntaxKind::WHITESPACE,
     T,
 };
@@ -222,6 +222,10 @@ fn impl_def_from_trait(
 
     let first_assoc_item =
         add_trait_assoc_items_to_impl(sema, &trait_items, trait_, &impl_def, &target_scope);
+
+    if trait_.is_unsafe(sema.db) {
+        ted::insert(Position::first_child_of(impl_def.syntax()), make::token(T![unsafe]));
+    }
 
     // Generate a default `impl` function body for the derived trait.
     if let ast::AssocItem::Fn(ref func) = first_assoc_item {
