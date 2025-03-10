@@ -1,5 +1,5 @@
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 use ra_salsa::ParallelDatabase;
 use ra_salsa::Snapshot;
