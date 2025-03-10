@@ -110,7 +110,11 @@ jobs:
         run: sed -i '/\[profile.dev]/a opt-level=1' Cargo.toml
 
       - name: Codegen checks (rust-analyzer)
-        run: cargo codegen --check
+        run: |
+          cargo codegen --check
+          # Fail if any files were modified
+          # (except Cargo.toml modified in the previous step)
+          git diff --exit-code -- ':!Cargo.toml'
 
       - name: Compile (tests)
         run: cargo test --no-run --locked
