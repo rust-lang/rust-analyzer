@@ -1,28 +1,28 @@
 use std::{fmt, marker::PhantomData};
 
 use hir::{
-    db::{AstIdMapQuery, AttrsQuery, BlockDefMapQuery, ParseMacroExpansionQuery},
     Attr, Attrs, ExpandResult, MacroFileId, Module,
+    db::{AstIdMapQuery, AttrsQuery, BlockDefMapQuery, ParseMacroExpansionQuery},
+};
+use ide_db::{
+    RootDatabase,
+    symbol_index::{LibrarySymbolsQuery, SymbolIndex},
 };
 use ide_db::{
     base_db::{
-        ra_salsa::{
-            debug::{DebugQueryTable, TableEntry},
-            Query, QueryTable,
-        },
         CompressedFileTextQuery, CrateData, ParseQuery, SourceDatabase, SourceRootId,
+        ra_salsa::{
+            Query, QueryTable,
+            debug::{DebugQueryTable, TableEntry},
+        },
     },
     symbol_index::ModuleSymbolsQuery,
 };
-use ide_db::{
-    symbol_index::{LibrarySymbolsQuery, SymbolIndex},
-    RootDatabase,
-};
 use itertools::Itertools;
-use profile::{memory_usage, Bytes};
+use profile::{Bytes, memory_usage};
 use span::{EditionedFileId, FileId};
 use stdx::format_to;
-use syntax::{ast, Parse, SyntaxNode};
+use syntax::{Parse, SyntaxNode, ast};
 use triomphe::Arc;
 
 // Feature: Status
@@ -104,9 +104,9 @@ where
     Q: QueryCollect,
     <Q as Query>::Storage: 'q,
     <Q as QueryCollect>::Collector: StatCollect<
-        <QueryTable<'q, Q> as DebugQueryTable>::Key,
-        <QueryTable<'q, Q> as DebugQueryTable>::Value,
-    >,
+            <QueryTable<'q, Q> as DebugQueryTable>::Key,
+            <QueryTable<'q, Q> as DebugQueryTable>::Value,
+        >,
 {
     struct StatCollectorWrapper<C>(C);
     impl<C: StatCollect<K, V>, K, V> FromIterator<TableEntry<K, V>> for StatCollectorWrapper<C> {

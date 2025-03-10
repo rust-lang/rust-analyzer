@@ -5,11 +5,11 @@ use std::fmt;
 use base_db::ra_salsa::Cycle;
 use chalk_ir::{AdtId, FloatTy, IntTy, TyKind, UintTy};
 use hir_def::{
+    LocalFieldId, StructId,
     layout::{
         Float, Integer, LayoutCalculator, LayoutCalculatorError, LayoutData, Primitive,
         ReprOptions, Scalar, StructKind, TargetDataLayout, WrappingRange,
     },
-    LocalFieldId, StructId,
 };
 use la_arena::{Idx, RawIdx};
 use rustc_abi::AddressSpace;
@@ -18,11 +18,11 @@ use rustc_index::IndexVec;
 use triomphe::Arc;
 
 use crate::{
+    Interner, ProjectionTy, Substitution, TraitEnvironment, Ty,
     consteval::try_const_usize,
     db::{HirDatabase, InternedClosure},
     infer::normalize,
     utils::ClosureSubst,
-    Interner, ProjectionTy, Substitution, TraitEnvironment, Ty,
 };
 
 pub use self::{
@@ -322,7 +322,7 @@ pub fn layout_of_ty_query(
                     return Err(LayoutError::NotImplemented);
                 }
                 crate::ImplTraitId::AsyncBlockTypeImplTrait(_, _) => {
-                    return Err(LayoutError::NotImplemented)
+                    return Err(LayoutError::NotImplemented);
                 }
             }
         }
@@ -344,7 +344,7 @@ pub fn layout_of_ty_query(
             cx.calc.univariant(&fields, &ReprOptions::default(), StructKind::AlwaysSized)?
         }
         TyKind::Coroutine(_, _) | TyKind::CoroutineWitness(_, _) => {
-            return Err(LayoutError::NotImplemented)
+            return Err(LayoutError::NotImplemented);
         }
         TyKind::Error => return Err(LayoutError::HasErrorType),
         TyKind::AssociatedType(id, subst) => {

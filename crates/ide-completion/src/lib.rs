@@ -11,10 +11,10 @@ mod snippet;
 mod tests;
 
 use ide_db::{
+    FilePosition, FxHashSet, RootDatabase,
     imports::insert_use::{self, ImportScope},
     syntax_helpers::tree_diff::diff,
     text_edit::TextEdit,
-    FilePosition, FxHashSet, RootDatabase,
 };
 use syntax::ast::make;
 
