@@ -14,6 +14,7 @@ use triomphe::Arc;
 use tt::iter::TtElement;
 
 use crate::{
+    EnumId, EnumVariantId, LocalFieldId, LocalModuleId, Lookup, StructId, UnionId, VariantId,
     builtin_type::{BuiltinInt, BuiltinUint},
     db::DefDatabase,
     hir::Expr,
@@ -25,7 +26,6 @@ use crate::{
     tt::{Delimiter, DelimiterKind, Leaf, TopSubtree},
     type_ref::{TypeRefId, TypesMap},
     visibility::RawVisibility,
-    EnumId, EnumVariantId, LocalFieldId, LocalModuleId, Lookup, StructId, UnionId, VariantId,
 };
 
 /// Note that we use `StructData` for unions as well!

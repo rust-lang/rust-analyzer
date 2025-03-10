@@ -1,3 +1,4 @@
+use crate::Cycle;
 use crate::debug::TableEntry;
 use crate::derived_lru::MemoizationPolicy;
 use crate::durability::Durability;
@@ -5,13 +6,12 @@ use crate::lru::LruIndex;
 use crate::lru::LruNode;
 use crate::plumbing::{DatabaseOps, QueryFunction};
 use crate::revision::Revision;
-use crate::runtime::local_state::ActiveQueryGuard;
-use crate::runtime::local_state::QueryRevisions;
 use crate::runtime::Runtime;
 use crate::runtime::RuntimeId;
 use crate::runtime::StampedValue;
 use crate::runtime::WaitResult;
-use crate::Cycle;
+use crate::runtime::local_state::ActiveQueryGuard;
+use crate::runtime::local_state::QueryRevisions;
 use crate::{Database, DatabaseKeyIndex, Event, EventKind, QueryDb};
 use parking_lot::{RawRwLock, RwLock};
 use std::marker::PhantomData;
@@ -147,7 +147,7 @@ where
             match self.probe(db, self.state.read(), runtime, revision_now) {
                 ProbeState::UpToDate(v) => return v,
                 ProbeState::Stale(..) | ProbeState::NoValue(..) | ProbeState::NotComputed(..) => {
-                    break
+                    break;
                 }
                 ProbeState::Retry => continue,
             }
@@ -259,9 +259,9 @@ where
                             Q::cycle_fallback(db, &cycle, key)
                         } else {
                             // we are not a participant in this cycle
-                            debug_assert!(!cycle
-                                .participant_keys()
-                                .any(|k| k == self.database_key_index()));
+                            debug_assert!(
+                                !cycle.participant_keys().any(|k| k == self.database_key_index())
+                            );
                             cycle.throw()
                         }
                     }
@@ -295,8 +295,7 @@ where
                 {
                     trace!(
                         "read_upgrade({:?}): value is equal, back-dating to {:?}",
-                        self,
-                        old_memo.revisions.changed_at,
+                        self, old_memo.revisions.changed_at,
                     );
 
                     assert!(old_memo.revisions.changed_at <= revisions.changed_at);
@@ -365,9 +364,7 @@ where
             QueryState::Memoized(memo) => {
                 trace!(
                     "{:?}: found memoized value, verified_at={:?}, changed_at={:?}",
-                    self,
-                    memo.verified_at,
-                    memo.revisions.changed_at,
+                    self, memo.verified_at, memo.revisions.changed_at,
                 );
 
                 if memo.verified_at < revision_now {
@@ -383,8 +380,7 @@ where
 
                     trace!(
                         "{:?}: returning memoized value changed at {:?}",
-                        self,
-                        value.changed_at
+                        self, value.changed_at
                     );
 
                     ProbeState::UpToDate(value)
@@ -459,9 +455,7 @@ where
 
         trace!(
             "maybe_changed_after({:?}) called with revision={:?}, revision_now={:?}",
-            self,
-            revision,
-            revision_now,
+            self, revision, revision_now,
         );
 
         // Do an initial probe with just the read-lock.
@@ -532,7 +526,7 @@ where
             // either verified or cleared out. Just recurse to figure out which.
             // Note that we don't need an upgradable read.
             MaybeChangedSinceProbeState::Retry => {
-                return self.maybe_changed_after(db, revision, key)
+                return self.maybe_changed_after(db, revision, key);
             }
 
             MaybeChangedSinceProbeState::Stale(state) => {
@@ -745,9 +739,7 @@ where
 
         trace!(
             "verify_revisions: verified_at={:?}, revision_now={:?}, inputs={:#?}",
-            verified_at,
-            revision_now,
-            self.revisions.inputs
+            verified_at, revision_now, self.revisions.inputs
         );
 
         if self.check_durability(db.salsa_runtime()) {

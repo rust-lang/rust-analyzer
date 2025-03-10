@@ -4,8 +4,8 @@ exclude = ["crates/proc-macro-srv/proc-macro-test/imp"]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.84"
-edition = "2021"
+rust-version = "1.85"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["rust-analyzer team"]
 repository = "https://github.com/rust-lang/rust-analyzer"

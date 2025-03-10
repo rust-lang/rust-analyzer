@@ -50,13 +50,13 @@ pub use hir::ChangeWithProcMacros;
 use std::{fmt, mem::ManuallyDrop};
 
 use base_db::{
+    AnchoredPath, CrateId, DEFAULT_FILE_TEXT_LRU_CAP, FileLoader, FileLoaderDelegate,
+    SourceDatabase, Upcast,
     ra_salsa::{self, Durability},
-    AnchoredPath, CrateId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
-    DEFAULT_FILE_TEXT_LRU_CAP,
 };
 use hir::{
-    db::{DefDatabase, ExpandDatabase, HirDatabase},
     FilePositionWrapper, FileRangeWrapper,
+    db::{DefDatabase, ExpandDatabase, HirDatabase},
 };
 use triomphe::Arc;
 
@@ -288,11 +288,7 @@ pub struct SnippetCap {
 
 impl SnippetCap {
     pub const fn new(allow_snippets: bool) -> Option<SnippetCap> {
-        if allow_snippets {
-            Some(SnippetCap { _private: () })
-        } else {
-            None
-        }
+        if allow_snippets { Some(SnippetCap { _private: () }) } else { None }
     }
 }
 
