@@ -111,6 +111,7 @@ mod handlers {
     mod add_lifetime_to_type;
     mod add_missing_impl_members;
     mod add_missing_match_arms;
+    mod generate_missing_param_docs;
     mod add_return_type;
     mod add_turbo_fish;
     mod apply_demorgan;
