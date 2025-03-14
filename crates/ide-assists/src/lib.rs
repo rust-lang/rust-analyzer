@@ -111,7 +111,6 @@ mod handlers {
     mod add_lifetime_to_type;
     mod add_missing_impl_members;
     mod add_missing_match_arms;
-    mod generate_missing_param_docs;
     mod add_return_type;
     mod add_turbo_fish;
     mod apply_demorgan;
@@ -170,6 +169,7 @@ mod handlers {
     mod generate_getter_or_setter;
     mod generate_impl;
     mod generate_is_empty_from_len;
+    mod generate_missing_param_docs;
     mod generate_mut_trait_impl;
     mod generate_new;
     mod generate_trait_from_impl;
@@ -300,6 +300,7 @@ mod handlers {
             generate_impl::generate_impl,
             generate_impl::generate_trait_impl,
             generate_is_empty_from_len::generate_is_empty_from_len,
+            generate_missing_param_docs::generate_missing_param_docs,
             generate_mut_trait_impl::generate_mut_trait_impl,
             generate_new::generate_new,
             generate_trait_from_impl::generate_trait_from_impl,
