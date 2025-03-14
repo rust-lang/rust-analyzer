@@ -13,13 +13,26 @@ use salsa::{
 
 use crate::{
     AssocTypeId, CallableDefId, ChalkTraitId, FnDefId, ForeignDefId, Interner, OpaqueTyId,
-    PlaceholderIndex, chalk_db, db::HirDatabase,
+    PlaceholderIndex, chalk_db,
+    db::{HirDatabase, RpititImplAssocTyId, RpititTraitAssocTyId},
 };
 
 pub(crate) trait ToChalk {
     type Chalk;
     fn to_chalk(self, db: &dyn HirDatabase) -> Self::Chalk;
     fn from_chalk(db: &dyn HirDatabase, chalk: Self::Chalk) -> Self;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa_macros::Supertype)]
+pub enum AnyTraitAssocType {
+    Normal(TypeAliasId),
+    Rpitit(RpititTraitAssocTyId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa_macros::Supertype)]
+pub enum AnyImplAssocType {
+    Normal(TypeAliasId),
+    Rpitit(RpititImplAssocTyId),
 }
 
 pub(crate) fn from_chalk<T, ChalkT>(db: &dyn HirDatabase, chalk: ChalkT) -> T
@@ -50,23 +63,6 @@ impl ToChalk for CallableDefId {
 
     fn from_chalk(db: &dyn HirDatabase, fn_def_id: FnDefId) -> CallableDefId {
         db.lookup_intern_callable_def(fn_def_id.into())
-    }
-}
-
-pub(crate) struct TypeAliasAsValue(pub(crate) TypeAliasId);
-
-impl ToChalk for TypeAliasAsValue {
-    type Chalk = chalk_db::AssociatedTyValueId;
-
-    fn to_chalk(self, _db: &dyn HirDatabase) -> chalk_db::AssociatedTyValueId {
-        rust_ir::AssociatedTyValueId(self.0.as_id())
-    }
-
-    fn from_chalk(
-        _db: &dyn HirDatabase,
-        assoc_ty_value_id: chalk_db::AssociatedTyValueId,
-    ) -> TypeAliasAsValue {
-        TypeAliasAsValue(TypeAliasId::from_id(assoc_ty_value_id.0))
     }
 }
 
@@ -130,8 +126,29 @@ pub fn to_assoc_type_id(id: TypeAliasId) -> AssocTypeId {
     chalk_ir::AssocTypeId(id.as_id())
 }
 
-pub fn from_assoc_type_id(id: AssocTypeId) -> TypeAliasId {
-    FromId::from_id(id.0)
+pub(crate) fn to_assoc_type_id_rpitit(id: RpititTraitAssocTyId) -> AssocTypeId {
+    chalk_ir::AssocTypeId(id.as_id())
+}
+
+pub fn from_assoc_type_id(db: &dyn HirDatabase, id: AssocTypeId) -> AnyTraitAssocType {
+    salsa::plumbing::FromIdWithDb::from_id(id.0, db)
+}
+
+pub fn to_assoc_type_value_id(id: TypeAliasId) -> chalk_db::AssociatedTyValueId {
+    rust_ir::AssociatedTyValueId(id.as_id())
+}
+
+pub(crate) fn to_assoc_type_value_id_rpitit(
+    id: RpititImplAssocTyId,
+) -> chalk_db::AssociatedTyValueId {
+    rust_ir::AssociatedTyValueId(id.as_id())
+}
+
+pub fn from_assoc_type_value_id(
+    db: &dyn HirDatabase,
+    id: chalk_db::AssociatedTyValueId,
+) -> AnyImplAssocType {
+    salsa::plumbing::FromIdWithDb::from_id(id.0, db)
 }
 
 pub fn from_placeholder_idx(db: &dyn HirDatabase, idx: PlaceholderIndex) -> TypeOrConstParamId {

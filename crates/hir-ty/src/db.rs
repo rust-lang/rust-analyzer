@@ -3,7 +3,7 @@
 
 use std::sync;
 
-use base_db::{Crate, impl_intern_key};
+use base_db::{Crate, impl_intern_key, impl_intern_key_ref};
 use hir_def::{
     AdtId, BlockId, CallableDefId, ConstParamId, DefWithBodyId, EnumVariantId, FunctionId,
     GeneralConstId, GenericDefId, ImplId, LifetimeParamId, LocalFieldId, StaticId, TraitId,
@@ -349,3 +349,35 @@ impl_intern_key!(InternedCoroutineId, InternedCoroutine);
 // This exists just for Chalk, because Chalk just has a single `FnDefId` where
 // we have different IDs for struct and enum variant constructors.
 impl_intern_key!(InternedCallableDefId, CallableDefId);
+
+/// An associated type synthesized from a Return Position Impl Trait In Trait
+/// of the trait (not the impls).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RpititTraitAssocTy {
+    pub trait_id: TraitId,
+    /// The method that contains this RPITIT.
+    pub synthesized_from_method: FunctionId,
+    /// The bounds of this associated type (coming from the `impl Bounds`).
+    ///
+    /// The generics are the generics of the method (with some modifications that we
+    /// don't currently implement, see https://rustc-dev-guide.rust-lang.org/return-position-impl-trait-in-trait.html).
+    pub bounds: Binders<Vec<chalk_solve::rust_ir::QuantifiedInlineBound<Interner>>>,
+}
+
+impl_intern_key_ref!(RpititTraitAssocTyId, RpititTraitAssocTy);
+
+/// An associated type synthesized from a Return Position Impl Trait In Trait
+/// of the impl (not the trait).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RpititImplAssocTy {
+    pub impl_id: ImplId,
+    /// The definition of this associated type in the trait.
+    pub trait_assoc: RpititTraitAssocTyId,
+    /// The bounds of this associated type (coming from the `impl Bounds`).
+    ///
+    /// The generics are the generics of the method (with some modifications that we
+    /// don't currently implement, see https://rustc-dev-guide.rust-lang.org/return-position-impl-trait-in-trait.html).
+    pub value: Binders<chalk_solve::rust_ir::AssociatedTyValueBound<Interner>>,
+}
+
+impl_intern_key_ref!(RpititImplAssocTyId, RpititImplAssocTy);

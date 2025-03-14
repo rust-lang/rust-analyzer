@@ -36,8 +36,8 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use hir_ty::{
-    Adjustment, AliasTy, InferenceResult, Interner, LifetimeElisionKind, ProjectionTy,
-    Substitution, TraitEnvironment, Ty, TyExt, TyKind, TyLoweringContext,
+    Adjustment, AnyTraitAssocType, InferenceResult, Interner, Substitution, TraitEnvironment, Ty,
+    TyExt, TyKind, TyLoweringContext,
     diagnostics::{
         InsideUnsafeBlock, record_literal_missing_fields, record_pattern_missing_fields,
         unsafe_operations,
@@ -1182,11 +1182,14 @@ impl<'db> SourceAnalyzer<'db> {
                         PathResolution::Def(ModuleDef::Adt(adt_id.0.into())),
                     ),
                     TyKind::AssociatedType(assoc_id, subst) => {
-                        let assoc_id = from_assoc_type_id(*assoc_id);
-                        (
-                            GenericSubstitution::new(assoc_id.into(), subst.clone(), env),
-                            PathResolution::Def(ModuleDef::TypeAlias(assoc_id.into())),
-                        )
+                        match from_assoc_type_id(db, *assoc_id) {
+                            AnyTraitAssocType::Normal(assoc_id) => (
+                                GenericSubstitution::new(assoc_id.into(), subst.clone(), env),
+                                PathResolution::Def(ModuleDef::TypeAlias(assoc_id.into())),
+                            ),
+                            // Showing substitution for RPITIT assoc types which are rendered as `impl Trait` will be very confusing.
+                            AnyTraitAssocType::Rpitit(_) => return None,
+                        }
                     }
                     TyKind::FnDef(fn_id, subst) => {
                         let fn_id = hir_ty::db::InternedCallableDefId::from(*fn_id);

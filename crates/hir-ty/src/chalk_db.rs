@@ -9,7 +9,7 @@ use span::Edition;
 use tracing::debug;
 
 use chalk_ir::{CanonicalVarKinds, cast::Caster, fold::shift::Shift};
-use chalk_solve::rust_ir::{self, OpaqueTyDatumBound, WellKnownTrait};
+use chalk_solve::rust_ir::{self, AssociatedTyDatumBound, OpaqueTyDatumBound, WellKnownTrait};
 
 use base_db::Crate;
 use hir_def::{
@@ -24,12 +24,15 @@ use crate::{
     AliasEq, AliasTy, BoundVar, DebruijnIndex, Interner, ProjectionTy, ProjectionTyExt,
     QuantifiedWhereClause, Substitution, TraitRef, TraitRefExt, Ty, TyBuilder, TyExt, TyKind,
     WhereClause,
-    db::{HirDatabase, InternedCoroutine},
+    db::{HirDatabase, InternedCoroutine, RpititImplAssocTy, RpititImplAssocTyId},
     from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id,
     generics::generics,
     lower::LifetimeElisionKind,
     make_binders, make_single_type_binders,
-    mapping::{ToChalk, TypeAliasAsValue, from_chalk},
+    mapping::{
+        AnyImplAssocType, AnyTraitAssocType, ToChalk, from_assoc_type_value_id, from_chalk,
+        to_assoc_type_id_rpitit, to_assoc_type_value_id, to_assoc_type_value_id_rpitit,
+    },
     method_resolution::{ALL_FLOAT_FPS, ALL_INT_FPS, TraitImpls, TyFingerprint},
     to_assoc_type_id, to_chalk_trait_id,
     traits::ChalkContext,
@@ -54,23 +57,48 @@ pub(crate) type Variances = chalk_ir::Variances<Interner>;
 
 impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
     fn associated_ty_data(&self, id: AssocTypeId) -> Arc<AssociatedTyDatum> {
-        self.db.associated_ty_data(from_assoc_type_id(id))
+        match from_assoc_type_id(self.db, id) {
+            AnyTraitAssocType::Normal(id) => self.db.associated_ty_data(id),
+            AnyTraitAssocType::Rpitit(assoc_type_id) => {
+                let assoc_type = assoc_type_id.loc(self.db);
+                Arc::new(AssociatedTyDatum {
+                    id,
+                    trait_id: to_chalk_trait_id(assoc_type.trait_id),
+                    name: sym::synthesized_rpitit_assoc,
+                    binders: assoc_type
+                        .bounds
+                        .clone()
+                        .map(|bounds| AssociatedTyDatumBound { bounds, where_clauses: Vec::new() }),
+                })
+            }
+        }
     }
     fn associated_ty_from_impl(
         &self,
         impl_id: chalk_ir::ImplId<Interner>,
         assoc_type_id: chalk_ir::AssocTypeId<Interner>,
     ) -> Option<rust_ir::AssociatedTyValueId<Interner>> {
-        let alias_id = from_assoc_type_id(assoc_type_id);
-        let trait_sig = self.db.type_alias_signature(alias_id);
-        self.db.impl_items(hir_def::ImplId::from_chalk(self.db, impl_id)).items.iter().find_map(
-            |(name, item)| match item {
-                AssocItemId::TypeAliasId(alias) if &trait_sig.name == name => {
-                    Some(TypeAliasAsValue(*alias).to_chalk(self.db))
-                }
-                _ => None,
-            },
-        )
+        match from_assoc_type_id(self.db, assoc_type_id) {
+            AnyTraitAssocType::Normal(alias_id) => {
+                let trait_sig = self.db.type_alias_signature(alias_id);
+                self.db
+                    .impl_items(hir_def::ImplId::from_chalk(self.db, impl_id))
+                    .items
+                    .iter()
+                    .find_map(|(name, item)| match item {
+                        AssocItemId::TypeAliasId(alias) if &trait_sig.name == name => {
+                            Some(to_assoc_type_value_id(*alias))
+                        }
+                        _ => None,
+                    })
+            }
+            AnyTraitAssocType::Rpitit(trait_assoc) => {
+                Some(to_assoc_type_value_id_rpitit(RpititImplAssocTyId::new(
+                    self.db,
+                    RpititImplAssocTy { impl_id: from_chalk(self.db, impl_id), trait_assoc },
+                )))
+            }
+        }
     }
     fn trait_datum(&self, trait_id: TraitId) -> Arc<TraitDatum> {
         self.db.trait_datum(self.krate, trait_id)
@@ -456,8 +484,13 @@ impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
         Arc::new(rust_ir::AdtSizeAlign::from_one_zst(false))
     }
     fn assoc_type_name(&self, assoc_ty_id: chalk_ir::AssocTypeId<Interner>) -> String {
-        let id = self.db.associated_ty_data(from_assoc_type_id(assoc_ty_id)).name;
-        self.db.type_alias_signature(id).name.display(self.db, self.edition()).to_string()
+        let name = match from_assoc_type_id(self.db, assoc_ty_id) {
+            AnyTraitAssocType::Normal(id) => self.db.type_alias_signature(id).name.clone(),
+            AnyTraitAssocType::Rpitit(id) => {
+                self.db.function_signature(id.loc(self.db).synthesized_from_method).name.clone()
+            }
+        };
+        name.display(self.db, self.edition()).to_string()
     }
     fn opaque_type_name(&self, opaque_ty_id: chalk_ir::OpaqueTyId<Interner>) -> String {
         format!("Opaque_{:?}", opaque_ty_id.0)
@@ -673,7 +706,7 @@ pub(crate) fn associated_ty_data_query(
     let datum = AssociatedTyDatum {
         trait_id: to_chalk_trait_id(trait_),
         id: to_assoc_type_id(type_alias),
-        name: type_alias,
+        name: type_alias_data.name.symbol().clone(),
         binders: make_binders(db, &generic_params, bound_data),
     };
     Arc::new(datum)
@@ -883,7 +916,7 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
             let name = &db.type_alias_signature(type_alias).name;
             trait_data.associated_type_by_name(name).is_some()
         })
-        .map(|type_alias| TypeAliasAsValue(type_alias).to_chalk(db))
+        .map(|type_alias| to_assoc_type_value_id(type_alias))
         .collect();
     debug!("impl_datum: {:?}", impl_datum_bound);
     let impl_datum = ImplDatum {
@@ -900,8 +933,19 @@ pub(crate) fn associated_ty_value_query(
     krate: Crate,
     id: AssociatedTyValueId,
 ) -> Arc<AssociatedTyValue> {
-    let type_alias: TypeAliasAsValue = from_chalk(db, id);
-    type_alias_associated_ty_value(db, krate, type_alias.0)
+    match from_assoc_type_value_id(db, id) {
+        AnyImplAssocType::Normal(type_alias) => {
+            type_alias_associated_ty_value(db, krate, type_alias)
+        }
+        AnyImplAssocType::Rpitit(assoc_type_id) => {
+            let assoc_type = assoc_type_id.loc(db);
+            Arc::new(AssociatedTyValue {
+                impl_id: assoc_type.impl_id.to_chalk(db),
+                associated_ty_id: to_assoc_type_id_rpitit(assoc_type.trait_assoc),
+                value: assoc_type.value.clone(),
+            })
+        }
+    }
 }
 
 fn type_alias_associated_ty_value(
@@ -1037,7 +1081,16 @@ pub(super) fn generic_predicate_to_inline_bound(
             Some(chalk_ir::Binders::new(binders, rust_ir::InlineBound::TraitBound(trait_bound)))
         }
         WhereClause::AliasEq(AliasEq { alias: AliasTy::Projection(projection_ty), ty }) => {
-            let generics = generics(db, from_assoc_type_id(projection_ty.associated_ty_id).into());
+            let generic_def = match from_assoc_type_id(db, projection_ty.associated_ty_id) {
+                AnyTraitAssocType::Normal(type_alias) => type_alias.into(),
+                AnyTraitAssocType::Rpitit(_) => {
+                    unreachable!(
+                        "there is no way to refer to a RPITIT synthesized \
+                        associated type on associated type's self bounds (`type Assoc: Bound`)"
+                    )
+                }
+            };
+            let generics = generics(db, generic_def);
             let parent_len = generics.parent_generics().map_or(0, |g| g.len_self());
             let (trait_args, assoc_args) =
                 projection_ty.substitution.as_slice(Interner).split_at(parent_len);

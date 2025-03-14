@@ -29,9 +29,9 @@ use stdx::{format_to, never};
 use syntax::utils::is_raw_identifier;
 
 use crate::{
-    Adjust, Adjustment, AliasEq, AliasTy, Binders, BindingMode, ChalkTraitId, ClosureId, DynTy,
-    DynTyExt, FnAbi, FnPointer, FnSig, GenericArg, Interner, OpaqueTy, ProjectionTy,
-    ProjectionTyExt, Substitution, Ty, TyBuilder, TyExt, WhereClause,
+    Adjust, Adjustment, AliasEq, AliasTy, AnyTraitAssocType, Binders, BindingMode, ChalkTraitId,
+    ClosureId, DynTy, DynTyExt, FnAbi, FnPointer, FnSig, GenericArg, Interner, OpaqueTy,
+    ProjectionTy, ProjectionTyExt, Substitution, Ty, TyBuilder, TyExt, WhereClause,
     db::{HirDatabase, InternedClosure, InternedCoroutine},
     error_lifetime, from_assoc_type_id, from_chalk_trait_id, from_placeholder_idx,
     generics::Generics,
@@ -344,8 +344,11 @@ impl InferenceContext<'_> {
             if let WhereClause::AliasEq(AliasEq { alias: AliasTy::Projection(projection), ty }) =
                 bound.skip_binders()
             {
-                let assoc_data =
-                    self.db.associated_ty_data(from_assoc_type_id(projection.associated_ty_id));
+                let assoc_ty_id = match from_assoc_type_id(self.db, projection.associated_ty_id) {
+                    AnyTraitAssocType::Normal(it) => it,
+                    AnyTraitAssocType::Rpitit(_) => continue,
+                };
+                let assoc_data = self.db.associated_ty_data(assoc_ty_id);
                 if !fn_traits.contains(&assoc_data.trait_id) {
                     return None;
                 }
@@ -383,8 +386,12 @@ impl InferenceContext<'_> {
         projection_ty: &ProjectionTy,
         projected_ty: &Ty,
     ) -> Option<FnSubst<Interner>> {
-        let container =
-            from_assoc_type_id(projection_ty.associated_ty_id).lookup(self.db).container;
+        let container = match from_assoc_type_id(self.db, projection_ty.associated_ty_id) {
+            AnyTraitAssocType::Normal(id) => id.lookup(self.db).container,
+            AnyTraitAssocType::Rpitit(id) => {
+                hir_def::ItemContainerId::TraitId(id.loc(self.db).trait_id)
+            }
+        };
         let trait_ = match container {
             hir_def::ItemContainerId::TraitId(trait_) => trait_,
             _ => return None,

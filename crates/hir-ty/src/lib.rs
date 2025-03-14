@@ -98,8 +98,9 @@ pub use lower::{
     ValueTyDefId, associated_type_shorthand_candidates, diagnostics::*,
 };
 pub use mapping::{
-    from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx,
-    lt_from_placeholder_idx, lt_to_placeholder_idx, to_assoc_type_id, to_chalk_trait_id,
+    AnyImplAssocType, AnyTraitAssocType, from_assoc_type_id, from_assoc_type_value_id,
+    from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx, lt_from_placeholder_idx,
+    lt_to_placeholder_idx, to_assoc_type_id, to_assoc_type_value_id, to_chalk_trait_id,
     to_foreign_def_id, to_placeholder_idx,
 };
 pub use method_resolution::check_orphan_rules;

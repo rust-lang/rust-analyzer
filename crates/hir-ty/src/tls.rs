@@ -4,11 +4,12 @@ use std::fmt::{self, Display};
 use itertools::Itertools;
 use span::Edition;
 
+use crate::mapping::AnyTraitAssocType;
 use crate::{
     CallableDefId, Interner, ProjectionTyExt, chalk_db, db::HirDatabase, from_assoc_type_id,
     from_chalk_trait_id, mapping::from_chalk,
 };
-use hir_def::{AdtId, ItemContainerId, Lookup, TypeAliasId};
+use hir_def::{AdtId, ItemContainerId, Lookup};
 
 pub(crate) use unsafe_tls::{set_current_program, with_current_program};
 
@@ -45,20 +46,35 @@ impl DebugContext<'_> {
         id: chalk_db::AssocTypeId,
         fmt: &mut fmt::Formatter<'_>,
     ) -> Result<(), fmt::Error> {
-        let type_alias: TypeAliasId = from_assoc_type_id(id);
-        let type_alias_data = self.0.type_alias_signature(type_alias);
-        let trait_ = match type_alias.lookup(self.0).container {
-            ItemContainerId::TraitId(t) => t,
-            _ => panic!("associated type not in trait"),
-        };
-        let trait_data = self.0.trait_signature(trait_);
-        write!(
-            fmt,
-            "{}::{}",
-            trait_data.name.display(self.0, Edition::LATEST),
-            type_alias_data.name.display(self.0, Edition::LATEST)
-        )?;
-        Ok(())
+        match from_assoc_type_id(self.0, id) {
+            AnyTraitAssocType::Normal(type_alias) => {
+                let type_alias_data = self.0.type_alias_signature(type_alias);
+                let trait_ = match type_alias.lookup(self.0).container {
+                    ItemContainerId::TraitId(t) => t,
+                    _ => panic!("associated type not in trait"),
+                };
+                let trait_data = self.0.trait_signature(trait_);
+                write!(
+                    fmt,
+                    "{}::{}",
+                    trait_data.name.display(self.0, Edition::LATEST),
+                    type_alias_data.name.display(self.0, Edition::LATEST)
+                )?;
+                Ok(())
+            }
+            AnyTraitAssocType::Rpitit(assoc_type) => {
+                let assoc_type = assoc_type.loc(self.0);
+                let method_data = self.0.function_signature(assoc_type.synthesized_from_method);
+                let trait_data = self.0.trait_signature(assoc_type.trait_id);
+                write!(
+                    fmt,
+                    "{}::__{}_rpitit",
+                    trait_data.name.display(self.0, Edition::LATEST),
+                    method_data.name.display(self.0, Edition::LATEST)
+                )?;
+                Ok(())
+            }
+        }
     }
 
     pub(crate) fn debug_projection_ty(
@@ -66,12 +82,28 @@ impl DebugContext<'_> {
         projection_ty: &chalk_ir::ProjectionTy<Interner>,
         fmt: &mut fmt::Formatter<'_>,
     ) -> Result<(), fmt::Error> {
-        let type_alias = from_assoc_type_id(projection_ty.associated_ty_id);
-        let type_alias_data = self.0.type_alias_signature(type_alias);
-        let trait_ = match type_alias.lookup(self.0).container {
-            ItemContainerId::TraitId(t) => t,
-            _ => panic!("associated type not in trait"),
-        };
+        let (trait_, assoc_type_name) =
+            match from_assoc_type_id(self.0, projection_ty.associated_ty_id) {
+                AnyTraitAssocType::Normal(type_alias) => {
+                    let type_alias_data = self.0.type_alias_signature(type_alias);
+                    let trait_ = match type_alias.lookup(self.0).container {
+                        ItemContainerId::TraitId(it) => it,
+                        _ => panic!("associated type not in trait"),
+                    };
+                    let type_alias_name =
+                        type_alias_data.name.display(self.0, Edition::LATEST).to_string();
+                    (trait_, type_alias_name)
+                }
+                AnyTraitAssocType::Rpitit(assoc_type) => {
+                    let assoc_type = assoc_type.loc(self.0);
+                    let method_data = self.0.function_signature(assoc_type.synthesized_from_method);
+                    let placeholder_assoc_type_name = format!(
+                        "__{}_rpitit",
+                        method_data.name.display(self.0, Edition::LATEST).to_string()
+                    );
+                    (assoc_type.trait_id, placeholder_assoc_type_name)
+                }
+            };
         let trait_name = &self.0.trait_signature(trait_).name;
         let trait_ref = projection_ty.trait_ref(self.0);
         let trait_params = trait_ref.substitution.as_slice(Interner);
@@ -84,7 +116,7 @@ impl DebugContext<'_> {
                 trait_params[1..].iter().format_with(", ", |x, f| f(&format_args!("{x:?}"))),
             )?;
         }
-        write!(fmt, ">::{}", type_alias_data.name.display(self.0, Edition::LATEST))?;
+        write!(fmt, ">::{}", assoc_type_name)?;
 
         let proj_params = &projection_ty.substitution.as_slice(Interner)[trait_params.len()..];
         if !proj_params.is_empty() {
