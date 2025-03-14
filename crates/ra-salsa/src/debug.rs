@@ -1,10 +1,10 @@
 //! Debugging APIs: these are meant for use when unit-testing or
 //! debugging your application but aren't ordinarily needed.
 
-use crate::durability::Durability;
-use crate::plumbing::QueryStorageOps;
 use crate::Query;
 use crate::QueryTable;
+use crate::durability::Durability;
+use crate::plumbing::QueryStorageOps;
 
 /// Additional methods on queries that can be used to "peek into"
 /// their current state. These methods are meant for debugging and
