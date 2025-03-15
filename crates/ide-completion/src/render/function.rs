@@ -324,7 +324,12 @@ fn detail(ctx: &CompletionContext<'_>, func: hir::Function) -> String {
         format_to!(detail, "unsafe ");
     }
 
-    format_to!(detail, "fn({})", params_display(ctx, func));
+    format_to!(
+        detail,
+        "fn({}{})",
+        params_display(ctx, func),
+        if func.is_varargs(ctx.db) { ", ..." } else { "" }
+    );
     if !ret_ty.is_unit() {
         format_to!(detail, " -> {}", ret_ty.display(ctx.db, ctx.display_target));
     }
