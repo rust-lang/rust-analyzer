@@ -18,7 +18,7 @@ use std::fmt;
 use buffer::Cursor;
 use intern::Symbol;
 use iter::{TtElement, TtIter};
-use stdx::{impl_from, itertools::Itertools as _};
+use stdx::impl_from;
 
 pub use text_size::{TextRange, TextSize};
 
@@ -560,18 +560,38 @@ where
 {
     use rustc_lexer::LiteralKind;
 
-    let token = rustc_lexer::tokenize(text).next_tuple();
-    let Some((rustc_lexer::Token {
-        kind: rustc_lexer::TokenKind::Literal { kind, suffix_start },
-        ..
-    },)) = token
-    else {
-        return Literal {
-            span,
-            symbol: Symbol::intern(text),
-            kind: LitKind::Err(()),
-            suffix: None,
-        };
+    let mut tokens = rustc_lexer::tokenize(text);
+
+    let (kind, suffix_start) = match (tokens.next(), tokens.next()) {
+        // Negative int/float literals, handle leading minus.
+        (
+            Some(rustc_lexer::Token { kind: rustc_lexer::TokenKind::Minus, .. }),
+            Some(rustc_lexer::Token {
+                kind:
+                    rustc_lexer::TokenKind::Literal {
+                        kind: kind @ (LiteralKind::Int { .. } | LiteralKind::Float { .. }),
+                        suffix_start,
+                    },
+                ..
+            }),
+        ) => (kind, suffix_start + 1),
+        // Other literals
+        (
+            Some(rustc_lexer::Token {
+                kind: rustc_lexer::TokenKind::Literal { kind, suffix_start },
+                ..
+            }),
+            None,
+        ) => (kind, suffix_start),
+        // Not a literal
+        _ => {
+            return Literal {
+                span,
+                symbol: Symbol::intern(text),
+                kind: LitKind::Err(()),
+                suffix: None,
+            }
+        }
     };
 
     let (kind, start_offset, end_offset) = match kind {
