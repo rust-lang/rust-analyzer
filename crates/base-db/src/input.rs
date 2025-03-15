@@ -315,6 +315,7 @@ pub struct CrateData<Id> {
 pub type CrateDataBuilder = CrateData<CrateBuilderId>;
 pub type BuiltCrateData = CrateData<Crate>;
 
+/// Crate data unrelated to analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtraCrateData {
     pub version: Option<String>,
@@ -603,12 +604,6 @@ impl CrateGraphBuilder {
 
     pub fn iter(&self) -> impl Iterator<Item = CrateBuilderId> + '_ {
         self.arena.iter().map(|(idx, _)| idx)
-    }
-
-    // FIXME: used for fixing up the toolchain sysroot, should be removed and done differently
-    #[doc(hidden)]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (CrateBuilderId, &mut CrateBuilder)> + '_ {
-        self.arena.iter_mut()
     }
 
     /// Returns an iterator over all transitive dependencies of the given crate,
