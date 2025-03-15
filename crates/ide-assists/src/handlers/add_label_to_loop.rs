@@ -35,7 +35,7 @@ pub(crate) fn add_label_to_loop(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     }
 
     acc.add(
-        AssistId("add_label_to_loop", AssistKind::Generate),
+        AssistId("add_label_to_loop", AssistKind::Generate, None),
         "Add Label",
         loop_expr.syntax().text_range(),
         |builder| {

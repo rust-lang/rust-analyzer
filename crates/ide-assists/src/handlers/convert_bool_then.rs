@@ -73,7 +73,7 @@ pub(crate) fn convert_if_to_bool_then(acc: &mut Assists, ctx: &AssistContext<'_>
 
     let target = expr.syntax().text_range();
     acc.add(
-        AssistId("convert_if_to_bool_then", AssistKind::RefactorRewrite),
+        AssistId("convert_if_to_bool_then", AssistKind::RefactorRewrite, None),
         "Convert `if` expression to `bool::then` call",
         target,
         |builder| {
@@ -181,7 +181,7 @@ pub(crate) fn convert_bool_then_to_if(acc: &mut Assists, ctx: &AssistContext<'_>
 
     let target = mcall.syntax().text_range();
     acc.add(
-        AssistId("convert_bool_then_to_if", AssistKind::RefactorRewrite),
+        AssistId("convert_bool_then_to_if", AssistKind::RefactorRewrite, None),
         "Convert `bool::then` call to `if`",
         target,
         |builder| {

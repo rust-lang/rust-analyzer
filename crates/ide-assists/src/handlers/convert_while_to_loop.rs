@@ -47,7 +47,7 @@ pub(crate) fn convert_while_to_loop(acc: &mut Assists, ctx: &AssistContext<'_>) 
 
     let target = while_expr.syntax().text_range();
     acc.add(
-        AssistId("convert_while_to_loop", AssistKind::RefactorRewrite),
+        AssistId("convert_while_to_loop", AssistKind::RefactorRewrite, None),
         "Convert while to loop",
         target,
         |edit| {

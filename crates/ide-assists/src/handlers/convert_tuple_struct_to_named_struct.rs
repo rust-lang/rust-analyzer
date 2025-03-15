@@ -64,7 +64,7 @@ pub(crate) fn convert_tuple_struct_to_named_struct(
     let target = strukt.as_ref().either(|s| s.syntax(), |v| v.syntax()).text_range();
 
     acc.add(
-        AssistId("convert_tuple_struct_to_named_struct", AssistKind::RefactorRewrite),
+        AssistId("convert_tuple_struct_to_named_struct", AssistKind::RefactorRewrite, None),
         "Convert to named struct",
         target,
         |edit| {

@@ -16,7 +16,7 @@ pub(crate) fn ssr_assists(
         Some(ssr_data) => ssr_data,
         None => return ssr_assists,
     };
-    let id = AssistId("ssr", AssistKind::RefactorRewrite);
+    let id = AssistId("ssr", AssistKind::RefactorRewrite, None);
 
     let (source_change_for_file, source_change_for_workspace) = if resolve.should_resolve(&id) {
         let edits = match_finder.edits();
@@ -120,6 +120,7 @@ mod tests {
                 id: AssistId(
                     "ssr",
                     RefactorRewrite,
+                    None,
                 ),
                 label: "Apply SSR in file",
                 group: Some(
@@ -163,6 +164,7 @@ mod tests {
                 id: AssistId(
                     "ssr",
                     RefactorRewrite,
+                    None,
                 ),
                 label: "Apply SSR in workspace",
                 group: Some(
@@ -240,6 +242,7 @@ mod tests {
                 id: AssistId(
                     "ssr",
                     RefactorRewrite,
+                    None,
                 ),
                 label: "Apply SSR in file",
                 group: Some(
@@ -260,6 +263,7 @@ mod tests {
                 id: AssistId(
                     "ssr",
                     RefactorRewrite,
+                    None,
                 ),
                 label: "Apply SSR in workspace",
                 group: Some(

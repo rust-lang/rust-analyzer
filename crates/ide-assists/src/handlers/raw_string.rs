@@ -28,7 +28,7 @@ pub(crate) fn make_raw_string(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let value = token.value().ok()?;
     let target = token.syntax().text_range();
     acc.add(
-        AssistId("make_raw_string", AssistKind::RefactorRewrite),
+        AssistId("make_raw_string", AssistKind::RefactorRewrite, None),
         "Rewrite as raw string",
         target,
         |edit| {
@@ -67,7 +67,7 @@ pub(crate) fn make_usual_string(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     let value = token.value().ok()?;
     let target = token.syntax().text_range();
     acc.add(
-        AssistId("make_usual_string", AssistKind::RefactorRewrite),
+        AssistId("make_usual_string", AssistKind::RefactorRewrite, None),
         "Rewrite as regular string",
         target,
         |edit| {
@@ -108,7 +108,7 @@ pub(crate) fn add_hash(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()>
     }
     let text_range = token.syntax().text_range();
     let target = text_range;
-    acc.add(AssistId("add_hash", AssistKind::Refactor), "Add #", target, |edit| {
+    acc.add(AssistId("add_hash", AssistKind::Refactor, None), "Add #", target, |edit| {
         edit.insert(text_range.start() + TextSize::of('r'), "#");
         edit.insert(text_range.end(), "#");
     })
@@ -150,10 +150,15 @@ pub(crate) fn remove_hash(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         return None;
     }
 
-    acc.add(AssistId("remove_hash", AssistKind::RefactorRewrite), "Remove #", text_range, |edit| {
-        edit.delete(TextRange::at(text_range.start() + TextSize::of('r'), TextSize::of('#')));
-        edit.delete(TextRange::new(text_range.end() - TextSize::of('#'), text_range.end()));
-    })
+    acc.add(
+        AssistId("remove_hash", AssistKind::RefactorRewrite, None),
+        "Remove #",
+        text_range,
+        |edit| {
+            edit.delete(TextRange::at(text_range.start() + TextSize::of('r'), TextSize::of('#')));
+            edit.delete(TextRange::new(text_range.end() - TextSize::of('#'), text_range.end()));
+        },
+    )
 }
 
 #[cfg(test)]

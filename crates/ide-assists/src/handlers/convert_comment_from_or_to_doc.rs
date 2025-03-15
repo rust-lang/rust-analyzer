@@ -39,7 +39,7 @@ fn doc_to_comment(acc: &mut Assists, comment: ast::Comment) -> Option<()> {
     };
 
     acc.add(
-        AssistId("doc_to_comment", AssistKind::RefactorRewrite),
+        AssistId("doc_to_comment", AssistKind::RefactorRewrite, None),
         "Replace doc comment with comment",
         target,
         |edit| {
@@ -86,7 +86,7 @@ fn comment_to_doc(acc: &mut Assists, comment: ast::Comment, style: CommentPlacem
     };
 
     acc.add(
-        AssistId("comment_to_doc", AssistKind::RefactorRewrite),
+        AssistId("comment_to_doc", AssistKind::RefactorRewrite, None),
         "Replace comment with doc comment",
         target,
         |edit| {

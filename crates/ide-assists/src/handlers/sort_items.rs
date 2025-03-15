@@ -127,7 +127,7 @@ impl AddRewrite for Assists {
         target: &SyntaxNode,
     ) -> Option<()> {
         self.add(
-            AssistId("sort_items", AssistKind::RefactorRewrite),
+            AssistId("sort_items", AssistKind::RefactorRewrite, None),
             label,
             target.text_range(),
             |builder| {

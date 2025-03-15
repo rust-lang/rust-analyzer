@@ -62,7 +62,7 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_>) -
 
     let target = name.syntax().text_range();
     acc.add(
-        AssistId("convert_bool_to_enum", AssistKind::RefactorRewrite),
+        AssistId("convert_bool_to_enum", AssistKind::RefactorRewrite, None),
         "Convert boolean to enum",
         target,
         |edit| {

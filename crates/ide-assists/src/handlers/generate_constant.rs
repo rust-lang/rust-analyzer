@@ -89,7 +89,7 @@ pub(crate) fn generate_constant(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
 
     let text = get_text_for_generate_constant(not_exist_name_ref, indent, outer_exists, type_name)?;
     acc.add(
-        AssistId("generate_constant", AssistKind::QuickFix),
+        AssistId("generate_constant", AssistKind::QuickFix, None),
         "Generate constant",
         target,
         |builder| {

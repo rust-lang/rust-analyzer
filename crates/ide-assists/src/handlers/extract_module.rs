@@ -91,7 +91,7 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     let old_item_indent = module.body_items[0].indent_level();
 
     acc.add(
-        AssistId("extract_module", AssistKind::RefactorExtract),
+        AssistId("extract_module", AssistKind::RefactorExtract, None),
         "Extract Module",
         module.text_range,
         |builder| {

@@ -69,7 +69,7 @@ pub(crate) fn unqualify_method_call(acc: &mut Assists, ctx: &AssistContext<'_>) 
     );
 
     acc.add(
-        AssistId("unqualify_method_call", AssistKind::RefactorRewrite),
+        AssistId("unqualify_method_call", AssistKind::RefactorRewrite, None),
         "Unqualify method call",
         call.syntax().text_range(),
         |edit| {

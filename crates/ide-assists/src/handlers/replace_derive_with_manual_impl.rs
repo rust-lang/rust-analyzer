@@ -126,7 +126,7 @@ fn add_assist(
     let label = format!("Convert to manual `impl {replace_trait_path} for {annotated_name}`");
 
     acc.add(
-        AssistId("replace_derive_with_manual_impl", AssistKind::Refactor),
+        AssistId("replace_derive_with_manual_impl", AssistKind::Refactor, None),
         label,
         target,
         |builder| {

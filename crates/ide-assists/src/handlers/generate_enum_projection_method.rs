@@ -153,7 +153,7 @@ fn generate_enum_projection_method(
     let target = variant.syntax().text_range();
     acc.add_group(
         &GroupLabel("Generate an `is_`,`as_`, or `try_into_` for this enum variant".to_owned()),
-        AssistId(assist_id, AssistKind::Generate),
+        AssistId(assist_id, AssistKind::Generate, None),
         assist_description,
         target,
         |builder| {

@@ -48,106 +48,111 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     let current_module = ctx.sema.scope(strukt.syntax())?.module();
 
     let target = strukt.syntax().text_range();
-    acc.add(AssistId("generate_new", AssistKind::Generate), "Generate `new`", target, |builder| {
-        let trivial_constructors = field_list
-            .fields()
-            .map(|f| {
-                let name = f.name()?;
+    acc.add(
+        AssistId("generate_new", AssistKind::Generate, None),
+        "Generate `new`",
+        target,
+        |builder| {
+            let trivial_constructors = field_list
+                .fields()
+                .map(|f| {
+                    let name = f.name()?;
 
-                let ty = ctx.sema.resolve_type(&f.ty()?)?;
+                    let ty = ctx.sema.resolve_type(&f.ty()?)?;
 
-                let item_in_ns = hir::ItemInNs::from(hir::ModuleDef::from(ty.as_adt()?));
+                    let item_in_ns = hir::ItemInNs::from(hir::ModuleDef::from(ty.as_adt()?));
 
-                let type_path = current_module.find_path(
-                    ctx.sema.db,
-                    item_for_path_search(ctx.sema.db, item_in_ns)?,
-                    ctx.config.import_path_config(),
-                )?;
+                    let type_path = current_module.find_path(
+                        ctx.sema.db,
+                        item_for_path_search(ctx.sema.db, item_in_ns)?,
+                        ctx.config.import_path_config(),
+                    )?;
 
-                let edition = current_module.krate().edition(ctx.db());
+                    let edition = current_module.krate().edition(ctx.db());
 
-                let expr = use_trivial_constructor(
-                    ctx.sema.db,
-                    ide_db::helpers::mod_path_to_ast(&type_path, edition),
-                    &ty,
-                    edition,
-                )?;
+                    let expr = use_trivial_constructor(
+                        ctx.sema.db,
+                        ide_db::helpers::mod_path_to_ast(&type_path, edition),
+                        &ty,
+                        edition,
+                    )?;
 
-                Some(make::record_expr_field(make::name_ref(&name.text()), Some(expr)))
-            })
-            .collect::<Vec<_>>();
+                    Some(make::record_expr_field(make::name_ref(&name.text()), Some(expr)))
+                })
+                .collect::<Vec<_>>();
 
-        let params = field_list.fields().enumerate().filter_map(|(i, f)| {
-            if trivial_constructors[i].is_none() {
-                let name = f.name()?;
-                let ty = f.ty()?;
+            let params = field_list.fields().enumerate().filter_map(|(i, f)| {
+                if trivial_constructors[i].is_none() {
+                    let name = f.name()?;
+                    let ty = f.ty()?;
 
-                Some(make::param(make::ident_pat(false, false, name).into(), ty))
+                    Some(make::param(make::ident_pat(false, false, name).into(), ty))
+                } else {
+                    None
+                }
+            });
+            let params = make::param_list(None, params);
+
+            let fields = field_list.fields().enumerate().filter_map(|(i, f)| {
+                let constructor = trivial_constructors[i].clone();
+                if constructor.is_some() {
+                    constructor
+                } else {
+                    Some(make::record_expr_field(make::name_ref(&f.name()?.text()), None))
+                }
+            });
+            let fields = make::record_expr_field_list(fields);
+
+            let record_expr = make::record_expr(make::ext::ident_path("Self"), fields);
+            let body = make::block_expr(None, Some(record_expr.into()));
+
+            let ret_type = make::ret_type(make::ty_path(make::ext::ident_path("Self")));
+
+            let fn_ = make::fn_(
+                strukt.visibility(),
+                make::name("new"),
+                None,
+                None,
+                params,
+                body,
+                Some(ret_type),
+                false,
+                false,
+                false,
+                false,
+            )
+            .clone_for_update();
+            fn_.indent(1.into());
+
+            // Add a tabstop before the name
+            if let Some(cap) = ctx.config.snippet_cap {
+                if let Some(name) = fn_.name() {
+                    builder.add_tabstop_before(cap, name);
+                }
+            }
+
+            // Get the mutable version of the impl to modify
+            let impl_def = if let Some(impl_def) = impl_def {
+                builder.make_mut(impl_def)
             } else {
-                None
-            }
-        });
-        let params = make::param_list(None, params);
+                // Generate a new impl to add the method to
+                let impl_def = generate_impl(&ast::Adt::Struct(strukt.clone()));
 
-        let fields = field_list.fields().enumerate().filter_map(|(i, f)| {
-            let constructor = trivial_constructors[i].clone();
-            if constructor.is_some() {
-                constructor
-            } else {
-                Some(make::record_expr_field(make::name_ref(&f.name()?.text()), None))
-            }
-        });
-        let fields = make::record_expr_field_list(fields);
+                // Insert it after the adt
+                let strukt = builder.make_mut(strukt.clone());
 
-        let record_expr = make::record_expr(make::ext::ident_path("Self"), fields);
-        let body = make::block_expr(None, Some(record_expr.into()));
+                ted::insert_all_raw(
+                    ted::Position::after(strukt.syntax()),
+                    vec![make::tokens::blank_line().into(), impl_def.syntax().clone().into()],
+                );
 
-        let ret_type = make::ret_type(make::ty_path(make::ext::ident_path("Self")));
+                impl_def
+            };
 
-        let fn_ = make::fn_(
-            strukt.visibility(),
-            make::name("new"),
-            None,
-            None,
-            params,
-            body,
-            Some(ret_type),
-            false,
-            false,
-            false,
-            false,
-        )
-        .clone_for_update();
-        fn_.indent(1.into());
-
-        // Add a tabstop before the name
-        if let Some(cap) = ctx.config.snippet_cap {
-            if let Some(name) = fn_.name() {
-                builder.add_tabstop_before(cap, name);
-            }
-        }
-
-        // Get the mutable version of the impl to modify
-        let impl_def = if let Some(impl_def) = impl_def {
-            builder.make_mut(impl_def)
-        } else {
-            // Generate a new impl to add the method to
-            let impl_def = generate_impl(&ast::Adt::Struct(strukt.clone()));
-
-            // Insert it after the adt
-            let strukt = builder.make_mut(strukt.clone());
-
-            ted::insert_all_raw(
-                ted::Position::after(strukt.syntax()),
-                vec![make::tokens::blank_line().into(), impl_def.syntax().clone().into()],
-            );
-
-            impl_def
-        };
-
-        // Add the `new` method at the start of the impl
-        impl_def.get_or_create_assoc_item_list().add_item_at_start(fn_.into());
-    })
+            // Add the `new` method at the start of the impl
+            impl_def.get_or_create_assoc_item_list().add_item_at_start(fn_.into());
+        },
+    )
 }
 
 #[cfg(test)]

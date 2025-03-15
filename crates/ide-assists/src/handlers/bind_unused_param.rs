@@ -42,7 +42,7 @@ pub(crate) fn bind_unused_param(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     let r_curly_range = stmt_list.r_curly_token()?.text_range();
 
     acc.add(
-        AssistId("bind_unused_param", AssistKind::QuickFix),
+        AssistId("bind_unused_param", AssistKind::QuickFix, None),
         format!("Bind as `let _ = {ident_pat};`"),
         param.syntax().text_range(),
         |builder| {

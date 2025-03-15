@@ -186,7 +186,7 @@ impl UnwrapperKind {
             UnwrapperKind::Result => "unwrap_result_return_type",
         };
 
-        AssistId(s, AssistKind::RefactorRewrite)
+        AssistId(s, AssistKind::RefactorRewrite, None)
     }
 
     fn label(&self) -> &'static str {

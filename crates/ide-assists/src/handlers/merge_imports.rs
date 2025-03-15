@@ -69,7 +69,7 @@ pub(crate) fn merge_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
     };
 
     acc.add(
-        AssistId("merge_imports", AssistKind::RefactorRewrite),
+        AssistId("merge_imports", AssistKind::RefactorRewrite, None),
         "Merge imports",
         target,
         |builder| {

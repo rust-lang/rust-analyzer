@@ -61,7 +61,7 @@ pub(crate) fn expand_glob_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
     let target = parent.either(|n| n.syntax().clone(), |n| n.syntax().clone());
     acc.add(
-        AssistId("expand_glob_import", AssistKind::RefactorRewrite),
+        AssistId("expand_glob_import", AssistKind::RefactorRewrite, None),
         "Expand glob import",
         target.text_range(),
         |builder| {
@@ -122,7 +122,7 @@ pub(crate) fn expand_glob_reexport(acc: &mut Assists, ctx: &AssistContext<'_>) -
 
     let target = parent.either(|n| n.syntax().clone(), |n| n.syntax().clone());
     acc.add(
-        AssistId("expand_glob_reexport", AssistKind::RefactorRewrite),
+        AssistId("expand_glob_reexport", AssistKind::RefactorRewrite, None),
         "Expand glob reexport",
         target.text_range(),
         |builder| {

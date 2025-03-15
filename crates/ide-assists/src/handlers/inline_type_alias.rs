@@ -59,7 +59,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>)
     // until this is ok
 
     acc.add(
-        AssistId("inline_type_alias_uses", AssistKind::RefactorInline),
+        AssistId("inline_type_alias_uses", AssistKind::RefactorInline, None),
         "Inline type alias into all uses",
         name.syntax().text_range(),
         |builder| {
@@ -148,7 +148,7 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     let target = alias_instance.syntax().text_range();
 
     acc.add(
-        AssistId("inline_type_alias", AssistKind::RefactorInline),
+        AssistId("inline_type_alias", AssistKind::RefactorInline, None),
         "Inline type alias",
         target,
         |builder| builder.replace(target, replacement.to_text(&concrete_type)),

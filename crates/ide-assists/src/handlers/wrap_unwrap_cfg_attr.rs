@@ -211,7 +211,7 @@ fn wrap_derive(
     };
 
     acc.add(
-        AssistId("wrap_unwrap_cfg_attr", AssistKind::Refactor),
+        AssistId("wrap_unwrap_cfg_attr", AssistKind::Refactor, None),
         format!("Wrap #[derive({path_text})] in `cfg_attr`",),
         range,
         handle_source_change,
@@ -268,7 +268,7 @@ fn wrap_cfg_attr(acc: &mut Assists, ctx: &AssistContext<'_>, attr: ast::Attr) ->
         }
     };
     acc.add(
-        AssistId("wrap_unwrap_cfg_attr", AssistKind::Refactor),
+        AssistId("wrap_unwrap_cfg_attr", AssistKind::Refactor, None),
         "Convert to `cfg_attr`",
         range,
         handle_source_change,
@@ -341,7 +341,7 @@ fn unwrap_cfg_attr(acc: &mut Assists, attr: ast::Attr) -> Option<()> {
         f.replace(range, inner_attrs);
     };
     acc.add(
-        AssistId("wrap_unwrap_cfg_attr", AssistKind::Refactor),
+        AssistId("wrap_unwrap_cfg_attr", AssistKind::Refactor, None),
         "Extract Inner Attributes from `cfg_attr`",
         range,
         handle_source_change,

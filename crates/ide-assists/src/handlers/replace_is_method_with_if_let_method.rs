@@ -56,7 +56,7 @@ pub(crate) fn replace_is_method_with_if_let_method(
             };
 
             acc.add(
-                AssistId(assist_id, AssistKind::RefactorRewrite),
+                AssistId(assist_id, AssistKind::RefactorRewrite, None),
                 message,
                 call_expr.syntax().text_range(),
                 |edit| {

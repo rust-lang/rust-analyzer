@@ -44,7 +44,7 @@ pub(crate) fn generate_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
     }
 
     acc.add(
-        AssistId("generate_impl", AssistKind::Generate),
+        AssistId("generate_impl", AssistKind::Generate, None),
         format!("Generate impl for `{name}`"),
         target,
         |edit| {
@@ -90,7 +90,7 @@ pub(crate) fn generate_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     }
 
     acc.add(
-        AssistId("generate_trait_impl", AssistKind::Generate),
+        AssistId("generate_trait_impl", AssistKind::Generate, None),
         format!("Generate trait impl for `{name}`"),
         target,
         |edit| {

@@ -67,7 +67,7 @@ pub(crate) fn reorder_fields(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     }
     let target = record.as_ref().either(AstNode::syntax, AstNode::syntax).text_range();
     acc.add(
-        AssistId("reorder_fields", AssistKind::RefactorRewrite),
+        AssistId("reorder_fields", AssistKind::RefactorRewrite, None),
         "Reorder record fields",
         target,
         |builder| {

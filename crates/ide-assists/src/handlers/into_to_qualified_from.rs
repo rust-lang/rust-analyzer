@@ -60,7 +60,7 @@ pub(crate) fn into_to_qualified_from(acc: &mut Assists, ctx: &AssistContext<'_>)
 
         let sc = adjusted_tc.display_source_code(db, scope.module().into(), true).ok()?;
         acc.add(
-            AssistId("into_to_qualified_from", AssistKind::Generate),
+            AssistId("into_to_qualified_from", AssistKind::Generate, None),
             "Convert `into` to fully qualified `from`",
             nameref.syntax().text_range(),
             |edit| {

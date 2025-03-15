@@ -44,7 +44,7 @@ pub(crate) fn inline_const_as_literal(acc: &mut Assists, ctx: &AssistContext<'_>
             .ok()?
             .render(ctx.sema.db, konst.krate(ctx.sema.db).to_display_target(ctx.sema.db));
 
-        let id = AssistId("inline_const_as_literal", AssistKind::RefactorInline);
+        let id = AssistId("inline_const_as_literal", AssistKind::RefactorInline, None);
 
         let label = "Inline const as literal".to_owned();
         let target = variable.syntax().text_range();

@@ -126,7 +126,7 @@ pub(crate) fn remove_unused_imports(acc: &mut Assists, ctx: &AssistContext<'_>) 
     // Peek so we terminate early if an unused use is found. Only do the rest of the work if the user selects the assist.
     if unused.peek().is_some() {
         acc.add(
-            AssistId("remove_unused_imports", AssistKind::QuickFix),
+            AssistId("remove_unused_imports", AssistKind::QuickFix, None),
             "Remove all the unused imports",
             selected_el.text_range(),
             |builder| {

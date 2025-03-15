@@ -29,7 +29,7 @@ pub(crate) fn normalize_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
         try_normalize_import(&use_item, ctx.config.insert_use.granularity.into())?;
 
     acc.add(
-        AssistId("normalize_import", AssistKind::RefactorRewrite),
+        AssistId("normalize_import", AssistKind::RefactorRewrite, None),
         "Normalize import",
         target,
         |builder| {

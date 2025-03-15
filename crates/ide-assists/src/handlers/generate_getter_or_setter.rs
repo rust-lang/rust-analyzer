@@ -62,7 +62,7 @@ pub(crate) fn generate_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
 
     acc.add_group(
         &GroupLabel("Generate getter/setter".to_owned()),
-        AssistId("generate_setter", AssistKind::Generate),
+        AssistId("generate_setter", AssistKind::Generate, None),
         "Generate a setter method",
         target,
         |builder| build_source_change(builder, ctx, info_of_record_fields, setter_info),
@@ -203,7 +203,7 @@ pub(crate) fn generate_getter_impl(
 
     acc.add_group(
         &GroupLabel("Generate getter/setter".to_owned()),
-        AssistId(id, AssistKind::Generate),
+        AssistId(id, AssistKind::Generate, None),
         label,
         target,
         |builder| build_source_change(builder, ctx, info_of_record_fields, getter_info),

@@ -205,7 +205,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
     }
 
     acc.add(
-        AssistId("add_missing_match_arms", AssistKind::QuickFix),
+        AssistId("add_missing_match_arms", AssistKind::QuickFix, None),
         "Fill match arms",
         ctx.sema.original_range(match_expr.syntax()).range,
         |builder| {

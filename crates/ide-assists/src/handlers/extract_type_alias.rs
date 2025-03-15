@@ -40,7 +40,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     let target = ty.syntax().text_range();
 
     acc.add(
-        AssistId("extract_type_alias", AssistKind::RefactorExtract),
+        AssistId("extract_type_alias", AssistKind::RefactorExtract, None),
         "Extract type as type alias",
         target,
         |builder| {

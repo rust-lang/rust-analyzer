@@ -60,7 +60,7 @@ pub(crate) fn sugar_impl_future_into_async(
     let future_output = unwrap_future_output(main_trait_path)?;
 
     acc.add(
-        AssistId("sugar_impl_future_into_async", AssistKind::RefactorRewrite),
+        AssistId("sugar_impl_future_into_async", AssistKind::RefactorRewrite, None),
         "Convert `impl Future` into async",
         function.syntax().text_range(),
         |builder| {
@@ -145,7 +145,7 @@ pub(crate) fn desugar_async_into_impl_future(
     let trait_path = trait_path.display(ctx.db(), edition);
 
     acc.add(
-        AssistId("desugar_async_into_impl_future", AssistKind::RefactorRewrite),
+        AssistId("desugar_async_into_impl_future", AssistKind::RefactorRewrite, None),
         "Convert async into `impl Future`",
         function.syntax().text_range(),
         |builder| {

@@ -34,7 +34,7 @@ pub(crate) fn replace_string_with_char(acc: &mut Assists, ctx: &AssistContext<'_
     let quote_offsets = token.quote_offsets()?;
 
     acc.add(
-        AssistId("replace_string_with_char", AssistKind::RefactorRewrite),
+        AssistId("replace_string_with_char", AssistKind::RefactorRewrite, None),
         "Replace string with char",
         target,
         |edit| {
@@ -68,7 +68,7 @@ pub(crate) fn replace_char_with_string(acc: &mut Assists, ctx: &AssistContext<'_
     let target = token.text_range();
 
     acc.add(
-        AssistId("replace_char_with_string", AssistKind::RefactorRewrite),
+        AssistId("replace_char_with_string", AssistKind::RefactorRewrite, None),
         "Replace char with string",
         target,
         |edit| {

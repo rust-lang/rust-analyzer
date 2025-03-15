@@ -68,7 +68,7 @@ fn fixes(
     }
 
     Some(vec![Assist {
-        id: AssistId("unscore_unused_variable_name", AssistKind::QuickFix),
+        id: AssistId("unscore_unused_variable_name", AssistKind::QuickFix, None),
         label: Label::new(format!(
             "Rename unused {} to _{}",
             var_name.display(db, edition),

@@ -53,7 +53,7 @@ pub(crate) fn generate_from_impl_for_enum(
 
     let target = variant.syntax().text_range();
     acc.add(
-        AssistId("generate_from_impl_for_enum", AssistKind::Generate),
+        AssistId("generate_from_impl_for_enum", AssistKind::Generate, None),
         "Generate `From` impl for this enum variant",
         target,
         |edit| {

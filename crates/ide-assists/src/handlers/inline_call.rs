@@ -96,7 +96,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     }
 
     acc.add(
-        AssistId("inline_into_callers", AssistKind::RefactorInline),
+        AssistId("inline_into_callers", AssistKind::RefactorInline, None),
         "Inline into all callers",
         name.syntax().text_range(),
         |builder| {
@@ -231,7 +231,7 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let syntax = call_info.node.syntax().clone();
     acc.add(
-        AssistId("inline_call", AssistKind::RefactorInline),
+        AssistId("inline_call", AssistKind::RefactorInline, None),
         label,
         syntax.text_range(),
         |builder| {

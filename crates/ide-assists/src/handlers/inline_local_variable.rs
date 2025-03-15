@@ -74,7 +74,7 @@ pub(crate) fn inline_local_variable(acc: &mut Assists, ctx: &AssistContext<'_>) 
     };
 
     acc.add(
-        AssistId("inline_local_variable", AssistKind::RefactorInline),
+        AssistId("inline_local_variable", AssistKind::RefactorInline, None),
         "Inline variable",
         target.text_range(),
         move |builder| {

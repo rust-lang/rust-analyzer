@@ -105,7 +105,7 @@ pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     for import in proposed_imports {
         acc.add_group(
             &group_label,
-            AssistId("qualify_path", AssistKind::QuickFix),
+            AssistId("qualify_path", AssistKind::QuickFix, None),
             label(ctx.db(), candidate, &import, current_edition),
             range,
             |builder| {

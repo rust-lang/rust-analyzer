@@ -43,7 +43,7 @@ pub(crate) fn move_from_mod_rs(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
     let path = format!("../{module_name}.rs");
     let dst = AnchoredPathBuf { anchor: ctx.file_id().into(), path };
     acc.add(
-        AssistId("move_from_mod_rs", AssistKind::Refactor),
+        AssistId("move_from_mod_rs", AssistKind::Refactor, None),
         format!("Convert {module_name}/mod.rs to {module_name}.rs"),
         target,
         |builder| {

@@ -132,7 +132,7 @@ impl ArithKind {
             ArithKind::Wrapping => "replace_arith_with_wrapping",
         };
 
-        AssistId(s, AssistKind::RefactorRewrite)
+        AssistId(s, AssistKind::RefactorRewrite, None)
     }
 
     fn label(&self) -> &'static str {

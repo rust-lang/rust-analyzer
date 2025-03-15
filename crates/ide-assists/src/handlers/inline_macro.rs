@@ -42,7 +42,7 @@ pub(crate) fn inline_macro(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     let text_range = unexpanded.syntax().text_range();
 
     acc.add(
-        AssistId("inline_macro", AssistKind::RefactorInline),
+        AssistId("inline_macro", AssistKind::RefactorInline, None),
         "Inline macro".to_owned(),
         text_range,
         |builder| {

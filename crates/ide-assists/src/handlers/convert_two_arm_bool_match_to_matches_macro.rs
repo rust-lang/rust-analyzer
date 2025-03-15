@@ -56,7 +56,7 @@ pub(crate) fn convert_two_arm_bool_match_to_matches_macro(
     let expr = match_expr.expr()?;
 
     acc.add(
-        AssistId("convert_two_arm_bool_match_to_matches_macro", AssistKind::RefactorRewrite),
+        AssistId("convert_two_arm_bool_match_to_matches_macro", AssistKind::RefactorRewrite, None),
         "Convert to matches!",
         target_range,
         |builder| {

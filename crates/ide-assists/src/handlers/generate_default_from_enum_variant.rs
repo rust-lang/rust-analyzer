@@ -47,7 +47,7 @@ pub(crate) fn generate_default_from_enum_variant(
 
     let target = variant.syntax().text_range();
     acc.add(
-        AssistId("generate_default_from_enum_variant", AssistKind::Generate),
+        AssistId("generate_default_from_enum_variant", AssistKind::Generate, None),
         "Generate `Default` impl from this enum variant",
         target,
         |edit| {

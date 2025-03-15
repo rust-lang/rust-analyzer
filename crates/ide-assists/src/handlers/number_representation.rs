@@ -42,7 +42,7 @@ pub(crate) fn reformat_number_literal(acc: &mut Assists, ctx: &AssistContext<'_>
     let range = literal.syntax().text_range();
     acc.add_group(
         &group_id,
-        AssistId("reformat_number_literal", AssistKind::RefactorInline),
+        AssistId("reformat_number_literal", AssistKind::RefactorInline, None),
         label,
         range,
         |builder| builder.replace(range, converted),
@@ -54,7 +54,7 @@ fn remove_separators(acc: &mut Assists, literal: ast::IntNumber) -> Option<()> {
     let range = literal.syntax().text_range();
     acc.add_group(
         &group_id,
-        AssistId("reformat_number_literal", AssistKind::RefactorInline),
+        AssistId("reformat_number_literal", AssistKind::RefactorInline, None),
         "Remove digit separators",
         range,
         |builder| builder.replace(range, literal.text().replace('_', "")),

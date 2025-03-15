@@ -65,7 +65,7 @@ pub(crate) fn destructure_tuple_binding_impl(
 
     if with_sub_pattern {
         acc.add(
-            AssistId("destructure_tuple_binding_in_sub_pattern", AssistKind::RefactorRewrite),
+            AssistId("destructure_tuple_binding_in_sub_pattern", AssistKind::RefactorRewrite, None),
             "Destructure tuple in sub-pattern",
             data.ident_pat.syntax().text_range(),
             |edit| destructure_tuple_edit_impl(ctx, edit, &data, true),
@@ -73,7 +73,7 @@ pub(crate) fn destructure_tuple_binding_impl(
     }
 
     acc.add(
-        AssistId("destructure_tuple_binding", AssistKind::RefactorRewrite),
+        AssistId("destructure_tuple_binding", AssistKind::RefactorRewrite, None),
         if with_sub_pattern { "Destructure tuple in place" } else { "Destructure tuple" },
         data.ident_pat.syntax().text_range(),
         |edit| destructure_tuple_edit_impl(ctx, edit, &data, false),
