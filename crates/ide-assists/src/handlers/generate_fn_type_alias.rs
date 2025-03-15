@@ -138,7 +138,7 @@ impl ParamStyle {
             ParamStyle::Unnamed => "generate_fn_type_alias_unnamed",
         };
 
-        AssistId(s, AssistKind::Generate)
+        AssistId(s, AssistKind::Generate, None)
     }
 
     fn label(&self) -> &'static str {

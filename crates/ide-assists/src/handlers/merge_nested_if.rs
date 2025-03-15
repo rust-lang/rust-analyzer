@@ -70,7 +70,7 @@ pub(crate) fn merge_nested_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let then_branch_range = then_branch.syntax().text_range();
 
     acc.add(
-        AssistId("merge_nested_if", AssistKind::RefactorRewrite),
+        AssistId("merge_nested_if", AssistKind::RefactorRewrite, None),
         "Merge nested if",
         if_range,
         |edit| {

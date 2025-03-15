@@ -68,7 +68,7 @@ pub(crate) fn convert_named_struct_to_tuple_struct(
     };
 
     acc.add(
-        AssistId("convert_named_struct_to_tuple_struct", AssistKind::RefactorRewrite),
+        AssistId("convert_named_struct_to_tuple_struct", AssistKind::RefactorRewrite, None),
         "Convert to tuple struct",
         strukt.syntax().text_range(),
         |edit| {

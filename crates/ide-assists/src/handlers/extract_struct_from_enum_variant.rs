@@ -54,7 +54,7 @@ pub(crate) fn extract_struct_from_enum_variant(
     let enum_hir = ctx.sema.to_def(&enum_ast)?;
     let target = variant.syntax().text_range();
     acc.add(
-        AssistId("extract_struct_from_enum_variant", AssistKind::RefactorRewrite),
+        AssistId("extract_struct_from_enum_variant", AssistKind::RefactorRewrite, None),
         "Extract struct from enum variant",
         target,
         |builder| {

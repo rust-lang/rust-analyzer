@@ -27,7 +27,7 @@ pub(crate) fn introduce_named_type_parameter(
     let make = SyntaxFactory::new();
     let target = fn_.syntax().text_range();
     acc.add(
-        AssistId("introduce_named_type_parameter", AssistKind::RefactorRewrite),
+        AssistId("introduce_named_type_parameter", AssistKind::RefactorRewrite, None),
         "Replace impl trait with type parameter",
         target,
         |builder| {

@@ -74,7 +74,7 @@ pub(crate) fn replace_turbofish_with_explicit_type(
         let ident_range = let_stmt.pat()?.syntax().text_range();
 
         return acc.add(
-            AssistId("replace_turbofish_with_explicit_type", AssistKind::RefactorRewrite),
+            AssistId("replace_turbofish_with_explicit_type", AssistKind::RefactorRewrite, None),
             "Replace turbofish with explicit type",
             TextRange::new(initializer_start, turbofish_range.end()),
             |builder| {
@@ -89,7 +89,7 @@ pub(crate) fn replace_turbofish_with_explicit_type(
         let underscore_range = t.syntax().text_range();
 
         return acc.add(
-            AssistId("replace_turbofish_with_explicit_type", AssistKind::RefactorRewrite),
+            AssistId("replace_turbofish_with_explicit_type", AssistKind::RefactorRewrite, None),
             "Replace `_` with turbofish type",
             turbofish_range,
             |builder| {

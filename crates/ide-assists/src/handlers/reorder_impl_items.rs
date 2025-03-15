@@ -95,7 +95,7 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
     let target = items.syntax().text_range();
     acc.add(
-        AssistId("reorder_impl_items", AssistKind::RefactorRewrite),
+        AssistId("reorder_impl_items", AssistKind::RefactorRewrite, None),
         "Sort items by trait definition",
         target,
         |builder| {

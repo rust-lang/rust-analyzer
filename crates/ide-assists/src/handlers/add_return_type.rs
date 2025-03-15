@@ -25,7 +25,7 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let ty = ty.display_source_code(ctx.db(), module.into(), true).ok()?;
 
     acc.add(
-        AssistId("add_return_type", AssistKind::RefactorRewrite),
+        AssistId("add_return_type", AssistKind::RefactorRewrite, None),
         match fn_type {
             FnType::Function => "Add this function's return type",
             FnType::Closure { .. } => "Add this closure's return type",

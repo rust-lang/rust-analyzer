@@ -146,7 +146,7 @@ fn add_missing_impl_members_inner(
     }
 
     let target = impl_def.syntax().text_range();
-    acc.add(AssistId(assist_id, AssistKind::QuickFix), label, target, |edit| {
+    acc.add(AssistId(assist_id, AssistKind::QuickFix, None), label, target, |edit| {
         let new_impl_def = edit.make_mut(impl_def.clone());
         let first_new_item = add_trait_assoc_items_to_impl(
             &ctx.sema,

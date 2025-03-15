@@ -29,7 +29,7 @@ pub(crate) fn flip_trait_bound(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
 
     let target = plus.text_range();
     acc.add(
-        AssistId("flip_trait_bound", AssistKind::RefactorRewrite),
+        AssistId("flip_trait_bound", AssistKind::RefactorRewrite, None),
         "Flip trait bounds",
         target,
         |builder| {

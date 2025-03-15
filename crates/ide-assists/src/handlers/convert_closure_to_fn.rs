@@ -146,7 +146,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
     };
 
     acc.add(
-        AssistId("convert_closure_to_fn", AssistKind::RefactorRewrite),
+        AssistId("convert_closure_to_fn", AssistKind::RefactorRewrite, None),
         "Convert closure to fn",
         closure.param_list()?.syntax().text_range(),
         |builder| {

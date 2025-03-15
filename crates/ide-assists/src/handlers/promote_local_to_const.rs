@@ -67,7 +67,7 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_>)
     }
 
     acc.add(
-        AssistId("promote_local_to_const", AssistKind::Refactor),
+        AssistId("promote_local_to_const", AssistKind::Refactor, None),
         "Promote local to constant",
         let_stmt.syntax().text_range(),
         |edit| {

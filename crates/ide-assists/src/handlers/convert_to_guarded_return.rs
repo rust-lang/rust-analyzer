@@ -127,7 +127,7 @@ fn if_expr_to_guarded_return(
 
     let target = if_expr.syntax().text_range();
     acc.add(
-        AssistId("convert_to_guarded_return", AssistKind::RefactorRewrite),
+        AssistId("convert_to_guarded_return", AssistKind::RefactorRewrite, None),
         "Convert to guarded return",
         target,
         |edit| {
@@ -209,7 +209,7 @@ fn let_stmt_to_guarded_return(
     };
 
     acc.add(
-        AssistId("convert_to_guarded_return", AssistKind::RefactorRewrite),
+        AssistId("convert_to_guarded_return", AssistKind::RefactorRewrite, None),
         "Convert to guarded return",
         target,
         |edit| {

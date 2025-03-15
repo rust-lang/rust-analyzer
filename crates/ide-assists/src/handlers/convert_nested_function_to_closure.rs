@@ -44,7 +44,7 @@ pub(crate) fn convert_nested_function_to_closure(
     let param_list = function.param_list()?;
 
     acc.add(
-        AssistId("convert_nested_function_to_closure", AssistKind::RefactorRewrite),
+        AssistId("convert_nested_function_to_closure", AssistKind::RefactorRewrite, None),
         "Convert nested function to closure",
         target,
         |edit| {

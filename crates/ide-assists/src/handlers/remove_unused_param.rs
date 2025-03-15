@@ -79,7 +79,7 @@ pub(crate) fn remove_unused_param(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     }
     let parent = param.syntax().parent()?;
     acc.add(
-        AssistId("remove_unused_param", AssistKind::Refactor),
+        AssistId("remove_unused_param", AssistKind::Refactor, None),
         "Remove unused parameter",
         param.syntax().text_range(),
         |builder| {

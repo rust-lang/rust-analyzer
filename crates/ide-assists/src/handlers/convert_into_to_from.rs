@@ -85,7 +85,7 @@ pub(crate) fn convert_into_to_from(acc: &mut Assists, ctx: &AssistContext<'_>) -
         .filter(|name| name.text() == "self" || name.text() == "Self");
 
     acc.add(
-        AssistId("convert_into_to_from", AssistKind::RefactorRewrite),
+        AssistId("convert_into_to_from", AssistKind::RefactorRewrite, None),
         "Convert Into to From",
         impl_.syntax().text_range(),
         |builder| {

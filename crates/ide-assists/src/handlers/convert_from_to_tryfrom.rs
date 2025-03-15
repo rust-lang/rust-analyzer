@@ -71,7 +71,7 @@ pub(crate) fn convert_from_to_tryfrom(acc: &mut Assists, ctx: &AssistContext<'_>
     }
 
     acc.add(
-        AssistId("convert_from_to_tryfrom", AssistKind::RefactorRewrite),
+        AssistId("convert_from_to_tryfrom", AssistKind::RefactorRewrite, None),
         "Convert From to TryFrom",
         impl_.syntax().text_range(),
         |builder| {

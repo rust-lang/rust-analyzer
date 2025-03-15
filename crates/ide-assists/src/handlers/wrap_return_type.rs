@@ -154,7 +154,7 @@ impl WrapperKind {
             WrapperKind::Result => "wrap_return_type_in_result",
         };
 
-        AssistId(s, AssistKind::RefactorRewrite)
+        AssistId(s, AssistKind::RefactorRewrite, None)
     }
 
     fn label(&self) -> &'static str {

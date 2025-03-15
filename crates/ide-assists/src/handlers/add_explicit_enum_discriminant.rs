@@ -53,7 +53,7 @@ pub(crate) fn add_explicit_enum_discriminant(
     }
 
     acc.add(
-        AssistId("add_explicit_enum_discriminant", AssistKind::RefactorRewrite),
+        AssistId("add_explicit_enum_discriminant", AssistKind::RefactorRewrite, None),
         "Add explicit enum discriminants",
         enum_node.syntax().text_range(),
         |builder| {

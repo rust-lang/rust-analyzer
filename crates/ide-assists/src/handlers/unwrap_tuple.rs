@@ -56,7 +56,7 @@ pub(crate) fn unwrap_tuple(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     let parent = let_kw.parent()?;
 
     acc.add(
-        AssistId("unwrap_tuple", AssistKind::RefactorRewrite),
+        AssistId("unwrap_tuple", AssistKind::RefactorRewrite, None),
         "Unwrap tuple",
         let_kw.text_range(),
         |edit| {

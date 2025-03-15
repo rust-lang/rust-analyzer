@@ -49,7 +49,7 @@ pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_>)
 
     let target = guard.syntax().text_range();
     acc.add(
-        AssistId("move_guard_to_arm_body", AssistKind::RefactorRewrite),
+        AssistId("move_guard_to_arm_body", AssistKind::RefactorRewrite, None),
         "Move guard to arm body",
         target,
         |edit| {
@@ -118,7 +118,7 @@ pub(crate) fn move_arm_cond_to_match_guard(
     let (conds_blocks, tail) = parse_if_chain(if_expr)?;
 
     acc.add(
-        AssistId("move_arm_cond_to_match_guard", AssistKind::RefactorRewrite),
+        AssistId("move_arm_cond_to_match_guard", AssistKind::RefactorRewrite, None),
         "Move condition to match guard",
         replace_node.text_range(),
         |edit| {

@@ -60,7 +60,7 @@ pub(crate) fn unnecessary_async(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
 
     // Otherwise, we may remove the `async` keyword.
     acc.add(
-        AssistId("unnecessary_async", AssistKind::QuickFix),
+        AssistId("unnecessary_async", AssistKind::QuickFix, None),
         "Remove unnecessary async",
         async_range,
         |edit| {

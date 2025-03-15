@@ -69,7 +69,7 @@ pub(crate) fn generate_is_empty_from_len(acc: &mut Assists, ctx: &AssistContext<
     let range = node.syntax().value.text_range();
 
     acc.add(
-        AssistId("generate_is_empty_from_len", AssistKind::Generate),
+        AssistId("generate_is_empty_from_len", AssistKind::Generate, None),
         "Generate a is_empty impl from a len function",
         range,
         |builder| {

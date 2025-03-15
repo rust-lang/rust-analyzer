@@ -311,7 +311,7 @@ impl ExtractionKind {
             ExtractionKind::Static => "extract_static",
         };
 
-        AssistId(s, AssistKind::RefactorExtract)
+        AssistId(s, AssistKind::RefactorExtract, None)
     }
 
     fn label(&self) -> &'static str {

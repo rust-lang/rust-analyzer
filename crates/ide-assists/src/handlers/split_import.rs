@@ -29,11 +29,16 @@ pub(crate) fn split_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     }
 
     let target = colon_colon.text_range();
-    acc.add(AssistId("split_import", AssistKind::RefactorRewrite), "Split import", target, |edit| {
-        let use_tree = edit.make_mut(use_tree.clone());
-        let path = edit.make_mut(path);
-        use_tree.split_prefix(&path);
-    })
+    acc.add(
+        AssistId("split_import", AssistKind::RefactorRewrite, None),
+        "Split import",
+        target,
+        |edit| {
+            let use_tree = edit.make_mut(use_tree.clone());
+            let path = edit.make_mut(path);
+            use_tree.split_prefix(&path);
+        },
+    )
 }
 
 #[cfg(test)]

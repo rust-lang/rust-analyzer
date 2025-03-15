@@ -67,7 +67,7 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     }
 
     acc.add(
-        AssistId("pull_assignment_up", AssistKind::RefactorExtract),
+        AssistId("pull_assignment_up", AssistKind::RefactorExtract, None),
         "Pull assignment up",
         tgt.syntax().text_range(),
         move |edit| {

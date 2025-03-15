@@ -58,7 +58,7 @@ pub(crate) fn generate_enum_variant(acc: &mut Assists, ctx: &AssistContext<'_>) 
     let InRealFile { file_id, value: enum_node } = e.source(db)?.original_ast_node_rooted(db)?;
 
     acc.add(
-        AssistId("generate_enum_variant", AssistKind::Generate),
+        AssistId("generate_enum_variant", AssistKind::Generate, None),
         "Generate variant",
         target,
         |builder| {

@@ -38,7 +38,7 @@ fn block_to_line(acc: &mut Assists, comment: ast::Comment) -> Option<()> {
     let target = comment.syntax().text_range();
 
     acc.add(
-        AssistId("block_to_line", AssistKind::RefactorRewrite),
+        AssistId("block_to_line", AssistKind::RefactorRewrite, None),
         "Replace block comment with line comments",
         target,
         |edit| {
@@ -80,7 +80,7 @@ fn line_to_block(acc: &mut Assists, comment: ast::Comment) -> Option<()> {
     );
 
     acc.add(
-        AssistId("line_to_block", AssistKind::RefactorRewrite),
+        AssistId("line_to_block", AssistKind::RefactorRewrite, None),
         "Replace line comments with a single block comment",
         target,
         |edit| {

@@ -47,7 +47,7 @@ pub(crate) fn convert_integer_literal(acc: &mut Assists, ctx: &AssistContext<'_>
 
         acc.add_group(
             &group_id,
-            AssistId("convert_integer_literal", AssistKind::RefactorInline),
+            AssistId("convert_integer_literal", AssistKind::RefactorInline, None),
             label,
             range,
             |builder| builder.replace(range, converted),

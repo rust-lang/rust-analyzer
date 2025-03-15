@@ -40,23 +40,28 @@ pub(crate) fn flip_comma(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
     }
 
     let target = comma.text_range();
-    acc.add(AssistId("flip_comma", AssistKind::RefactorRewrite), "Flip comma", target, |builder| {
-        let parent = comma.parent().unwrap();
-        let mut editor = builder.make_editor(&parent);
+    acc.add(
+        AssistId("flip_comma", AssistKind::RefactorRewrite, None),
+        "Flip comma",
+        target,
+        |builder| {
+            let parent = comma.parent().unwrap();
+            let mut editor = builder.make_editor(&parent);
 
-        if let Some(parent) = ast::TokenTree::cast(parent) {
-            // An attribute. It often contains a path followed by a
-            // token tree (e.g. `align(2)`), so we have to be smarter.
-            let (new_tree, mapping) = flip_tree(parent.clone(), comma);
-            editor.replace(parent.syntax(), new_tree.syntax());
-            editor.add_mappings(mapping);
-        } else {
-            editor.replace(prev.clone(), next.clone());
-            editor.replace(next.clone(), prev.clone());
-        }
+            if let Some(parent) = ast::TokenTree::cast(parent) {
+                // An attribute. It often contains a path followed by a
+                // token tree (e.g. `align(2)`), so we have to be smarter.
+                let (new_tree, mapping) = flip_tree(parent.clone(), comma);
+                editor.replace(parent.syntax(), new_tree.syntax());
+                editor.add_mappings(mapping);
+            } else {
+                editor.replace(prev.clone(), next.clone());
+                editor.replace(next.clone(), prev.clone());
+            }
 
-        builder.add_file_edits(ctx.file_id(), editor);
-    })
+            builder.add_file_edits(ctx.file_id(), editor);
+        },
+    )
 }
 
 fn flip_tree(tree: ast::TokenTree, comma: SyntaxToken) -> (ast::TokenTree, SyntaxMapping) {

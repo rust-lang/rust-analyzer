@@ -48,7 +48,7 @@ pub(crate) fn replace_try_expr_with_match(
 
     let target = qm_kw_parent.syntax().text_range();
     acc.add(
-        AssistId("replace_try_expr_with_match", AssistKind::RefactorRewrite),
+        AssistId("replace_try_expr_with_match", AssistKind::RefactorRewrite, None),
         "Replace try expression with match",
         target,
         |edit| {

@@ -69,7 +69,7 @@ pub(crate) fn replace_named_generic_with_impl(
     let target = type_param.syntax().text_range();
 
     acc.add(
-        AssistId("replace_named_generic_with_impl", AssistKind::RefactorRewrite),
+        AssistId("replace_named_generic_with_impl", AssistKind::RefactorRewrite, None),
         "Replace named generic with impl trait",
         target,
         |edit| {

@@ -62,7 +62,7 @@ pub(crate) fn convert_tuple_return_type_to_struct(
 
     let target = type_ref.syntax().text_range();
     acc.add(
-        AssistId("convert_tuple_return_type_to_struct", AssistKind::RefactorRewrite),
+        AssistId("convert_tuple_return_type_to_struct", AssistKind::RefactorRewrite, None),
         "Convert tuple return type to tuple struct",
         target,
         move |edit| {

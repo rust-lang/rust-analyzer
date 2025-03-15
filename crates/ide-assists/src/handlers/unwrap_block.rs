@@ -27,7 +27,7 @@ use crate::{AssistContext, AssistId, AssistKind, Assists};
 // }
 // ```
 pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let assist_id = AssistId("unwrap_block", AssistKind::RefactorRewrite);
+    let assist_id = AssistId("unwrap_block", AssistKind::RefactorRewrite, None);
     let assist_label = "Unwrap block";
 
     let l_curly_token = ctx.find_token_syntax_at_offset(T!['{'])?;

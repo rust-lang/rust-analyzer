@@ -45,7 +45,7 @@ pub(crate) fn move_module_to_file(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     let parent_module = module_def.parent(ctx.db())?;
 
     acc.add(
-        AssistId("move_module_to_file", AssistKind::RefactorExtract),
+        AssistId("move_module_to_file", AssistKind::RefactorExtract, None),
         "Extract module to file",
         target,
         |builder| {

@@ -55,7 +55,7 @@ pub(crate) fn generate_documentation_template(
     let indent_level = IndentLevel::from_node(parent_syntax);
 
     acc.add(
-        AssistId("generate_documentation_template", AssistKind::Generate),
+        AssistId("generate_documentation_template", AssistKind::Generate, None),
         "Generate a documentation template",
         text_range,
         |builder| {
@@ -114,7 +114,7 @@ pub(crate) fn generate_doc_example(acc: &mut Assists, ctx: &AssistContext<'_>) -
     let indent_level = IndentLevel::from_node(&node);
 
     acc.add(
-        AssistId("generate_doc_example", AssistKind::Generate),
+        AssistId("generate_doc_example", AssistKind::Generate, None),
         "Generate a documentation example",
         node.text_range(),
         |builder| {

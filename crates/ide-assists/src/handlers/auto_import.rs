@@ -126,8 +126,10 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     for import in proposed_imports {
         let import_path = import.import_path;
 
-        let (assist_id, import_name) =
-            (AssistId("auto_import", AssistKind::QuickFix), import_path.display(ctx.db(), edition));
+        let (assist_id, import_name) = (
+            AssistId("auto_import", AssistKind::QuickFix, None),
+            import_path.display(ctx.db(), edition),
+        );
         acc.add_group(
             &group_label,
             assist_id,

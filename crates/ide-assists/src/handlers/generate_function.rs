@@ -172,7 +172,7 @@ fn add_func_to_accumulator(
     adt_info: Option<AdtInfo>,
     label: String,
 ) -> Option<()> {
-    acc.add(AssistId("generate_function", AssistKind::Generate), label, text_range, |edit| {
+    acc.add(AssistId("generate_function", AssistKind::Generate, None), label, text_range, |edit| {
         edit.edit_file(file);
 
         let target = function_builder.target.clone();

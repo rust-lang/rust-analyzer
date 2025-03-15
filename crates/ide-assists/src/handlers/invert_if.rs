@@ -47,17 +47,22 @@ pub(crate) fn invert_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
         ast::ElseBranch::IfExpr(_) => return None,
     };
 
-    acc.add(AssistId("invert_if", AssistKind::RefactorRewrite), "Invert if", if_range, |edit| {
-        let flip_cond = invert_boolean_expression_legacy(cond.clone());
-        edit.replace_ast(cond, flip_cond);
+    acc.add(
+        AssistId("invert_if", AssistKind::RefactorRewrite, None),
+        "Invert if",
+        if_range,
+        |edit| {
+            let flip_cond = invert_boolean_expression_legacy(cond.clone());
+            edit.replace_ast(cond, flip_cond);
 
-        let else_node = else_block.syntax();
-        let else_range = else_node.text_range();
-        let then_range = then_node.text_range();
+            let else_node = else_block.syntax();
+            let else_range = else_node.text_range();
+            let then_range = then_node.text_range();
 
-        edit.replace(else_range, then_node.text());
-        edit.replace(then_range, else_node.text());
-    })
+            edit.replace(else_range, then_node.text());
+            edit.replace(then_range, else_node.text());
+        },
+    )
 }
 
 #[cfg(test)]

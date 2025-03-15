@@ -47,7 +47,7 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     let old_parent_range = new_parent.text_range();
 
     acc.add(
-        AssistId("unmerge_match_arm", AssistKind::RefactorRewrite),
+        AssistId("unmerge_match_arm", AssistKind::RefactorRewrite, None),
         "Unmerge match arm",
         pipe_token.text_range(),
         |edit| {

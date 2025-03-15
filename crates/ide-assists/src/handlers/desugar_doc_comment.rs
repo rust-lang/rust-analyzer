@@ -54,7 +54,7 @@ pub(crate) fn desugar_doc_comment(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     };
 
     acc.add(
-        AssistId("desugar_doc_comment", AssistKind::RefactorRewrite),
+        AssistId("desugar_doc_comment", AssistKind::RefactorRewrite, None),
         "Desugar doc-comment to attribute macro",
         target,
         |edit| {

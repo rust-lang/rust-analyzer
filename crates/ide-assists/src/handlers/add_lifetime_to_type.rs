@@ -38,7 +38,7 @@ pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_>) -
     let target = node.syntax().text_range();
 
     acc.add(
-        AssistId("add_lifetime_to_type", AssistKind::Generate),
+        AssistId("add_lifetime_to_type", AssistKind::Generate, None),
         "Add lifetime",
         target,
         |builder| {

@@ -43,7 +43,7 @@ pub(crate) fn flip_binexpr(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     }
 
     acc.add(
-        AssistId("flip_binexpr", AssistKind::RefactorRewrite),
+        AssistId("flip_binexpr", AssistKind::RefactorRewrite, None),
         "Flip binary expression",
         op_token.text_range(),
         |builder| {

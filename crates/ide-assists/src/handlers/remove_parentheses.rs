@@ -40,7 +40,7 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
     let target = parens.syntax().text_range();
     acc.add(
-        AssistId("remove_parentheses", AssistKind::Refactor),
+        AssistId("remove_parentheses", AssistKind::Refactor, None),
         "Remove redundant parentheses",
         target,
         |builder| {

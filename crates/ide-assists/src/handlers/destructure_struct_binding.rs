@@ -47,7 +47,7 @@ pub(crate) fn destructure_struct_binding(acc: &mut Assists, ctx: &AssistContext<
     let data = collect_data(ident_pat, ctx)?;
 
     acc.add(
-        AssistId("destructure_struct_binding", AssistKind::RefactorRewrite),
+        AssistId("destructure_struct_binding", AssistKind::RefactorRewrite, None),
         "Destructure struct binding",
         data.ident_pat.syntax().text_range(),
         |edit| destructure_struct_binding_impl(ctx, edit, &data),

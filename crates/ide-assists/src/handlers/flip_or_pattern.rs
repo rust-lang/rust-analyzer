@@ -32,7 +32,7 @@ pub(crate) fn flip_or_pattern(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
 
     let target = pipe.text_range();
     acc.add(
-        AssistId("flip_or_pattern", AssistKind::RefactorRewrite),
+        AssistId("flip_or_pattern", AssistKind::RefactorRewrite, None),
         "Flip patterns",
         target,
         |builder| {
