@@ -521,4 +521,8 @@ define_symbols! {
     win64,
     array,
     boxed_slice,
+    do_not_complete,
+    methods,
+    flyimport,
+    methods_flyimport,
 }
