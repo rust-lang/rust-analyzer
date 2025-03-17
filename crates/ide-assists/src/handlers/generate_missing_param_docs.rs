@@ -135,12 +135,16 @@ pub(crate) fn generate_missing_param_docs(
         }
     };
 
-    let param_docs_range = TextRange::new(
-        fn_node.syntax().text_range().start() + offset_at_index(&existing_docs, i),
-        fn_node.syntax().text_range().start()
-            + offset_at_index(&existing_docs, param_docs_end)
-            + TextSize::from((param_docs_end - i) as u32),
-    );
+    let mut start = fn_node.syntax().text_range().start() + offset_at_index(&existing_docs, i);
+    let end = fn_node.syntax().text_range().start()
+        + offset_at_index(&existing_docs, param_docs_end)
+        + TextSize::from((param_docs_end - i) as u32);
+
+    if start > TextSize::from(0) {
+        start = start - TextSize::from(1);
+    }
+
+    let param_docs_range = TextRange::new(start, end - TextSize::from(1));
 
     let mut doc_heading = existing_docs[i..param_docs_end].to_vec();
 
@@ -175,8 +179,15 @@ pub(crate) fn generate_missing_param_docs(
 
     println!("doc heading : {:?}", doc_heading);
     ordered_insertion(&mut doc_heading, &params, indent_level);
+    if param_docs_end != existing_docs.len() {
+        doc_heading.pop();
+        doc_heading.push("".to_string());
+    }
     let mut doc_heading = doc_heading.join("\n");
-    doc_heading.push('\n');
+
+    if start > TextSize::from(0) {
+        doc_heading = format!("\n{}", format_doc_line("\n", indent_level)) + &doc_heading;
+    }
 
     acc.add(
         AssistId("generate_missing_param_docs", AssistKind::Generate),
@@ -305,6 +316,43 @@ fn foo($0x: i32, y: i32, z: i32) {}
 /// * `x` - TODO: Description
 /// * `y` - Already documented
 /// * `z` - TODO: Description
+fn foo(x: i32, y: i32, z: i32) {}
+"#,
+        );
+    }
+
+    #[test]
+    fn super_mixed_documentation_case() {
+        check_assist(
+            generate_missing_param_docs,
+            r#"
+/// ## My special section
+/// 
+/// Super awesome documentation
+///
+/// ## Parameters
+///
+/// * `y` - Already documented
+/// 
+/// ## Errors
+/// 
+/// * Errors are documented here
+fn foo($0x: i32, y: i32, z: i32) {}
+"#,
+            r#"
+/// ## My special section
+/// 
+/// Super awesome documentation
+///
+/// ## Parameters
+///
+/// * `x` - TODO: Description
+/// * `y` - Already documented
+/// * `z` - TODO: Description
+/// 
+/// ## Errors
+/// 
+/// * Errors are documented here
 fn foo(x: i32, y: i32, z: i32) {}
 "#,
         );
