@@ -1546,6 +1546,8 @@ impl RecordField {
     pub fn colon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![:]) }
     #[inline]
     pub fn eq_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![=]) }
+    #[inline]
+    pub fn unsafe_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![unsafe]) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
