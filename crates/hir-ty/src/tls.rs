@@ -99,7 +99,7 @@ impl DebugContext<'_> {
                     let method_data = self.0.function_data(assoc_type.synthesized_from_method);
                     let placeholder_assoc_type_name = format!(
                         "__{}_rpitit",
-                        method_data.name.display(self.0.upcast(), Edition::LATEST).to_string()
+                        method_data.name.display(self.0.upcast(), Edition::LATEST)
                     );
                     (assoc_type.trait_id, placeholder_assoc_type_name)
                 }

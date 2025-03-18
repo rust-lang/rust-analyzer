@@ -837,7 +837,12 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
                 if let Some(type_ref) = binding.type_ref {
                     match (&self.ctx.types_map[type_ref], self.ctx.impl_trait_mode.mode) {
                         (TypeRef::ImplTrait(_), ImplTraitLoweringMode::Disallowed) => (),
-                        (_, ImplTraitLoweringMode::Disallowed | ImplTraitLoweringMode::Opaque) => {
+                        (
+                            _,
+                            ImplTraitLoweringMode::Disallowed
+                            | ImplTraitLoweringMode::Opaque
+                            | ImplTraitLoweringMode::AssocType,
+                        ) => {
                             let ty = self.ctx.lower_ty(type_ref);
                             let alias_eq =
                                 AliasEq { alias: AliasTy::Projection(projection_ty.clone()), ty };
