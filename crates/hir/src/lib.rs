@@ -2374,33 +2374,30 @@ impl Function {
         }
     }
 
-    pub fn returns_impl_future(self, db: &dyn HirDatabase) -> bool {
-        if self.is_async(db) {
-            return true;
+    /// Returns `Future::Output`.
+    pub fn returns_impl_future(self, db: &dyn HirDatabase) -> Option<Type> {
+        let future_trait_id =
+            db.lang_item(self.ty(db).env.krate, LangItem::Future).and_then(|t| t.as_trait())?;
+
+        let ret_type = self.ret_type(db);
+        let canonical_ty =
+            Canonical { value: ret_type.ty.clone(), binders: CanonicalVarKinds::empty(Interner) };
+        // The `is_async()` is an optimization.
+        if !self.is_async(db)
+            && !method_resolution::implements_trait_unique(
+                &canonical_ty,
+                db,
+                &ret_type.env,
+                future_trait_id,
+            )
+        {
+            return None;
         }
 
-        let Some(impl_traits) = self.ret_type(db).as_impl_traits(db) else { return false };
-        let Some(future_trait_id) =
-            db.lang_item(self.ty(db).env.krate, LangItem::Future).and_then(|t| t.as_trait())
-        else {
-            return false;
-        };
-        let Some(sized_trait_id) =
-            db.lang_item(self.ty(db).env.krate, LangItem::Sized).and_then(|t| t.as_trait())
-        else {
-            return false;
-        };
-
-        let mut has_impl_future = false;
-        impl_traits
-            .filter(|t| {
-                let fut = t.id == future_trait_id;
-                has_impl_future |= fut;
-                !fut && t.id != sized_trait_id
-            })
-            // all traits but the future trait must be auto traits
-            .all(|t| t.is_auto(db))
-            && has_impl_future
+        let future_output = db
+            .lang_item(self.ty(db).env.krate, LangItem::FutureOutput)
+            .and_then(|t| t.as_type_alias())?;
+        ret_type.normalize_trait_assoc_type(db, &[], future_output.into())
     }
 
     /// Does this function have `#[test]` attribute?
