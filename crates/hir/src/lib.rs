@@ -2381,30 +2381,24 @@ impl Function {
         }
     }
 
-    pub fn returns_impl_future(self, db: &dyn HirDatabase) -> bool {
-        if self.is_async(db) {
-            return true;
+    /// Returns `Future::Output`.
+    pub fn returns_impl_future(self, db: &dyn HirDatabase) -> Option<Type> {
+        let future_trait_id = LangItem::Future.resolve_trait(db, self.ty(db).env.krate)?;
+
+        let ret_type = self.ret_type(db);
+        let canonical_ty =
+            Canonical { value: ret_type.ty.clone(), binders: CanonicalVarKinds::empty(Interner) };
+        if !method_resolution::implements_trait_unique(
+            &canonical_ty,
+            db,
+            &ret_type.env,
+            future_trait_id,
+        ) {
+            return None;
         }
 
-        let Some(impl_traits) = self.ret_type(db).as_impl_traits(db) else { return false };
-        let Some(future_trait_id) = LangItem::Future.resolve_trait(db, self.ty(db).env.krate)
-        else {
-            return false;
-        };
-        let Some(sized_trait_id) = LangItem::Sized.resolve_trait(db, self.ty(db).env.krate) else {
-            return false;
-        };
-
-        let mut has_impl_future = false;
-        impl_traits
-            .filter(|t| {
-                let fut = t.id == future_trait_id;
-                has_impl_future |= fut;
-                !fut && t.id != sized_trait_id
-            })
-            // all traits but the future trait must be auto traits
-            .all(|t| t.is_auto(db))
-            && has_impl_future
+        let future_output = LangItem::FutureOutput.resolve_type_alias(db, self.ty(db).env.krate)?;
+        ret_type.normalize_trait_assoc_type(db, &[], future_output.into())
     }
 
     /// Does this function have `#[test]` attribute?
