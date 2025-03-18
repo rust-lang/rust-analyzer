@@ -4,12 +4,11 @@
 
 use std::{
     fmt::{self, Debug},
-    iter, mem,
+    mem,
 };
 
 use base_db::Crate;
-use chalk_ir::{BoundVar, Safety, TyKind, cast::Cast};
-use chalk_solve::rust_ir;
+use chalk_ir::{BoundVar, Safety, TyKind};
 use either::Either;
 use hir_def::{
     GenericDefId, HasModule, ImportPathConfig, ItemContainerId, LocalFieldId, Lookup, ModuleDefId,
@@ -49,6 +48,7 @@ use crate::{
     LifetimeData, LifetimeOutlives, MemoryMap, Mutability, OpaqueTy, ProjectionTy, ProjectionTyExt,
     QuantifiedWhereClause, Scalar, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty,
     TyExt, WhereClause,
+    chalk_db::inline_bound_to_generic_predicate,
     consteval::try_const_usize,
     db::{HirDatabase, InternedClosure},
     from_assoc_type_id, from_foreign_def_id, from_placeholder_idx,
@@ -688,7 +688,10 @@ impl HirDisplay for ProjectionTy {
                             .iter()
                             .map(|bound| {
                                 // We ignore `Self` anyway when formatting, so it's fine put an error type in it.
-                                inline_bound_to_generic_predicate(bound)
+                                inline_bound_to_generic_predicate(
+                                    bound,
+                                    TyKind::Error.intern(Interner),
+                                )
                             })
                             .collect::<Vec<_>>(),
                         SizedByDefault::Sized {
@@ -697,42 +700,6 @@ impl HirDisplay for ProjectionTy {
                     )
                 })
             }
-        }
-    }
-}
-
-/// Fills `Self` with an error type.
-pub(crate) fn inline_bound_to_generic_predicate(
-    bound: &chalk_ir::Binders<rust_ir::InlineBound<Interner>>,
-) -> QuantifiedWhereClause {
-    let (bound, binders) = bound.as_ref().into_value_and_skipped_binders();
-    match bound {
-        rust_ir::InlineBound::TraitBound(trait_bound) => {
-            let trait_ref = TraitRef {
-                trait_id: trait_bound.trait_id,
-                substitution: Substitution::from_iter(
-                    Interner,
-                    iter::once(TyKind::Error.intern(Interner).cast(Interner))
-                        .chain(trait_bound.args_no_self.iter().cloned()),
-                ),
-            };
-            chalk_ir::Binders::new(binders, WhereClause::Implemented(trait_ref))
-        }
-        rust_ir::InlineBound::AliasEqBound(alias_eq) => {
-            let substitution = Substitution::from_iter(
-                Interner,
-                iter::once(TyKind::Error.intern(Interner).cast(Interner))
-                    .chain(alias_eq.trait_bound.args_no_self.iter().cloned())
-                    .chain(alias_eq.parameters.iter().cloned()),
-            );
-            let alias = AliasEq {
-                ty: alias_eq.value.clone(),
-                alias: AliasTy::Projection(ProjectionTy {
-                    associated_ty_id: alias_eq.associated_ty_id,
-                    substitution,
-                }),
-            };
-            chalk_ir::Binders::new(binders, WhereClause::AliasEq(alias))
         }
     }
 }
@@ -1892,7 +1859,7 @@ pub fn write_bounds_like_dyn_trait_with_prefix(
     }
 }
 
-fn write_bounds_like_dyn_trait(
+pub(crate) fn write_bounds_like_dyn_trait(
     f: &mut HirFormatter<'_>,
     this: Either<&Ty, &Lifetime>,
     predicates: &[QuantifiedWhereClause],

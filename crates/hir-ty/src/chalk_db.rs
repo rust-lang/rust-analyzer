@@ -5,30 +5,44 @@ use std::{iter, ops::ControlFlow, sync::Arc};
 
 use hir_expand::name::Name;
 use intern::sym;
+use rustc_hash::FxHashMap;
 use span::Edition;
 use tracing::debug;
 
-use chalk_ir::{CanonicalVarKinds, cast::Caster, fold::shift::Shift};
+use chalk_ir::{
+    Binders, CanonicalVarKinds,
+    cast::{Cast, Caster},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, shift::Shift},
+};
 use chalk_solve::rust_ir::{self, AssociatedTyDatumBound, OpaqueTyDatumBound, WellKnownTrait};
 
 use base_db::Crate;
 use hir_def::{
-    AssocItemId, BlockId, CallableDefId, GenericDefId, HasModule, ItemContainerId, Lookup,
-    TypeAliasId, VariantId,
-    hir::Movability,
+    AssocItemId, BlockId, CallableDefId, FunctionId, GenericDefId, HasModule, ItemContainerId,
+    Lookup, TypeAliasId, VariantId,
+    hir::{
+        Movability,
+        generics::{GenericParams, TypeOrConstParamData},
+    },
     lang_item::LangItem,
+    nameres::assoc::ImplItems,
     signatures::{ImplFlags, StructFlags, TraitFlags},
 };
 
 use crate::{
-    AliasEq, AliasTy, BoundVar, DebruijnIndex, Interner, ProjectionTy, ProjectionTyExt,
-    QuantifiedWhereClause, Substitution, TraitRef, TraitRefExt, Ty, TyBuilder, TyExt, TyKind,
-    WhereClause,
-    db::{HirDatabase, InternedCoroutine, RpititImplAssocTy, RpititImplAssocTyId},
-    from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id,
+    AliasEq, AliasTy, BoundVar, Const, ConstData, ConstValue, DebruijnIndex, DomainGoal, Goal,
+    GoalData, InferenceTable, Interner, Lifetime, LifetimeData, PlaceholderIndex, ProjectionTy,
+    ProjectionTyExt, QuantifiedWhereClause, Substitution, TraitRef, TraitRefExt, Ty, TyBuilder,
+    TyExt, TyKind, VariableKinds, WhereClause,
+    db::{
+        HirDatabase, InternedCoroutine, RpititImplAssocTy, RpititImplAssocTyId,
+        RpititTraitAssocTyId,
+    },
+    from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx,
     generics::generics,
     lower::LifetimeElisionKind,
-    make_binders, make_single_type_binders,
+    lower::trait_fn_signature,
+    lt_from_placeholder_idx, make_binders, make_single_type_binders,
     mapping::{
         AnyImplAssocType, AnyTraitAssocType, ToChalk, from_assoc_type_value_id, from_chalk,
         to_assoc_type_id_rpitit, to_assoc_type_value_id, to_assoc_type_value_id_rpitit,
@@ -733,8 +747,20 @@ pub(crate) fn trait_datum_query(
         fundamental: trait_data.flags.contains(TraitFlags::FUNDAMENTAL),
     };
     let where_clauses = convert_where_clauses(db, trait_.into(), &bound_vars);
+    let trait_items = db.trait_items(trait_);
+
+    let rpitits = trait_items
+        .items
+        .iter()
+        .filter_map(|&(_, item)| match item {
+            AssocItemId::FunctionId(it) => Some(it),
+            _ => None,
+        })
+        .flat_map(|method| &trait_fn_signature(db, method).1)
+        .map(|assoc_id| to_assoc_type_id_rpitit(*assoc_id));
     let associated_ty_ids =
-        db.trait_items(trait_).associated_types().map(to_assoc_type_id).collect();
+        trait_items.associated_types().map(to_assoc_type_id).chain(rpitits).collect();
+
     let trait_datum_bound = rust_ir::TraitDatumBound { where_clauses };
     let well_known = db.lang_attr(trait_.into()).and_then(well_known_trait_from_lang_item);
     let trait_datum = TraitDatum {
@@ -881,12 +907,11 @@ pub(crate) fn impl_datum_query(
 }
 
 fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) -> Arc<ImplDatum> {
-    let trait_ref = db
+    let trait_ref_binders = db
         .impl_trait(impl_id)
         // ImplIds for impls where the trait ref can't be resolved should never reach Chalk
-        .expect("invalid impl passed to Chalk")
-        .into_value_and_skipped_binders()
-        .0;
+        .expect("invalid impl passed to Chalk");
+    let trait_ref = trait_ref_binders.skip_binders().clone();
     let impl_data = db.impl_signature(impl_id);
 
     let generic_params = generics(db, impl_id.into());
@@ -903,8 +928,9 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
 
     let impl_datum_bound = rust_ir::ImplDatumBound { trait_ref, where_clauses };
     let trait_data = db.trait_items(trait_);
-    let associated_ty_value_ids = db
-        .impl_items(impl_id)
+    let impl_items = db.impl_items(impl_id);
+    let trait_datum = db.trait_datum(krate, to_chalk_trait_id(trait_));
+    let associated_ty_value_ids = impl_items
         .items
         .iter()
         .filter_map(|(_, item)| match item {
@@ -916,7 +942,8 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
             let name = &db.type_alias_signature(type_alias).name;
             trait_data.associated_type_by_name(name).is_some()
         })
-        .map(|type_alias| to_assoc_type_value_id(type_alias))
+        .map(to_assoc_type_value_id)
+        .chain(impl_rpitit_values(db, impl_id, &trait_ref_binders, &impl_items, &trait_datum))
         .collect();
     debug!("impl_datum: {:?}", impl_datum_bound);
     let impl_datum = ImplDatum {
@@ -926,6 +953,362 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
         associated_ty_value_ids,
     };
     Arc::new(impl_datum)
+}
+
+fn impl_rpitit_values(
+    db: &dyn HirDatabase,
+    impl_id: hir_def::ImplId,
+    impl_trait: &Binders<TraitRef>,
+    impl_items: &ImplItems,
+    trait_datum: &TraitDatum,
+) -> impl Iterator<Item = AssociatedTyValueId> {
+    let mut trait_rpitit_to_impl_rpitit = FxHashMap::default();
+
+    return trait_datum
+        .associated_ty_ids
+        .iter()
+        .filter_map(|&trait_assoc| match from_assoc_type_id(db, trait_assoc) {
+            AnyTraitAssocType::Rpitit(it) => Some(it),
+            AnyTraitAssocType::Normal(_) => None,
+        })
+        .map(move |trait_assoc_id| {
+            if let Some(&impl_assoc_id) = trait_rpitit_to_impl_rpitit.get(&trait_assoc_id) {
+                return impl_assoc_id;
+            }
+
+            let trait_assoc = trait_assoc_id.loc(db);
+            let trait_method_id = trait_assoc.synthesized_from_method;
+            let trait_method_generics = generics(db, trait_method_id.into());
+
+            let impl_assoc_id = (|| {
+                let trait_method = db.function_signature(trait_method_id);
+                let impl_method = impl_items.items.iter().find_map(|(name, id)| {
+                    if *name == trait_method.name {
+                        match *id {
+                            AssocItemId::FunctionId(it) => Some(it),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                })?;
+
+                let impl_method_generics = generics(db, impl_method.into());
+
+                // First, just so we won't ICE, check that the impl method generics match the trait method generics.
+                if !check_method_generics_are_structurally_compatible(
+                    trait_method_generics.self_params(),
+                    impl_method_generics.self_params(),
+                ) {
+                    return None;
+                }
+
+                // The inference algorithm works as follows: in the trait method, we replace each RPITIT with an infer var,
+                // then we equate the return type of the trait method with the return type of the impl method. The values
+                // of the inference vars now represent the value of the RPITIT assoc types.
+                let mut table = InferenceTable::new(db, db.trait_environment(impl_method.into()));
+                let impl_method_placeholder_subst = impl_method_generics.placeholder_subst(db);
+
+                let impl_method_ret = db
+                    .callable_item_signature(impl_method.into())
+                    .substitute(Interner, &impl_method_placeholder_subst)
+                    .ret()
+                    .clone();
+                let impl_method_ret = table.normalize_associated_types_in(impl_method_ret);
+
+                // Create mapping from trait to impl (i.e. impl trait header + impl method identity args).
+                let trait_ref_placeholder_subst = &impl_method_placeholder_subst.as_slice(Interner)
+                    [impl_method_generics.len_self()..];
+                // We want to substitute the TraitRef with placeholders, but placeholders from the method, not the impl.
+                let impl_trait_ref =
+                    impl_trait.clone().substitute(Interner, trait_ref_placeholder_subst);
+                let trait_to_impl_args = Substitution::from_iter(
+                    Interner,
+                    impl_method_placeholder_subst.as_slice(Interner)
+                        [..impl_method_generics.len_self()]
+                        .iter()
+                        .chain(impl_trait_ref.substitution.as_slice(Interner)),
+                );
+                let trait_method_ret = db
+                    .callable_item_signature(trait_method_id.into())
+                    .substitute(Interner, &trait_to_impl_args)
+                    .ret()
+                    .clone();
+                let mut rpitit_to_infer_var_folder = RpititToInferVarFolder {
+                    db,
+                    table: &mut table,
+                    trait_method_id,
+                    trait_rpitit_to_infer_var: FxHashMap::default(),
+                };
+                let trait_method_ret = trait_method_ret
+                    .fold_with(&mut rpitit_to_infer_var_folder, DebruijnIndex::INNERMOST);
+                let trait_rpitit_to_infer_var =
+                    rpitit_to_infer_var_folder.trait_rpitit_to_infer_var;
+                let trait_method_ret = table.normalize_associated_types_in(trait_method_ret);
+
+                table.resolve_obligations_as_possible();
+                // Even if unification fails, we want to continue. We will fill the RPITITs with error types.
+                table.unify(&trait_method_ret, &impl_method_ret);
+                table.resolve_obligations_as_possible();
+                for (trait_rpitit, infer_var) in trait_rpitit_to_infer_var {
+                    let impl_rpitit = table.resolve_completely(infer_var);
+                    let impl_rpitit = impl_rpitit.fold_with(
+                        &mut PlaceholderToBoundVarFolder {
+                            db,
+                            method: impl_method.into(),
+                            method_generics: impl_method_generics.self_params(),
+                        },
+                        DebruijnIndex::INNERMOST,
+                    );
+                    let impl_rpitit_binders = VariableKinds::from_iter(
+                        Interner,
+                        &trait_assoc.bounds.binders.as_slice(Interner)
+                            [..trait_method_generics.len()],
+                    );
+                    let impl_rpitit = Binders::new(
+                        impl_rpitit_binders,
+                        rust_ir::AssociatedTyValueBound { ty: impl_rpitit },
+                    );
+                    let impl_rpitit = RpititImplAssocTyId::new(
+                        db,
+                        RpititImplAssocTy {
+                            impl_id,
+                            trait_assoc: trait_rpitit,
+                            value: impl_rpitit,
+                        },
+                    );
+                    trait_rpitit_to_impl_rpitit.insert(trait_rpitit, impl_rpitit);
+                }
+
+                trait_rpitit_to_impl_rpitit.get(&trait_assoc_id).copied()
+            })();
+
+            impl_assoc_id.unwrap_or_else(|| {
+                RpititImplAssocTyId::new(
+                    db,
+                    RpititImplAssocTy {
+                        impl_id,
+                        trait_assoc: trait_assoc_id,
+                        // In this situation, we don't know even that the trait and impl generics match, therefore
+                        // the only binders we can give to comply with the trait's binders are the trait's binders.
+                        // However, for impl associated types chalk wants only their own generics, excluding
+                        // those of the impl (unlike in traits), therefore we filter them here.
+                        value: Binders::new(
+                            VariableKinds::from_iter(
+                                Interner,
+                                &trait_assoc.bounds.binders.as_slice(Interner)
+                                    [..trait_method_generics.len_self()],
+                            ),
+                            rust_ir::AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) },
+                        ),
+                    },
+                )
+            })
+        })
+        .map(to_assoc_type_value_id_rpitit);
+
+    #[derive(chalk_derive::FallibleTypeFolder)]
+    #[has_interner(Interner)]
+    struct RpititToInferVarFolder<'a, 'b> {
+        db: &'a dyn HirDatabase,
+        table: &'a mut InferenceTable<'b>,
+        trait_rpitit_to_infer_var: FxHashMap<RpititTraitAssocTyId, Ty>,
+        trait_method_id: FunctionId,
+    }
+    impl TypeFolder<Interner> for RpititToInferVarFolder<'_, '_> {
+        fn as_dyn(&mut self) -> &mut dyn TypeFolder<Interner> {
+            self
+        }
+
+        fn interner(&self) -> Interner {
+            Interner
+        }
+
+        fn fold_ty(&mut self, ty: Ty, outer_binder: DebruijnIndex) -> Ty {
+            let result = match ty.kind(Interner) {
+                TyKind::Alias(AliasTy::Projection(ProjectionTy {
+                    associated_ty_id,
+                    substitution,
+                }))
+                | TyKind::AssociatedType(associated_ty_id, substitution) => {
+                    if let AnyTraitAssocType::Rpitit(assoc_id) =
+                        from_assoc_type_id(self.db, *associated_ty_id)
+                    {
+                        let assoc = assoc_id.loc(self.db);
+                        if assoc.synthesized_from_method == self.trait_method_id {
+                            if let Some(ty) = self.trait_rpitit_to_infer_var.get(&assoc_id) {
+                                return ty.clone();
+                            }
+
+                            // Replace with new infer var.
+                            // This needs to come before we fold the bounds, because they also contain this associated type.
+                            let var = self.table.new_type_var();
+                            self.trait_rpitit_to_infer_var.insert(assoc_id, var.clone());
+
+                            // Recurse into bounds, so that nested RPITITs will be handled correctly.
+                            for bound in assoc.bounds.clone().substitute(Interner, substitution) {
+                                let bound = inline_bound_to_generic_predicate(&bound, var.clone());
+                                let bound = bound.fold_with(self, outer_binder);
+                                let bound = self.table.normalize_associated_types_in(bound);
+                                self.table.register_obligation(Goal::new(
+                                    Interner,
+                                    GoalData::Quantified(
+                                        chalk_ir::QuantifierKind::ForAll,
+                                        bound.map(|bound| {
+                                            Goal::new(
+                                                Interner,
+                                                GoalData::DomainGoal(DomainGoal::Holds(bound)),
+                                            )
+                                        }),
+                                    ),
+                                ));
+                            }
+
+                            return var;
+                        }
+                    }
+                    ty.clone()
+                }
+                _ => ty.clone(),
+            };
+            result.super_fold_with(self, outer_binder)
+        }
+    }
+
+    #[derive(chalk_derive::FallibleTypeFolder)]
+    #[has_interner(Interner)]
+    struct PlaceholderToBoundVarFolder<'a> {
+        db: &'a dyn HirDatabase,
+        method: GenericDefId,
+        method_generics: &'a GenericParams,
+    }
+    impl TypeFolder<Interner> for PlaceholderToBoundVarFolder<'_> {
+        fn as_dyn(&mut self) -> &mut dyn TypeFolder<Interner> {
+            self
+        }
+
+        fn interner(&self) -> Interner {
+            Interner
+        }
+
+        fn fold_free_placeholder_ty(
+            &mut self,
+            universe: PlaceholderIndex,
+            _outer_binder: DebruijnIndex,
+        ) -> Ty {
+            let placeholder = from_placeholder_idx(self.db, universe);
+            if placeholder.parent == self.method {
+                BoundVar::new(
+                    DebruijnIndex::INNERMOST,
+                    placeholder.local_id.into_raw().into_u32() as usize
+                        + self.method_generics.len_lifetimes(),
+                )
+                .to_ty(Interner)
+            } else {
+                TyKind::Placeholder(universe).intern(Interner)
+            }
+        }
+
+        fn fold_free_placeholder_const(
+            &mut self,
+            ty: Ty,
+            universe: PlaceholderIndex,
+            _outer_binder: DebruijnIndex,
+        ) -> Const {
+            let placeholder = from_placeholder_idx(self.db, universe);
+            if placeholder.parent == self.method {
+                BoundVar::new(
+                    DebruijnIndex::INNERMOST,
+                    placeholder.local_id.into_raw().into_u32() as usize
+                        + self.method_generics.len_lifetimes(),
+                )
+                .to_const(Interner, ty)
+            } else {
+                Const::new(Interner, ConstData { ty, value: ConstValue::Placeholder(universe) })
+            }
+        }
+
+        fn fold_free_placeholder_lifetime(
+            &mut self,
+            universe: PlaceholderIndex,
+            _outer_binder: DebruijnIndex,
+        ) -> Lifetime {
+            let placeholder = lt_from_placeholder_idx(self.db, universe);
+            if placeholder.parent == self.method {
+                BoundVar::new(
+                    DebruijnIndex::INNERMOST,
+                    placeholder.local_id.into_raw().into_u32() as usize,
+                )
+                .to_lifetime(Interner)
+            } else {
+                Lifetime::new(Interner, LifetimeData::Placeholder(universe))
+            }
+        }
+    }
+}
+
+pub(crate) fn inline_bound_to_generic_predicate(
+    bound: &Binders<rust_ir::InlineBound<Interner>>,
+    self_ty: Ty,
+) -> QuantifiedWhereClause {
+    let (bound, binders) = bound.as_ref().into_value_and_skipped_binders();
+    match bound {
+        rust_ir::InlineBound::TraitBound(trait_bound) => {
+            let trait_ref = TraitRef {
+                trait_id: trait_bound.trait_id,
+                substitution: Substitution::from_iter(
+                    Interner,
+                    iter::once(self_ty.cast(Interner))
+                        .chain(trait_bound.args_no_self.iter().cloned()),
+                ),
+            };
+            chalk_ir::Binders::new(binders, WhereClause::Implemented(trait_ref))
+        }
+        rust_ir::InlineBound::AliasEqBound(alias_eq) => {
+            let substitution = Substitution::from_iter(
+                Interner,
+                iter::once(self_ty.cast(Interner)).chain(
+                    alias_eq
+                        .trait_bound
+                        .args_no_self
+                        .iter()
+                        .cloned()
+                        .chain(alias_eq.parameters.iter().cloned()),
+                ),
+            );
+            let alias = AliasEq {
+                ty: alias_eq.value.clone(),
+                alias: AliasTy::Projection(ProjectionTy {
+                    associated_ty_id: alias_eq.associated_ty_id,
+                    substitution,
+                }),
+            };
+            chalk_ir::Binders::new(binders, WhereClause::AliasEq(alias))
+        }
+    }
+}
+
+fn check_method_generics_are_structurally_compatible(
+    trait_method_generics: &GenericParams,
+    impl_method_generics: &GenericParams,
+) -> bool {
+    if trait_method_generics.len_type_or_consts() != impl_method_generics.len_type_or_consts() {
+        return false;
+    }
+
+    for ((_, trait_arg), (_, impl_arg)) in iter::zip(
+        trait_method_generics.iter_type_or_consts(),
+        impl_method_generics.iter_type_or_consts(),
+    ) {
+        match (trait_arg, impl_arg) {
+            (TypeOrConstParamData::TypeParamData(_), TypeOrConstParamData::TypeParamData(_))
+            | (TypeOrConstParamData::ConstParamData(_), TypeOrConstParamData::ConstParamData(_)) => {
+            }
+            _ => return false,
+        }
+    }
+
+    true
 }
 
 pub(crate) fn associated_ty_value_query(

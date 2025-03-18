@@ -1,5 +1,25 @@
+use base_db::RootQueryDb;
 use cov_mark::check;
-use expect_test::expect;
+use either::Either;
+use expect_test::{Expect, expect};
+use hir_def::db::DefDatabase;
+use hir_def::nameres::DefMap;
+use hir_def::{ImplId, ModuleDefId};
+use itertools::Itertools;
+use test_fixture::WithFixture;
+
+use crate::chalk_db::inline_bound_to_generic_predicate;
+use crate::db::HirDatabase;
+use crate::display::{
+    DisplayTarget, HirDisplay, HirDisplayError, HirFormatter, SizedByDefault,
+    write_bounds_like_dyn_trait,
+};
+use crate::mapping::ToChalk;
+use crate::test_db::TestDB;
+use crate::{
+    AnyImplAssocType, AnyTraitAssocType, Binders, Interner, TyKind, from_assoc_type_id,
+    from_assoc_type_value_id, to_chalk_trait_id,
+};
 
 use super::{check, check_infer, check_infer_with_mismatches, check_no_mismatches, check_types};
 
@@ -4900,6 +4920,169 @@ fn main() {
             57..58 'a': i32
             66..73 'default': {unknown}
             66..75 'default()': i32
+        "#]],
+    );
+}
+
+#[test]
+fn infer_rpitit() {
+    check_infer(
+        r#"
+trait Trait<'a, T, const N: usize> {
+    fn foo<'b, U, const M: usize>(&self) -> (impl Trait<'b, U, M>,);
+}
+
+fn bar<'a, 'b, T, const N: usize, U, const M: usize, Ty: Trait<'a, T, N>>(v: &Ty) {
+    let _ = v.foo::<'b, U, M>();
+}
+    "#,
+        // The `{unknown}` is not related to RPITIT, see https://github.com/rust-lang/rust-analyzer/issues/19392.
+        expect![[r#"
+            72..76 'self': &'? Self
+            183..184 'v': &'? Ty
+            191..227 '{     ...>(); }': ()
+            201..202 '_': (Trait::__foo_rpitit<'b, U, M, Ty, '?, {unknown}, _>,)
+            205..206 'v': &'? Ty
+            205..224 'v.foo:..., M>()': (Trait::__foo_rpitit<'b, U, M, Ty, '?, {unknown}, _>,)
+        "#]],
+    );
+}
+
+#[track_caller]
+fn check_rpitit(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
+    let (db, _) = TestDB::with_many_files(ra_fixture);
+    let test_crate = *db.all_crates().last().unwrap();
+    let def_map = hir_def::nameres::crate_def_map(&db, test_crate);
+
+    let trait_ = def_map[DefMap::ROOT]
+        .scope
+        .declarations()
+        .filter_map(|decl| match decl {
+            ModuleDefId::TraitId(it) => Some(it),
+            _ => None,
+        })
+        .at_most_one()
+        .unwrap_or_else(|_| panic!("at most one trait is supported for `check_rpitit()`"));
+    let trait_rpitits = trait_.into_iter().flat_map(|trait_| {
+        let trait_datum = db.trait_datum(test_crate, to_chalk_trait_id(trait_));
+        trait_datum
+            .associated_ty_ids
+            .iter()
+            .copied()
+            .filter_map(|assoc_id| {
+                let assoc = match from_assoc_type_id(&db, assoc_id) {
+                    AnyTraitAssocType::Rpitit(assoc_id) => Some(assoc_id.loc(&db)),
+                    AnyTraitAssocType::Normal(_) => None,
+                }?;
+                let method_name =
+                    db.function_signature(assoc.synthesized_from_method).name.symbol().clone();
+                let bounds = AssocTypeBounds(&assoc.bounds);
+                let bounds = bounds.display_test(&db, DisplayTarget::from_crate(&db, test_crate));
+                let method_name = method_name;
+                let description = format!("type __{method_name}_rpitit: {bounds};\n");
+                Some(description)
+            })
+            .collect::<Vec<_>>()
+    });
+
+    let impl_ = def_map[DefMap::ROOT]
+        .scope
+        .impls()
+        .at_most_one()
+        .unwrap_or_else(|_| panic!("at most one impl is supported for `check_rpitit()`"));
+    let impl_rpitits = impl_.into_iter().flat_map(|impl_| {
+        let trait_datum = db.impl_datum(test_crate, ImplId::to_chalk(impl_, &db));
+        trait_datum
+            .associated_ty_value_ids
+            .iter()
+            .copied()
+            .filter_map(|assoc_id| {
+                let assoc = match from_assoc_type_value_id(&db, assoc_id) {
+                    AnyImplAssocType::Rpitit(assoc_id) => Some(assoc_id.loc(&db)),
+                    AnyImplAssocType::Normal(_) => None,
+                }?;
+                let ty = assoc
+                    .value
+                    .skip_binders()
+                    .ty
+                    .display_test(&db, DisplayTarget::from_crate(&db, test_crate));
+                let method_name = db
+                    .function_signature(assoc.trait_assoc.loc(&db).synthesized_from_method)
+                    .name
+                    .symbol()
+                    .clone();
+                let description = format!("type __{method_name}_rpitit = {ty};\n");
+                Some(description)
+            })
+            .collect::<Vec<_>>()
+    });
+
+    let all_rpitits =
+        trait_rpitits.chain(std::iter::once("\n".to_owned())).chain(impl_rpitits).join("");
+    expect.assert_eq(&all_rpitits);
+
+    struct AssocTypeBounds<'a>(
+        &'a Binders<Vec<Binders<chalk_solve::rust_ir::InlineBound<Interner>>>>,
+    );
+    impl HirDisplay for AssocTypeBounds<'_> {
+        fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
+            let bounds = self
+                .0
+                .skip_binders()
+                .iter()
+                .map(|bound| {
+                    inline_bound_to_generic_predicate(bound, TyKind::Error.intern(Interner))
+                })
+                .collect::<Vec<_>>();
+            write_bounds_like_dyn_trait(
+                f,
+                Either::Left(&TyKind::Error.intern(Interner)),
+                &bounds,
+                SizedByDefault::Sized { anchor: f.krate() },
+            )
+        }
+    }
+}
+
+#[test]
+fn check_rpitit_trait_bounds_and_impl_value() {
+    check_rpitit(
+        r#"
+//- minicore: sized
+//- /helpers.rs crate:helpers
+pub struct Foo<T: ?Sized>(*mut T);
+pub trait T1 {}
+pub trait T2<T> {}
+pub trait T3<'a, 'b, const N: usize> {}
+pub trait T4 {
+    type Assoc;
+}
+
+//- /lib.rs crate:lib deps:helpers
+use helpers::*;
+trait Trait {
+    fn foo<'a, B>() -> (impl T1, Foo<impl T2<Self> + T2<i32> + ?Sized>);
+    fn bar<'a>(&'a self) -> impl T2<bool> + T3<'a, 'a, 123> + Trait;
+    fn baz() -> impl T4<Assoc = impl T1>;
+}
+impl<T> Trait for Foo<T> {
+    fn foo<'a, B>() -> (impl T1, Foo<B>) {}
+    fn bar<'a>(&'a self) -> impl T2<T> {}
+    fn baz() -> impl T4<Assoc = ()> {}
+}
+    "#,
+        expect![[r#"
+            type __foo_rpitit: T1;
+            type __foo_rpitit: T2<?1.2> + T2<i32> + ?Sized;
+            type __bar_rpitit: T2<bool> + T3<?1.0, ?1.0, 123> + Trait;
+            type __baz_rpitit: T1;
+            type __baz_rpitit: T4<Assoc = impl T1>;
+
+            type __foo_rpitit = impl T1;
+            type __foo_rpitit = ?0.1;
+            type __bar_rpitit = impl T2<T>;
+            type __baz_rpitit = ();
+            type __baz_rpitit = impl T4<Assoc = ()>;
         "#]],
     );
 }

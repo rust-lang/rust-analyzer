@@ -51,6 +51,10 @@ where
 }
 
 impl Generics {
+    pub(crate) fn self_params(&self) -> &GenericParams {
+        &self.params
+    }
+
     pub(crate) fn def(&self) -> GenericDefId {
         self.def
     }
