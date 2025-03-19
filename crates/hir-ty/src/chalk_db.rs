@@ -66,6 +66,25 @@ pub(crate) type FnDefDatum = chalk_solve::rust_ir::FnDefDatum<Interner>;
 pub(crate) type Variances = chalk_ir::Variances<Interner>;
 
 impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
+    fn associated_ty_matches(
+        &self,
+        trait_item: AssocTypeId,
+        impl_item: AssociatedTyValueId,
+    ) -> bool {
+        let trait_item = from_assoc_type_id(self.db, trait_item);
+        let impl_item = from_assoc_type_value_id(self.db, impl_item);
+        match (trait_item, impl_item) {
+            (AnyTraitAssocType::Normal(impl_item), AnyImplAssocType::Normal(trait_item)) => {
+                let trait_assoc = self.db.type_alias_data(trait_item);
+                let impl_assoc = self.db.type_alias_data(impl_item);
+                trait_assoc.name == impl_assoc.name
+            }
+            (AnyTraitAssocType::Rpitit(trait_item), AnyImplAssocType::Rpitit(impl_item)) => {
+                impl_item.loc(self.db).trait_assoc == trait_item
+            }
+            _ => false,
+        }
+    }
     fn associated_ty_data(&self, id: AssocTypeId) -> Arc<AssociatedTyDatum> {
         self.db.associated_ty_data(id)
     }
