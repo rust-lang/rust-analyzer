@@ -14,7 +14,8 @@ use salsa::{
 use crate::{
     AssocTypeId, CallableDefId, ChalkTraitId, FnDefId, ForeignDefId, Interner, OpaqueTyId,
     PlaceholderIndex, chalk_db,
-    db::{HirDatabase, RpititImplAssocTyId, RpititTraitAssocTyId},
+    db::HirDatabase,
+    rpitit::{RpititImplAssocTyId, RpititTraitAssocTyId},
 };
 
 pub(crate) trait ToChalk {

@@ -66,7 +66,7 @@ use crate::{
         intern_const_ref, intern_const_scalar, path_to_const, unknown_const,
         unknown_const_as_generic,
     },
-    db::{HirDatabase, HirDatabaseData, RpititTraitAssocTy, RpititTraitAssocTyId},
+    db::{HirDatabase, HirDatabaseData},
     error_lifetime,
     generics::{Generics, generics, trait_self_param_idx},
     lower::{
@@ -75,6 +75,7 @@ use crate::{
     },
     make_binders,
     mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx, to_assoc_type_id_rpitit},
+    rpitit::{RpititTraitAssocTy, RpititTraitAssocTyId},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::{InTypeConstIdMetadata, all_super_trait_refs},
 };
