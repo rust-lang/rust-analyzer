@@ -373,11 +373,6 @@ pub struct RpititImplAssocTy {
     pub impl_id: ImplId,
     /// The definition of this associated type in the trait.
     pub trait_assoc: RpititTraitAssocTyId,
-    /// The bounds of this associated type (coming from the `impl Bounds`).
-    ///
-    /// The generics are the generics of the method (with some modifications that we
-    /// don't currently implement, see https://rustc-dev-guide.rust-lang.org/return-position-impl-trait-in-trait.html).
-    pub value: Binders<chalk_solve::rust_ir::AssociatedTyValueBound<Interner>>,
 }
 
 impl_intern_key_ref!(RpititImplAssocTyId, RpititImplAssocTy);

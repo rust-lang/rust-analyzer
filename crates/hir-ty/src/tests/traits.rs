@@ -4997,17 +4997,18 @@ fn check_rpitit(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
             .iter()
             .copied()
             .filter_map(|assoc_id| {
-                let assoc = match from_assoc_type_value_id(&db, assoc_id) {
-                    AnyImplAssocType::Rpitit(assoc_id) => Some(assoc_id.loc(&db)),
-                    AnyImplAssocType::Normal(_) => None,
-                }?;
-                let ty = assoc
+                let trait_assoc = match from_assoc_type_value_id(&db, assoc_id) {
+                    AnyImplAssocType::Rpitit(assoc) => assoc.loc(&db).trait_assoc,
+                    AnyImplAssocType::Normal(_) => return None,
+                };
+                let assoc_datum = db.associated_ty_value(test_crate, assoc_id);
+                let ty = assoc_datum
                     .value
                     .skip_binders()
                     .ty
                     .display_test(&db, DisplayTarget::from_crate(&db, test_crate));
                 let method_name = db
-                    .function_signature(assoc.trait_assoc.loc(&db).synthesized_from_method)
+                    .function_signature(trait_assoc.loc(&db).synthesized_from_method)
                     .name
                     .symbol()
                     .clone();
@@ -5083,6 +5084,28 @@ impl<T> Trait for Foo<T> {
             type __bar_rpitit = impl T2<T>;
             type __baz_rpitit = ();
             type __baz_rpitit = impl T4<Assoc = ()>;
+        "#]],
+    );
+}
+
+#[test]
+fn rpitit_referring_self_assoc_type_in_impl_does_not_cycle() {
+    check_rpitit(
+        r#"
+//- minicore: sized
+trait Trait {
+    type Assoc;
+    fn foo() -> impl Sized;
+}
+impl Trait for () {
+    type Assoc = ();
+    fn foo() -> Self::Assoc;
+}
+    "#,
+        expect![[r#"
+            type __foo_rpitit: Sized;
+
+            type __foo_rpitit = ();
         "#]],
     );
 }

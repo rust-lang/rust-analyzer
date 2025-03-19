@@ -25,7 +25,6 @@ use hir_def::{
         generics::{GenericParams, TypeOrConstParamData},
     },
     lang_item::LangItem,
-    nameres::assoc::ImplItems,
     signatures::{ImplFlags, StructFlags, TraitFlags},
 };
 
@@ -943,7 +942,14 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
             trait_data.associated_type_by_name(name).is_some()
         })
         .map(to_assoc_type_value_id)
-        .chain(impl_rpitit_values(db, impl_id, &trait_ref_binders, &impl_items, &trait_datum))
+        .chain(trait_datum.associated_ty_ids.iter().filter_map(|&trait_assoc| {
+            match from_assoc_type_id(db, trait_assoc) {
+                AnyTraitAssocType::Rpitit(trait_assoc) => Some(to_assoc_type_value_id_rpitit(
+                    RpititImplAssocTyId::new(db, RpititImplAssocTy { impl_id, trait_assoc }),
+                )),
+                AnyTraitAssocType::Normal(_) => None,
+            }
+        }))
         .collect();
     debug!("impl_datum: {:?}", impl_datum_bound);
     let impl_datum = ImplDatum {
@@ -955,157 +961,119 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
     Arc::new(impl_datum)
 }
 
-fn impl_rpitit_values(
+// We return a list and not a hasmap because the number of RPITITs in a function should be small.
+#[salsa_macros::tracked(return_ref)]
+fn impl_method_rpitit_values(
     db: &dyn HirDatabase,
     impl_id: hir_def::ImplId,
-    impl_trait: &Binders<TraitRef>,
-    impl_items: &ImplItems,
-    trait_datum: &TraitDatum,
-) -> impl Iterator<Item = AssociatedTyValueId> {
-    let mut trait_rpitit_to_impl_rpitit = FxHashMap::default();
-
-    return trait_datum
-        .associated_ty_ids
-        .iter()
-        .filter_map(|&trait_assoc| match from_assoc_type_id(db, trait_assoc) {
-            AnyTraitAssocType::Rpitit(it) => Some(it),
-            AnyTraitAssocType::Normal(_) => None,
-        })
-        .map(move |trait_assoc_id| {
-            if let Some(&impl_assoc_id) = trait_rpitit_to_impl_rpitit.get(&trait_assoc_id) {
-                return impl_assoc_id;
+    trait_method_id: FunctionId,
+) -> Box<[Arc<AssociatedTyValue>]> {
+    let impl_items = db.impl_items(impl_id);
+    let trait_method_generics = generics(db, trait_method_id.into());
+    let impl_datum =
+        db.impl_datum(impl_id.loc(db).container.krate(), hir_def::ImplId::to_chalk(impl_id, db));
+    let trait_method = db.function_signature(trait_method_id);
+    let Some(impl_method) = impl_items.items.iter().find_map(|(name, id)| {
+        if *name == trait_method.name {
+            match *id {
+                AssocItemId::FunctionId(it) => Some(it),
+                _ => None,
             }
+        } else {
+            None
+        }
+    }) else {
+        // FIXME: Handle defaulted methods.
+        return Box::default();
+    };
 
+    let impl_method_generics = generics(db, impl_method.into());
+
+    // First, just so we won't ICE, check that the impl method generics match the trait method generics.
+    if !check_method_generics_are_structurally_compatible(
+        trait_method_generics.self_params(),
+        impl_method_generics.self_params(),
+    ) {
+        return Box::default();
+    }
+
+    // The inference algorithm works as follows: in the trait method, we replace each RPITIT with an infer var,
+    // then we equate the return type of the trait method with the return type of the impl method. The values
+    // of the inference vars now represent the value of the RPITIT assoc types.
+    let mut table = InferenceTable::new(db, db.trait_environment(impl_method.into()));
+    let impl_method_placeholder_subst = impl_method_generics.placeholder_subst(db);
+
+    let impl_method_ret = db
+        .callable_item_signature(impl_method.into())
+        .substitute(Interner, &impl_method_placeholder_subst)
+        .ret()
+        .clone();
+    let impl_method_ret = table.normalize_associated_types_in(impl_method_ret);
+
+    // Create mapping from trait to impl (i.e. impl trait header + impl method identity args).
+    let trait_ref_placeholder_subst =
+        &impl_method_placeholder_subst.as_slice(Interner)[impl_method_generics.len_self()..];
+    // We want to substitute the TraitRef with placeholders, but placeholders from the method, not the impl.
+    let impl_trait_ref = impl_datum
+        .binders
+        .as_ref()
+        .map(|it| it.trait_ref.clone())
+        .substitute(Interner, trait_ref_placeholder_subst);
+    let trait_to_impl_args = Substitution::from_iter(
+        Interner,
+        impl_method_placeholder_subst.as_slice(Interner)[..impl_method_generics.len_self()]
+            .iter()
+            .chain(impl_trait_ref.substitution.as_slice(Interner)),
+    );
+    let trait_method_ret = db
+        .callable_item_signature(trait_method_id.into())
+        .substitute(Interner, &trait_to_impl_args)
+        .ret()
+        .clone();
+    let mut rpitit_to_infer_var_folder = RpititToInferVarFolder {
+        db,
+        table: &mut table,
+        trait_method_id,
+        trait_rpitit_to_infer_var: FxHashMap::default(),
+    };
+    let trait_method_ret =
+        trait_method_ret.fold_with(&mut rpitit_to_infer_var_folder, DebruijnIndex::INNERMOST);
+    let trait_rpitit_to_infer_var = rpitit_to_infer_var_folder.trait_rpitit_to_infer_var;
+    let trait_method_ret = table.normalize_associated_types_in(trait_method_ret);
+
+    table.resolve_obligations_as_possible();
+    // Even if unification fails, we want to continue. We will fill the RPITITs with error types.
+    table.unify(&trait_method_ret, &impl_method_ret);
+    table.resolve_obligations_as_possible();
+
+    return trait_rpitit_to_infer_var
+        .into_iter()
+        .map(|(trait_assoc_id, infer_var)| {
+            let impl_rpitit = table.resolve_completely(infer_var);
+            let impl_rpitit = impl_rpitit.fold_with(
+                &mut PlaceholderToBoundVarFolder {
+                    db,
+                    method: impl_method.into(),
+                    method_generics: impl_method_generics.self_params(),
+                },
+                DebruijnIndex::INNERMOST,
+            );
             let trait_assoc = trait_assoc_id.loc(db);
-            let trait_method_id = trait_assoc.synthesized_from_method;
-            let trait_method_generics = generics(db, trait_method_id.into());
-
-            let impl_assoc_id = (|| {
-                let trait_method = db.function_signature(trait_method_id);
-                let impl_method = impl_items.items.iter().find_map(|(name, id)| {
-                    if *name == trait_method.name {
-                        match *id {
-                            AssocItemId::FunctionId(it) => Some(it),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
-                })?;
-
-                let impl_method_generics = generics(db, impl_method.into());
-
-                // First, just so we won't ICE, check that the impl method generics match the trait method generics.
-                if !check_method_generics_are_structurally_compatible(
-                    trait_method_generics.self_params(),
-                    impl_method_generics.self_params(),
-                ) {
-                    return None;
-                }
-
-                // The inference algorithm works as follows: in the trait method, we replace each RPITIT with an infer var,
-                // then we equate the return type of the trait method with the return type of the impl method. The values
-                // of the inference vars now represent the value of the RPITIT assoc types.
-                let mut table = InferenceTable::new(db, db.trait_environment(impl_method.into()));
-                let impl_method_placeholder_subst = impl_method_generics.placeholder_subst(db);
-
-                let impl_method_ret = db
-                    .callable_item_signature(impl_method.into())
-                    .substitute(Interner, &impl_method_placeholder_subst)
-                    .ret()
-                    .clone();
-                let impl_method_ret = table.normalize_associated_types_in(impl_method_ret);
-
-                // Create mapping from trait to impl (i.e. impl trait header + impl method identity args).
-                let trait_ref_placeholder_subst = &impl_method_placeholder_subst.as_slice(Interner)
-                    [impl_method_generics.len_self()..];
-                // We want to substitute the TraitRef with placeholders, but placeholders from the method, not the impl.
-                let impl_trait_ref =
-                    impl_trait.clone().substitute(Interner, trait_ref_placeholder_subst);
-                let trait_to_impl_args = Substitution::from_iter(
-                    Interner,
-                    impl_method_placeholder_subst.as_slice(Interner)
-                        [..impl_method_generics.len_self()]
-                        .iter()
-                        .chain(impl_trait_ref.substitution.as_slice(Interner)),
-                );
-                let trait_method_ret = db
-                    .callable_item_signature(trait_method_id.into())
-                    .substitute(Interner, &trait_to_impl_args)
-                    .ret()
-                    .clone();
-                let mut rpitit_to_infer_var_folder = RpititToInferVarFolder {
-                    db,
-                    table: &mut table,
-                    trait_method_id,
-                    trait_rpitit_to_infer_var: FxHashMap::default(),
-                };
-                let trait_method_ret = trait_method_ret
-                    .fold_with(&mut rpitit_to_infer_var_folder, DebruijnIndex::INNERMOST);
-                let trait_rpitit_to_infer_var =
-                    rpitit_to_infer_var_folder.trait_rpitit_to_infer_var;
-                let trait_method_ret = table.normalize_associated_types_in(trait_method_ret);
-
-                table.resolve_obligations_as_possible();
-                // Even if unification fails, we want to continue. We will fill the RPITITs with error types.
-                table.unify(&trait_method_ret, &impl_method_ret);
-                table.resolve_obligations_as_possible();
-                for (trait_rpitit, infer_var) in trait_rpitit_to_infer_var {
-                    let impl_rpitit = table.resolve_completely(infer_var);
-                    let impl_rpitit = impl_rpitit.fold_with(
-                        &mut PlaceholderToBoundVarFolder {
-                            db,
-                            method: impl_method.into(),
-                            method_generics: impl_method_generics.self_params(),
-                        },
-                        DebruijnIndex::INNERMOST,
-                    );
-                    let impl_rpitit_binders = VariableKinds::from_iter(
-                        Interner,
-                        &trait_assoc.bounds.binders.as_slice(Interner)
-                            [..trait_method_generics.len()],
-                    );
-                    let impl_rpitit = Binders::new(
-                        impl_rpitit_binders,
-                        rust_ir::AssociatedTyValueBound { ty: impl_rpitit },
-                    );
-                    let impl_rpitit = RpititImplAssocTyId::new(
-                        db,
-                        RpititImplAssocTy {
-                            impl_id,
-                            trait_assoc: trait_rpitit,
-                            value: impl_rpitit,
-                        },
-                    );
-                    trait_rpitit_to_impl_rpitit.insert(trait_rpitit, impl_rpitit);
-                }
-
-                trait_rpitit_to_impl_rpitit.get(&trait_assoc_id).copied()
-            })();
-
-            impl_assoc_id.unwrap_or_else(|| {
-                RpititImplAssocTyId::new(
-                    db,
-                    RpititImplAssocTy {
-                        impl_id,
-                        trait_assoc: trait_assoc_id,
-                        // In this situation, we don't know even that the trait and impl generics match, therefore
-                        // the only binders we can give to comply with the trait's binders are the trait's binders.
-                        // However, for impl associated types chalk wants only their own generics, excluding
-                        // those of the impl (unlike in traits), therefore we filter them here.
-                        value: Binders::new(
-                            VariableKinds::from_iter(
-                                Interner,
-                                &trait_assoc.bounds.binders.as_slice(Interner)
-                                    [..trait_method_generics.len_self()],
-                            ),
-                            rust_ir::AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) },
-                        ),
-                    },
-                )
+            let impl_rpitit_binders = VariableKinds::from_iter(
+                Interner,
+                &trait_assoc.bounds.binders.as_slice(Interner)[..trait_method_generics.len()],
+            );
+            let impl_rpitit = Binders::new(
+                impl_rpitit_binders,
+                rust_ir::AssociatedTyValueBound { ty: impl_rpitit },
+            );
+            Arc::new(AssociatedTyValue {
+                associated_ty_id: to_assoc_type_id_rpitit(trait_assoc_id),
+                impl_id: hir_def::ImplId::to_chalk(impl_id, db),
+                value: impl_rpitit,
             })
         })
-        .map(to_assoc_type_value_id_rpitit);
+        .collect();
 
     #[derive(chalk_derive::FallibleTypeFolder)]
     #[has_interner(Interner)]
@@ -1322,11 +1290,38 @@ pub(crate) fn associated_ty_value_query(
         }
         AnyImplAssocType::Rpitit(assoc_type_id) => {
             let assoc_type = assoc_type_id.loc(db);
-            Arc::new(AssociatedTyValue {
-                impl_id: assoc_type.impl_id.to_chalk(db),
-                associated_ty_id: to_assoc_type_id_rpitit(assoc_type.trait_assoc),
-                value: assoc_type.value.clone(),
-            })
+            let trait_assoc = assoc_type.trait_assoc.loc(db);
+            let all_method_assocs = impl_method_rpitit_values(
+                db,
+                assoc_type.impl_id,
+                trait_assoc.synthesized_from_method,
+            );
+            let trait_assoc_id = to_assoc_type_id_rpitit(assoc_type.trait_assoc);
+            all_method_assocs
+                .iter()
+                .find(|method_assoc| method_assoc.associated_ty_id == trait_assoc_id)
+                .cloned()
+                .unwrap_or_else(|| {
+                    let impl_id = hir_def::ImplId::to_chalk(assoc_type.impl_id, db);
+                    let trait_method_generics =
+                        generics(db, trait_assoc.synthesized_from_method.into());
+                    Arc::new(AssociatedTyValue {
+                        associated_ty_id: trait_assoc_id,
+                        impl_id,
+                        // In this situation, we don't know even that the trait and impl generics match, therefore
+                        // the only binders we can give to comply with the trait's binders are the trait's binders.
+                        // However, for impl associated types chalk wants only their own generics, excluding
+                        // those of the impl (unlike in traits), therefore we filter them here.
+                        value: Binders::new(
+                            VariableKinds::from_iter(
+                                Interner,
+                                &trait_assoc.bounds.binders.as_slice(Interner)
+                                    [..trait_method_generics.len_self()],
+                            ),
+                            rust_ir::AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) },
+                        ),
+                    })
+                })
         }
     }
 }

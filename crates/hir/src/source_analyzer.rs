@@ -36,8 +36,8 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use hir_ty::{
-    Adjustment, AnyTraitAssocType, InferenceResult, Interner, Substitution, TraitEnvironment, Ty,
-    TyExt, TyKind, TyLoweringContext,
+    Adjustment, AliasTy, AnyTraitAssocType, InferenceResult, Interner, LifetimeElisionKind,
+    ProjectionTy, Substitution, TraitEnvironment, Ty, TyExt, TyKind, TyLoweringContext,
     diagnostics::{
         InsideUnsafeBlock, record_literal_missing_fields, record_pattern_missing_fields,
         unsafe_operations,
