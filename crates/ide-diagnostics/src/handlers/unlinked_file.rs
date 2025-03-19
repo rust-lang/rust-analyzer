@@ -28,39 +28,40 @@ pub(crate) fn unlinked_file(
     file_id: FileId,
 ) {
     let mut range = TextRange::up_to(ctx.sema.db.line_index(file_id).len());
-    let fixes = fixes(ctx, file_id, range);
-    // FIXME: This is a hack for the vscode extension to notice whether there is an autofix or not before having to resolve diagnostics.
-    // This is to prevent project linking popups from appearing when there is an autofix. https://github.com/rust-lang/rust-analyzer/issues/14523
-    let message = if fixes.is_none() {
-        "This file is not included in any crates, so rust-analyzer can't offer IDE services."
+
+    let check_crate = ctx.sema.first_crate(file_id);
+    let is_in_crate = check_crate.is_some();
+
+    let is_crate_root = check_crate
+        .as_ref()
+        .map(|krate| krate.root_module().definition_source(ctx.sema.db).file_id == file_id)
+        .unwrap_or(false);
+
+    let is_unlinked = !is_in_crate || is_crate_root;
+
+    let fixes = if is_unlinked { None } else { fixes(ctx, file_id, range) };
+
+    let has_fixes = fixes.is_some();
+
+    let message = if has_fixes {
+        "This file is not linked to a crate, but an autofix is available to add it."
     } else {
-        "This file is not included anywhere in the module tree, so rust-analyzer can't offer IDE services."
+        "This file is not included in any crates, so rust-analyzer can't provide IDE features. Ensure it's part of your Cargo workspace."
     };
 
     let message = format!(
         "{message}\n\nIf you're intentionally working on unowned files, you can silence this warning by adding \"unlinked-file\" to rust-analyzer.diagnostics.disabled in your settings."
     );
 
-    let mut unused = true;
+    if !has_fixes {
+        let file_text = ctx.sema.db.file_text(file_id);
+        let text = file_text.text(ctx.sema.db);
 
-    if fixes.is_none() {
-        // If we don't have a fix, the unlinked-file diagnostic is not
-        // actionable. This generally means that rust-analyzer hasn't
-        // finished startup, or we couldn't find the Cargo.toml.
-        //
-        // Only show this diagnostic on the first three characters of
-        // the file, to avoid overwhelming the user during startup.
-        range = SourceDatabase::file_text(ctx.sema.db, file_id)
-            .text(ctx.sema.db)
+        range = text
             .char_indices()
-            .take(3)
-            .last()
-            .map(|(i, _)| i)
-            .map(|i| TextRange::up_to(i.try_into().unwrap()))
+            .nth(3)
+            .map(|(i, _)| TextRange::up_to(i.try_into().unwrap()))
             .unwrap_or(range);
-        // Prefer a diagnostic underline over graying out the text,
-        // since we're only highlighting a small region.
-        unused = false;
     }
 
     acc.push(
@@ -69,7 +70,7 @@ pub(crate) fn unlinked_file(
             message,
             FileRange { file_id, range },
         )
-        .with_unused(unused)
+        .with_unused(!has_fixes)
         .with_fixes(fixes),
     );
 }
@@ -516,6 +517,47 @@ mod bar {
 //- /main.rs
 include!("bar/foo/mod.rs");
 //- /bar/foo/mod.rs
+"#,
+        );
+    }
+
+    #[test]
+    fn unlinked_file_suggests_fix() {
+        check_fix(
+            r#"
+//- /main.rs
+fn main() {}
+//- /foo.rs
+$0
+"#,
+            r#"
+mod foo;
+
+fn main() {}
+"#,
+        );
+    }
+
+    #[test]
+    fn unlinked_file_no_fix_without_cargo_toml() {
+        check_no_fix(
+            r#"
+//- /foo.rs
+fn hello() {}
+"#,
+        );
+    }
+
+    #[test]
+    fn unlinked_file_respects_unused_flag() {
+        check_diagnostics(
+            r#"
+//- /main.rs
+fn main() {}
+
+//- /foo.rs
+fn hello() {}
+//^^^^^^^^^^ weak: This file is not included in any crates, so rust-analyzer can't provide IDE features. Ensure it's part of your Cargo workspace.
 "#,
         );
     }
