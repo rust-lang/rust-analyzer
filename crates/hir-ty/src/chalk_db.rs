@@ -50,7 +50,7 @@ use crate::{
     to_assoc_type_id, to_chalk_trait_id,
     traits::ChalkContext,
     utils::ClosureSubst,
-    wrap_empty_binders,
+    variable_kinds_from_generics, wrap_empty_binders,
 };
 
 pub(crate) type AssociatedTyDatum = chalk_solve::rust_ir::AssociatedTyDatum<Interner>;
@@ -1059,9 +1059,14 @@ fn impl_method_rpitit_values(
                 DebruijnIndex::INNERMOST,
             );
             let trait_assoc = trait_assoc_id.loc(db);
+            // Completely unlike the docs, Chalk requires both the impl generics and the associated type
+            // generics in the binder.
             let impl_rpitit_binders = VariableKinds::from_iter(
                 Interner,
-                &trait_assoc.bounds.binders.as_slice(Interner)[..trait_method_generics.len()],
+                trait_assoc.bounds.binders.as_slice(Interner)[..trait_method_generics.len()]
+                    .iter()
+                    .cloned()
+                    .chain(variable_kinds_from_generics(db, impl_method_generics.iter_parent_id())),
             );
             let impl_rpitit = Binders::new(
                 impl_rpitit_binders,
@@ -1288,42 +1293,46 @@ pub(crate) fn associated_ty_value_query(
         AnyImplAssocType::Normal(type_alias) => {
             type_alias_associated_ty_value(db, krate, type_alias)
         }
-        AnyImplAssocType::Rpitit(assoc_type_id) => {
-            let assoc_type = assoc_type_id.loc(db);
-            let trait_assoc = assoc_type.trait_assoc.loc(db);
-            let all_method_assocs = impl_method_rpitit_values(
-                db,
-                assoc_type.impl_id,
-                trait_assoc.synthesized_from_method,
-            );
-            let trait_assoc_id = to_assoc_type_id_rpitit(assoc_type.trait_assoc);
-            all_method_assocs
-                .iter()
-                .find(|method_assoc| method_assoc.associated_ty_id == trait_assoc_id)
-                .cloned()
-                .unwrap_or_else(|| {
-                    let impl_id = hir_def::ImplId::to_chalk(assoc_type.impl_id, db);
-                    let trait_method_generics =
-                        generics(db, trait_assoc.synthesized_from_method.into());
-                    Arc::new(AssociatedTyValue {
-                        associated_ty_id: trait_assoc_id,
-                        impl_id,
-                        // In this situation, we don't know even that the trait and impl generics match, therefore
-                        // the only binders we can give to comply with the trait's binders are the trait's binders.
-                        // However, for impl associated types chalk wants only their own generics, excluding
-                        // those of the impl (unlike in traits), therefore we filter them here.
-                        value: Binders::new(
-                            VariableKinds::from_iter(
-                                Interner,
-                                &trait_assoc.bounds.binders.as_slice(Interner)
-                                    [..trait_method_generics.len_self()],
-                            ),
-                            rust_ir::AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) },
-                        ),
-                    })
-                })
-        }
+        AnyImplAssocType::Rpitit(assoc_type_id) => rpitit_associated_ty_value(db, assoc_type_id),
     }
+}
+
+fn rpitit_associated_ty_value(
+    db: &dyn HirDatabase,
+    assoc_type_id: RpititImplAssocTyId,
+) -> Arc<AssociatedTyValue> {
+    let assoc_type = assoc_type_id.loc(db);
+    let trait_assoc = assoc_type.trait_assoc.loc(db);
+    let all_method_assocs =
+        impl_method_rpitit_values(db, assoc_type.impl_id, trait_assoc.synthesized_from_method);
+    let trait_assoc_id = to_assoc_type_id_rpitit(assoc_type.trait_assoc);
+    all_method_assocs
+        .iter()
+        .find(|method_assoc| method_assoc.associated_ty_id == trait_assoc_id)
+        .cloned()
+        .unwrap_or_else(|| {
+            let impl_id = hir_def::ImplId::to_chalk(assoc_type.impl_id, db);
+            let trait_method_generics = generics(db, trait_assoc.synthesized_from_method.into());
+            let impl_generics = generics(db, assoc_type.impl_id.into());
+            // In this situation, we don't know even that the trait and impl generics match, therefore
+            // the only binders we can give to comply with the trait's binders are the trait's binders.
+            // However, for impl associated types chalk wants only their own generics, excluding
+            // those of the impl (unlike in traits), therefore we filter them here.
+            // Completely unlike the docs, Chalk requires both the impl generics and the associated type
+            // generics in the binder.
+            let value = Binders::new(
+                VariableKinds::from_iter(
+                    Interner,
+                    trait_assoc.bounds.binders.as_slice(Interner)
+                        [..trait_method_generics.len_self()]
+                        .iter()
+                        .cloned()
+                        .chain(variable_kinds_from_generics(db, impl_generics.iter_id())),
+                ),
+                rust_ir::AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) },
+            );
+            Arc::new(AssociatedTyValue { associated_ty_id: trait_assoc_id, impl_id, value })
+        })
 }
 
 fn type_alias_associated_ty_value(

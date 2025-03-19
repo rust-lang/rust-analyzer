@@ -66,7 +66,7 @@ use crate::{
     mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx, to_assoc_type_id_rpitit},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::all_super_trait_refs,
-    variable_kinds_from_iter,
+    variable_kinds_from_generics,
 };
 
 #[derive(Debug, Default)]
@@ -1448,7 +1448,10 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
         p: GenericParamDataRef<'_>,
         generic_params: &Generics,
     ) -> (Binders<crate::GenericArg>, bool) {
-        let binders = variable_kinds_from_iter(ctx.db, generic_params.iter_id().take(idx));
+        let binders = VariableKinds::from_iter(
+            Interner,
+            variable_kinds_from_generics(ctx.db, generic_params.iter_id().take(idx)),
+        );
         match p {
             GenericParamDataRef::TypeParamData(p) => {
                 let ty = p.default.as_ref().map_or_else(
