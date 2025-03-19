@@ -125,9 +125,11 @@ impl Generics {
 
     /// Returns total number of generic parameters in scope, including those from parent.
     pub(crate) fn len(&self) -> usize {
-        let parent = self.parent_generics().map_or(0, Generics::len);
-        let child = self.params.len();
-        parent + child
+        self.len_parent() + self.len_self()
+    }
+
+    pub(crate) fn len_parent(&self) -> usize {
+        self.parent_generics().map_or(0, Generics::len_self)
     }
 
     /// Returns numbers of generic parameters excluding those from parent.
