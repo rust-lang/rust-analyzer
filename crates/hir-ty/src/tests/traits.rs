@@ -4935,73 +4935,76 @@ fn check_rpitit(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
     let test_crate = *db.all_crates().last().unwrap();
     let def_map = db.crate_def_map(test_crate);
 
-    let trait_ = def_map[DefMap::ROOT]
-        .scope
-        .declarations()
-        .filter_map(|decl| match decl {
-            ModuleDefId::TraitId(it) => Some(it),
-            _ => None,
-        })
-        .at_most_one()
-        .unwrap_or_else(|_| panic!("at most one trait is supported for `check_rpitit()`"));
-    let trait_rpitits = trait_.into_iter().flat_map(|trait_| {
-        let trait_datum = db.trait_datum(test_crate, to_chalk_trait_id(trait_));
-        trait_datum
-            .associated_ty_ids
-            .iter()
-            .copied()
-            .filter_map(|assoc_id| {
-                let assoc = match from_assoc_type_id(&db, assoc_id) {
-                    AnyTraitAssocType::Rpitit(assoc_id) => Some(assoc_id.loc(&db)),
-                    AnyTraitAssocType::Normal(_) => None,
-                }?;
-                let method_name =
-                    db.function_data(assoc.synthesized_from_method).name.symbol().clone();
-                let bounds = AssocTypeBounds(&assoc.bounds);
-                let bounds = bounds.display_test(&db, DisplayTarget::from_crate(&db, test_crate));
-                let method_name = method_name;
-                let description = format!("type __{method_name}_rpitit: {bounds};\n");
-                Some(description)
+    crate::tls::set_current_program(&db, || {
+        let trait_ = def_map[DefMap::ROOT]
+            .scope
+            .declarations()
+            .filter_map(|decl| match decl {
+                ModuleDefId::TraitId(it) => Some(it),
+                _ => None,
             })
-            .collect::<Vec<_>>()
-    });
+            .at_most_one()
+            .unwrap_or_else(|_| panic!("at most one trait is supported for `check_rpitit()`"));
+        let trait_rpitits = trait_.into_iter().flat_map(|trait_| {
+            let trait_datum = db.trait_datum(test_crate, to_chalk_trait_id(trait_));
+            trait_datum
+                .associated_ty_ids
+                .iter()
+                .copied()
+                .filter_map(|assoc_id| {
+                    let assoc = match from_assoc_type_id(&db, assoc_id) {
+                        AnyTraitAssocType::Rpitit(assoc_id) => Some(assoc_id.loc(&db)),
+                        AnyTraitAssocType::Normal(_) => None,
+                    }?;
+                    let method_name =
+                        db.function_data(assoc.synthesized_from_method).name.symbol().clone();
+                    let bounds = AssocTypeBounds(&assoc.bounds);
+                    let bounds =
+                        bounds.display_test(&db, DisplayTarget::from_crate(&db, test_crate));
+                    let method_name = method_name;
+                    let description = format!("type __{method_name}_rpitit: {bounds};\n");
+                    Some(description)
+                })
+                .collect::<Vec<_>>()
+        });
 
-    let impl_ = def_map[DefMap::ROOT]
-        .scope
-        .impls()
-        .at_most_one()
-        .unwrap_or_else(|_| panic!("at most one impl is supported for `check_rpitit()`"));
-    let impl_rpitits = impl_.into_iter().flat_map(|impl_| {
-        let trait_datum = db.impl_datum(test_crate, ImplId::to_chalk(impl_, &db));
-        trait_datum
-            .associated_ty_value_ids
-            .iter()
-            .copied()
-            .filter_map(|assoc_id| {
-                let trait_assoc = match from_assoc_type_value_id(&db, assoc_id) {
-                    AnyImplAssocType::Rpitit(assoc) => assoc.loc(&db).trait_assoc,
-                    AnyImplAssocType::Normal(_) => return None,
-                };
-                let assoc_datum = db.associated_ty_value(test_crate, assoc_id);
-                let ty = assoc_datum
-                    .value
-                    .skip_binders()
-                    .ty
-                    .display_test(&db, DisplayTarget::from_crate(&db, test_crate));
-                let method_name = db
-                    .function_data(trait_assoc.loc(&db).synthesized_from_method)
-                    .name
-                    .symbol()
-                    .clone();
-                let description = format!("type __{method_name}_rpitit = {ty};\n");
-                Some(description)
-            })
-            .collect::<Vec<_>>()
-    });
+        let impl_ = def_map[DefMap::ROOT]
+            .scope
+            .impls()
+            .at_most_one()
+            .unwrap_or_else(|_| panic!("at most one impl is supported for `check_rpitit()`"));
+        let impl_rpitits = impl_.into_iter().flat_map(|impl_| {
+            let trait_datum = db.impl_datum(test_crate, ImplId::to_chalk(impl_, &db));
+            trait_datum
+                .associated_ty_value_ids
+                .iter()
+                .copied()
+                .filter_map(|assoc_id| {
+                    let trait_assoc = match from_assoc_type_value_id(&db, assoc_id) {
+                        AnyImplAssocType::Rpitit(assoc) => assoc.loc(&db).trait_assoc,
+                        AnyImplAssocType::Normal(_) => return None,
+                    };
+                    let assoc_datum = db.associated_ty_value(test_crate, assoc_id);
+                    let ty = assoc_datum
+                        .value
+                        .skip_binders()
+                        .ty
+                        .display_test(&db, DisplayTarget::from_crate(&db, test_crate));
+                    let method_name = db
+                        .function_data(trait_assoc.loc(&db).synthesized_from_method)
+                        .name
+                        .symbol()
+                        .clone();
+                    let description = format!("type __{method_name}_rpitit = {ty};\n");
+                    Some(description)
+                })
+                .collect::<Vec<_>>()
+        });
 
-    let all_rpitits =
-        trait_rpitits.chain(std::iter::once("\n".to_owned())).chain(impl_rpitits).join("");
-    expect.assert_eq(&all_rpitits);
+        let all_rpitits =
+            trait_rpitits.chain(std::iter::once("\n".to_owned())).chain(impl_rpitits).join("");
+        expect.assert_eq(&all_rpitits);
+    });
 
     struct AssocTypeBounds<'a>(
         &'a Binders<Vec<Binders<chalk_solve::rust_ir::InlineBound<Interner>>>>,
@@ -5062,7 +5065,7 @@ impl<T> Trait for Foo<T> {
 
             type __foo_rpitit = impl T1;
             type __foo_rpitit = ?0.1;
-            type __bar_rpitit = impl T2<T>;
+            type __bar_rpitit = impl T2<?2.1>;
             type __baz_rpitit = ();
             type __baz_rpitit = impl T4<Assoc = ()>;
         "#]],
@@ -5088,5 +5091,50 @@ impl Trait for () {
 
             type __foo_rpitit = ();
         "#]],
+    );
+}
+
+#[test]
+fn defaulted_method_with_rpitit() {
+    check_rpitit(
+        r#"
+//- minicore: sized
+//- /helpers.rs crate:helpers
+pub trait Bar<'a, B: ?Sized, C: ?Sized, D: ?Sized> {}
+
+//- /lib.rs crate:library deps:helpers
+use helpers::*;
+trait Trait<T> {
+    fn foo<'a, B>() -> impl Bar<'a, B, Self, T>;
+}
+struct Foo<T>(T);
+impl<T, U> Trait<(Foo<()>, U)> for Foo<T> {}
+    "#,
+        // The debruijn index in the value is 2, but should be 0 to refer to the associated
+        // type generics. It is 2 because opaques are wrapped in two binders, and so the 0
+        // is shifted in twice. Since users are not expected to see debruijn indices anyway,
+        // this does not matter.
+        expect![[r#"
+            type __foo_rpitit: Bar<?1.0, ?1.1, ?1.2, ?1.3>;
+
+            type __foo_rpitit = impl Bar<?2.0, ?2.1, Foo<?2.2>, (Foo<()>, ?2.3)>;
+        "#]],
+    );
+}
+
+#[test]
+fn check_foo() {
+    check_rpitit(
+        r#"
+//- minicore: future, send, sized
+use core::future::Future;
+
+trait DesugaredAsyncTrait {
+    fn foo(&self) -> impl Future<Output = usize> + Send;
+}
+
+impl DesugaredAsyncTrait for () {}
+    "#,
+        expect![[r#""#]],
     );
 }

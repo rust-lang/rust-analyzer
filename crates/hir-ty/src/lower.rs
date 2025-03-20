@@ -59,8 +59,7 @@ use crate::{
     FnPointer, FnSig, FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime,
     LifetimeData, LifetimeOutlives, ParamKind, PlaceholderIndex, PolyFnSig, ProgramClause,
     ProjectionTy, QuantifiedWhereClause, QuantifiedWhereClauses, Substitution, TraitEnvironment,
-    TraitRef, TraitRefExt, Ty, TyBuilder, TyKind, VariableKind, VariableKinds, WhereClause,
-    all_super_traits,
+    TraitRef, TraitRefExt, Ty, TyBuilder, TyKind, VariableKinds, WhereClause, all_super_traits,
     chalk_db::generic_predicate_to_inline_bound,
     consteval::{
         intern_const_ref, intern_const_scalar, path_to_const, unknown_const,
@@ -78,6 +77,7 @@ use crate::{
     rpitit::{RpititTraitAssocTy, RpititTraitAssocTyId},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::{InTypeConstIdMetadata, all_super_trait_refs},
+    variable_kinds_from_generics,
 };
 
 #[derive(Debug, Default)]
@@ -390,9 +390,7 @@ impl<'a> TyLoweringContext<'a> {
                             |a| ImplTraitId::TypeAliasImplTrait(a, idx),
                         );
                         let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
-                        let generics =
-                            generics(self.db.upcast(), origin.either(|f| f.into(), |a| a.into()));
-                        let parameters = generics.bound_vars_subst(self.db, self.in_binders);
+                        let parameters = self.subst_for_generics();
                         TyKind::OpaqueType(opaque_ty_id, parameters).intern(Interner)
                     }
                     ImplTraitLoweringMode::Param => {
@@ -588,15 +586,7 @@ impl<'a> TyLoweringContext<'a> {
 
         let assoc_type_binders = VariableKinds::from_iter(
             Interner,
-            method_generics.iter_id().map(|param_id| match param_id {
-                GenericParamId::TypeParamId(_) => {
-                    VariableKind::Ty(chalk_ir::TyVariableKind::General)
-                }
-                GenericParamId::ConstParamId(param_id) => {
-                    VariableKind::Const(self.db.const_param_ty(param_id))
-                }
-                GenericParamId::LifetimeParamId(_) => VariableKind::Lifetime,
-            }),
+            variable_kinds_from_generics(self.db, method_generics.iter_id()),
         );
 
         let returned_subst = self.subst_for_generics();
