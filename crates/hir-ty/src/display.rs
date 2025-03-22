@@ -46,6 +46,7 @@ use crate::{
     LifetimeData, LifetimeOutlives, MemoryMap, Mutability, OpaqueTy, ProjectionTy, ProjectionTyExt,
     QuantifiedWhereClause, Scalar, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty,
     TyExt, WhereClause,
+    chalk_db::inline_bound_to_generic_predicate,
     consteval::try_const_usize,
     db::{HirDatabase, InternedClosure},
     from_assoc_type_id, from_foreign_def_id, from_placeholder_idx,
@@ -53,9 +54,9 @@ use crate::{
     infer::normalize,
     layout::Layout,
     lt_from_placeholder_idx,
-    mapping::from_chalk,
+    mapping::{AnyTraitAssocType, from_chalk},
     mir::pad16,
-    primitive, to_assoc_type_id,
+    primitive,
     utils::{self, ClosureSubst, detect_variant_from_bytes},
 };
 
@@ -607,21 +608,55 @@ impl HirDisplay for ProjectionTy {
             }
         }
 
-        write!(f, "<")?;
-        self_ty.hir_fmt(f)?;
-        write!(f, " as ")?;
-        trait_ref.hir_fmt(f)?;
-        write!(
-            f,
-            ">::{}",
-            f.db.type_alias_data(from_assoc_type_id(self.associated_ty_id))
-                .name
-                .display(f.db.upcast(), f.edition())
-        )?;
-        let proj_params_count =
-            self.substitution.len(Interner) - trait_ref.substitution.len(Interner);
-        let proj_params = &self.substitution.as_slice(Interner)[..proj_params_count];
-        hir_fmt_generics(f, proj_params, None, None)
+        match from_assoc_type_id(f.db, self.associated_ty_id) {
+            AnyTraitAssocType::Normal(type_alias) => {
+                write!(f, "<")?;
+                self_ty.hir_fmt(f)?;
+                write!(f, " as ")?;
+                trait_ref.hir_fmt(f)?;
+                write!(
+                    f,
+                    ">::{}",
+                    f.db.type_alias_data(type_alias).name.display(f.db.upcast(), f.edition())
+                )?;
+                let proj_params_count =
+                    self.substitution.len(Interner) - trait_ref.substitution.len(Interner);
+                let proj_params = &self.substitution.as_slice(Interner)[..proj_params_count];
+                hir_fmt_generics(f, proj_params, None, None)
+            }
+            AnyTraitAssocType::Rpitit(assoc_type) => {
+                // Format RPITIT as `impl Trait`.
+                // FIXME: In some cases, it makes more sense to show this as RTN (`Trait::method(..)`).
+                // However not *all* associated types are the same as the corresponding RTN (the `impl Trait`
+                // can be nested). Figuring out when we should display RTN will be tricky.
+                let assoc_type = assoc_type.loc(f.db);
+                f.format_bounds_with(self.clone(), |f| {
+                    write_bounds_like_dyn_trait_with_prefix(
+                        f,
+                        "impl",
+                        Either::Left(
+                            &TyKind::Alias(AliasTy::Projection(self.clone())).intern(Interner),
+                        ),
+                        &assoc_type
+                            .bounds
+                            .clone()
+                            .substitute(Interner, &self.substitution)
+                            .iter()
+                            .map(|bound| {
+                                // We ignore `Self` anyway when formatting, so it's fine put an error type in it.
+                                inline_bound_to_generic_predicate(
+                                    bound,
+                                    TyKind::Error.intern(Interner),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                        SizedByDefault::Sized {
+                            anchor: assoc_type.trait_id.lookup(f.db.upcast()).container.krate(),
+                        },
+                    )
+                })
+            }
+        }
     }
 }
 
@@ -1259,35 +1294,62 @@ impl HirDisplay for Ty {
                 }
                 f.end_location_link();
 
-                let generic_def = self.as_generic_def(db);
-
-                hir_fmt_generics(f, parameters.as_slice(Interner), generic_def, None)?;
+                hir_fmt_generics(f, parameters.as_slice(Interner), Some((*def_id).into()), None)?;
             }
             TyKind::AssociatedType(assoc_type_id, parameters) => {
-                let type_alias = from_assoc_type_id(*assoc_type_id);
-                let trait_ = match type_alias.lookup(db.upcast()).container {
-                    ItemContainerId::TraitId(it) => it,
-                    _ => panic!("not an associated type"),
-                };
-                let trait_data = db.trait_data(trait_);
-                let type_alias_data = db.type_alias_data(type_alias);
-
                 // Use placeholder associated types when the target is test (https://rust-lang.github.io/chalk/book/clauses/type_equality.html#placeholder-associated-types)
                 if f.display_kind.is_test() {
-                    f.start_location_link(trait_.into());
-                    write!(f, "{}", trait_data.name.display(f.db.upcast(), f.edition()))?;
-                    f.end_location_link();
-                    write!(f, "::")?;
+                    match from_assoc_type_id(f.db, *assoc_type_id) {
+                        AnyTraitAssocType::Normal(type_alias) => {
+                            let trait_ = match type_alias.lookup(db.upcast()).container {
+                                ItemContainerId::TraitId(it) => it,
+                                _ => panic!("not an associated type"),
+                            };
+                            let trait_data = db.trait_data(trait_);
+                            let type_alias_data = db.type_alias_data(type_alias);
 
-                    f.start_location_link(type_alias.into());
-                    write!(f, "{}", type_alias_data.name.display(f.db.upcast(), f.edition()))?;
-                    f.end_location_link();
-                    // Note that the generic args for the associated type come before those for the
-                    // trait (including the self type).
-                    hir_fmt_generics(f, parameters.as_slice(Interner), None, None)
+                            f.start_location_link(trait_.into());
+                            write!(f, "{}", trait_data.name.display(f.db.upcast(), f.edition()))?;
+                            f.end_location_link();
+                            write!(f, "::")?;
+
+                            f.start_location_link(type_alias.into());
+                            write!(
+                                f,
+                                "{}",
+                                type_alias_data.name.display(f.db.upcast(), f.edition())
+                            )?;
+                            f.end_location_link();
+                            // Note that the generic args for the associated type come before those for the
+                            // trait (including the self type).
+                            hir_fmt_generics(f, parameters.as_slice(Interner), None, None)
+                        }
+                        AnyTraitAssocType::Rpitit(assoc_type) => {
+                            // In tests show the associated type as is.
+                            let assoc_type = assoc_type.loc(f.db);
+
+                            let trait_data = f.db.trait_data(assoc_type.trait_id);
+                            let method_data =
+                                f.db.function_data(assoc_type.synthesized_from_method);
+
+                            f.start_location_link(assoc_type.trait_id.into());
+                            write!(f, "{}", trait_data.name.display(f.db.upcast(), f.edition()))?;
+                            f.end_location_link();
+                            write!(f, "::")?;
+
+                            f.start_location_link(assoc_type.synthesized_from_method.into());
+                            write!(
+                                f,
+                                "__{}_rpitit",
+                                method_data.name.display(f.db.upcast(), f.edition())
+                            )?;
+                            f.end_location_link();
+                            hir_fmt_generics(f, parameters.as_slice(Interner), None, None)
+                        }
+                    }
                 } else {
                     let projection_ty = ProjectionTy {
-                        associated_ty_id: to_assoc_type_id(type_alias),
+                        associated_ty_id: *assoc_type_id,
                         substitution: parameters.clone(),
                     };
 
@@ -1748,7 +1810,7 @@ pub fn write_bounds_like_dyn_trait_with_prefix(
     }
 }
 
-fn write_bounds_like_dyn_trait(
+pub(crate) fn write_bounds_like_dyn_trait(
     f: &mut HirFormatter<'_>,
     this: Either<&Ty, &Lifetime>,
     predicates: &[QuantifiedWhereClause],
@@ -1860,7 +1922,14 @@ fn write_bounds_like_dyn_trait(
                     angle_open = true;
                 }
                 if let AliasTy::Projection(proj) = alias {
-                    let assoc_ty_id = from_assoc_type_id(proj.associated_ty_id);
+                    let assoc_ty_id = match from_assoc_type_id(f.db, proj.associated_ty_id) {
+                        AnyTraitAssocType::Normal(it) => it,
+                        AnyTraitAssocType::Rpitit(_) => {
+                            unreachable!(
+                                "Rust does not currently have a way to specify alias equation on RPITIT"
+                            )
+                        }
+                    };
                     let type_alias = f.db.type_alias_data(assoc_ty_id);
                     f.start_location_link(assoc_ty_id.into());
                     write!(f, "{}", type_alias.name.display(f.db.upcast(), f.edition()))?;
@@ -1940,7 +2009,14 @@ impl HirDisplay for WhereClause {
                 write!(f, " as ")?;
                 trait_ref.hir_fmt(f)?;
                 write!(f, ">::",)?;
-                let type_alias = from_assoc_type_id(projection_ty.associated_ty_id);
+                let type_alias = match from_assoc_type_id(f.db, projection_ty.associated_ty_id) {
+                    AnyTraitAssocType::Normal(it) => it,
+                    AnyTraitAssocType::Rpitit(_) => {
+                        unreachable!(
+                            "Rust does not currently have a way to specify alias equation on RPITIT"
+                        )
+                    }
+                };
                 f.start_location_link(type_alias.into());
                 write!(
                     f,

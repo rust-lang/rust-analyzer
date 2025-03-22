@@ -30,6 +30,7 @@ mod inhabitedness;
 mod interner;
 mod lower;
 mod mapping;
+mod rpitit;
 mod target_feature;
 mod tls;
 mod utils;
@@ -62,7 +63,10 @@ use chalk_ir::{
     interner::HasInterner,
 };
 use either::Either;
-use hir_def::{CallableDefId, GeneralConstId, TypeOrConstParamId, hir::ExprId, type_ref::Rawness};
+use hir_def::{
+    CallableDefId, GeneralConstId, GenericParamId, TypeOrConstParamId, hir::ExprId,
+    type_ref::Rawness,
+};
 use hir_expand::name::Name;
 use indexmap::{IndexMap, map::Entry};
 use intern::{Symbol, sym};
@@ -98,8 +102,9 @@ pub use lower::{
     associated_type_shorthand_candidates, diagnostics::*,
 };
 pub use mapping::{
-    from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx,
-    lt_from_placeholder_idx, lt_to_placeholder_idx, to_assoc_type_id, to_chalk_trait_id,
+    AnyImplAssocType, AnyTraitAssocType, from_assoc_type_id, from_assoc_type_value_id,
+    from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx, lt_from_placeholder_idx,
+    lt_to_placeholder_idx, to_assoc_type_id, to_assoc_type_value_id, to_chalk_trait_id,
     to_foreign_def_id, to_placeholder_idx,
 };
 pub use method_resolution::check_orphan_rules;
@@ -342,24 +347,24 @@ pub(crate) fn make_single_type_binders<T: HasInterner<Interner = Interner>>(
     )
 }
 
+pub(crate) fn variable_kinds_from_generics(
+    db: &dyn HirDatabase,
+    generics: impl Iterator<Item = GenericParamId>,
+) -> impl Iterator<Item = VariableKind> {
+    generics.map(|x| match x {
+        GenericParamId::ConstParamId(id) => VariableKind::Const(db.const_param_ty(id)),
+        GenericParamId::TypeParamId(_) => VariableKind::Ty(chalk_ir::TyVariableKind::General),
+        GenericParamId::LifetimeParamId(_) => VariableKind::Lifetime,
+    })
+}
+
 pub(crate) fn make_binders<T: HasInterner<Interner = Interner>>(
     db: &dyn HirDatabase,
     generics: &Generics,
     value: T,
 ) -> Binders<T> {
     Binders::new(
-        VariableKinds::from_iter(
-            Interner,
-            generics.iter_id().map(|x| match x {
-                hir_def::GenericParamId::ConstParamId(id) => {
-                    chalk_ir::VariableKind::Const(db.const_param_ty(id))
-                }
-                hir_def::GenericParamId::TypeParamId(_) => {
-                    chalk_ir::VariableKind::Ty(chalk_ir::TyVariableKind::General)
-                }
-                hir_def::GenericParamId::LifetimeParamId(_) => chalk_ir::VariableKind::Lifetime,
-            }),
-        ),
+        VariableKinds::from_iter(Interner, variable_kinds_from_generics(db, generics.iter_id())),
         value,
     )
 }

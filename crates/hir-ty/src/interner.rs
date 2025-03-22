@@ -9,8 +9,7 @@ use crate::{
     TyData, TyKind, VariableKind, VariableKinds, chalk_db, tls,
 };
 use chalk_ir::{ProgramClauseImplication, SeparatorTraitRef, Variance};
-use hir_def::TypeAliasId;
-use intern::{Interned, impl_internable};
+use intern::{Interned, Symbol, impl_internable};
 use smallvec::SmallVec;
 use std::fmt;
 use triomphe::Arc;
@@ -69,7 +68,7 @@ impl chalk_ir::interner::Interner for Interner {
     type InternedVariances = SmallVec<[Variance; 16]>;
     type DefId = salsa::Id;
     type InternedAdtId = hir_def::AdtId;
-    type Identifier = TypeAliasId;
+    type Identifier = Symbol;
     type FnAbi = FnAbi;
 
     fn debug_adt_id(
