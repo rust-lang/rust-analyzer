@@ -183,6 +183,7 @@ unsafe impl<'a, T: Clone + 'a, I: TrustedLen<Item = &'a T>> TrustedLen for std::
 unsafe impl<T, I: TrustedLen, F: FnMut(I::Item) -> T> TrustedLen for std::iter::Map<I, F> {}
 unsafe impl<T> TrustedLen for std::vec::Drain<'_, T> {}
 unsafe impl<T, const N: usize> TrustedLen for std::array::IntoIter<T, N> {}
+unsafe impl<K, V> TrustedLen for std::collections::hash_map::IntoIter<K, V> {}
 
 impl<Header: Clone, Item: Clone> Clone for ThinVecWithHeader<Header, Item> {
     #[inline]

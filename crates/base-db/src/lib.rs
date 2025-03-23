@@ -24,11 +24,32 @@ use syntax::{Parse, SyntaxError, ast};
 use triomphe::Arc;
 pub use vfs::{AnchoredPath, AnchoredPathBuf, FileId, VfsPath, file_set::FileSet};
 
+/// Prefer to use `impl_intern_key_ref!()`, which will not clone the value.
 #[macro_export]
 macro_rules! impl_intern_key {
     ($id:ident, $loc:ident) => {
         #[salsa::interned(no_debug, no_lifetime)]
         pub struct $id {
+            pub loc: $loc,
+        }
+
+        // If we derive this salsa prints the values recursively, and this causes us to blow.
+        impl ::std::fmt::Debug for $id {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.debug_tuple(stringify!($id))
+                    .field(&format_args!("{:04x}", self.0.as_u32()))
+                    .finish()
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_intern_key_ref {
+    ($id:ident, $loc:ident) => {
+        #[salsa::interned(no_debug, no_lifetime)]
+        pub struct $id {
+            #[return_ref]
             pub loc: $loc,
         }
 
