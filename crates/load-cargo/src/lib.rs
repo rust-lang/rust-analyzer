@@ -44,7 +44,13 @@ pub fn load_workspace_at(
     load_config: &LoadCargoConfig,
     progress: &dyn Fn(String),
 ) -> anyhow::Result<(RootDatabase, vfs::Vfs, Option<ProcMacroClient>)> {
-    let root = AbsPathBuf::assert_utf8(std::env::current_dir()?.join(root));
+    // Use the provided path as is if it is absolute.
+    // Otherwise, join it with the current dir path.
+    let root = AbsPathBuf::assert_utf8(if root.is_absolute() {
+        root.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(root)
+    });
     let root = ProjectManifest::discover_single(&root)?;
     let manifest_path = root.manifest_path().clone();
     let mut workspace = ProjectWorkspace::load(root, cargo_config, progress)?;
