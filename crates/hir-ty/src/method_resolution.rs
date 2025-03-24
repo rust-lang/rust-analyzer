@@ -585,7 +585,7 @@ pub(crate) fn iterate_method_candidates<T>(
     mut callback: impl FnMut(ReceiverAdjustments, AssocItemId, bool) -> Option<T>,
 ) -> Option<T> {
     let mut slot = None;
-    iterate_method_candidates_dyn(
+    let _ = iterate_method_candidates_dyn(
         ty,
         db,
         env,
