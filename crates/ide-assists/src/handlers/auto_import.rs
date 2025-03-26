@@ -2,13 +2,14 @@ use std::cmp::Reverse;
 
 use hir::{Module, db::HirDatabase};
 use ide_db::{
+    FxHashSet,
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport},
         insert_use::{ImportScope, insert_use, insert_use_as_alias},
     },
 };
-use syntax::{AstNode, Edition, NodeOrToken, SyntaxElement, ast};
+use syntax::{AstNode, Edition, NodeOrToken, SyntaxElement, TextSize, ast};
 
 use crate::{AssistContext, AssistId, Assists, GroupLabel};
 
@@ -199,6 +200,122 @@ pub(super) fn find_importable_node(
     } else {
         None
     }
+}
+
+/// Feature: Auto Import All
+/// auto import all missing imports in the current file. Share the same configuration as `auto_import`.
+/// and basically is just calling `auto_import` multiple times. But if multiple proposed imports are provided for one importable node,
+/// then this assist will automatically choose the most relevant one(as api forbid us from proposing multiple choices **multiple times** to user), also for trait import it default to import as alias `_`
+pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let cfg = ctx.config.import_path_config();
+
+    let importable_nodes = find_all_importable_node(ctx);
+    // dedup all proposed_imports first, so we wouldn't propose the same import multiple times
+    let mut all_proposed_imports = FxHashSet::default();
+    let mut all_insert_use_actions = Vec::with_capacity(importable_nodes.len());
+    for (import_assets, syntax_under_caret) in importable_nodes {
+        let mut proposed_imports: Vec<_> = import_assets
+            .search_for_imports(&ctx.sema, cfg, ctx.config.insert_use.prefix_kind)
+            .collect();
+        // remove duplicates
+        proposed_imports.retain(|import| !all_proposed_imports.contains(import));
+        if proposed_imports.is_empty() {
+            continue;
+        }
+        all_proposed_imports.extend(proposed_imports.clone());
+
+        let range = match &syntax_under_caret {
+            NodeOrToken::Node(node) => ctx.sema.original_range(node).range,
+            NodeOrToken::Token(token) => token.text_range(),
+        };
+        let scope = ImportScope::find_insert_use_container(
+            &match syntax_under_caret {
+                NodeOrToken::Node(it) => it,
+                NodeOrToken::Token(it) => it.parent()?,
+            },
+            &ctx.sema,
+        )?;
+
+        // we aren't interested in different namespaces
+        proposed_imports.sort_by(|a, b| a.import_path.cmp(&b.import_path));
+        proposed_imports.dedup_by(|a, b| a.import_path == b.import_path);
+
+        let current_module = ctx.sema.scope(scope.as_syntax_node()).map(|scope| scope.module());
+        // prioritize more relevant imports
+        proposed_imports
+            .sort_by_key(|import| Reverse(relevance_score(ctx, import, current_module.as_ref())));
+        let edition =
+            current_module.map(|it| it.krate().edition(ctx.db())).unwrap_or(Edition::CURRENT);
+
+        let chosen_import =
+            proposed_imports.first().expect("should have at least one available import");
+        all_insert_use_actions.push((chosen_import.clone(), scope, range, edition));
+    }
+    // TODO: add group to insert all use
+    let group_label = GroupLabel("Import all missing items".to_string());
+    let assist_id = AssistId("auto_import_all", AssistKind::QuickFix);
+    let label = "Import all missing items";
+    for (import, scope, range, edition) in &all_insert_use_actions {
+        let actions = all_insert_use_actions.clone();
+        acc.add_group(&group_label, assist_id, label, range, |builder| {
+            for (import, scope, range, edition) in actions {
+                let scope = match scope.clone() {
+                    ImportScope::File(it) => ImportScope::File(builder.make_mut(it)),
+                    ImportScope::Module(it) => ImportScope::Module(builder.make_mut(it)),
+                    ImportScope::Block(it) => ImportScope::Block(builder.make_mut(it)),
+                };
+                match import_assets.import_candidate() {
+                    ImportCandidate::TraitAssocItem(name) | ImportCandidate::TraitMethod(name) => {
+                        insert_use_as_alias(
+                            &scope,
+                            mod_path_to_ast(&import_path, edition),
+                            &ctx.config.insert_use,
+                        );
+                    }
+                    _ => {
+                        insert_use(
+                            &scope,
+                            mod_path_to_ast(&import_path, edition),
+                            &ctx.config.insert_use,
+                        );
+                    }
+                }
+            }
+        });
+    }
+    Some(())
+}
+
+pub(super) fn find_all_importable_node(
+    ctx: &AssistContext<'_>,
+) -> Vec<(ImportAssets, SyntaxElement)> {
+    // walk from root to find all importable nodes
+    let mut result: Vec<(ImportAssets, SyntaxElement)> = Vec::new();
+    for syntax_node in ctx.visit_syntax_nodes_at_offset_with_descend(TextSize::new(0)) {
+        let node = if ast::Path::can_cast(syntax_node.kind()) {
+            let path_under_caret =
+                ast::Path::cast(syntax_node).expect("Should be able to cast to Path");
+            ImportAssets::for_exact_path(&path_under_caret, &ctx.sema)
+                .zip(Some(path_under_caret.syntax().clone().into()))
+        } else if ast::MethodCallExpr::can_cast(syntax_node.kind()) {
+            let method_under_caret = ast::MethodCallExpr::cast(syntax_node)
+                .expect("Should be able to cast to MethodCallExpr");
+            ImportAssets::for_method_call(&method_under_caret, &ctx.sema)
+                .zip(Some(method_under_caret.syntax().clone().into()))
+        } else if ast::Param::can_cast(syntax_node.kind()) {
+            None
+        } else if let Some(pat) =
+            ast::IdentPat::cast(syntax_node).filter(ast::IdentPat::is_simple_ident)
+        {
+            ImportAssets::for_ident_pat(&ctx.sema, &pat).zip(Some(pat.syntax().clone().into()))
+        } else {
+            None
+        };
+        if let Some(node) = node {
+            result.push(node);
+        }
+    }
+    result
 }
 
 fn group_label(import_candidate: &ImportCandidate) -> GroupLabel {

@@ -205,6 +205,17 @@ impl<DB: HirDatabase> Semantics<'_, DB> {
         self.imp.descend_node_at_offset(node, offset).filter_map(|mut it| it.find_map(N::cast))
     }
 
+    /// Visit all Untyped SyntaxNode by offset inside SyntaxNode, if it is inside an attribute macro call,
+    /// descend it and find again
+    // FIXME: Rethink this API
+    pub fn visit_syntax_nodes_at_offset_with_descend<'slf>(
+        &'slf self,
+        node: &SyntaxNode,
+        offset: TextSize,
+    ) -> impl Iterator<Item = SyntaxNode> + 'slf {
+        self.imp.descend_node_at_offset(node, offset).flatten()
+    }
+
     pub fn resolve_range_pat(&self, range_pat: &ast::RangePat) -> Option<Struct> {
         self.imp.resolve_range_pat(range_pat).map(Struct::from)
     }

@@ -4,12 +4,12 @@ use hir::{FileRange, Semantics};
 use ide_db::EditionedFileId;
 use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{FileId, RootDatabase, label::Label};
-use syntax::Edition;
 use syntax::{
     AstNode, AstToken, Direction, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange,
     TextSize, TokenAtOffset,
     algo::{self, find_node_at_offset, find_node_at_range},
 };
+use syntax::{Edition, SyntaxNode};
 
 use crate::{
     Assist, AssistId, AssistKind, AssistResolveStrategy, GroupLabel, assist_config::AssistConfig,
@@ -151,6 +151,12 @@ impl<'a> AssistContext<'a> {
     }
     pub(crate) fn find_node_at_offset_with_descend<N: AstNode>(&self) -> Option<N> {
         self.sema.find_node_at_offset_with_descend(self.source_file.syntax(), self.offset())
+    }
+    pub(crate) fn visit_syntax_nodes_at_offset_with_descend(
+        &self,
+        offset: TextSize,
+    ) -> impl Iterator<Item = SyntaxNode> {
+        self.sema.visit_syntax_nodes_at_offset_with_descend(self.source_file.syntax(), offset)
     }
     /// Returns the element covered by the selection range, this excludes trailing whitespace in the selection.
     pub(crate) fn covering_element(&self) -> SyntaxElement {
