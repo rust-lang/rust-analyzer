@@ -6,10 +6,14 @@ use ide_db::{
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport},
-        insert_use::{ImportScope, insert_use, insert_use_as_alias},
+        insert_use::{
+            ImportScope, insert_multiple_use_with_alias_option, insert_use, insert_use_as_alias,
+        },
     },
 };
-use syntax::{AstNode, Edition, NodeOrToken, SyntaxElement, TextSize, ast};
+use syntax::{
+    AstNode, Edition, NodeOrToken, SyntaxElement, TextRange, WalkEvent, ast,
+};
 
 use crate::{AssistContext, AssistId, Assists, GroupLabel};
 
@@ -213,7 +217,7 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     // dedup all proposed_imports first, so we wouldn't propose the same import multiple times
     let mut all_proposed_imports = FxHashSet::default();
     let mut all_insert_use_actions = Vec::with_capacity(importable_nodes.len());
-    for (import_assets, syntax_under_caret) in importable_nodes {
+    for (import_assets, syntax_under_caret) in &importable_nodes {
         let mut proposed_imports: Vec<_> = import_assets
             .search_for_imports(&ctx.sema, cfg, ctx.config.insert_use.prefix_kind)
             .collect();
@@ -230,7 +234,7 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         };
         let scope = ImportScope::find_insert_use_container(
             &match syntax_under_caret {
-                NodeOrToken::Node(it) => it,
+                NodeOrToken::Node(it) => it.clone(),
                 NodeOrToken::Token(it) => it.parent()?,
             },
             &ctx.sema,
@@ -251,39 +255,64 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
             proposed_imports.first().expect("should have at least one available import");
         all_insert_use_actions.push((chosen_import.clone(), scope, range, edition));
     }
-    // TODO: add group to insert all use
+
     let group_label = GroupLabel("Import all missing items".to_string());
     let assist_id = AssistId("auto_import_all", AssistKind::QuickFix);
     let label = "Import all missing items";
-    for (import, scope, range, edition) in &all_insert_use_actions {
-        let actions = all_insert_use_actions.clone();
-        acc.add_group(&group_label, assist_id, label, range, |builder| {
-            for (import, scope, range, edition) in actions {
-                let scope = match scope.clone() {
-                    ImportScope::File(it) => ImportScope::File(builder.make_mut(it)),
-                    ImportScope::Module(it) => ImportScope::Module(builder.make_mut(it)),
-                    ImportScope::Block(it) => ImportScope::Block(builder.make_mut(it)),
-                };
-                match import_assets.import_candidate() {
-                    ImportCandidate::TraitAssocItem(name) | ImportCandidate::TraitMethod(name) => {
-                        insert_use_as_alias(
-                            &scope,
-                            mod_path_to_ast(&import_path, edition),
-                            &ctx.config.insert_use,
-                        );
-                    }
-                    _ => {
-                        insert_use(
-                            &scope,
-                            mod_path_to_ast(&import_path, edition),
-                            &ctx.config.insert_use,
-                        );
-                    }
-                }
-            }
+
+    // add the same import all action in all the places where we need import
+    for (_, scope, range, _) in &all_insert_use_actions {
+        acc.add_group(&group_label, assist_id, label, range.clone(), |builder| {
+            let path_alias = gen_insert_args(
+                scope,
+                importable_nodes.iter().map(|(import_assets, _)| import_assets),
+                &all_insert_use_actions,
+            );
+            let scope = match scope.clone() {
+                ImportScope::File(it) => ImportScope::File(builder.make_mut(it)),
+                ImportScope::Module(it) => ImportScope::Module(builder.make_mut(it)),
+                ImportScope::Block(it) => ImportScope::Block(builder.make_mut(it)),
+            };
+
+            insert_multiple_use_with_alias_option(&scope, &path_alias, &ctx.config.insert_use);
         });
     }
     Some(())
+}
+
+/// Find imports in the given scope
+fn gen_insert_args<'a>(
+    given_scope: &ImportScope,
+    import_assets: impl Iterator<Item = &'a ImportAssets>,
+    insert_uses: &[(LocatedImport, ImportScope, TextRange, Edition)],
+) -> Vec<(ast::Path, Option<ast::Rename>)> {
+    let mut path_alias = Vec::new();
+    for (import_assets, (import, scope, _range, edition)) in import_assets.zip(insert_uses.iter()) {
+        if scope.as_syntax_node() != given_scope.as_syntax_node() {
+            continue;
+        }
+
+        match import_assets.import_candidate() {
+            ImportCandidate::TraitAssocItem(_name) | ImportCandidate::TraitMethod(_name) => {
+                let text: &str = "use foo as _";
+                let parse = syntax::SourceFile::parse(text, *edition);
+                let node = parse
+                    .tree()
+                    .syntax()
+                    .descendants()
+                    .find_map(ast::UseTree::cast)
+                    .expect("Failed to make ast node `Rename`");
+                let alias = node.rename();
+                let ast_path = mod_path_to_ast(&import.import_path, *edition);
+                path_alias.push((ast_path, alias));
+            }
+            _ => {
+                path_alias.push((mod_path_to_ast(&import.import_path, *edition), None));
+            }
+        }
+    }
+
+    path_alias
 }
 
 pub(super) fn find_all_importable_node(
@@ -291,7 +320,9 @@ pub(super) fn find_all_importable_node(
 ) -> Vec<(ImportAssets, SyntaxElement)> {
     // walk from root to find all importable nodes
     let mut result: Vec<(ImportAssets, SyntaxElement)> = Vec::new();
-    for syntax_node in ctx.visit_syntax_nodes_at_offset_with_descend(TextSize::new(0)) {
+
+    for syntax_node in ctx.source_file().syntax().preorder() {
+        let WalkEvent::Enter(syntax_node) = syntax_node else { continue };
         let node = if ast::Path::can_cast(syntax_node.kind()) {
             let path_under_caret =
                 ast::Path::cast(syntax_node).expect("Should be able to cast to Path");
@@ -1838,5 +1869,31 @@ mod foo {
             }
             ",
         );
+    }
+
+    #[test]
+    fn basic_auto_import_all() {
+        check_assist(
+            auto_import_all,
+            r"
+mod foo { pub struct Foo; }
+mod bar { pub struct Bar; }
+
+fn main() {
+    Foo$0;
+    Bar;
+}
+",
+            r"
+use {foo::Foo, bar::Bar};
+
+mod foo { pub struct Foo; }
+mod bar { pub struct Bar; }
+
+fn main() {
+    Foo;
+    Bar;
+}
+")
     }
 }
