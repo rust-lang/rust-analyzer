@@ -263,7 +263,7 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
 
         let chosen_import =
             proposed_imports.first().expect("should have at least one available import");
-        println!("chosen_import: {:#?}", chosen_import);
+
         all_insert_use_actions.push(ImportAction {
             import: chosen_import.clone(),
             scope,
@@ -284,7 +284,7 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
                 importable_nodes.iter().map(|(import_assets, _)| import_assets),
                 &all_insert_use_actions,
             );
-            println!("path_alias: {:#?}", path_alias);
+
             let scope = match action.scope.clone() {
                 ImportScope::File(it) => ImportScope::File(builder.make_mut(it)),
                 ImportScope::Module(it) => ImportScope::Module(builder.make_mut(it)),
