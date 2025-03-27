@@ -1903,7 +1903,7 @@ fn main() {
             auto_import_all,
             r"
 mod foo { pub struct Foo; }
-mod bar { 
+mod bar {
     pub struct Bar;
     fn use_foo(){
         Foo$0;
@@ -1914,12 +1914,12 @@ fn main() {
     Foo;
     Bar;
 }
-", // FIXME(discord9): the resulting import have a strange whitespace after newline of the new import
+",
             r"
 mod foo { pub struct Foo; }
 mod bar {
     use {crate::foo::Foo};
- 
+
     pub struct Bar;
     fn use_foo(){
         Foo;

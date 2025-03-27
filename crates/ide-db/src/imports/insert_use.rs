@@ -235,7 +235,6 @@ fn insert_use_with_alias_option(
     insert_use_(scope, use_item, cfg.group);
 }
 
-
 /// Insert multiple uses with optional alias, notice this will not merge existing imports, and only happen within the same scope
 pub fn insert_multiple_use_with_alias_option(
     scope: &ImportScope,
@@ -244,7 +243,10 @@ pub fn insert_multiple_use_with_alias_option(
 ) {
     let _p = tracing::info_span!("insert_use_with_alias_option").entered();
 
-    let use_trees = path_alias.iter().map(|(path, alias)| make::use_tree(path.clone(), None, alias.clone(), false)).collect::<Vec<_>>();
+    let use_trees = path_alias
+        .iter()
+        .map(|(path, alias)| make::use_tree(path.clone(), None, alias.clone(), false))
+        .collect::<Vec<_>>();
     let use_tree_list = make::use_tree_list(use_trees);
 
     // make a `use ::{use_tree_list}`

@@ -437,9 +437,7 @@ pub fn use_tree(
     }
     ast_from_text(&buf)
 }
-pub fn use_tree_from_tree_list(
-    use_tree_list: ast::UseTreeList,
-) -> ast::UseTree {
+pub fn use_tree_from_tree_list(use_tree_list: ast::UseTreeList) -> ast::UseTree {
     let mut buf = "use ".to_owned();
     format_to!(buf, "{use_tree_list}");
 
