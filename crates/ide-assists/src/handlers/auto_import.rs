@@ -204,27 +204,39 @@ pub(super) fn find_importable_node(
     }
 }
 
+/// Represents an import action to be performed
+#[derive(Clone)]
+struct ImportAction {
+    import: LocatedImport,
+    scope: ImportScope,
+    range: TextRange,
+    edition: Edition,
+}
+
 /// Feature: Auto Import All
 /// auto import all missing imports in the current file. Share the same configuration as `auto_import`.
 /// and basically is just calling `auto_import` multiple times. But if multiple proposed imports are provided for one importable node,
 /// then this assist will automatically choose the most relevant one(as api forbid us from proposing multiple choices **multiple times** to user), also for trait import it default to import as alias `_`
+///
+/// Another limitation is that if a `Foo::bar()` where `bar()` is a trait method and both struct `Foo` and trait `Bar` are not in scope, two pass of `auto_import_all` will be required, as in the first pass, there is no way to know whether `bar()` is a trait method or not.
 pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let cfg = ctx.config.import_path_config();
 
-    let importable_nodes = find_all_importable_node(ctx);
+    let importable_nodes = find_all_importable_nodes(ctx);
     // dedup all proposed_imports first, so we wouldn't propose the same import multiple times
-    let mut all_proposed_imports = FxHashSet::default();
+    let mut all_proposed_import_paths = FxHashSet::default();
     let mut all_insert_use_actions = Vec::with_capacity(importable_nodes.len());
     for (import_assets, syntax_under_caret) in &importable_nodes {
         let mut proposed_imports: Vec<_> = import_assets
             .search_for_imports(&ctx.sema, cfg, ctx.config.insert_use.prefix_kind)
             .collect();
         // remove duplicates
-        proposed_imports.retain(|import| !all_proposed_imports.contains(import));
+        proposed_imports.retain(|import| !all_proposed_import_paths.contains(&import.import_path));
         if proposed_imports.is_empty() {
             continue;
         }
-        all_proposed_imports.extend(proposed_imports.clone());
+        all_proposed_import_paths
+            .extend(proposed_imports.iter().map(|import| import.import_path.clone()));
 
         let range = match &syntax_under_caret {
             NodeOrToken::Node(node) => ctx.sema.original_range(node).range,
@@ -251,7 +263,13 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
 
         let chosen_import =
             proposed_imports.first().expect("should have at least one available import");
-        all_insert_use_actions.push((chosen_import.clone(), scope, range, edition));
+        println!("chosen_import: {:#?}", chosen_import);
+        all_insert_use_actions.push(ImportAction {
+            import: chosen_import.clone(),
+            scope,
+            range,
+            edition,
+        });
     }
 
     let group_label = GroupLabel("Import all missing items".to_owned());
@@ -259,14 +277,15 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let label = "Import all missing items";
 
     // add the same import all action in all the places where we need import
-    for (_, scope, range, _) in &all_insert_use_actions {
-        acc.add_group(&group_label, assist_id, label, *range, |builder| {
+    for action in &all_insert_use_actions {
+        acc.add_group(&group_label, assist_id, label, action.range, |builder| {
             let path_alias = gen_insert_args(
-                scope,
+                &action.scope,
                 importable_nodes.iter().map(|(import_assets, _)| import_assets),
                 &all_insert_use_actions,
             );
-            let scope = match scope.clone() {
+            println!("path_alias: {:#?}", path_alias);
+            let scope = match action.scope.clone() {
                 ImportScope::File(it) => ImportScope::File(builder.make_mut(it)),
                 ImportScope::Module(it) => ImportScope::Module(builder.make_mut(it)),
                 ImportScope::Block(it) => ImportScope::Block(builder.make_mut(it)),
@@ -282,18 +301,19 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
 fn gen_insert_args<'a>(
     given_scope: &ImportScope,
     import_assets: impl Iterator<Item = &'a ImportAssets>,
-    insert_uses: &[(LocatedImport, ImportScope, TextRange, Edition)],
+    insert_uses: &[ImportAction],
 ) -> Vec<(ast::Path, Option<ast::Rename>)> {
     let mut path_alias = Vec::new();
-    for (import_assets, (import, scope, _range, edition)) in import_assets.zip(insert_uses.iter()) {
-        if scope.as_syntax_node() != given_scope.as_syntax_node() {
+    for (import_assets, action) in import_assets.zip(insert_uses.iter()) {
+        if action.scope.as_syntax_node() != given_scope.as_syntax_node() {
             continue;
         }
 
         match import_assets.import_candidate() {
             ImportCandidate::TraitAssocItem(_name) | ImportCandidate::TraitMethod(_name) => {
+                // get a ast node `Rename` from `use foo as _`(the same code from `insert_use_as_alias`)
                 let text: &str = "use foo as _";
-                let parse = syntax::SourceFile::parse(text, *edition);
+                let parse = syntax::SourceFile::parse(text, action.edition);
                 let node = parse
                     .tree()
                     .syntax()
@@ -301,11 +321,12 @@ fn gen_insert_args<'a>(
                     .find_map(ast::UseTree::cast)
                     .expect("Failed to make ast node `Rename`");
                 let alias = node.rename();
-                let ast_path = mod_path_to_ast(&import.import_path, *edition);
+                let ast_path = mod_path_to_ast(&action.import.import_path, action.edition);
                 path_alias.push((ast_path, alias));
             }
             _ => {
-                path_alias.push((mod_path_to_ast(&import.import_path, *edition), None));
+                path_alias
+                    .push((mod_path_to_ast(&action.import.import_path, action.edition), None));
             }
         }
     }
@@ -313,7 +334,7 @@ fn gen_insert_args<'a>(
     path_alias
 }
 
-pub(super) fn find_all_importable_node(
+pub(super) fn find_all_importable_nodes(
     ctx: &AssistContext<'_>,
 ) -> Vec<(ImportAssets, SyntaxElement)> {
     // walk from root to find all importable nodes
@@ -1991,6 +2012,66 @@ fn main() {
     Foo::foo();
 }
 ",
+        );
+    }
+
+    #[test]
+    fn auto_import_all_multiple_scopes() {
+        // This test verifies that the ImportAction struct correctly handles
+        // multiple scopes and different import types
+        check_assist_by_label(
+            auto_import_all,
+            r"
+mod foo {
+    pub struct Foo;
+    pub trait FooTrait { fn foo_method() {} }
+}
+mod bar {
+    pub struct Bar;
+    pub mod nested { pub struct Nested; }
+}
+
+fn main() {
+    // Multiple imports in the same scope
+    Foo$0;
+    Bar;
+
+    // Nested import
+    nested::Nested;
+
+    // Block scope with trait method
+    {
+        Foo::foo_method();
+    }
+}
+",
+            r"
+use {foo::Foo, bar::Bar, bar::nested};
+
+mod foo {
+    pub struct Foo;
+    pub trait FooTrait { fn foo_method() {} }
+}
+mod bar {
+    pub struct Bar;
+    pub mod nested { pub struct Nested; }
+}
+
+fn main() {
+    // Multiple imports in the same scope
+    Foo;
+    Bar;
+
+    // Nested import
+    nested::Nested;
+
+    // Block scope with trait method
+    {
+        Foo::foo_method();
+    }
+}
+",
+            "Import all missing items",
         );
     }
 }
