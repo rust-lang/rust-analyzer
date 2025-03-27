@@ -11,9 +11,7 @@ use ide_db::{
         },
     },
 };
-use syntax::{
-    AstNode, Edition, NodeOrToken, SyntaxElement, TextRange, WalkEvent, ast,
-};
+use syntax::{AstNode, Edition, NodeOrToken, SyntaxElement, TextRange, WalkEvent, ast};
 
 use crate::{AssistContext, AssistId, Assists, GroupLabel};
 
@@ -1894,6 +1892,104 @@ fn main() {
     Foo;
     Bar;
 }
-")
+",
+        )
+    }
+
+    /// only import in current scope
+    #[test]
+    fn auto_import_all_scope() {
+        check_assist_by_label(
+            auto_import_all,
+            r"
+mod foo { pub struct Foo; }
+mod bar { 
+    pub struct Bar;
+    fn use_foo(){
+        Foo$0;
+    }
+}
+
+fn main() {
+    Foo;
+    Bar;
+}
+",// FIXME(discord9): the resulting import have a strange whitespace after newline of the new import
+            r"
+mod foo { pub struct Foo; }
+mod bar {
+    use {crate::foo::Foo};
+ 
+    pub struct Bar;
+    fn use_foo(){
+        Foo;
+    }
+}
+
+fn main() {
+    Foo;
+    Bar;
+}
+","Import all missing items"
+        )
+    }
+
+    /// notice that only after struct is imported,
+    /// the `ImportAssets` can search and found
+    /// the trait.
+    #[test]
+    fn auto_import_all_two_step_struct_trait() {
+        check_assist(
+            auto_import_all,
+            r"
+mod foo { pub struct Foo; }
+mod bar { pub trait Bar{fn foo() -> bool{true}} }
+
+impl bar::Bar for foo::Foo{}
+
+fn main() {
+Foo::foo()$0;
+}
+",
+            r"
+use {foo::Foo};
+
+mod foo { pub struct Foo; }
+mod bar { pub trait Bar{fn foo() -> bool{true}} }
+
+impl bar::Bar for foo::Foo{}
+
+fn main() {
+Foo::foo();
+}
+",
+        );
+        check_assist(
+            auto_import_all,
+            r"
+use foo::Foo;
+mod foo { pub struct Foo; }
+mod bar { pub trait Bar{fn foo() -> bool{true}} }
+
+impl bar::Bar for foo::Foo{}
+
+fn main() {
+    Foo::foo()$0;
+}
+",
+            r"
+use foo::Foo;
+
+use {bar::Bar as _};
+mod foo { pub struct Foo; }
+mod bar { pub trait Bar{fn foo() -> bool{true}} }
+
+impl bar::Bar for foo::Foo{}
+
+fn main() {
+    Foo::foo();
+}
+",
+        );
     }
 }
