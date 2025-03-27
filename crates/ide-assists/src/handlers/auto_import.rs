@@ -255,7 +255,7 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     }
 
     let group_label = GroupLabel("Import all missing items".to_owned());
-    let assist_id = AssistId("auto_import_all", AssistKind::QuickFix);
+    let assist_id = AssistId::quick_fix("auto_import_all");
     let label = "Import all missing items";
 
     // add the same import all action in all the places where we need import
