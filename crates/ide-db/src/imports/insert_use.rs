@@ -249,7 +249,7 @@ pub fn insert_multiple_use_with_alias_option(
 
     // make a `use ::{use_tree_list}`
     let use_tree = make::use_tree_from_tree_list(use_tree_list);
-    
+
     let use_item = make::use_(None, use_tree).clone_for_update();
 
     // not merge into existing imports, as those multiple use might need to be revised by user
