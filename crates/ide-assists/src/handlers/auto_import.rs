@@ -254,13 +254,13 @@ pub(crate) fn auto_import_all(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         all_insert_use_actions.push((chosen_import.clone(), scope, range, edition));
     }
 
-    let group_label = GroupLabel("Import all missing items".to_string());
+    let group_label = GroupLabel("Import all missing items".to_owned());
     let assist_id = AssistId("auto_import_all", AssistKind::QuickFix);
     let label = "Import all missing items";
 
     // add the same import all action in all the places where we need import
     for (_, scope, range, _) in &all_insert_use_actions {
-        acc.add_group(&group_label, assist_id, label, range.clone(), |builder| {
+        acc.add_group(&group_label, assist_id, label, *range, |builder| {
             let path_alias = gen_insert_args(
                 scope,
                 importable_nodes.iter().map(|(import_assets, _)| import_assets),
@@ -1914,7 +1914,7 @@ fn main() {
     Foo;
     Bar;
 }
-",// FIXME(discord9): the resulting import have a strange whitespace after newline of the new import
+", // FIXME(discord9): the resulting import have a strange whitespace after newline of the new import
             r"
 mod foo { pub struct Foo; }
 mod bar {
@@ -1930,7 +1930,8 @@ fn main() {
     Foo;
     Bar;
 }
-","Import all missing items"
+",
+            "Import all missing items",
         )
     }
 
