@@ -241,7 +241,7 @@ pub fn insert_multiple_use_with_alias_option(
     path_alias: &[(ast::Path, Option<ast::Rename>)],
     cfg: &InsertUseConfig,
 ) {
-    let _p = tracing::info_span!("insert_use_with_alias_option").entered();
+    let _p = tracing::info_span!("insert_multiple_use_with_alias_option").entered();
 
     let use_trees = path_alias
         .iter()
