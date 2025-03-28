@@ -116,7 +116,7 @@ fn resolve_doc_path_on_(
     ns: Option<Namespace>,
 ) -> Option<DocLinkDef> {
     let resolver = match attr_id {
-        AttrDefId::ModuleId(it) => it.resolver(db.upcast()),
+        AttrDefId::ModuleId(it) => Module::from(it).parent(db)?.id.resolver(db.upcast()),
         AttrDefId::FieldId(it) => it.parent.resolver(db.upcast()),
         AttrDefId::AdtId(it) => it.resolver(db.upcast()),
         AttrDefId::FunctionId(it) => it.resolver(db.upcast()),

@@ -576,6 +576,24 @@ struct S$0(i32);
 }
 
 #[test]
+fn doc_links_module() {
+    check_doc_links(
+        r#"
+/// [`M`]
+/// [`M::f`]
+/// [`M::S`]
+mod M$0 {
+  //^ M
+    pub fn f() {}
+         //^ M::f
+    pub struct S;
+             //^ M::S
+}
+"#,
+    );
+}
+
+#[test]
 fn rewrite_html_root_url() {
     check_rewrite(
         r#"
