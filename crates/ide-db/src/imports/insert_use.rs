@@ -235,6 +235,31 @@ fn insert_use_with_alias_option(
     insert_use_(scope, use_item, cfg.group);
 }
 
+/// Insert multiple uses with optional alias, notice this will not merge existing imports, and only happen within the same scope
+pub fn insert_multiple_use_with_alias_option(
+    scope: &ImportScope,
+    path_alias: &[(ast::Path, Option<ast::Rename>)],
+    cfg: &InsertUseConfig,
+) {
+    let _p = tracing::info_span!("insert_multiple_use_with_alias_option").entered();
+
+    let use_trees = path_alias
+        .iter()
+        .map(|(path, alias)| make::use_tree(path.clone(), None, alias.clone(), false))
+        .collect::<Vec<_>>();
+    let use_tree_list = make::use_tree_list(use_trees);
+
+    // make a `use ::{use_tree_list}`
+    let use_tree = make::use_tree_from_tree_list(use_tree_list);
+
+    let use_item = make::use_(None, use_tree).clone_for_update();
+
+    // not merge into existing imports, as those multiple use might need to be revised by user
+    // and having them in one place might help user to revise them
+    // so look for the place we have to insert to
+    insert_use_(scope, use_item, cfg.group);
+}
+
 pub fn ast_to_remove_for_path_in_use_stmt(path: &ast::Path) -> Option<Box<dyn Removable>> {
     // FIXME: improve this
     if path.parent_path().is_some() {
