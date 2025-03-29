@@ -11,7 +11,11 @@
 //! `ReachedFixedPoint` signals about this.
 
 use either::Either;
-use hir_expand::{Lookup, name::Name};
+use hir_expand::{
+    Lookup,
+    mod_path::{ModPath, PathKind},
+    name::Name,
+};
 use span::Edition;
 use triomphe::Arc;
 
@@ -21,7 +25,6 @@ use crate::{
     item_scope::{BUILTIN_SCOPE, ImportOrExternCrate},
     item_tree::FieldsShape,
     nameres::{BlockInfo, BuiltinShadowMode, DefMap, LocalDefMap, MacroSubNs, sub_namespace_match},
-    path::{ModPath, PathKind},
     per_ns::PerNs,
     visibility::{RawVisibility, Visibility},
 };

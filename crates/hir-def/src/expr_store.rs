@@ -1,10 +1,11 @@
 //! Defines `ExpressionStore`: a lowered representation of functions, statics and
 //! consts.
-mod body;
-mod lower;
-mod pretty;
+pub mod body;
+mod expander;
+pub mod lower;
+pub mod path;
+pub(crate) mod pretty;
 pub mod scope;
-
 #[cfg(test)]
 mod tests;
 
@@ -12,28 +13,33 @@ use std::ops::{Deref, Index};
 
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
-use hir_expand::{ExpandError, InFile, name::Name};
+use hir_expand::{ExpandError, InFile, mod_path::ModPath, name::Name};
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use span::{Edition, MacroFileId, SyntaxContext};
-use syntax::{AstPtr, SyntaxNodePtr, ast};
+use syntax::{
+    AstPtr, SyntaxNodePtr,
+    ast::{self, HasGenericParams},
+};
 use triomphe::Arc;
 use tt::TextRange;
 
 use crate::{
-    BlockId, DefWithBodyId, Lookup, SyntheticSyntax,
+    BlockId, GenericDefId, SyntheticSyntax,
     db::DefDatabase,
+    expr_store::path::Path,
     hir::{
         Array, AsmOperand, Binding, BindingId, Expr, ExprId, ExprOrPatId, Label, LabelId, Pat,
         PatId, RecordFieldPat, Statement,
     },
     nameres::DefMap,
-    path::{ModPath, Path},
-    type_ref::{TypeRef, TypeRefId, TypesMap, TypesSourceMap},
+    src::HasSource,
+    type_ref::{PathId, TypeRef, TypeRefId, TypesMap, TypesSourceMap},
 };
 
 pub use self::body::{Body, BodySourceMap};
+pub use self::lower::hir_segment_to_ast_segment;
 
 /// A wrapper around [`span::SyntaxContextId`] that is intended only for comparisons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -86,10 +92,10 @@ pub struct ExpressionStore {
     pub pats: Arena<Pat>,
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
+    pub types: TypesMap,
     /// Id of the closure/coroutine that owns the corresponding binding. If a binding is owned by the
     /// top level expression, it will not be listed in here.
     pub binding_owners: FxHashMap<BindingId, ExprId>,
-    pub types: TypesMap,
     /// Block expressions in this store that may contain inner items.
     block_scopes: Box<[BlockId]>,
 
@@ -178,7 +184,7 @@ pub enum ExpressionStoreDiagnostics {
 }
 
 impl ExpressionStoreBuilder {
-    fn finish(self) -> ExpressionStore {
+    pub fn finish(self) -> ExpressionStore {
         let Self {
             block_scopes,
             mut exprs,
@@ -599,6 +605,14 @@ impl Index<TypeRefId> for ExpressionStore {
 
     fn index(&self, b: TypeRefId) -> &TypeRef {
         &self.types[b]
+    }
+}
+impl Index<PathId> for ExpressionStore {
+    type Output = Path;
+
+    #[inline]
+    fn index(&self, index: PathId) -> &Self::Output {
+        &self.types[index]
     }
 }
 

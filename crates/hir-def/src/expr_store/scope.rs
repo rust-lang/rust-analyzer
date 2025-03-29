@@ -275,7 +275,7 @@ fn compute_expr_scopes(
         }
         Expr::Const(id) => {
             let mut scope = scopes.root_scope();
-            compute_expr_scopes(scopes, resolve_const_block(*id), &mut scope);
+            compute_expr_scopes(scopes, *id, &mut scope);
         }
         Expr::Unsafe { id, statements, tail } | Expr::Async { id, statements, tail } => {
             let mut scope = scopes.new_block_scope(*scope, *id, None);

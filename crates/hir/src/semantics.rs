@@ -13,11 +13,9 @@ use std::{
 use either::Either;
 use hir_def::{
     AsMacroCall, DefWithBodyId, FunctionId, MacroId, StructId, TraitId, VariantId,
-    expr_store::{Body, ExprOrPatSource},
+    expr_store::{Body, ExprOrPatSource, path::Path},
     hir::{BindingId, Expr, ExprId, ExprOrPatId, Pat},
-    lower::LowerCtx,
     nameres::{MacroSubNs, ModuleOrigin},
-    path::ModPath,
     resolver::{self, HasResolver, Resolver, TypeNs},
     type_ref::{Mutability, TypesMap, TypesSourceMap},
 };
@@ -29,6 +27,7 @@ use hir_expand::{
     files::InRealFile,
     hygiene::SyntaxContextExt as _,
     inert_attr_macro::find_builtin_attr_idx,
+    mod_path::ModPath,
     name::AsName,
 };
 use hir_ty::diagnostics::unsafe_operations_for_body;
@@ -50,7 +49,7 @@ use crate::{
     Adjust, Adjustment, Adt, AutoBorrow, BindingMode, BuiltinAttr, Callable, Const, ConstParam,
     Crate, DefWithBody, DeriveHelper, Enum, Field, Function, GenericSubstitution, HasSource,
     HirFileId, Impl, InFile, InlineAsmOperand, ItemInNs, Label, LifetimeParam, Local, Macro,
-    Module, ModuleDef, Name, OverloadedDeref, Path, ScopeDef, Static, Struct, ToolModule, Trait,
+    Module, ModuleDef, Name, OverloadedDeref, ScopeDef, Static, Struct, ToolModule, Trait,
     TraitAlias, TupleField, Type, TypeAlias, TypeParam, Union, Variant, VariantDef,
     db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},

@@ -62,7 +62,8 @@ use std::ops::Deref;
 
 use base_db::Crate;
 use hir_expand::{
-    ErasedAstId, HirFileId, InFile, MacroCallId, MacroDefId, name::Name, proc_macro::ProcMacroKind,
+    ErasedAstId, HirFileId, InFile, MacroCallId, MacroDefId, mod_path::ModPath, name::Name,
+    proc_macro::ProcMacroKind,
 };
 use intern::Symbol;
 use itertools::Itertools;
@@ -81,7 +82,6 @@ use crate::{
     item_scope::{BuiltinShadowMode, ItemScope},
     item_tree::{ItemTreeId, Mod, TreeId},
     nameres::{diagnostics::DefDiagnostic, path_resolution::ResolveMode},
-    path::ModPath,
     per_ns::PerNs,
     visibility::{Visibility, VisibilityExplicitness},
 };
