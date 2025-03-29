@@ -285,7 +285,9 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
             TypeNs::BuiltinType(it) => self.lower_path_inner(it.into(), infer_args),
             TypeNs::TypeAliasId(it) => self.lower_path_inner(it.into(), infer_args),
             // FIXME: report error
-            TypeNs::EnumVariantId(_) => return (TyKind::Error.intern(Interner), None),
+            TypeNs::EnumVariantId(_) | TypeNs::ModuleId(_) => {
+                return (TyKind::Error.intern(Interner), None);
+            }
         };
 
         self.skip_resolved_segment();
@@ -315,6 +317,9 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
             }
             TypeNs::BuiltinType(_) => {
                 prohibit_generics_on_resolved(GenericArgsProhibitedReason::PrimitiveTy)
+            }
+            TypeNs::ModuleId(_) => {
+                prohibit_generics_on_resolved(GenericArgsProhibitedReason::Module)
             }
             TypeNs::AdtId(_)
             | TypeNs::EnumVariantId(_)

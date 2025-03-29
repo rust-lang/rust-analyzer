@@ -102,9 +102,8 @@ pub enum TypeNs {
     BuiltinType(BuiltinType),
     TraitId(TraitId),
     TraitAliasId(TraitAliasId),
-    // Module belong to type ns, but the resolver is used when all module paths
-    // are fully resolved.
-    // ModuleId(ModuleId)
+
+    ModuleId(ModuleId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -247,6 +246,24 @@ impl Resolver {
                 }
                 Scope::BlockScope(m) => {
                     if let Some(res) = m.resolve_path_in_type_ns(db, path) {
+                        let res = match res.0 {
+                            TypeNs::ModuleId(_) => {
+                                if let Some(ModuleDefId::BuiltinType(builtin)) = BUILTIN_SCOPE
+                                    .get(first_name)
+                                    .and_then(|builtin| builtin.take_types())
+                                {
+                                    (
+                                        TypeNs::BuiltinType(builtin),
+                                        remaining_idx(),
+                                        None,
+                                        ResolvePathResultPrefixInfo::default(),
+                                    )
+                                } else {
+                                    res
+                                }
+                            }
+                            _ => res,
+                        };
                         return Some(res);
                     }
                 }
@@ -1204,11 +1221,12 @@ fn to_type_ns(per_ns: PerNs) -> Option<(TypeNs, Option<ImportOrExternCrate>)> {
         ModuleDefId::TraitId(it) => TypeNs::TraitId(it),
         ModuleDefId::TraitAliasId(it) => TypeNs::TraitAliasId(it),
 
+        ModuleDefId::ModuleId(it) => TypeNs::ModuleId(it),
+
         ModuleDefId::FunctionId(_)
         | ModuleDefId::ConstId(_)
         | ModuleDefId::MacroId(_)
-        | ModuleDefId::StaticId(_)
-        | ModuleDefId::ModuleId(_) => return None,
+        | ModuleDefId::StaticId(_) => return None,
     };
     Some((res, def.import))
 }

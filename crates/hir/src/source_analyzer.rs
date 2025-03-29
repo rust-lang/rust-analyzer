@@ -1422,6 +1422,7 @@ fn resolve_hir_path_(
             TypeNs::BuiltinType(it) => PathResolution::Def(BuiltinType::from(it).into()),
             TypeNs::TraitId(it) => PathResolution::Def(Trait::from(it).into()),
             TypeNs::TraitAliasId(it) => PathResolution::Def(TraitAlias::from(it).into()),
+            TypeNs::ModuleId(it) => PathResolution::Def(ModuleDef::Module(it.into())),
         };
         match unresolved {
             Some(unresolved) => resolver
@@ -1555,6 +1556,7 @@ fn resolve_hir_path_qualifier(
             TypeNs::BuiltinType(it) => PathResolution::Def(BuiltinType::from(it).into()),
             TypeNs::TraitId(it) => PathResolution::Def(Trait::from(it).into()),
             TypeNs::TraitAliasId(it) => PathResolution::Def(TraitAlias::from(it).into()),
+            TypeNs::ModuleId(it) => PathResolution::Def(ModuleDef::Module(it.into())),
         };
         match unresolved {
             Some(unresolved) => resolver
