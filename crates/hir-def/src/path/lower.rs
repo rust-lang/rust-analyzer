@@ -129,10 +129,8 @@ pub(super) fn lower_path(ctx: &mut LowerCtx<'_>, mut path: ast::Path) -> Option<
                                 args: iter::once(self_type)
                                     .chain(it.args.iter().cloned())
                                     .collect(),
-
                                 has_self_type: true,
-                                bindings: it.bindings.clone(),
-                                parenthesized: it.parenthesized,
+                                ..it
                             },
                             None => GenericArgs {
                                 args: Box::new([self_type]),
@@ -271,6 +269,7 @@ pub(super) fn lower_generic_args(
     lower_ctx: &mut LowerCtx<'_>,
     node: ast::GenericArgList,
 ) -> Option<GenericArgs> {
+    // This needs to be kept in sync with `hir_generic_arg_to_ast()`.
     let mut args = Vec::new();
     let mut bindings = Vec::new();
     for generic_arg in node.generic_args() {
@@ -281,6 +280,7 @@ pub(super) fn lower_generic_args(
                 args.push(GenericArg::Type(type_ref));
             }
             ast::GenericArg::AssocTypeArg(assoc_type_arg) => {
+                // This needs to be kept in sync with `hir_assoc_type_binding_to_ast()`.
                 if assoc_type_arg.param_list().is_some() {
                     // We currently ignore associated return type bounds.
                     continue;
@@ -332,6 +332,36 @@ pub(super) fn lower_generic_args(
         bindings: bindings.into_boxed_slice(),
         parenthesized: GenericArgsParentheses::No,
     })
+}
+
+/// This function find the AST fragment that corresponds to an `AssociatedTypeBinding` in the HIR.
+pub fn hir_assoc_type_binding_to_ast(
+    segment_args: &ast::GenericArgList,
+    binding_idx: u32,
+) -> Option<ast::AssocTypeArg> {
+    segment_args
+        .generic_args()
+        .filter_map(|arg| match arg {
+            ast::GenericArg::AssocTypeArg(it) => Some(it),
+            _ => None,
+        })
+        .filter(|binding| binding.param_list().is_none() && binding.name_ref().is_some())
+        .nth(binding_idx as usize)
+}
+
+/// This function find the AST generic argument from the one in the HIR. Does not support the `Self` argument.
+pub fn hir_generic_arg_to_ast(
+    args: &ast::GenericArgList,
+    arg_idx: u32,
+    has_self_arg: bool,
+) -> Option<ast::GenericArg> {
+    args.generic_args()
+        .filter(|arg| match arg {
+            ast::GenericArg::AssocTypeArg(_) => false,
+            ast::GenericArg::LifetimeArg(arg) => arg.lifetime().is_some(),
+            ast::GenericArg::ConstArg(_) | ast::GenericArg::TypeArg(_) => true,
+        })
+        .nth(arg_idx as usize - has_self_arg as usize)
 }
 
 /// Collect `GenericArgs` from the parts of a fn-like path, i.e. `Fn(X, Y)

@@ -21,7 +21,6 @@ use hir_def::{
     type_ref::TypesMap,
 };
 use itertools::chain;
-use stdx::TupleExt;
 use triomphe::Arc;
 
 use crate::{Interner, Substitution, db::HirDatabase, lt_to_placeholder_idx, to_placeholder_idx};
@@ -77,12 +76,6 @@ impl Generics {
         self.params.iter_type_or_consts()
     }
 
-    pub(crate) fn iter_self_type_or_consts_id(
-        &self,
-    ) -> impl DoubleEndedIterator<Item = GenericParamId> + '_ {
-        self.params.iter_type_or_consts().map(from_toc_id(self)).map(TupleExt::head)
-    }
-
     /// Iterate over the params followed by the parent params.
     pub(crate) fn iter(
         &self,
@@ -132,6 +125,10 @@ impl Generics {
         self.params.len()
     }
 
+    pub(crate) fn len_lifetimes_self(&self) -> usize {
+        self.params.len_lifetimes()
+    }
+
     /// (parent total, self param, type params, const params, impl trait list, lifetimes)
     pub(crate) fn provenance_split(&self) -> (usize, bool, usize, usize, usize, usize) {
         let mut self_param = false;
@@ -147,7 +144,7 @@ impl Generics {
             TypeOrConstParamData::ConstParamData(_) => const_params += 1,
         });
 
-        let lifetime_params = self.params.iter_lt().count();
+        let lifetime_params = self.params.len_lifetimes();
 
         let parent_len = self.parent_generics().map_or(0, Generics::len);
         (parent_len, self_param, type_params, const_params, impl_trait_params, lifetime_params)
