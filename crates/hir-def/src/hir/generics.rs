@@ -8,7 +8,7 @@ use triomphe::Arc;
 use crate::{
     AdtId, ConstParamId, GenericDefId, LifetimeParamId, TypeOrConstParamId, TypeParamId,
     db::DefDatabase,
-    expr_store::ExpressionStore,
+    expr_store::{ExpressionStore, ExpressionStoreSourceMap},
     type_ref::{ConstRef, LifetimeRef, TypeBound, TypeRefId},
 };
 
@@ -216,6 +216,7 @@ impl GenericParams {
             }
         }
     }
+
     pub fn generic_params_and_store(
         db: &dyn DefDatabase,
         def: GenericDefId,
@@ -260,6 +261,54 @@ impl GenericParams {
             GenericDefId::TypeAliasId(id) => {
                 let sig = db.type_alias_signature(id);
                 (sig.generic_params.clone(), sig.store.clone())
+            }
+        }
+    }
+
+    pub fn generic_params_and_store_and_source_map(
+        db: &dyn DefDatabase,
+        def: GenericDefId,
+    ) -> (Arc<GenericParams>, Arc<ExpressionStore>, Arc<ExpressionStoreSourceMap>) {
+        match def {
+            GenericDefId::AdtId(AdtId::EnumId(id)) => {
+                let (sig, sm) = db.enum_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::AdtId(AdtId::StructId(id)) => {
+                let (sig, sm) = db.struct_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::AdtId(AdtId::UnionId(id)) => {
+                let (sig, sm) = db.union_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::ConstId(id) => {
+                let (sig, sm) = db.const_signature_with_source_map(id);
+                (EMPTY.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::FunctionId(id) => {
+                let (sig, sm) = db.function_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::ImplId(id) => {
+                let (sig, sm) = db.impl_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::StaticId(id) => {
+                let (sig, sm) = db.static_signature_with_source_map(id);
+                (EMPTY.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::TraitAliasId(id) => {
+                let (sig, sm) = db.trait_alias_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::TraitId(id) => {
+                let (sig, sm) = db.trait_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
+            }
+            GenericDefId::TypeAliasId(id) => {
+                let (sig, sm) = db.type_alias_signature_with_source_map(id);
+                (sig.generic_params.clone(), sig.store.clone(), sm)
             }
         }
     }

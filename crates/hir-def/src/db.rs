@@ -308,6 +308,13 @@ pub trait DefDatabase:
         def: GenericDefId,
     ) -> (Arc<GenericParams>, Arc<ExpressionStore>);
 
+    #[salsa::transparent]
+    #[salsa::invoke(GenericParams::generic_params_and_store_and_source_map)]
+    fn generic_params_and_store_and_source_map(
+        &self,
+        def: GenericDefId,
+    ) -> (Arc<GenericParams>, Arc<ExpressionStore>, Arc<ExpressionStoreSourceMap>);
+
     // region:attrs
 
     #[salsa::invoke_actual(Attrs::fields_attrs_query)]

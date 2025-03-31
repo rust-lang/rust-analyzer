@@ -512,10 +512,7 @@ fn main() {
 "#,
             expect![[r#"
                 foo!
-                Expansion had errors:
-                expected ident: `BAD`
-
-            "#]],
+                bar!()"#]],
         );
     }
 

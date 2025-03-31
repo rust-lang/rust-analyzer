@@ -34,7 +34,8 @@ use triomphe::Arc;
 
 use crate::{
     AdtId, BlockId, BlockLoc, ConstBlockLoc, DefWithBodyId, FunctionId, GenericDefId, ImplId,
-    ItemTreeLoc, MacroId, ModuleDefId, ModuleId, StructId, TraitId, TypeAliasId, UnresolvedMacro,
+    ItemTreeLoc, MacroId, ModuleDefId, ModuleId, StructId, TraitAliasId, TraitId, TypeAliasId,
+    UnresolvedMacro,
     attr::Attrs,
     builtin_type::BuiltinUint,
     db::DefDatabase,
@@ -263,6 +264,20 @@ pub(crate) fn lower_trait(
     module: ModuleId,
     trait_syntax: InFile<ast::Trait>,
     trait_id: TraitId,
+) -> (ExpressionStore, ExpressionStoreSourceMap, Arc<GenericParams>) {
+    let mut expr_collector = ExprCollector::new(db, module, trait_syntax.file_id);
+    let mut collector = generics::GenericParamsCollector::new(&mut expr_collector, trait_id.into());
+    collector.fill_self_param(trait_syntax.value.type_bound_list());
+    collector.lower(trait_syntax.value.generic_param_list(), trait_syntax.value.where_clause());
+    let params = collector.finish();
+    (expr_collector.store.finish(), expr_collector.source_map, params)
+}
+
+pub(crate) fn lower_trait_alias(
+    db: &dyn DefDatabase,
+    module: ModuleId,
+    trait_syntax: InFile<ast::TraitAlias>,
+    trait_id: TraitAliasId,
 ) -> (ExpressionStore, ExpressionStoreSourceMap, Arc<GenericParams>) {
     let mut expr_collector = ExprCollector::new(db, module, trait_syntax.file_id);
     let mut collector = generics::GenericParamsCollector::new(&mut expr_collector, trait_id.into());

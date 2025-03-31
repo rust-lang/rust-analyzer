@@ -19,7 +19,8 @@ use crate::{
     expr_store::{
         ExpressionStore, ExpressionStoreSourceMap,
         lower::{
-            ExprCollector, lower_function, lower_generic_params, lower_trait, lower_type_alias,
+            ExprCollector, lower_function, lower_generic_params, lower_trait, lower_trait_alias,
+            lower_type_alias,
         },
     },
     hir::{ExprId, PatId, generics::GenericParams},
@@ -468,20 +469,13 @@ impl TraitAliasSignature {
         let loc = id.lookup(db);
         let item_tree = loc.id.item_tree(db);
 
-        let hir_expand::files::InFileWrapper { file_id, value } = loc.source(db);
-        let (store, generic_params, source_map) = lower_generic_params(
-            db,
-            loc.container,
-            id.into(),
-            file_id,
-            value.generic_param_list(),
-            value.where_clause(),
-        );
+        let source = loc.source(db);
+        let (store, source_map, generic_params) = lower_trait_alias(db, loc.container, source, id);
 
         (
             Arc::new(TraitAliasSignature {
                 generic_params,
-                store,
+                store: Arc::new(store),
                 name: item_tree[loc.id.value].name.clone(),
             }),
             Arc::new(source_map),

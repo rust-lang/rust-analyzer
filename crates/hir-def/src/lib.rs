@@ -670,13 +670,19 @@ impl GeneralConstId {
     }
 }
 
-/// The defs which have a body.
+/// The defs which have a body (have root expressions for type inference).
 #[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Supertype)]
 pub enum DefWithBodyId {
     FunctionId(FunctionId),
     StaticId(StaticId),
     ConstId(ConstId),
     VariantId(EnumVariantId),
+    // /// All fields of a variant are inference roots
+    // VariantId(VariantId),
+    // /// The signature can contain inference roots in a bunch of places
+    // /// like const parameters or const arguments in paths
+    // This should likely be kept on its own with a separate query
+    // GenericDefId(GenericDefId),
 }
 impl_from!(FunctionId, ConstId, StaticId for DefWithBodyId);
 

@@ -1349,9 +1349,8 @@ impl<'db> SemanticsImpl<'db> {
     pub fn resolve_trait(&self, path: &ast::Path) -> Option<Trait> {
         let parent_ty = path.syntax().parent().and_then(ast::Type::cast)?;
         let analyze = self.analyze(path.syntax())?;
-        let ty =
-            analyze.body_source_map()?.store.node_type(InFile::new(analyze.file_id, &parent_ty))?;
-        let path = match &analyze.body()?.store.types[ty] {
+        let ty = analyze.store_sm()?.node_type(InFile::new(analyze.file_id, &parent_ty))?;
+        let path = match &analyze.store()?.types[ty] {
             hir_def::type_ref::TypeRef::Path(path) => path,
             _ => return None,
         };
@@ -1749,14 +1748,26 @@ impl<'db> SemanticsImpl<'db> {
                     SourceAnalyzer::new_for_body_no_infer(self.db, def, node, offset)
                 });
             }
-            ChildContainer::TraitId(it) => it.resolver(self.db.upcast()),
-            ChildContainer::TraitAliasId(it) => it.resolver(self.db.upcast()),
-            ChildContainer::ImplId(it) => it.resolver(self.db.upcast()),
-            ChildContainer::ModuleId(it) => it.resolver(self.db.upcast()),
-            ChildContainer::EnumId(it) => it.resolver(self.db.upcast()),
+            ChildContainer::TraitId(it) => {
+                return Some(SourceAnalyzer::new_generic_def(self.db, it.into(), node, offset));
+            }
+            ChildContainer::TraitAliasId(it) => {
+                return Some(SourceAnalyzer::new_generic_def(self.db, it.into(), node, offset));
+            }
+            ChildContainer::ImplId(it) => {
+                return Some(SourceAnalyzer::new_generic_def(self.db, it.into(), node, offset));
+            }
+            ChildContainer::EnumId(it) => {
+                return Some(SourceAnalyzer::new_generic_def(self.db, it.into(), node, offset));
+            }
+            ChildContainer::TypeAliasId(it) => {
+                return Some(SourceAnalyzer::new_generic_def(self.db, it.into(), node, offset));
+            }
+            ChildContainer::GenericDefId(it) => {
+                return Some(SourceAnalyzer::new_generic_def(self.db, it, node, offset));
+            }
             ChildContainer::VariantId(it) => it.resolver(self.db.upcast()),
-            ChildContainer::TypeAliasId(it) => it.resolver(self.db.upcast()),
-            ChildContainer::GenericDefId(it) => it.resolver(self.db.upcast()),
+            ChildContainer::ModuleId(it) => it.resolver(self.db.upcast()),
         };
         Some(SourceAnalyzer::new_for_resolver(resolver, node))
     }
