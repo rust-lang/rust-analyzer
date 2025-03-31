@@ -32,7 +32,6 @@ fn has_destructor(db: &dyn HirDatabase, adt: AdtId) -> bool {
         },
         None => db.trait_impls_in_crate(module.krate()),
     };
-
     impls.for_trait_and_self_ty(drop_trait, TyFingerprint::Adt(adt)).next().is_some()
 }
 

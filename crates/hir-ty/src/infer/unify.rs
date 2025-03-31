@@ -1027,7 +1027,6 @@ mod resolve {
                     .assert_ty_ref(Interner)
                     .clone();
             }
-
             if let Some(known_ty) = self.table.var_unification_table.probe_var(var) {
                 // known_ty may contain other variables that are known by now
                 self.var_stack.push(var);

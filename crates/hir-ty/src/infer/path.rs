@@ -159,9 +159,10 @@ impl InferenceContext<'_> {
         let mut ctx = TyLoweringContext::new(
             self.db,
             &self.resolver,
-            &self.body,
+            self.body,
             &self.diagnostics,
             InferenceTyDiagnosticSource::Body,
+            self.generic_def,
         );
         let mut path_ctx = if no_diagnostics {
             ctx.at_path_forget_diagnostics(path)

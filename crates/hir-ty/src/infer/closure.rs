@@ -501,10 +501,7 @@ impl CapturedItemWithoutTy {
                     Ok(BoundVar::new(outer_binder, idx).to_ty(Interner))
                 }
             }
-            let Some(generics) = ctx.generics() else {
-                return Binders::empty(Interner, ty);
-            };
-            let filler = &mut Filler { db: ctx.db, generics };
+            let filler = &mut Filler { db: ctx.db, generics: ctx.generics() };
             let result = ty.clone().try_fold_with(filler, DebruijnIndex::INNERMOST).unwrap_or(ty);
             make_binders(ctx.db, filler.generics, result)
         }
@@ -525,7 +522,6 @@ impl InferenceContext<'_> {
             return None;
         }
         let hygiene = self.body.expr_or_pat_path_hygiene(id);
-
         self.resolver.resolve_path_in_value_ns_fully(self.db.upcast(), path, hygiene).and_then(
             |result| match result {
                 ValueNs::LocalBinding(binding) => {

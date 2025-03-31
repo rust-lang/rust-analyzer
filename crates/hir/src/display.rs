@@ -654,7 +654,7 @@ fn write_where_predicates(
     };
 
     let write_target = |target: &WherePredicateTypeTarget, f: &mut HirFormatter<'_>| match target {
-        WherePredicateTypeTarget::TypeRef(ty) => ty.hir_fmt(f, &store),
+        WherePredicateTypeTarget::TypeRef(ty) => ty.hir_fmt(f, store),
         WherePredicateTypeTarget::TypeOrConstParam(id) => match params[*id].name() {
             Some(name) => write!(f, "{}", name.display(f.db.upcast(), f.edition())),
             None => f.write_str("{unnamed}"),
@@ -682,7 +682,7 @@ fn write_where_predicates(
             TypeBound { target, bound } => {
                 write_target(target, f)?;
                 f.write_str(": ")?;
-                bound.hir_fmt(f, &store)?;
+                bound.hir_fmt(f, store)?;
             }
             Lifetime { target, bound } => {
                 let target = target.name.display(f.db.upcast(), f.edition());
@@ -695,14 +695,14 @@ fn write_where_predicates(
                 write!(f, "for<{lifetimes}> ")?;
                 write_target(target, f)?;
                 f.write_str(": ")?;
-                bound.hir_fmt(f, &store)?;
+                bound.hir_fmt(f, store)?;
             }
         }
 
         while let Some(nxt) = iter.next_if(|nxt| check_same_target(pred, nxt)) {
             f.write_str(" + ")?;
             match nxt {
-                TypeBound { bound, .. } | ForLifetime { bound, .. } => bound.hir_fmt(f, &store)?,
+                TypeBound { bound, .. } | ForLifetime { bound, .. } => bound.hir_fmt(f, store)?,
                 Lifetime { bound, .. } => {
                     write!(f, "{}", bound.name.display(f.db.upcast(), f.edition()))?
                 }

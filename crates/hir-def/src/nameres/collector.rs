@@ -581,6 +581,7 @@ impl DefCollector<'_> {
         &mut self,
         def: ProcMacroDef,
         id: ItemTreeId<item_tree::Function>,
+        ast_id: AstId<ast::Fn>,
         fn_id: FunctionId,
     ) {
         let kind = def.kind.to_basedb_kind();
@@ -604,6 +605,8 @@ impl DefCollector<'_> {
             edition: self.def_map.data.edition,
         }
         .intern(self.db);
+
+        self.def_map.macro_def_to_macro_id.insert(ast_id.erase(), proc_macro_id.into());
         self.define_proc_macro(def.name.clone(), proc_macro_id);
         let crate_data = Arc::get_mut(&mut self.def_map.data).unwrap();
         if let ProcMacroKind::Derive { helpers } = def.kind {
@@ -1840,6 +1843,7 @@ impl ModCollector<'_, '_> {
                             self.def_collector.export_proc_macro(
                                 proc_macro,
                                 ItemTreeId::new(self.tree_id, id),
+                                InFile::new(self.file_id(), self.item_tree[id].ast_id()),
                                 fn_id,
                             );
                         }
@@ -2353,6 +2357,10 @@ impl ModCollector<'_, '_> {
             edition: self.def_collector.def_map.data.edition,
         }
         .intern(self.def_collector.db);
+        self.def_collector.def_map.macro_def_to_macro_id.insert(
+            InFile::new(self.file_id(), self.item_tree[id].ast_id()).erase(),
+            macro_id.into(),
+        );
         self.def_collector.define_macro_rules(
             self.module_id,
             mac.name.clone(),
@@ -2417,6 +2425,10 @@ impl ModCollector<'_, '_> {
             edition: self.def_collector.def_map.data.edition,
         }
         .intern(self.def_collector.db);
+        self.def_collector.def_map.macro_def_to_macro_id.insert(
+            InFile::new(self.file_id(), self.item_tree[id].ast_id()).erase(),
+            macro_id.into(),
+        );
         self.def_collector.define_macro_def(
             self.module_id,
             mac.name.clone(),

@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 
 use either::Either;
+use hir_def::GenericDefId;
 use hir_def::expr_store::ExpressionStore;
 use hir_def::expr_store::path::Path;
 use hir_def::{hir::ExprOrPatId, resolver::Resolver};
@@ -63,8 +64,9 @@ impl<'a> InferenceTyLoweringContext<'a> {
         store: &'a ExpressionStore,
         diagnostics: &'a Diagnostics,
         source: InferenceTyDiagnosticSource,
+        generic_def: GenericDefId,
     ) -> Self {
-        Self { ctx: TyLoweringContext::new(db, resolver, store), diagnostics, source }
+        Self { ctx: TyLoweringContext::new(db, resolver, store, generic_def), diagnostics, source }
     }
 
     #[inline]

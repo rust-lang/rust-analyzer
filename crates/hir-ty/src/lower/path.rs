@@ -12,7 +12,7 @@ use hir_def::{
     },
     resolver::{ResolveValueResult, TypeNs, ValueNs},
     signatures::TraitFlags,
-    type_ref::{TypeBound, TypeRef},
+    type_ref::TypeRef,
 };
 use smallvec::SmallVec;
 use stdx::never;
@@ -24,9 +24,7 @@ use crate::{
     consteval::unknown_const_as_generic,
     error_lifetime,
     generics::generics,
-    lower::{
-        ImplTraitLoweringState, generic_arg_to_chalk, named_associated_type_shorthand_candidates,
-    },
+    lower::{generic_arg_to_chalk, named_associated_type_shorthand_candidates},
     to_assoc_type_id, to_chalk_trait_id, to_placeholder_idx,
     utils::associated_type_by_name_including_super_traits,
 };
@@ -229,12 +227,7 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
                     TyKind::Placeholder(to_placeholder_idx(self.ctx.db, param_id.into()))
                 }
                 ParamLoweringMode::Variable => {
-                    let idx = match self
-                        .ctx
-                        .generics()
-                        .expect("generics in scope")
-                        .type_or_const_param_idx(param_id.into())
-                    {
+                    let idx = match self.ctx.generics().type_or_const_param_idx(param_id.into()) {
                         None => {
                             never!("no matching generics");
                             return (TyKind::Error.intern(Interner), None);
@@ -247,7 +240,7 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
             }
             .intern(Interner),
             TypeNs::SelfType(impl_id) => {
-                let generics = self.ctx.generics().expect("impl should have generic param scope");
+                let generics = self.ctx.generics();
 
                 match self.ctx.type_param_mode {
                     ParamLoweringMode::Placeholder => {
@@ -481,21 +474,20 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
     }
 
     fn select_associated_type(&mut self, res: Option<TypeNs>) -> Ty {
-        let Some((generics, res)) = self.ctx.generics().zip(res) else {
+        let Some(res) = res else {
             return TyKind::Error.intern(Interner);
         };
         let segment = self.current_or_prev_segment;
         let ty = named_associated_type_shorthand_candidates(
             self.ctx.db,
-            generics.def(),
+            self.ctx.def,
             res,
             Some(segment.name.clone()),
             move |name, t, associated_ty| {
-                let generics = self.ctx.generics().unwrap();
-
                 if name != segment.name {
                     return None;
                 }
+                let generics = self.ctx.generics();
 
                 let parent_subst = t.substitution.clone();
                 let parent_subst = match self.ctx.type_param_mode {

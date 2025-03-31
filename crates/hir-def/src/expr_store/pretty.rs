@@ -138,6 +138,8 @@ pub(crate) fn print_struct(
     StructSignature { name, generic_params, store, flags, shape, repr }: &StructSignature,
     edition: Edition,
 ) -> String {
+    use crate::signatures::StructFlags;
+
     let mut p = Printer {
         db,
         store,
@@ -146,6 +148,20 @@ pub(crate) fn print_struct(
         line_format: LineFormat::Newline,
         edition,
     };
+    if let Some(repr) = repr {
+        if repr.c() {
+            wln!(p, "#[repr(C)]");
+        }
+        if let Some(align) = repr.align {
+            wln!(p, "#[repr(align({}))]", align.bytes());
+        }
+        if let Some(pack) = repr.pack {
+            wln!(p, "#[repr(pack({}))]", pack.bytes());
+        }
+    }
+    if flags.contains(StructFlags::IS_FUNDAMENTAL) {
+        wln!(p, "#[fundamental]");
+    }
     w!(p, "struct ");
     w!(p, "{}", name.display(db.upcast(), edition));
     print_generic_params(db, generic_params, &mut p);
@@ -181,6 +197,8 @@ pub(crate) fn print_function(
     }: &FunctionSignature,
     edition: Edition,
 ) -> String {
+    use crate::signatures::FnFlags;
+
     let mut p = Printer {
         db,
         store,
@@ -189,11 +207,34 @@ pub(crate) fn print_function(
         line_format: LineFormat::Newline,
         edition,
     };
+    if flags.contains(FnFlags::HAS_CONST_KW) {
+        w!(p, "const ");
+    }
+    if flags.contains(FnFlags::HAS_ASYNC_KW) {
+        w!(p, "async ");
+    }
+    if flags.contains(FnFlags::HAS_UNSAFE_KW) {
+        w!(p, "unsafe ");
+    }
+    if flags.contains(FnFlags::HAS_SAFE_KW) {
+        w!(p, "safe ");
+    }
+    if let Some(abi) = abi {
+        w!(p, "extern \"{}\" ", abi.as_str());
+    }
     w!(p, "fn ");
     w!(p, "{}", name.display(db.upcast(), edition));
     print_generic_params(db, generic_params, &mut p);
     w!(p, "(");
-
+    for (i, param) in params.iter().enumerate() {
+        if i != 0 {
+            w!(p, ", ");
+        }
+        if legacy_const_generics_indices.as_ref().is_some_and(|idx| idx.contains(&(i as u32))) {
+            w!(p, "const: ");
+        }
+        p.print_type_ref(*param);
+    }
     w!(p, ")");
     if let Some(ret_type) = ret_type {
         w!(p, " -> ");
@@ -206,6 +247,7 @@ pub(crate) fn print_function(
     p.buf
 }
 
+#[cfg(test)]
 fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: &mut Printer<'_>) {
     if !generic_params.where_predicates.is_empty() {
         w!(p, "\nwhere\n");
@@ -270,11 +312,12 @@ fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: 
     }
 }
 
+#[cfg(test)]
 fn print_generic_params(db: &dyn DefDatabase, generic_params: &GenericParams, p: &mut Printer<'_>) {
     if !generic_params.is_empty() {
         w!(p, "<");
         let mut first = true;
-        for (i, param) in generic_params.iter_lt() {
+        for (_i, param) in generic_params.iter_lt() {
             if !first {
                 w!(p, ", ");
             }
@@ -1110,7 +1153,7 @@ impl Printer<'_> {
     }
 
     pub(crate) fn print_type_param(&mut self, param: TypeParamId) {
-        let (generic_params, store) = self.db.generic_params_and_store(param.parent());
+        let generic_params = self.db.generic_params(param.parent());
 
         match generic_params[param.local_id()].name() {
             Some(name) => w!(self, "{}", name.display(self.db.upcast(), self.edition)),
@@ -1159,7 +1202,7 @@ impl Printer<'_> {
                 w!(self, "[");
                 self.print_type_ref(array.ty);
                 w!(self, "; ");
-                self.print_generic_arg(&GenericArg::Const(array.len.clone()));
+                self.print_generic_arg(&GenericArg::Const(array.len));
                 w!(self, "]");
             }
             TypeRef::Slice(elem) => {

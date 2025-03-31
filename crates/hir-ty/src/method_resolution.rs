@@ -918,7 +918,7 @@ pub fn check_orphan_rules(db: &dyn HirDatabase, impl_: ImplId) -> bool {
 
     // FIXME: param coverage
     //   - No uncovered type parameters `P1..=Pn` may appear in `T0..Ti`` (excluding `Ti`)
-    trait_ref.substitution.type_parameters(Interner).any(|ty| {
+    let is_not_orphan = trait_ref.substitution.type_parameters(Interner).any(|ty| {
         match unwrap_fundamental(ty).kind(Interner) {
             &TyKind::Adt(AdtId(id), _) => is_local(id.module(db.upcast()).krate()),
             TyKind::Error => true,
@@ -927,7 +927,11 @@ pub fn check_orphan_rules(db: &dyn HirDatabase, impl_: ImplId) -> bool {
             }),
             _ => false,
         }
-    })
+    });
+    // FIXME: param coverage
+    //   - No uncovered type parameters `P1..=Pn` may appear in `T0..Ti`` (excluding `Ti`)
+    #[allow(clippy::let_and_return)]
+    is_not_orphan
 }
 
 pub fn iterate_path_candidates(

@@ -69,7 +69,7 @@ use intern::Symbol;
 use itertools::Itertools;
 use la_arena::Arena;
 use rustc_hash::{FxHashMap, FxHashSet};
-use span::{Edition, EditionedFileId, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
+use span::{Edition, EditionedFileId, ErasedFileAstId, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
 use stdx::format_to;
 use syntax::{AstNode, SmolStr, SyntaxNode, ToSmolStr, ast};
 use triomphe::Arc;
@@ -80,7 +80,7 @@ use crate::{
     FxIndexMap, LocalModuleId, Lookup, MacroExpander, MacroId, ModuleId, ProcMacroId, UseId,
     db::DefDatabase,
     item_scope::{BuiltinShadowMode, ItemScope},
-    item_tree::{ItemTreeId, Mod, TreeId},
+    item_tree::{ItemTreeId, Mod, ModItem, TreeId},
     nameres::{diagnostics::DefDiagnostic, path_resolution::ResolveMode},
     per_ns::PerNs,
     visibility::{Visibility, VisibilityExplicitness},
@@ -160,10 +160,14 @@ pub struct DefMap {
     macro_use_prelude: FxHashMap<Name, (MacroId, Option<ExternCrateId>)>,
     pub(crate) enum_definitions: FxHashMap<EnumId, Box<[EnumVariantId]>>,
 
+    // FIXME: AstId's are fairly unstable
     /// Tracks which custom derives are in scope for an item, to allow resolution of derive helper
     /// attributes.
     // FIXME: Figure out a better way for the IDE layer to resolve these?
     derive_helpers_in_scope: FxHashMap<AstId<ast::Item>, Vec<(Name, MacroId, MacroCallId)>>,
+    // FIXME: AstId's are fairly unstable
+    /// A mapping from [`hir_expand::MacroDefId`] to [`crate::MacroId`].
+    pub macro_def_to_macro_id: FxHashMap<ErasedAstId, MacroId>,
 
     /// The diagnostics that need to be emitted for this crate.
     diagnostics: Vec<DefDiagnostic>,
@@ -456,6 +460,7 @@ impl DefMap {
             diagnostics: Vec::new(),
             enum_definitions: FxHashMap::default(),
             data: crate_data,
+            macro_def_to_macro_id: FxHashMap::default(),
         }
     }
     fn shrink_to_fit(&mut self) {
@@ -470,8 +475,10 @@ impl DefMap {
             prelude: _,
             data: _,
             enum_definitions,
+            macro_def_to_macro_id,
         } = self;
 
+        macro_def_to_macro_id.shrink_to_fit();
         macro_use_prelude.shrink_to_fit();
         diagnostics.shrink_to_fit();
         modules.shrink_to_fit();

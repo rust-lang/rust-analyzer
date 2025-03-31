@@ -464,7 +464,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                                 self.db,
                                 p,
                                 DisplayTarget::from_crate(self.db, self.krate()),
-                                &self.body,
+                                self.body,
                             )
                         })?;
                     self.resolver.reset_to_guard(resolver_guard);
@@ -838,7 +838,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                 let variant_id =
                     self.infer.variant_resolution_for_expr(expr_id).ok_or_else(|| match path {
                         Some(p) => MirLowerError::UnresolvedName(
-                            hir_display_with_store(&**p, &self.body)
+                            hir_display_with_store(&**p, self.body)
                                 .display(self.db, self.display_target())
                                 .to_string(),
                         ),
@@ -1370,7 +1370,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         self.db,
                         c,
                         DisplayTarget::from_crate(db, owner.krate(db.upcast())),
-                        &self.body,
+                        self.body,
                     )
                 };
                 let pr = self

@@ -11,6 +11,7 @@ use hir_expand::{
 };
 use intern::{Symbol, sym};
 use la_arena::{Arena, ArenaMap, Idx};
+use rustc_hash::FxHashMap;
 use span::Edition;
 use syntax::{AstPtr, ast};
 use thin_vec::ThinVec;
@@ -188,20 +189,29 @@ impl Index<PathId> for TypesMap {
 pub type TypePtr = AstPtr<ast::Type>;
 pub type TypeSource = InFile<TypePtr>;
 
-#[derive(Default, Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub struct TypesSourceMap {
     pub(crate) types_map_back: ArenaMap<TypeRefId, TypeSource>,
+    pub(crate) types_map: FxHashMap<TypeSource, TypeRefId>,
 }
 
 impl TypesSourceMap {
-    pub const EMPTY: Self = Self { types_map_back: ArenaMap::new() };
+    pub const EMPTY: Self = Self {
+        types_map_back: ArenaMap::new(),
+        types_map: FxHashMap::with_hasher(rustc_hash::FxBuildHasher),
+    };
 
     pub fn type_syntax(&self, id: TypeRefId) -> Result<TypeSource, SyntheticSyntax> {
         self.types_map_back.get(id).cloned().ok_or(SyntheticSyntax)
     }
 
+    pub fn node_type(&self, node: InFile<&ast::Type>) -> Option<TypeRefId> {
+        self.types_map.get(&node.map(AstPtr::new)).cloned()
+    }
+
     pub(crate) fn shrink_to_fit(&mut self) {
-        let TypesSourceMap { types_map_back } = self;
+        let TypesSourceMap { types_map_back: types_map, types_map: types_map_back } = self;
+        types_map.shrink_to_fit();
         types_map_back.shrink_to_fit();
     }
 }

@@ -435,8 +435,7 @@ impl<'a> Ctx<'a> {
         // Note that trait impls don't get implicit `Self` unlike traits, because here they are a
         // type alias rather than a type parameter, so this is handled by the resolver.
         let res = Impl { items, ast_id };
-        let id = id(self.data().impls.alloc(res));
-        id
+        id(self.data().impls.alloc(res))
     }
 
     fn lower_use(&mut self, use_item: &ast::Use) -> Option<FileItemTreeId<Use>> {

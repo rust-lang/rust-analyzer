@@ -435,7 +435,7 @@ pub struct TreeId {
 }
 
 impl TreeId {
-    pub(crate) fn new(file: HirFileId, block: Option<BlockId>) -> Self {
+    pub fn new(file: HirFileId, block: Option<BlockId>) -> Self {
         Self { file, block }
     }
 
@@ -808,16 +808,6 @@ pub struct Static {
     pub name: Name,
     pub visibility: RawVisibilityId,
     pub ast_id: FileAstId<ast::Static>,
-}
-
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct StaticFlags: u8 {
-        const MUTABLE = 1 << 0;
-        const IS_EXTERN = 1 << 1;
-        const HAS_SAFE_KW = 1 << 2;
-        const HAS_UNSAFE_KW = 1 << 3;
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

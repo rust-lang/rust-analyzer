@@ -34,8 +34,8 @@ use chalk_ir::{
 };
 use either::Either;
 use hir_def::{
-    AdtId, AssocItemId, DefWithBodyId, FieldId, FunctionId, ImplId, ItemContainerId, Lookup,
-    TraitId, TupleFieldId, TupleId, TypeAliasId, VariantId,
+    AdtId, AssocItemId, DefWithBodyId, FieldId, FunctionId, GenericDefId, ImplId, ItemContainerId,
+    Lookup, TraitId, TupleFieldId, TupleId, TypeAliasId, VariantId,
     builtin_type::{BuiltinInt, BuiltinType, BuiltinUint},
     expr_store::{Body, ExpressionStore, HygieneId, path::Path},
     hir::{BindingAnnotation, BindingId, ExprId, ExprOrPatId, LabelId, PatId},
@@ -586,7 +586,8 @@ pub(crate) struct InferenceContext<'a> {
     /// Generally you should not resolve things via this resolver. Instead create a TyLoweringContext
     /// and resolve the path via its methods. This will ensure proper error reporting.
     pub(crate) resolver: Resolver,
-    generics: OnceCell<Option<Generics>>,
+    generic_def: GenericDefId,
+    generics: OnceCell<Generics>,
     table: unify::InferenceTable<'a>,
     /// The traits in scope, disregarding block modules. This is used for caching purposes.
     traits_in_scope: FxHashSet<TraitId>,
@@ -697,6 +698,12 @@ impl<'a> InferenceContext<'a> {
             return_coercion: None,
             db,
             owner,
+            generic_def: match owner {
+                DefWithBodyId::FunctionId(it) => it.into(),
+                DefWithBodyId::StaticId(it) => it.into(),
+                DefWithBodyId::ConstId(it) => it.into(),
+                DefWithBodyId::VariantId(it) => it.lookup(db.upcast()).parent.into(),
+            },
             body,
             traits_in_scope: resolver.traits_in_scope(db.upcast()),
             resolver,
@@ -713,14 +720,8 @@ impl<'a> InferenceContext<'a> {
         }
     }
 
-    pub(crate) fn generics(&self) -> Option<&Generics> {
-        self.generics
-            .get_or_init(|| {
-                self.resolver
-                    .generic_def()
-                    .map(|def| crate::generics::generics(self.db.upcast(), def))
-            })
-            .as_ref()
+    pub(crate) fn generics(&self) -> &Generics {
+        self.generics.get_or_init(|| crate::generics::generics(self.db.upcast(), self.generic_def))
     }
 
     // FIXME: This function should be private in module. It is currently only used in the consteval, since we need
@@ -1288,13 +1289,19 @@ impl<'a> InferenceContext<'a> {
         types_source: InferenceTyDiagnosticSource,
         f: impl FnOnce(&mut TyLoweringContext<'_>) -> R,
     ) -> R {
-        let mut ctx =
-            TyLoweringContext::new(self.db, &self.resolver, store, &self.diagnostics, types_source);
+        let mut ctx = TyLoweringContext::new(
+            self.db,
+            &self.resolver,
+            store,
+            &self.diagnostics,
+            types_source,
+            self.generic_def,
+        );
         f(&mut ctx)
     }
 
     fn with_body_ty_lowering<R>(&mut self, f: impl FnOnce(&mut TyLoweringContext<'_>) -> R) -> R {
-        self.with_ty_lowering(&self.body, InferenceTyDiagnosticSource::Body, f)
+        self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, f)
     }
 
     fn make_ty(
@@ -1309,11 +1316,11 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn make_body_ty(&mut self, type_ref: TypeRefId) -> Ty {
-        self.make_ty(type_ref, &self.body, InferenceTyDiagnosticSource::Body)
+        self.make_ty(type_ref, self.body, InferenceTyDiagnosticSource::Body)
     }
 
     fn make_body_const(&mut self, const_ref: ConstRef, ty: Ty) -> Const {
-        let const_ = self.with_ty_lowering(&self.body, InferenceTyDiagnosticSource::Body, |ctx| {
+        let const_ = self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, |ctx| {
             ctx.type_param_mode = ParamLoweringMode::Placeholder;
             ctx.lower_const(&const_ref, ty)
         });
@@ -1321,9 +1328,9 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn make_path_as_body_const(&mut self, path: &Path, ty: Ty) -> Const {
-        let const_ = self.with_ty_lowering(&self.body, InferenceTyDiagnosticSource::Body, |ctx| {
+        let const_ = self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, |ctx| {
             ctx.type_param_mode = ParamLoweringMode::Placeholder;
-            ctx.lower_path_as_const(&path, ty)
+            ctx.lower_path_as_const(path, ty)
         });
         self.insert_type_vars(const_)
     }
@@ -1333,7 +1340,7 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn make_body_lifetime(&mut self, lifetime_ref: &LifetimeRef) -> Lifetime {
-        let lt = self.with_ty_lowering(&self.body, InferenceTyDiagnosticSource::Body, |ctx| {
+        let lt = self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, |ctx| {
             ctx.lower_lifetime(lifetime_ref)
         });
         self.insert_type_vars(lt)
@@ -1469,19 +1476,17 @@ impl<'a> InferenceContext<'a> {
                 };
                 let ty = self.table.new_type_var();
                 let mut param_iter = params.iter().cloned();
-                let trait_ref = dbg!(
-                    TyBuilder::trait_ref(self.db, trait_)
-                        .push(inner_ty)
-                        .fill(|_| param_iter.next().unwrap())
-                        .build()
-                );
-                let alias_eq = dbg!(AliasEq {
+                let trait_ref = TyBuilder::trait_ref(self.db, trait_)
+                    .push(inner_ty)
+                    .fill(|_| param_iter.next().unwrap())
+                    .build();
+                let alias_eq = AliasEq {
                     alias: AliasTy::Projection(ProjectionTy {
                         associated_ty_id: to_assoc_type_id(res_assoc_ty),
                         substitution: trait_ref.substitution.clone(),
                     }),
                     ty: ty.clone(),
-                });
+                };
                 self.push_obligation(trait_ref.cast(Interner));
                 self.push_obligation(alias_eq.cast(Interner));
                 ty
@@ -1506,6 +1511,7 @@ impl<'a> InferenceContext<'a> {
             &self.body.store,
             &self.diagnostics,
             InferenceTyDiagnosticSource::Body,
+            self.generic_def,
         );
         let mut path_ctx = ctx.at_path(path, node);
         let (resolution, unresolved) = if value_ns {

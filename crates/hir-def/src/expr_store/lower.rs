@@ -248,7 +248,7 @@ pub(crate) fn lower_impl(
         expr_collector.lower_type_ref_opt(impl_syntax.value.self_ty(), &mut |_| TypeRef::Error);
     let trait_ = impl_syntax.value.trait_().and_then(|it| match &it {
         ast::Type::PathType(path_type) => {
-            let path = expr_collector.lower_path_type(&path_type, &mut |_| TypeRef::Error)?;
+            let path = expr_collector.lower_path_type(path_type, &mut |_| TypeRef::Error)?;
             Some(TraitRef { path: expr_collector.alloc_path(path, AstPtr::new(&it)) })
         }
         _ => None,

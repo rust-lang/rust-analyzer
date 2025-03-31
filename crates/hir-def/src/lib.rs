@@ -638,17 +638,15 @@ impl_from!(
 pub enum GeneralConstId {
     ConstId(ConstId),
     StaticId(StaticId),
-    ConstBlockId(ConstBlockId),
 }
 
-impl_from!(ConstId, StaticId, ConstBlockId for GeneralConstId);
+impl_from!(ConstId, StaticId for GeneralConstId);
 
 impl GeneralConstId {
-    pub fn generic_def(self, db: &dyn DefDatabase) -> Option<GenericDefId> {
+    pub fn generic_def(self, _db: &dyn DefDatabase) -> Option<GenericDefId> {
         match self {
             GeneralConstId::ConstId(it) => Some(it.into()),
             GeneralConstId::StaticId(it) => Some(it.into()),
-            GeneralConstId::ConstBlockId(it) => Some(it.lookup(db).parent),
         }
     }
 
@@ -668,7 +666,6 @@ impl GeneralConstId {
                     |name| name.display(db.upcast(), Edition::CURRENT).to_string(),
                 )
             }
-            GeneralConstId::ConstBlockId(id) => format!("{{anonymous const {id:?}}}"),
         }
     }
 }
@@ -1180,16 +1177,7 @@ impl ModuleDefId {
 }
 
 /// A helper trait for converting to MacroCallId
-pub trait AsMacroCall {
-    fn as_call_id(
-        &self,
-        db: &dyn ExpandDatabase,
-        krate: Crate,
-        resolver: impl Fn(&ModPath) -> Option<MacroDefId> + Copy,
-    ) -> Option<MacroCallId> {
-        self.as_call_id_with_errors(db, krate, resolver).ok()?.value
-    }
-
+trait AsMacroCall {
     fn as_call_id_with_errors(
         &self,
         db: &dyn ExpandDatabase,

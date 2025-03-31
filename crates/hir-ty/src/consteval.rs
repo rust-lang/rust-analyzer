@@ -100,7 +100,7 @@ pub(crate) fn path_to_const<'g>(
     resolver: &Resolver,
     path: &Path,
     mode: ParamLoweringMode,
-    args: impl FnOnce() -> Option<&'g Generics>,
+    args: impl FnOnce() -> &'g Generics,
     debruijn: DebruijnIndex,
     expected_ty: Ty,
 ) -> Option<Const> {
@@ -113,7 +113,7 @@ pub(crate) fn path_to_const<'g>(
                 }
                 ParamLoweringMode::Variable => {
                     let args = args();
-                    match args.and_then(|args| args.type_or_const_param_idx(p.into())) {
+                    match args.type_or_const_param_idx(p.into()) {
                         Some(it) => ConstValue::BoundVar(BoundVar::new(debruijn, it)),
                         None => {
                             never!(
@@ -265,9 +265,6 @@ pub(crate) fn const_eval_query(
         GeneralConstId::StaticId(s) => {
             let krate = s.module(db.upcast()).krate();
             db.monomorphized_mir_body(s.into(), subst, TraitEnvironment::empty(krate))?
-        }
-        GeneralConstId::ConstBlockId(_c) => {
-            todo!()
         }
     };
     let c = interpret_mir(db, body, false, trait_env)?.0?;

@@ -258,6 +258,10 @@ impl ConstSignature {
             Arc::new(source_map),
         )
     }
+
+    pub fn has_body(&self) -> bool {
+        self.flags.contains(ConstFlags::HAS_BODY)
+    }
 }
 
 bitflags::bitflags! {

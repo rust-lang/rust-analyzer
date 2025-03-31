@@ -35,7 +35,7 @@ use crate::{
     },
     nameres::DefMap,
     src::HasSource,
-    type_ref::{PathId, TypeRef, TypeRefId, TypesMap, TypesSourceMap},
+    type_ref::{PathId, TypeRef, TypeRefId, TypeSource, TypesMap, TypesSourceMap},
 };
 
 pub use self::body::{Body, BodySourceMap};
@@ -652,6 +652,14 @@ impl ExpressionStoreSourceMap {
         self.pat_map.get(&node.map(AstPtr::new)).cloned()
     }
 
+    pub fn type_syntax(&self, ty: TypeRefId) -> Result<TypeSource, SyntheticSyntax> {
+        self.types.type_syntax(ty)
+    }
+
+    pub fn node_type(&self, node: InFile<&ast::Type>) -> Option<TypeRefId> {
+        self.types.node_type(node)
+    }
+
     pub fn label_syntax(&self, label: LabelId) -> LabelSource {
         self.label_map_back[label]
     }
@@ -680,6 +688,10 @@ impl ExpressionStoreSourceMap {
 
     pub fn expansions(&self) -> impl Iterator<Item = (&InFile<MacroCallPtr>, &MacroFileId)> {
         self.expansions.iter()
+    }
+
+    pub fn expansion(&self, node: InFile<&ast::MacroCall>) -> Option<MacroFileId> {
+        self.expansions.get(&node.map(AstPtr::new)).copied()
     }
 
     pub fn implicit_format_args(

@@ -7,9 +7,8 @@ use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_def::{
     DefWithBodyId, SyntheticSyntax,
-    expr_store::{ExprOrPatPtr, hir_segment_to_ast_segment},
+    expr_store::{ExprOrPatPtr, ExpressionStoreSourceMap, hir_segment_to_ast_segment},
     hir::ExprOrPatId,
-    type_ref::TypesSourceMap,
 };
 use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
 use hir_ty::{
@@ -565,8 +564,8 @@ impl AnyDiagnostic {
         db: &dyn HirDatabase,
         def: DefWithBodyId,
         d: &InferenceDiagnostic,
-        outer_types_source_map: &TypesSourceMap,
         source_map: &hir_def::expr_store::BodySourceMap,
+        sig_map: &hir_def::expr_store::ExpressionStoreSourceMap,
     ) -> Option<AnyDiagnostic> {
         let expr_syntax = |expr| {
             source_map.expr_syntax(expr).inspect_err(|_| stdx::never!("synthetic syntax")).ok()
@@ -688,8 +687,8 @@ impl AnyDiagnostic {
             }
             InferenceDiagnostic::TyDiagnostic { source, diag } => {
                 let source_map = match source {
-                    InferenceTyDiagnosticSource::Body => &source_map.types,
-                    InferenceTyDiagnosticSource::Signature => outer_types_source_map,
+                    InferenceTyDiagnosticSource::Body => source_map,
+                    InferenceTyDiagnosticSource::Signature => sig_map,
                 };
                 Self::ty_diagnostic(diag, source_map, db)?
             }
@@ -749,18 +748,12 @@ impl AnyDiagnostic {
 
     pub(crate) fn ty_diagnostic(
         diag: &TyLoweringDiagnostic,
-        source_map: &TypesSourceMap,
+        source_map: &ExpressionStoreSourceMap,
         db: &dyn HirDatabase,
     ) -> Option<AnyDiagnostic> {
-        let source = match diag.source {
-            Either::Left(type_ref_id) => {
-                let Ok(source) = source_map.type_syntax(type_ref_id) else {
-                    stdx::never!("error on synthetic type syntax");
-                    return None;
-                };
-                source
-            }
-            Either::Right(source) => source,
+        let Ok(source) = source_map.types.type_syntax(diag.source) else {
+            stdx::never!("error on synthetic type syntax");
+            return None;
         };
         let syntax = || source.value.to_node(&db.parse_or_expand(source.file_id));
         Some(match &diag.kind {

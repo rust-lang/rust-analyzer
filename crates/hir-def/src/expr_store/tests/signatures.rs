@@ -42,19 +42,19 @@ fn lower_and_print(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expe
                 crate::AdtId::StructId(struct_id) => {
                     out += &print_struct(&db, &db.struct_signature(struct_id), Edition::CURRENT);
                 }
-                crate::AdtId::UnionId(union_id) => todo!(),
-                crate::AdtId::EnumId(enum_id) => todo!(),
+                crate::AdtId::UnionId(_id) => (),
+                crate::AdtId::EnumId(_id) => (),
             },
-            GenericDefId::ConstId(const_id) => todo!(),
+            GenericDefId::ConstId(_id) => (),
             GenericDefId::FunctionId(function_id) => {
                 out += &print_function(&db, &db.function_signature(function_id), Edition::CURRENT)
             }
 
-            GenericDefId::ImplId(impl_id) => todo!(),
-            GenericDefId::StaticId(static_id) => todo!(),
-            GenericDefId::TraitAliasId(trait_alias_id) => todo!(),
-            GenericDefId::TraitId(trait_id) => todo!(),
-            GenericDefId::TypeAliasId(type_alias_id) => todo!(),
+            GenericDefId::ImplId(_id) => (),
+            GenericDefId::StaticId(_id) => (),
+            GenericDefId::TraitAliasId(_id) => (),
+            GenericDefId::TraitId(_id) => (),
+            GenericDefId::TypeAliasId(_id) => (),
         }
     }
 
@@ -67,9 +67,12 @@ fn structs() {
         r"
 struct S { field: foo, }
 struct S(i32, u32, &'static str);
+#[repr(Rust)]
 struct S;
 
 struct S<'a, 'b, T: Clone, const C: usize = 3, X = ()> where X: Default, for<'a, 'c> fn() -> i32: for<'b> Trait<'a, Item = Boo>;
+#[repr(C, packed)]
+struct S {}
 ",
         expect![[r#"
             struct S {...}
@@ -82,6 +85,9 @@ struct S<'a, 'b, T: Clone, const C: usize = 3, X = ()> where X: Default, for<'a,
                 X: Default,
                 for<'a, 'c> fn() -> i32: for<'b> Trait::<'a, Item = Boo>
             ;
+            #[repr(C)]
+            #[repr(pack(1))]
+            struct S {...}
         "#]],
     );
 }
@@ -89,9 +95,27 @@ struct S<'a, 'b, T: Clone, const C: usize = 3, X = ()> where X: Default, for<'a,
 #[test]
 fn functions() {
     lower_and_print(
-        r"
+        r#"
 fn foo<'a, const C: usize = 314235, T: Trait<Item = A> = B>(Struct { foo: bar }: &Struct, _: (), a: u32) -> &'a dyn Fn() -> i32 where (): Default {}
+const async unsafe extern "C" fn a() {}
+fn ret_impl_trait() -> impl Trait {}
+"#,
+        expect![[r#"
+            fn foo<'a, const C: usize = 314235, T = B>(&Struct, (), u32) -> &'a dyn Fn::<(), Output = i32>
+            where
+                T: Trait::<Item = A>,
+                (): Default
+             {...}
+            const async unsafe extern ""C"" fn a() -> impl ::core::future::Future::<Output = ()> {...}
+            fn ret_impl_trait() -> impl Trait {...}
+        "#]],
+    );
+}
 
+#[test]
+fn argument_position_impl_trait_functions() {
+    lower_and_print(
+        r"
 fn impl_trait_args<T>(_: impl Trait) {}
 fn impl_trait_args2<T>(_: impl Trait<impl Trait>) {}
 
@@ -121,49 +145,44 @@ fn allowed2<'a>(baz: impl Baz<Assoc = &'a (impl Foo + 'a)>) {}
 fn allowed3(baz: impl Baz<Assoc = Qux<impl Foo>>) {}
 ",
         expect![[r#"
-            fn foo<'a, const C: usize = 314235, T = B>() -> &'a dyn Fn::<(), Output = i32>
-            where
-                T: Trait::<Item = A>,
-                (): Default
-             {...}
-            fn impl_trait_args<T, Param[1]>()
+            fn impl_trait_args<T, Param[1]>(Param[1])
             where
                 Param[1]: Trait
              {...}
-            fn impl_trait_args2<T, Param[1]>()
+            fn impl_trait_args2<T, Param[1]>(Param[1])
             where
                 Param[1]: Trait::<{error}>
              {...}
             fn impl_trait_ret<T>() -> impl Trait {...}
             fn impl_trait_ret2<T>() -> impl Trait::<{error}> {...}
-            fn not_allowed1<Param[0]>()
+            fn not_allowed1<Param[0]>(Param[0])
             where
                 Param[0]: Fn::<({error}), Output = ()>
              {...}
-            fn not_allowed2<Param[0]>()
+            fn not_allowed2<Param[0]>(Param[0])
             where
                 Param[0]: Fn::<(&{error}), Output = ()>
              {...}
-            fn not_allowed3<Param[0]>()
+            fn not_allowed3<Param[0]>(Param[0])
             where
                 Param[0]: Bar::<{error}>
              {...}
-            fn not_allowed4<Param[0]>()
+            fn not_allowed4<Param[0]>(Param[0])
             where
                 Param[0]: Bar::<&{error}>
              {...}
-            fn allowed1<Param[0], Param[1]>()
+            fn allowed1<Param[0], Param[1]>(Param[1])
             where
                 Param[0]: Foo,
                 Param[1]: Baz::<Assoc = Param[0]>
              {...}
-            fn allowed2<'a, Param[0], Param[1]>()
+            fn allowed2<'a, Param[0], Param[1]>(Param[1])
             where
                 Param[0]: Foo,
                 Param[0]: 'a,
                 Param[1]: Baz::<Assoc = &'a Param[0]>
              {...}
-            fn allowed3<Param[0], Param[1]>()
+            fn allowed3<Param[0], Param[1]>(Param[1])
             where
                 Param[0]: Foo,
                 Param[1]: Baz::<Assoc = Qux::<Param[0]>>

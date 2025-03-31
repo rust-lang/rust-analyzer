@@ -144,21 +144,21 @@ impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
         let id_to_chalk = |id: hir_def::ImplId| id.to_chalk(self.db);
 
         let mut result = vec![];
-        _ =
-            if fps.is_empty() {
-                debug!("Unrestricted search for {:?} impls...", trait_);
-                self.for_trait_impls(trait_, self_ty_fp, |impls| {
-                    result.extend(impls.for_trait(trait_).map(id_to_chalk));
-                    ControlFlow::Continue(())
-                });
-            } else {
+        if fps.is_empty() {
+            debug!("Unrestricted search for {:?} impls...", trait_);
+            _ = self.for_trait_impls(trait_, self_ty_fp, |impls| {
+                result.extend(impls.for_trait(trait_).map(id_to_chalk));
+                ControlFlow::Continue(())
+            });
+        } else {
+            _ =
                 self.for_trait_impls(trait_, self_ty_fp, |impls| {
                     result.extend(fps.iter().flat_map(move |fp| {
                         impls.for_trait_and_self_ty(trait_, *fp).map(id_to_chalk)
                     }));
                     ControlFlow::Continue(())
                 });
-            };
+        };
 
         debug!("impls_for_trait returned {} impls", result.len());
         result
@@ -614,8 +614,9 @@ pub(crate) fn associated_ty_data_query(
     let type_alias_data = db.type_alias_signature(type_alias);
     let generic_params = generics(db.upcast(), type_alias.into());
     let resolver = hir_def::resolver::HasResolver::resolver(type_alias, db.upcast());
-    let mut ctx = crate::TyLoweringContext::new(db, &resolver, &type_alias_data.store)
-        .with_type_param_mode(crate::lower::ParamLoweringMode::Variable);
+    let mut ctx =
+        crate::TyLoweringContext::new(db, &resolver, &type_alias_data.store, type_alias.into())
+            .with_type_param_mode(crate::lower::ParamLoweringMode::Variable);
 
     let trait_subst = TyBuilder::subst_for_def(db, trait_, None)
         .fill_with_bound_vars(crate::DebruijnIndex::INNERMOST, generic_params.len_self())

@@ -1,6 +1,5 @@
 //! This files contains the declaration of diagnostics kinds for ty and path lowering.
 
-use either::Either;
 use hir_def::type_ref::TypeRefId;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
