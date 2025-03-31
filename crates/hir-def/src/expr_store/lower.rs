@@ -40,7 +40,7 @@ use crate::{
     db::DefDatabase,
     expr_store::{
         Body, BodySourceMap, ExprPtr, ExpressionStore, ExpressionStoreBuilder,
-        ExpressionStoreDiagnostics, ExpressionStoreSourceMap, HygieneId, LabelPtr, PatPtr,
+        ExpressionStoreDiagnostics, ExpressionStoreSourceMap, HygieneId, LabelPtr, PatPtr, TypePtr,
         expander::Expander,
         path::{AssociatedTypeBinding, GenericArg, GenericArgs, GenericArgsParentheses, Path},
     },
@@ -63,8 +63,7 @@ use crate::{
     src::HasSource,
     type_ref::{
         ArrayType, ConstRef, FnType, LifetimeRef, Mutability, PathId, Rawness, RefType,
-        TraitBoundModifier, TraitRef, TypeBound, TypePtr, TypeRef, TypeRefId, TypesMap,
-        TypesSourceMap, UseArgRef,
+        TraitBoundModifier, TraitRef, TypeBound, TypeRef, TypeRefId, UseArgRef,
     },
 };
 
@@ -702,7 +701,7 @@ impl ExprCollector<'_> {
                     let id = self.collect_macro_call(mcall, macro_ptr, true, |this, expansion| {
                         this.lower_type_ref_opt(expansion, impl_trait_lower_fn)
                     });
-                    self.source_map.types.types_map_back.insert(id, src);
+                    self.source_map.types_map_back.insert(id, src);
                     return id;
                 }
                 None => TypeRef::Error,
@@ -723,8 +722,8 @@ impl ExprCollector<'_> {
     }
 
     fn alloc_type_ref(&mut self, type_ref: TypeRef, node: TypePtr) -> TypeRefId {
-        let id = self.store.types.types.alloc(type_ref);
-        self.source_map.types.types_map_back.insert(id, self.expander.in_file(node));
+        let id = self.store.types.alloc(type_ref);
+        self.source_map.types_map_back.insert(id, self.expander.in_file(node));
         id
     }
 
@@ -748,11 +747,11 @@ impl ExprCollector<'_> {
     }
 
     fn alloc_type_ref_desugared(&mut self, type_ref: TypeRef) -> TypeRefId {
-        self.store.types.types.alloc(type_ref)
+        self.store.types.alloc(type_ref)
     }
 
     fn alloc_error_type(&mut self) -> TypeRefId {
-        self.store.types.types.alloc(TypeRef::Error)
+        self.store.types.alloc(TypeRef::Error)
     }
 
     fn alloc_path(&mut self, path: Path, node: TypePtr) -> PathId {

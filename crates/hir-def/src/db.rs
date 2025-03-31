@@ -34,7 +34,6 @@ use crate::{
         UnionSignature, VariantFields,
     },
     tt,
-    type_ref::TypesSourceMap,
     visibility::{self, Visibility},
 };
 

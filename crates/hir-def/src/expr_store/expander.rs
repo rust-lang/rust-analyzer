@@ -16,7 +16,6 @@ use triomphe::Arc;
 
 use crate::expr_store::path::Path;
 use crate::nameres::DefMap;
-use crate::type_ref::{TypesMap, TypesSourceMap};
 use crate::{AsMacroCall, MacroId, ModuleId, UnresolvedMacro, attr::Attrs, db::DefDatabase};
 
 #[derive(Debug)]

@@ -35,7 +35,7 @@ use crate::{
     },
     nameres::DefMap,
     src::HasSource,
-    type_ref::{PathId, TypeRef, TypeRefId, TypeSource, TypesMap, TypesSourceMap},
+    type_ref::{PathId, TypeRef, TypeRefId},
 };
 
 pub use self::body::{Body, BodySourceMap};
@@ -86,13 +86,16 @@ pub type ExprOrPatSource = InFile<ExprOrPatPtr>;
 pub type SelfParamPtr = AstPtr<ast::SelfParam>;
 pub type MacroCallPtr = AstPtr<ast::MacroCall>;
 
+pub type TypePtr = AstPtr<ast::Type>;
+pub type TypeSource = InFile<TypePtr>;
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct ExpressionStore {
     pub exprs: Arena<Expr>,
     pub pats: Arena<Pat>,
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
-    pub types: TypesMap,
+    pub types: Arena<TypeRef>,
     /// Id of the closure/coroutine that owns the corresponding binding. If a binding is owned by the
     /// top level expression, it will not be listed in here.
     pub binding_owners: FxHashMap<BindingId, ExprId>,
@@ -134,7 +137,8 @@ pub struct ExpressionStoreSourceMap {
     field_map_back: FxHashMap<ExprId, FieldSource>,
     pat_field_map_back: FxHashMap<PatId, PatFieldSource>,
 
-    pub types: TypesSourceMap,
+    types_map_back: ArenaMap<TypeRefId, TypeSource>,
+    types_map: FxHashMap<TypeSource, TypeRefId>,
 
     template_map: Option<Box<FormatTemplate>>,
 
@@ -153,7 +157,7 @@ pub struct ExpressionStoreBuilder {
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
     pub binding_owners: FxHashMap<BindingId, ExprId>,
-    pub types: TypesMap,
+    pub types: Arena<TypeRef>,
     block_scopes: Vec<BlockId>,
     binding_hygiene: FxHashMap<BindingId, HygieneId>,
     ident_hygiene: FxHashMap<ExprOrPatId, HygieneId>,
@@ -612,7 +616,10 @@ impl Index<PathId> for ExpressionStore {
 
     #[inline]
     fn index(&self, index: PathId) -> &Self::Output {
-        &self.types[index]
+        let TypeRef::Path(path) = &self[index.type_ref()] else {
+            unreachable!("`PathId` always points to `TypeRef::Path`");
+        };
+        path
     }
 }
 
@@ -652,12 +659,12 @@ impl ExpressionStoreSourceMap {
         self.pat_map.get(&node.map(AstPtr::new)).cloned()
     }
 
-    pub fn type_syntax(&self, ty: TypeRefId) -> Result<TypeSource, SyntheticSyntax> {
-        self.types.type_syntax(ty)
+    pub fn type_syntax(&self, id: TypeRefId) -> Result<TypeSource, SyntheticSyntax> {
+        self.types_map_back.get(id).cloned().ok_or(SyntheticSyntax)
     }
 
     pub fn node_type(&self, node: InFile<&ast::Type>) -> Option<TypeRefId> {
-        self.types.node_type(node)
+        self.types_map.get(&node.map(AstPtr::new)).cloned()
     }
 
     pub fn label_syntax(&self, label: LabelId) -> LabelSource {
@@ -743,7 +750,8 @@ impl ExpressionStoreSourceMap {
             template_map,
             diagnostics,
             binding_definitions,
-            types,
+            types_map,
+            types_map_back,
         } = self;
         if let Some(template_map) = template_map {
             let FormatTemplate {
@@ -766,6 +774,7 @@ impl ExpressionStoreSourceMap {
         expansions.shrink_to_fit();
         diagnostics.shrink_to_fit();
         binding_definitions.shrink_to_fit();
-        types.shrink_to_fit();
+        types_map.shrink_to_fit();
+        types_map_back.shrink_to_fit();
     }
 }

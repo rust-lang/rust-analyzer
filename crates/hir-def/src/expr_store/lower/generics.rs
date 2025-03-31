@@ -32,7 +32,6 @@ use crate::{
     nameres::{DefMap, LocalDefMap, MacroSubNs},
     type_ref::{
         ArrayType, ConstRef, FnType, LifetimeRef, PathId, RefType, TypeBound, TypeRef, TypeRefId,
-        TypesMap, TypesSourceMap,
     },
 };
 

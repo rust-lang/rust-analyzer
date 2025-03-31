@@ -36,7 +36,7 @@ use crate::{
     lang_item::LangItemTarget,
     nameres::{DefMap, LocalDefMap, MacroSubNs, ResolvePathResultPrefixInfo},
     per_ns::PerNs,
-    type_ref::{LifetimeRef, TypesMap},
+    type_ref::LifetimeRef,
     visibility::{RawVisibility, Visibility},
 };
 

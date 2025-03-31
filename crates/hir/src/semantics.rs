@@ -1349,11 +1349,8 @@ impl<'db> SemanticsImpl<'db> {
     pub fn resolve_trait(&self, path: &ast::Path) -> Option<Trait> {
         let parent_ty = path.syntax().parent().and_then(ast::Type::cast)?;
         let analyze = self.analyze(path.syntax())?;
-        let ty = analyze
-            .body_source_map()?
-            .store
-            .types
-            .node_type(InFile::new(analyze.file_id, &parent_ty))?;
+        let ty =
+            analyze.body_source_map()?.store.node_type(InFile::new(analyze.file_id, &parent_ty))?;
         let path = match &analyze.body()?.store.types[ty] {
             hir_def::type_ref::TypeRef::Path(path) => path,
             _ => return None,

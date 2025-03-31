@@ -751,7 +751,7 @@ impl AnyDiagnostic {
         source_map: &ExpressionStoreSourceMap,
         db: &dyn HirDatabase,
     ) -> Option<AnyDiagnostic> {
-        let Ok(source) = source_map.types.type_syntax(diag.source) else {
+        let Ok(source) = source_map.type_syntax(diag.source) else {
             stdx::never!("error on synthetic type syntax");
             return None;
         };
