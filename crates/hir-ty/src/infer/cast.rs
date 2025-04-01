@@ -296,10 +296,9 @@ impl CastCheck {
                         if src_principal == dst_principal {
                             return Ok(());
                         }
-                        let src_principal =
-                            table.db.trait_datum(table.trait_env.krate, src_principal);
-                        let dst_principal =
-                            table.db.trait_datum(table.trait_env.krate, dst_principal);
+                        let krate = table.trait_env.krate(table.db);
+                        let src_principal = table.db.trait_datum(krate, src_principal);
+                        let dst_principal = table.db.trait_datum(krate, dst_principal);
                         if src_principal.is_auto_trait() && dst_principal.is_auto_trait() {
                             Ok(())
                         } else {

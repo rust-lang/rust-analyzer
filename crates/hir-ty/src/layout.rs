@@ -125,7 +125,7 @@ fn layout_of_simd_ty(
     id: StructId,
     repr_packed: bool,
     subst: &Substitution,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     dl: &TargetDataLayout,
 ) -> Result<Arc<Layout>, LayoutError> {
     // Supported SIMD vectors are homogeneous ADTs with exactly one array field:
@@ -153,15 +153,15 @@ fn layout_of_simd_ty(
 pub fn layout_of_ty_query(
     db: &dyn HirDatabase,
     ty: Ty,
-    trait_env: Arc<TraitEnvironment>,
+    trait_env: TraitEnvironment<'_>,
 ) -> Result<Arc<Layout>, LayoutError> {
-    let krate = trait_env.krate;
+    let krate = trait_env.krate(db);
     let Ok(target) = db.target_data_layout(krate) else {
         return Err(LayoutError::TargetLayoutNotAvailable);
     };
     let dl = &*target;
     let cx = LayoutCx::new(dl);
-    let ty = normalize(db, trait_env.clone(), ty);
+    let ty = normalize(db, trait_env, ty);
     let kind = ty.kind(Interner);
     let result = match kind {
         TyKind::Adt(AdtId(def), subst) => {
@@ -241,7 +241,7 @@ pub fn layout_of_ty_query(
 
             let fields = tys
                 .iter(Interner)
-                .map(|k| db.layout_of_ty(k.assert_ty_ref(Interner).clone(), trait_env.clone()))
+                .map(|k| db.layout_of_ty(k.assert_ty_ref(Interner).clone(), trait_env))
                 .collect::<Result<Vec<_>, _>>()?;
             let fields = fields.iter().map(|it| &**it).collect::<Vec<_>>();
             let fields = fields.iter().collect::<IndexVec<_, _>>();
@@ -333,7 +333,7 @@ pub fn layout_of_ty_query(
                 .map(|it| {
                     db.layout_of_ty(
                         it.ty.clone().substitute(Interner, ClosureSubst(subst).parent_subst()),
-                        trait_env.clone(),
+                        trait_env,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -370,7 +370,7 @@ pub(crate) fn layout_of_ty_recover(
     _: &Cycle,
     _: HirDatabaseData,
     _: Ty,
-    _: Arc<TraitEnvironment>,
+    _: TraitEnvironment<'_>,
 ) -> Result<Arc<Layout>, LayoutError> {
     Err(LayoutError::RecursiveTypeWithoutIndirection)
 }

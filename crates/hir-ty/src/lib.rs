@@ -882,16 +882,16 @@ where
 
 pub fn callable_sig_from_fn_trait(
     self_ty: &Ty,
-    trait_env: Arc<TraitEnvironment>,
+    trait_env: TraitEnvironment<'_>,
     db: &dyn HirDatabase,
 ) -> Option<(FnTrait, CallableSig)> {
-    let krate = trait_env.krate;
+    let krate = trait_env.krate(db);
     let fn_once_trait = FnTrait::FnOnce.get_id(db, krate)?;
     let output_assoc_type = db
         .trait_items(fn_once_trait)
         .associated_type_by_name(&Name::new_symbol_root(sym::Output.clone()))?;
 
-    let mut table = InferenceTable::new(db, trait_env.clone());
+    let mut table = InferenceTable::new(db, trait_env);
     let b = TyBuilder::trait_ref(db, fn_once_trait);
     if b.remaining() != 2 {
         return None;
@@ -909,8 +909,8 @@ pub fn callable_sig_from_fn_trait(
     )
     .build();
 
-    let block = trait_env.block;
-    let trait_env = trait_env.env.clone();
+    let block = trait_env.block(db);
+    let trait_env = trait_env.env(db).clone();
     let obligation =
         InEnvironment { goal: trait_ref.clone().cast(Interner), environment: trait_env.clone() };
     let canonical = table.canonicalize(obligation.clone());

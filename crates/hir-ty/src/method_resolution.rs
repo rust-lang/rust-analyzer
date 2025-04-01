@@ -440,7 +440,7 @@ pub fn def_crates(db: &dyn HirDatabase, ty: &Ty, cur_crate: Crate) -> Option<Sma
 pub(crate) fn lookup_method(
     db: &dyn HirDatabase,
     ty: &Canonical<Ty>,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: &Name,
@@ -577,7 +577,7 @@ impl ReceiverAdjustments {
 pub(crate) fn iterate_method_candidates<T>(
     ty: &Canonical<Ty>,
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
@@ -607,7 +607,7 @@ pub(crate) fn iterate_method_candidates<T>(
 
 pub fn lookup_impl_const(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     const_id: ConstId,
     subs: Substitution,
 ) -> (ConstId, Substitution) {
@@ -635,7 +635,7 @@ pub fn lookup_impl_const(
 /// call the method using the vtable.
 pub fn is_dyn_method(
     db: &dyn HirDatabase,
-    _env: Arc<TraitEnvironment>,
+    _env: TraitEnvironment<'_>,
     func: FunctionId,
     fn_subst: Substitution,
 ) -> Option<usize> {
@@ -677,7 +677,7 @@ pub fn is_dyn_method(
 /// Returns `func` if it's not a method defined in a trait or the lookup failed.
 pub(crate) fn lookup_impl_method_query(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     func: FunctionId,
     fn_subst: Substitution,
 ) -> (FunctionId, Substitution) {
@@ -712,13 +712,13 @@ pub(crate) fn lookup_impl_method_query(
 fn lookup_impl_assoc_item_for_trait_ref(
     trait_ref: TraitRef,
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     name: &Name,
 ) -> Option<(AssocItemId, Substitution)> {
     let hir_trait_id = trait_ref.hir_trait_id();
     let self_ty = trait_ref.self_type_parameter(Interner);
     let self_ty_fp = TyFingerprint::for_trait_impl(&self_ty)?;
-    let impls = db.trait_impls_in_deps(env.krate);
+    let impls = db.trait_impls_in_deps(env.krate(db));
 
     let trait_module = hir_trait_id.module(db.upcast());
     let type_module = match self_ty_fp {
@@ -916,7 +916,7 @@ pub fn check_orphan_rules(db: &dyn HirDatabase, impl_: ImplId) -> bool {
 pub fn iterate_path_candidates(
     ty: &Canonical<Ty>,
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
@@ -938,7 +938,7 @@ pub fn iterate_path_candidates(
 pub fn iterate_method_candidates_dyn(
     ty: &Canonical<Ty>,
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
@@ -1158,7 +1158,7 @@ fn iterate_method_candidates_by_receiver(
 fn iterate_method_candidates_for_self_ty(
     self_ty: &Canonical<Ty>,
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
@@ -1203,7 +1203,8 @@ fn iterate_trait_method_candidates(
     let db = table.db;
 
     let canonical_self_ty = table.canonicalize(self_ty.clone());
-    let TraitEnvironment { krate, block, .. } = *table.trait_env;
+    let krate = table.trait_env.krate(db);
+    let block = table.trait_env.block(db);
 
     'traits: for &t in traits_in_scope {
         let data = db.trait_data(t);
@@ -1273,7 +1274,6 @@ fn iterate_inherent_methods(
     callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     let db = table.db;
-    let env = table.trait_env.clone();
 
     // For trait object types and placeholder types with trait bounds, the methods of the trait and
     // its super traits are considered inherent methods. This matters because these methods have
@@ -1281,9 +1281,9 @@ fn iterate_inherent_methods(
     // `iterate_trait_method_candidates()` only after this function.
     match self_ty.kind(Interner) {
         TyKind::Placeholder(_) => {
-            let env = table.trait_env.clone();
-            let traits = env
-                .traits_in_scope_from_clauses(self_ty.clone())
+            let traits = table
+                .trait_env
+                .traits_in_scope_from_clauses(db, self_ty.clone())
                 .flat_map(|t| all_super_traits(db.upcast(), t));
             iterate_inherent_trait_methods(
                 self_ty,
@@ -1312,7 +1312,7 @@ fn iterate_inherent_methods(
         _ => {}
     }
 
-    let def_crates = match def_crates(db, self_ty, env.krate) {
+    let def_crates = match def_crates(db, self_ty, table.trait_env.krate(db)) {
         Some(k) => k,
         None => return ControlFlow::Continue(()),
     };
@@ -1425,7 +1425,7 @@ fn iterate_inherent_methods(
 /// Returns the receiver type for the index trait call.
 pub(crate) fn resolve_indexing_op(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     ty: Canonical<Ty>,
     index_trait: TraitId,
 ) -> Option<ReceiverAdjustments> {
@@ -1435,7 +1435,7 @@ pub(crate) fn resolve_indexing_op(
     for (ty, adj) in deref_chain {
         let goal = generic_implements_goal(db, &table.trait_env, index_trait, &ty);
         if db
-            .trait_solve(table.trait_env.krate, table.trait_env.block, goal.cast(Interner))
+            .trait_solve(table.trait_env.krate(db), table.trait_env.block(db), goal.cast(Interner))
             .is_some()
         {
             return Some(adj);
@@ -1621,11 +1621,11 @@ fn is_valid_impl_fn_candidate(
         });
 
         for goal in goals.clone() {
-            let in_env = InEnvironment::new(&table.trait_env.env, goal);
+            let in_env = InEnvironment::new(table.trait_env.env(db), goal);
             let canonicalized = table.canonicalize_with_free_vars(in_env);
             let solution = table.db.trait_solve(
-                table.trait_env.krate,
-                table.trait_env.block,
+                table.trait_env.krate(db),
+                table.trait_env.block(db),
                 canonicalized.value.clone(),
             );
 
@@ -1660,11 +1660,11 @@ fn is_valid_impl_fn_candidate(
 pub fn implements_trait(
     ty: &Canonical<Ty>,
     db: &dyn HirDatabase,
-    env: &TraitEnvironment,
+    env: &TraitEnvironment<'_>,
     trait_: TraitId,
 ) -> bool {
     let goal = generic_implements_goal(db, env, trait_, ty);
-    let solution = db.trait_solve(env.krate, env.block, goal.cast(Interner));
+    let solution = db.trait_solve(env.krate(db), env.block(db), goal.cast(Interner));
 
     solution.is_some()
 }
@@ -1672,11 +1672,11 @@ pub fn implements_trait(
 pub fn implements_trait_unique(
     ty: &Canonical<Ty>,
     db: &dyn HirDatabase,
-    env: &TraitEnvironment,
+    env: &TraitEnvironment<'_>,
     trait_: TraitId,
 ) -> bool {
     let goal = generic_implements_goal(db, env, trait_, ty);
-    let solution = db.trait_solve(env.krate, env.block, goal.cast(Interner));
+    let solution = db.trait_solve(env.krate(db), env.block(db), goal.cast(Interner));
 
     matches!(solution, Some(crate::Solution::Unique(_)))
 }
@@ -1686,7 +1686,7 @@ pub fn implements_trait_unique(
 #[tracing::instrument(skip_all)]
 fn generic_implements_goal(
     db: &dyn HirDatabase,
-    env: &TraitEnvironment,
+    env: &TraitEnvironment<'_>,
     trait_: TraitId,
     self_ty: &Canonical<Ty>,
 ) -> Canonical<InEnvironment<super::DomainGoal>> {
@@ -1708,7 +1708,7 @@ fn generic_implements_goal(
     let binders = CanonicalVarKinds::from_iter(Interner, kinds);
 
     let obligation = trait_ref.cast(Interner);
-    let value = InEnvironment::new(&env.env, obligation);
+    let value = InEnvironment::new(env.env(db), obligation);
     Canonical { binders, value }
 }
 

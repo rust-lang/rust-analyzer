@@ -9,7 +9,6 @@ use chalk_ir::cast::Cast;
 use hir_def::lang_item::LangItem;
 use hir_expand::name::Name;
 use intern::sym;
-use triomphe::Arc;
 
 use crate::{
     Canonical, Goal, Interner, ProjectionTyExt, TraitEnvironment, Ty, TyBuilder, TyKind,
@@ -33,7 +32,7 @@ pub(crate) enum AutoderefKind {
 ///   detects a cycle in the deref chain.
 pub fn autoderef(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     ty: Canonical<Ty>,
 ) -> impl Iterator<Item = Ty> {
     let mut table = InferenceTable::new(db, env);
@@ -198,15 +197,16 @@ pub(crate) fn deref_by_trait(
         // blanked impl on `Deref`.
         #[expect(clippy::overly_complex_bool_expr)]
         if use_receiver_trait && false {
-            if let Some(receiver) =
-                db.lang_item(table.trait_env.krate, LangItem::Receiver).and_then(|l| l.as_trait())
+            if let Some(receiver) = db
+                .lang_item(table.trait_env.krate(db), LangItem::Receiver)
+                .and_then(|l| l.as_trait())
             {
                 return Some(receiver);
             }
         }
         // Old rustc versions might not have `Receiver` trait.
         // Fallback to `Deref` if they don't
-        db.lang_item(table.trait_env.krate, LangItem::Deref).and_then(|l| l.as_trait())
+        db.lang_item(table.trait_env.krate(db), LangItem::Deref).and_then(|l| l.as_trait())
     };
     let trait_id = trait_id()?;
     let target = db

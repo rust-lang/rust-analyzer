@@ -153,7 +153,7 @@ impl NameGenerator {
     /// If the suggested name conflicts with reserved keywords, it will return `None`.
     pub fn for_type(
         &mut self,
-        ty: &hir::Type,
+        ty: &hir::Type<'_>,
         db: &RootDatabase,
         edition: Edition,
     ) -> Option<SmolStr> {
@@ -373,7 +373,7 @@ fn from_type(expr: &ast::Expr, sema: &Semantics<'_, RootDatabase>) -> Option<Smo
     name_of_type(&ty, sema.db, edition)
 }
 
-fn name_of_type(ty: &hir::Type, db: &RootDatabase, edition: Edition) -> Option<SmolStr> {
+fn name_of_type(ty: &hir::Type<'_>, db: &RootDatabase, edition: Edition) -> Option<SmolStr> {
     let name = if let Some(adt) = ty.as_adt() {
         let name = adt.name(db).display(db, edition).to_string();
 
@@ -407,7 +407,7 @@ fn name_of_type(ty: &hir::Type, db: &RootDatabase, edition: Edition) -> Option<S
     normalize(&name)
 }
 
-fn sequence_name(inner_ty: Option<&hir::Type>, db: &RootDatabase, edition: Edition) -> SmolStr {
+fn sequence_name(inner_ty: Option<&hir::Type<'_>>, db: &RootDatabase, edition: Edition) -> SmolStr {
     let items_str = SmolStr::new_static("items");
     let Some(inner_ty) = inner_ty else {
         return items_str;

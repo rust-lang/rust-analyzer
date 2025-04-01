@@ -156,9 +156,9 @@ enum MirOrDynIndex {
     Dyn(usize),
 }
 
-pub struct Evaluator<'a> {
-    db: &'a dyn HirDatabase,
-    trait_env: Arc<TraitEnvironment>,
+pub struct Evaluator<'db> {
+    db: &'db dyn HirDatabase,
+    trait_env: TraitEnvironment<'db>,
     target_data_layout: Arc<TargetDataLayout>,
     stack: Vec<u8>,
     heap: Vec<u8>,
@@ -587,7 +587,7 @@ pub fn interpret_mir(
     // a zero size, hoping that they are all outside of our current body. Even without a fix for #7434, we can
     // (and probably should) do better here, for example by excluding bindings outside of the target expression.
     assert_placeholder_ty_is_unused: bool,
-    trait_env: Option<Arc<TraitEnvironment>>,
+    trait_env: Option<TraitEnvironment<'_>>,
 ) -> Result<(Result<Const>, MirOutput)> {
     let ty = body.locals[return_slot()].ty.clone();
     let mut evaluator = Evaluator::new(db, body.owner, assert_placeholder_ty_is_unused, trait_env)?;
@@ -621,12 +621,12 @@ const EXECUTION_LIMIT: usize = 100_000;
 const EXECUTION_LIMIT: usize = 10_000_000;
 
 impl Evaluator<'_> {
-    pub fn new(
-        db: &dyn HirDatabase,
+    pub fn new<'db>(
+        db: &'db dyn HirDatabase,
         owner: DefWithBodyId,
         assert_placeholder_ty_is_unused: bool,
-        trait_env: Option<Arc<TraitEnvironment>>,
-    ) -> Result<Evaluator<'_>> {
+        trait_env: Option<TraitEnvironment<'db>>,
+    ) -> Result<Evaluator<'db>> {
         let crate_id = owner.module(db.upcast()).krate();
         let target_data_layout = match db.target_data_layout(crate_id) {
             Ok(target_data_layout) => target_data_layout,
@@ -852,7 +852,7 @@ impl Evaluator<'_> {
         }
         let r = self
             .db
-            .layout_of_ty(ty.clone(), self.trait_env.clone())
+            .layout_of_ty(ty.clone(), self.trait_env)
             .map_err(|e| MirEvalError::LayoutError(e, ty.clone()))?;
         self.layout_cache.borrow_mut().insert(ty.clone(), r.clone());
         Ok(r)
@@ -1910,14 +1910,12 @@ impl Evaluator<'_> {
                 let mut const_id = *const_id;
                 let mut subst = subst.clone();
                 if let hir_def::GeneralConstId::ConstId(c) = const_id {
-                    let (c, s) = lookup_impl_const(self.db, self.trait_env.clone(), c, subst);
+                    let (c, s) = lookup_impl_const(self.db, self.trait_env, c, subst);
                     const_id = hir_def::GeneralConstId::ConstId(c);
                     subst = s;
                 }
-                result_owner = self
-                    .db
-                    .const_eval(const_id, subst, Some(self.trait_env.clone()))
-                    .map_err(|e| {
+                result_owner =
+                    self.db.const_eval(const_id, subst, Some(self.trait_env)).map_err(|e| {
                         let name = const_id.name(self.db.upcast());
                         MirEvalError::ConstEvalError(name, Box::new(e))
                     })?;
@@ -2454,7 +2452,7 @@ impl Evaluator<'_> {
             .monomorphized_mir_body_for_closure(
                 closure.into(),
                 generic_args.clone(),
-                self.trait_env.clone(),
+                self.trait_env,
             )
             .map_err(|it| MirEvalError::MirLowerErrorForClosure(closure, it))?;
         let closure_data = if mir_body.locals[mir_body.param_locals[0]].ty.as_reference().is_some()
@@ -2553,16 +2551,16 @@ impl Evaluator<'_> {
         }
         let (def, generic_args) = pair;
         let r = if let Some(self_ty_idx) =
-            is_dyn_method(self.db, self.trait_env.clone(), def, generic_args.clone())
+            is_dyn_method(self.db, self.trait_env, def, generic_args.clone())
         {
             MirOrDynIndex::Dyn(self_ty_idx)
         } else {
             let (imp, generic_args) =
-                self.db.lookup_impl_method(self.trait_env.clone(), def, generic_args.clone());
+                self.db.lookup_impl_method(self.trait_env, def, generic_args.clone());
 
             let mir_body = self
                 .db
-                .monomorphized_mir_body(imp.into(), generic_args, self.trait_env.clone())
+                .monomorphized_mir_body(imp.into(), generic_args, self.trait_env)
                 .map_err(|e| {
                     MirEvalError::InFunction(
                         Box::new(MirEvalError::MirLowerError(imp, e)),

@@ -25,7 +25,7 @@ use syntax::ast::RangeOp;
 use crate::{
     Adjust, Adjustment, AdtId, AutoBorrow, Binders, CallableDefId, CallableSig, DeclContext,
     DeclOrigin, FnAbi, FnPointer, FnSig, FnSubst, Interner, Rawness, Scalar, Substitution,
-    TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind,
+    TraitRef, Ty, TyBuilder, TyExt, TyKind,
     autoderef::{Autoderef, builtin_deref, deref_by_trait},
     consteval,
     db::{InternedClosure, InternedCoroutine},
@@ -912,7 +912,7 @@ impl InferenceContext<'_> {
                     let canonicalized = self.canonicalize(base_ty.clone());
                     let receiver_adjustments = method_resolution::resolve_indexing_op(
                         self.db,
-                        self.table.trait_env.clone(),
+                        self.table.trait_env,
                         canonicalized,
                         index_trait,
                     );
@@ -1253,7 +1253,7 @@ impl InferenceContext<'_> {
                 }
             }
         }
-        let Some(trait_) = fn_x.get_id(self.db, self.table.trait_env.krate) else {
+        let Some(trait_) = fn_x.get_id(self.db, self.table.trait_env.krate(self.db)) else {
             return;
         };
         let trait_data = self.db.trait_items(trait_);
@@ -1517,9 +1517,8 @@ impl InferenceContext<'_> {
         let coerce_ty = expected.coercion_target_type(&mut self.table);
         let g = self.resolver.update_to_inner_scope(self.db.upcast(), self.owner, expr);
         let prev_env = block_id.map(|block_id| {
-            let prev_env = self.table.trait_env.clone();
-            TraitEnvironment::with_block(&mut self.table.trait_env, block_id);
-            prev_env
+            let new_env = self.table.trait_env.with_block(self.db, block_id);
+            mem::replace(&mut self.table.trait_env, new_env)
         });
 
         let (break_ty, ty) =
@@ -1761,7 +1760,7 @@ impl InferenceContext<'_> {
                 let resolved = method_resolution::lookup_method(
                     self.db,
                     &canonicalized_receiver,
-                    self.table.trait_env.clone(),
+                    self.table.trait_env,
                     self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
                     VisibleFromModule::Filter(self.resolver.module()),
                     name,
@@ -1911,7 +1910,7 @@ impl InferenceContext<'_> {
         let resolved = method_resolution::lookup_method(
             self.db,
             &canonicalized_receiver,
-            self.table.trait_env.clone(),
+            self.table.trait_env,
             self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
             VisibleFromModule::Filter(self.resolver.module()),
             method_name,
@@ -1956,7 +1955,7 @@ impl InferenceContext<'_> {
                 let assoc_func_with_same_name = method_resolution::iterate_method_candidates(
                     &canonicalized_receiver,
                     self.db,
-                    self.table.trait_env.clone(),
+                    self.table.trait_env,
                     self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
                     VisibleFromModule::Filter(self.resolver.module()),
                     Some(method_name),

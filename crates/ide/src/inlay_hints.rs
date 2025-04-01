@@ -712,14 +712,14 @@ impl InlayHintLabelBuilder<'_> {
 fn label_of_ty(
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    ty: &hir::Type,
+    ty: &hir::Type<'_>,
     display_target: DisplayTarget,
 ) -> Option<InlayHintLabel> {
     fn rec(
         sema: &Semantics<'_, RootDatabase>,
         famous_defs: &FamousDefs<'_, '_>,
         mut max_length: Option<usize>,
-        ty: &hir::Type,
+        ty: &hir::Type<'_>,
         label_builder: &mut InlayHintLabelBuilder<'_>,
         config: &InlayHintsConfig,
         display_target: DisplayTarget,
@@ -778,11 +778,11 @@ fn label_of_ty(
 }
 
 /// Checks if the type is an Iterator from std::iter and returns the iterator trait and the item type of the concrete iterator.
-fn hint_iterator(
-    sema: &Semantics<'_, RootDatabase>,
-    famous_defs: &FamousDefs<'_, '_>,
-    ty: &hir::Type,
-) -> Option<(hir::Trait, hir::TypeAlias, hir::Type)> {
+fn hint_iterator<'db>(
+    sema: &Semantics<'db, RootDatabase>,
+    famous_defs: &FamousDefs<'_, 'db>,
+    ty: &hir::Type<'db>,
+) -> Option<(hir::Trait, hir::TypeAlias, hir::Type<'db>)> {
     let db = sema.db;
     let strukt = ty.strip_references().as_adt()?;
     let krate = strukt.module(db).krate();
@@ -816,7 +816,7 @@ fn ty_to_text_edit(
     sema: &Semantics<'_, RootDatabase>,
     config: &InlayHintsConfig,
     node_for_hint: &SyntaxNode,
-    ty: &hir::Type,
+    ty: &hir::Type<'_>,
     offset_to_insert: TextSize,
     prefix: impl Into<String>,
 ) -> Option<LazyProperty<TextEdit>> {

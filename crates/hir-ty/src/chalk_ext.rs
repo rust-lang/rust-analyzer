@@ -376,7 +376,7 @@ impl TyExt for Ty {
         let trait_ref = TyBuilder::trait_ref(db, copy_trait).push(self).build();
         let env = db.trait_environment_for_body(owner);
         let goal = Canonical {
-            value: InEnvironment::new(&env.env, trait_ref.cast(Interner)),
+            value: InEnvironment::new(env.env(db), trait_ref.cast(Interner)),
             binders: CanonicalVarKinds::empty(Interner),
         };
         db.trait_solve(crate_id, None, goal).is_some()

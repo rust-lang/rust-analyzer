@@ -26,9 +26,9 @@ pub fn layout_of_adt_query(
     db: &dyn HirDatabase,
     def: AdtId,
     subst: Substitution,
-    trait_env: Arc<TraitEnvironment>,
+    trait_env: TraitEnvironment<'_>,
 ) -> Result<Arc<Layout>, LayoutError> {
-    let krate = trait_env.krate;
+    let krate = trait_env.krate(db);
     let Ok(target) = db.target_data_layout(krate) else {
         return Err(LayoutError::TargetLayoutNotAvailable);
     };
@@ -37,7 +37,7 @@ pub fn layout_of_adt_query(
     let handle_variant = |def: VariantId, var: &VariantData| {
         var.fields()
             .iter()
-            .map(|(fd, _)| db.layout_of_ty(field_ty(db, def, fd, &subst), trait_env.clone()))
+            .map(|(fd, _)| db.layout_of_ty(field_ty(db, def, fd, &subst), trait_env))
             .collect::<Result<Vec<_>, _>>()
     };
     let (variants, repr) = match def {
@@ -137,7 +137,7 @@ pub(crate) fn layout_of_adt_recover(
     _: HirDatabaseData,
     _: AdtId,
     _: Substitution,
-    _: Arc<TraitEnvironment>,
+    _: TraitEnvironment<'_>,
 ) -> Result<Arc<Layout>, LayoutError> {
     Err(LayoutError::RecursiveTypeWithoutIndirection)
 }

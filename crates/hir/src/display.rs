@@ -429,7 +429,7 @@ impl HirDisplay for Variant {
     }
 }
 
-impl HirDisplay for Type {
+impl HirDisplay for Type<'_> {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
         self.ty.hir_fmt(f)
     }
@@ -748,7 +748,7 @@ impl HirDisplay for Static {
     }
 }
 
-impl HirDisplay for TraitRef {
+impl HirDisplay for TraitRef<'_> {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
         self.trait_ref.hir_fmt(f)
     }

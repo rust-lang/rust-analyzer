@@ -1123,10 +1123,10 @@ pub(crate) fn generic_predicates_for_param_recover(
 pub(crate) fn trait_environment_for_body_query(
     db: &dyn HirDatabase,
     def: DefWithBodyId,
-) -> Arc<TraitEnvironment> {
+) -> TraitEnvironment<'_> {
     let Some(def) = def.as_generic_def_id(db.upcast()) else {
         let krate = def.module(db.upcast()).krate();
-        return TraitEnvironment::empty(krate);
+        return TraitEnvironment::empty(db, krate);
     };
     db.trait_environment(def)
 }
@@ -1134,7 +1134,7 @@ pub(crate) fn trait_environment_for_body_query(
 pub(crate) fn trait_environment_query(
     db: &dyn HirDatabase,
     def: GenericDefId,
-) -> Arc<TraitEnvironment> {
+) -> TraitEnvironment<'_> {
     let resolver = def.resolver(db.upcast());
     let mut ctx = if let GenericDefId::FunctionId(_) = def {
         TyLoweringContext::new(db, &resolver, TypesMap::EMPTY, def.into())
@@ -1187,7 +1187,7 @@ pub(crate) fn trait_environment_query(
 
     let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
 
-    TraitEnvironment::new(resolver.krate(), None, traits_in_scope.into_boxed_slice(), env)
+    TraitEnvironment::create(db, resolver.krate(), None, traits_in_scope, env)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

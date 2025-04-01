@@ -38,7 +38,6 @@ use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use span::Edition;
 use stdx::never;
-use triomphe::Arc;
 
 use crate::{
     AdtId, AliasEq, AliasTy, Binders, CallableDefId, CallableSig, ConcreteConst, Const,
@@ -682,8 +681,8 @@ fn render_const_scalar(
     memory_map: &MemoryMap,
     ty: &Ty,
 ) -> Result<(), HirDisplayError> {
-    let trait_env = TraitEnvironment::empty(f.krate());
-    let ty = normalize(f.db, trait_env.clone(), ty.clone());
+    let trait_env = TraitEnvironment::empty(f.db, f.krate());
+    let ty = normalize(f.db, trait_env, ty.clone());
     match ty.kind(Interner) {
         TyKind::Scalar(s) => match s {
             Scalar::Bool => write!(f, "{}", b[0] != 0),
@@ -816,7 +815,7 @@ fn render_const_scalar(
             }
         },
         TyKind::Tuple(_, subst) => {
-            let Ok(layout) = f.db.layout_of_ty(ty.clone(), trait_env.clone()) else {
+            let Ok(layout) = f.db.layout_of_ty(ty.clone(), trait_env) else {
                 return f.write_str("<layout-error>");
             };
             f.write_str("(")?;
@@ -829,7 +828,7 @@ fn render_const_scalar(
                 }
                 let ty = ty.assert_ty_ref(Interner); // Tuple only has type argument
                 let offset = layout.fields.offset(id).bytes_usize();
-                let Ok(layout) = f.db.layout_of_ty(ty.clone(), trait_env.clone()) else {
+                let Ok(layout) = f.db.layout_of_ty(ty.clone(), trait_env) else {
                     f.write_str("<layout-error>")?;
                     continue;
                 };
@@ -839,7 +838,7 @@ fn render_const_scalar(
             f.write_str(")")
         }
         TyKind::Adt(adt, subst) => {
-            let Ok(layout) = f.db.layout_of_adt(adt.0, subst.clone(), trait_env.clone()) else {
+            let Ok(layout) = f.db.layout_of_adt(adt.0, subst.clone(), trait_env) else {
                 return f.write_str("<layout-error>");
             };
             match adt.0 {
@@ -862,7 +861,8 @@ fn render_const_scalar(
                     write!(f, "{}", f.db.union_data(u).name.display(f.db.upcast(), f.edition()))
                 }
                 hir_def::AdtId::EnumId(e) => {
-                    let Ok(target_data_layout) = f.db.target_data_layout(trait_env.krate) else {
+                    let Ok(target_data_layout) = f.db.target_data_layout(trait_env.krate(f.db))
+                    else {
                         return f.write_str("<target-layout-not-available>");
                     };
                     let Some((var_id, var_layout)) =
@@ -935,7 +935,7 @@ fn render_variant_after_name(
     data: &VariantData,
     f: &mut HirFormatter<'_>,
     field_types: &ArenaMap<LocalFieldId, Binders<Ty>>,
-    trait_env: Arc<TraitEnvironment>,
+    trait_env: TraitEnvironment<'_>,
     layout: &Layout,
     subst: &Substitution,
     b: &[u8],
@@ -946,7 +946,7 @@ fn render_variant_after_name(
             let render_field = |f: &mut HirFormatter<'_>, id: LocalFieldId| {
                 let offset = layout.fields.offset(u32::from(id.into_raw()) as usize).bytes_usize();
                 let ty = field_types[id].clone().substitute(Interner, subst);
-                let Ok(layout) = f.db.layout_of_ty(ty.clone(), trait_env.clone()) else {
+                let Ok(layout) = f.db.layout_of_ty(ty.clone(), trait_env) else {
                     return f.write_str("<layout-error>");
                 };
                 let size = layout.size.bytes_usize();
