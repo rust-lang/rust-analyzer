@@ -226,9 +226,9 @@ fn resolve_assoc_or_field(
     resolve_field(db, variant_def, name, ns)
 }
 
-fn resolve_assoc_item(
-    db: &dyn HirDatabase,
-    ty: &Type,
+fn resolve_assoc_item<'db>(
+    db: &'db dyn HirDatabase,
+    ty: &Type<'db>,
     name: &Name,
     ns: Option<Namespace>,
 ) -> Option<DocLinkDef> {
@@ -240,10 +240,10 @@ fn resolve_assoc_item(
     })
 }
 
-fn resolve_impl_trait_item(
-    db: &dyn HirDatabase,
+fn resolve_impl_trait_item<'db>(
+    db: &'db dyn HirDatabase,
     resolver: Resolver,
-    ty: &Type,
+    ty: &Type<'db>,
     name: &Name,
     ns: Option<Namespace>,
 ) -> Option<DocLinkDef> {
