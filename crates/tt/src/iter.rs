@@ -6,7 +6,7 @@ use std::fmt;
 use arrayvec::ArrayVec;
 use intern::sym;
 
-use crate::{Ident, Leaf, Punct, Spacing, Subtree, TokenTree, TokenTreesView};
+use crate::{Ident, Leaf, MAX_GLUED_PUNCT_LEN, Punct, Spacing, Subtree, TokenTree, TokenTreesView};
 
 #[derive(Clone)]
 pub struct TtIter<'a, S> {
@@ -111,7 +111,10 @@ impl<'a, S: Copy> TtIter<'a, S> {
     ///
     /// This method currently may return a single quotation, which is part of lifetime ident and
     /// conceptually not a punct in the context of mbe. Callers should handle this.
-    pub fn expect_glued_punct(&mut self) -> Result<ArrayVec<Punct<S>, 3>, ()> {
+    pub fn expect_glued_punct(
+        &mut self,
+        max_len: usize,
+    ) -> Result<ArrayVec<Punct<S>, MAX_GLUED_PUNCT_LEN>, ()> {
         let TtElement::Leaf(&Leaf::Punct(first)) = self.next().ok_or(())? else {
             return Err(());
         };
@@ -136,7 +139,9 @@ impl<'a, S: Copy> TtIter<'a, S> {
         };
 
         match (first.char, second.char, third.map(|it| it.char)) {
-            ('.', '.', Some('.' | '=')) | ('<', '<', Some('=')) | ('>', '>', Some('=')) => {
+            ('.', '.', Some('.' | '=')) | ('<', '<', Some('=')) | ('>', '>', Some('='))
+                if max_len >= 3 =>
+            {
                 let _ = self.next().unwrap();
                 let _ = self.next().unwrap();
                 res.push(first);
@@ -151,7 +156,9 @@ impl<'a, S: Copy> TtIter<'a, S> {
             | ('.', '.', _)
             | ('&', '&', _)
             | ('<', '<', _)
-            | ('|', '|', _) => {
+            | ('|', '|', _)
+                if max_len >= 2 =>
+            {
                 let _ = self.next().unwrap();
                 res.push(first);
                 res.push(*second);

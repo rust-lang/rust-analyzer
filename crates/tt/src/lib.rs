@@ -22,6 +22,8 @@ use stdx::{impl_from, itertools::Itertools as _};
 
 pub use text_size::{TextRange, TextSize};
 
+pub const MAX_GLUED_PUNCT_LEN: usize = 3;
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Lit {
     pub kind: LitKind,

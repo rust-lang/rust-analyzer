@@ -65,7 +65,7 @@ use intern::{Symbol, sym};
 use smallvec::{SmallVec, smallvec};
 use span::{Edition, Span};
 use tt::{
-    DelimSpan,
+    DelimSpan, MAX_GLUED_PUNCT_LEN,
     iter::{TtElement, TtIter},
 };
 
@@ -558,7 +558,7 @@ fn match_loop_inner<'t>(
             }
             OpDelimited::Op(Op::Punct(lhs)) => {
                 let mut fork = src.clone();
-                let error = if let Ok(rhs) = fork.expect_glued_punct() {
+                let error = if let Ok(rhs) = fork.expect_glued_punct(lhs.len()) {
                     let first_is_single_quote = rhs[0].char == '\'';
                     let lhs = lhs.iter().map(|it| it.char);
                     let rhs_ = rhs.iter().map(|it| it.char);
@@ -955,7 +955,7 @@ fn expect_separator<S: Copy>(iter: &mut TtIter<'_, S>, separator: &Separator) ->
             },
             Err(_) => false,
         },
-        Separator::Puncts(lhs) => match fork.expect_glued_punct() {
+        Separator::Puncts(lhs) => match fork.expect_glued_punct(lhs.len()) {
             Ok(rhs) => {
                 let lhs = lhs.iter().map(|it| it.char);
                 let rhs = rhs.iter().map(|it| it.char);
@@ -975,7 +975,7 @@ fn expect_tt<S: Copy>(iter: &mut TtIter<'_, S>) -> Result<(), ()> {
         if punct.char == '\'' {
             expect_lifetime(iter)?;
         } else {
-            iter.expect_glued_punct()?;
+            iter.expect_glued_punct(MAX_GLUED_PUNCT_LEN)?;
         }
     } else {
         iter.next().ok_or(())?;
