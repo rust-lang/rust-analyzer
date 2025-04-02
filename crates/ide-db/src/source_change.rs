@@ -3,6 +3,7 @@
 //!
 //! It can be viewed as a dual for `Change`.
 
+use std::sync::{Arc, Mutex};
 use std::{collections::hash_map::Entry, fmt, iter, mem};
 
 use crate::text_edit::{TextEdit, TextEditBuilder};
@@ -38,6 +39,7 @@ pub struct ChangeAnnotation {
 #[derive(Default, Debug, Clone)]
 pub struct SourceChange {
     pub source_file_edits: IntMap<FileId, (TextEdit, Option<SnippetEdit>)>,
+    pub choice_action_callbacks: IntMap<FileId, ChoiceAction>,
     pub file_system_edits: Vec<FileSystemEdit>,
     pub is_snippet: bool,
     pub annotations: FxHashMap<ChangeAnnotationId, ChangeAnnotation>,
@@ -45,6 +47,13 @@ pub struct SourceChange {
 }
 
 impl SourceChange {
+    pub fn from_choice_action(file_id: impl Into<FileId>, action: ChoiceAction) -> Self {
+        SourceChange {
+            choice_action_callbacks: iter::once((file_id.into(), action)).collect(),
+            ..Default::default()
+        }
+    }
+
     pub fn from_text_edit(file_id: impl Into<FileId>, edit: TextEdit) -> Self {
         SourceChange {
             source_file_edits: iter::once((file_id.into(), (edit, None))).collect(),
@@ -556,4 +565,66 @@ impl PlaceSnippet {
             }
         }
     }
+}
+
+/// Choice Action to perform
+#[derive(Clone)]
+pub struct ChoiceAction {
+    /// The file to apply the choice to
+    file: FileId,
+    callback: Arc<Mutex<ChoiceCallBack>>,
+}
+
+impl ChoiceAction {
+    pub fn new(file: FileId, callback: Arc<Mutex<ChoiceCallBack>>) -> Self {
+        Self { file, callback }
+    }
+}
+
+impl std::fmt::Debug for ChoiceAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ChoiceAction").field("file", &self.file).finish()
+    }
+}
+/// a function that takes a `SourceChangeBuilder` and a slice of strings
+/// which is the choice being made, each one from corrseponding choice list in `choices_list`
+/// or if no choice is provided, `None` is passed in corresponding position
+pub type IndependentChoiceCallback =
+    Box<dyn FnOnce(&mut SourceChangeBuilder, &[Option<String>]) + Send + 'static>;
+
+/// function that takes a `SourceChangeBuilder` and a usize indicate which question this is, and a string
+/// which is the choice being made, return next choice list
+///
+/// for example, the first time `f` is called, it is called with `0` and a string in `first_choice_list` and returns
+/// the next choice list, the second time `f` is called, it is called with `1` and a string in the second choice list
+/// and returns the next choice list, and so on
+///
+/// in conclusion, `f` is like rewrite a proper async function into a state machine with each await point being a choice
+/// being made by user
+pub type SequentialChoiceCallback =
+    Box<dyn FnMut(&mut SourceChangeBuilder, usize, Option<&str>) -> Vec<String> + Send + 'static>;
+
+pub enum ChoiceCallBack {
+    /// where the user needs to select one or more options from a predefined list
+    ///
+    /// `choices_list` is a list of choice lists, where each choice is a string
+    ///
+    /// `f` is a function that takes a `SourceChangeBuilder` and a slice of strings
+    /// which is the choice being made, each one from corrseponding choice list in `choices_list`
+    /// or if no choice is provided, `None` is passed in corresponding position
+    Independent { choices_list: Vec<Vec<String>>, f: IndependentChoiceCallback },
+    /// for sequential, stateful interactions where choices influence subsequent steps.
+    ///
+    /// `first_choice_list` is a list of choices, where each choice is a string
+    ///
+    /// `f` is a function that takes a `SourceChangeBuilder` and a usize indicate which question this is, and a string
+    /// which is the choice being made, return next choice list
+    ///
+    /// for example, the first time `f` is called, it is called with `0` and a string in `first_choice_list` and returns
+    /// the next choice list, the second time `f` is called, it is called with `1` and a string in the second choice list
+    /// and returns the next choice list, and so on
+    ///
+    /// in conclusion, `f` is like rewrite a proper async function into a state machine with each await point being a choice
+    /// being made by user
+    Sequential { first_choice_list: Vec<String>, f: SequentialChoiceCallback },
 }

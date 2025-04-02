@@ -1,8 +1,11 @@
 //! See [`AssistContext`].
 
+use std::sync::{Arc, Mutex};
+
 use hir::{FileRange, Semantics};
 use ide_db::EditionedFileId;
 use ide_db::base_db::salsa::AsDynDatabase;
+use ide_db::source_change::{ChoiceAction, ChoiceCallBack, IndependentChoiceCallback, SequentialChoiceCallback, SourceChange};
 use ide_db::{FileId, RootDatabase, label::Label};
 use syntax::Edition;
 use syntax::{
@@ -201,6 +204,78 @@ impl Assists {
     ) -> Option<()> {
         let mut f = Some(f);
         self.add_impl(Some(group), id, label.into(), target, &mut |it| f.take().unwrap()(it))
+    }
+
+    /// For scenarios where the user needs to select options from multiple predefined lists
+    ///
+    /// `choices_list` is a list of choice lists, where each choice is a string
+    ///
+    /// `f` is a function that takes a `SourceChangeBuilder` and a slice of strings
+    /// which is the choice being made, each one from corrseponding choice list in `choices_list`
+    /// or if no choice is provided, `None` is passed
+    pub(crate) fn add_independent_choices_assist(
+        &mut self,
+        group: Option<&GroupLabel>,
+        id: AssistId,
+        label: String,
+        target: TextRange,
+        choices_list: Vec<Vec<String>>,
+        f: IndependentChoiceCallback,
+    ) -> Option<()> {
+        if !self.is_allowed(&id) {
+            return None;
+        }
+        let file_id = self.file;
+
+        let callback = ChoiceCallBack::Independent { choices_list, f };
+        let action = ChoiceAction::new(file_id, Arc::new(Mutex::new(callback)));
+
+        let source_change = Some(SourceChange::from_choice_action(file_id, action));
+
+        let label = Label::new(label);
+        let group = group.cloned();
+        self.buf.push(Assist { id, label, group, target, source_change, command: None });
+        Some(())
+    }
+
+    /// For scenarios requiring sequential, stateful interactions where choices influence subsequent steps.
+    ///
+    /// `first_choice_list` is a list of choices, where each choice is a string
+    ///
+    /// `f` is a function that takes a `SourceChangeBuilder` and a usize indicate which question this is, and a string
+    /// which is the choice being made, return next choice list
+    ///
+    /// for example, the first time `f` is called, it is called with `0` and a string in `first_choice_list` and returns
+    /// the next choice list, the second time `f` is called, it is called with `1` and a string in the second choice list
+    /// and returns the next choice list, and so on
+    ///
+    /// in conclusion, `f` is like rewrite a proper async function into a state machine with each await point being a choice
+    /// being made by user
+    /// 
+    /// TODO(discord9): maybe consider async closure for `f`
+    pub(crate) fn add_sequential_choice_assist(
+        &mut self,
+        group: Option<&GroupLabel>,
+        id: AssistId,
+        label: String,
+        target: TextRange,
+        first_choice_list: Vec<String>,
+        f: SequentialChoiceCallback,
+    ) -> Option<()> {
+        if !self.is_allowed(&id) {
+            return None;
+        }
+        let file_id = self.file;
+
+        let callback = ChoiceCallBack::Sequential { first_choice_list, f };
+        let action = ChoiceAction::new(file_id, Arc::new(Mutex::new(callback)));
+
+        let source_change = Some(SourceChange::from_choice_action(file_id, action));
+
+        let label = Label::new(label);
+        let group = group.cloned();
+        self.buf.push(Assist { id, label, group, target, source_change, command: None });
+        Some(())
     }
 
     fn add_impl(

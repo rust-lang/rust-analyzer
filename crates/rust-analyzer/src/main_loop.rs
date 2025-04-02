@@ -1175,6 +1175,7 @@ impl GlobalState {
             .on::<NO_RETRY, lsp_ext::Runnables>(handlers::handle_runnables)
             .on::<NO_RETRY, lsp_ext::RelatedTests>(handlers::handle_related_tests)
             .on::<NO_RETRY, lsp_ext::CodeActionRequest>(handlers::handle_code_action)
+            // TODO(discord9): move this to on_sync_mut to 
             .on_identity::<RETRY, lsp_ext::CodeActionResolveRequest, _>(handlers::handle_code_action_resolve)
             .on::<NO_RETRY, lsp_ext::HoverRequest>(handlers::handle_hover)
             .on::<NO_RETRY, lsp_ext::ExternalDocs>(handlers::handle_open_docs)
