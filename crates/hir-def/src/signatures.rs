@@ -8,7 +8,7 @@ use la_arena::{Arena, Idx};
 use rustc_abi::{IntegerType, ReprOptions};
 use syntax::{
     AstToken,
-    ast::{self, HasGenericParams},
+    ast::{self, HasGenericParams, IsString},
 };
 use triomphe::Arc;
 
@@ -562,8 +562,11 @@ impl FunctionSignature {
             flags.insert(FnFlags::HAS_BODY);
         }
 
-        let abi =
-            source.value.abi().and_then(|abi| abi.abi_string()).map(|it| Symbol::intern(it.text()));
+        let abi = source
+            .value
+            .abi()
+            .and_then(|abi| abi.abi_string())
+            .map(|it| Symbol::intern(it.text_without_quotes()));
         let (store, source_map, generic_params, params, ret_type, self_param, variadic) =
             lower_function(db, module, source, id);
         if self_param {

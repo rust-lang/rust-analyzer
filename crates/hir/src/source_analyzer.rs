@@ -232,7 +232,6 @@ impl SourceAnalyzer {
 
     pub(crate) fn type_of_type(&self, db: &dyn HirDatabase, ty: &ast::Type) -> Option<Type> {
         let type_ref = self.type_id(ty)?;
-
         let ty = hir_ty::TyLoweringContext::new(
             db,
             &self.resolver,

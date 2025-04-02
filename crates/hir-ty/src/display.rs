@@ -16,7 +16,9 @@ use hir_def::{
     db::DefDatabase,
     expr_store::{ExpressionStore, path::Path},
     find_path::{self, PrefixKind},
-    hir::generics::{TypeOrConstParamData, TypeParamProvenance},
+    hir::generics::{
+        TypeOrConstParamData, TypeParamProvenance, WherePredicate, WherePredicateTypeTarget,
+    },
     item_scope::ItemInNs,
     item_tree::FieldsShape,
     lang_item::{LangItem, LangItemTarget},
@@ -2107,7 +2109,33 @@ impl HirDisplayWithExpressionStore for TypeRefId {
     ) -> Result<(), HirDisplayError> {
         match &store[*self] {
             TypeRef::Never => write!(f, "!")?,
-            TypeRef::TypeParam(idx) => write!(f, "Param[{:?}]", idx)?,
+            TypeRef::TypeParam(param) => {
+                let generic_params = f.db.generic_params(param.parent());
+                match generic_params[param.local_id()].name() {
+                    Some(name) => write!(f, "{}", name.display(f.db.upcast(), f.edition()))?,
+                    None => {
+                        write!(f, "impl ")?;
+                        f.write_joined(
+                            generic_params
+                                .where_predicates()
+                                .filter_map(|it| match it {
+                                    WherePredicate::TypeBound {
+                                        target: WherePredicateTypeTarget::TypeOrConstParam(p),
+                                        bound,
+                                    }
+                                    | WherePredicate::ForLifetime {
+                                        lifetimes: _,
+                                        target: WherePredicateTypeTarget::TypeOrConstParam(p),
+                                        bound,
+                                    } if *p == param.local_id() => Some(bound),
+                                    _ => None,
+                                })
+                                .map(ExpressionStoreMapAdapter::wrap(store)),
+                            " + ",
+                        )?;
+                    }
+                }
+            }
             TypeRef::Placeholder => write!(f, "_")?,
             TypeRef::Tuple(elems) => {
                 write!(f, "(")?;
@@ -2141,8 +2169,9 @@ impl HirDisplayWithExpressionStore for TypeRefId {
             TypeRef::Array(array) => {
                 write!(f, "[")?;
                 array.ty.hir_fmt(f, store)?;
-                // FIXME
-                // write!(f, "; {}]", array.len.display(f.db.upcast(), f.edition()))?;
+                write!(f, "; ")?;
+                array.len.hir_fmt(f, store)?;
+                write!(f, "]")?;
             }
             TypeRef::Slice(inner) => {
                 write!(f, "[")?;
@@ -2205,8 +2234,8 @@ impl HirDisplayWithExpressionStore for ConstRef {
         f: &mut HirFormatter<'_>,
         _store: &ExpressionStore,
     ) -> Result<(), HirDisplayError> {
-        // TODO
-        write!(f, "<const ref>")?;
+        // FIXME
+        write!(f, "{{const}}")?;
 
         Ok(())
     }

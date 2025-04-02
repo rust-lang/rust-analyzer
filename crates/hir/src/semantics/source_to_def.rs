@@ -110,6 +110,7 @@ use syntax::{
     AstNode, AstPtr, SyntaxNode,
     ast::{self, HasName},
 };
+use tt::TextRange;
 
 use crate::{InFile, InlineAsmOperand, db::HirDatabase, semantics::child_by_source::ChildBySource};
 
@@ -639,9 +640,26 @@ impl SourceToDefCtx<'_, '_> {
                 }
                 ast::Item::Fn(it) => {
                     let def = self.fn_to_def(container.with_value(it))?;
-                    if it.body().is_some_and(|it| {
-                        it.syntax().text_range().contains(child.text_range().start())
-                    }) {
+                    let child_offset = child.text_range().start();
+                    let is_in_body =
+                        it.body().is_some_and(|it| it.syntax().text_range().contains(child_offset));
+                    let in_param_pat = || {
+                        it.param_list().is_some_and(|it| {
+                            it.self_param()
+                                .and_then(|it| {
+                                    Some(TextRange::new(
+                                        it.syntax().text_range().start(),
+                                        it.name()?.syntax().text_range().end(),
+                                    ))
+                                })
+                                .is_some_and(|r| r.contains_inclusive(child_offset))
+                                || it
+                                    .params()
+                                    .filter_map(|it| it.pat())
+                                    .any(|it| it.syntax().text_range().contains(child_offset))
+                        })
+                    };
+                    if is_in_body || in_param_pat() {
                         DefWithBodyId::from(def).into()
                     } else {
                         ChildContainer::GenericDefId(def.into())
@@ -649,9 +667,10 @@ impl SourceToDefCtx<'_, '_> {
                 }
                 ast::Item::Static(it) => {
                     let def = self.static_to_def(container.with_value(it))?;
-                    if it.body().is_some_and(|it| {
+                    let is_in_body = it.body().is_some_and(|it| {
                         it.syntax().text_range().contains(child.text_range().start())
-                    }) {
+                    });
+                    if is_in_body {
                         DefWithBodyId::from(def).into()
                     } else {
                         ChildContainer::GenericDefId(def.into())
@@ -659,9 +678,10 @@ impl SourceToDefCtx<'_, '_> {
                 }
                 ast::Item::Const(it) => {
                     let def = self.const_to_def(container.with_value(it))?;
-                    if it.body().is_some_and(|it| {
+                    let is_in_body = it.body().is_some_and(|it| {
                         it.syntax().text_range().contains(child.text_range().start())
-                    }) {
+                    });
+                    if is_in_body {
                         DefWithBodyId::from(def).into()
                     } else {
                         ChildContainer::GenericDefId(def.into())

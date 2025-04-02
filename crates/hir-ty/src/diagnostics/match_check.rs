@@ -324,7 +324,7 @@ impl HirDisplay for Pat {
                 if let Some(variant) = variant {
                     match variant {
                         VariantId::EnumVariantId(v) => {
-                            let loc = v.lookup(f.db);
+                            let loc = v.lookup(f.db.upcast());
                             write!(
                                 f,
                                 "{}",

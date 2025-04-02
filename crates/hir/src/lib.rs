@@ -1420,8 +1420,8 @@ impl Struct {
 
 impl HasVisibility for Struct {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -1478,8 +1478,8 @@ impl Union {
 
 impl HasVisibility for Union {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -1571,8 +1571,8 @@ impl Enum {
 
 impl HasVisibility for Enum {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -2652,8 +2652,8 @@ impl ExternCrateDecl {
     }
 
     pub fn resolved_crate(self, db: &dyn HirDatabase) -> Option<Crate> {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         let krate = loc.container.krate();
         let name = &item_tree[loc.id.value].name;
         if *name == sym::self_ {
@@ -2666,21 +2666,21 @@ impl ExternCrateDecl {
     }
 
     pub fn name(self, db: &dyn HirDatabase) -> Name {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         item_tree[loc.id.value].name.clone()
     }
 
     pub fn alias(self, db: &dyn HirDatabase) -> Option<ImportAlias> {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         item_tree[loc.id.value].alias.clone()
     }
 
     /// Returns the name under which this crate is made accessible, taking `_` into account.
     pub fn alias_or_name(self, db: &dyn HirDatabase) -> Option<Name> {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
 
         match &item_tree[loc.id.value].alias {
             Some(ImportAlias::Underscore) => None,
@@ -2692,8 +2692,8 @@ impl ExternCrateDecl {
 
 impl HasVisibility for ExternCrateDecl {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -2817,8 +2817,8 @@ impl Static {
 
 impl HasVisibility for Static {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -2929,8 +2929,8 @@ impl Trait {
 
 impl HasVisibility for Trait {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -2956,8 +2956,8 @@ impl TraitAlias {
 
 impl HasVisibility for TraitAlias {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -2999,8 +2999,8 @@ impl TypeAlias {
 
 impl HasVisibility for TypeAlias {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db);
-        let item_tree = loc.id.item_tree(db);
+        let loc = self.id.lookup(db.upcast());
+        let item_tree = loc.id.item_tree(db.upcast());
         Visibility::resolve(
             db.upcast(),
             &self.id.resolver(db.upcast()),
@@ -3114,18 +3114,18 @@ impl Macro {
     pub fn name(self, db: &dyn HirDatabase) -> Name {
         match self.id {
             MacroId::Macro2Id(id) => {
-                let loc = id.lookup(db);
-                let item_tree = loc.id.item_tree(db);
+                let loc = id.lookup(db.upcast());
+                let item_tree = loc.id.item_tree(db.upcast());
                 item_tree[loc.id.value].name.clone()
             }
             MacroId::MacroRulesId(id) => {
-                let loc = id.lookup(db);
-                let item_tree = loc.id.item_tree(db);
+                let loc = id.lookup(db.upcast());
+                let item_tree = loc.id.item_tree(db.upcast());
                 item_tree[loc.id.value].name.clone()
             }
             MacroId::ProcMacroId(id) => {
-                let loc = id.lookup(db);
-                let item_tree = loc.id.item_tree(db);
+                let loc = id.lookup(db.upcast());
+                let item_tree = loc.id.item_tree(db.upcast());
                 item_tree[loc.id.value].name.clone()
             }
         }
@@ -3221,8 +3221,8 @@ impl HasVisibility for Macro {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
         match self.id {
             MacroId::Macro2Id(id) => {
-                let loc = id.lookup(db);
-                let item_tree = loc.id.item_tree(db);
+                let loc = id.lookup(db.upcast());
+                let item_tree = loc.id.item_tree(db.upcast());
                 Visibility::resolve(
                     db.upcast(),
                     &id.resolver(db.upcast()),

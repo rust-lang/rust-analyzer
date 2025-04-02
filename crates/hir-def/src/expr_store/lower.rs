@@ -716,7 +716,7 @@ impl ExprCollector<'_> {
                     let id = self.collect_macro_call(mcall, macro_ptr, true, |this, expansion| {
                         this.lower_type_ref_opt(expansion, impl_trait_lower_fn)
                     });
-                    self.source_map.types_map_back.insert(id, src);
+                    self.source_map.types_map.insert(src, id);
                     return id;
                 }
                 None => TypeRef::Error,
@@ -738,7 +738,9 @@ impl ExprCollector<'_> {
 
     fn alloc_type_ref(&mut self, type_ref: TypeRef, node: TypePtr) -> TypeRefId {
         let id = self.store.types.alloc(type_ref);
-        self.source_map.types_map_back.insert(id, self.expander.in_file(node));
+        let ptr = self.expander.in_file(node);
+        self.source_map.types_map_back.insert(id, ptr);
+        self.source_map.types_map.insert(ptr, id);
         id
     }
 

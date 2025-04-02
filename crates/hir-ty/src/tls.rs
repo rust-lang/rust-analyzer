@@ -109,7 +109,7 @@ impl DebugContext<'_> {
             CallableDefId::FunctionId(ff) => self.0.function_signature(ff).name.clone(),
             CallableDefId::StructId(s) => self.0.struct_signature(s).name.clone(),
             CallableDefId::EnumVariantId(e) => {
-                let loc = e.lookup(self.0);
+                let loc = e.lookup(self.0.upcast());
                 self.0.enum_variants(loc.parent).variants[loc.index as usize].1.clone()
             }
         };
