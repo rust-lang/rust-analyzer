@@ -1750,6 +1750,9 @@ impl<'db> SemanticsImpl<'db> {
                     SourceAnalyzer::new_for_body_no_infer(self.db, def, node, offset)
                 });
             }
+            ChildContainer::VariantId(def) => {
+                return Some(SourceAnalyzer::new_variant_body(self.db, def, node, offset));
+            }
             ChildContainer::TraitId(it) => {
                 return Some(SourceAnalyzer::new_generic_def(self.db, it.into(), node, offset));
             }
@@ -1768,7 +1771,6 @@ impl<'db> SemanticsImpl<'db> {
             ChildContainer::GenericDefId(it) => {
                 return Some(SourceAnalyzer::new_generic_def(self.db, it, node, offset));
             }
-            ChildContainer::VariantId(it) => it.resolver(self.db.upcast()),
             ChildContainer::ModuleId(it) => it.resolver(self.db.upcast()),
         };
         Some(SourceAnalyzer::new_for_resolver(resolver, node))

@@ -71,6 +71,12 @@ enum BodyOrSig {
         source_map: Arc<BodySourceMap>,
         infer: Option<Arc<InferenceResult>>,
     },
+    // To be folded into body once it is considered one
+    VariantFields {
+        _def: VariantId,
+        store: Arc<ExpressionStore>,
+        source_map: Arc<ExpressionStoreSourceMap>,
+    },
     Sig {
         _def: GenericDefId,
         store: Arc<ExpressionStore>,
@@ -142,6 +148,25 @@ impl SourceAnalyzer {
         }
     }
 
+    pub(crate) fn new_variant_body(
+        db: &dyn HirDatabase,
+        def: VariantId,
+        InFile { file_id, .. }: InFile<&SyntaxNode>,
+        _offset: Option<TextSize>,
+    ) -> SourceAnalyzer {
+        let (fields, source_map) = db.variant_fields_with_source_map(def);
+        let resolver = def.resolver(db.upcast());
+        SourceAnalyzer {
+            resolver,
+            body_or_sig: Some(BodyOrSig::VariantFields {
+                _def: def,
+                store: fields.store.clone(),
+                source_map,
+            }),
+            file_id,
+        }
+    }
+
     pub(crate) fn new_for_resolver(
         resolver: Resolver,
         node: InFile<&SyntaxNode>,
@@ -162,6 +187,7 @@ impl SourceAnalyzer {
     fn infer(&self) -> Option<&InferenceResult> {
         self.body_or_sig.as_ref().and_then(|it| match it {
             BodyOrSig::Sig { .. } => None,
+            BodyOrSig::VariantFields { .. } => None,
             BodyOrSig::Body { infer, .. } => infer.as_deref(),
         })
     }
@@ -169,6 +195,7 @@ impl SourceAnalyzer {
     fn body(&self) -> Option<&Body> {
         self.body_or_sig.as_ref().and_then(|it| match it {
             BodyOrSig::Sig { .. } => None,
+            BodyOrSig::VariantFields { .. } => None,
             BodyOrSig::Body { body, .. } => Some(&**body),
         })
     }
@@ -176,6 +203,7 @@ impl SourceAnalyzer {
     pub(crate) fn store(&self) -> Option<&ExpressionStore> {
         self.body_or_sig.as_ref().map(|it| match it {
             BodyOrSig::Sig { store, .. } => &**store,
+            BodyOrSig::VariantFields { store, .. } => &**store,
             BodyOrSig::Body { body, .. } => &body.store,
         })
     }
@@ -183,6 +211,7 @@ impl SourceAnalyzer {
     pub(crate) fn store_sm(&self) -> Option<&ExpressionStoreSourceMap> {
         self.body_or_sig.as_ref().map(|it| match it {
             BodyOrSig::Sig { source_map, .. } => &**source_map,
+            BodyOrSig::VariantFields { source_map, .. } => &**source_map,
             BodyOrSig::Body { source_map, .. } => &source_map.store,
         })
     }

@@ -632,11 +632,25 @@ impl SourceToDefCtx<'_, '_> {
                 }
                 ast::Item::Struct(it) => {
                     let def = self.struct_to_def(container.with_value(it))?;
-                    VariantId::from(def).into()
+                    let is_in_body = it.field_list().is_some_and(|it| {
+                        it.syntax().text_range().contains(child.text_range().start())
+                    });
+                    if is_in_body {
+                        VariantId::from(def).into()
+                    } else {
+                        ChildContainer::GenericDefId(def.into())
+                    }
                 }
                 ast::Item::Union(it) => {
                     let def = self.union_to_def(container.with_value(it))?;
-                    VariantId::from(def).into()
+                    let is_in_body = it.record_field_list().is_some_and(|it| {
+                        it.syntax().text_range().contains(child.text_range().start())
+                    });
+                    if is_in_body {
+                        VariantId::from(def).into()
+                    } else {
+                        ChildContainer::GenericDefId(def.into())
+                    }
                 }
                 ast::Item::Fn(it) => {
                     let def = self.fn_to_def(container.with_value(it))?;
@@ -691,7 +705,9 @@ impl SourceToDefCtx<'_, '_> {
             }
         } else if let Some(it) = ast::Variant::cast(container.value.clone()) {
             let def = self.enum_variant_to_def(InFile::new(container.file_id, &it))?;
-            DefWithBodyId::from(def).into()
+            let is_in_body =
+                it.eq_token().is_some_and(|it| it.text_range().end() < child.text_range().start());
+            if is_in_body { DefWithBodyId::from(def).into() } else { VariantId::from(def).into() }
         } else {
             let it = match Either::<ast::Pat, ast::Name>::cast(container.value)? {
                 Either::Left(it) => ast::Param::cast(it.syntax().parent()?)?.syntax().parent(),
