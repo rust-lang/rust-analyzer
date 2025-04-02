@@ -1182,6 +1182,7 @@ impl ModuleDefId {
     }
 }
 
+// FIXME: Replace this with a plain function, it only has one impl
 /// A helper trait for converting to MacroCallId
 trait AsMacroCall {
     fn as_call_id_with_errors(
@@ -1189,6 +1190,10 @@ trait AsMacroCall {
         db: &dyn ExpandDatabase,
         krate: Crate,
         resolver: impl Fn(&ModPath) -> Option<MacroDefId> + Copy,
+        eager_callback: &mut dyn FnMut(
+            InFile<(syntax::AstPtr<ast::MacroCall>, span::FileAstId<ast::MacroCall>)>,
+            MacroCallId,
+        ),
     ) -> Result<ExpandResult<Option<MacroCallId>>, UnresolvedMacro>;
 }
 
@@ -1198,6 +1203,10 @@ impl AsMacroCall for InFile<&ast::MacroCall> {
         db: &dyn ExpandDatabase,
         krate: Crate,
         resolver: impl Fn(&ModPath) -> Option<MacroDefId> + Copy,
+        eager_callback: &mut dyn FnMut(
+            InFile<(syntax::AstPtr<ast::MacroCall>, span::FileAstId<ast::MacroCall>)>,
+            MacroCallId,
+        ),
     ) -> Result<ExpandResult<Option<MacroCallId>>, UnresolvedMacro> {
         let expands_to = hir_expand::ExpandTo::from_call_site(self.value);
         let ast_id = AstId::new(self.file_id, db.ast_id_map(self.file_id).ast_id(self.value));
@@ -1227,6 +1236,7 @@ impl AsMacroCall for InFile<&ast::MacroCall> {
             krate,
             resolver,
             resolver,
+            eager_callback,
         )
     }
 }
@@ -1251,6 +1261,10 @@ fn macro_call_as_call_id(
     expand_to: ExpandTo,
     krate: Crate,
     resolver: impl Fn(&ModPath) -> Option<MacroDefId> + Copy,
+    eager_callback: &mut dyn FnMut(
+        InFile<(syntax::AstPtr<ast::MacroCall>, span::FileAstId<ast::MacroCall>)>,
+        MacroCallId,
+    ),
 ) -> Result<Option<MacroCallId>, UnresolvedMacro> {
     macro_call_as_call_id_with_eager(
         db,
@@ -1261,6 +1275,7 @@ fn macro_call_as_call_id(
         krate,
         resolver,
         resolver,
+        eager_callback,
     )
     .map(|res| res.value)
 }
@@ -1274,6 +1289,10 @@ fn macro_call_as_call_id_with_eager(
     krate: Crate,
     resolver: impl FnOnce(&ModPath) -> Option<MacroDefId>,
     eager_resolver: impl Fn(&ModPath) -> Option<MacroDefId>,
+    eager_callback: &mut dyn FnMut(
+        InFile<(syntax::AstPtr<ast::MacroCall>, span::FileAstId<ast::MacroCall>)>,
+        MacroCallId,
+    ),
 ) -> Result<ExpandResult<Option<MacroCallId>>, UnresolvedMacro> {
     let def = resolver(path).ok_or_else(|| UnresolvedMacro { path: path.clone() })?;
 
@@ -1286,6 +1305,7 @@ fn macro_call_as_call_id_with_eager(
             def,
             call_site,
             &|path| eager_resolver(path).filter(MacroDefId::is_fn_like),
+            eager_callback,
         ),
         _ if def.is_fn_like() => ExpandResult {
             value: Some(def.make_call(

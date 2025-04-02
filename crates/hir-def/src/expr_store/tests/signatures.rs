@@ -106,7 +106,7 @@ fn ret_impl_trait() -> impl Trait {}
                 T: Trait::<Item = A>,
                 (): Default
              {...}
-            const async unsafe extern ""C"" fn a() -> impl ::core::future::Future::<Output = ()> {...}
+            const async unsafe extern "C" fn a() -> impl ::core::future::Future::<Output = ()> {...}
             fn ret_impl_trait() -> impl Trait {...}
         "#]],
     );

@@ -396,13 +396,7 @@ impl<'db> SemanticsImpl<'db> {
         let sa = self.analyze_no_infer(macro_call.syntax())?;
 
         let macro_call = InFile::new(sa.file_id, macro_call);
-        let file_id = if let Some(call) =
-            <ast::MacroCall as crate::semantics::ToDef>::to_def(self, macro_call)
-        {
-            call.as_macro_file()
-        } else {
-            sa.expand(self.db, macro_call)?
-        };
+        let file_id = sa.expand(self.db, macro_call)?;
 
         let node = self.parse_or_expand(file_id.into());
         Some(node)
@@ -430,14 +424,7 @@ impl<'db> SemanticsImpl<'db> {
         let sa = self.analyze_no_infer(macro_call.syntax())?;
 
         let macro_call = InFile::new(sa.file_id, macro_call);
-        let file_id = if let Some(call) =
-            <ast::MacroCall as crate::semantics::ToDef>::to_def(self, macro_call)
-        {
-            // FIXME: Is this branch here necessary?
-            call.as_macro_file()
-        } else {
-            sa.expand(self.db, macro_call)?
-        };
+        let file_id = sa.expand(self.db, macro_call)?;
         let macro_call = self.db.lookup_intern_macro_call(file_id.macro_call_id);
 
         let skip = matches!(
@@ -896,13 +883,17 @@ impl<'db> SemanticsImpl<'db> {
         res
     }
 
-    pub fn descend_into_macros_no_opaque(&self, token: SyntaxToken) -> SmallVec<[SyntaxToken; 1]> {
+    pub fn descend_into_macros_no_opaque(
+        &self,
+        token: SyntaxToken,
+    ) -> SmallVec<[InFile<SyntaxToken>; 1]> {
         let mut res = smallvec![];
-        if let Ok(token) = self.wrap_token_infile(token.clone()).into_real_file() {
+        let token = self.wrap_token_infile(token);
+        if let Ok(token) = token.clone().into_real_file() {
             self.descend_into_macros_impl(token, &mut |t, ctx| {
                 if !ctx.is_opaque(self.db.upcast()) {
                     // Don't descend into opaque contexts
-                    res.push(t.value);
+                    res.push(t);
                 }
                 CONTINUE_NO_BREAKS
             });
@@ -1088,24 +1079,16 @@ impl<'db> SemanticsImpl<'db> {
                             let file_id = match m_cache.get(&mcall) {
                                 Some(&it) => it,
                                 None => {
-                                    let it = if let Some(call) =
-                                        <ast::MacroCall as crate::semantics::ToDef>::to_def(
-                                            self,
-                                            mcall.as_ref(),
-                                        ) {
-                                        call.as_macro_file()
-                                    } else {
-                                        token
-                                            .parent()
-                                            .and_then(|parent| {
-                                                self.analyze_impl(
-                                                    InFile::new(expansion, &parent),
-                                                    None,
-                                                    false,
-                                                )
-                                            })?
-                                            .expand(self.db, mcall.as_ref())?
-                                    };
+                                    let it = token
+                                        .parent()
+                                        .and_then(|parent| {
+                                            self.analyze_impl(
+                                                InFile::new(expansion, &parent),
+                                                None,
+                                                false,
+                                            )
+                                        })?
+                                        .expand(self.db, mcall.as_ref())?;
                                     m_cache.insert(mcall, it);
                                     it
                                 }
@@ -1355,7 +1338,7 @@ impl<'db> SemanticsImpl<'db> {
             hir_def::type_ref::TypeRef::Path(path) => path,
             _ => return None,
         };
-        match analyze.resolver.resolve_path_in_type_ns_fully(self.db, path)? {
+        match analyze.resolver.resolve_path_in_type_ns_fully(self.db.upcast(), path)? {
             TypeNs::TraitId(trait_id) => Some(trait_id.into()),
             _ => None,
         }

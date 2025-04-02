@@ -750,7 +750,7 @@ impl SourceAnalyzer {
         let bs = self.store_sm()?;
         bs.expansion(macro_call).and_then(|it| {
             // FIXME: Block def maps
-            let def = it.macro_call_id.lookup(db).def;
+            let def = it.macro_call_id.lookup(db.upcast()).def;
             db.crate_def_map(def.krate)
                 .macro_def_to_macro_id
                 .get(&def.kind.erased_ast_id())
@@ -930,7 +930,7 @@ impl SourceAnalyzer {
         }
 
         // FIXME: collectiong here shouldnt be necessary?
-        let mut collector = ExprCollector::new(db, self.resolver.module(), self.file_id);
+        let mut collector = ExprCollector::new(db.upcast(), self.resolver.module(), self.file_id);
         let hir_path = collector.lower_path(path.clone(), &mut |_| TypeRef::Error)?;
         let parent_hir_path =
             path.parent_path().and_then(|p| collector.lower_path(p, &mut |_| TypeRef::Error));
@@ -1197,11 +1197,18 @@ impl SourceAnalyzer {
 
     pub(crate) fn expand(
         &self,
-        _db: &dyn HirDatabase,
+        db: &dyn HirDatabase,
         macro_call: InFile<&ast::MacroCall>,
     ) -> Option<MacroFileId> {
-        let bs = self.store_sm()?;
-        bs.expansion(macro_call)
+        self.store_sm().and_then(|bs| bs.expansion(macro_call)).or_else(|| {
+            self.resolver
+                .item_scope()
+                .macro_invoc(
+                    macro_call
+                        .with_value(db.ast_id_map(macro_call.file_id).ast_id(macro_call.value)),
+                )
+                .map(|it| it.as_macro_file())
+        })
     }
 
     pub(crate) fn resolve_variant(&self, record_lit: ast::RecordExpr) -> Option<VariantId> {

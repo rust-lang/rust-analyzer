@@ -6,6 +6,7 @@ use std::mem;
 use base_db::Crate;
 use cfg::CfgOptions;
 use drop_bomb::DropBomb;
+use hir_expand::eager::EagerCallBackFn;
 use hir_expand::{
     ExpandError, ExpandErrorKind, ExpandResult, HirFileId, InFile, Lookup, MacroCallId,
     attrs::RawAttrs, mod_path::ModPath, span_map::SpanMap,
@@ -65,15 +66,19 @@ impl Expander {
         macro_call: ast::MacroCall,
         krate: Crate,
         resolver: impl Fn(&ModPath) -> Option<MacroId>,
+        eager_callback: EagerCallBackFn<'_>,
     ) -> Result<ExpandResult<Option<(Mark, Option<Parse<T>>)>>, UnresolvedMacro> {
         // FIXME: within_limit should support this, instead of us having to extract the error
         let mut unresolved_macro_err = None;
 
         let result = self.within_limit(db, |this| {
             let macro_call = this.in_file(&macro_call);
-            match macro_call.as_call_id_with_errors(db.upcast(), krate, |path| {
-                resolver(path).map(|it| db.macro_def(it))
-            }) {
+            match macro_call.as_call_id_with_errors(
+                db.upcast(),
+                krate,
+                |path| resolver(path).map(|it| db.macro_def(it)),
+                eager_callback,
+            ) {
                 Ok(call_id) => call_id,
                 Err(resolve_err) => {
                     unresolved_macro_err = Some(resolve_err);

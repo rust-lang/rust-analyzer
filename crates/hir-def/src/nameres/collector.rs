@@ -1273,6 +1273,12 @@ impl DefCollector<'_> {
                         *expand_to,
                         self.def_map.krate,
                         resolver_def_id,
+                        &mut |_ptr, _call_id| {
+                            // FIXME:
+                            // self.def_map.modules[directive.module_id]
+                            //     .scope
+                            //     .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
+                        },
                     );
                     if let Ok(Some(call_id)) = call_id {
                         self.def_map.modules[directive.module_id]
@@ -1564,6 +1570,7 @@ impl DefCollector<'_> {
                             );
                             resolved_res.resolved_def.take_macros().map(|it| self.db.macro_def(it))
                         },
+                        &mut |_, _| (),
                     );
                     if let Err(UnresolvedMacro { path }) = macro_call_as_call_id {
                         self.def_map.diagnostics.push(DefDiagnostic::unresolved_macro_call(
@@ -2497,6 +2504,12 @@ impl ModCollector<'_, '_> {
                     Some(MacroSubNs::Bang),
                 );
                 resolved_res.resolved_def.take_macros().map(|it| db.macro_def(it))
+            },
+            &mut |_ptr, _call_id| {
+                // FIXME:
+                // self.def_collector.def_map.modules[self.module_id]
+                //     .scope
+                //     .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
             },
         ) {
             // FIXME: if there were errors, this might've been in the eager expansion from an

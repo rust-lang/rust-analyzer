@@ -142,7 +142,7 @@ pub struct ExpressionStoreSourceMap {
 
     template_map: Option<Box<FormatTemplate>>,
 
-    expansions: FxHashMap<InFile<MacroCallPtr>, MacroFileId>,
+    pub expansions: FxHashMap<InFile<MacroCallPtr>, MacroFileId>,
 
     /// Diagnostics accumulated during lowering. These contain `AstPtr`s and so are stored in
     /// the source map (since they're just as volatile).

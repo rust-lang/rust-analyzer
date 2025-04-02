@@ -31,7 +31,7 @@ use crate::{
         BindingId, ExprId, LabelId,
         generics::{GenericParams, TypeOrConstParamData},
     },
-    item_scope::{BUILTIN_SCOPE, BuiltinShadowMode, ImportOrExternCrate, ImportOrGlob},
+    item_scope::{BUILTIN_SCOPE, BuiltinShadowMode, ImportOrExternCrate, ImportOrGlob, ItemScope},
     item_tree::ImportAlias,
     lang_item::LangItemTarget,
     nameres::{DefMap, LocalDefMap, MacroSubNs, ResolvePathResultPrefixInfo},
@@ -276,7 +276,7 @@ impl Resolver {
     ) -> Option<Visibility> {
         match visibility {
             RawVisibility::Module(_, _) => {
-                let (item_map, item_local_map, module) = self.item_scope();
+                let (item_map, item_local_map, module) = self.item_scope_();
                 item_map.resolve_visibility(
                     item_local_map,
                     db,
@@ -477,7 +477,7 @@ impl Resolver {
         path: &ModPath,
         expected_macro_kind: Option<MacroSubNs>,
     ) -> Option<(MacroId, Option<ImportOrGlob>)> {
-        let (item_map, item_local_map, module) = self.item_scope();
+        let (item_map, item_local_map, module) = self.item_scope_();
         item_map
             .resolve_path(
                 item_local_map,
@@ -667,8 +667,13 @@ impl Resolver {
     }
 
     pub fn module(&self) -> ModuleId {
-        let (def_map, _, local_id) = self.item_scope();
+        let (def_map, _, local_id) = self.item_scope_();
         def_map.module_id(local_id)
+    }
+
+    pub fn item_scope(&self) -> &ItemScope {
+        let (def_map, _, local_id) = self.item_scope_();
+        &def_map[local_id].scope
     }
 
     pub fn krate(&self) -> Crate {
@@ -676,7 +681,7 @@ impl Resolver {
     }
 
     pub fn def_map(&self) -> &DefMap {
-        self.item_scope().0
+        self.item_scope_().0
     }
 
     pub fn generic_def(&self) -> Option<GenericDefId> {
@@ -931,7 +936,7 @@ impl Resolver {
         path: &ModPath,
         shadow: BuiltinShadowMode,
     ) -> PerNs {
-        let (item_map, item_local_map, module) = self.item_scope();
+        let (item_map, item_local_map, module) = self.item_scope_();
         // This method resolves `path` just like import paths, so no expected macro subns is given.
         let (module_res, segment_index) =
             item_map.resolve_path(item_local_map, db, module, path, shadow, None);
@@ -942,7 +947,7 @@ impl Resolver {
     }
 
     /// The innermost block scope that contains items or the module scope that contains this resolver.
-    fn item_scope(&self) -> (&DefMap, &LocalDefMap, LocalModuleId) {
+    fn item_scope_(&self) -> (&DefMap, &LocalDefMap, LocalModuleId) {
         self.scopes()
             .find_map(|scope| match scope {
                 Scope::BlockScope(m) => Some((&*m.def_map, &*m.local_def_map, m.module_id)),

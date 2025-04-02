@@ -1926,7 +1926,18 @@ impl ExprCollector<'_> {
                         .0
                         .take_macros()
                 };
-                self.expander.enter_expand(self.db, mcall, self.module.krate(), resolver)
+                self.expander.enter_expand(
+                    self.db,
+                    mcall,
+                    self.module.krate(),
+                    resolver,
+                    &mut |ptr, call| {
+                        _ = self
+                            .source_map
+                            .expansions
+                            .insert(ptr.map(|(it, _)| it), call.as_macro_file());
+                    },
+                )
             }
         };
 

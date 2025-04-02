@@ -158,18 +158,6 @@ pub trait DefDatabase:
     #[salsa::invoke_actual(TraitItems::trait_items_with_diagnostics_query)]
     fn trait_items_with_diagnostics(&self, tr: TraitId) -> (Arc<TraitItems>, DefDiagnostics);
 
-    // #[salsa::invoke_actual(Macro2Data::macro2_data_query)]
-    // fn macro2_data(&self, makro: Macro2Id) -> Arc<Macro2Data>;
-
-    // #[salsa::invoke_actual(MacroRulesData::macro_rules_data_query)]
-    // fn macro_rules_data(&self, makro: MacroRulesId) -> Arc<MacroRulesData>;
-
-    // #[salsa::invoke_actual(ProcMacroData::proc_macro_data_query)]
-    // fn proc_macro_data(&self, makro: ProcMacroId) -> Arc<ProcMacroData>;
-
-    // #[salsa::invoke_actual(ExternCrateDeclData::extern_crate_decl_data_query)]
-    // fn extern_crate_decl_data(&self, extern_crate: ExternCrateId) -> Arc<ExternCrateDeclData>;
-
     #[salsa::tracked]
     fn variant_fields(&self, id: VariantId) -> Arc<VariantFields> {
         self.variant_fields_with_source_map(id).0

@@ -3126,7 +3126,15 @@ impl Macro {
             MacroId::ProcMacroId(id) => {
                 let loc = id.lookup(db.upcast());
                 let item_tree = loc.id.item_tree(db.upcast());
-                item_tree[loc.id.value].name.clone()
+                match loc.kind {
+                    ProcMacroKind::CustomDerive => db
+                        .attrs(id.into())
+                        .parse_proc_macro_derive()
+                        .map_or_else(|| item_tree[loc.id.value].name.clone(), |(it, _)| it),
+                    ProcMacroKind::Bang | ProcMacroKind::Attr => {
+                        item_tree[loc.id.value].name.clone()
+                    }
+                }
             }
         }
     }
