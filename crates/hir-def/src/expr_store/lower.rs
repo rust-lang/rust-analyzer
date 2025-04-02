@@ -347,7 +347,7 @@ pub(crate) fn lower_function(
                     expr_collector.db,
                     expr_collector.module.krate(),
                     RawAttrs::new(
-                        expr_collector.db,
+                        expr_collector.db.upcast(),
                         &param,
                         expr_collector.expander.span_map().as_ref(),
                     ),
@@ -393,7 +393,7 @@ pub(crate) fn lower_function(
                         expr_collector.db,
                         expr_collector.module.krate(),
                         RawAttrs::new(
-                            expr_collector.db,
+                            expr_collector.db.upcast(),
                             param,
                             expr_collector.expander.span_map().as_ref(),
                         ),
@@ -1657,9 +1657,7 @@ impl ExprCollector<'_> {
     /// `try { <stmts>; }` into `'<new_label>: { <stmts>; ::std::ops::Try::from_output(()) }`
     /// and save the `<new_label>` to use it as a break target for desugaring of the `?` operator.
     fn desugar_try_block(&mut self, e: BlockExpr) -> ExprId {
-        let Some(try_from_output) = self.lang_path(LangItem::TryTraitFromOutput) else {
-            return self.collect_block(e);
-        };
+        let try_from_output = self.lang_path(LangItem::TryTraitFromOutput);
         let label = self.alloc_label_desugared(Label {
             name: Name::generate_new_name(self.store.labels.len()),
         });
@@ -1675,7 +1673,8 @@ impl ExprCollector<'_> {
             (btail, block)
         });
 
-        let callee = self.alloc_expr_desugared_with_ptr(Expr::Path(try_from_output), ptr);
+        let callee = self
+            .alloc_expr_desugared_with_ptr(try_from_output.map_or(Expr::Missing, Expr::Path), ptr);
         let next_tail = match btail {
             Some(tail) => self
                 .alloc_expr_desugared_with_ptr(Expr::Call { callee, args: Box::new([tail]) }, ptr),
@@ -1757,30 +1756,24 @@ impl ExprCollector<'_> {
     /// }
     /// ```
     fn collect_for_loop(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::ForExpr) -> ExprId {
-        let Some((into_iter_fn, iter_next_fn, option_some, option_none)) = (|| {
-            Some((
-                self.lang_path(LangItem::IntoIterIntoIter)?,
-                self.lang_path(LangItem::IteratorNext)?,
-                self.lang_path(LangItem::OptionSome)?,
-                self.lang_path(LangItem::OptionNone)?,
-            ))
-        })() else {
-            // Some of the needed lang items are missing, so we can't desugar
-            return self.alloc_expr(Expr::Missing, syntax_ptr);
-        };
+        let into_iter_fn = self.lang_path(LangItem::IntoIterIntoIter);
+        let iter_next_fn = self.lang_path(LangItem::IteratorNext);
+        let option_some = self.lang_path(LangItem::OptionSome);
+        let option_none = self.lang_path(LangItem::OptionNone);
         let head = self.collect_expr_opt(e.iterable());
-        let into_iter_fn_expr = self.alloc_expr(Expr::Path(into_iter_fn), syntax_ptr);
+        let into_iter_fn_expr =
+            self.alloc_expr(into_iter_fn.map_or(Expr::Missing, Expr::Path), syntax_ptr);
         let iterator = self.alloc_expr(
             Expr::Call { callee: into_iter_fn_expr, args: Box::new([head]) },
             syntax_ptr,
         );
         let none_arm = MatchArm {
-            pat: self.alloc_pat_desugared(Pat::Path(option_none)),
+            pat: self.alloc_pat_desugared(option_none.map_or(Pat::Missing, Pat::Path)),
             guard: None,
             expr: self.alloc_expr(Expr::Break { expr: None, label: None }, syntax_ptr),
         };
         let some_pat = Pat::TupleStruct {
-            path: Some(Box::new(option_some)),
+            path: option_some.map(Box::new),
             args: Box::new([self.collect_pat_top(e.pat())]),
             ellipsis: None,
         };
@@ -1800,7 +1793,8 @@ impl ExprCollector<'_> {
             Expr::Ref { expr: iter_expr, rawness: Rawness::Ref, mutability: Mutability::Mut },
             syntax_ptr,
         );
-        let iter_next_fn_expr = self.alloc_expr(Expr::Path(iter_next_fn), syntax_ptr);
+        let iter_next_fn_expr =
+            self.alloc_expr(iter_next_fn.map_or(Expr::Missing, Expr::Path), syntax_ptr);
         let iter_next_expr = self.alloc_expr(
             Expr::Call { callee: iter_next_fn_expr, args: Box::new([iter_expr_mut]) },
             syntax_ptr,
@@ -1844,19 +1838,12 @@ impl ExprCollector<'_> {
     /// }
     /// ```
     fn collect_try_operator(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::TryExpr) -> ExprId {
-        let Some((try_branch, cf_continue, cf_break, try_from_residual)) = (|| {
-            Some((
-                self.lang_path(LangItem::TryTraitBranch)?,
-                self.lang_path(LangItem::ControlFlowContinue)?,
-                self.lang_path(LangItem::ControlFlowBreak)?,
-                self.lang_path(LangItem::TryTraitFromResidual)?,
-            ))
-        })() else {
-            // Some of the needed lang items are missing, so we can't desugar
-            return self.alloc_expr(Expr::Missing, syntax_ptr);
-        };
+        let try_branch = self.lang_path(LangItem::TryTraitBranch);
+        let cf_continue = self.lang_path(LangItem::ControlFlowContinue);
+        let cf_break = self.lang_path(LangItem::ControlFlowBreak);
+        let try_from_residual = self.lang_path(LangItem::TryTraitFromResidual);
         let operand = self.collect_expr_opt(e.expr());
-        let try_branch = self.alloc_expr(Expr::Path(try_branch), syntax_ptr);
+        let try_branch = self.alloc_expr(try_branch.map_or(Expr::Missing, Expr::Path), syntax_ptr);
         let expr = self
             .alloc_expr(Expr::Call { callee: try_branch, args: Box::new([operand]) }, syntax_ptr);
         let continue_name = Name::generate_new_name(self.store.bindings.len());
@@ -1867,7 +1854,7 @@ impl ExprCollector<'_> {
         self.add_definition_to_binding(continue_binding, continue_bpat);
         let continue_arm = MatchArm {
             pat: self.alloc_pat_desugared(Pat::TupleStruct {
-                path: Some(Box::new(cf_continue)),
+                path: cf_continue.map(Box::new),
                 args: Box::new([continue_bpat]),
                 ellipsis: None,
             }),
@@ -1880,14 +1867,15 @@ impl ExprCollector<'_> {
         self.add_definition_to_binding(break_binding, break_bpat);
         let break_arm = MatchArm {
             pat: self.alloc_pat_desugared(Pat::TupleStruct {
-                path: Some(Box::new(cf_break)),
+                path: cf_break.map(Box::new),
                 args: Box::new([break_bpat]),
                 ellipsis: None,
             }),
             guard: None,
             expr: {
                 let it = self.alloc_expr(Expr::Path(Path::from(break_name)), syntax_ptr);
-                let callee = self.alloc_expr(Expr::Path(try_from_residual), syntax_ptr);
+                let callee = self
+                    .alloc_expr(try_from_residual.map_or(Expr::Missing, Expr::Path), syntax_ptr);
                 let result =
                     self.alloc_expr(Expr::Call { callee, args: Box::new([it]) }, syntax_ptr);
                 self.alloc_expr(
@@ -1974,7 +1962,7 @@ impl ExprCollector<'_> {
                     // FIXME: Report parse errors here
                 }
 
-                let id = collector(self, Some(expansion.tree()));
+                let id = collector(self, expansion.map(|it| it.tree()));
                 self.expander.exit(mark);
                 id
             }
@@ -2848,23 +2836,21 @@ impl ExprCollector<'_> {
         //         unsafe { ::core::fmt::UnsafeArg::new() }
         //     )
 
-        let Some(new_v1_formatted) = LangItem::FormatArguments.ty_rel_path(
+        let new_v1_formatted = LangItem::FormatArguments.ty_rel_path(
             self.db,
             self.module.krate(),
             Name::new_symbol_root(sym::new_v1_formatted.clone()),
-        ) else {
-            return self.missing_expr();
-        };
-        let Some(unsafe_arg_new) = LangItem::FormatUnsafeArg.ty_rel_path(
+        );
+        let unsafe_arg_new = LangItem::FormatUnsafeArg.ty_rel_path(
             self.db,
             self.module.krate(),
             Name::new_symbol_root(sym::new.clone()),
-        ) else {
-            return self.missing_expr();
-        };
-        let new_v1_formatted = self.alloc_expr_desugared(Expr::Path(new_v1_formatted));
+        );
+        let new_v1_formatted =
+            self.alloc_expr_desugared(new_v1_formatted.map_or(Expr::Missing, Expr::Path));
 
-        let unsafe_arg_new = self.alloc_expr_desugared(Expr::Path(unsafe_arg_new));
+        let unsafe_arg_new =
+            self.alloc_expr_desugared(unsafe_arg_new.map_or(Expr::Missing, Expr::Path));
         let unsafe_arg_new =
             self.alloc_expr_desugared(Expr::Call { callee: unsafe_arg_new, args: Box::default() });
         let mut unsafe_arg_new = self.alloc_expr_desugared(Expr::Unsafe {

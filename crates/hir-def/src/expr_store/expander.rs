@@ -65,7 +65,7 @@ impl Expander {
         macro_call: ast::MacroCall,
         krate: Crate,
         resolver: impl Fn(&ModPath) -> Option<MacroId>,
-    ) -> Result<ExpandResult<Option<(Mark, Parse<T>)>>, UnresolvedMacro> {
+    ) -> Result<ExpandResult<Option<(Mark, Option<Parse<T>>)>>, UnresolvedMacro> {
         // FIXME: within_limit should support this, instead of us having to extract the error
         let mut unresolved_macro_err = None;
 
@@ -89,7 +89,7 @@ impl Expander {
         &mut self,
         db: &dyn DefDatabase,
         call_id: MacroCallId,
-    ) -> ExpandResult<Option<(Mark, Parse<T>)>> {
+    ) -> ExpandResult<Option<(Mark, Option<Parse<T>>)>> {
         self.within_limit(db, |_this| ExpandResult::ok(Some(call_id)))
     }
 
@@ -121,7 +121,7 @@ impl Expander {
         &mut self,
         db: &dyn DefDatabase,
         op: F,
-    ) -> ExpandResult<Option<(Mark, Parse<T>)>>
+    ) -> ExpandResult<Option<(Mark, Option<Parse<T>>)>>
     where
         F: FnOnce(&mut Self) -> ExpandResult<Option<MacroCallId>>,
     {
@@ -154,28 +154,22 @@ impl Expander {
 
         let err = err.or(res.err);
         ExpandResult {
-            value: match &err {
-                // If proc-macro is disabled or unresolved, we want to expand to a missing expression
-                // instead of an empty tree which might end up in an empty block.
-                Some(e) if matches!(e.kind(), ExpandErrorKind::MissingProcMacroExpander(_)) => None,
-                _ => (|| {
-                    let parse = res.value.0.cast::<T>()?;
+            value: {
+                let parse = res.value.0.cast::<T>();
 
-                    self.recursion_depth += 1;
-                    let old_file_id =
-                        std::mem::replace(&mut self.current_file_id, macro_file.into());
-                    let old_span_map =
-                        std::mem::replace(&mut self.span_map, db.span_map(self.current_file_id));
-                    let prev_ast_id_map =
-                        mem::replace(&mut self.ast_id_map, db.ast_id_map(self.current_file_id));
-                    let mark = Mark {
-                        file_id: old_file_id,
-                        span_map: old_span_map,
-                        ast_id_map: prev_ast_id_map,
-                        bomb: DropBomb::new("expansion mark dropped"),
-                    };
-                    Some((mark, parse))
-                })(),
+                self.recursion_depth += 1;
+                let old_file_id = std::mem::replace(&mut self.current_file_id, macro_file.into());
+                let old_span_map =
+                    std::mem::replace(&mut self.span_map, db.span_map(self.current_file_id));
+                let prev_ast_id_map =
+                    mem::replace(&mut self.ast_id_map, db.ast_id_map(self.current_file_id));
+                let mark = Mark {
+                    file_id: old_file_id,
+                    span_map: old_span_map,
+                    ast_id_map: prev_ast_id_map,
+                    bomb: DropBomb::new("expansion mark dropped"),
+                };
+                Some((mark, parse))
             },
             err,
         }

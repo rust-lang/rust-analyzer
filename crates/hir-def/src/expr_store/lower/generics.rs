@@ -93,7 +93,7 @@ impl<'db, 'c> GenericParamsCollector<'db, 'c> {
                 self.expr_collector.db,
                 self.expr_collector.module.krate(),
                 RawAttrs::new(
-                    self.expr_collector.db,
+                    self.expr_collector.db.upcast(),
                     &generic_param,
                     self.expr_collector.expander.span_map().as_ref(),
                 ),

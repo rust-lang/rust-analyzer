@@ -433,6 +433,7 @@ impl<'db> SemanticsImpl<'db> {
         let file_id = if let Some(call) =
             <ast::MacroCall as crate::semantics::ToDef>::to_def(self, macro_call)
         {
+            // FIXME: Is this branch here necessary?
             call.as_macro_file()
         } else {
             sa.expand(self.db, macro_call)?
@@ -1734,6 +1735,7 @@ impl<'db> SemanticsImpl<'db> {
         &self,
         node: InFile<&SyntaxNode>,
         offset: Option<TextSize>,
+        // replace this, just make the inference result a `LazyCell`
         infer_body: bool,
     ) -> Option<SourceAnalyzer> {
         let _p = tracing::info_span!("SemanticsImpl::analyze_impl").entered();
