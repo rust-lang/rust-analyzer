@@ -101,19 +101,24 @@ jobs:
       #       . -> target
       #       ./crates/proc-macro-srv/proc-macro-test/imp -> target
 
-      - uses: taiki-e/install-action@nextest
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
 
       - name: Codegen checks (rust-analyzer)
         if: matrix.os == 'ubuntu-latest'
         run: cargo codegen --check
 
-      - name: Compile (tests)
+      - name: Compile tests
         run: cargo test --no-run
 
-      - name: Test
+      - name: Run tests
         run: cargo nextest run --no-fail-fast --hide-progress-bar --status-level fail
 
-      - name: clippy
+      - name: Cancel parallel jobs
+        if: failure()
+        uses: action-pack/cancel@v1
+
+      - name: Run Clippy
         if: matrix.os == 'macos-latest'
         run: cargo clippy --all-targets -- -D clippy::disallowed_macros -D clippy::dbg_macro -D clippy::todo -D clippy::print_stdout -D clippy::print_stderr
 
