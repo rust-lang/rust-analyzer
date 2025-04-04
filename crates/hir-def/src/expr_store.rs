@@ -142,7 +142,7 @@ pub struct ExpressionStoreSourceMap {
 
     /// Diagnostics accumulated during lowering. These contain `AstPtr`s and so are stored in
     /// the source map (since they're just as volatile).
-    diagnostics: Vec<ExpressionStoreDiagnostics>,
+    pub diagnostics: Vec<ExpressionStoreDiagnostics>,
 }
 
 /// The body of an item (function, const etc.).

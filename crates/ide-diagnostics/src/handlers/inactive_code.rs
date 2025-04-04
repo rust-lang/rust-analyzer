@@ -146,8 +146,6 @@ trait Bar {
     }
 
     #[test]
-    // FIXME
-    #[should_panic]
     fn inactive_fields_and_variants() {
         check(
             r#"

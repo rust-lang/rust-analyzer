@@ -6,7 +6,10 @@ use hir_expand::{InFile, Lookup, name::Name};
 use intern::{Symbol, sym};
 use la_arena::{Arena, Idx};
 use rustc_abi::{IntegerType, ReprOptions};
-use syntax::ast::{self, HasGenericParams, IsString};
+use syntax::{
+    AstNode, SyntaxNodePtr,
+    ast::{self, HasGenericParams, IsString},
+};
 use triomphe::Arc;
 
 use crate::{
@@ -23,10 +26,9 @@ use crate::{
     hir::{ExprId, PatId, generics::GenericParams},
     item_tree::{
         AttrOwner, Field, FieldParent, FieldsShape, ItemTree, ModItem, RawVisibility,
-        RawVisibilityId, TreeId,
+        RawVisibilityId,
     },
     lang_item::LangItem,
-    nameres::diagnostics::DefDiagnostic,
     src::HasSource,
     type_ref::{TraitRef, TypeBound, TypeRef, TypeRefId},
 };
@@ -732,8 +734,7 @@ impl VariantFields {
         db: &dyn DefDatabase,
         id: VariantId,
     ) -> (Arc<Self>, Arc<ExpressionStoreSourceMap>) {
-        // FIXME: Report def diagnostics
-        let (shape, (fields, store, source_map, _diagnostics)) = match id {
+        let (shape, (fields, store, source_map)) = match id {
             VariantId::EnumVariantId(id) => {
                 let loc = id.lookup(db);
                 let item_tree = loc.id.item_tree(db);
@@ -744,7 +745,6 @@ impl VariantFields {
                     lower_fields(
                         db,
                         parent.container,
-                        loc.id.tree_id(),
                         &item_tree,
                         FieldParent::EnumVariant(loc.id.value),
                         loc.source(db).map(|src| {
@@ -753,12 +753,14 @@ impl VariantFields {
                                     .map(|it| {
                                         match it {
                                             ast::FieldList::RecordFieldList(record_field_list) => {
-                                                Either::Left(
-                                                    record_field_list.fields().map(|it| it.ty()),
-                                                )
+                                                Either::Left(record_field_list.fields().map(|it| {
+                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                                }))
                                             }
                                             ast::FieldList::TupleFieldList(field_list) => {
-                                                Either::Right(field_list.fields().map(|it| it.ty()))
+                                                Either::Right(field_list.fields().map(|it| {
+                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                                }))
                                             }
                                         }
                                         .into_iter()
@@ -780,7 +782,6 @@ impl VariantFields {
                     lower_fields(
                         db,
                         loc.container,
-                        loc.id.tree_id(),
                         &item_tree,
                         FieldParent::Struct(loc.id.value),
                         loc.source(db).map(|src| {
@@ -789,12 +790,14 @@ impl VariantFields {
                                     .map(|it| {
                                         match it {
                                             ast::FieldList::RecordFieldList(record_field_list) => {
-                                                Either::Left(
-                                                    record_field_list.fields().map(|it| it.ty()),
-                                                )
+                                                Either::Left(record_field_list.fields().map(|it| {
+                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                                }))
                                             }
                                             ast::FieldList::TupleFieldList(field_list) => {
-                                                Either::Right(field_list.fields().map(|it| it.ty()))
+                                                Either::Right(field_list.fields().map(|it| {
+                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                                }))
                                             }
                                         }
                                         .into_iter()
@@ -816,13 +819,15 @@ impl VariantFields {
                     lower_fields(
                         db,
                         loc.container,
-                        loc.id.tree_id(),
                         &item_tree,
                         FieldParent::Union(loc.id.value),
                         loc.source(db).map(|src| {
                             union.fields.iter().zip(
                                 src.record_field_list()
-                                    .map(|it| it.fields().map(|it| it.ty()))
+                                    .map(|it| {
+                                        it.fields()
+                                            .map(|it| (SyntaxNodePtr::new(it.syntax()), it.ty()))
+                                    })
                                     .into_iter()
                                     .flatten(),
                             )
@@ -852,17 +857,15 @@ impl VariantFields {
 fn lower_fields<'a>(
     db: &dyn DefDatabase,
     module: ModuleId,
-    tree_id: TreeId,
     item_tree: &ItemTree,
     parent: FieldParent,
-    fields: InFile<impl Iterator<Item = (&'a Field, Option<ast::Type>)>>,
+    fields: InFile<impl Iterator<Item = (&'a Field, (SyntaxNodePtr, Option<ast::Type>))>>,
     override_visibility: Option<RawVisibilityId>,
-) -> (Arena<FieldData>, ExpressionStore, ExpressionStoreSourceMap, Vec<DefDiagnostic>) {
-    let mut diagnostics = Vec::new();
+) -> (Arena<FieldData>, ExpressionStore, ExpressionStoreSourceMap) {
     let mut arena = Arena::new();
     let cfg_options = module.krate.cfg_options(db);
     let mut col = ExprCollector::new(db, module, fields.file_id);
-    for (idx, (field, ty)) in fields.value.enumerate() {
+    for (idx, (field, (ptr, ty))) in fields.value.enumerate() {
         let attr_owner = AttrOwner::make_field_indexed(parent, idx);
         let attrs = item_tree.attrs(db, module.krate, attr_owner);
         if attrs.is_cfg_enabled(cfg_options) {
@@ -873,17 +876,17 @@ fn lower_fields<'a>(
                 is_unsafe: field.is_unsafe,
             });
         } else {
-            diagnostics.push(DefDiagnostic::unconfigured_code(
-                module.local_id,
-                tree_id,
-                attr_owner,
-                attrs.cfg().unwrap(),
-                cfg_options.clone(),
-            ))
+            col.source_map.diagnostics.push(
+                crate::expr_store::ExpressionStoreDiagnostics::InactiveCode {
+                    node: InFile::new(fields.file_id, ptr),
+                    cfg: attrs.cfg().unwrap(),
+                    opts: cfg_options.clone(),
+                },
+            );
         }
     }
     let store = col.store.finish();
-    (arena, store, col.source_map, diagnostics)
+    (arena, store, col.source_map)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
