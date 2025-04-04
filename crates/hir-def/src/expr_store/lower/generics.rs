@@ -3,36 +3,28 @@
 //! generic parameters. See also the `Generics` type and the `generics_of` query
 //! in rustc.
 
-use std::{ops, sync::LazyLock};
+use std::sync::LazyLock;
 
 use either::Either;
 use hir_expand::{
-    ExpandResult,
     attrs::RawAttrs,
     name::{AsName, Name},
 };
 use intern::sym;
-use la_arena::{Arena, RawIdx};
-use stdx::impl_from;
-use syntax::ast::{self, HasGenericParams, HasName, HasTypeBounds};
+use la_arena::Arena;
+use syntax::ast::{self, HasName, HasTypeBounds};
 use thin_vec::ThinVec;
 use triomphe::Arc;
 
 use crate::{
-    AdtId, ConstParamId, GenericDefId, HasModule, ItemTreeLoc, LifetimeParamId,
-    LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup, TypeOrConstParamId, TypeParamId,
+    GenericDefId, TypeOrConstParamId, TypeParamId,
     attr::Attrs,
-    db::DefDatabase,
     expr_store::lower::ExprCollector,
     hir::generics::{
         ConstParamData, GenericParams, LifetimeParamData, TypeOrConstParamData, TypeParamData,
         TypeParamProvenance, WherePredicate, WherePredicateTypeTarget,
     },
-    item_tree::{AttrOwner, FileItemTreeId, ItemTree},
-    nameres::{DefMap, LocalDefMap, MacroSubNs},
-    type_ref::{
-        ArrayType, ConstRef, FnType, LifetimeRef, PathId, RefType, TypeBound, TypeRef, TypeRefId,
-    },
+    type_ref::{LifetimeRef, TypeBound, TypeRef, TypeRefId},
 };
 
 pub(crate) struct GenericParamsCollector<'db, 'c> {

@@ -5,27 +5,26 @@ mod asm;
 mod generics;
 mod path;
 
-use std::{cell::OnceCell, mem};
+use std::mem;
 
-use base_db::Crate;
 use either::Either;
 use hir_expand::{
-    AstId, InFile, Lookup, MacroDefId,
+    InFile, Lookup, MacroDefId,
     attrs::RawAttrs,
     mod_path::tool_path,
     name::{AsName, Name},
-    span_map::{ExpansionSpanMap, SpanMap},
+    span_map::SpanMap,
 };
 use intern::{Symbol, sym};
 use rustc_hash::FxHashMap;
-use span::{AstIdMap, AstIdNode, Edition, EditionedFileId, FileId, HirFileId, RealSpanMap};
+use span::HirFileId;
 use stdx::never;
 use syntax::{
     AstNode, AstPtr, AstToken as _, SyntaxNodePtr,
     ast::{
         self, ArrayExprKind, AstChildren, BlockExpr, HasArgList, HasAttrs, HasGenericArgs,
         HasGenericParams, HasLoopBody, HasName, HasTypeBounds, IsString, RangeItem,
-        SlicePatComponents, make::impl_,
+        SlicePatComponents,
     },
 };
 use text_size::TextSize;
@@ -33,9 +32,8 @@ use thin_vec::ThinVec;
 use triomphe::Arc;
 
 use crate::{
-    AdtId, BlockId, BlockLoc, ConstBlockLoc, DefWithBodyId, FunctionId, GenericDefId, ImplId,
-    ItemTreeLoc, MacroId, ModuleDefId, ModuleId, StructId, TraitAliasId, TraitId, TypeAliasId,
-    UnresolvedMacro,
+    AdtId, BlockId, BlockLoc, DefWithBodyId, FunctionId, GenericDefId, ImplId, ItemTreeLoc,
+    MacroId, ModuleDefId, ModuleId, TraitAliasId, TraitId, TypeAliasId, UnresolvedMacro,
     attr::Attrs,
     builtin_type::BuiltinUint,
     db::DefDatabase,
@@ -60,8 +58,6 @@ use crate::{
     item_tree::FieldsShape,
     lang_item::LangItem,
     nameres::{DefMap, LocalDefMap, MacroSubNs},
-    signatures::StructSignature,
-    src::HasSource,
     type_ref::{
         ArrayType, ConstRef, FnType, LifetimeRef, Mutability, PathId, Rawness, RefType,
         TraitBoundModifier, TraitRef, TypeBound, TypeRef, TypeRefId, UseArgRef,

@@ -18,15 +18,12 @@ use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use span::{Edition, MacroFileId, SyntaxContext};
-use syntax::{
-    AstPtr, SyntaxNodePtr,
-    ast::{self, HasGenericParams},
-};
+use syntax::{AstPtr, SyntaxNodePtr, ast};
 use triomphe::Arc;
 use tt::TextRange;
 
 use crate::{
-    BlockId, GenericDefId, SyntheticSyntax,
+    BlockId, SyntheticSyntax,
     db::DefDatabase,
     expr_store::path::Path,
     hir::{
@@ -34,7 +31,6 @@ use crate::{
         PatId, RecordFieldPat, Statement,
     },
     nameres::DefMap,
-    src::HasSource,
     type_ref::{PathId, TypeRef, TypeRefId},
 };
 

@@ -7,7 +7,6 @@
 //! Note that `hir_def` is a work in progress, so not all of the above is
 //! actually true.
 
-#![allow(unused_imports)]
 #![cfg_attr(feature = "in-rust-tree", feature(rustc_private))]
 
 #[cfg(feature = "in-rust-tree")]
@@ -88,7 +87,6 @@ use crate::{
     attr::Attrs,
     builtin_type::BuiltinType,
     db::DefDatabase,
-    expr_store::hir_segment_to_ast_segment,
     hir::generics::{LocalLifetimeParamId, LocalTypeOrConstParamId},
     item_tree::{
         Const, Enum, ExternCrate, Function, Impl, ItemTreeId, ItemTreeNode, Macro2, MacroRules,

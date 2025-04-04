@@ -45,7 +45,6 @@ use std::{
 
 use ast::{AstNode, StructKind};
 use base_db::Crate;
-use either::Either;
 use hir_expand::{
     ExpandTo, HirFileId, InFile,
     attrs::RawAttrs,
@@ -61,9 +60,7 @@ use stdx::never;
 use syntax::{SyntaxKind, ast, match_ast};
 use triomphe::Arc;
 
-use crate::{
-    BlockId, LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup, attr::Attrs, db::DefDatabase,
-};
+use crate::{BlockId, Lookup, attr::Attrs, db::DefDatabase};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct RawVisibilityId(u32);

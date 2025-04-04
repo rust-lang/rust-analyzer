@@ -3,7 +3,6 @@
 use std::ops;
 
 use hir_expand::{InFile, Lookup};
-use la_arena::{Idx, RawIdx};
 use span::Edition;
 use syntax::ast;
 use triomphe::Arc;
@@ -12,11 +11,9 @@ use crate::{
     DefWithBodyId, HasModule,
     db::DefDatabase,
     expr_store::{
-        ExpressionStore, ExpressionStoreSourceMap, SelfParamPtr, expander::Expander,
-        lower::lower_body, pretty,
+        ExpressionStore, ExpressionStoreSourceMap, SelfParamPtr, lower::lower_body, pretty,
     },
     hir::{BindingId, ExprId, PatId},
-    item_tree::AttrOwner,
     src::HasSource,
 };
 

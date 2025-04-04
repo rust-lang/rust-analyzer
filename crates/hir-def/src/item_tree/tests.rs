@@ -83,7 +83,7 @@ extern "C" {
 
                 #[on_extern_static]
                 // AstId: 3
-                pub(self) static EX_STATIC:  = _;
+                pub(self) static EX_STATIC = _;
 
                 #[on_extern_fn]
                 // AstId: 4
@@ -186,7 +186,7 @@ trait Tr: SuperTrait + 'lifetime {
         "#,
         expect![[r#"
             // AstId: 1
-            pub static ST:  = _;
+            pub static ST = _;
 
             // AstId: 2
             pub(self) const _ = _;

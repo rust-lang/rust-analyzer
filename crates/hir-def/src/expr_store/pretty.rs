@@ -1,4 +1,5 @@
 //! A pretty-printer for HIR.
+#![allow(dead_code)]
 
 use std::{
     fmt::{self, Write},
@@ -10,15 +11,14 @@ use itertools::Itertools;
 use span::Edition;
 
 use crate::{
-    DefWithBodyId, ItemTreeLoc, TypeOrConstParamId, TypeParamId,
+    DefWithBodyId, ItemTreeLoc, TypeParamId,
     expr_store::path::{GenericArg, GenericArgs},
     hir::{
         Array, BindingAnnotation, CaptureBy, ClosureKind, Literal, Movability, Statement,
         generics::{GenericParams, WherePredicate, WherePredicateTypeTarget},
     },
-    item_tree::FieldsShape,
     lang_item::LangItemTarget,
-    signatures::{FunctionSignature, StructSignature},
+    signatures::{FnFlags, FunctionSignature, StructSignature},
     type_ref::{ConstRef, Mutability, TraitBoundModifier, TypeBound, UseArgRef},
 };
 
@@ -113,7 +113,6 @@ pub(crate) fn print_body_hir(
     p.buf
 }
 
-#[cfg(test)]
 pub(crate) fn print_path(
     db: &dyn DefDatabase,
     store: &ExpressionStore,
@@ -132,12 +131,12 @@ pub(crate) fn print_path(
     p.buf
 }
 
-#[cfg(test)]
 pub(crate) fn print_struct(
     db: &dyn DefDatabase,
     StructSignature { name, generic_params, store, flags, shape, repr }: &StructSignature,
     edition: Edition,
 ) -> String {
+    use crate::item_tree::FieldsShape;
     use crate::signatures::StructFlags;
 
     let mut p = Printer {
@@ -182,7 +181,6 @@ pub(crate) fn print_struct(
     p.buf
 }
 
-#[cfg(test)]
 pub(crate) fn print_function(
     db: &dyn DefDatabase,
     FunctionSignature {
@@ -197,8 +195,6 @@ pub(crate) fn print_function(
     }: &FunctionSignature,
     edition: Edition,
 ) -> String {
-    use crate::signatures::FnFlags;
-
     let mut p = Printer {
         db,
         store,
@@ -247,7 +243,6 @@ pub(crate) fn print_function(
     p.buf
 }
 
-#[cfg(test)]
 fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: &mut Printer<'_>) {
     if !generic_params.where_predicates.is_empty() {
         w!(p, "\nwhere\n");
@@ -258,8 +253,8 @@ fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: 
                 }
                 match pred {
                     WherePredicate::TypeBound { target, bound } => match target {
-                        WherePredicateTypeTarget::TypeRef(idx) => {
-                            p.print_type_ref(*idx);
+                        &WherePredicateTypeTarget::TypeRef(idx) => {
+                            p.print_type_ref(idx);
                             w!(p, ": ");
                             p.print_type_bounds(std::slice::from_ref(bound));
                         }
@@ -312,7 +307,6 @@ fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: 
     }
 }
 
-#[cfg(test)]
 fn print_generic_params(db: &dyn DefDatabase, generic_params: &GenericParams, p: &mut Printer<'_>) {
     if !generic_params.is_empty() {
         w!(p, "<");

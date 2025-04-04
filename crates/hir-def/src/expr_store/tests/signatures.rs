@@ -1,11 +1,9 @@
 use crate::{
-    DefWithBodyId, ModuleDefId,
+    GenericDefId, ModuleDefId,
     expr_store::pretty::{print_function, print_struct},
-    hir::MatchArm,
     test_db::TestDB,
 };
 use expect_test::{Expect, expect};
-use la_arena::RawIdx;
 use test_fixture::WithFixture;
 
 use super::super::*;

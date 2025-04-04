@@ -4,26 +4,23 @@ use std::{cell::OnceCell, collections::hash_map::Entry};
 
 use hir_expand::{
     HirFileId,
-    mod_path::{PathKind, path},
+    mod_path::PathKind,
     name::AsName,
     span_map::{SpanMap, SpanMapRef},
 };
 use intern::{Symbol, sym};
 use la_arena::Arena;
-use rustc_hash::FxHashMap;
 use span::{AstIdMap, SyntaxContext};
 use syntax::{
     AstNode,
-    ast::{self, HasModuleItem, HasName, HasTypeBounds, IsString},
+    ast::{self, HasModuleItem, HasName, IsString},
 };
-use thin_vec::ThinVec;
 use triomphe::Arc;
 
 use crate::{
-    LocalLifetimeParamId, LocalTypeOrConstParamId,
     db::DefDatabase,
     item_tree::{
-        AssocItem, AttrOwner, Const, Either, Enum, ExternBlock, ExternCrate, Field, FieldParent,
+        AssocItem, AttrOwner, Const, Enum, ExternBlock, ExternCrate, Field, FieldParent,
         FieldsShape, FileItemTreeId, Function, Idx, Impl, ImportAlias, Interned, ItemTree,
         ItemTreeData, Macro2, MacroCall, MacroRules, Mod, ModItem, ModKind, ModPath, Name, Range,
         RawAttrs, RawIdx, RawVisibility, RawVisibilityId, Static, Struct, StructKind, Trait,

@@ -291,7 +291,7 @@ impl Printer<'_> {
                 self.print_ast_id(ast_id.erase());
                 self.print_visibility(*visibility);
                 w!(self, "static ");
-                w!(self, "{}: ", name.display(self.db.upcast(), self.edition));
+                w!(self, "{}", name.display(self.db.upcast(), self.edition));
                 w!(self, " = _;");
                 wln!(self);
             }

@@ -12,7 +12,7 @@ use intern::sym;
 use rustc_hash::FxHashSet;
 
 use crate::{
-    ImportPathConfig, ItemTreeLoc, ModuleDefId, ModuleId,
+    ImportPathConfig, ModuleDefId, ModuleId,
     db::DefDatabase,
     item_scope::ItemInNs,
     nameres::DefMap,

@@ -26,7 +26,7 @@ use syntax::ast;
 use type_ref::TypeRefId;
 
 use crate::{
-    BlockId, ConstBlockId,
+    BlockId,
     builtin_type::{BuiltinFloat, BuiltinInt, BuiltinUint},
     expr_store::path::{GenericArgs, Path},
     type_ref::{Mutability, Rawness},

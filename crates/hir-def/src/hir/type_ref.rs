@@ -1,29 +1,22 @@
 //! HIR for references to types. Paths in these are not yet resolved. They can
 //! be directly created from an ast::TypeRef, without further queries.
 
-use core::fmt;
-use std::{fmt::Write, ops::Index};
+use std::fmt::Write;
 
-use hir_expand::{
-    AstId, InFile,
-    db::ExpandDatabase,
-    name::{AsName, Name},
-};
-use intern::{Symbol, sym};
-use la_arena::{Arena, ArenaMap, Idx};
-use rustc_hash::FxHashMap;
-use span::Edition;
-use syntax::{AstPtr, ast};
+use hir_expand::name::Name;
+use intern::Symbol;
+use la_arena::Idx;
+use syntax::ast;
 use thin_vec::ThinVec;
 
 use crate::{
-    SyntheticSyntax, TypeParamId,
+    TypeParamId,
     builtin_type::{BuiltinInt, BuiltinType, BuiltinUint},
     expr_store::{
         ExpressionStore,
         path::{GenericArg, Path},
     },
-    hir::{ExprId, Literal, generics::LocalTypeOrConstParamId},
+    hir::{ExprId, Literal},
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]

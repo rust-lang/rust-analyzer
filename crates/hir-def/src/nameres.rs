@@ -69,7 +69,7 @@ use intern::Symbol;
 use itertools::Itertools;
 use la_arena::Arena;
 use rustc_hash::{FxHashMap, FxHashSet};
-use span::{Edition, EditionedFileId, ErasedFileAstId, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
+use span::{Edition, EditionedFileId, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
 use stdx::format_to;
 use syntax::{AstNode, SmolStr, SyntaxNode, ToSmolStr, ast};
 use triomphe::Arc;
@@ -80,7 +80,7 @@ use crate::{
     FxIndexMap, LocalModuleId, Lookup, MacroExpander, MacroId, ModuleId, ProcMacroId, UseId,
     db::DefDatabase,
     item_scope::{BuiltinShadowMode, ItemScope},
-    item_tree::{ItemTreeId, Mod, ModItem, TreeId},
+    item_tree::{ItemTreeId, Mod, TreeId},
     nameres::{diagnostics::DefDiagnostic, path_resolution::ResolveMode},
     per_ns::PerNs,
     visibility::{Visibility, VisibilityExplicitness},

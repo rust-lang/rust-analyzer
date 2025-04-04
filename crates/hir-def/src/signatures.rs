@@ -1,22 +1,17 @@
 //! Item signature IR definitions
 
-use base_db::Crate;
 use bitflags::bitflags;
-use cfg::CfgOptions;
 use either::Either;
 use hir_expand::{InFile, Lookup, name::Name};
 use intern::{Symbol, sym};
 use la_arena::{Arena, Idx};
 use rustc_abi::{IntegerType, ReprOptions};
-use syntax::{
-    AstToken,
-    ast::{self, HasGenericParams, IsString},
-};
+use syntax::ast::{self, HasGenericParams, IsString};
 use triomphe::Arc;
 
 use crate::{
-    ConstId, EnumId, EnumVariantId, FunctionId, HasModule, ImplId, ItemContainerId, LocalModuleId,
-    ModuleId, StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, UnionId, VariantId,
+    ConstId, EnumId, EnumVariantId, FunctionId, HasModule, ImplId, ItemContainerId, ModuleId,
+    StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, UnionId, VariantId,
     db::DefDatabase,
     expr_store::{
         ExpressionStore, ExpressionStoreSourceMap,
@@ -33,7 +28,7 @@ use crate::{
     lang_item::LangItem,
     nameres::diagnostics::DefDiagnostic,
     src::HasSource,
-    type_ref::{PathId, TraitRef, TypeBound, TypeRef, TypeRefId},
+    type_ref::{TraitRef, TypeBound, TypeRef, TypeRefId},
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -737,6 +732,7 @@ impl VariantFields {
         db: &dyn DefDatabase,
         id: VariantId,
     ) -> (Arc<Self>, Arc<ExpressionStoreSourceMap>) {
+        // FIXME: Report def diagnostics
         let (shape, (fields, store, source_map, _diagnostics)) = match id {
             VariantId::EnumVariantId(id) => {
                 let loc = id.lookup(db);

@@ -1,23 +1,16 @@
 //! A desugared representation of paths like `crate::foo` or `<Type as Trait>::bar`.
 
-use std::{
-    fmt::{self, Display},
-    iter,
-};
+use std::iter;
 
 use crate::{
-    hir::ExprId,
     lang_item::LangItemTarget,
     type_ref::{ConstRef, LifetimeRef, TypeBound, TypeRefId},
 };
 use hir_expand::{
-    Intern,
     mod_path::{ModPath, PathKind},
     name::Name,
 };
 use intern::Interned;
-use span::Edition;
-use syntax::ast;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Path {

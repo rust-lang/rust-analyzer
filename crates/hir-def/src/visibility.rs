@@ -2,14 +2,8 @@
 
 use std::iter;
 
-use hir_expand::{
-    Lookup,
-    mod_path::{ModPath, PathKind},
-};
-use intern::Interned;
+use hir_expand::Lookup;
 use la_arena::ArenaMap;
-use span::SyntaxContext;
-use syntax::ast;
 use triomphe::Arc;
 
 use crate::{

@@ -1,23 +1,20 @@
 //! Macro expansion utilities.
 
-use std::cell::OnceCell;
 use std::mem;
 
 use base_db::Crate;
-use cfg::CfgOptions;
 use drop_bomb::DropBomb;
 use hir_expand::eager::EagerCallBackFn;
 use hir_expand::{
     ExpandError, ExpandErrorKind, ExpandResult, HirFileId, InFile, Lookup, MacroCallId,
-    attrs::RawAttrs, mod_path::ModPath, span_map::SpanMap,
+    mod_path::ModPath, span_map::SpanMap,
 };
 use span::{AstIdMap, Edition, SyntaxContext};
-use syntax::{AstPtr, Parse, ast};
+use syntax::{Parse, ast};
 use triomphe::Arc;
 
-use crate::expr_store::path::Path;
 use crate::nameres::DefMap;
-use crate::{AsMacroCall, MacroId, ModuleId, UnresolvedMacro, attr::Attrs, db::DefDatabase};
+use crate::{AsMacroCall, MacroId, UnresolvedMacro, db::DefDatabase};
 
 #[derive(Debug)]
 pub(super) struct Expander {

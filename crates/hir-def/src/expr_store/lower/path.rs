@@ -5,10 +5,7 @@ mod tests;
 
 use std::iter;
 
-use crate::{
-    expr_store::{lower::ExprCollector, path::NormalPath},
-    type_ref::ConstRef,
-};
+use crate::expr_store::{lower::ExprCollector, path::NormalPath};
 
 use hir_expand::{
     mod_path::{ModPath, PathKind, resolve_crate_root},
@@ -17,15 +14,13 @@ use hir_expand::{
 use intern::{Interned, sym};
 use syntax::{
     AstPtr,
-    ast::{self, AstNode, HasGenericArgs, HasTypeBounds},
+    ast::{self, AstNode, HasGenericArgs},
 };
 use thin_vec::ThinVec;
 
 use crate::{
-    expr_store::path::{
-        AssociatedTypeBinding, GenericArg, GenericArgs, GenericArgsParentheses, Path,
-    },
-    type_ref::{LifetimeRef, TypeBound, TypeRef},
+    expr_store::path::{GenericArg, GenericArgs, Path},
+    type_ref::{TypeBound, TypeRef},
 };
 
 #[cfg(test)]

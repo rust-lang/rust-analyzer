@@ -1,5 +1,5 @@
 //! Name resolution façade.
-use std::{fmt, iter, mem};
+use std::{fmt, mem};
 
 use base_db::Crate;
 use hir_expand::{
@@ -23,7 +23,7 @@ use crate::{
     builtin_type::BuiltinType,
     db::DefDatabase,
     expr_store::{
-        ExpressionStore, HygieneId,
+        HygieneId,
         path::Path,
         scope::{ExprScopes, ScopeId},
     },
