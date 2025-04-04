@@ -245,6 +245,7 @@ mod handlers {
             apply_demorgan::apply_demorgan_iterator,
             apply_demorgan::apply_demorgan,
             auto_import::auto_import,
+            auto_import::auto_import_all,
             bind_unused_param::bind_unused_param,
             change_visibility::change_visibility,
             convert_bool_then::convert_bool_then_to_if,
