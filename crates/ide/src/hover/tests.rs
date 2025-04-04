@@ -6804,7 +6804,7 @@ impl T1 for Foo {
             ```
 
             ```rust
-            type Bar
+            pub type Bar
             ```
         "#]],
     );

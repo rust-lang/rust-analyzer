@@ -1,3 +1,4 @@
+//! Pre-type IR item generics
 use std::{ops, sync::LazyLock};
 
 use hir_expand::name::Name;

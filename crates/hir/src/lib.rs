@@ -2999,13 +2999,7 @@ impl TypeAlias {
 
 impl HasVisibility for TypeAlias {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
-        let loc = self.id.lookup(db.upcast());
-        let item_tree = loc.id.item_tree(db.upcast());
-        Visibility::resolve(
-            db.upcast(),
-            &self.id.resolver(db.upcast()),
-            &item_tree[item_tree[loc.id.value].visibility],
-        )
+        db.type_alias_visibility(self.id)
     }
 }
 
@@ -3547,6 +3541,7 @@ impl AssocItem {
                 DefWithBody::from(func).diagnostics(db, acc, style_lints);
             }
             AssocItem::Const(const_) => {
+                GenericDef::Const(const_).diagnostics(db, acc);
                 DefWithBody::from(const_).diagnostics(db, acc, style_lints);
             }
             AssocItem::TypeAlias(type_alias) => {

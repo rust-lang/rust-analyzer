@@ -161,7 +161,7 @@ impl ExprCollector<'_> {
                             ast::AsmOperand::AsmSym(s) => {
                                 let Some(path) = s
                                     .path()
-                                    .and_then(|p| self.parse_path(p, &mut |_| TypeRef::Error))
+                                    .and_then(|p| self.lower_path(p, &mut |_| TypeRef::Error))
                                 else {
                                     continue;
                                 };

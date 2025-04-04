@@ -15,7 +15,10 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use intern::{Interned, sym};
-use syntax::ast::{self, AstNode, HasGenericArgs, HasTypeBounds};
+use syntax::{
+    AstPtr,
+    ast::{self, AstNode, HasGenericArgs, HasTypeBounds},
+};
 use thin_vec::ThinVec;
 
 use crate::{
@@ -55,9 +58,20 @@ pub(super) fn lower_path(
         segments.push(name);
     };
     loop {
-        let segment = path.segment()?;
+        let Some(segment) = path.segment() else {
+            segments.push(Name::missing());
+            // We can end up here if for `path::`
+            match qualifier(&path) {
+                Some(it) => {
+                    path = it;
+                    continue;
+                }
+                None => break,
+            }
+        };
 
         if segment.coloncolon_token().is_some() {
+            debug_assert!(path.qualifier().is_none()); // this can only occur at the first segment
             kind = PathKind::Abs;
         }
 
@@ -103,7 +117,7 @@ pub(super) fn lower_path(
                 push_segment(&segment, &mut segments, Name::new_symbol_root(sym::Self_.clone()));
             }
             ast::PathSegmentKind::Type { type_ref, trait_ref } => {
-                assert!(path.qualifier().is_none()); // this can only occur at the first segment
+                debug_assert!(path.qualifier().is_none()); // this can only occur at the first segment
 
                 let self_type = collector.lower_type_ref(type_ref?, impl_trait_lower_fn);
 
@@ -116,6 +130,11 @@ pub(super) fn lower_path(
                     // <T as Trait<A>>::Foo desugars to Trait<Self=T, A>::Foo
                     Some(trait_ref) => {
                         let path = collector.lower_path(trait_ref.path()?, impl_trait_lower_fn)?;
+                        // FIXME: Unnecessary clone
+                        collector.alloc_type_ref(
+                            TypeRef::Path(path.clone()),
+                            AstPtr::new(&trait_ref).upcast(),
+                        );
                         let mod_path = path.mod_path()?;
                         let path_generic_args = path.generic_args();
                         let num_segments = mod_path.segments().len();

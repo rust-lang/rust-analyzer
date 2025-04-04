@@ -616,14 +616,11 @@ impl ExprCollector<'_> {
                 inner.fields().map(|it| self.lower_type_ref(it, impl_trait_lower_fn)),
             ))),
             ast::Type::NeverType(..) => TypeRef::Never,
-            ast::Type::PathType(inner) => {
-                // FIXME: Use `Path::from_src`
-                inner
-                    .path()
-                    .and_then(|it| self.lower_path(it, impl_trait_lower_fn))
-                    .map(TypeRef::Path)
-                    .unwrap_or(TypeRef::Error)
-            }
+            ast::Type::PathType(inner) => inner
+                .path()
+                .and_then(|it| self.lower_path(it, impl_trait_lower_fn))
+                .map(TypeRef::Path)
+                .unwrap_or(TypeRef::Error),
             ast::Type::PtrType(inner) => {
                 let inner_ty = self.lower_type_ref_opt(inner.ty(), impl_trait_lower_fn);
                 let mutability = Mutability::from_mutable(inner.mut_token().is_some());
@@ -1198,7 +1195,7 @@ impl ExprCollector<'_> {
             ast::Expr::RecordExpr(e) => {
                 let path = e
                     .path()
-                    .and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error))
+                    .and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error))
                     .map(Box::new);
                 let record_lit = if let Some(nfl) = e.record_expr_field_list() {
                     let fields = nfl
@@ -1424,17 +1421,9 @@ impl ExprCollector<'_> {
         })
     }
 
-    fn parse_path(
-        &mut self,
-        path: ast::Path,
-        impl_trait_lower_fn: &mut impl FnMut(ThinVec<TypeBound>) -> TypeRef,
-    ) -> Option<Path> {
-        self.lower_path(path, impl_trait_lower_fn)
-    }
-
     fn collect_expr_path(&mut self, e: ast::PathExpr) -> Option<(Path, HygieneId)> {
         e.path().and_then(|path| {
-            let path = self.parse_path(path, &mut |_| TypeRef::Error)?;
+            let path = self.lower_path(path, &mut |_| TypeRef::Error)?;
             // Need to enable `mod_path.len() < 1` for `self`.
             let may_be_variable = matches!(&path, Path::BarePath(mod_path) if mod_path.len() <= 1);
             let hygiene = if may_be_variable {
@@ -1503,7 +1492,7 @@ impl ExprCollector<'_> {
                 let path = collect_path(self, e.expr()?)?;
                 let path = path
                     .path()
-                    .and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error))
+                    .and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error))
                     .map(Box::new);
                 let (ellipsis, args) = collect_tuple(self, e.arg_list()?.args());
                 self.alloc_pat_from_expr(Pat::TupleStruct { path, args, ellipsis }, syntax_ptr)
@@ -1532,7 +1521,7 @@ impl ExprCollector<'_> {
             ast::Expr::RecordExpr(e) => {
                 let path = e
                     .path()
-                    .and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error))
+                    .and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error))
                     .map(Box::new);
                 let record_field_list = e.record_expr_field_list()?;
                 let ellipsis = record_field_list.dotdot_token().is_some();
@@ -2267,7 +2256,7 @@ impl ExprCollector<'_> {
             ast::Pat::TupleStructPat(p) => {
                 let path = p
                     .path()
-                    .and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error))
+                    .and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error))
                     .map(Box::new);
                 let (args, ellipsis) = self.collect_tuple_pat(
                     p.fields(),
@@ -2282,7 +2271,7 @@ impl ExprCollector<'_> {
                 Pat::Ref { pat, mutability }
             }
             ast::Pat::PathPat(p) => {
-                let path = p.path().and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error));
+                let path = p.path().and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error));
                 path.map(Pat::Path).unwrap_or(Pat::Missing)
             }
             ast::Pat::OrPat(p) => 'b: {
@@ -2331,7 +2320,7 @@ impl ExprCollector<'_> {
             ast::Pat::RecordPat(p) => {
                 let path = p
                     .path()
-                    .and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error))
+                    .and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error))
                     .map(Box::new);
                 let record_pat_field_list =
                     &p.record_pat_field_list().expect("every struct should have a field list");
@@ -2427,7 +2416,7 @@ impl ExprCollector<'_> {
                                 .map(|path| self.alloc_expr_from_pat(Expr::Path(path), ptr)),
                             ast::Pat::PathPat(p) => p
                                 .path()
-                                .and_then(|path| self.parse_path(path, &mut |_| TypeRef::Error))
+                                .and_then(|path| self.lower_path(path, &mut |_| TypeRef::Error))
                                 .map(|parsed| self.alloc_expr_from_pat(Expr::Path(parsed), ptr)),
                             // We only need to handle literal, ident (if bare) and path patterns here,
                             // as any other pattern as a range pattern operand is semantically invalid.

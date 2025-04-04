@@ -1,3 +1,5 @@
+//! Item signature IR definitions
+
 use base_db::Crate;
 use bitflags::bitflags;
 use cfg::CfgOptions;
@@ -562,11 +564,10 @@ impl FunctionSignature {
             flags.insert(FnFlags::HAS_BODY);
         }
 
-        let abi = source
-            .value
-            .abi()
-            .and_then(|abi| abi.abi_string())
-            .map(|it| Symbol::intern(it.text_without_quotes()));
+        let abi = source.value.abi().map(|abi| {
+            abi.abi_string()
+                .map_or_else(|| sym::C.clone(), |it| Symbol::intern(it.text_without_quotes()))
+        });
         let (store, source_map, generic_params, params, ret_type, self_param, variadic) =
             lower_function(db, module, source, id);
         if self_param {

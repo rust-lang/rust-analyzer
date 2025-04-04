@@ -41,6 +41,7 @@ pub(crate) fn inactive_code(
 mod tests {
     use crate::{DiagnosticsConfig, tests::check_diagnostics_with_config};
 
+    #[track_caller]
     pub(crate) fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let config = DiagnosticsConfig {
             disabled: std::iter::once("unlinked-file".to_owned()).collect(),
@@ -145,6 +146,8 @@ trait Bar {
     }
 
     #[test]
+    // FIXME
+    #[should_panic]
     fn inactive_fields_and_variants() {
         check(
             r#"

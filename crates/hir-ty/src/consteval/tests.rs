@@ -2458,6 +2458,7 @@ fn extern_weak_statics() {
 }
 
 #[test]
+// FIXME
 #[should_panic]
 fn from_ne_bytes() {
     check_number(
@@ -2535,6 +2536,7 @@ fn const_transfer_memory() {
 }
 
 #[test]
+// FIXME
 #[should_panic]
 fn anonymous_const_block() {
     check_number(

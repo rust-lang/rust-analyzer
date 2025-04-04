@@ -343,6 +343,9 @@ pub trait DefDatabase:
     #[salsa::invoke_actual(visibility::const_visibility_query)]
     fn const_visibility(&self, def: ConstId) -> Visibility;
 
+    #[salsa::invoke_actual(visibility::type_alias_visibility_query)]
+    fn type_alias_visibility(&self, def: TypeAliasId) -> Visibility;
+
     // endregion:visibilities
 
     #[salsa::invoke_actual(LangItems::crate_lang_items_query)]

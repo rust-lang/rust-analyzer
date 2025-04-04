@@ -13,8 +13,11 @@ use syntax::ast;
 use triomphe::Arc;
 
 use crate::{
-    ConstId, FunctionId, HasModule, ItemTreeLoc, LocalFieldId, LocalModuleId, ModuleId, VariantId,
-    db::DefDatabase, nameres::DefMap, resolver::HasResolver,
+    ConstId, FunctionId, HasModule, ItemContainerId, ItemLoc, ItemTreeLoc, LocalFieldId,
+    LocalModuleId, ModuleId, TraitId, TypeAliasId, VariantId,
+    db::DefDatabase,
+    nameres::DefMap,
+    resolver::{HasResolver, Resolver},
 };
 
 pub use crate::item_tree::{RawVisibility, VisibilityExplicitness};
@@ -228,7 +231,11 @@ pub(crate) fn function_visibility_query(db: &dyn DefDatabase, def: FunctionId) -
     let resolver = def.resolver(db);
     let loc = def.lookup(db);
     let tree = loc.item_tree_id().item_tree(db);
-    Visibility::resolve(db, &resolver, &tree[tree[loc.id.value].visibility])
+    if let ItemContainerId::TraitId(trait_id) = loc.container {
+        trait_vis(db, &resolver, trait_id)
+    } else {
+        Visibility::resolve(db, &resolver, &tree[tree[loc.id.value].visibility])
+    }
 }
 
 /// Resolve visibility of a const.
@@ -236,5 +243,29 @@ pub(crate) fn const_visibility_query(db: &dyn DefDatabase, def: ConstId) -> Visi
     let resolver = def.resolver(db);
     let loc = def.lookup(db);
     let tree = loc.item_tree_id().item_tree(db);
-    Visibility::resolve(db, &resolver, &tree[tree[loc.id.value].visibility])
+    if let ItemContainerId::TraitId(trait_id) = loc.container {
+        trait_vis(db, &resolver, trait_id)
+    } else {
+        Visibility::resolve(db, &resolver, &tree[tree[loc.id.value].visibility])
+    }
+}
+
+/// Resolve visibility of a type alias.
+pub(crate) fn type_alias_visibility_query(db: &dyn DefDatabase, def: TypeAliasId) -> Visibility {
+    let resolver = def.resolver(db);
+    let loc = def.lookup(db);
+    let tree = loc.item_tree_id().item_tree(db);
+    if let ItemContainerId::TraitId(trait_id) = loc.container {
+        trait_vis(db, &resolver, trait_id)
+    } else {
+        Visibility::resolve(db, &resolver, &tree[tree[loc.id.value].visibility])
+    }
+}
+
+#[inline]
+fn trait_vis(db: &dyn DefDatabase, resolver: &Resolver, trait_id: TraitId) -> Visibility {
+    let ItemLoc { id: tree_id, .. } = trait_id.lookup(db);
+    let item_tree = tree_id.item_tree(db);
+    let tr_def = &item_tree[tree_id.value];
+    Visibility::resolve(db, resolver, &item_tree[tr_def.visibility])
 }
