@@ -1,8 +1,9 @@
 //! Item signature IR definitions
 
 use bitflags::bitflags;
+use cfg::{CfgExpr, CfgOptions};
 use either::Either;
-use hir_expand::{InFile, Lookup, name::Name};
+use hir_expand::{InFile, Intern, Lookup, name::Name};
 use intern::{Symbol, sym};
 use la_arena::{Arena, Idx};
 use rustc_abi::{IntegerType, ReprOptions};
@@ -10,11 +11,12 @@ use syntax::{
     AstNode, SyntaxNodePtr,
     ast::{self, HasGenericParams, IsString},
 };
+use thin_vec::ThinVec;
 use triomphe::Arc;
 
 use crate::{
-    ConstId, EnumId, EnumVariantId, FunctionId, HasModule, ImplId, ItemContainerId, ModuleId,
-    StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, UnionId, VariantId,
+    ConstId, EnumId, EnumVariantId, EnumVariantLoc, FunctionId, HasModule, ImplId, ItemContainerId,
+    ModuleId, StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, UnionId, VariantId,
     db::DefDatabase,
     expr_store::{
         ExpressionStore, ExpressionStoreSourceMap,
@@ -25,8 +27,8 @@ use crate::{
     },
     hir::{ExprId, PatId, generics::GenericParams},
     item_tree::{
-        AttrOwner, Field, FieldParent, FieldsShape, ItemTree, ModItem, RawVisibility,
-        RawVisibilityId,
+        AttrOwner, Field, FieldParent, FieldsShape, FileItemTreeId, ItemTree, ItemTreeId, ModItem,
+        RawVisibility, RawVisibilityId,
     },
     lang_item::LangItem,
     src::HasSource,
@@ -889,21 +891,53 @@ fn lower_fields<'a>(
     (arena, store, col.source_map)
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct InactiveEnumVariantCode {
+    pub cfg: CfgExpr,
+    pub opts: CfgOptions,
+    pub ast_id: span::FileAstId<ast::Variant>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumVariants {
     pub variants: Box<[(EnumVariantId, Name)]>,
 }
+
 impl EnumVariants {
-    pub(crate) fn enum_variants_query(db: &dyn DefDatabase, e: EnumId) -> Arc<EnumVariants> {
+    pub(crate) fn enum_variants_query(
+        db: &dyn DefDatabase,
+        e: EnumId,
+    ) -> (Arc<EnumVariants>, Arc<ThinVec<InactiveEnumVariantCode>>) {
         let loc = e.lookup(db);
         let item_tree = loc.id.item_tree(db);
 
-        Arc::new(EnumVariants {
-            variants: loc.container.def_map(db).enum_definitions[&e]
-                .iter()
-                .map(|&id| (id, item_tree[id.lookup(db).id.value].name.clone()))
-                .collect(),
-        })
+        let mut diagnostics = ThinVec::new();
+        let cfg_options = loc.container.krate.cfg_options(db);
+        let mut index = 0;
+        let variants = FileItemTreeId::range_iter(item_tree[loc.id.value].variants.clone())
+            .filter_map(|variant| {
+                let attrs = item_tree.attrs(db, loc.container.krate, variant.into());
+                if attrs.is_cfg_enabled(cfg_options) {
+                    let enum_variant = EnumVariantLoc {
+                        id: ItemTreeId::new(loc.id.tree_id(), variant),
+                        parent: e,
+                        index,
+                    }
+                    .intern(db);
+                    index += 1;
+                    Some((enum_variant, item_tree[variant].name.clone()))
+                } else {
+                    diagnostics.push(InactiveEnumVariantCode {
+                        ast_id: item_tree[variant].ast_id,
+                        cfg: attrs.cfg().unwrap(),
+                        opts: cfg_options.clone(),
+                    });
+                    None
+                }
+            })
+            .collect();
+
+        (Arc::new(EnumVariants { variants }), Arc::new(diagnostics))
     }
 
     pub fn variant(&self, name: &Name) -> Option<EnumVariantId> {

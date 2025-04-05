@@ -26,12 +26,11 @@ use syntax::ast;
 use triomphe::Arc;
 
 use crate::{
-    AdtId, AstId, AstIdWithPath, ConstLoc, CrateRootModuleId, EnumLoc, EnumVariantLoc,
-    ExternBlockLoc, ExternCrateId, ExternCrateLoc, FunctionId, FunctionLoc, ImplLoc, Intern,
-    ItemContainerId, LocalModuleId, Lookup, Macro2Id, Macro2Loc, MacroExpander, MacroId,
-    MacroRulesId, MacroRulesLoc, MacroRulesLocFlags, ModuleDefId, ModuleId, ProcMacroId,
-    ProcMacroLoc, StaticLoc, StructLoc, TraitAliasLoc, TraitLoc, TypeAliasLoc, UnionLoc,
-    UnresolvedMacro, UseId, UseLoc,
+    AdtId, AstId, AstIdWithPath, ConstLoc, CrateRootModuleId, EnumLoc, ExternBlockLoc,
+    ExternCrateId, ExternCrateLoc, FunctionId, FunctionLoc, ImplLoc, Intern, ItemContainerId,
+    LocalModuleId, Lookup, Macro2Id, Macro2Loc, MacroExpander, MacroId, MacroRulesId,
+    MacroRulesLoc, MacroRulesLocFlags, ModuleDefId, ModuleId, ProcMacroId, ProcMacroLoc, StaticLoc,
+    StructLoc, TraitAliasLoc, TraitLoc, TypeAliasLoc, UnionLoc, UnresolvedMacro, UseId, UseLoc,
     attr::Attrs,
     db::DefDatabase,
     item_scope::{GlobId, ImportId, ImportOrExternCrate, PerNsGlobImports},
@@ -971,27 +970,16 @@ impl DefCollector<'_> {
                     Some(ModuleDefId::AdtId(AdtId::EnumId(e))) => {
                         cov_mark::hit!(glob_enum);
                         // glob import from enum => just import all the variants
-
-                        // We need to check if the def map the enum is from is us, if it is we can't
-                        // call the def-map query since we are currently constructing it!
-                        let loc = e.lookup(self.db);
-                        let tree = loc.id.item_tree(self.db);
-                        let current_def_map = self.def_map.krate == loc.container.krate
-                            && self.def_map.block_id() == loc.container.block;
-                        let def_map;
-                        let resolutions = if current_def_map {
-                            &self.def_map.enum_definitions[&e]
-                        } else {
-                            def_map = loc.container.def_map(self.db);
-                            &def_map.enum_definitions[&e]
-                        }
-                        .iter()
-                        .map(|&variant| {
-                            let name = tree[variant.lookup(self.db).id.value].name.clone();
-                            let res = PerNs::both(variant.into(), variant.into(), vis, None);
-                            (Some(name), res)
-                        })
-                        .collect::<Vec<_>>();
+                        let resolutions = self
+                            .db
+                            .enum_variants(e)
+                            .variants
+                            .iter()
+                            .map(|&(variant, ref name)| {
+                                let res = PerNs::both(variant.into(), variant.into(), vis, None);
+                                (Some(name.clone()), res)
+                            })
+                            .collect::<Vec<_>>();
                         self.update(
                             module_id,
                             &resolutions,
@@ -1894,39 +1882,6 @@ impl ModCollector<'_, '_> {
 
                     let vis = resolve_vis(def_map, local_def_map, &self.item_tree[it.visibility]);
                     update_def(self.def_collector, enum_.into(), &it.name, vis, false);
-
-                    let mut index = 0;
-                    let variants = FileItemTreeId::range_iter(it.variants.clone())
-                        .filter_map(|variant| {
-                            let is_enabled = self
-                                .item_tree
-                                .attrs(db, krate, variant.into())
-                                .cfg()
-                                .and_then(|cfg| self.is_cfg_enabled(&cfg).not().then_some(cfg))
-                                .map_or(Ok(()), Err);
-                            match is_enabled {
-                                Err(cfg) => {
-                                    self.emit_unconfigured_diagnostic(
-                                        self.tree_id,
-                                        variant.into(),
-                                        &cfg,
-                                    );
-                                    None
-                                }
-                                Ok(()) => Some({
-                                    let loc = EnumVariantLoc {
-                                        id: ItemTreeId::new(self.tree_id, variant),
-                                        parent: enum_,
-                                        index,
-                                    }
-                                    .intern(db);
-                                    index += 1;
-                                    loc
-                                }),
-                            }
-                        })
-                        .collect();
-                    self.def_collector.def_map.enum_definitions.insert(enum_, variants);
                 }
                 ModItem::Const(id) => {
                     let it = &self.item_tree[id];

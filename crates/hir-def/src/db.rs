@@ -6,6 +6,7 @@ use intern::sym;
 use la_arena::ArenaMap;
 use span::{EditionedFileId, MacroCallId};
 use syntax::{AstPtr, ast};
+use thin_vec::ThinVec;
 use triomphe::Arc;
 
 use crate::{
@@ -30,8 +31,8 @@ use crate::{
     },
     signatures::{
         ConstSignature, EnumSignature, EnumVariants, FunctionSignature, ImplSignature,
-        StaticSignature, StructSignature, TraitAliasSignature, TraitSignature, TypeAliasSignature,
-        UnionSignature, VariantFields,
+        InactiveEnumVariantCode, StaticSignature, StructSignature, TraitAliasSignature,
+        TraitSignature, TypeAliasSignature, UnionSignature, VariantFields,
     },
     tt,
     visibility::{self, Visibility},
@@ -141,8 +142,16 @@ pub trait DefDatabase:
         id: VariantId,
     ) -> (Arc<VariantFields>, Arc<ExpressionStoreSourceMap>);
 
+    #[salsa::tracked]
+    fn enum_variants(&self, id: EnumId) -> Arc<EnumVariants> {
+        self.enum_variants_with_diagnostics(id).0
+    }
+
     #[salsa::invoke_actual(EnumVariants::enum_variants_query)]
-    fn enum_variants(&self, id: EnumId) -> Arc<EnumVariants>;
+    fn enum_variants_with_diagnostics(
+        &self,
+        id: EnumId,
+    ) -> (Arc<EnumVariants>, Arc<ThinVec<InactiveEnumVariantCode>>);
 
     #[salsa::transparent]
     #[salsa::invoke_actual(ImplItems::impl_items_query)]

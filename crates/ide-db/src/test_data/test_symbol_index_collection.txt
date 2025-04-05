@@ -15,7 +15,7 @@
                 def: TypeAlias(
                     TypeAlias {
                         id: TypeAliasId(
-                            8000,
+                            7c00,
                         ),
                     },
                 ),
@@ -47,7 +47,7 @@
                 def: Const(
                     Const {
                         id: ConstId(
-                            7800,
+                            7400,
                         ),
                     },
                 ),
@@ -79,7 +79,7 @@
                 def: Const(
                     Const {
                         id: ConstId(
-                            7802,
+                            7402,
                         ),
                     },
                 ),
@@ -213,7 +213,7 @@
                 def: Static(
                     Static {
                         id: StaticId(
-                            7c00,
+                            7800,
                         ),
                     },
                 ),
@@ -450,7 +450,7 @@
                 def: Trait(
                     Trait {
                         id: TraitId(
-                            7000,
+                            6c00,
                         ),
                     },
                 ),
@@ -517,7 +517,7 @@
                     Union(
                         Union {
                             id: UnionId(
-                                6800,
+                                6400,
                             ),
                         },
                     ),
@@ -656,7 +656,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            7402,
+                            7002,
                         ),
                     },
                 ),
@@ -690,7 +690,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            7401,
+                            7001,
                         ),
                     },
                 ),
@@ -758,7 +758,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            7400,
+                            7000,
                         ),
                     },
                 ),
@@ -824,7 +824,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            7403,
+                            7003,
                         ),
                     },
                 ),
@@ -918,7 +918,7 @@
                 def: Trait(
                     Trait {
                         id: TraitId(
-                            7000,
+                            6c00,
                         ),
                     },
                 ),

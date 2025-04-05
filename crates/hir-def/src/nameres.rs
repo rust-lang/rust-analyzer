@@ -76,8 +76,8 @@ use triomphe::Arc;
 use tt::TextRange;
 
 use crate::{
-    AstId, BlockId, BlockLoc, CrateRootModuleId, EnumId, EnumVariantId, ExternCrateId, FunctionId,
-    FxIndexMap, LocalModuleId, Lookup, MacroExpander, MacroId, ModuleId, ProcMacroId, UseId,
+    AstId, BlockId, BlockLoc, CrateRootModuleId, ExternCrateId, FunctionId, FxIndexMap,
+    LocalModuleId, Lookup, MacroExpander, MacroId, ModuleId, ProcMacroId, UseId,
     db::DefDatabase,
     item_scope::{BuiltinShadowMode, ItemScope},
     item_tree::{ItemTreeId, Mod, TreeId},
@@ -158,7 +158,6 @@ pub struct DefMap {
     /// this contains all kinds of macro, not just `macro_rules!` macro.
     /// ExternCrateId being None implies it being imported from the general prelude import.
     macro_use_prelude: FxHashMap<Name, (MacroId, Option<ExternCrateId>)>,
-    pub(crate) enum_definitions: FxHashMap<EnumId, Box<[EnumVariantId]>>,
 
     // FIXME: AstId's are fairly unstable
     /// Tracks which custom derives are in scope for an item, to allow resolution of derive helper
@@ -458,7 +457,6 @@ impl DefMap {
             macro_use_prelude: FxHashMap::default(),
             derive_helpers_in_scope: FxHashMap::default(),
             diagnostics: Vec::new(),
-            enum_definitions: FxHashMap::default(),
             data: crate_data,
             macro_def_to_macro_id: FxHashMap::default(),
         }
@@ -474,7 +472,6 @@ impl DefMap {
             krate: _,
             prelude: _,
             data: _,
-            enum_definitions,
             macro_def_to_macro_id,
         } = self;
 
@@ -483,7 +480,6 @@ impl DefMap {
         diagnostics.shrink_to_fit();
         modules.shrink_to_fit();
         derive_helpers_in_scope.shrink_to_fit();
-        enum_definitions.shrink_to_fit();
         for (_, module) in modules.iter_mut() {
             module.children.shrink_to_fit();
             module.scope.shrink_to_fit();

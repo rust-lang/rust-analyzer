@@ -677,12 +677,28 @@ impl Module {
                         Adt::Enum(e) => {
                             let source_map = db.enum_signature_with_source_map(e.id).1;
                             expr_store_diagnostics(db, acc, &source_map);
-                            for v in e.variants(db) {
-                                let source_map = db.variant_fields_with_source_map(v.id.into()).1;
+                            let (variants, diagnostics) = db.enum_variants_with_diagnostics(e.id);
+                            let file = e.id.lookup(db.upcast()).id.file_id();
+                            let ast_id_map = db.ast_id_map(file);
+                            for diag in diagnostics.iter() {
+                                acc.push(
+                                    InactiveCode {
+                                        node: InFile::new(
+                                            file,
+                                            ast_id_map.get(diag.ast_id).syntax_node_ptr(),
+                                        ),
+                                        cfg: diag.cfg.clone(),
+                                        opts: diag.opts.clone(),
+                                    }
+                                    .into(),
+                                );
+                            }
+                            for &(v, _) in &variants.variants {
+                                let source_map = db.variant_fields_with_source_map(v.into()).1;
                                 push_ty_diagnostics(
                                     db,
                                     acc,
-                                    db.field_types_with_diagnostics(v.id.into()).1,
+                                    db.field_types_with_diagnostics(v.into()).1,
                                     &source_map,
                                 );
                                 expr_store_diagnostics(db, acc, &source_map);
