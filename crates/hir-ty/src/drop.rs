@@ -5,7 +5,6 @@ use hir_def::AdtId;
 use hir_def::data::adt::StructFlags;
 use hir_def::lang_item::LangItem;
 use stdx::never;
-use triomphe::Arc;
 
 use crate::db::HirDatabaseData;
 use crate::{
@@ -47,7 +46,7 @@ pub enum DropGlue {
     HasDropGlue,
 }
 
-pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironment>) -> DropGlue {
+pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: TraitEnvironment<'_>) -> DropGlue {
     match ty.kind(Interner) {
         TyKind::Adt(adt, subst) => {
             if has_destructor(db, adt.0) {
@@ -61,10 +60,7 @@ pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironm
                     db.field_types(id.into())
                         .iter()
                         .map(|(_, field_ty)| {
-                            db.has_drop_glue(
-                                field_ty.clone().substitute(Interner, subst),
-                                env.clone(),
-                            )
+                            db.has_drop_glue(field_ty.clone().substitute(Interner, subst), env)
                         })
                         .max()
                         .unwrap_or(DropGlue::None)
@@ -79,10 +75,7 @@ pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironm
                         db.field_types(variant.into())
                             .iter()
                             .map(|(_, field_ty)| {
-                                db.has_drop_glue(
-                                    field_ty.clone().substitute(Interner, subst),
-                                    env.clone(),
-                                )
+                                db.has_drop_glue(field_ty.clone().substitute(Interner, subst), env)
                             })
                             .max()
                             .unwrap_or(DropGlue::None)
@@ -94,7 +87,7 @@ pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironm
         TyKind::Tuple(_, subst) => subst
             .iter(Interner)
             .map(|ty| ty.assert_ty_ref(Interner))
-            .map(|ty| db.has_drop_glue(ty.clone(), env.clone()))
+            .map(|ty| db.has_drop_glue(ty.clone(), env))
             .max()
             .unwrap_or(DropGlue::None),
         TyKind::Array(ty, len) => {
@@ -124,7 +117,7 @@ pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironm
             let env = db.trait_environment_for_body(owner);
             captures
                 .iter()
-                .map(|capture| db.has_drop_glue(capture.ty(subst), env.clone()))
+                .map(|capture| db.has_drop_glue(capture.ty(subst), env))
                 .max()
                 .unwrap_or(DropGlue::None)
         }
@@ -169,11 +162,11 @@ pub(crate) fn has_drop_glue(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironm
 
 fn projection_has_drop_glue(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     projection: ProjectionTy,
     ty: Ty,
 ) -> DropGlue {
-    let normalized = db.normalize_projection(projection, env.clone());
+    let normalized = db.normalize_projection(projection, env);
     match normalized.kind(Interner) {
         TyKind::Alias(AliasTy::Projection(_)) | TyKind::AssociatedType(..) => {
             if is_copy(db, ty, env) { DropGlue::None } else { DropGlue::DependOnParams }
@@ -182,17 +175,17 @@ fn projection_has_drop_glue(
     }
 }
 
-fn is_copy(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironment>) -> bool {
-    let Some(copy_trait) = db.lang_item(env.krate, LangItem::Copy).and_then(|it| it.as_trait())
-    else {
+fn is_copy(db: &dyn HirDatabase, ty: Ty, env: TraitEnvironment<'_>) -> bool {
+    let krate = env.krate(db);
+    let Some(copy_trait) = db.lang_item(krate, LangItem::Copy).and_then(|it| it.as_trait()) else {
         return false;
     };
     let trait_ref = TyBuilder::trait_ref(db, copy_trait).push(ty).build();
     let goal = Canonical {
-        value: InEnvironment::new(&env.env, trait_ref.cast(Interner)),
+        value: InEnvironment::new(env.env(db), trait_ref.cast(Interner)),
         binders: CanonicalVarKinds::empty(Interner),
     };
-    db.trait_solve(env.krate, env.block, goal).is_some()
+    db.trait_solve(krate, env.block(db), goal).is_some()
 }
 
 pub(crate) fn has_drop_glue_recover(
@@ -200,7 +193,7 @@ pub(crate) fn has_drop_glue_recover(
     _cycle: &salsa::Cycle,
     _: HirDatabaseData,
     _ty: Ty,
-    _env: Arc<TraitEnvironment>,
+    _env: TraitEnvironment<'_>,
 ) -> DropGlue {
     DropGlue::None
 }

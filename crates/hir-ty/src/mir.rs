@@ -156,7 +156,7 @@ impl<V, T> ProjectionElem<V, T> {
             base = normalize(
                 db,
                 // FIXME: we should get this from caller
-                TraitEnvironment::empty(krate),
+                TraitEnvironment::empty(db, krate),
                 base,
             );
         }

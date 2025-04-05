@@ -14,7 +14,6 @@ use hir_expand::name::Name;
 use intern::sym;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use triomphe::Arc;
 
 use super::{InferOk, InferResult, InferenceContext, TypeError};
 use crate::{
@@ -132,7 +131,7 @@ impl<T: HasInterner<Interner = Interner>> Canonicalized<T> {
 /// unresolved goal `T = U`.
 pub fn could_unify(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     tys: &Canonical<(Ty, Ty)>,
 ) -> bool {
     unify(db, env, tys).is_some()
@@ -144,7 +143,7 @@ pub fn could_unify(
 /// them. For example `Option<T>` and `Option<U>` do not unify as we cannot show that `T = U`
 pub fn could_unify_deeply(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     tys: &Canonical<(Ty, Ty)>,
 ) -> bool {
     let mut table = InferenceTable::new(db, env);
@@ -162,7 +161,7 @@ pub fn could_unify_deeply(
 
 pub(crate) fn unify(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     tys: &Canonical<(Ty, Ty)>,
 ) -> Option<Substitution> {
     let mut table = InferenceTable::new(db, env);
@@ -222,9 +221,9 @@ bitflags::bitflags! {
 type ChalkInferenceTable = chalk_solve::infer::InferenceTable<Interner>;
 
 #[derive(Clone)]
-pub(crate) struct InferenceTable<'a> {
-    pub(crate) db: &'a dyn HirDatabase,
-    pub(crate) trait_env: Arc<TraitEnvironment>,
+pub(crate) struct InferenceTable<'db> {
+    pub(crate) db: &'db dyn HirDatabase,
+    pub(crate) trait_env: TraitEnvironment<'db>,
     pub(crate) tait_coercion_table: Option<FxHashMap<OpaqueTyId, Ty>>,
     var_unification_table: ChalkInferenceTable,
     type_variable_table: SmallVec<[TypeVariableFlags; 16]>,
@@ -240,8 +239,8 @@ pub(crate) struct InferenceTableSnapshot {
     pending_obligations: Vec<Canonicalized<InEnvironment<Goal>>>,
 }
 
-impl<'a> InferenceTable<'a> {
-    pub(crate) fn new(db: &'a dyn HirDatabase, trait_env: Arc<TraitEnvironment>) -> Self {
+impl<'db> InferenceTable<'db> {
+    pub(crate) fn new(db: &'db dyn HirDatabase, trait_env: TraitEnvironment<'db>) -> Self {
         InferenceTable {
             db,
             trait_env,
@@ -562,7 +561,7 @@ impl<'a> InferenceTable<'a> {
         match self.var_unification_table.relate(
             Interner,
             &self.db,
-            &self.trait_env.env,
+            self.trait_env.env(self.db),
             chalk_ir::Variance::Invariant,
             t1,
             t2,
@@ -605,14 +604,18 @@ impl<'a> InferenceTable<'a> {
     /// whether a trait *might* be implemented before deciding to 'lock in' the
     /// choice (during e.g. method resolution or deref).
     pub(crate) fn try_obligation(&mut self, goal: Goal) -> Option<Solution> {
-        let in_env = InEnvironment::new(&self.trait_env.env, goal);
+        let in_env = InEnvironment::new(self.trait_env.env(self.db), goal);
         let canonicalized = self.canonicalize(in_env);
 
-        self.db.trait_solve(self.trait_env.krate, self.trait_env.block, canonicalized)
+        self.db.trait_solve(
+            self.trait_env.krate(self.db),
+            self.trait_env.block(self.db),
+            canonicalized,
+        )
     }
 
     pub(crate) fn register_obligation(&mut self, goal: Goal) {
-        let in_env = InEnvironment::new(&self.trait_env.env, goal);
+        let in_env = InEnvironment::new(self.trait_env.env(self.db), goal);
         self.register_obligation_in_env(in_env)
     }
 
@@ -746,8 +749,8 @@ impl<'a> InferenceTable<'a> {
         canonicalized: &Canonicalized<InEnvironment<Goal>>,
     ) -> Option<chalk_solve::Solution<Interner>> {
         let solution = self.db.trait_solve(
-            self.trait_env.krate,
-            self.trait_env.block,
+            self.trait_env.krate(self.db),
+            self.trait_env.block(self.db),
             canonicalized.value.clone(),
         );
 
@@ -799,7 +802,7 @@ impl<'a> InferenceTable<'a> {
             (FnTrait::AsyncFnMut, sym::CallRefFuture.clone(), &[FnTrait::AsyncFn]),
             (FnTrait::AsyncFnOnce, sym::CallOnceFuture.clone(), &[]),
         ] {
-            let krate = self.trait_env.krate;
+            let krate = self.trait_env.krate(self.db);
             let fn_trait = fn_trait_name.get_id(self.db, krate)?;
             let trait_data = self.db.trait_items(fn_trait);
             let output_assoc_type =
@@ -832,13 +835,16 @@ impl<'a> InferenceTable<'a> {
             .fill_with_unknown()
             .build();
 
-            let trait_env = self.trait_env.env.clone();
+            let trait_env = self.trait_env.env(self.db).clone();
             let obligation = InEnvironment {
                 goal: trait_ref.clone().cast(Interner),
                 environment: trait_env.clone(),
             };
             let canonical = self.canonicalize(obligation.clone());
-            if self.db.trait_solve(krate, self.trait_env.block, canonical.cast(Interner)).is_some()
+            if self
+                .db
+                .trait_solve(krate, self.trait_env.block(self.db), canonical.cast(Interner))
+                .is_some()
             {
                 self.register_obligation(obligation.goal);
                 let return_ty = self.normalize_projection_ty(projection);
@@ -853,7 +859,7 @@ impl<'a> InferenceTable<'a> {
                     let canonical = self.canonicalize(obligation.clone());
                     if self
                         .db
-                        .trait_solve(krate, self.trait_env.block, canonical.cast(Interner))
+                        .trait_solve(krate, self.trait_env.block(self.db), canonical.cast(Interner))
                         .is_some()
                     {
                         return Some((fn_x, arg_tys, return_ty));
@@ -959,7 +965,7 @@ impl<'a> InferenceTable<'a> {
 
         let Some(sized) = self
             .db
-            .lang_item(self.trait_env.krate, LangItem::Sized)
+            .lang_item(self.trait_env.krate(self.db), LangItem::Sized)
             .and_then(|sized| sized.as_trait())
         else {
             return false;

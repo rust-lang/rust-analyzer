@@ -425,7 +425,7 @@ pub(crate) fn hover_for_definition(
     sema: &Semantics<'_, RootDatabase>,
     file_id: FileId,
     def: Definition,
-    subst: Option<GenericSubstitution>,
+    subst: Option<GenericSubstitution<'_>>,
     scope_node: &SyntaxNode,
     macro_arm: Option<u32>,
     render_extras: bool,
@@ -482,10 +482,10 @@ pub(crate) fn hover_for_definition(
     }
 }
 
-fn notable_traits(
-    db: &RootDatabase,
-    ty: &hir::Type,
-) -> Vec<(hir::Trait, Vec<(Option<hir::Type>, hir::Name)>)> {
+fn notable_traits<'db>(
+    db: &'db RootDatabase,
+    ty: &hir::Type<'db>,
+) -> Vec<(hir::Trait, Vec<(Option<hir::Type<'db>>, hir::Name)>)> {
     db.notable_traits_in_deps(ty.krate(db).into())
         .iter()
         .flat_map(|it| &**it)
@@ -565,8 +565,8 @@ fn runnable_action(
 fn goto_type_action_for_def(
     db: &RootDatabase,
     def: Definition,
-    notable_traits: &[(hir::Trait, Vec<(Option<hir::Type>, hir::Name)>)],
-    subst_types: Option<Vec<(hir::Symbol, hir::Type)>>,
+    notable_traits: &[(hir::Trait, Vec<(Option<hir::Type<'_>>, hir::Name)>)],
+    subst_types: Option<Vec<(hir::Symbol, hir::Type<'_>)>>,
     edition: Edition,
 ) -> Option<HoverAction> {
     let mut targets: Vec<hir::ModuleDef> = Vec::new();
@@ -620,7 +620,7 @@ fn goto_type_action_for_def(
 
 fn walk_and_push_ty(
     db: &RootDatabase,
-    ty: &hir::Type,
+    ty: &hir::Type<'_>,
     push_new_def: &mut dyn FnMut(hir::ModuleDef),
 ) {
     ty.walk(db, |t| {

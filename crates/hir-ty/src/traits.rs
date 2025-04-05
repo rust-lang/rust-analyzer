@@ -1,7 +1,7 @@
 //! Trait solving using Chalk.
 
 use core::fmt;
-use std::env::var;
+use std::{env::var, sync::Arc, sync::OnceLock};
 
 use chalk_ir::{DebruijnIndex, GoalData, fold::TypeFoldable};
 use chalk_recursive::Cache;
@@ -16,12 +16,12 @@ use hir_expand::name::Name;
 use intern::sym;
 use span::Edition;
 use stdx::{never, panic_context};
-use triomphe::Arc;
 
 use crate::{
     AliasEq, AliasTy, Canonical, DomainGoal, Goal, Guidance, InEnvironment, Interner, ProjectionTy,
     ProjectionTyExt, Solution, TraitRefExt, Ty, TyKind, TypeFlags, WhereClause, db::HirDatabase,
-    infer::unify::InferenceTable, utils::UnevaluatedConstEvaluatorFolder,
+    infer::unify::InferenceTable, method_resolution::TyFingerprint,
+    utils::UnevaluatedConstEvaluatorFolder,
 };
 
 /// This controls how much 'time' we give the Chalk solver before giving up.
@@ -46,50 +46,80 @@ fn create_chalk_solver() -> chalk_recursive::RecursiveSolver<Interner> {
 /// fn foo<T: Default>(t: T) {}
 /// ```
 /// we assume that `T: Default`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TraitEnvironment {
+#[salsa::interned]
+pub struct TraitEnvironment<'db> {
     pub krate: Crate,
     pub block: Option<BlockId>,
     // FIXME make this a BTreeMap
-    traits_from_clauses: Box<[(Ty, TraitId)]>,
+    #[return_ref]
+    traits_from_clauses: Arc<[(Ty, TraitId)]>,
+    #[return_ref]
     pub env: chalk_ir::Environment<Interner>,
 }
 
-impl TraitEnvironment {
-    pub fn empty(krate: Crate) -> Arc<Self> {
-        Arc::new(TraitEnvironment {
+static EMPTY_ARC: OnceLock<Arc<[(Ty, TraitId)]>> = OnceLock::new();
+impl<'db> TraitEnvironment<'db> {
+    pub fn empty(db: &'db dyn HirDatabase, krate: Crate) -> Self {
+        TraitEnvironment::new(
+            db,
             krate,
-            block: None,
-            traits_from_clauses: Box::default(),
-            env: chalk_ir::Environment::new(Interner),
-        })
+            None,
+            EMPTY_ARC.get_or_init(|| Arc::new([])),
+            chalk_ir::Environment::new(Interner),
+        )
     }
 
-    pub fn new(
+    // FIXME: Salsa doesn't allow us to "shadow/overwrite" the constructor. Would be nice if we could
+    pub fn create(
+        db: &'db dyn HirDatabase,
         krate: Crate,
         block: Option<BlockId>,
-        traits_from_clauses: Box<[(Ty, TraitId)]>,
+        mut traits_from_clauses: Vec<(Ty, TraitId)>,
         env: chalk_ir::Environment<Interner>,
-    ) -> Arc<Self> {
-        Arc::new(TraitEnvironment { krate, block, traits_from_clauses, env })
+    ) -> Self {
+        // we want a somewhat stable-ish ordering here
+        traits_from_clauses
+            .sort_by_key(|(ty, trait_it)| (TyFingerprint::for_inherent_impl(ty), *trait_it));
+        TraitEnvironment::new(
+            db,
+            krate,
+            block,
+            // FIXME: Salsa doesnt implement `&T: Lookup<Arc<T>>` yet
+            if traits_from_clauses.is_empty() {
+                EMPTY_ARC.get_or_init(|| Arc::new([])).clone()
+            } else {
+                Arc::from(traits_from_clauses)
+            },
+            env,
+        )
     }
 
     // pub fn with_block(self: &mut Arc<Self>, block: BlockId) {
-    pub fn with_block(this: &mut Arc<Self>, block: BlockId) {
-        Arc::make_mut(this).block = Some(block);
+    pub fn with_block(&self, db: &'db dyn HirDatabase, block: BlockId) -> Self {
+        TraitEnvironment::new(
+            db,
+            self.krate(db),
+            Some(block),
+            self.traits_from_clauses(db).clone(),
+            self.env(db).clone(),
+        )
     }
 
-    pub fn traits_in_scope_from_clauses(&self, ty: Ty) -> impl Iterator<Item = TraitId> + '_ {
-        self.traits_from_clauses
+    pub fn traits_in_scope_from_clauses(
+        &self,
+        db: &'db dyn HirDatabase,
+        ty: Ty,
+    ) -> impl Iterator<Item = TraitId> + use<'db> {
+        self.traits_from_clauses(db)
             .iter()
             .filter_map(move |(self_ty, trait_id)| (*self_ty == ty).then_some(*trait_id))
     }
 }
 
-pub(crate) fn normalize_projection_query(
-    db: &dyn HirDatabase,
+pub(crate) fn normalize_projection_query<'db>(
+    db: &'db dyn HirDatabase,
     projection: ProjectionTy,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'db>,
 ) -> Ty {
     if projection.substitution.iter(Interner).any(|arg| {
         arg.ty(Interner)

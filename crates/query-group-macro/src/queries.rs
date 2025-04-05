@@ -55,8 +55,8 @@ impl ToTokens for TrackedQuery {
                 quote! {
                     #sig {
                         #annotation
-                        fn #shim(
-                            db: &dyn #trait_name,
+                        fn #shim<'db>(
+                            db: &'db dyn #trait_name,
                             _input: #input_struct_name,
                             #(#pat_and_tys),*
                         ) #ret {
@@ -70,8 +70,8 @@ impl ToTokens for TrackedQuery {
                 quote! {
                     #sig {
                         #annotation
-                        fn #shim(
-                            db: &dyn #trait_name,
+                        fn #shim<'db>(
+                            db: &'db dyn #trait_name,
                             #(#pat_and_tys),*
                         ) #ret {
                             #invoke(db, #(#params),*)

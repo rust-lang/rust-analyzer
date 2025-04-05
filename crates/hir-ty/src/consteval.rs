@@ -165,7 +165,7 @@ pub fn intern_const_ref(
     ty: Ty,
     krate: Crate,
 ) -> Const {
-    let layout = db.layout_of_ty(ty.clone(), TraitEnvironment::empty(krate));
+    let layout = db.layout_of_ty(ty.clone(), TraitEnvironment::empty(db, krate));
     let bytes = match value {
         LiteralConstRef::Int(i) => {
             // FIXME: We should handle failure of layout better.
@@ -233,7 +233,7 @@ pub(crate) fn const_eval_recover(
     _: HirDatabaseData,
     _: GeneralConstId,
     _: Substitution,
-    _: Option<Arc<TraitEnvironment>>,
+    _: Option<TraitEnvironment<'_>>,
 ) -> Result<Const, ConstEvalError> {
     Err(ConstEvalError::MirLowerError(MirLowerError::Loop))
 }
@@ -258,7 +258,7 @@ pub(crate) fn const_eval_query(
     db: &dyn HirDatabase,
     def: GeneralConstId,
     subst: Substitution,
-    trait_env: Option<Arc<TraitEnvironment>>,
+    trait_env: Option<TraitEnvironment<'_>>,
 ) -> Result<Const, ConstEvalError> {
     let body = match def {
         GeneralConstId::ConstId(c) => {
@@ -266,7 +266,7 @@ pub(crate) fn const_eval_query(
         }
         GeneralConstId::StaticId(s) => {
             let krate = s.module(db.upcast()).krate();
-            db.monomorphized_mir_body(s.into(), subst, TraitEnvironment::empty(krate))?
+            db.monomorphized_mir_body(s.into(), subst, TraitEnvironment::empty(db, krate))?
         }
         GeneralConstId::ConstBlockId(c) => {
             let ConstBlockLoc { parent, root } = db.lookup_intern_anonymous_const(c);

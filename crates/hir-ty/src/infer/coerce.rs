@@ -13,7 +13,6 @@ use hir_def::{
     lang_item::{LangItem, LangItemTarget},
 };
 use stdx::always;
-use triomphe::Arc;
 
 use crate::{
     Canonical, DomainGoal, FnAbi, FnPointer, FnSig, Guidance, InEnvironment, Interner, Lifetime,
@@ -203,7 +202,7 @@ impl CoerceMany {
 
 pub fn could_coerce(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     tys: &Canonical<(Ty, Ty)>,
 ) -> bool {
     coerce(db, env, tys).is_ok()
@@ -211,7 +210,7 @@ pub fn could_coerce(
 
 pub(crate) fn coerce(
     db: &dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
+    env: TraitEnvironment<'_>,
     tys: &Canonical<(Ty, Ty)>,
 ) -> Result<(Vec<Adjustment>, Ty), TypeError> {
     let mut table = InferenceTable::new(db, env);
@@ -700,7 +699,7 @@ impl InferenceTable<'_> {
         let coerce_from =
             reborrow.as_ref().map_or_else(|| from_ty.clone(), |(_, adj)| adj.target.clone());
 
-        let krate = self.trait_env.krate;
+        let krate = self.trait_env.krate(self.db);
         let coerce_unsized_trait = match self.db.lang_item(krate, LangItem::CoerceUnsized) {
             Some(LangItemTarget::Trait(trait_)) => trait_,
             _ => return Err(TypeError),
@@ -716,7 +715,7 @@ impl InferenceTable<'_> {
         };
 
         let goal: InEnvironment<DomainGoal> =
-            InEnvironment::new(&self.trait_env.env, coerce_unsized_tref.cast(Interner));
+            InEnvironment::new(self.trait_env.env(self.db), coerce_unsized_tref.cast(Interner));
 
         let canonicalized = self.canonicalize_with_free_vars(goal);
 
@@ -726,7 +725,11 @@ impl InferenceTable<'_> {
         // Need to find out in what cases this is necessary
         let solution = self
             .db
-            .trait_solve(krate, self.trait_env.block, canonicalized.value.clone().cast(Interner))
+            .trait_solve(
+                krate,
+                self.trait_env.block(self.db),
+                canonicalized.value.clone().cast(Interner),
+            )
             .ok_or(TypeError)?;
 
         match solution {

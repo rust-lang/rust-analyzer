@@ -855,7 +855,7 @@ impl Evaluator<'_> {
                         "size_of generic arg is not provided".into(),
                     ));
                 };
-                let result = match self.db.has_drop_glue(ty.clone(), self.trait_env.clone()) {
+                let result = match self.db.has_drop_glue(ty.clone(), self.trait_env) {
                     DropGlue::HasDropGlue => true,
                     DropGlue::None => false,
                     DropGlue::DependOnParams => {
