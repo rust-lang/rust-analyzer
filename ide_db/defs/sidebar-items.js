@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Definition","IdentClass","NameClass","NameRefClass","OperatorClass"]};
