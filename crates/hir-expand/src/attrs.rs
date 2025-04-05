@@ -51,15 +51,18 @@ impl RawAttrs {
     ) -> Self {
         let entries: Vec<_> = collect_attrs(owner)
             .filter_map(|(id, attr)| match attr {
-                Either::Left(attr) => {
-                    attr.meta().and_then(|meta| Attr::from_src(db, meta, span_map, id))
-                }
+                Either::Left(attr) => Attr::from_src(db, attr, span_map, id),
                 Either::Right(comment) => comment.doc_comment().map(|doc| {
                     let span = span_map.span_for_range(comment.syntax().text_range());
                     let (text, kind) =
                         desugar_doc_comment_text(doc, DocCommentDesugarMode::ProcMacro);
                     Attr {
                         id,
+                        place: if comment.is_inner() {
+                            AttrPlacement::Inner
+                        } else {
+                            AttrPlacement::Outer
+                        },
                         input: Some(Box::new(AttrInput::Literal(tt::Literal {
                             symbol: text,
                             span,
@@ -147,8 +150,9 @@ impl RawAttrs {
                         None => return smallvec![attr.clone()],
                     };
                     let index = attr.id;
+                    let place = attr.place;
                     let attrs = parts.enumerate().take(1 << AttrId::CFG_ATTR_BITS).filter_map(
-                        |(idx, attr)| Attr::from_tt(db, attr, index.with_cfg_attr(idx)),
+                        |(idx, attr)| Attr::from_tt(db, attr, index.with_cfg_attr(idx), place),
                     );
 
                     let cfg = TopSubtree::from_token_trees(subtree.top_subtree().delimiter, cfg);
@@ -211,6 +215,15 @@ pub struct Attr {
     pub path: Interned<ModPath>,
     pub input: Option<Box<AttrInput>>,
     pub ctxt: SyntaxContext,
+    pub place: AttrPlacement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AttrPlacement {
+    /// `#![attr]`
+    Inner,
+    /// `#[attr]`
+    Outer,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -233,10 +246,16 @@ impl fmt::Display for AttrInput {
 impl Attr {
     fn from_src(
         db: &dyn ExpandDatabase,
-        ast: ast::Meta,
+        ast_attr: ast::Attr,
         span_map: SpanMapRef<'_>,
         id: AttrId,
     ) -> Option<Attr> {
+        let ast = ast_attr.meta()?;
+        let place = if ast_attr.excl_token().is_some() {
+            AttrPlacement::Inner
+        } else {
+            AttrPlacement::Outer
+        };
         let path = ast.path()?;
         let range = path.syntax().text_range();
         let path = Interned::new(ModPath::from_src(db, path, &mut |range| {
@@ -257,13 +276,14 @@ impl Attr {
         } else {
             None
         };
-        Some(Attr { id, path, input, ctxt: span.ctx })
+        Some(Attr { id, path, input, ctxt: span.ctx, place })
     }
 
     fn from_tt(
         db: &dyn ExpandDatabase,
         mut tt: tt::TokenTreesView<'_>,
         id: AttrId,
+        place: AttrPlacement,
     ) -> Option<Attr> {
         if matches!(tt.flat_tokens(),
             [tt::TokenTree::Leaf(tt::Leaf::Ident(tt::Ident { sym, .. })), ..]
@@ -314,7 +334,7 @@ impl Attr {
             }
             _ => None,
         };
-        Some(Attr { id, path, input, ctxt })
+        Some(Attr { id, path, input, ctxt, place })
     }
 
     pub fn path(&self) -> &ModPath {
