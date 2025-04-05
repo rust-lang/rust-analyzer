@@ -13,6 +13,7 @@ use hir_expand::{
     MacroFileIdExt,
     attrs::{Attr, AttrId},
     builtin::{find_builtin_attr, find_builtin_derive, find_builtin_macro},
+    mod_path::{ModPath, PathKind},
     name::{AsName, Name},
     proc_macro::CustomProcMacroExpander,
 };
@@ -25,18 +26,18 @@ use syntax::ast;
 use triomphe::Arc;
 
 use crate::{
-    AdtId, AstId, AstIdWithPath, ConstLoc, CrateRootModuleId, EnumLoc, EnumVariantLoc,
-    ExternBlockLoc, ExternCrateId, ExternCrateLoc, FunctionId, FunctionLoc, ImplLoc, Intern,
-    ItemContainerId, LocalModuleId, Lookup, Macro2Id, Macro2Loc, MacroExpander, MacroId,
-    MacroRulesId, MacroRulesLoc, MacroRulesLocFlags, ModuleDefId, ModuleId, ProcMacroId,
-    ProcMacroLoc, StaticLoc, StructLoc, TraitAliasLoc, TraitLoc, TypeAliasLoc, UnionLoc,
-    UnresolvedMacro, UseId, UseLoc,
+    AdtId, AstId, AstIdWithPath, ConstLoc, CrateRootModuleId, EnumLoc, ExternBlockLoc,
+    ExternCrateId, ExternCrateLoc, FunctionId, FunctionLoc, ImplLoc, Intern, ItemContainerId,
+    LocalModuleId, Lookup, Macro2Id, Macro2Loc, MacroExpander, MacroId, MacroRulesId,
+    MacroRulesLoc, MacroRulesLocFlags, ModuleDefId, ModuleId, ProcMacroId, ProcMacroLoc, StaticLoc,
+    StructLoc, TraitAliasLoc, TraitLoc, TypeAliasLoc, UnionLoc, UnresolvedMacro, UseId, UseLoc,
     attr::Attrs,
     db::DefDatabase,
     item_scope::{GlobId, ImportId, ImportOrExternCrate, PerNsGlobImports},
     item_tree::{
-        self, AttrOwner, FieldsShape, FileItemTreeId, ImportKind, ItemTree, ItemTreeId,
-        ItemTreeNode, Macro2, MacroCall, MacroRules, Mod, ModItem, ModKind, TreeId, UseTreeKind,
+        self, AttrOwner, FieldsShape, FileItemTreeId, ImportAlias, ImportKind, ItemTree,
+        ItemTreeId, ItemTreeNode, Macro2, MacroCall, MacroRules, Mod, ModItem, ModKind, TreeId,
+        UseTreeKind,
     },
     macro_call_as_call_id, macro_call_as_call_id_with_eager,
     nameres::{
@@ -48,7 +49,6 @@ use crate::{
         proc_macro::{ProcMacroDef, ProcMacroKind, parse_macro_name_and_helper_attrs},
         sub_namespace_match,
     },
-    path::{ImportAlias, ModPath, PathKind},
     per_ns::{Item, PerNs},
     tt,
     visibility::{RawVisibility, Visibility},
@@ -580,6 +580,7 @@ impl DefCollector<'_> {
         &mut self,
         def: ProcMacroDef,
         id: ItemTreeId<item_tree::Function>,
+        ast_id: AstId<ast::Fn>,
         fn_id: FunctionId,
     ) {
         let kind = def.kind.to_basedb_kind();
@@ -603,6 +604,8 @@ impl DefCollector<'_> {
             edition: self.def_map.data.edition,
         }
         .intern(self.db);
+
+        self.def_map.macro_def_to_macro_id.insert(ast_id.erase(), proc_macro_id.into());
         self.define_proc_macro(def.name.clone(), proc_macro_id);
         let crate_data = Arc::get_mut(&mut self.def_map.data).unwrap();
         if let ProcMacroKind::Derive { helpers } = def.kind {
@@ -967,27 +970,16 @@ impl DefCollector<'_> {
                     Some(ModuleDefId::AdtId(AdtId::EnumId(e))) => {
                         cov_mark::hit!(glob_enum);
                         // glob import from enum => just import all the variants
-
-                        // We need to check if the def map the enum is from is us, if it is we can't
-                        // call the def-map query since we are currently constructing it!
-                        let loc = e.lookup(self.db);
-                        let tree = loc.id.item_tree(self.db);
-                        let current_def_map = self.def_map.krate == loc.container.krate
-                            && self.def_map.block_id() == loc.container.block;
-                        let def_map;
-                        let resolutions = if current_def_map {
-                            &self.def_map.enum_definitions[&e]
-                        } else {
-                            def_map = loc.container.def_map(self.db);
-                            &def_map.enum_definitions[&e]
-                        }
-                        .iter()
-                        .map(|&variant| {
-                            let name = tree[variant.lookup(self.db).id.value].name.clone();
-                            let res = PerNs::both(variant.into(), variant.into(), vis, None);
-                            (Some(name), res)
-                        })
-                        .collect::<Vec<_>>();
+                        let resolutions = self
+                            .db
+                            .enum_variants(e)
+                            .variants
+                            .iter()
+                            .map(|&(variant, ref name)| {
+                                let res = PerNs::both(variant.into(), variant.into(), vis, None);
+                                (Some(name.clone()), res)
+                            })
+                            .collect::<Vec<_>>();
                         self.update(
                             module_id,
                             &resolutions,
@@ -1269,6 +1261,12 @@ impl DefCollector<'_> {
                         *expand_to,
                         self.def_map.krate,
                         resolver_def_id,
+                        &mut |_ptr, _call_id| {
+                            // FIXME:
+                            // self.def_map.modules[directive.module_id]
+                            //     .scope
+                            //     .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
+                        },
                     );
                     if let Ok(Some(call_id)) = call_id {
                         self.def_map.modules[directive.module_id]
@@ -1560,6 +1558,7 @@ impl DefCollector<'_> {
                             );
                             resolved_res.resolved_def.take_macros().map(|it| self.db.macro_def(it))
                         },
+                        &mut |_, _| (),
                     );
                     if let Err(UnresolvedMacro { path }) = macro_call_as_call_id {
                         self.def_map.diagnostics.push(DefDiagnostic::unresolved_macro_call(
@@ -1839,6 +1838,7 @@ impl ModCollector<'_, '_> {
                             self.def_collector.export_proc_macro(
                                 proc_macro,
                                 ItemTreeId::new(self.tree_id, id),
+                                InFile::new(self.file_id(), self.item_tree[id].ast_id()),
                                 fn_id,
                             );
                         }
@@ -1882,39 +1882,6 @@ impl ModCollector<'_, '_> {
 
                     let vis = resolve_vis(def_map, local_def_map, &self.item_tree[it.visibility]);
                     update_def(self.def_collector, enum_.into(), &it.name, vis, false);
-
-                    let mut index = 0;
-                    let variants = FileItemTreeId::range_iter(it.variants.clone())
-                        .filter_map(|variant| {
-                            let is_enabled = self
-                                .item_tree
-                                .attrs(db, krate, variant.into())
-                                .cfg()
-                                .and_then(|cfg| self.is_cfg_enabled(&cfg).not().then_some(cfg))
-                                .map_or(Ok(()), Err);
-                            match is_enabled {
-                                Err(cfg) => {
-                                    self.emit_unconfigured_diagnostic(
-                                        self.tree_id,
-                                        variant.into(),
-                                        &cfg,
-                                    );
-                                    None
-                                }
-                                Ok(()) => Some({
-                                    let loc = EnumVariantLoc {
-                                        id: ItemTreeId::new(self.tree_id, variant),
-                                        parent: enum_,
-                                        index,
-                                    }
-                                    .intern(db);
-                                    index += 1;
-                                    loc
-                                }),
-                            }
-                        })
-                        .collect();
-                    self.def_collector.def_map.enum_definitions.insert(enum_, variants);
                 }
                 ModItem::Const(id) => {
                     let it = &self.item_tree[id];
@@ -2352,6 +2319,10 @@ impl ModCollector<'_, '_> {
             edition: self.def_collector.def_map.data.edition,
         }
         .intern(self.def_collector.db);
+        self.def_collector.def_map.macro_def_to_macro_id.insert(
+            InFile::new(self.file_id(), self.item_tree[id].ast_id()).erase(),
+            macro_id.into(),
+        );
         self.def_collector.define_macro_rules(
             self.module_id,
             mac.name.clone(),
@@ -2416,6 +2387,10 @@ impl ModCollector<'_, '_> {
             edition: self.def_collector.def_map.data.edition,
         }
         .intern(self.def_collector.db);
+        self.def_collector.def_map.macro_def_to_macro_id.insert(
+            InFile::new(self.file_id(), self.item_tree[id].ast_id()).erase(),
+            macro_id.into(),
+        );
         self.def_collector.define_macro_def(
             self.module_id,
             mac.name.clone(),
@@ -2484,6 +2459,12 @@ impl ModCollector<'_, '_> {
                     Some(MacroSubNs::Bang),
                 );
                 resolved_res.resolved_def.take_macros().map(|it| db.macro_def(it))
+            },
+            &mut |_ptr, _call_id| {
+                // FIXME:
+                // self.def_collector.def_map.modules[self.module_id]
+                //     .scope
+                //     .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
             },
         ) {
             // FIXME: if there were errors, this might've been in the eager expansion from an
