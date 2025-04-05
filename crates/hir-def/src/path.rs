@@ -20,7 +20,9 @@ use syntax::ast;
 
 pub use hir_expand::mod_path::{ModPath, PathKind, path};
 
-pub use lower::hir_segment_to_ast_segment;
+pub use lower::{
+    hir_assoc_type_binding_to_ast, hir_generic_arg_to_ast, hir_segment_to_ast_segment,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImportAlias {

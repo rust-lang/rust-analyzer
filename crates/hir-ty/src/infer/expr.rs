@@ -9,6 +9,7 @@ use chalk_ir::{DebruijnIndex, Mutability, TyVariableKind, cast::Cast, fold::Shif
 use either::Either;
 use hir_def::{
     BlockId, FieldId, GenericDefId, GenericParamId, ItemContainerId, Lookup, TupleFieldId, TupleId,
+    generics::GenericParamDataRef,
     hir::{
         ArithOp, Array, AsmOperand, AsmOptions, BinaryOp, ClosureKind, Expr, ExprId, ExprOrPatId,
         LabelId, Literal, Pat, PatId, Statement, UnaryOp,
@@ -24,13 +25,12 @@ use syntax::ast::RangeOp;
 
 use crate::{
     Adjust, Adjustment, AdtId, AutoBorrow, Binders, CallableDefId, CallableSig, DeclContext,
-    DeclOrigin, FnAbi, FnPointer, FnSig, FnSubst, Interner, Rawness, Scalar, Substitution,
-    TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind,
+    DeclOrigin, FnAbi, FnPointer, FnSig, FnSubst, IncorrectGenericsLenKind, Interner, Rawness,
+    Scalar, Substitution, TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind,
     autoderef::{Autoderef, builtin_deref, deref_by_trait},
     consteval,
     db::{InternedClosure, InternedCoroutine},
-    error_lifetime,
-    generics::{Generics, generics},
+    generics::generics,
     infer::{
         BreakableKind,
         coerce::{CoerceMany, CoerceNever, CoercionCause},
@@ -39,7 +39,8 @@ use crate::{
     },
     lang_items::lang_items_for_bin_op,
     lower::{
-        ParamLoweringMode, const_or_path_to_chalk, generic_arg_to_chalk, lower_to_chalk_mutability,
+        GenericArgsPosition, ParamLoweringMode, const_or_path_to_chalk, lower_to_chalk_mutability,
+        path::{GenericArgsLowerer, substs_from_args_and_bindings},
     },
     mapping::{ToChalk, from_chalk},
     method_resolution::{self, VisibleFromModule},
@@ -1775,8 +1776,7 @@ impl InferenceContext<'_> {
                 match resolved {
                     Some((adjust, func, _)) => {
                         let (ty, adjustments) = adjust.apply(&mut self.table, receiver_ty);
-                        let generics = generics(self.db.upcast(), func.into());
-                        let substs = self.substs_for_method_call(generics, None);
+                        let substs = self.substs_for_method_call(tgt_expr, func.into(), None);
                         self.write_expr_adj(receiver, adjustments);
                         self.write_method_resolution(tgt_expr, func, substs.clone());
 
@@ -1928,8 +1928,7 @@ impl InferenceContext<'_> {
                 let (ty, adjustments) = adjust.apply(&mut self.table, receiver_ty);
                 self.write_expr_adj(receiver, adjustments);
 
-                let generics = generics(self.db.upcast(), func.into());
-                let substs = self.substs_for_method_call(generics, generic_args);
+                let substs = self.substs_for_method_call(tgt_expr, func.into(), generic_args);
                 self.write_method_resolution(tgt_expr, func, substs.clone());
                 self.check_method_call(
                     tgt_expr,
@@ -1979,8 +1978,7 @@ impl InferenceContext<'_> {
 
                 let recovered = match assoc_func_with_same_name {
                     Some(f) => {
-                        let generics = generics(self.db.upcast(), f.into());
-                        let substs = self.substs_for_method_call(generics, generic_args);
+                        let substs = self.substs_for_method_call(tgt_expr, f.into(), generic_args);
                         let f = self
                             .db
                             .value_ty(f.into())
@@ -2170,87 +2168,127 @@ impl InferenceContext<'_> {
 
     fn substs_for_method_call(
         &mut self,
-        def_generics: Generics,
+        expr: ExprId,
+        def: GenericDefId,
         generic_args: Option<&GenericArgs>,
     ) -> Substitution {
-        let (
-            parent_params,
-            has_self_param,
-            type_params,
-            const_params,
-            impl_trait_params,
-            lifetime_params,
-        ) = def_generics.provenance_split();
-        assert!(!has_self_param); // method shouldn't have another Self param
-        let total_len =
-            parent_params + type_params + const_params + impl_trait_params + lifetime_params;
-        let mut substs = Vec::with_capacity(total_len);
+        struct LowererCtx<'a, 'b> {
+            ctx: &'a mut InferenceContext<'b>,
+            expr: ExprId,
+        }
 
-        // handle provided arguments
-        if let Some(generic_args) = generic_args {
-            // if args are provided, it should be all of them, but we can't rely on that
-            let self_params = type_params + const_params + lifetime_params;
-
-            let mut args = generic_args.args.iter().peekable();
-            for kind_id in def_generics.iter_self_id().take(self_params) {
-                let arg = args.peek();
-                let arg = match (kind_id, arg) {
-                    // Lifetimes can be inferred.
-                    // Once we have implemented lifetime inference correctly,
-                    // this should be handled in a proper way.
-                    (
-                        GenericParamId::LifetimeParamId(_),
-                        None | Some(GenericArg::Type(_) | GenericArg::Const(_)),
-                    ) => error_lifetime().cast(Interner),
-
-                    // If we run out of `generic_args`, stop pushing substs
-                    (_, None) => break,
-
-                    // Normal cases
-                    (_, Some(_)) => generic_arg_to_chalk(
-                        self.db,
-                        kind_id,
-                        args.next().unwrap(), // `peek()` is `Some(_)`, so guaranteed no panic
-                        self,
-                        &self.body.types,
-                        |this, type_ref| this.make_body_ty(type_ref),
-                        |this, c, ty| {
-                            const_or_path_to_chalk(
-                                this.db,
-                                &this.resolver,
-                                this.owner.into(),
-                                ty,
-                                c,
-                                ParamLoweringMode::Placeholder,
-                                || this.generics(),
-                                DebruijnIndex::INNERMOST,
-                            )
-                        },
-                        |this, lt_ref| this.make_body_lifetime(lt_ref),
-                    ),
-                };
-
-                substs.push(arg);
+        impl GenericArgsLowerer for LowererCtx<'_, '_> {
+            fn report_len_mismatch(
+                &mut self,
+                def: GenericDefId,
+                provided_count: u32,
+                expected_count: u32,
+                kind: IncorrectGenericsLenKind,
+            ) {
+                self.ctx.push_diagnostic(InferenceDiagnostic::MethodCallIncorrectGenericsLen {
+                    expr: self.expr,
+                    provided_count,
+                    expected_count,
+                    kind,
+                    def,
+                });
             }
-        };
 
-        // Handle everything else as unknown. This also handles generic arguments for the method's
-        // parent (impl or trait), which should come after those for the method.
-        for (id, _data) in def_generics.iter().skip(substs.len()) {
-            match id {
-                GenericParamId::TypeParamId(_) => {
-                    substs.push(self.table.new_type_var().cast(Interner))
+            fn report_arg_mismatch(
+                &mut self,
+                param_id: GenericParamId,
+                arg_idx: u32,
+                has_self_arg: bool,
+            ) {
+                self.ctx.push_diagnostic(InferenceDiagnostic::MethodCallIncorrectGenericsOrder {
+                    expr: self.expr,
+                    param_id,
+                    arg_idx,
+                    has_self_arg,
+                });
+            }
+
+            fn provided_kind(
+                &mut self,
+                param_id: GenericParamId,
+                param: GenericParamDataRef<'_>,
+                arg: &GenericArg,
+            ) -> crate::GenericArg {
+                match (param, arg) {
+                    (GenericParamDataRef::LifetimeParamData(_), GenericArg::Lifetime(lifetime)) => {
+                        self.ctx.make_body_lifetime(lifetime).cast(Interner)
+                    }
+                    (GenericParamDataRef::TypeParamData(_), GenericArg::Type(type_ref)) => {
+                        self.ctx.make_body_ty(*type_ref).cast(Interner)
+                    }
+                    (GenericParamDataRef::ConstParamData(_), GenericArg::Const(konst)) => {
+                        let GenericParamId::ConstParamId(const_id) = param_id else {
+                            unreachable!("non-const param ID for const param");
+                        };
+                        const_or_path_to_chalk(
+                            self.ctx.db,
+                            &self.ctx.resolver,
+                            self.ctx.owner.into(),
+                            self.ctx.db.const_param_ty(const_id),
+                            konst,
+                            ParamLoweringMode::Placeholder,
+                            || self.ctx.generics(),
+                            DebruijnIndex::INNERMOST,
+                        )
+                        .cast(Interner)
+                    }
+                    _ => unreachable!("unmatching param kinds were passed to `provided_kind()`"),
                 }
-                GenericParamId::ConstParamId(id) => {
-                    substs.push(self.table.new_const_var(self.db.const_param_ty(id)).cast(Interner))
+            }
+
+            fn inferred_kind(
+                &mut self,
+                _def: GenericDefId,
+                param_id: GenericParamId,
+                _param: GenericParamDataRef<'_>,
+                _infer_args: bool,
+                _preceding_args: &[crate::GenericArg],
+            ) -> crate::GenericArg {
+                // Always create an inference var, even when `infer_args == false`. This helps with diagnostics,
+                // and I think it's also required in the presence of `impl Trait` (that must be inferred).
+                match param_id {
+                    GenericParamId::TypeParamId(_) => self.ctx.table.new_type_var().cast(Interner),
+                    GenericParamId::ConstParamId(const_id) => self
+                        .ctx
+                        .table
+                        .new_const_var(self.ctx.db.const_param_ty(const_id))
+                        .cast(Interner),
+                    GenericParamId::LifetimeParamId(_) => {
+                        self.ctx.table.new_lifetime_var().cast(Interner)
+                    }
                 }
-                GenericParamId::LifetimeParamId(_) => {
-                    substs.push(self.table.new_lifetime_var().cast(Interner))
+            }
+
+            fn parent_arg(&mut self, param_id: GenericParamId) -> crate::GenericArg {
+                match param_id {
+                    GenericParamId::TypeParamId(_) => self.ctx.table.new_type_var().cast(Interner),
+                    GenericParamId::ConstParamId(const_id) => self
+                        .ctx
+                        .table
+                        .new_const_var(self.ctx.db.const_param_ty(const_id))
+                        .cast(Interner),
+                    GenericParamId::LifetimeParamId(_) => {
+                        self.ctx.table.new_lifetime_var().cast(Interner)
+                    }
                 }
             }
         }
-        assert_eq!(substs.len(), total_len);
-        Substitution::from_iter(Interner, substs)
+
+        substs_from_args_and_bindings(
+            self.db,
+            &self.body.types,
+            generic_args,
+            def,
+            true,
+            GenericArgsPosition::MethodCall,
+            None,
+            &mut LowererCtx { ctx: self, expr },
+        )
     }
 
     fn register_obligations_for_call(&mut self, callable_ty: &Ty) {

@@ -36,7 +36,7 @@ use hir_def::{
     },
     lang_item::LangItem,
     nameres::MacroSubNs,
-    path::{GenericArg, ModPath, Path, PathKind},
+    path::{ModPath, Path, PathKind},
     resolver::{HasResolver, LifetimeNs, Resolver, TypeNs},
     type_ref::{
         ConstRef, LifetimeRef, PathId, TraitBoundModifier, TraitRef as HirTraitRef, TypeBound,
@@ -55,7 +55,7 @@ use triomphe::{Arc, ThinArc};
 use crate::{
     AliasTy, Binders, BoundVar, CallableSig, Const, ConstScalar, DebruijnIndex, DynTy, FnAbi,
     FnPointer, FnSig, FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime,
-    LifetimeData, LifetimeOutlives, ParamKind, PolyFnSig, ProgramClause, QuantifiedWhereClause,
+    LifetimeData, LifetimeOutlives, PolyFnSig, ProgramClause, QuantifiedWhereClause,
     QuantifiedWhereClauses, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder,
     TyKind, WhereClause, all_super_traits,
     consteval::{
@@ -73,6 +73,7 @@ use crate::{
     mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::{InTypeConstIdMetadata, all_super_trait_refs},
+    variable_kinds_from_iter,
 };
 
 #[derive(Debug, Default)]
@@ -107,6 +108,22 @@ impl ImplTraitLoweringState {
 
 pub(crate) struct PathDiagnosticCallbackData(TypeRefId);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GenericArgsPosition {
+    Type,
+    /// E.g. functions.
+    Value,
+    MethodCall,
+    // FIXME: This is a temporary variant we need to work around the lack of lifetime elision.
+    // The reason for its existence is that in `check_generic_args_len()`, without this, we will
+    // not infer elide lifetimes.
+    // They indeed should not be inferred - they should be elided - but we won't elide them either,
+    // emitting an error instead. rustc elides them in late resolve, and the generics it passes
+    // to lowering already include them. We probably can't do that, but we will still need to
+    // account for them when we properly implement lifetime elision.
+    FnSignature,
+}
+
 #[derive(Debug)]
 pub struct TyLoweringContext<'a> {
     pub db: &'a dyn HirDatabase,
@@ -131,6 +148,7 @@ pub struct TyLoweringContext<'a> {
     /// Tracks types with explicit `?Sized` bounds.
     pub(crate) unsized_types: FxHashSet<Ty>,
     pub(crate) diagnostics: Vec<TyLoweringDiagnostic>,
+    pub(crate) in_fn_signature: bool,
 }
 
 impl<'a> TyLoweringContext<'a> {
@@ -166,6 +184,7 @@ impl<'a> TyLoweringContext<'a> {
             expander: None,
             unsized_types: FxHashSet::default(),
             diagnostics: Vec::new(),
+            in_fn_signature: false,
         }
     }
 
@@ -486,6 +505,7 @@ impl<'a> TyLoweringContext<'a> {
                                 expander: self.expander.take(),
                                 unsized_types: mem::take(&mut self.unsized_types),
                                 diagnostics: mem::take(&mut self.diagnostics),
+                                in_fn_signature: self.in_fn_signature,
                             };
 
                             let ty = inner_ctx.lower_ty(type_ref);
@@ -556,6 +576,11 @@ impl<'a> TyLoweringContext<'a> {
             self,
             Self::on_path_diagnostic_callback(path_id.type_ref()),
             &self.types_map[path_id],
+            if self.in_fn_signature {
+                GenericArgsPosition::FnSignature
+            } else {
+                GenericArgsPosition::Type
+            },
         )
     }
 
@@ -1348,11 +1373,13 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
             .with_impl_trait_mode(ImplTraitLoweringMode::Disallowed)
             .with_type_param_mode(ParamLoweringMode::Variable);
     let mut idx = 0;
+    let mut has_any_default = false;
     let mut defaults = generic_params
         .iter_self()
         .map(|(id, p)| {
-            let result =
+            let (result, has_default) =
                 handle_generic_param(&mut ctx, idx, id, p, parent_start_idx, &generic_params);
+            has_any_default |= has_default;
             idx += 1;
             result
         })
@@ -1360,11 +1387,17 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
     let diagnostics = create_diagnostics(mem::take(&mut ctx.diagnostics));
     defaults.extend(generic_params.iter_parents_with_types_map().map(|((id, p), types_map)| {
         ctx.types_map = types_map;
-        let result = handle_generic_param(&mut ctx, idx, id, p, parent_start_idx, &generic_params);
+        let (result, has_default) =
+            handle_generic_param(&mut ctx, idx, id, p, parent_start_idx, &generic_params);
+        has_any_default |= has_default;
         idx += 1;
         result
     }));
-    let defaults = GenericDefaults(Some(Arc::from_iter(defaults)));
+    let defaults = if has_any_default {
+        GenericDefaults(Some(Arc::from_iter(defaults)))
+    } else {
+        GenericDefaults(None)
+    };
     return (defaults, diagnostics);
 
     fn handle_generic_param(
@@ -1374,16 +1407,20 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
         p: GenericParamDataRef<'_>,
         parent_start_idx: usize,
         generic_params: &Generics,
-    ) -> Binders<crate::GenericArg> {
+    ) -> (Binders<crate::GenericArg>, bool) {
+        let binders = variable_kinds_from_iter(ctx.db, generic_params.iter_id().take(idx));
         match p {
             GenericParamDataRef::TypeParamData(p) => {
-                let ty = p.default.as_ref().map_or(TyKind::Error.intern(Interner), |ty| {
-                    // Each default can only refer to previous parameters.
-                    // Type variable default referring to parameter coming
-                    // after it is forbidden (FIXME: report diagnostic)
-                    fallback_bound_vars(ctx.lower_ty(*ty), idx, parent_start_idx)
-                });
-                crate::make_binders(ctx.db, generic_params, ty.cast(Interner))
+                let ty = p.default.as_ref().map_or_else(
+                    || TyKind::Error.intern(Interner),
+                    |ty| {
+                        // Each default can only refer to previous parameters.
+                        // Type variable default referring to parameter coming
+                        // after it is forbidden (FIXME: report diagnostic)
+                        fallback_bound_vars(ctx.lower_ty(*ty), idx, parent_start_idx)
+                    },
+                );
+                (Binders::new(binders, ty.cast(Interner)), p.default.is_some())
             }
             GenericParamDataRef::ConstParamData(p) => {
                 let GenericParamId::ConstParamId(id) = id else {
@@ -1400,35 +1437,21 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
                 );
                 // Each default can only refer to previous parameters, see above.
                 val = fallback_bound_vars(val, idx, parent_start_idx);
-                make_binders(ctx.db, generic_params, val)
+                (Binders::new(binders, val), p.default.is_some())
             }
             GenericParamDataRef::LifetimeParamData(_) => {
-                make_binders(ctx.db, generic_params, error_lifetime().cast(Interner))
+                (Binders::new(binders, error_lifetime().cast(Interner)), false)
             }
         }
     }
 }
 
 pub(crate) fn generic_defaults_with_diagnostics_recover(
-    db: &dyn HirDatabase,
+    _db: &dyn HirDatabase,
     _cycle: &Cycle,
-    def: GenericDefId,
+    _def: GenericDefId,
 ) -> (GenericDefaults, Diagnostics) {
-    let generic_params = generics(db.upcast(), def);
-    if generic_params.len() == 0 {
-        return (GenericDefaults(None), None);
-    }
-    // FIXME: this code is not covered in tests.
-    // we still need one default per parameter
-    let defaults = GenericDefaults(Some(Arc::from_iter(generic_params.iter_id().map(|id| {
-        let val = match id {
-            GenericParamId::TypeParamId(_) => TyKind::Error.intern(Interner).cast(Interner),
-            GenericParamId::ConstParamId(id) => unknown_const_as_generic(db.const_param_ty(id)),
-            GenericParamId::LifetimeParamId(_) => error_lifetime().cast(Interner),
-        };
-        crate::make_binders(db, &generic_params, val)
-    }))));
-    (defaults, None)
+    (GenericDefaults(None), None)
 }
 
 fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
@@ -1437,10 +1460,12 @@ fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
     let mut ctx_params = TyLoweringContext::new(db, &resolver, &data.types_map, def.into())
         .with_impl_trait_mode(ImplTraitLoweringMode::Variable)
         .with_type_param_mode(ParamLoweringMode::Variable);
+    ctx_params.in_fn_signature = true;
     let params = data.params.iter().map(|&tr| ctx_params.lower_ty(tr));
     let mut ctx_ret = TyLoweringContext::new(db, &resolver, &data.types_map, def.into())
         .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
         .with_type_param_mode(ParamLoweringMode::Variable);
+    ctx_ret.in_fn_signature = true;
     let ret = ctx_ret.lower_ty(data.ret_type);
     let generics = generics(db.upcast(), def.into());
     let sig = CallableSig::from_params_and_return(
@@ -1786,57 +1811,6 @@ pub(crate) fn lower_to_chalk_mutability(m: hir_def::type_ref::Mutability) -> Mut
     }
 }
 
-/// Checks if the provided generic arg matches its expected kind, then lower them via
-/// provided closures. Use unknown if there was kind mismatch.
-///
-pub(crate) fn generic_arg_to_chalk<'a, T>(
-    db: &dyn HirDatabase,
-    kind_id: GenericParamId,
-    arg: &'a GenericArg,
-    this: &mut T,
-    types_map: &TypesMap,
-    for_type: impl FnOnce(&mut T, TypeRefId) -> Ty + 'a,
-    for_const: impl FnOnce(&mut T, &ConstRef, Ty) -> Const + 'a,
-    for_lifetime: impl FnOnce(&mut T, &LifetimeRef) -> Lifetime + 'a,
-) -> crate::GenericArg {
-    let kind = match kind_id {
-        GenericParamId::TypeParamId(_) => ParamKind::Type,
-        GenericParamId::ConstParamId(id) => {
-            let ty = db.const_param_ty(id);
-            ParamKind::Const(ty)
-        }
-        GenericParamId::LifetimeParamId(_) => ParamKind::Lifetime,
-    };
-    match (arg, kind) {
-        (GenericArg::Type(type_ref), ParamKind::Type) => for_type(this, *type_ref).cast(Interner),
-        (GenericArg::Const(c), ParamKind::Const(c_ty)) => for_const(this, c, c_ty).cast(Interner),
-        (GenericArg::Lifetime(lifetime_ref), ParamKind::Lifetime) => {
-            for_lifetime(this, lifetime_ref).cast(Interner)
-        }
-        (GenericArg::Const(_), ParamKind::Type) => TyKind::Error.intern(Interner).cast(Interner),
-        (GenericArg::Lifetime(_), ParamKind::Type) => TyKind::Error.intern(Interner).cast(Interner),
-        (GenericArg::Type(t), ParamKind::Const(c_ty)) => {
-            // We want to recover simple idents, which parser detects them
-            // as types. Maybe here is not the best place to do it, but
-            // it works.
-            if let TypeRef::Path(p) = &types_map[*t] {
-                if let Some(p) = p.mod_path() {
-                    if p.kind == PathKind::Plain {
-                        if let [n] = p.segments() {
-                            let c = ConstRef::Path(n.clone());
-                            return for_const(this, &c, c_ty).cast(Interner);
-                        }
-                    }
-                }
-            }
-            unknown_const_as_generic(c_ty)
-        }
-        (GenericArg::Lifetime(_), ParamKind::Const(c_ty)) => unknown_const_as_generic(c_ty),
-        (GenericArg::Type(_), ParamKind::Lifetime) => error_lifetime().cast(Interner),
-        (GenericArg::Const(_), ParamKind::Lifetime) => error_lifetime().cast(Interner),
-    }
-}
-
 pub(crate) fn const_or_path_to_chalk<'g>(
     db: &dyn HirDatabase,
     resolver: &Resolver,
@@ -1885,6 +1859,9 @@ pub(crate) fn const_or_path_to_chalk<'g>(
                 expected_ty,
             )
         }
+        // We should use an inference var here, but we don't have access to the inference table.
+        // And in bodies, unknown consts will be replaced by inference vars anyway.
+        ConstRef::Infer => unknown_const(expected_ty),
     }
 }
 

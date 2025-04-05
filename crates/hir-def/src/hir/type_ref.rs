@@ -522,6 +522,7 @@ pub enum ConstRef {
     Scalar(Box<LiteralConstRef>),
     Path(Name),
     Complex(AstId<ast::ConstArg>),
+    Infer,
 }
 
 impl ConstRef {
@@ -553,6 +554,7 @@ impl ConstRef {
                     ConstRef::Scalar(s) => s.fmt(f),
                     ConstRef::Path(n) => n.display(self.0, self.2).fmt(f),
                     ConstRef::Complex(_) => f.write_str("{const}"),
+                    ConstRef::Infer => f.write_str("_"),
                 }
             }
         }

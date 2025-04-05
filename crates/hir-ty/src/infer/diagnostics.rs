@@ -9,6 +9,7 @@ use either::Either;
 use hir_def::{TypeOwnerId, hir::ExprOrPatId, path::Path, resolver::Resolver, type_ref::TypesMap};
 use la_arena::{Idx, RawIdx};
 
+use crate::lower::GenericArgsPosition;
 use crate::{
     InferenceDiagnostic, InferenceTyDiagnosticSource, TyLoweringContext, TyLoweringDiagnostic,
     db::HirDatabase,
@@ -71,6 +72,7 @@ impl<'a> InferenceTyLoweringContext<'a> {
         &'b mut self,
         path: &'b Path,
         node: ExprOrPatId,
+        position: GenericArgsPosition,
     ) -> PathLoweringContext<'b, 'a> {
         let on_diagnostic = PathDiagnosticCallback {
             data: Either::Right(PathDiagnosticCallbackData { diagnostics: self.diagnostics, node }),
@@ -80,13 +82,14 @@ impl<'a> InferenceTyLoweringContext<'a> {
                     .push(InferenceDiagnostic::PathDiagnostic { node: data.node, diag });
             },
         };
-        PathLoweringContext::new(&mut self.ctx, on_diagnostic, path)
+        PathLoweringContext::new(&mut self.ctx, on_diagnostic, path, position)
     }
 
     #[inline]
     pub(super) fn at_path_forget_diagnostics<'b>(
         &'b mut self,
         path: &'b Path,
+        position: GenericArgsPosition,
     ) -> PathLoweringContext<'b, 'a> {
         let on_diagnostic = PathDiagnosticCallback {
             data: Either::Right(PathDiagnosticCallbackData {
@@ -95,7 +98,7 @@ impl<'a> InferenceTyLoweringContext<'a> {
             }),
             callback: |_data, _, _diag| {},
         };
-        PathLoweringContext::new(&mut self.ctx, on_diagnostic, path)
+        PathLoweringContext::new(&mut self.ctx, on_diagnostic, path, position)
     }
 
     #[inline]
