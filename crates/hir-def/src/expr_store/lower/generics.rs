@@ -6,10 +6,7 @@
 use std::sync::LazyLock;
 
 use either::Either;
-use hir_expand::{
-    attrs::RawAttrs,
-    name::{AsName, Name},
-};
+use hir_expand::name::{AsName, Name};
 use intern::sym;
 use la_arena::Arena;
 use syntax::ast::{self, HasName, HasTypeBounds};
@@ -18,7 +15,6 @@ use triomphe::Arc;
 
 use crate::{
     GenericDefId, TypeOrConstParamId, TypeParamId,
-    attr::Attrs,
     expr_store::lower::ExprCollector,
     hir::generics::{
         ConstParamData, GenericParams, LifetimeParamData, TypeOrConstParamData, TypeParamData,
@@ -81,16 +77,11 @@ impl<'db, 'c> GenericParamsCollector<'db, 'c> {
 
     fn lower_param_list(&mut self, params: ast::GenericParamList) {
         for generic_param in params.generic_params() {
-            let enabled = Attrs::filter(
+            let enabled = self.expr_collector.expander.is_cfg_enabled(
                 self.expr_collector.db,
                 self.expr_collector.module.krate(),
-                RawAttrs::new(
-                    self.expr_collector.db.upcast(),
-                    &generic_param,
-                    self.expr_collector.expander.span_map().as_ref(),
-                ),
-            )
-            .is_cfg_enabled(self.expr_collector.module.krate().cfg_options(self.expr_collector.db));
+                &generic_param,
+            );
             if !enabled {
                 continue;
             }

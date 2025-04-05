@@ -10,10 +10,8 @@ use std::mem;
 use either::Either;
 use hir_expand::{
     InFile, Lookup, MacroDefId,
-    attrs::RawAttrs,
     mod_path::tool_path,
     name::{AsName, Name},
-    span_map::SpanMap,
 };
 use intern::{Symbol, sym};
 use rustc_hash::FxHashMap;
@@ -27,14 +25,13 @@ use syntax::{
         SlicePatComponents,
     },
 };
-use text_size::TextSize;
 use thin_vec::ThinVec;
 use triomphe::Arc;
+use tt::TextRange;
 
 use crate::{
     AdtId, BlockId, BlockLoc, DefWithBodyId, FunctionId, GenericDefId, ImplId, ItemTreeLoc,
     MacroId, ModuleDefId, ModuleId, TraitAliasId, TraitId, TypeAliasId, UnresolvedMacro,
-    attr::Attrs,
     builtin_type::BuiltinUint,
     db::DefDatabase,
     expr_store::{
@@ -83,6 +80,8 @@ pub(super) fn lower_body(
     // even though they should be the same. Also, when the body comes from multiple expansions, their
     // hygiene is different.
 
+    let krate = module.krate();
+
     let mut self_param = None;
     let mut source_map_self_param = None;
     let mut params = vec![];
@@ -100,14 +99,10 @@ pub(super) fn lower_body(
     // and skip the body.
     if skip_body {
         if let Some(param_list) = parameters {
-            if let Some(self_param_syn) = param_list.self_param().filter(|self_param| {
-                Attrs::filter(
-                    db,
-                    module.krate(),
-                    RawAttrs::new(db.upcast(), self_param, collector.expander.span_map().as_ref()),
-                )
-                .is_cfg_enabled(module.krate().cfg_options(db))
-            }) {
+            if let Some(self_param_syn) = param_list
+                .self_param()
+                .filter(|self_param| collector.expander.is_cfg_enabled(db, krate, self_param))
+            {
                 let is_mutable =
                     self_param_syn.mut_token().is_some() && self_param_syn.amp_token().is_none();
                 let binding_id: la_arena::Idx<Binding> = collector.alloc_binding(
@@ -120,14 +115,7 @@ pub(super) fn lower_body(
             }
             let count = param_list
                 .params()
-                .filter(|it| {
-                    Attrs::filter(
-                        db,
-                        module.krate(),
-                        RawAttrs::new(db.upcast(), it, collector.expander.span_map().as_ref()),
-                    )
-                    .is_cfg_enabled(module.krate().cfg_options(db))
-                })
+                .filter(|it| collector.expander.is_cfg_enabled(db, krate, it))
                 .count();
             params = (0..count).map(|_| collector.missing_pat()).collect();
         };
@@ -144,14 +132,9 @@ pub(super) fn lower_body(
     }
 
     if let Some(param_list) = parameters {
-        if let Some(self_param_syn) = param_list.self_param().filter(|it| {
-            Attrs::filter(
-                db,
-                module.krate(),
-                RawAttrs::new(db.upcast(), it, collector.expander.span_map().as_ref()),
-            )
-            .is_cfg_enabled(module.krate().cfg_options(db))
-        }) {
+        if let Some(self_param_syn) =
+            param_list.self_param().filter(|it| collector.expander.is_cfg_enabled(db, krate, it))
+        {
             let is_mutable =
                 self_param_syn.mut_token().is_some() && self_param_syn.amp_token().is_none();
             let binding_id: la_arena::Idx<Binding> = collector.alloc_binding(
@@ -160,7 +143,7 @@ pub(super) fn lower_body(
             );
             let hygiene = self_param_syn
                 .name()
-                .map(|name| collector.hygiene_id_for(name.syntax().text_range().start()))
+                .map(|name| collector.hygiene_id_for(name.syntax().text_range()))
                 .unwrap_or(HygieneId::ROOT);
             if !hygiene.is_root() {
                 collector.store.binding_hygiene.insert(binding_id, hygiene);
@@ -170,13 +153,7 @@ pub(super) fn lower_body(
         }
 
         for param in param_list.params() {
-            if Attrs::filter(
-                db,
-                module.krate(),
-                RawAttrs::new(db.upcast(), &param, collector.expander.span_map().as_ref()),
-            )
-            .is_cfg_enabled(module.krate().cfg_options(db))
-            {
+            if collector.expander.is_cfg_enabled(db, krate, &param) {
                 let param_pat = collector.collect_pat_top(param.pat());
                 params.push(param_pat);
             }
@@ -336,47 +313,37 @@ pub(crate) fn lower_function(
     let mut params = vec![];
     let mut has_self_param = false;
     let mut has_variadic = false;
-    collector.collect_impl_trait(|expr_collector, mut impl_trait_lower_fn| {
+    collector.collect_impl_trait(|collector, mut impl_trait_lower_fn| {
         if let Some(param_list) = fn_.value.param_list() {
             if let Some(param) = param_list.self_param() {
-                let enabled = Attrs::filter(
-                    expr_collector.db,
-                    expr_collector.module.krate(),
-                    RawAttrs::new(
-                        expr_collector.db.upcast(),
-                        &param,
-                        expr_collector.expander.span_map().as_ref(),
-                    ),
-                )
-                .is_cfg_enabled(expr_collector.module.krate().cfg_options(expr_collector.db));
+                let enabled = collector.expander.is_cfg_enabled(db, module.krate(), &param);
                 if enabled {
                     has_self_param = true;
                     params.push(match param.ty() {
-                        Some(ty) => expr_collector.lower_type_ref(ty, &mut impl_trait_lower_fn),
+                        Some(ty) => collector.lower_type_ref(ty, &mut impl_trait_lower_fn),
                         None => {
-                            let self_type = expr_collector.alloc_type_ref_desugared(TypeRef::Path(
+                            let self_type = collector.alloc_type_ref_desugared(TypeRef::Path(
                                 Name::new_symbol_root(sym::Self_.clone()).into(),
                             ));
                             let lifetime = param
                                 .lifetime()
-                                .map(|lifetime| expr_collector.lower_lifetime_ref(lifetime));
+                                .map(|lifetime| collector.lower_lifetime_ref(lifetime));
                             match param.kind() {
                                 ast::SelfParamKind::Owned => self_type,
-                                ast::SelfParamKind::Ref => expr_collector.alloc_type_ref_desugared(
+                                ast::SelfParamKind::Ref => collector.alloc_type_ref_desugared(
                                     TypeRef::Reference(Box::new(RefType {
                                         ty: self_type,
                                         lifetime,
                                         mutability: Mutability::Shared,
                                     })),
                                 ),
-                                ast::SelfParamKind::MutRef => expr_collector
-                                    .alloc_type_ref_desugared(TypeRef::Reference(Box::new(
-                                        RefType {
-                                            ty: self_type,
-                                            lifetime,
-                                            mutability: Mutability::Mut,
-                                        },
-                                    ))),
+                                ast::SelfParamKind::MutRef => collector.alloc_type_ref_desugared(
+                                    TypeRef::Reference(Box::new(RefType {
+                                        ty: self_type,
+                                        lifetime,
+                                        mutability: Mutability::Mut,
+                                    })),
+                                ),
                             }
                         }
                     });
@@ -384,18 +351,7 @@ pub(crate) fn lower_function(
             }
             let p = param_list
                 .params()
-                .filter(|param| {
-                    Attrs::filter(
-                        expr_collector.db,
-                        expr_collector.module.krate(),
-                        RawAttrs::new(
-                            expr_collector.db.upcast(),
-                            param,
-                            expr_collector.expander.span_map().as_ref(),
-                        ),
-                    )
-                    .is_cfg_enabled(expr_collector.module.krate().cfg_options(expr_collector.db))
-                })
+                .filter(|param| collector.expander.is_cfg_enabled(db, module.krate(), param))
                 .filter(|param| {
                     let is_variadic = param.dotdotdot_token().is_some();
                     has_variadic |= is_variadic;
@@ -405,7 +361,7 @@ pub(crate) fn lower_function(
                 // FIXME
                 .collect::<Vec<_>>();
             for p in p {
-                params.push(expr_collector.lower_type_ref_opt(p, &mut impl_trait_lower_fn));
+                params.push(collector.lower_type_ref_opt(p, &mut impl_trait_lower_fn));
             }
         }
     });
@@ -1026,7 +982,7 @@ impl ExprCollector<'_> {
                     })
                 }
                 Some(ast::BlockModifier::Label(label)) => {
-                    let label_hygiene = self.hygiene_id_for(label.syntax().text_range().start());
+                    let label_hygiene = self.hygiene_id_for(label.syntax().text_range());
                     let label_id = self.collect_label(label);
                     self.with_labeled_rib(label_id, label_hygiene, |this| {
                         this.collect_block_(e, |id, statements, tail| Expr::Block {
@@ -1072,10 +1028,7 @@ impl ExprCollector<'_> {
             },
             ast::Expr::LoopExpr(e) => {
                 let label = e.label().map(|label| {
-                    (
-                        self.hygiene_id_for(label.syntax().text_range().start()),
-                        self.collect_label(label),
-                    )
+                    (self.hygiene_id_for(label.syntax().text_range()), self.collect_label(label))
                 });
                 let body = self.collect_labelled_block_opt(label, e.loop_body());
                 self.alloc_expr(Expr::Loop { body, label: label.map(|it| it.1) }, syntax_ptr)
@@ -1423,7 +1376,7 @@ impl ExprCollector<'_> {
             // Need to enable `mod_path.len() < 1` for `self`.
             let may_be_variable = matches!(&path, Path::BarePath(mod_path) if mod_path.len() <= 1);
             let hygiene = if may_be_variable {
-                self.hygiene_id_for(e.syntax().text_range().start())
+                self.hygiene_id_for(e.syntax().text_range())
             } else {
                 HygieneId::ROOT
             };
@@ -1697,7 +1650,7 @@ impl ExprCollector<'_> {
     /// to preserve drop semantics. We should probably do the same in future.
     fn collect_while_loop(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::WhileExpr) -> ExprId {
         let label = e.label().map(|label| {
-            (self.hygiene_id_for(label.syntax().text_range().start()), self.collect_label(label))
+            (self.hygiene_id_for(label.syntax().text_range()), self.collect_label(label))
         });
         let body = self.collect_labelled_block_opt(label, e.loop_body());
 
@@ -1765,7 +1718,7 @@ impl ExprCollector<'_> {
             ellipsis: None,
         };
         let label = e.label().map(|label| {
-            (self.hygiene_id_for(label.syntax().text_range().start()), self.collect_label(label))
+            (self.hygiene_id_for(label.syntax().text_range()), self.collect_label(label))
         });
         let some_arm = MatchArm {
             pat: self.alloc_pat_desugared(some_pat),
@@ -2191,7 +2144,7 @@ impl ExprCollector<'_> {
                 let name = bp.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
                 let hygiene = bp
                     .name()
-                    .map(|name| self.hygiene_id_for(name.syntax().text_range().start()))
+                    .map(|name| self.hygiene_id_for(name.syntax().text_range()))
                     .unwrap_or(HygieneId::ROOT);
 
                 let annotation =
@@ -2498,11 +2451,7 @@ impl ExprCollector<'_> {
     /// Returns `None` (and emits diagnostics) when `owner` if `#[cfg]`d out, and `Some(())` when
     /// not.
     fn check_cfg(&mut self, owner: &dyn ast::HasAttrs) -> Option<()> {
-        let attrs = Attrs::filter(
-            self.db,
-            self.module.krate(),
-            RawAttrs::new(self.db.upcast(), owner, self.expander.span_map().as_ref()),
-        );
+        let attrs = self.expander.attrs(self.db, self.module.krate(), owner);
         match attrs.cfg() {
             Some(cfg) => {
                 let cfg_options = self.module.krate().cfg_options(self.db);
@@ -2541,14 +2490,16 @@ impl ExprCollector<'_> {
         lifetime: Option<ast::Lifetime>,
     ) -> Result<Option<LabelId>, ExpressionStoreDiagnostics> {
         let Some(lifetime) = lifetime else { return Ok(None) };
-        let span_map = self.expander.span_map();
-        let span = span_map.span_for_range(lifetime.syntax().text_range());
-        let ctx = span.ctx;
-        let mut hygiene_id = HygieneId::new(ctx.opaque_and_semitransparent(self.db));
-        let mut hygiene_info = ctx.outer_expn(self.db).map(|expansion| {
-            let expansion = self.db.lookup_intern_macro_call(expansion);
-            (ctx.parent(self.db), expansion.def)
-        });
+        let mut hygiene_id =
+            self.expander.hygiene_for_range(self.db, lifetime.syntax().text_range());
+        let mut hygiene_info = if hygiene_id.is_root() {
+            None
+        } else {
+            hygiene_id.lookup().outer_expn(self.db).map(|expansion| {
+                let expansion = self.db.lookup_intern_macro_call(expansion);
+                (hygiene_id.lookup().parent(self.db), expansion.def)
+            })
+        };
         let name = Name::new_lifetime(&lifetime);
 
         for (rib_idx, rib) in self.label_ribs.iter().enumerate().rev() {
@@ -2686,7 +2637,7 @@ impl ExprCollector<'_> {
         }) {
             Some(((s, is_direct_literal), template)) => {
                 let call_ctx = self.expander.call_syntax_ctx();
-                let hygiene = self.hygiene_id_for(s.syntax().text_range().start());
+                let hygiene = self.hygiene_id_for(s.syntax().text_range());
                 let fmt = format_args::parse(
                     &s,
                     fmt_snippet,
@@ -3196,15 +3147,8 @@ impl ExprCollector<'_> {
         res
     }
 
-    /// If this returns `HygieneId::ROOT`, do not allocate to save space.
-    fn hygiene_id_for(&self, span_start: TextSize) -> HygieneId {
-        match self.expander.span_map() {
-            SpanMap::RealSpanMap(_) => HygieneId::ROOT,
-            SpanMap::ExpansionSpanMap(span_map) => {
-                let ctx = span_map.span_at(span_start).ctx;
-                HygieneId::new(ctx.opaque_and_semitransparent(self.db))
-            }
-        }
+    fn hygiene_id_for(&self, range: TextRange) -> HygieneId {
+        self.expander.hygiene_for_range(self.db, range)
     }
 }
 

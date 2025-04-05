@@ -79,11 +79,7 @@ pub(super) fn lower_path(
                     }
                     break kind = resolve_crate_root(
                         collector.db.upcast(),
-                        collector
-                            .expander
-                            .span_map()
-                            .span_for_range(name_ref.syntax().text_range())
-                            .ctx,
+                        collector.expander.ctx_for_range(name_ref.syntax().text_range()),
                     )
                     .map(PathKind::DollarCrate)
                     .unwrap_or(PathKind::Crate);
@@ -217,11 +213,7 @@ pub(super) fn lower_path(
     // We follow what it did anyway :)
     if segments.len() == 1 && kind == PathKind::Plain {
         if let Some(_macro_call) = path.syntax().parent().and_then(ast::MacroCall::cast) {
-            let syn_ctxt = collector
-                .expander
-                .span_map()
-                .span_for_range(path.segment()?.syntax().text_range())
-                .ctx;
+            let syn_ctxt = collector.expander.ctx_for_range(path.segment()?.syntax().text_range());
             if let Some(macro_call_id) = syn_ctxt.outer_expn(collector.db) {
                 if collector.db.lookup_intern_macro_call(macro_call_id).def.local_inner {
                     kind = match resolve_crate_root(collector.db.upcast(), syn_ctxt) {

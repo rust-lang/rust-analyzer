@@ -4,15 +4,20 @@ use std::mem;
 
 use base_db::Crate;
 use drop_bomb::DropBomb;
+use hir_expand::attrs::RawAttrs;
 use hir_expand::eager::EagerCallBackFn;
 use hir_expand::{
     ExpandError, ExpandErrorKind, ExpandResult, HirFileId, InFile, Lookup, MacroCallId,
     mod_path::ModPath, span_map::SpanMap,
 };
 use span::{AstIdMap, Edition, SyntaxContext};
+use syntax::ast::HasAttrs;
 use syntax::{Parse, ast};
 use triomphe::Arc;
+use tt::TextRange;
 
+use crate::attr::Attrs;
+use crate::expr_store::HygieneId;
 use crate::nameres::DefMap;
 use crate::{AsMacroCall, MacroId, UnresolvedMacro, db::DefDatabase};
 
@@ -48,8 +53,35 @@ impl Expander {
         }
     }
 
-    pub(super) fn span_map(&self) -> &SpanMap {
-        &self.span_map
+    pub(super) fn ctx_for_range(&self, range: TextRange) -> SyntaxContext {
+        self.span_map.span_for_range(range).ctx
+    }
+
+    pub(super) fn hygiene_for_range(&self, db: &dyn DefDatabase, range: TextRange) -> HygieneId {
+        match self.span_map.as_ref() {
+            hir_expand::span_map::SpanMapRef::ExpansionSpanMap(span_map) => {
+                HygieneId::new(span_map.span_at(range.start()).ctx.opaque_and_semitransparent(db))
+            }
+            hir_expand::span_map::SpanMapRef::RealSpanMap(_) => HygieneId::ROOT,
+        }
+    }
+
+    pub(super) fn attrs(
+        &self,
+        db: &dyn DefDatabase,
+        krate: Crate,
+        has_attrs: &dyn HasAttrs,
+    ) -> Attrs {
+        Attrs::filter(db, krate, RawAttrs::new(db.upcast(), has_attrs, self.span_map.as_ref()))
+    }
+
+    pub(super) fn is_cfg_enabled(
+        &self,
+        db: &dyn DefDatabase,
+        krate: Crate,
+        has_attrs: &dyn HasAttrs,
+    ) -> bool {
+        self.attrs(db, krate, has_attrs).is_cfg_enabled(krate.cfg_options(db))
     }
 
     pub(super) fn call_syntax_ctx(&self) -> SyntaxContext {
