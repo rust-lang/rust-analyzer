@@ -32,6 +32,11 @@ debug = 0
 inherits = "release"
 debug = 2
 
+[profile.ci-release]
+inherits = "release"
+debug = 2
+debug-assertions = true
+
 [patch.'crates-io']
 # rowan = { path = "../rowan" }
 

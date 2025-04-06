@@ -136,16 +136,13 @@ jobs:
       # - name: Cache Dependencies
       #   uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
 
-      - name: Bump opt-level
-        run: sed -i '/\[profile.dev]/a opt-level=1' Cargo.toml
-
-      - run: cargo build -p rust-analyzer
+      - run: cargo build -p rust-analyzer --profile ci-release
 
       - name: ./rust-analyzer
-        run: ./target/debug/rust-analyzer analysis-stats . -q
+        run: ./target/ci-release/rust-analyzer analysis-stats . -q
 
       - name: sysroot/lib/rustlib/src/rust/library/
-        run: ./target/debug/rust-analyzer analysis-stats --with-deps --no-sysroot --no-test $(rustc --print sysroot)/lib/rustlib/src/rust/library/ -q
+        run: ./target/ci-release/rust-analyzer analysis-stats --with-deps --no-sysroot --no-test $(rustc --print sysroot)/lib/rustlib/src/rust/library/ -q
 
   rustfmt:
     if: github.repository == 'rust-lang/rust-analyzer'
