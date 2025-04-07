@@ -306,7 +306,7 @@ impl FunctionBuilder {
         ctx: &AssistContext<'_>,
         call: &ast::MethodCallExpr,
         name: &ast::NameRef,
-        receiver_ty: Type,
+        receiver_ty: Type<'_>,
         target_module: Module,
         target: GeneratedFunctionTarget,
     ) -> Option<Self> {

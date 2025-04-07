@@ -12,14 +12,14 @@ use syntax::{
 use crate::RootDatabase;
 
 #[derive(Debug)]
-pub struct ActiveParameter {
-    pub ty: Type,
+pub struct ActiveParameter<'db> {
+    pub ty: Type<'db>,
     pub src: Option<InFile<Either<ast::SelfParam, ast::Param>>>,
 }
 
-impl ActiveParameter {
+impl<'db> ActiveParameter<'db> {
     /// Returns information about the call argument this token is part of.
-    pub fn at_token(sema: &Semantics<'_, RootDatabase>, token: SyntaxToken) -> Option<Self> {
+    pub fn at_token(sema: &Semantics<'db, RootDatabase>, token: SyntaxToken) -> Option<Self> {
         let (signature, active_parameter) = callable_for_token(sema, token)?;
 
         let idx = active_parameter?;
@@ -45,10 +45,10 @@ impl ActiveParameter {
 }
 
 /// Returns a [`hir::Callable`] this token is a part of and its argument index of said callable.
-pub fn callable_for_token(
-    sema: &Semantics<'_, RootDatabase>,
+pub fn callable_for_token<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     token: SyntaxToken,
-) -> Option<(hir::Callable, Option<usize>)> {
+) -> Option<(hir::Callable<'db>, Option<usize>)> {
     // Find the calling expression and its NameRef
     let parent = token.parent()?;
     let calling_node = parent.ancestors().filter_map(ast::CallableExpr::cast).find(|it| {
@@ -59,11 +59,11 @@ pub fn callable_for_token(
     callable_for_node(sema, &calling_node, &token)
 }
 
-pub fn callable_for_node(
-    sema: &Semantics<'_, RootDatabase>,
+pub fn callable_for_node<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     calling_node: &ast::CallableExpr,
     token: &SyntaxToken,
-) -> Option<(hir::Callable, Option<usize>)> {
+) -> Option<(hir::Callable<'db>, Option<usize>)> {
     let callable = match calling_node {
         ast::CallableExpr::Call(call) => sema.resolve_expr_as_callable(&call.expr()?),
         ast::CallableExpr::MethodCall(call) => sema.resolve_method_call_as_callable(call),
