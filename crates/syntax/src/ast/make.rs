@@ -437,6 +437,12 @@ pub fn use_tree(
     }
     ast_from_text(&buf)
 }
+pub fn use_tree_from_tree_list(use_tree_list: ast::UseTreeList) -> ast::UseTree {
+    let mut buf = "use ".to_owned();
+    format_to!(buf, "{use_tree_list}");
+
+    ast_from_text(&buf)
+}
 
 pub fn use_tree_list(use_trees: impl IntoIterator<Item = ast::UseTree>) -> ast::UseTreeList {
     let use_trees = use_trees.into_iter().map(|it| it.syntax().clone()).join(", ");
