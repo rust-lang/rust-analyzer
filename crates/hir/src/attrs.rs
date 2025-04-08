@@ -10,7 +10,7 @@ use hir_def::{
     per_ns::Namespace,
     resolver::{HasResolver, Resolver, TypeNs},
 };
-use hir_expand::{mod_path::PathKind, name::Name};
+use hir_expand::{attrs::AttrPlacement, mod_path::PathKind, name::Name};
 use hir_ty::{db::HirDatabase, method_resolution};
 
 use crate::{
@@ -102,11 +102,16 @@ impl HasAttrs for crate::Crate {
 /// Resolves the item `link` points to in the scope of `def`.
 pub fn resolve_doc_path_on(
     db: &dyn HirDatabase,
-    def: impl HasAttrs,
+    def: impl HasAttrs + Copy,
     link: &str,
     ns: Option<Namespace>,
 ) -> Option<DocLinkDef> {
-    resolve_doc_path_on_(db, link, def.attr_id(), ns)
+    let is_outer = def
+        .attrs(db)
+        .by_key(&intern::sym::doc)
+        .attrs()
+        .any(|attr| attr.place == AttrPlacement::Outer);
+    resolve_doc_path_on_(db, link, def.attr_id(), ns, is_outer)
 }
 
 fn resolve_doc_path_on_(
@@ -114,9 +119,20 @@ fn resolve_doc_path_on_(
     link: &str,
     attr_id: AttrDefId,
     ns: Option<Namespace>,
+    is_outer: bool,
 ) -> Option<DocLinkDef> {
     let resolver = match attr_id {
-        AttrDefId::ModuleId(it) => it.resolver(db.upcast()),
+        AttrDefId::ModuleId(it) => {
+            if is_outer {
+                if let Some(parent) = Module::from(it).parent(db) {
+                    parent.id.resolver(db.upcast())
+                } else {
+                    it.resolver(db.upcast())
+                }
+            } else {
+                it.resolver(db.upcast())
+            }
+        }
         AttrDefId::FieldId(it) => it.parent.resolver(db.upcast()),
         AttrDefId::AdtId(it) => it.resolver(db.upcast()),
         AttrDefId::FunctionId(it) => it.resolver(db.upcast()),
