@@ -19,6 +19,7 @@ serde_json.workspace = true
 tracing.workspace = true
 
 # local deps
+fluent-files.workspace = true
 stdx.workspace = true
 syntax.workspace = true
 cfg.workspace = true

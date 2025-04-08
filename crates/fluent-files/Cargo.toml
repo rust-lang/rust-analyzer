@@ -1,0 +1,28 @@
+[package]
+name = "fluent-files"
+version = "0.0.0"
+repository.workspace = true
+description = "Collection of translated files"
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+
+[build-dependencies]
+# local deps
+fluent-build.workspace = true
+
+[dev-dependencies]
+expect-test = "1.5.1"
+
+# local deps
+test-utils.workspace = true
+test-fixture.workspace = true
+
+[lints]
+workspace = true
+
+

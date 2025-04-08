@@ -10,8 +10,8 @@ pub(crate) fn await_outside_of_async(
     let display_range =
         adjusted_display_range(ctx, d.node, &|node| Some(node.await_token()?.text_range()));
     Diagnostic::new(
-        crate::DiagnosticCode::RustcHardError("E0728"),
-        format!("`await` is used inside {}, which is not an `async` context", d.location),
+        crate::DiagnosticCode::RustcHardError(fluent_files::await_outside_of_async_code),
+        fluent_files::await_outside_of_async(&d.location),
         display_range,
     )
 }
