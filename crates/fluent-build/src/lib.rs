@@ -32,7 +32,8 @@ pub fn build_fluent_src() -> io::Result<()> {
         let output_file =
             entry.with_extension("rs").file_name().unwrap().to_string_lossy().to_string();
 
-        output += &format!("\n#[path = \"{output_file}\"]\nmod {output_mod};\npub use {output_mod}::*;");
+        output +=
+            &format!("\n#[path = \"{output_file}\"]\nmod {output_mod};\npub use {output_mod}::*;");
 
         build_fluent_file(entry).map_err(|e| match e {
             FluentBuildError::Io(error) => return error,
@@ -181,7 +182,7 @@ fn resolve_pattern_element(
                     body.push_str(&id.name);
                     body.push('}');
                 }
-                ast::InlineExpression::Placeable { .. } => todo!("Expresion inception"),
+                ast::InlineExpression::Placeable { .. } => todo!("Expression inception"),
             },
         },
     }
