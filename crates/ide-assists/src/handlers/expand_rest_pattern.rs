@@ -66,9 +66,14 @@ fn expand_record_rest_pattern(
         make::record_pat_field_list(old_field_list.fields(), None).clone_for_update();
     for (f, _) in missing_fields.iter() {
         let edition = ctx.sema.scope(record_pat.syntax())?.krate().edition(ctx.db());
-        let field = make::record_pat_field_shorthand(make::name_ref(
-            &f.name(ctx.sema.db).display_no_db(edition).to_smolstr(),
-        ));
+        let field = make::record_pat_field_shorthand(
+            make::ident_pat(
+                false,
+                false,
+                make::name(&f.name(ctx.sema.db).display_no_db(edition).to_smolstr()),
+            )
+            .into(),
+        );
         new_field_list.add_field(field.clone_for_update());
     }
 
