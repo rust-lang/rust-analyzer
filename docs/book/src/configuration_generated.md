@@ -492,6 +492,11 @@ also need to add the folders to Code's `files.watcherExclude`.
  Controls file watching implementation.
 
 
+**rust-analyzer.highlightRelated.branches.enable** (default: true)
+
+ Enables highlighting of related return values while the cursor is on any `match`, `if`, or match arm arrow (`=>`).
+
+
 **rust-analyzer.highlightRelated.breakPoints.enable** (default: true)
 
  Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
