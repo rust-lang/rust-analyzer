@@ -345,8 +345,10 @@ pub(crate) fn highlight_branches(
     match token.kind() {
         T![match] => {
             for token in sema.descend_into_macros(token.clone()) {
-                let Some(match_expr) =
-                    sema.token_ancestors_with_macros(token).find_map(ast::MatchExpr::cast)
+                let Some(match_expr) = sema
+                    .token_ancestors_with_macros(token)
+                    .take_while(|node| !ast::MacroCall::can_cast(node.kind()))
+                    .find_map(ast::MatchExpr::cast)
                 else {
                     continue;
                 };
@@ -366,11 +368,14 @@ pub(crate) fn highlight_branches(
         }
         T![=>] => {
             for token in sema.descend_into_macros(token.clone()) {
-                let Some(arm) =
-                    sema.token_ancestors_with_macros(token).find_map(ast::MatchArm::cast)
+                let Some(arm) = sema
+                    .token_ancestors_with_macros(token)
+                    .take_while(|node| !ast::MacroCall::can_cast(node.kind()))
+                    .find_map(ast::MatchArm::cast)
                 else {
                     continue;
                 };
+
                 let file_id = sema.hir_file_for(arm.syntax());
                 let range = arm.fat_arrow_token().map(|token| token.text_range());
                 push_to_highlights(file_id, range, &mut highlights);
@@ -379,9 +384,11 @@ pub(crate) fn highlight_branches(
             }
         }
         T![if] => {
-            for tok in sema.descend_into_macros(token.clone()) {
-                let Some(if_expr) =
-                    sema.token_ancestors_with_macros(tok).find_map(ast::IfExpr::cast)
+            for token in sema.descend_into_macros(token.clone()) {
+                let Some(if_expr) = sema
+                    .token_ancestors_with_macros(token)
+                    .take_while(|node| !ast::MacroCall::can_cast(node.kind()))
+                    .find_map(ast::IfExpr::cast)
                 else {
                     continue;
                 };
@@ -2489,6 +2496,27 @@ fn main() {
     }
 }
 "#,
+        )
+    }
+
+    #[test]
+    fn match_in_macro() {
+        // We should not highlight the outer `match` expression.
+        check(
+            r#"
+macro_rules! M {
+    (match) => { 1 };
+}
+
+fn main() {
+    match Some(1) {
+        Some(x) => x,
+        None => {
+            M!(match$0)
+        }
+    }
+}
+            "#,
         )
     }
 
