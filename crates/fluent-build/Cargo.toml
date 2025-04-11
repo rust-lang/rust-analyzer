@@ -1,0 +1,30 @@
+[package]
+name = "fluent-build"
+version = "0.0.0"
+repository.workspace = true
+description = "Utils for build-time support for fluent files"
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+
+[dependencies]
+fluent-syntax.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+
+# local deps
+
+[dev-dependencies]
+expect-test = "1.5.1"
+
+# local deps
+test-utils.workspace = true
+test-fixture.workspace = true
+
+[lints]
+workspace = true
+
