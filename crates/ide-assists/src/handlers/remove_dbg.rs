@@ -89,20 +89,28 @@ fn run_dbg_replacement(
                 match parent {
                     ast::StmtList(_) => {
                         let range = macro_expr.syntax().text_range();
-                        let range = match whitespace_start(macro_expr.syntax().prev_sibling_or_token()) {
-                            Some(start) => range.cover_offset(start),
-                            None => range,
+                        let prev = macro_expr.syntax().prev_sibling_or_token();
+                        let range = match (whitespace_start(prev.clone()), prev) {
+                            (Some(start), Some(prev)) => {
+                                editor.delete(prev);
+                                range.cover_offset(start)
+                            },
+                            _ => range,
                         };
                         editor.delete(macro_expr.syntax());
                         (range, None)
                     },
                     ast::ExprStmt(_) => {
                         let range = parent.text_range();
-                        let range = match whitespace_start(parent.prev_sibling_or_token()) {
-                            Some(start) => range.cover_offset(start),
-                            None => range,
+                        let prev = parent.prev_sibling_or_token();
+                        let range = match (whitespace_start(prev.clone()), prev) {
+                            (Some(start), Some(prev)) => {
+                                editor.delete(prev);
+                                range.cover_offset(start)
+                            },
+                            _ => range,
                         };
-                        editor.delete(macro_expr.syntax());
+                        editor.delete(parent);
                         (range, None)
                     },
                     _ => {
