@@ -96,9 +96,9 @@ fn run_dbg_replacement(
                         editor.delete(macro_expr.syntax());
                         (range, None)
                     },
-                    ast::ExprStmt(it) => {
-                        let range = it.syntax().text_range();
-                        let range = match whitespace_start(it.syntax().prev_sibling_or_token()) {
+                    ast::ExprStmt(_) => {
+                        let range = parent.text_range();
+                        let range = match whitespace_start(parent.prev_sibling_or_token()) {
                             Some(start) => range.cover_offset(start),
                             None => range,
                         };
