@@ -157,14 +157,14 @@ fn run_dbg_replacement(
                 },
                 None => false,
             };
-            let expr = replace_nested_dbgs(expr.clone(), editor);
+            let expr = replace_nested_dbgs(expr.clone());
             let expr = if wrap { make::expr_paren(expr.clone()) } else { expr.clone_subtree() };
             editor.replace(macro_call.syntax(), expr.syntax().clone_for_update());
             (macro_call.syntax().text_range(), Some(expr))
         }
         // dbg!(expr0, expr1, ...)
         exprs => {
-            let exprs = exprs.iter().map(|expr| replace_nested_dbgs(expr.clone(), editor));
+            let exprs = exprs.iter().map(|expr| replace_nested_dbgs(expr.clone()));
             let expr = make::expr_tuple(exprs);
             editor.replace(macro_call.syntax(), expr.syntax().clone_for_update());
             (macro_call.syntax().text_range(), Some(expr.into()))
@@ -172,42 +172,44 @@ fn run_dbg_replacement(
     })
 }
 
-fn replace_nested_dbgs(expanded: ast::Expr, editor: &mut SyntaxEditor) -> ast::Expr {
-    if let ast::Expr::MacroExpr(mac) = &expanded {
-        // Special-case when `expanded` itself is `dbg!()` since we cannot replace the whole tree
-        // with `ted`. It should be fairly rare as it means the user wrote `dbg!(dbg!(..))` but you
-        // never know how code ends up being!
-        let replaced = if let Some((_, expr_opt)) = run_dbg_replacement(mac, editor) {
-            match expr_opt {
-                Some(expr) => expr,
-                None => {
-                    stdx::never!("dbg! inside dbg! should not be just removed");
-                    expanded
-                }
-            }
-        } else {
-            expanded
-        };
+fn replace_nested_dbgs(expanded: ast::Expr) -> ast::Expr {
+    let mut sub_editor = SyntaxEditor::new(expanded.syntax().clone());
+    // if let ast::Expr::MacroExpr(mac) = &expanded {
+    //     // Special-case when `expanded` itself is `dbg!()` since we cannot replace the whole tree
+    //     // with `ted`. It should be fairly rare as it means the user wrote `dbg!(dbg!(..))` but you
+    //     // never know how code ends up being!
+    //     let replaced = if let Some((_, expr_opt)) = run_dbg_replacement(mac, &mut sub_editor) {
+    //         match expr_opt {
+    //             Some(expr) => expr,
+    //             None => {
+    //                 stdx::never!("dbg! inside dbg! should not be just removed");
+    //                 expanded
+    //             }
+    //         }
+    //     } else {
+    //         expanded
+    //     };
 
-        return replaced;
-    }
+    //     return replaced;
+    // }
 
     let macro_exprs = expanded.syntax().descendants().filter_map(ast::MacroExpr::cast);
 
     for mac in macro_exprs {
-        let expr_opt = match run_dbg_replacement(&mac, editor) {
+        // let mut fake_editor = SyntaxEditor::new(expanded.syntax().clone());
+        let expr_opt = match run_dbg_replacement(&mac, &mut sub_editor) {
             Some((_, expr)) => expr,
             None => continue,
         };
 
-        if let Some(expr) = expr_opt {
-            editor.replace(mac.syntax(), expr.syntax().clone_for_update());
-        } else {
-            editor.delete(mac.syntax());
-        }
+        // if let Some(expr) = expr_opt {
+        //     sub_editor.replace(mac.syntax(), expr.syntax().clone());
+        // } else {
+        //     sub_editor.delete(mac.syntax());
+        // }
     }
 
-    expanded
+    ast::Expr::cast(sub_editor.finish().new_root().clone()).unwrap()
 }
 
 fn whitespace_start(it: Option<SyntaxElement>) -> Option<TextSize> {
