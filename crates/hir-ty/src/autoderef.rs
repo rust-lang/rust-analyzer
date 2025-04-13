@@ -12,8 +12,8 @@ use intern::sym;
 use triomphe::Arc;
 
 use crate::{
-    db::HirDatabase, infer::unify::InferenceTable, Canonical, Goal, Interner, ProjectionTyExt,
-    TraitEnvironment, Ty, TyBuilder, TyKind,
+    Canonical, Goal, Interner, ProjectionTyExt, TraitEnvironment, Ty, TyBuilder, TyKind,
+    db::HirDatabase, infer::unify::InferenceTable,
 };
 
 const AUTODEREF_RECURSION_LIMIT: usize = 20;
@@ -210,7 +210,7 @@ pub(crate) fn deref_by_trait(
     };
     let trait_id = trait_id()?;
     let target = db
-        .trait_data(trait_id)
+        .trait_items(trait_id)
         .associated_type_by_name(&Name::new_symbol_root(sym::Target.clone()))?;
 
     let projection = {

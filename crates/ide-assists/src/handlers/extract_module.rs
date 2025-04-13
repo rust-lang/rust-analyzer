@@ -2,24 +2,26 @@ use std::iter;
 
 use either::Either;
 use hir::{HasSource, HirFileIdExt, ModuleSource};
+use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{
-    assists::{AssistId, AssistKind},
+    FileId, FxHashMap, FxHashSet,
+    assists::AssistId,
     defs::{Definition, NameClass, NameRefClass},
     search::{FileReference, SearchScope},
-    FileId, FxHashMap, FxHashSet,
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
 use syntax::{
-    algo::find_node_at_range,
-    ast::{
-        self,
-        edit::{AstNodeEdit, IndentLevel},
-        make, HasVisibility,
-    },
-    match_ast, ted, AstNode,
+    AstNode,
     SyntaxKind::{self, WHITESPACE},
     SyntaxNode, TextRange, TextSize,
+    algo::find_node_at_range,
+    ast::{
+        self, HasVisibility,
+        edit::{AstNodeEdit, IndentLevel},
+        make,
+    },
+    match_ast, ted,
 };
 
 use crate::{AssistContext, Assists};
@@ -90,7 +92,7 @@ pub(crate) fn extract_module(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     let old_item_indent = module.body_items[0].indent_level();
 
     acc.add(
-        AssistId("extract_module", AssistKind::RefactorExtract),
+        AssistId::refactor_extract("extract_module"),
         "Extract Module",
         module.text_range,
         |builder| {
@@ -331,7 +333,10 @@ impl Module {
         let mut use_stmts_set = FxHashSet::default();
 
         for (file_id, refs) in node_def.usages(&ctx.sema).all() {
-            let source_file = ctx.sema.parse(file_id);
+            let editioned_file_id =
+                ide_db::base_db::EditionedFileId::new(ctx.sema.db.as_dyn_database(), file_id);
+
+            let source_file = ctx.sema.parse(editioned_file_id);
             let usages = refs.into_iter().filter_map(|FileReference { range, .. }| {
                 // handle normal usages
                 let name_ref = find_node_at_range::<ast::NameRef>(source_file.syntax(), range)?;
@@ -457,7 +462,11 @@ impl Module {
         let selection_range = ctx.selection_trimmed();
         let file_id = ctx.file_id();
         let usage_res = def.usages(&ctx.sema).in_scope(&SearchScope::single_file(file_id)).all();
-        let file = ctx.sema.parse(file_id);
+
+        let editioned_file_id =
+            ide_db::base_db::EditionedFileId::new(ctx.sema.db.as_dyn_database(), file_id);
+
+        let file = ctx.sema.parse(editioned_file_id);
 
         // track uses which does not exists in `Use`
         let mut uses_exist_in_sel = false;
@@ -1159,8 +1168,8 @@ mod modname {
     }
 
     #[test]
-    fn test_extract_module_for_impl_not_having_corresponding_adt_in_selection_and_not_in_same_mod_but_with_super(
-    ) {
+    fn test_extract_module_for_impl_not_having_corresponding_adt_in_selection_and_not_in_same_mod_but_with_super()
+     {
         check_assist(
             extract_module,
             r"

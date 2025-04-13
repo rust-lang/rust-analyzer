@@ -240,7 +240,7 @@ RecordFieldList =
  '{' fields:(RecordField (',' RecordField)* ','?)? '}'
 
 RecordField =
-  Attr* Visibility?
+  Attr* Visibility? 'unsafe'?
   Name ':' Type ('=' Expr)?
 
 TupleFieldList =
@@ -278,6 +278,11 @@ Adt =
   Enum
 | Struct
 | Union
+
+VariantDef =
+  Struct
+| Union
+| Variant
 
 Const =
   Attr* Visibility?

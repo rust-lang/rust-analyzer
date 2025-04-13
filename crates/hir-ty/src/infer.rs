@@ -26,27 +26,26 @@ pub(crate) mod unify;
 use std::{cell::OnceCell, convert::identity, iter, ops::Index};
 
 use chalk_ir::{
+    DebruijnIndex, Mutability, Safety, Scalar, TyKind, TypeFlags, Variance,
     cast::Cast,
     fold::TypeFoldable,
     interner::HasInterner,
     visit::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
-    DebruijnIndex, Mutability, Safety, Scalar, TyKind, TypeFlags, Variance,
 };
 use either::Either;
 use hir_def::{
+    AdtId, AssocItemId, DefWithBodyId, FieldId, FunctionId, GenericDefId, ImplId, ItemContainerId,
+    Lookup, TraitId, TupleFieldId, TupleId, TypeAliasId, VariantId,
     builtin_type::{BuiltinInt, BuiltinType, BuiltinUint},
-    data::{ConstData, StaticData},
-    expr_store::{Body, HygieneId},
+    expr_store::{Body, ExpressionStore, HygieneId, path::Path},
     hir::{BindingAnnotation, BindingId, ExprId, ExprOrPatId, LabelId, PatId},
     lang_item::{LangItem, LangItemTarget},
     layout::Integer,
-    path::{ModPath, Path},
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
-    type_ref::{LifetimeRef, TypeRefId, TypesMap},
-    AdtId, AssocItemId, DefWithBodyId, FieldId, FunctionId, ImplId, ItemContainerId, Lookup,
-    TraitId, TupleFieldId, TupleId, TypeAliasId, VariantId,
+    signatures::{ConstSignature, StaticSignature},
+    type_ref::{ConstRef, LifetimeRef, TypeRefId},
 };
-use hir_expand::name::Name;
+use hir_expand::{mod_path::ModPath, name::Name};
 use indexmap::IndexSet;
 use intern::sym;
 use la_arena::{ArenaMap, Entry};
@@ -55,6 +54,9 @@ use stdx::{always, never};
 use triomphe::Arc;
 
 use crate::{
+    AliasEq, AliasTy, Binders, ClosureId, Const, DomainGoal, GenericArg, Goal, ImplTraitId,
+    ImplTraitIdx, InEnvironment, Interner, Lifetime, OpaqueTyId, ParamLoweringMode,
+    PathLoweringDiagnostic, ProjectionTy, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt,
     db::HirDatabase,
     fold_tys,
     generics::Generics,
@@ -64,14 +66,11 @@ use crate::{
         expr::ExprIsRead,
         unify::InferenceTable,
     },
-    lower::{diagnostics::TyLoweringDiagnostic, ImplTraitLoweringMode},
+    lower::{ImplTraitLoweringMode, diagnostics::TyLoweringDiagnostic},
     mir::MirSpan,
     to_assoc_type_id,
     traits::FnTrait,
-    utils::{InTypeConstIdMetadata, UnevaluatedConstEvaluatorFolder},
-    AliasEq, AliasTy, Binders, ClosureId, Const, DomainGoal, GenericArg, Goal, ImplTraitId,
-    ImplTraitIdx, InEnvironment, Interner, Lifetime, OpaqueTyId, ParamLoweringMode,
-    PathLoweringDiagnostic, ProjectionTy, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt,
+    utils::UnevaluatedConstEvaluatorFolder,
 };
 
 // This lint has a false positive here. See the link below for details.
@@ -88,7 +87,7 @@ pub(crate) use closure::{CaptureKind, CapturedItem, CapturedItemWithoutTy};
 /// The entry point of type inference.
 pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<InferenceResult> {
     let _p = tracing::info_span!("infer_query").entered();
-    let resolver = def.resolver(db.upcast());
+    let resolver = def.resolver(db);
     let body = db.body(def);
     let mut ctx = InferenceContext::new(db, def, &body, resolver);
 
@@ -96,11 +95,11 @@ pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<Infer
         DefWithBodyId::FunctionId(f) => {
             ctx.collect_fn(f);
         }
-        DefWithBodyId::ConstId(c) => ctx.collect_const(&db.const_data(c)),
-        DefWithBodyId::StaticId(s) => ctx.collect_static(&db.static_data(s)),
+        DefWithBodyId::ConstId(c) => ctx.collect_const(&db.const_signature(c)),
+        DefWithBodyId::StaticId(s) => ctx.collect_static(&db.static_signature(s)),
         DefWithBodyId::VariantId(v) => {
             ctx.return_ty = TyBuilder::builtin(
-                match db.enum_data(v.lookup(db.upcast()).parent).variant_body_type() {
+                match db.enum_signature(v.lookup(db).parent).variant_body_type() {
                     hir_def::layout::IntegerType::Pointer(signed) => match signed {
                         true => BuiltinType::Int(BuiltinInt::Isize),
                         false => BuiltinType::Uint(BuiltinUint::Usize),
@@ -123,16 +122,6 @@ pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<Infer
                     },
                 },
             );
-        }
-        DefWithBodyId::InTypeConstId(c) => {
-            // FIXME(const-generic-body): We should not get the return type in this way.
-            ctx.return_ty = c
-                .lookup(db.upcast())
-                .expected_ty
-                .box_any()
-                .downcast::<InTypeConstIdMetadata>()
-                .unwrap()
-                .0;
         }
     }
 
@@ -597,7 +586,8 @@ pub(crate) struct InferenceContext<'a> {
     /// Generally you should not resolve things via this resolver. Instead create a TyLoweringContext
     /// and resolve the path via its methods. This will ensure proper error reporting.
     pub(crate) resolver: Resolver,
-    generics: OnceCell<Option<Generics>>,
+    generic_def: GenericDefId,
+    generics: OnceCell<Generics>,
     table: unify::InferenceTable<'a>,
     /// The traits in scope, disregarding block modules. This is used for caching purposes.
     traits_in_scope: FxHashSet<TraitId>,
@@ -708,8 +698,14 @@ impl<'a> InferenceContext<'a> {
             return_coercion: None,
             db,
             owner,
+            generic_def: match owner {
+                DefWithBodyId::FunctionId(it) => it.into(),
+                DefWithBodyId::StaticId(it) => it.into(),
+                DefWithBodyId::ConstId(it) => it.into(),
+                DefWithBodyId::VariantId(it) => it.lookup(db).parent.into(),
+            },
             body,
-            traits_in_scope: resolver.traits_in_scope(db.upcast()),
+            traits_in_scope: resolver.traits_in_scope(db),
             resolver,
             diverges: Diverges::Maybe,
             breakables: Vec::new(),
@@ -724,14 +720,8 @@ impl<'a> InferenceContext<'a> {
         }
     }
 
-    pub(crate) fn generics(&self) -> Option<&Generics> {
-        self.generics
-            .get_or_init(|| {
-                self.resolver
-                    .generic_def()
-                    .map(|def| crate::generics::generics(self.db.upcast(), def))
-            })
-            .as_ref()
+    pub(crate) fn generics(&self) -> &Generics {
+        self.generics.get_or_init(|| crate::generics::generics(self.db, self.generic_def))
     }
 
     // FIXME: This function should be private in module. It is currently only used in the consteval, since we need
@@ -894,9 +884,9 @@ impl<'a> InferenceContext<'a> {
         result
     }
 
-    fn collect_const(&mut self, data: &ConstData) {
+    fn collect_const(&mut self, data: &ConstSignature) {
         let return_ty =
-            self.make_ty(data.type_ref, &data.types_map, InferenceTyDiagnosticSource::Signature);
+            self.make_ty(data.type_ref, &data.store, InferenceTyDiagnosticSource::Signature);
 
         // Constants might be defining usage sites of TAITs.
         self.make_tait_coercion_table(iter::once(&return_ty));
@@ -904,9 +894,9 @@ impl<'a> InferenceContext<'a> {
         self.return_ty = return_ty;
     }
 
-    fn collect_static(&mut self, data: &StaticData) {
+    fn collect_static(&mut self, data: &StaticSignature) {
         let return_ty =
-            self.make_ty(data.type_ref, &data.types_map, InferenceTyDiagnosticSource::Signature);
+            self.make_ty(data.type_ref, &data.store, InferenceTyDiagnosticSource::Signature);
 
         // Statics might be defining usage sites of TAITs.
         self.make_tait_coercion_table(iter::once(&return_ty));
@@ -915,13 +905,13 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn collect_fn(&mut self, func: FunctionId) {
-        let data = self.db.function_data(func);
+        let data = self.db.function_signature(func);
         let mut param_tys =
-            self.with_ty_lowering(&data.types_map, InferenceTyDiagnosticSource::Signature, |ctx| {
-                ctx.type_param_mode(ParamLoweringMode::Placeholder)
-                    .impl_trait_mode(ImplTraitLoweringMode::Param);
+            self.with_ty_lowering(&data.store, InferenceTyDiagnosticSource::Signature, |ctx| {
+                ctx.type_param_mode(ParamLoweringMode::Placeholder);
                 data.params.iter().map(|&type_ref| ctx.lower_ty(type_ref)).collect::<Vec<_>>()
             });
+
         // Check if function contains a va_list, if it does then we append it to the parameter types
         // that are collected from the function data
         if data.is_varargs() {
@@ -956,35 +946,43 @@ impl<'a> InferenceContext<'a> {
                 tait_candidates.insert(ty);
             }
         }
-        let return_ty = data.ret_type;
-
-        let return_ty =
-            self.with_ty_lowering(&data.types_map, InferenceTyDiagnosticSource::Signature, |ctx| {
-                ctx.type_param_mode(ParamLoweringMode::Placeholder)
-                    .impl_trait_mode(ImplTraitLoweringMode::Opaque)
-                    .lower_ty(return_ty)
-            });
-        let return_ty = self.insert_type_vars(return_ty);
-
-        let return_ty = if let Some(rpits) = self.db.return_type_impl_traits(func) {
-            // RPIT opaque types use substitution of their parent function.
-            let fn_placeholders = TyBuilder::placeholder_subst(self.db, func);
-            let mut mode = ImplTraitReplacingMode::ReturnPosition(FxHashSet::default());
-            let result =
-                self.insert_inference_vars_for_impl_trait(return_ty, fn_placeholders, &mut mode);
-            if let ImplTraitReplacingMode::ReturnPosition(taits) = mode {
-                tait_candidates.extend(taits);
-            }
-            let rpits = rpits.skip_binders();
-            for (id, _) in rpits.impl_traits.iter() {
-                if let Entry::Vacant(e) = self.result.type_of_rpit.entry(id) {
-                    never!("Missed RPIT in `insert_inference_vars_for_rpit`");
-                    e.insert(TyKind::Error.intern(Interner));
+        let return_ty = match data.ret_type {
+            Some(return_ty) => {
+                let return_ty = self.with_ty_lowering(
+                    &data.store,
+                    InferenceTyDiagnosticSource::Signature,
+                    |ctx| {
+                        ctx.type_param_mode(ParamLoweringMode::Placeholder)
+                            .impl_trait_mode(ImplTraitLoweringMode::Opaque)
+                            .lower_ty(return_ty)
+                    },
+                );
+                let return_ty = self.insert_type_vars(return_ty);
+                if let Some(rpits) = self.db.return_type_impl_traits(func) {
+                    // RPIT opaque types use substitution of their parent function.
+                    let fn_placeholders = TyBuilder::placeholder_subst(self.db, func);
+                    let mut mode = ImplTraitReplacingMode::ReturnPosition(FxHashSet::default());
+                    let result = self.insert_inference_vars_for_impl_trait(
+                        return_ty,
+                        fn_placeholders,
+                        &mut mode,
+                    );
+                    if let ImplTraitReplacingMode::ReturnPosition(taits) = mode {
+                        tait_candidates.extend(taits);
+                    }
+                    let rpits = rpits.skip_binders();
+                    for (id, _) in rpits.impl_traits.iter() {
+                        if let Entry::Vacant(e) = self.result.type_of_rpit.entry(id) {
+                            never!("Missed RPIT in `insert_inference_vars_for_rpit`");
+                            e.insert(TyKind::Error.intern(Interner));
+                        }
+                    }
+                    result
+                } else {
+                    return_ty
                 }
             }
-            result
-        } else {
-            return_ty
+            None => self.result.standard_types.unit.clone(),
         };
 
         self.return_ty = self.normalize_associated_types_in(return_ty);
@@ -1143,7 +1141,7 @@ impl<'a> InferenceContext<'a> {
             non_assocs: FxHashMap::default(),
         };
         for ty in tait_candidates {
-            ty.visit_with(collector.as_dyn(), DebruijnIndex::INNERMOST);
+            _ = ty.visit_with(collector.as_dyn(), DebruijnIndex::INNERMOST);
         }
 
         // Non-assoc TAITs can be define-used everywhere as long as they are
@@ -1190,11 +1188,7 @@ impl<'a> InferenceContext<'a> {
 
         if let Some(impl_id) = impl_id {
             taits.extend(collector.assocs.into_iter().filter_map(|(id, (impl_, ty))| {
-                if impl_ == impl_id {
-                    Some((id, ty))
-                } else {
-                    None
-                }
+                if impl_ == impl_id { Some((id, ty)) } else { None }
             }));
         }
 
@@ -1291,38 +1285,54 @@ impl<'a> InferenceContext<'a> {
 
     fn with_ty_lowering<R>(
         &mut self,
-        types_map: &TypesMap,
+        store: &ExpressionStore,
         types_source: InferenceTyDiagnosticSource,
         f: impl FnOnce(&mut TyLoweringContext<'_>) -> R,
     ) -> R {
         let mut ctx = TyLoweringContext::new(
             self.db,
             &self.resolver,
-            types_map,
-            self.owner.into(),
+            store,
             &self.diagnostics,
             types_source,
+            self.generic_def,
         );
         f(&mut ctx)
     }
 
     fn with_body_ty_lowering<R>(&mut self, f: impl FnOnce(&mut TyLoweringContext<'_>) -> R) -> R {
-        self.with_ty_lowering(&self.body.types, InferenceTyDiagnosticSource::Body, f)
+        self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, f)
     }
 
     fn make_ty(
         &mut self,
         type_ref: TypeRefId,
-        types_map: &TypesMap,
+        store: &ExpressionStore,
         type_source: InferenceTyDiagnosticSource,
     ) -> Ty {
-        let ty = self.with_ty_lowering(types_map, type_source, |ctx| ctx.lower_ty(type_ref));
+        let ty = self.with_ty_lowering(store, type_source, |ctx| ctx.lower_ty(type_ref));
         let ty = self.insert_type_vars(ty);
         self.normalize_associated_types_in(ty)
     }
 
     fn make_body_ty(&mut self, type_ref: TypeRefId) -> Ty {
-        self.make_ty(type_ref, &self.body.types, InferenceTyDiagnosticSource::Body)
+        self.make_ty(type_ref, self.body, InferenceTyDiagnosticSource::Body)
+    }
+
+    fn make_body_const(&mut self, const_ref: ConstRef, ty: Ty) -> Const {
+        let const_ = self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, |ctx| {
+            ctx.type_param_mode = ParamLoweringMode::Placeholder;
+            ctx.lower_const(&const_ref, ty)
+        });
+        self.insert_type_vars(const_)
+    }
+
+    fn make_path_as_body_const(&mut self, path: &Path, ty: Ty) -> Const {
+        let const_ = self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, |ctx| {
+            ctx.type_param_mode = ParamLoweringMode::Placeholder;
+            ctx.lower_path_as_const(path, ty)
+        });
+        self.insert_type_vars(const_)
     }
 
     fn err_ty(&self) -> Ty {
@@ -1330,7 +1340,7 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn make_body_lifetime(&mut self, lifetime_ref: &LifetimeRef) -> Lifetime {
-        let lt = self.with_ty_lowering(TypesMap::EMPTY, InferenceTyDiagnosticSource::Body, |ctx| {
+        let lt = self.with_ty_lowering(self.body, InferenceTyDiagnosticSource::Body, |ctx| {
             ctx.lower_lifetime(lifetime_ref)
         });
         self.insert_type_vars(lt)
@@ -1460,7 +1470,7 @@ impl<'a> InferenceContext<'a> {
     ) -> Ty {
         match assoc_ty {
             Some(res_assoc_ty) => {
-                let trait_ = match res_assoc_ty.lookup(self.db.upcast()).container {
+                let trait_ = match res_assoc_ty.lookup(self.db).container {
                     hir_def::ItemContainerId::TraitId(trait_) => trait_,
                     _ => panic!("resolve_associated_type called with non-associated type"),
                 };
@@ -1498,10 +1508,10 @@ impl<'a> InferenceContext<'a> {
         let mut ctx = TyLoweringContext::new(
             self.db,
             &self.resolver,
-            &self.body.types,
-            self.owner.into(),
+            &self.body.store,
             &self.diagnostics,
             InferenceTyDiagnosticSource::Body,
+            self.generic_def,
         );
         let mut path_ctx = ctx.at_path(path, node);
         let (resolution, unresolved) = if value_ns {
@@ -1513,7 +1523,7 @@ impl<'a> InferenceContext<'a> {
                     ValueNs::EnumVariantId(var) => {
                         let substs = path_ctx.substs_from_path(var.into(), true);
                         drop(ctx);
-                        let ty = self.db.ty(var.lookup(self.db.upcast()).parent.into());
+                        let ty = self.db.ty(var.lookup(self.db).parent.into());
                         let ty = self.insert_type_vars(ty.substitute(Interner, &substs));
                         return (ty, Some(var.into()));
                     }
@@ -1538,10 +1548,6 @@ impl<'a> InferenceContext<'a> {
                 None => return (self.err_ty(), None),
             }
         };
-        let Some(mod_path) = path.mod_path() else {
-            never!("resolver should always resolve lang item paths");
-            return (self.err_ty(), None);
-        };
         return match resolution {
             TypeNs::AdtId(AdtId::StructId(strukt)) => {
                 let substs = path_ctx.substs_from_path(strukt.into(), true);
@@ -1560,17 +1566,21 @@ impl<'a> InferenceContext<'a> {
             TypeNs::EnumVariantId(var) => {
                 let substs = path_ctx.substs_from_path(var.into(), true);
                 drop(ctx);
-                let ty = self.db.ty(var.lookup(self.db.upcast()).parent.into());
+                let ty = self.db.ty(var.lookup(self.db).parent.into());
                 let ty = self.insert_type_vars(ty.substitute(Interner, &substs));
                 forbid_unresolved_segments((ty, Some(var.into())), unresolved)
             }
             TypeNs::SelfType(impl_id) => {
-                let generics = crate::generics::generics(self.db.upcast(), impl_id.into());
+                let generics = crate::generics::generics(self.db, impl_id.into());
                 let substs = generics.placeholder_subst(self.db);
                 let mut ty = self.db.impl_self_ty(impl_id).substitute(Interner, &substs);
 
                 let Some(remaining_idx) = unresolved else {
                     drop(ctx);
+                    let Some(mod_path) = path.mod_path() else {
+                        never!("resolver should always resolve lang item paths");
+                        return (self.err_ty(), None);
+                    };
                     return self.resolve_variant_on_alias(ty, None, mod_path);
                 };
 
@@ -1587,7 +1597,7 @@ impl<'a> InferenceContext<'a> {
                     // If we can resolve to an enum variant, it takes priority over associated type
                     // of the same name.
                     if let Some((AdtId::EnumId(id), _)) = ty.as_adt() {
-                        let enum_data = self.db.enum_data(id);
+                        let enum_data = self.db.enum_variants(id);
                         if let Some(variant) = enum_data.variant(current_segment.name) {
                             return if remaining_segments.len() == 1 {
                                 (ty, Some(variant.into()))
@@ -1634,6 +1644,10 @@ impl<'a> InferenceContext<'a> {
                 (ty, variant)
             }
             TypeNs::TypeAliasId(it) => {
+                let Some(mod_path) = path.mod_path() else {
+                    never!("resolver should always resolve lang item paths");
+                    return (self.err_ty(), None);
+                };
                 let substs = path_ctx.substs_from_path_segment(it.into(), true, None);
                 drop(ctx);
                 let ty = self.db.ty(it.into());
@@ -1652,7 +1666,8 @@ impl<'a> InferenceContext<'a> {
             TypeNs::AdtId(AdtId::EnumId(_))
             | TypeNs::BuiltinType(_)
             | TypeNs::TraitId(_)
-            | TypeNs::TraitAliasId(_) => {
+            | TypeNs::TraitAliasId(_)
+            | TypeNs::ModuleId(_) => {
                 // FIXME diagnostic
                 (self.err_ty(), None)
             }
@@ -1701,7 +1716,7 @@ impl<'a> InferenceContext<'a> {
                 let segment = path.segments().last().unwrap();
                 // this could be an enum variant or associated type
                 if let Some((AdtId::EnumId(enum_id), _)) = ty.as_adt() {
-                    let enum_data = self.db.enum_data(enum_id);
+                    let enum_data = self.db.enum_variants(enum_id);
                     if let Some(variant) = enum_data.variant(segment) {
                         return (ty, Some(variant.into()));
                     }
@@ -1723,7 +1738,7 @@ impl<'a> InferenceContext<'a> {
 
     fn resolve_output_on(&self, trait_: TraitId) -> Option<TypeAliasId> {
         self.db
-            .trait_data(trait_)
+            .trait_items(trait_)
             .associated_type_by_name(&Name::new_symbol_root(sym::Output.clone()))
     }
 
@@ -1743,7 +1758,7 @@ impl<'a> InferenceContext<'a> {
         let ItemContainerId::TraitId(trait_) = self
             .resolve_lang_item(LangItem::IntoFutureIntoFuture)?
             .as_function()?
-            .lookup(self.db.upcast())
+            .lookup(self.db)
             .container
         else {
             return None;
@@ -1914,11 +1929,7 @@ impl Expectation {
         match self {
             Expectation::HasType(ety) => {
                 let ety = table.resolve_ty_shallow(ety);
-                if ety.is_ty_var() {
-                    Expectation::None
-                } else {
-                    Expectation::HasType(ety)
-                }
+                if ety.is_ty_var() { Expectation::None } else { Expectation::HasType(ety) }
             }
             Expectation::RValueLikeUnsized(ety) => Expectation::RValueLikeUnsized(ety.clone()),
             _ => Expectation::None,
@@ -2044,7 +2055,7 @@ impl chalk_ir::zip::Zipper<Interner> for UnknownMismatch<'_> {
             | (_, TyKind::Error)
             | (TyKind::Alias(AliasTy::Projection(_)) | TyKind::AssociatedType(_, _), _)
             | (_, TyKind::Alias(AliasTy::Projection(_)) | TyKind::AssociatedType(_, _)) => {
-                return Err(chalk_ir::NoSolution)
+                return Err(chalk_ir::NoSolution);
             }
             _ => (),
         }

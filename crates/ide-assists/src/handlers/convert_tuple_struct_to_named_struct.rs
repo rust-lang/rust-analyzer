@@ -1,11 +1,12 @@
 use either::Either;
 use ide_db::defs::{Definition, NameRefClass};
 use syntax::{
+    SyntaxKind, SyntaxNode,
     ast::{self, AstNode, HasAttrs, HasGenericParams, HasVisibility},
-    match_ast, ted, SyntaxKind, SyntaxNode,
+    match_ast, ted,
 };
 
-use crate::{assist_context::SourceChangeBuilder, AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, Assists, assist_context::SourceChangeBuilder};
 
 // Assist: convert_tuple_struct_to_named_struct
 //
@@ -64,7 +65,7 @@ pub(crate) fn convert_tuple_struct_to_named_struct(
     let target = strukt.as_ref().either(|s| s.syntax(), |v| v.syntax()).text_range();
 
     acc.add(
-        AssistId("convert_tuple_struct_to_named_struct", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("convert_tuple_struct_to_named_struct"),
         "Convert to named struct",
         target,
         |edit| {

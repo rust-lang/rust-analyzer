@@ -1,11 +1,11 @@
 //! Wrappers over [`make`] constructors
 use crate::{
+    AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken,
     ast::{
-        self, make, HasArgList, HasGenericArgs, HasGenericParams, HasName, HasTypeBounds,
-        HasVisibility,
+        self, HasArgList, HasGenericArgs, HasGenericParams, HasLoopBody, HasName, HasTypeBounds,
+        HasVisibility, make,
     },
     syntax_editor::SyntaxMappingBuilder,
-    AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken,
 };
 
 use super::SyntaxFactory;
@@ -543,6 +543,19 @@ impl SyntaxFactory {
         ast
     }
 
+    pub fn expr_while_loop(&self, condition: ast::Expr, body: ast::BlockExpr) -> ast::WhileExpr {
+        let ast = make::expr_while_loop(condition.clone(), body.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
+            builder.map_node(condition.syntax().clone(), ast.condition().unwrap().syntax().clone());
+            builder.map_node(body.syntax().clone(), ast.loop_body().unwrap().syntax().clone());
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
     pub fn expr_let(&self, pattern: ast::Pat, expr: ast::Expr) -> ast::LetExpr {
         let ast = make::expr_let(pattern.clone(), expr.clone()).clone_for_update();
 
@@ -777,6 +790,27 @@ impl SyntaxFactory {
         if let Some(mut mapping) = self.mappings() {
             let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
             builder.map_children(input, ast.generic_args().map(|arg| arg.syntax().clone()));
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
+    pub fn record_expr_field(
+        &self,
+        name: ast::NameRef,
+        expr: Option<ast::Expr>,
+    ) -> ast::RecordExprField {
+        let ast = make::record_expr_field(name.clone(), expr.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
+
+            builder.map_node(name.syntax().clone(), ast.name_ref().unwrap().syntax().clone());
+            if let Some(expr) = expr {
+                builder.map_node(expr.syntax().clone(), ast.expr().unwrap().syntax().clone());
+            }
+
             builder.finish(&mut mapping);
         }
 

@@ -1,23 +1,20 @@
 use either::Either;
 use hir::{CaptureKind, ClosureCapture, FileRangeWrapper, HirDisplay};
 use ide_db::{
-    assists::{AssistId, AssistKind},
-    base_db::SourceDatabase,
-    defs::Definition,
-    search::FileReferenceNode,
-    source_change::SourceChangeBuilder,
-    FxHashSet,
+    FxHashSet, assists::AssistId, base_db::SourceDatabase, defs::Definition,
+    search::FileReferenceNode, source_change::SourceChangeBuilder,
 };
 use stdx::format_to;
 use syntax::{
+    AstNode, Direction, SyntaxKind, SyntaxNode, T, TextSize, ToSmolStr,
     algo::{skip_trivia_token, skip_whitespace_token},
     ast::{
-        self,
+        self, HasArgList, HasGenericParams, HasName,
         edit::{AstNodeEdit, IndentLevel},
-        make, HasArgList, HasGenericParams, HasName,
+        make,
     },
     hacks::parse_expr_from_str,
-    ted, AstNode, Direction, SyntaxKind, SyntaxNode, TextSize, ToSmolStr, T,
+    ted,
 };
 
 use crate::assist_context::{AssistContext, Assists};
@@ -146,7 +143,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
     };
 
     acc.add(
-        AssistId("convert_closure_to_fn", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("convert_closure_to_fn"),
         "Convert closure to fn",
         closure.param_list()?.syntax().text_range(),
         |builder| {
@@ -590,7 +587,7 @@ fn handle_call(
     let indent =
         if insert_newlines { first_arg_indent.unwrap().to_string() } else { String::new() };
     // FIXME: This text manipulation seems risky.
-    let text = ctx.db().file_text(file_id.file_id());
+    let text = ctx.db().file_text(file_id.file_id()).text(ctx.db());
     let mut text = text[..u32::from(range.end()).try_into().unwrap()].trim_end();
     if !text.ends_with(')') {
         return None;

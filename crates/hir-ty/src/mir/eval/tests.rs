@@ -3,9 +3,10 @@ use span::{Edition, EditionedFileId};
 use syntax::{TextRange, TextSize};
 use test_fixture::WithFixture;
 
-use crate::{db::HirDatabase, mir::MirLowerError, test_db::TestDB, Interner, Substitution};
+use crate::display::DisplayTarget;
+use crate::{Interner, Substitution, db::HirDatabase, mir::MirLowerError, test_db::TestDB};
 
-use super::{interpret_mir, MirEvalError};
+use super::{MirEvalError, interpret_mir};
 
 fn eval_main(db: &TestDB, file_id: EditionedFileId) -> Result<(String, String), MirEvalError> {
     let module_id = db.module_for_file(file_id);
@@ -15,7 +16,8 @@ fn eval_main(db: &TestDB, file_id: EditionedFileId) -> Result<(String, String), 
         .declarations()
         .find_map(|x| match x {
             hir_def::ModuleDefId::FunctionId(x) => {
-                if db.function_data(x).name.display(db, Edition::CURRENT).to_string() == "main" {
+                if db.function_signature(x).name.display(db, Edition::CURRENT).to_string() == "main"
+                {
                     Some(x)
                 } else {
                     None
@@ -67,7 +69,9 @@ fn check_pass_and_stdio(
             let span_formatter = |file, range: TextRange| {
                 format!("{:?} {:?}..{:?}", file, line_index(range.start()), line_index(range.end()))
             };
-            e.pretty_print(&mut err, &db, span_formatter, Edition::CURRENT).unwrap();
+            let krate = db.module_for_file(file_id).krate();
+            e.pretty_print(&mut err, &db, span_formatter, DisplayTarget::from_crate(&db, krate))
+                .unwrap();
             panic!("Error in interpreting: {err}");
         }
         Ok((stdout, stderr)) => {

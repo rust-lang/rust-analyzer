@@ -2,11 +2,12 @@ use either::Either;
 use ide_db::{defs::Definition, search::FileReference};
 use itertools::Itertools;
 use syntax::{
+    SyntaxKind,
     ast::{self, AstNode, HasAttrs, HasGenericParams, HasVisibility},
-    match_ast, ted, SyntaxKind,
+    match_ast, ted,
 };
 
-use crate::{assist_context::SourceChangeBuilder, AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, Assists, assist_context::SourceChangeBuilder};
 
 // Assist: convert_named_struct_to_tuple_struct
 //
@@ -68,7 +69,7 @@ pub(crate) fn convert_named_struct_to_tuple_struct(
     };
 
     acc.add(
-        AssistId("convert_named_struct_to_tuple_struct", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("convert_named_struct_to_tuple_struct"),
         "Convert to tuple struct",
         strukt.syntax().text_range(),
         |edit| {

@@ -6,22 +6,21 @@
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_def::{
-    expr_store::ExprOrPatPtr,
-    hir::ExprOrPatId,
-    path::{hir_segment_to_ast_segment, ModPath},
-    type_ref::TypesSourceMap,
     DefWithBodyId, SyntheticSyntax,
+    expr_store::{ExprOrPatPtr, ExpressionStoreSourceMap, hir_segment_to_ast_segment},
+    hir::ExprOrPatId,
 };
-use hir_expand::{name::Name, HirFileId, InFile};
+use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
 use hir_ty::{
-    db::HirDatabase,
-    diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
     CastError, InferenceDiagnostic, InferenceTyDiagnosticSource, PathLoweringDiagnostic,
     TyLoweringDiagnostic, TyLoweringDiagnosticKind,
+    db::HirDatabase,
+    diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
 };
 use syntax::{
+    AstNode, AstPtr, SyntaxError, SyntaxNodePtr, TextRange,
     ast::{self, HasGenericArgs},
-    match_ast, AstNode, AstPtr, SyntaxError, SyntaxNodePtr, TextRange,
+    match_ast,
 };
 use triomphe::Arc;
 
@@ -29,8 +28,8 @@ use crate::{AssocItem, Field, Function, Local, Trait, Type};
 
 pub use hir_def::VariantId;
 pub use hir_ty::{
-    diagnostics::{CaseType, IncorrectCase},
     GenericArgsProhibitedReason,
+    diagnostics::{CaseType, IncorrectCase},
 };
 
 macro_rules! diagnostics {
@@ -113,6 +112,7 @@ diagnostics![
     UnusedVariable,
     GenericArgsProhibited,
     ParenthesizedGenericArgsWithoutFnTrait,
+    BadRtn,
 ];
 
 #[derive(Debug)]
@@ -420,6 +420,11 @@ pub struct ParenthesizedGenericArgsWithoutFnTrait {
     pub args: InFile<AstPtr<ast::ParenthesizedArgList>>,
 }
 
+#[derive(Debug)]
+pub struct BadRtn {
+    pub rtn: InFile<AstPtr<ast::ReturnTypeSyntax>>,
+}
+
 impl AnyDiagnostic {
     pub(crate) fn body_validation_diagnostic(
         db: &dyn HirDatabase,
@@ -428,7 +433,7 @@ impl AnyDiagnostic {
     ) -> Option<AnyDiagnostic> {
         match diagnostic {
             BodyValidationDiagnostic::RecordMissingFields { record, variant, missed_fields } => {
-                let variant_data = variant.variant_data(db.upcast());
+                let variant_data = variant.variant_data(db);
                 let missed_fields = missed_fields
                     .into_iter()
                     .map(|idx| variant_data.fields()[idx].name.clone())
@@ -439,7 +444,7 @@ impl AnyDiagnostic {
                     Either::Right(record_pat) => source_map.pat_syntax(record_pat).ok()?,
                 };
                 let file = record.file_id;
-                let root = record.file_syntax(db.upcast());
+                let root = record.file_syntax(db);
                 match record.value.to_node(&root) {
                     Either::Left(ast::Expr::RecordExpr(record_expr)) => {
                         if record_expr.record_expr_field_list().is_some() {
@@ -488,7 +493,7 @@ impl AnyDiagnostic {
             BodyValidationDiagnostic::MissingMatchArms { match_expr, uncovered_patterns } => {
                 match source_map.expr_syntax(match_expr) {
                     Ok(source_ptr) => {
-                        let root = source_ptr.file_syntax(db.upcast());
+                        let root = source_ptr.file_syntax(db);
                         if let Either::Left(ast::Expr::MatchExpr(match_expr)) =
                             &source_ptr.value.to_node(&root)
                         {
@@ -559,14 +564,21 @@ impl AnyDiagnostic {
         db: &dyn HirDatabase,
         def: DefWithBodyId,
         d: &InferenceDiagnostic,
-        outer_types_source_map: &TypesSourceMap,
         source_map: &hir_def::expr_store::BodySourceMap,
+        sig_map: &hir_def::expr_store::ExpressionStoreSourceMap,
     ) -> Option<AnyDiagnostic> {
         let expr_syntax = |expr| {
-            source_map.expr_syntax(expr).inspect_err(|_| stdx::never!("synthetic syntax")).ok()
+            source_map
+                .expr_syntax(expr)
+                .inspect_err(|_| stdx::never!("inference diagnostic in desugared expr"))
+                .ok()
         };
-        let pat_syntax =
-            |pat| source_map.pat_syntax(pat).inspect_err(|_| stdx::never!("synthetic syntax")).ok();
+        let pat_syntax = |pat| {
+            source_map
+                .pat_syntax(pat)
+                .inspect_err(|_| stdx::never!("inference diagnostic in desugared pattern"))
+                .ok()
+        };
         let expr_or_pat_syntax = |id| match id {
             ExprOrPatId::ExprId(expr) => expr_syntax(expr),
             ExprOrPatId::PatId(pat) => pat_syntax(pat),
@@ -682,8 +694,8 @@ impl AnyDiagnostic {
             }
             InferenceDiagnostic::TyDiagnostic { source, diag } => {
                 let source_map = match source {
-                    InferenceTyDiagnosticSource::Body => &source_map.types,
-                    InferenceTyDiagnosticSource::Signature => outer_types_source_map,
+                    InferenceTyDiagnosticSource::Body => source_map,
+                    InferenceTyDiagnosticSource::Signature => sig_map,
                 };
                 Self::ty_diagnostic(diag, source_map, db)?
             }
@@ -712,6 +724,12 @@ impl AnyDiagnostic {
         Some(match *diag {
             PathLoweringDiagnostic::GenericArgsProhibited { segment, reason } => {
                 let segment = hir_segment_to_ast_segment(&path.value, segment)?;
+
+                if let Some(rtn) = segment.return_type_syntax() {
+                    // RTN errors are emitted as `GenericArgsProhibited` or `ParenthesizedGenericArgsWithoutFnTrait`.
+                    return Some(BadRtn { rtn: path.with_value(AstPtr::new(&rtn)) }.into());
+                }
+
                 let args = if let Some(generics) = segment.generic_arg_list() {
                     AstPtr::new(&generics).wrap_left()
                 } else {
@@ -722,6 +740,12 @@ impl AnyDiagnostic {
             }
             PathLoweringDiagnostic::ParenthesizedGenericArgsWithoutFnTrait { segment } => {
                 let segment = hir_segment_to_ast_segment(&path.value, segment)?;
+
+                if let Some(rtn) = segment.return_type_syntax() {
+                    // RTN errors are emitted as `GenericArgsProhibited` or `ParenthesizedGenericArgsWithoutFnTrait`.
+                    return Some(BadRtn { rtn: path.with_value(AstPtr::new(&rtn)) }.into());
+                }
+
                 let args = AstPtr::new(&segment.parenthesized_arg_list()?);
                 let args = path.with_value(args);
                 ParenthesizedGenericArgsWithoutFnTrait { args }.into()
@@ -731,18 +755,12 @@ impl AnyDiagnostic {
 
     pub(crate) fn ty_diagnostic(
         diag: &TyLoweringDiagnostic,
-        source_map: &TypesSourceMap,
+        source_map: &ExpressionStoreSourceMap,
         db: &dyn HirDatabase,
     ) -> Option<AnyDiagnostic> {
-        let source = match diag.source {
-            Either::Left(type_ref_id) => {
-                let Ok(source) = source_map.type_syntax(type_ref_id) else {
-                    stdx::never!("error on synthetic type syntax");
-                    return None;
-                };
-                source
-            }
-            Either::Right(source) => source,
+        let Ok(source) = source_map.type_syntax(diag.source) else {
+            stdx::never!("error on synthetic type syntax");
+            return None;
         };
         let syntax = || source.value.to_node(&db.parse_or_expand(source.file_id));
         Some(match &diag.kind {

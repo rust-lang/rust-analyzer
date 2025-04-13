@@ -1,8 +1,8 @@
-use expect_test::{expect, Expect};
+use expect_test::{Expect, expect};
 use hir::{FilePosition, FileRange};
 use ide_db::{
-    base_db::{ra_salsa::Durability, SourceDatabase},
     EditionedFileId, FxHashSet,
+    base_db::{SourceDatabase, salsa::Durability},
 };
 use test_utils::RangeOrOffset;
 use triomphe::Arc;
@@ -67,7 +67,7 @@ fn parser_undefined_placeholder_in_replacement() {
 /// the start of the file. If there's a second cursor marker, then we'll return a single range.
 pub(crate) fn single_file(code: &str) -> (ide_db::RootDatabase, FilePosition, Vec<FileRange>) {
     use ide_db::symbol_index::SymbolsDatabase;
-    use test_fixture::{WithFixture, WORKSPACE};
+    use test_fixture::{WORKSPACE, WithFixture};
     let (mut db, file_id, range_or_offset) = if code.contains(test_utils::CURSOR_MARKER) {
         ide_db::RootDatabase::with_range_or_offset(code)
     } else {
@@ -114,7 +114,7 @@ fn assert_ssr_transforms(rules: &[&str], input: &str, expected: Expect) {
     }
     // Note, db.file_text is not necessarily the same as `input`, since fixture parsing alters
     // stuff.
-    let mut actual = db.file_text(position.file_id.into()).to_string();
+    let mut actual = db.file_text(position.file_id.into()).text(&db).to_string();
     edits[&position.file_id.into()].apply(&mut actual);
     expected.assert_eq(&actual);
 }

@@ -3,17 +3,18 @@
 //! fn g() {
 //! } /* fn g */
 //! ```
-use hir::{HirDisplay, Semantics};
+use hir::{DisplayTarget, HirDisplay, Semantics};
 use ide_db::{FileRange, RootDatabase};
 use span::EditionedFileId;
 use syntax::{
+    SyntaxKind, SyntaxNode, T,
     ast::{self, AstNode, HasLoopBody, HasName},
-    match_ast, SyntaxKind, SyntaxNode, T,
+    match_ast,
 };
 
 use crate::{
-    inlay_hints::LazyProperty, InlayHint, InlayHintLabel, InlayHintPosition, InlayHintsConfig,
-    InlayKind,
+    InlayHint, InlayHintLabel, InlayHintPosition, InlayHintsConfig, InlayKind,
+    inlay_hints::LazyProperty,
 };
 
 pub(super) fn hints(
@@ -21,6 +22,7 @@ pub(super) fn hints(
     sema: &Semantics<'_, RootDatabase>,
     config: &InlayHintsConfig,
     file_id: EditionedFileId,
+    display_target: DisplayTarget,
     original_node: SyntaxNode,
 ) -> Option<()> {
     let min_lines = config.closing_brace_hints_min_lines?;
@@ -43,9 +45,9 @@ pub(super) fn hints(
                         Some(tr) => format!(
                             "impl {} for {}",
                             tr.name(sema.db).display(sema.db, file_id.edition()),
-                            ty.display_truncated(sema.db, config.max_length, file_id.edition(),
+                            ty.display_truncated(sema.db, config.max_length, display_target,
                         )),
-                        None => format!("impl {}", ty.display_truncated(sema.db, config.max_length, file_id.edition())),
+                        None => format!("impl {}", ty.display_truncated(sema.db, config.max_length, display_target)),
                     };
                     (hint_text, None)
                 },
@@ -158,8 +160,8 @@ pub(super) fn hints(
 #[cfg(test)]
 mod tests {
     use crate::{
-        inlay_hints::tests::{check_with_config, DISABLED_CONFIG},
         InlayHintsConfig,
+        inlay_hints::tests::{DISABLED_CONFIG, check_with_config},
     };
 
     #[test]

@@ -1,9 +1,9 @@
-use expect_test::{expect, Expect};
+use expect_test::{Expect, expect};
 use hir::HirDisplay;
 
 use crate::{
     context::CompletionContext,
-    tests::{position, TEST_CONFIG},
+    tests::{TEST_CONFIG, position},
 };
 
 fn check_expected_type_and_name(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
@@ -13,7 +13,7 @@ fn check_expected_type_and_name(#[rust_analyzer::rust_fixture] ra_fixture: &str,
 
     let ty = completion_context
         .expected_type
-        .map(|t| t.display_test(&db).to_string())
+        .map(|t| t.display_test(&db, completion_context.krate.to_display_target(&db)).to_string())
         .unwrap_or("?".to_owned());
 
     let name =
@@ -370,6 +370,17 @@ fn foo() {
 }
 "#,
         expect![[r#"ty: Foo, name: ?"#]],
+    );
+    check_expected_type_and_name(
+        r#"
+struct Foo { field: u32 }
+fn foo() {
+    Foo {
+        ..self::$0
+    }
+}
+"#,
+        expect!["ty: ?, name: ?"],
     );
 }
 

@@ -2,27 +2,29 @@ use hir::{
     Adt, AsAssocItem, HasSource, HirDisplay, HirFileIdExt, Module, PathResolution, Semantics,
     StructKind, Type, TypeInfo,
 };
+use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{
+    FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
     helpers::is_editable_crate,
     path_transform::PathTransform,
     source_change::SourceChangeBuilder,
-    FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
 };
 use itertools::Itertools;
 use stdx::to_lower_snake_case;
 use syntax::{
+    Edition, SyntaxKind, SyntaxNode, T, TextRange,
     ast::{
-        self, edit::IndentLevel, edit_in_place::Indent, make, AstNode, BlockExpr, CallExpr,
-        HasArgList, HasGenericParams, HasModuleItem, HasTypeBounds,
+        self, AstNode, BlockExpr, CallExpr, HasArgList, HasGenericParams, HasModuleItem,
+        HasTypeBounds, edit::IndentLevel, edit_in_place::Indent, make,
     },
-    ted, Edition, SyntaxKind, SyntaxNode, TextRange, T,
+    ted,
 };
 
 use crate::{
+    AssistContext, AssistId, Assists,
     utils::{convert_reference_type, find_struct_impl},
-    AssistContext, AssistId, AssistKind, Assists,
 };
 
 // Assist: generate_function
@@ -171,16 +173,15 @@ fn add_func_to_accumulator(
     adt_info: Option<AdtInfo>,
     label: String,
 ) -> Option<()> {
-    acc.add(AssistId("generate_function", AssistKind::Generate), label, text_range, |edit| {
+    acc.add(AssistId::generate("generate_function"), label, text_range, |edit| {
         edit.edit_file(file);
 
         let target = function_builder.target.clone();
         let edition = function_builder.target_edition;
         let func = function_builder.render(ctx.config.snippet_cap, edit);
 
-        if let Some(adt) =
-            adt_info
-                .and_then(|adt_info| if adt_info.impl_exists { None } else { Some(adt_info.adt) })
+        if let Some(adt) = adt_info
+            .and_then(|adt_info| if adt_info.impl_exists { None } else { Some(adt_info.adt) })
         {
             let name = make::ty_path(make::ext::ident_path(&format!(
                 "{}",
@@ -205,7 +206,11 @@ fn get_adt_source(
     fn_name: &str,
 ) -> Option<(Option<ast::Impl>, FileId)> {
     let range = adt.source(ctx.sema.db)?.syntax().original_file_range_rooted(ctx.sema.db);
-    let file = ctx.sema.parse(range.file_id);
+
+    let editioned_file_id =
+        ide_db::base_db::EditionedFileId::new(ctx.sema.db.as_dyn_database(), range.file_id);
+
+    let file = ctx.sema.parse(editioned_file_id);
     let adt_source =
         ctx.sema.find_node_at_offset_with_macros(file.syntax(), range.range.start())?;
     find_struct_impl(ctx, &adt_source, &[fn_name.to_owned()])
@@ -724,9 +729,9 @@ fn fn_generic_params(
     filter_unnecessary_bounds(&mut generic_params, &mut where_preds, necessary_params);
     filter_bounds_in_scope(&mut generic_params, &mut where_preds, ctx, target);
 
-    let generic_params: Vec<_> =
+    let generic_params: Vec<ast::GenericParam> =
         generic_params.into_iter().map(|it| it.node.clone_for_update()).collect();
-    let where_preds: Vec<_> =
+    let where_preds: Vec<ast::WherePred> =
         where_preds.into_iter().map(|it| it.node.clone_for_update()).collect();
 
     // 4. Rewrite paths
@@ -1116,9 +1121,12 @@ fn fn_arg_type(
 
         if ty.is_reference() || ty.is_mutable_reference() {
             let famous_defs = &FamousDefs(&ctx.sema, ctx.sema.scope(fn_arg.syntax())?.krate());
-            let target_edition = target_module.krate().edition(ctx.db());
             convert_reference_type(ty.strip_references(), ctx.db(), famous_defs)
-                .map(|conversion| conversion.convert_type(ctx.db(), target_edition).to_string())
+                .map(|conversion| {
+                    conversion
+                        .convert_type(ctx.db(), target_module.krate().to_display_target(ctx.db()))
+                        .to_string()
+                })
                 .or_else(|| ty.display_source_code(ctx.db(), target_module.into(), true).ok())
         } else {
             ty.display_source_code(ctx.db(), target_module.into(), true).ok()
@@ -1158,7 +1166,7 @@ fn next_space_for_fn_in_module(
     target_module: hir::Module,
 ) -> (FileId, GeneratedFunctionTarget) {
     let module_source = target_module.definition_source(db);
-    let file = module_source.file_id.original_file(db.upcast());
+    let file = module_source.file_id.original_file(db);
     let assist_item = match &module_source.value {
         hir::ModuleSource::SourceFile(it) => match it.items().last() {
             Some(last_item) => GeneratedFunctionTarget::AfterItem(last_item.syntax().clone()),

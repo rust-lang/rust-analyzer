@@ -2,16 +2,15 @@
 //! representation of the various objects Chalk deals with (types, goals etc.).
 
 use crate::{
-    chalk_db, tls, AliasTy, CanonicalVarKind, CanonicalVarKinds, ClosureId, Const, ConstData,
-    ConstScalar, Constraint, Constraints, FnAbi, FnDefId, GenericArg, GenericArgData, Goal,
-    GoalData, Goals, InEnvironment, Lifetime, LifetimeData, OpaqueTy, OpaqueTyId, ProgramClause,
-    ProgramClauseData, ProgramClauses, ProjectionTy, QuantifiedWhereClause, QuantifiedWhereClauses,
-    Substitution, Ty, TyData, TyKind, VariableKind, VariableKinds,
+    AliasTy, CanonicalVarKind, CanonicalVarKinds, ClosureId, Const, ConstData, ConstScalar,
+    Constraint, Constraints, FnAbi, FnDefId, GenericArg, GenericArgData, Goal, GoalData, Goals,
+    InEnvironment, Lifetime, LifetimeData, OpaqueTy, OpaqueTyId, ProgramClause, ProgramClauseData,
+    ProgramClauses, ProjectionTy, QuantifiedWhereClause, QuantifiedWhereClauses, Substitution, Ty,
+    TyData, TyKind, VariableKind, VariableKinds, chalk_db, tls,
 };
-use base_db::ra_salsa::InternId;
 use chalk_ir::{ProgramClauseImplication, SeparatorTraitRef, Variance};
 use hir_def::TypeAliasId;
-use intern::{impl_internable, Interned};
+use intern::{Interned, impl_internable};
 use smallvec::SmallVec;
 use std::fmt;
 use triomphe::Arc;
@@ -68,7 +67,7 @@ impl chalk_ir::interner::Interner for Interner {
     type InternedCanonicalVarKinds = Interned<InternedWrapper<Vec<CanonicalVarKind>>>;
     type InternedConstraints = Vec<InEnvironment<Constraint>>;
     type InternedVariances = SmallVec<[Variance; 16]>;
-    type DefId = InternId;
+    type DefId = salsa::Id;
     type InternedAdtId = hir_def::AdtId;
     type Identifier = TypeAliasId;
     type FnAbi = FnAbi;
@@ -98,7 +97,7 @@ impl chalk_ir::interner::Interner for Interner {
         opaque_ty_id: OpaqueTyId,
         fmt: &mut fmt::Formatter<'_>,
     ) -> Option<fmt::Result> {
-        Some(write!(fmt, "OpaqueTy#{}", opaque_ty_id.0))
+        Some(write!(fmt, "OpaqueTy#{:?}", opaque_ty_id.0))
     }
 
     fn debug_fn_def_id(fn_def_id: FnDefId, fmt: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {

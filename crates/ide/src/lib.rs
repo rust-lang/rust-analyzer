@@ -20,6 +20,7 @@ mod navigation_target;
 
 mod annotations;
 mod call_hierarchy;
+mod child_modules;
 mod doc_links;
 mod expand_macro;
 mod extend_selection;
@@ -57,23 +58,23 @@ mod view_memory_layout;
 mod view_mir;
 mod view_syntax_tree;
 
-use std::{iter, panic::UnwindSafe};
+use std::panic::UnwindSafe;
 
 use cfg::CfgOptions;
 use fetch_crates::CrateInfo;
-use hir::{sym, ChangeWithProcMacros};
+use hir::{ChangeWithProcMacros, sym};
 use ide_db::{
+    FxHashMap, FxIndexSet, LineIndexDatabase,
     base_db::{
-        ra_salsa::{self, ParallelDatabase},
-        CrateOrigin, CrateWorkspaceData, Env, FileLoader, FileSet, SourceDatabase,
-        SourceRootDatabase, VfsPath,
+        CrateOrigin, CrateWorkspaceData, Env, FileSet, RootQueryDb, SourceDatabase, VfsPath,
+        salsa::{AsDynDatabase, Cancelled},
     },
-    prime_caches, symbol_index, FxHashMap, FxIndexSet, LineIndexDatabase,
+    prime_caches, symbol_index,
 };
 use span::EditionedFileId;
 use syntax::SourceFile;
 use triomphe::Arc;
-use view_memory_layout::{view_memory_layout, RecursiveMemoryLayout};
+use view_memory_layout::{RecursiveMemoryLayout, view_memory_layout};
 
 use crate::navigation_target::ToNav;
 
@@ -110,8 +111,8 @@ pub use crate::{
         StaticIndex, StaticIndexedFile, TokenId, TokenStaticData, VendoredLibrariesConfig,
     },
     syntax_highlighting::{
-        tags::{Highlight, HlMod, HlMods, HlOperator, HlPunct, HlTag},
         HighlightConfig, HlRange,
+        tags::{Highlight, HlMod, HlMods, HlOperator, HlPunct, HlTag},
     },
     test_explorer::{TestItem, TestItemKind},
 };
@@ -125,7 +126,8 @@ pub use ide_completion::{
 };
 pub use ide_db::text_edit::{Indel, TextEdit};
 pub use ide_db::{
-    base_db::{Cancelled, CrateGraph, CrateId, FileChange, SourceRoot, SourceRootId},
+    FileId, FilePosition, FileRange, RootDatabase, Severity, SymbolKind,
+    base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId},
     documentation::Documentation,
     label::Label,
     line_index::{LineCol, LineIndex},
@@ -133,7 +135,6 @@ pub use ide_db::{
     search::{ReferenceCategory, SearchScope},
     source_change::{FileSystemEdit, SnippetEdit, SourceChange},
     symbol_index::Query,
-    FileId, FilePosition, FileRange, RootDatabase, Severity, SymbolKind,
 };
 pub use ide_diagnostics::{Diagnostic, DiagnosticCode, DiagnosticsConfig, ExprFillDefaultMode};
 pub use ide_ssr::SsrError;
@@ -217,7 +218,7 @@ impl Default for AnalysisHost {
 /// `Analysis` are canceled (most method return `Err(Canceled)`).
 #[derive(Debug)]
 pub struct Analysis {
-    db: ra_salsa::Snapshot<RootDatabase>,
+    db: RootDatabase,
 }
 
 // As a general design guideline, `Analysis` API are intended to be independent
@@ -237,34 +238,37 @@ impl Analysis {
         file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_owned()));
         let source_root = SourceRoot::new_local(file_set);
 
-        let mut change = ChangeWithProcMacros::new();
+        let mut change = ChangeWithProcMacros::default();
         change.set_roots(vec![source_root]);
-        let mut crate_graph = CrateGraph::default();
+        let mut crate_graph = CrateGraphBuilder::default();
         // FIXME: cfg options
         // Default to enable test for single file.
         let mut cfg_options = CfgOptions::default();
+
+        // FIXME: This is less than ideal
+        let proc_macro_cwd = Arc::new(
+            TryFrom::try_from(&*std::env::current_dir().unwrap().as_path().to_string_lossy())
+                .unwrap(),
+        );
         cfg_options.insert_atom(sym::test.clone());
         crate_graph.add_crate_root(
             file_id,
             Edition::CURRENT,
             None,
             None,
-            Arc::new(cfg_options),
+            cfg_options,
             None,
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             false,
-            None,
-        );
-        change.change_file(file_id, Some(text));
-        let ws_data = crate_graph
-            .iter()
-            .zip(iter::repeat(Arc::new(CrateWorkspaceData {
+            proc_macro_cwd,
+            Arc::new(CrateWorkspaceData {
                 data_layout: Err("fixture has no layout".into()),
                 toolchain: None,
-            })))
-            .collect();
-        change.set_crate_graph(crate_graph, ws_data);
+            }),
+        );
+        change.change_file(file_id, Some(text));
+        change.set_crate_graph(crate_graph);
 
         host.apply_change(change);
         (host.analysis(), file_id)
@@ -276,12 +280,12 @@ impl Analysis {
     }
 
     pub fn source_root_id(&self, file_id: FileId) -> Cancellable<SourceRootId> {
-        self.with_db(|db| db.file_source_root(file_id))
+        self.with_db(|db| db.file_source_root(file_id).source_root_id(db))
     }
 
     pub fn is_local_source_root(&self, source_root_id: SourceRootId) -> Cancellable<bool> {
         self.with_db(|db| {
-            let sr = db.source_root(source_root_id);
+            let sr = db.source_root(source_root_id).source_root(db);
             !sr.is_library
         })
     }
@@ -295,18 +299,28 @@ impl Analysis {
 
     /// Gets the text of the source file.
     pub fn file_text(&self, file_id: FileId) -> Cancellable<Arc<str>> {
-        self.with_db(|db| SourceDatabase::file_text(db, file_id))
+        self.with_db(|db| SourceDatabase::file_text(db, file_id).text(db))
     }
 
     /// Gets the syntax tree of the file.
     pub fn parse(&self, file_id: FileId) -> Cancellable<SourceFile> {
         // FIXME edition
-        self.with_db(|db| db.parse(EditionedFileId::current_edition(file_id)).tree())
+        self.with_db(|db| {
+            let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+                self.db.as_dyn_database(),
+                EditionedFileId::current_edition(file_id),
+            );
+
+            db.parse(editioned_file_id_wrapper).tree()
+        })
     }
 
     /// Returns true if this file belongs to an immutable library.
     pub fn is_library_file(&self, file_id: FileId) -> Cancellable<bool> {
-        self.with_db(|db| db.source_root(db.file_source_root(file_id)).is_library)
+        self.with_db(|db| {
+            let source_root = db.file_source_root(file_id).source_root_id(db);
+            db.source_root(source_root).source_root(db).is_library
+        })
     }
 
     /// Gets the file's `LineIndex`: data structure to convert between absolute
@@ -324,7 +338,11 @@ impl Analysis {
     /// supported).
     pub fn matching_brace(&self, position: FilePosition) -> Cancellable<Option<TextSize>> {
         self.with_db(|db| {
-            let parse = db.parse(EditionedFileId::current_edition(position.file_id));
+            let file_id = ide_db::base_db::EditionedFileId::new(
+                self.db.as_dyn_database(),
+                EditionedFileId::current_edition(position.file_id),
+            );
+            let parse = db.parse(file_id);
             let file = parse.tree();
             matching_brace::matching_brace(&file, position.offset)
         })
@@ -358,7 +376,7 @@ impl Analysis {
         self.with_db(|db| test_explorer::discover_tests_in_crate_by_test_id(db, crate_id))
     }
 
-    pub fn discover_tests_in_crate(&self, crate_id: CrateId) -> Cancellable<Vec<TestItem>> {
+    pub fn discover_tests_in_crate(&self, crate_id: Crate) -> Cancellable<Vec<TestItem>> {
         self.with_db(|db| test_explorer::discover_tests_in_crate(db, crate_id))
     }
 
@@ -383,7 +401,11 @@ impl Analysis {
     /// stuff like trailing commas.
     pub fn join_lines(&self, config: &JoinLinesConfig, frange: FileRange) -> Cancellable<TextEdit> {
         self.with_db(|db| {
-            let parse = db.parse(EditionedFileId::current_edition(frange.file_id));
+            let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+                self.db.as_dyn_database(),
+                EditionedFileId::current_edition(frange.file_id),
+            );
+            let parse = db.parse(editioned_file_id_wrapper);
             join_lines::join_lines(config, &parse.tree(), frange.range)
         })
     }
@@ -419,9 +441,12 @@ impl Analysis {
     pub fn file_structure(&self, file_id: FileId) -> Cancellable<Vec<StructureNode>> {
         // FIXME: Edition
         self.with_db(|db| {
-            file_structure::file_structure(
-                &db.parse(EditionedFileId::current_edition(file_id)).tree(),
-            )
+            let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+                self.db.as_dyn_database(),
+                EditionedFileId::current_edition(file_id),
+            );
+
+            file_structure::file_structure(&db.parse(editioned_file_id_wrapper).tree())
         })
     }
 
@@ -450,9 +475,12 @@ impl Analysis {
     /// Returns the set of folding ranges.
     pub fn folding_ranges(&self, file_id: FileId) -> Cancellable<Vec<Fold>> {
         self.with_db(|db| {
-            folding_ranges::folding_ranges(
-                &db.parse(EditionedFileId::current_edition(file_id)).tree(),
-            )
+            let editioned_file_id_wrapper = ide_db::base_db::EditionedFileId::new(
+                self.db.as_dyn_database(),
+                EditionedFileId::current_edition(file_id),
+            );
+
+            folding_ranges::folding_ranges(&db.parse(editioned_file_id_wrapper).tree())
         })
     }
 
@@ -577,34 +605,44 @@ impl Analysis {
         self.with_db(|db| parent_module::parent_module(db, position))
     }
 
+    /// Returns vec of `mod name;` declaration which are created by the current module.
+    pub fn child_modules(&self, position: FilePosition) -> Cancellable<Vec<NavigationTarget>> {
+        self.with_db(|db| child_modules::child_modules(db, position))
+    }
+
     /// Returns crates that this file belongs to.
-    pub fn crates_for(&self, file_id: FileId) -> Cancellable<Vec<CrateId>> {
+    pub fn crates_for(&self, file_id: FileId) -> Cancellable<Vec<Crate>> {
         self.with_db(|db| parent_module::crates_for(db, file_id))
     }
 
     /// Returns crates that this file belongs to.
-    pub fn transitive_rev_deps(&self, crate_id: CrateId) -> Cancellable<Vec<CrateId>> {
-        self.with_db(|db| db.crate_graph().transitive_rev_deps(crate_id).collect())
+    pub fn transitive_rev_deps(&self, crate_id: Crate) -> Cancellable<Vec<Crate>> {
+        self.with_db(|db| Vec::from_iter(db.transitive_rev_deps(crate_id)))
     }
 
     /// Returns crates that this file *might* belong to.
-    pub fn relevant_crates_for(&self, file_id: FileId) -> Cancellable<Vec<CrateId>> {
+    pub fn relevant_crates_for(&self, file_id: FileId) -> Cancellable<Vec<Crate>> {
         self.with_db(|db| db.relevant_crates(file_id).iter().copied().collect())
     }
 
     /// Returns the edition of the given crate.
-    pub fn crate_edition(&self, crate_id: CrateId) -> Cancellable<Edition> {
-        self.with_db(|db| db.crate_graph()[crate_id].edition)
+    pub fn crate_edition(&self, crate_id: Crate) -> Cancellable<Edition> {
+        self.with_db(|db| crate_id.data(db).edition)
+    }
+
+    /// Returns whether the given crate is a proc macro.
+    pub fn is_proc_macro_crate(&self, crate_id: Crate) -> Cancellable<bool> {
+        self.with_db(|db| crate_id.data(db).is_proc_macro)
     }
 
     /// Returns true if this crate has `no_std` or `no_core` specified.
-    pub fn is_crate_no_std(&self, crate_id: CrateId) -> Cancellable<bool> {
+    pub fn is_crate_no_std(&self, crate_id: Crate) -> Cancellable<bool> {
         self.with_db(|db| hir::db::DefDatabase::crate_def_map(db, crate_id).is_no_std())
     }
 
     /// Returns the root file of the given crate.
-    pub fn crate_root(&self, crate_id: CrateId) -> Cancellable<FileId> {
-        self.with_db(|db| db.crate_graph()[crate_id].root_file_id)
+    pub fn crate_root(&self, crate_id: Crate) -> Cancellable<FileId> {
+        self.with_db(|db| crate_id.data(db).root_file_id)
     }
 
     /// Returns the set of possible targets to run for the current file.
@@ -717,7 +755,7 @@ impl Analysis {
         frange: FileRange,
     ) -> Cancellable<Vec<Assist>> {
         let include_fixes = match &assist_config.allowed {
-            Some(it) => it.iter().any(|&it| it == AssistKind::None || it == AssistKind::QuickFix),
+            Some(it) => it.contains(&AssistKind::QuickFix),
             None => true,
         };
 
@@ -828,7 +866,8 @@ impl Analysis {
     where
         F: FnOnce(&RootDatabase) -> T + std::panic::UnwindSafe,
     {
-        Cancelled::catch(|| f(&self.db))
+        let snap = self.db.snapshot();
+        Cancelled::catch(|| f(&snap))
     }
 }
 

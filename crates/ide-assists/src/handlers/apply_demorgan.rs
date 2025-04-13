@@ -6,19 +6,18 @@ use ide_db::{
     syntax_helpers::node_ext::{for_each_tail_expr, walk_expr},
 };
 use syntax::{
+    SyntaxKind, T,
     ast::{
-        self,
-        prec::{precedence, ExprPrecedence},
-        syntax_factory::SyntaxFactory,
-        AstNode,
+        self, AstNode,
         Expr::BinExpr,
         HasArgList,
+        prec::{ExprPrecedence, precedence},
+        syntax_factory::SyntaxFactory,
     },
     syntax_editor::{Position, SyntaxEditor},
-    SyntaxKind, T,
 };
 
-use crate::{utils::invert_boolean_expression, AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, Assists, utils::invert_boolean_expression};
 
 // Assist: apply_demorgan
 //
@@ -65,7 +64,7 @@ pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
         _ => return None,
     };
 
-    let make = SyntaxFactory::new();
+    let make = SyntaxFactory::with_mappings();
 
     let demorganed = bin_expr.clone_subtree();
     let mut editor = SyntaxEditor::new(demorganed.syntax().clone());
@@ -108,11 +107,11 @@ pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 
     acc.add_group(
         &GroupLabel("Apply De Morgan's law".to_owned()),
-        AssistId("apply_demorgan", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("apply_demorgan"),
         "Apply De Morgan's law",
         op_range,
         |builder| {
-            let make = SyntaxFactory::new();
+            let make = SyntaxFactory::with_mappings();
             let paren_expr = bin_expr.syntax().parent().and_then(ast::ParenExpr::cast);
             let neg_expr = paren_expr
                 .clone()
@@ -128,7 +127,9 @@ pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
                     let parent = neg_expr.syntax().parent();
                     editor = builder.make_editor(neg_expr.syntax());
 
-                    if parent.is_some_and(|parent| demorganed.needs_parens_in(&parent)) {
+                    if parent.is_some_and(|parent| {
+                        demorganed.needs_parens_in_place_of(&parent, neg_expr.syntax())
+                    }) {
                         cov_mark::hit!(demorgan_keep_parens_for_op_precedence2);
                         editor.replace(neg_expr.syntax(), make.expr_paren(demorganed).syntax());
                     } else {
@@ -189,11 +190,11 @@ pub(crate) fn apply_demorgan_iterator(acc: &mut Assists, ctx: &AssistContext<'_>
     let label = format!("Apply De Morgan's law to `Iterator::{}`", name.text().as_str());
     acc.add_group(
         &GroupLabel("Apply De Morgan's law".to_owned()),
-        AssistId("apply_demorgan_iterator", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("apply_demorgan_iterator"),
         label,
         op_range,
         |builder| {
-            let make = SyntaxFactory::new();
+            let make = SyntaxFactory::with_mappings();
             let mut editor = builder.make_editor(method_call.syntax());
             // replace the method name
             let new_name = match name.text().as_str() {
@@ -392,15 +393,19 @@ fn f() { !(S <= S || S < S) }
 
     #[test]
     fn demorgan_keep_pars_for_op_precedence3() {
-        check_assist(apply_demorgan, "fn f() { (a || !(b &&$0 c); }", "fn f() { (a || !b || !c; }");
+        check_assist(
+            apply_demorgan,
+            "fn f() { (a || !(b &&$0 c); }",
+            "fn f() { (a || (!b || !c); }",
+        );
     }
 
     #[test]
-    fn demorgan_removes_pars_in_eq_precedence() {
+    fn demorgan_keeps_pars_in_eq_precedence() {
         check_assist(
             apply_demorgan,
             "fn() { let x = a && !(!b |$0| !c); }",
-            "fn() { let x = a && b && c; }",
+            "fn() { let x = a && (b && c); }",
         )
     }
 

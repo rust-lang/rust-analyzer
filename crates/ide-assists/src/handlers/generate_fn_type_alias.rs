@@ -1,8 +1,9 @@
 use either::Either;
-use ide_db::assists::{AssistId, AssistKind, GroupLabel};
+use ide_db::assists::{AssistId, GroupLabel};
 use syntax::{
-    ast::{self, edit::IndentLevel, make, HasGenericParams, HasName},
-    syntax_editor, AstNode,
+    AstNode,
+    ast::{self, HasGenericParams, HasName, edit::IndentLevel, make},
+    syntax_editor,
 };
 
 use crate::{AssistContext, Assists};
@@ -138,7 +139,7 @@ impl ParamStyle {
             ParamStyle::Unnamed => "generate_fn_type_alias_unnamed",
         };
 
-        AssistId(s, AssistKind::Generate)
+        AssistId::generate(s)
     }
 
     fn label(&self) -> &'static str {

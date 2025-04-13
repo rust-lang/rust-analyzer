@@ -3,24 +3,27 @@
 use base_db::AnchoredPath;
 use cfg::CfgExpr;
 use either::Either;
-use intern::{sym, Symbol};
-use mbe::{expect_fragment, DelimiterKind};
-use span::{Edition, EditionedFileId, Span};
+use intern::{
+    Symbol,
+    sym::{self},
+};
+use mbe::{DelimiterKind, expect_fragment};
+use span::{Edition, EditionedFileId, FileId, Span};
 use stdx::format_to;
 use syntax::{
     format_smolstr,
-    unescape::{unescape_byte, unescape_char, unescape_unicode, Mode},
+    unescape::{Mode, unescape_byte, unescape_char, unescape_unicode},
 };
 use syntax_bridge::syntax_node_to_token_tree;
 
 use crate::{
-    builtin::quote::{dollar_crate, quote, WithDelimiter},
+    ExpandError, ExpandResult, HirFileIdExt, Lookup as _, MacroCallId,
+    builtin::quote::{WithDelimiter, dollar_crate, quote},
     db::ExpandDatabase,
     hygiene::{span_with_call_site_ctxt, span_with_def_site_ctxt},
     name,
     span_map::SpanMap,
     tt::{self, DelimSpan, TtElement, TtIter},
-    ExpandError, ExpandResult, HirFileIdExt, Lookup as _, MacroCallId,
 };
 
 macro_rules! register_builtin {
@@ -228,7 +231,7 @@ fn assert_expand(
     let cond = expect_fragment(
         &mut iter,
         parser::PrefixEntryPoint::Expr,
-        db.crate_graph()[id.lookup(db).krate].edition,
+        id.lookup(db).krate.data(db).edition,
         tt.top_subtree().delimiter.delim_span(),
     );
     _ = iter.expect_char(',');
@@ -237,9 +240,9 @@ fn assert_expand(
     let dollar_crate = dollar_crate(span);
     let panic_args = rest.iter();
     let mac = if use_panic_2021(db, span) {
-        quote! {call_site_span => #dollar_crate::panic::panic_2021!(##panic_args) }
+        quote! {call_site_span => #dollar_crate::panic::panic_2021!(# #panic_args) }
     } else {
-        quote! {call_site_span => #dollar_crate::panic!(##panic_args) }
+        quote! {call_site_span => #dollar_crate::panic!(# #panic_args) }
     };
     let value = cond.value;
     let expanded = quote! {call_site_span =>{
@@ -330,7 +333,7 @@ fn cfg_expand(
 ) -> ExpandResult<tt::TopSubtree> {
     let loc = db.lookup_intern_macro_call(id);
     let expr = CfgExpr::parse(tt);
-    let enabled = db.crate_graph()[loc.krate].cfg_options.check(&expr) != Some(false);
+    let enabled = loc.krate.cfg_options(db).check(&expr) != Some(false);
     let expanded = if enabled { quote!(span=>true) } else { quote!(span=>false) };
     ExpandResult::ok(expanded)
 }
@@ -401,7 +404,7 @@ fn use_panic_2021(db: &dyn ExpandDatabase, span: Span) -> bool {
     // stack that does not have #[allow_internal_unstable(edition_panic)].
     // (To avoid using the edition of e.g. the assert!() or debug_assert!() definition.)
     loop {
-        let Some(expn) = db.lookup_intern_syntax_context(span.ctx).outer_expn else {
+        let Some(expn) = span.ctx.outer_expn(db) else {
             break false;
         };
         let expn = db.lookup_intern_macro_call(expn);
@@ -424,12 +427,15 @@ fn compile_error_expand(
     span: Span,
 ) -> ExpandResult<tt::TopSubtree> {
     let err = match &*tt.0 {
-        [_, tt::TokenTree::Leaf(tt::Leaf::Literal(tt::Literal {
-            symbol: text,
-            span: _,
-            kind: tt::LitKind::Str | tt::LitKind::StrRaw(_),
-            suffix: _,
-        }))] => ExpandError::other(span, Box::from(unescape_str(text).as_str())),
+        [
+            _,
+            tt::TokenTree::Leaf(tt::Leaf::Literal(tt::Literal {
+                symbol: text,
+                span: _,
+                kind: tt::LitKind::Str | tt::LitKind::StrRaw(_),
+                suffix: _,
+            })),
+        ] => ExpandError::other(span, Box::from(unescape_str(text).as_str())),
         _ => ExpandError::other(span, "`compile_error!` argument must be a string"),
     };
 
@@ -656,17 +662,17 @@ fn relative_file(
     allow_recursion: bool,
     err_span: Span,
 ) -> Result<EditionedFileId, ExpandError> {
-    let lookup = call_id.lookup(db);
+    let lookup = db.lookup_intern_macro_call(call_id);
     let call_site = lookup.kind.file_id().original_file_respecting_includes(db).file_id();
     let path = AnchoredPath { anchor: call_site, path: path_str };
-    let res = db
+    let res: FileId = db
         .resolve_path(path)
         .ok_or_else(|| ExpandError::other(err_span, format!("failed to load file `{path_str}`")))?;
     // Prevent include itself
     if res == call_site && !allow_recursion {
         Err(ExpandError::other(err_span, format!("recursive inclusion of `{path_str}`")))
     } else {
-        Ok(EditionedFileId::new(res, db.crate_graph()[lookup.krate].edition))
+        Ok(EditionedFileId::new(res, lookup.krate.data(db).edition))
     }
 }
 
@@ -725,19 +731,21 @@ fn include_expand(
     tt: &tt::TopSubtree,
     span: Span,
 ) -> ExpandResult<tt::TopSubtree> {
-    let file_id = match include_input_to_file_id(db, arg_id, tt) {
-        Ok(it) => it,
+    let (file_id_wrapper, editioned_file_id) = match include_input_to_file_id(db, arg_id, tt) {
+        Ok(editioned_file_id) => {
+            (base_db::EditionedFileId::new(db, editioned_file_id), editioned_file_id)
+        }
         Err(e) => {
             return ExpandResult::new(
                 tt::TopSubtree::empty(DelimSpan { open: span, close: span }),
                 e,
-            )
+            );
         }
     };
-    let span_map = db.real_span_map(file_id);
+    let span_map = db.real_span_map(editioned_file_id);
     // FIXME: Parse errors
     ExpandResult::ok(syntax_node_to_token_tree(
-        &db.parse(file_id).syntax_node(),
+        &db.parse(file_id_wrapper).syntax_node(),
         SpanMap::RealSpanMap(span_map),
         span,
         syntax_bridge::DocCommentDesugarMode::ProcMacro,
@@ -776,15 +784,15 @@ fn include_str_expand(
     db: &dyn ExpandDatabase,
     arg_id: MacroCallId,
     tt: &tt::TopSubtree,
-    span: Span,
+    call_site: Span,
 ) -> ExpandResult<tt::TopSubtree> {
-    let (path, span) = match parse_string(tt) {
+    let (path, input_span) = match parse_string(tt) {
         Ok(it) => it,
         Err(e) => {
             return ExpandResult::new(
-                tt::TopSubtree::empty(DelimSpan { open: span, close: span }),
+                tt::TopSubtree::empty(DelimSpan { open: call_site, close: call_site }),
                 e,
-            )
+            );
         }
     };
 
@@ -792,22 +800,22 @@ fn include_str_expand(
     // it's unusual to `include_str!` a Rust file), but we can return an empty string.
     // Ideally, we'd be able to offer a precise expansion if the user asks for macro
     // expansion.
-    let file_id = match relative_file(db, arg_id, path.as_str(), true, span) {
+    let file_id = match relative_file(db, arg_id, path.as_str(), true, input_span) {
         Ok(file_id) => file_id,
         Err(_) => {
-            return ExpandResult::ok(quote!(span =>""));
+            return ExpandResult::ok(quote!(call_site =>""));
         }
     };
 
     let text = db.file_text(file_id.file_id());
-    let text = &*text;
+    let text = &*text.text(db);
 
-    ExpandResult::ok(quote!(span =>#text))
+    ExpandResult::ok(quote!(call_site =>#text))
 }
 
 fn get_env_inner(db: &dyn ExpandDatabase, arg_id: MacroCallId, key: &Symbol) -> Option<String> {
     let krate = db.lookup_intern_macro_call(arg_id).krate;
-    db.crate_graph()[krate].env.get(key.as_str())
+    krate.env(db).get(key.as_str())
 }
 
 fn env_expand(
@@ -822,7 +830,7 @@ fn env_expand(
             return ExpandResult::new(
                 tt::TopSubtree::empty(DelimSpan { open: span, close: span }),
                 e,
-            )
+            );
         }
     };
 
@@ -860,7 +868,7 @@ fn option_env_expand(
             return ExpandResult::new(
                 tt::TopSubtree::empty(DelimSpan { open: call_site, close: call_site }),
                 e,
-            )
+            );
         }
     };
     let dollar_crate = dollar_crate(call_site);

@@ -171,6 +171,11 @@
                 "category": "rust-analyzer"
             },
             {
+                "command": "rust-analyzer.childModules",
+                "title": "Locate child modules",
+                "category": "rust-analyzer"
+            },
+            {
                 "command": "rust-analyzer.joinLines",
                 "title": "Join lines",
                 "category": "rust-analyzer"
@@ -606,11 +611,6 @@
                             "/rustc/<id>": "${env:USERPROFILE}/.rustup/toolchains/<toolchain-id>/lib/rustlib/src/rust"
                         }
                     },
-                    "rust-analyzer.debug.openDebugPane": {
-                        "markdownDescription": "Whether to open up the `Debug Panel` on debugging start.",
-                        "type": "boolean",
-                        "default": false
-                    },
                     "rust-analyzer.debug.buildBeforeRestart": {
                         "markdownDescription": "Whether to rebuild the project modules before debugging the same test again",
                         "type": "boolean",
@@ -825,7 +825,7 @@
                 "title": "cargo",
                 "properties": {
                     "rust-analyzer.cargo.cfgs": {
-                        "markdownDescription": "List of cfg options to enable with the given values.",
+                        "markdownDescription": "List of cfg options to enable with the given values.\n\nTo enable a name without a value, use `\"key\"`.\nTo enable a name with a value, use `\"key=value\"`.\nTo disable, prefix the entry with a `!`.",
                         "default": [
                             "debug_assertions",
                             "miri"
@@ -891,6 +891,16 @@
                 "properties": {
                     "rust-analyzer.cargo.noDefaultFeatures": {
                         "markdownDescription": "Whether to pass `--no-default-features` to cargo.",
+                        "default": false,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "cargo",
+                "properties": {
+                    "rust-analyzer.cargo.noDeps": {
+                        "markdownDescription": "Whether to skip fetching dependencies. If set to \"true\", the analysis is performed\nentirely offline, and Cargo metadata for dependencies is not fetched.",
                         "default": false,
                         "type": "boolean"
                     }
@@ -3369,6 +3379,10 @@
                     "when": "inRustProject"
                 },
                 {
+                    "command": "rust-analyzer.childModules",
+                    "when": "inRustProject"
+                },
+                {
                     "command": "rust-analyzer.joinLines",
                     "when": "inRustProject"
                 },
@@ -3488,6 +3502,7 @@
         "views": {
             "explorer": [
                 {
+                    "icon": "$(package)",
                     "id": "rustDependencies",
                     "name": "Rust Dependencies",
                     "when": "inRustProject && config.rust-analyzer.showDependenciesExplorer"
@@ -3495,6 +3510,7 @@
             ],
             "rustSyntaxTreeContainer": [
                 {
+                    "icon": "$(file-code)",
                     "id": "rustSyntaxTree",
                     "name": "Rust Syntax Tree",
                     "when": "inRustProject && config.rust-analyzer.showSyntaxTree"

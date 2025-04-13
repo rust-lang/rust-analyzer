@@ -6,14 +6,15 @@
 
 use hir::{AsAssocItem, HirFileIdExt, InFile, Semantics};
 use ide_db::{
-    defs::{Definition, NameClass, NameRefClass},
-    rename::{bail, format_err, source_edit_from_references, IdentifierKind},
-    source_change::SourceChangeBuilder,
     FileId, FileRange, RootDatabase,
+    base_db::salsa::AsDynDatabase,
+    defs::{Definition, NameClass, NameRefClass},
+    rename::{IdentifierKind, bail, format_err, source_edit_from_references},
+    source_change::SourceChangeBuilder,
 };
 use itertools::Itertools;
 use stdx::{always, never};
-use syntax::{ast, AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize};
+use syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize, ast};
 
 use ide_db::text_edit::TextEdit;
 
@@ -85,7 +86,9 @@ pub(crate) fn rename(
     let file_id = sema
         .attach_first_edition(position.file_id)
         .ok_or_else(|| format_err!("No references found at position"))?;
-    let source_file = sema.parse(file_id);
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), file_id);
+    let source_file = sema.parse(editioned_file_id_wrapper);
     let syntax = source_file.syntax();
 
     let defs = find_definitions(&sema, syntax, position)?;
@@ -443,9 +446,10 @@ fn text_edit_from_self_param(self_param: &ast::SelfParam, new_name: &str) -> Opt
 
 #[cfg(test)]
 mod tests {
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
     use ide_db::source_change::SourceChange;
     use ide_db::text_edit::TextEdit;
+    use itertools::Itertools;
     use stdx::trim_indent;
     use test_utils::assert_eq_text;
 
@@ -494,6 +498,30 @@ mod tests {
                 }
             }
         };
+    }
+
+    #[track_caller]
+    fn check_conflicts(new_name: &str, #[rust_analyzer::rust_fixture] ra_fixture: &str) {
+        let (analysis, position, conflicts) = fixture::annotations(ra_fixture);
+        let source_change = analysis.rename(position, new_name).unwrap().unwrap();
+        let expected_conflicts = conflicts
+            .into_iter()
+            .map(|(file_range, _)| (file_range.file_id, file_range.range))
+            .sorted_unstable_by_key(|(file_id, range)| (*file_id, range.start()))
+            .collect_vec();
+        let found_conflicts = source_change
+            .source_file_edits
+            .iter()
+            .filter(|(_, (edit, _))| edit.change_annotation().is_some())
+            .flat_map(|(file_id, (edit, _))| {
+                edit.into_iter().map(move |edit| (*file_id, edit.delete))
+            })
+            .sorted_unstable_by_key(|(file_id, range)| (*file_id, range.start()))
+            .collect_vec();
+        assert_eq!(
+            expected_conflicts, found_conflicts,
+            "rename conflicts mismatch: {source_change:#?}"
+        );
     }
 
     fn check_expect(
@@ -545,6 +573,37 @@ mod tests {
             "source_file_edits: {:#?}\nfile_system_edits: {:#?}\n",
             source_file_edits, source_change.file_system_edits
         )
+    }
+
+    #[test]
+    fn rename_will_shadow() {
+        check_conflicts(
+            "new_name",
+            r#"
+fn foo() {
+    let mut new_name = 123;
+    let old_name$0 = 456;
+     // ^^^^^^^^
+    new_name = 789 + new_name;
+}
+        "#,
+        );
+    }
+
+    #[test]
+    fn rename_will_be_shadowed() {
+        check_conflicts(
+            "new_name",
+            r#"
+fn foo() {
+    let mut old_name$0 = 456;
+         // ^^^^^^^^
+    let new_name = 123;
+    old_name = 789 + old_name;
+ // ^^^^^^^^         ^^^^^^^^
+}
+        "#,
+        );
     }
 
     #[test]

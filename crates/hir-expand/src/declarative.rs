@@ -1,18 +1,19 @@
 //! Compiled declarative macro expanders (`macro_rules!` and `macro`)
 
-use base_db::CrateId;
+use base_db::Crate;
 use intern::sym;
-use span::{Edition, HirFileIdRepr, MacroCallId, Span, SyntaxContextId};
+use span::{Edition, HirFileIdRepr, MacroCallId, Span, SyntaxContext};
 use stdx::TupleExt;
-use syntax::{ast, AstNode};
+use syntax::{AstNode, ast};
 use syntax_bridge::DocCommentDesugarMode;
 use triomphe::Arc;
 
 use crate::{
+    AstId, ExpandError, ExpandErrorKind, ExpandResult, Lookup,
     attrs::RawAttrs,
     db::ExpandDatabase,
-    hygiene::{apply_mark, Transparency},
-    tt, AstId, ExpandError, ExpandErrorKind, ExpandResult, Lookup,
+    hygiene::{Transparency, apply_mark},
+    tt,
 };
 
 /// Old-style `macro_rules` or the new macros 2.0
@@ -70,7 +71,7 @@ impl DeclarativeMacroExpander {
 
     pub(crate) fn expander(
         db: &dyn ExpandDatabase,
-        def_crate: CrateId,
+        def_crate: Crate,
         id: AstId<ast::Macro>,
     ) -> Arc<DeclarativeMacroExpander> {
         let (root, map) = crate::db::parse_with_map(db, id.file_id);
@@ -100,14 +101,13 @@ impl DeclarativeMacroExpander {
                 _ => None,
             }
         };
-        let ctx_edition = |ctx: SyntaxContextId| {
-            let crate_graph = db.crate_graph();
+        let ctx_edition = |ctx: SyntaxContext| {
             if ctx.is_root() {
-                crate_graph[def_crate].edition
+                def_crate.data(db).edition
             } else {
-                let data = db.lookup_intern_syntax_context(ctx);
                 // UNWRAP-SAFETY: Only the root context has no outer expansion
-                crate_graph[data.outer_expn.unwrap().lookup(db).def.krate].edition
+                let krate = db.lookup_intern_macro_call(ctx.outer_expn(db).unwrap()).def.krate;
+                krate.data(db).edition
             }
         };
         let (mac, transparency) = match id.to_ptr(db).to_node(&root) {
@@ -162,7 +162,7 @@ impl DeclarativeMacroExpander {
         };
         let edition = ctx_edition(match id.file_id.repr() {
             HirFileIdRepr::MacroFile(macro_file) => macro_file.macro_call_id.lookup(db).ctxt,
-            HirFileIdRepr::FileId(file) => SyntaxContextId::root(file.edition()),
+            HirFileIdRepr::FileId(file) => SyntaxContext::root(file.edition()),
         });
         Arc::new(DeclarativeMacroExpander { mac, transparency, edition })
     }

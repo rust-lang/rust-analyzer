@@ -5,17 +5,17 @@ use std::{fmt, mem};
 use hir::Mutability;
 use ide_db::text_edit::TextEdit;
 use ide_db::{
-    documentation::Documentation, imports::import_assets::LocatedImport, RootDatabase, SnippetCap,
-    SymbolKind,
+    RootDatabase, SnippetCap, SymbolKind, documentation::Documentation,
+    imports::import_assets::LocatedImport,
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
 use stdx::{format_to, impl_from, never};
-use syntax::{format_smolstr, Edition, SmolStr, TextRange, TextSize};
+use syntax::{Edition, SmolStr, TextRange, TextSize, format_smolstr};
 
 use crate::{
     context::{CompletionContext, PathCompletionCtx},
-    render::{render_path_resolution, RenderContext},
+    render::{RenderContext, render_path_resolution},
 };
 
 /// `CompletionItem` describes a single completion entity which expands to 1 or more entries in the
@@ -252,14 +252,16 @@ impl CompletionRelevance {
     /// Provides a relevance score. Higher values are more relevant.
     ///
     /// The absolute value of the relevance score is not meaningful, for
-    /// example a value of 0 doesn't mean "not relevant", rather
+    /// example a value of BASE_SCORE doesn't mean "not relevant", rather
     /// it means "least relevant". The score value should only be used
     /// for relative ordering.
     ///
     /// See is_relevant if you need to make some judgement about score
     /// in an absolute sense.
+    const BASE_SCORE: u32 = u32::MAX / 2;
+
     pub fn score(self) -> u32 {
-        let mut score = !0 / 2;
+        let mut score = Self::BASE_SCORE;
         let CompletionRelevance {
             exact_name_match,
             type_match,
@@ -350,7 +352,7 @@ impl CompletionRelevance {
     /// some threshold such that we think it is especially likely
     /// to be relevant.
     pub fn is_relevant(&self) -> bool {
-        self.score() > 0
+        self.score() > Self::BASE_SCORE
     }
 }
 

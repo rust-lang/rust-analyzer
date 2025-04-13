@@ -1,8 +1,8 @@
 use hir::{AsAssocItem, AssocItemContainer, FileRange, HasCrate, HasSource};
 use ide_db::{assists::AssistId, defs::Definition, search::SearchScope};
 use syntax::{
-    ast::{self, edit::IndentLevel, edit_in_place::Indent, AstNode},
     SyntaxKind,
+    ast::{self, AstNode, edit::IndentLevel, edit_in_place::Indent},
 };
 
 use crate::assist_context::{AssistContext, Assists};
@@ -83,7 +83,7 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     }
 
     acc.add(
-        AssistId("move_const_to_impl", crate::AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("move_const_to_impl"),
         "Move const to impl block",
         const_.syntax().text_range(),
         |builder| {

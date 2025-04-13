@@ -7,33 +7,34 @@ use hir::{
     TypeInfo, TypeParam,
 };
 use ide_db::{
+    FxIndexSet, RootDatabase,
     assists::GroupLabel,
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
     helpers::mod_path_to_ast,
-    imports::insert_use::{insert_use, ImportScope},
+    imports::insert_use::{ImportScope, insert_use},
     search::{FileReference, ReferenceCategory, SearchScope},
     source_change::SourceChangeBuilder,
     syntax_helpers::node_ext::{
         for_each_tail_expr, preorder_expr, walk_expr, walk_pat, walk_patterns_in_expr,
     },
-    FxIndexSet, RootDatabase,
 };
 use itertools::Itertools;
 use syntax::{
-    ast::{
-        self, edit::IndentLevel, edit_in_place::Indent, AstNode, AstToken, HasGenericParams,
-        HasName,
-    },
-    match_ast, ted, Edition, SyntaxElement,
+    Edition, SyntaxElement,
     SyntaxKind::{self, COMMENT},
-    SyntaxNode, SyntaxToken, TextRange, TextSize, TokenAtOffset, WalkEvent, T,
+    SyntaxNode, SyntaxToken, T, TextRange, TextSize, TokenAtOffset, WalkEvent,
+    ast::{
+        self, AstNode, AstToken, HasGenericParams, HasName, edit::IndentLevel,
+        edit_in_place::Indent,
+    },
+    match_ast, ted,
 };
 
 use crate::{
+    AssistId,
     assist_context::{AssistContext, Assists, TreeMutator},
     utils::generate_impl,
-    AssistId,
 };
 
 // Assist: extract_function
@@ -107,7 +108,7 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
 
     acc.add_group(
         &GroupLabel("Extract into...".to_owned()),
-        AssistId("extract_function", crate::AssistKind::RefactorExtract),
+        AssistId::refactor_extract("extract_function"),
         "Extract into function",
         target_range,
         move |builder| {
@@ -247,11 +248,8 @@ fn make_function_name(semantics_scope: &hir::SemanticsScope<'_>) -> ast::NameRef
     let mut names_in_scope = vec![];
     semantics_scope.process_all_names(&mut |name, _| {
         names_in_scope.push(
-            name.display(
-                semantics_scope.db.upcast(),
-                semantics_scope.krate().edition(semantics_scope.db),
-            )
-            .to_string(),
+            name.display(semantics_scope.db, semantics_scope.krate().edition(semantics_scope.db))
+                .to_string(),
         )
     });
 
@@ -750,7 +748,10 @@ impl FunctionBody {
                         ast::Stmt::Item(_) => (),
                         ast::Stmt::LetStmt(stmt) => {
                             if let Some(pat) = stmt.pat() {
-                                walk_pat(&pat, cb);
+                                _ = walk_pat(&pat, &mut |pat| {
+                                    cb(pat);
+                                    std::ops::ControlFlow::<(), ()>::Continue(())
+                                });
                             }
                             if let Some(expr) = stmt.initializer() {
                                 walk_patterns_in_expr(&expr, cb);
@@ -1686,11 +1687,7 @@ fn make_where_clause(
         })
         .peekable();
 
-    if predicates.peek().is_some() {
-        Some(make::where_clause(predicates))
-    } else {
-        None
-    }
+    if predicates.peek().is_some() { Some(make::where_clause(predicates)) } else { None }
 }
 
 fn pred_is_required(

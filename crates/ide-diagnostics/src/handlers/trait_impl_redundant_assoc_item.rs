@@ -1,7 +1,7 @@
-use hir::{db::ExpandDatabase, HasSource, HirDisplay};
+use hir::{HasSource, HirDisplay, db::ExpandDatabase};
 use ide_db::text_edit::TextRange;
 use ide_db::{
-    assists::{Assist, AssistId, AssistKind},
+    assists::{Assist, AssistId},
     label::Label,
     source_change::SourceChangeBuilder,
 };
@@ -30,7 +30,7 @@ pub(crate) fn trait_impl_redundant_assoc_item(
             (
                 format!("`fn {redundant_assoc_item_name}`"),
                 function.source(db).map(|it| it.syntax().text_range()).unwrap_or(default_range),
-                format!("\n    {};", function.display(db, ctx.edition)),
+                format!("\n    {};", function.display(db, ctx.display_target)),
             )
         }
         hir::AssocItem::Const(id) => {
@@ -38,7 +38,7 @@ pub(crate) fn trait_impl_redundant_assoc_item(
             (
                 format!("`const {redundant_assoc_item_name}`"),
                 constant.source(db).map(|it| it.syntax().text_range()).unwrap_or(default_range),
-                format!("\n    {};", constant.display(db, ctx.edition)),
+                format!("\n    {};", constant.display(db, ctx.display_target)),
             )
         }
         hir::AssocItem::TypeAlias(id) => {
@@ -97,7 +97,7 @@ fn quickfix_for_redundant_assoc_item(
     add_assoc_item_def(&mut source_change_builder)?;
 
     Some(vec![Assist {
-        id: AssistId("add assoc item def into trait def", AssistKind::QuickFix),
+        id: AssistId::quick_fix("add assoc item def into trait def"),
         label: Label::new("Add assoc item def into trait def".to_owned()),
         group: None,
         target: range,

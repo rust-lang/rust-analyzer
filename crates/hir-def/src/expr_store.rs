@@ -1,10 +1,11 @@
 //! Defines `ExpressionStore`: a lowered representation of functions, statics and
 //! consts.
-mod body;
-mod lower;
-mod pretty;
+pub mod body;
+mod expander;
+pub mod lower;
+pub mod path;
+pub mod pretty;
 pub mod scope;
-
 #[cfg(test)]
 mod tests;
 
@@ -12,45 +13,47 @@ use std::ops::{Deref, Index};
 
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
-use hir_expand::{name::Name, ExpandError, InFile};
+use hir_expand::{ExpandError, InFile, mod_path::ModPath, name::Name};
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use span::{Edition, MacroFileId, SyntaxContextData};
-use syntax::{ast, AstPtr, SyntaxNodePtr};
+use span::{Edition, MacroFileId, SyntaxContext};
+use syntax::{AstPtr, SyntaxNodePtr, ast};
 use triomphe::Arc;
 use tt::TextRange;
 
 use crate::{
+    BlockId, SyntheticSyntax,
     db::DefDatabase,
+    expr_store::path::Path,
     hir::{
         Array, AsmOperand, Binding, BindingId, Expr, ExprId, ExprOrPatId, Label, LabelId, Pat,
         PatId, RecordFieldPat, Statement,
     },
     nameres::DefMap,
-    path::{ModPath, Path},
-    type_ref::{TypeRef, TypeRefId, TypesMap, TypesSourceMap},
-    BlockId, DefWithBodyId, Lookup, SyntheticSyntax,
+    type_ref::{PathId, TypeRef, TypeRefId},
 };
 
 pub use self::body::{Body, BodySourceMap};
+pub use self::lower::hir_segment_to_ast_segment;
 
 /// A wrapper around [`span::SyntaxContextId`] that is intended only for comparisons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HygieneId(span::SyntaxContextId);
+pub struct HygieneId(span::SyntaxContext);
 
 impl HygieneId {
     // The edition doesn't matter here, we only use this for comparisons and to lookup the macro.
-    pub const ROOT: Self = Self(span::SyntaxContextId::root(Edition::Edition2015));
+    pub const ROOT: Self = Self(span::SyntaxContext::root(Edition::Edition2015));
 
-    pub fn new(mut ctx: span::SyntaxContextId) -> Self {
+    pub fn new(mut ctx: span::SyntaxContext) -> Self {
         // See `Name` for why we're doing that.
         ctx.remove_root_edition();
         Self(ctx)
     }
 
-    pub(crate) fn lookup(self, db: &dyn DefDatabase) -> SyntaxContextData {
-        db.lookup_intern_syntax_context(self.0)
+    // FIXME: Inline this
+    pub(crate) fn lookup(self) -> SyntaxContext {
+        self.0
     }
 
     pub(crate) fn is_root(self) -> bool {
@@ -79,16 +82,19 @@ pub type ExprOrPatSource = InFile<ExprOrPatPtr>;
 pub type SelfParamPtr = AstPtr<ast::SelfParam>;
 pub type MacroCallPtr = AstPtr<ast::MacroCall>;
 
+pub type TypePtr = AstPtr<ast::Type>;
+pub type TypeSource = InFile<TypePtr>;
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct ExpressionStore {
     pub exprs: Arena<Expr>,
     pub pats: Arena<Pat>,
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
+    pub types: Arena<TypeRef>,
     /// Id of the closure/coroutine that owns the corresponding binding. If a binding is owned by the
     /// top level expression, it will not be listed in here.
     pub binding_owners: FxHashMap<BindingId, ExprId>,
-    pub types: TypesMap,
     /// Block expressions in this store that may contain inner items.
     block_scopes: Box<[BlockId]>,
 
@@ -127,15 +133,16 @@ pub struct ExpressionStoreSourceMap {
     field_map_back: FxHashMap<ExprId, FieldSource>,
     pat_field_map_back: FxHashMap<PatId, PatFieldSource>,
 
-    pub types: TypesSourceMap,
+    types_map_back: ArenaMap<TypeRefId, TypeSource>,
+    types_map: FxHashMap<TypeSource, TypeRefId>,
 
     template_map: Option<Box<FormatTemplate>>,
 
-    expansions: FxHashMap<InFile<MacroCallPtr>, MacroFileId>,
+    pub expansions: FxHashMap<InFile<MacroCallPtr>, MacroFileId>,
 
     /// Diagnostics accumulated during lowering. These contain `AstPtr`s and so are stored in
     /// the source map (since they're just as volatile).
-    diagnostics: Vec<ExpressionStoreDiagnostics>,
+    pub diagnostics: Vec<ExpressionStoreDiagnostics>,
 }
 
 /// The body of an item (function, const etc.).
@@ -146,7 +153,7 @@ pub struct ExpressionStoreBuilder {
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
     pub binding_owners: FxHashMap<BindingId, ExprId>,
-    pub types: TypesMap,
+    pub types: Arena<TypeRef>,
     block_scopes: Vec<BlockId>,
     binding_hygiene: FxHashMap<BindingId, HygieneId>,
     ident_hygiene: FxHashMap<ExprOrPatId, HygieneId>,
@@ -177,7 +184,7 @@ pub enum ExpressionStoreDiagnostics {
 }
 
 impl ExpressionStoreBuilder {
-    fn finish(self) -> ExpressionStore {
+    pub fn finish(self) -> ExpressionStore {
         let Self {
             block_scopes,
             mut exprs,
@@ -275,6 +282,9 @@ impl ExpressionStore {
         }
     }
 
+    /// Walks the immediate children expressions and calls `f` for each child expression.
+    ///
+    /// Note that this does not walk const blocks.
     pub fn walk_child_exprs(&self, expr_id: ExprId, mut f: impl FnMut(ExprId)) {
         let expr = &self[expr_id];
         match expr {
@@ -408,6 +418,10 @@ impl ExpressionStore {
         }
     }
 
+    /// Walks the immediate children expressions and calls `f` for each child expression but does
+    /// not walk expressions within patterns.
+    ///
+    /// Note that this does not walk const blocks.
     pub fn walk_child_exprs_without_pats(&self, expr_id: ExprId, mut f: impl FnMut(ExprId)) {
         let expr = &self[expr_id];
         match expr {
@@ -600,6 +614,17 @@ impl Index<TypeRefId> for ExpressionStore {
         &self.types[b]
     }
 }
+impl Index<PathId> for ExpressionStore {
+    type Output = Path;
+
+    #[inline]
+    fn index(&self, index: PathId) -> &Self::Output {
+        let TypeRef::Path(path) = &self[index.type_ref()] else {
+            unreachable!("`PathId` always points to `TypeRef::Path`");
+        };
+        path
+    }
+}
 
 // FIXME: Change `node_` prefix to something more reasonable.
 // Perhaps `expr_syntax` and `expr_id`?
@@ -637,6 +662,14 @@ impl ExpressionStoreSourceMap {
         self.pat_map.get(&node.map(AstPtr::new)).cloned()
     }
 
+    pub fn type_syntax(&self, id: TypeRefId) -> Result<TypeSource, SyntheticSyntax> {
+        self.types_map_back.get(id).cloned().ok_or(SyntheticSyntax)
+    }
+
+    pub fn node_type(&self, node: InFile<&ast::Type>) -> Option<TypeRefId> {
+        self.types_map.get(&node.map(AstPtr::new)).cloned()
+    }
+
     pub fn label_syntax(&self, label: LabelId) -> LabelSource {
         self.label_map_back[label]
     }
@@ -665,6 +698,10 @@ impl ExpressionStoreSourceMap {
 
     pub fn expansions(&self) -> impl Iterator<Item = (&InFile<MacroCallPtr>, &MacroFileId)> {
         self.expansions.iter()
+    }
+
+    pub fn expansion(&self, node: InFile<&ast::MacroCall>) -> Option<MacroFileId> {
+        self.expansions.get(&node.map(AstPtr::new)).copied()
     }
 
     pub fn implicit_format_args(
@@ -716,7 +753,8 @@ impl ExpressionStoreSourceMap {
             template_map,
             diagnostics,
             binding_definitions,
-            types,
+            types_map,
+            types_map_back,
         } = self;
         if let Some(template_map) = template_map {
             let FormatTemplate {
@@ -739,6 +777,7 @@ impl ExpressionStoreSourceMap {
         expansions.shrink_to_fit();
         diagnostics.shrink_to_fit();
         binding_definitions.shrink_to_fit();
-        types.shrink_to_fit();
+        types_map.shrink_to_fit();
+        types_map_back.shrink_to_fit();
     }
 }

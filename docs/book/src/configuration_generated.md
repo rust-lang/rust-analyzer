@@ -102,6 +102,10 @@ Default:
 
  List of cfg options to enable with the given values.
 
+To enable a name without a value, use `"key"`.
+To enable a name with a value, use `"key=value"`.
+To disable, prefix the entry with a `!`.
+
 
  **rust-analyzer.cargo.extraArgs** (default: [])
 
@@ -124,6 +128,12 @@ Set this to `"all"` to pass `--all-features` to cargo.
 **rust-analyzer.cargo.noDefaultFeatures** (default: false)
 
  Whether to pass `--no-default-features` to cargo.
+
+
+**rust-analyzer.cargo.noDeps** (default: false)
+
+ Whether to skip fetching dependencies. If set to "true", the analysis is performed
+entirely offline, and Cargo metadata for dependencies is not fetched.
 
 
 **rust-analyzer.cargo.sysroot** (default: "discover")

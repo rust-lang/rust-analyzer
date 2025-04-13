@@ -5,6 +5,7 @@ import * as ra from "./lsp_ext";
 import { Config, prepareVSCodeConfig } from "./config";
 import { createClient } from "./client";
 import {
+    isCargoTomlEditor,
     isDocumentInWorkspace,
     isRustDocument,
     isRustEditor,
@@ -189,11 +190,11 @@ export class Ctx implements RustAnalyzerExtensionApi {
         }
 
         if (!this.traceOutputChannel) {
-            this.traceOutputChannel = new LazyOutputChannel("Rust Analyzer Language Server Trace");
+            this.traceOutputChannel = new LazyOutputChannel("rust-analyzer LSP Trace");
             this.pushExtCleanup(this.traceOutputChannel);
         }
         if (!this.outputChannel) {
-            this.outputChannel = vscode.window.createOutputChannel("Rust Analyzer Language Server");
+            this.outputChannel = vscode.window.createOutputChannel("rust-analyzer Language Server");
             this.pushExtCleanup(this.outputChannel);
         }
 
@@ -427,6 +428,11 @@ export class Ctx implements RustAnalyzerExtensionApi {
     get activeRustEditor(): RustEditor | undefined {
         const editor = vscode.window.activeTextEditor;
         return editor && isRustEditor(editor) ? editor : undefined;
+    }
+
+    get activeCargoTomlEditor(): RustEditor | undefined {
+        const editor = vscode.window.activeTextEditor;
+        return editor && isCargoTomlEditor(editor) ? editor : undefined;
     }
 
     get extensionPath(): string {

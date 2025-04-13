@@ -15,7 +15,6 @@ env:
   CARGO_NET_RETRY: 10
   CI: 1
   RUST_BACKTRACE: short
-  RUSTFLAGS: "-D warnings -D elided_lifetimes_in_paths -D explicit_outlives_requirements -D unsafe_op_in_unsafe_fn -D unused_extern_crates -D unused_lifetimes -D unreachable_pub"
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
@@ -25,7 +24,6 @@ jobs:
       pull-requests: read
     outputs:
       typescript: ${{ steps.filter.outputs.typescript }}
-      proc_macros: ${{ steps.filter.outputs.proc_macros }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@1441771bbfdd59dcd748680ee64ebd8faab1a242
@@ -34,23 +32,46 @@ jobs:
           filters: |
             typescript:
               - 'editors/code/**'
-            proc_macros:
-              - 'crates/proc-macro-api/**'
-              - 'crates/proc-macro-srv/**'
-              - 'crates/proc-macro-srv-cli/**'
+
+  proc-macro-srv:
+    if: github.repository == 'rust-lang/rust-analyzer'
+    name: proc-macro-srv
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-D warnings"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update --no-self-update nightly
+          rustup default nightly
+          rustup component add --toolchain nightly rust-src rustfmt
+      # https://github.com/actions-rust-lang/setup-rust-toolchain/blob/main/rust.json
+      - name: Install Rust Problem Matcher
+        run: echo "::add-matcher::.github/rust.json"
+
+      # We don't cache this job, as it will be invalidated every day due to nightly usage
+
+      - name: Test
+        run: cargo test --features sysroot-abi -p proc-macro-srv -p proc-macro-srv-cli -p proc-macro-api -- --quiet
+
+      - name: Check salsa dependency
+        run: "! (cargo tree -p proc-macro-srv-cli | grep -q salsa)"
 
   rust:
-    needs: changes
     if: github.repository == 'rust-lang/rust-analyzer'
     name: Rust
     runs-on: ${{ matrix.os }}
     env:
+      RUSTFLAGS: "-Dwarnings"
       CC: deny_c
-      RUST_CHANNEL: "${{ needs.changes.outputs.proc_macros == 'true' && 'nightly' || 'stable' }}"
-      USE_SYSROOT_ABI: "${{ needs.changes.outputs.proc_macros == 'true' && '--features sysroot-abi' || '' }}"
 
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
@@ -62,77 +83,45 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
-          rustup update --no-self-update ${{ env.RUST_CHANNEL }}
-          rustup default ${{ env.RUST_CHANNEL }}
-          rustup component add --toolchain ${{ env.RUST_CHANNEL }} rust-src
+          rustup update --no-self-update stable
+          rustup default stable
+          rustup component add --toolchain stable rust-src clippy
           # We always use a nightly rustfmt, regardless of channel, because we need
           # --file-lines.
-          rustup toolchain add nightly --profile minimal
-          rustup component add --toolchain nightly rustfmt
+          rustup toolchain install nightly --profile minimal --component rustfmt
       # https://github.com/actions-rust-lang/setup-rust-toolchain/blob/main/rust.json
       - name: Install Rust Problem Matcher
         if: matrix.os == 'ubuntu-latest'
         run: echo "::add-matcher::.github/rust.json"
 
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609
-        with:
-          key: ${{ env.RUST_CHANNEL }}
+      # - name: Cache Dependencies
+      #   uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+      #   with:
+      #     workspaces: |
+      #       . -> target
+      #       ./crates/proc-macro-srv/proc-macro-test/imp -> target
 
-      - name: Bump opt-level
-        if: matrix.os == 'ubuntu-latest'
-        run: sed -i '/\[profile.dev]/a opt-level=1' Cargo.toml
+      - uses: taiki-e/install-action@nextest
 
       - name: Codegen checks (rust-analyzer)
+        if: matrix.os == 'ubuntu-latest'
         run: cargo codegen --check
 
       - name: Compile (tests)
-        run: cargo test --no-run --locked ${{ env.USE_SYSROOT_ABI }}
-
-      # It's faster to `test` before `build` ¯\_(ツ)_/¯
-      - name: Compile (rust-analyzer)
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo build --quiet ${{ env.USE_SYSROOT_ABI }}
+        run: cargo test --no-run
 
       - name: Test
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest' || github.event_name == 'push'
-        run: cargo test ${{ env.USE_SYSROOT_ABI }} -- --nocapture --quiet
-
-      - name: Switch to stable toolchain
-        run: |
-          rustup update --no-self-update stable
-          rustup component add --toolchain stable rust-src clippy
-          rustup default stable
-
-      - name: Run analysis-stats on rust-analyzer
-        if: matrix.os == 'ubuntu-latest'
-        run: target/${{ matrix.target }}/debug/rust-analyzer analysis-stats .
-
-      - name: Run analysis-stats on the rust standard libraries
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          RUSTC_BOOTSTRAP: 1
-        run: target/${{ matrix.target }}/debug/rust-analyzer analysis-stats --with-deps --no-sysroot --no-test $(rustc --print sysroot)/lib/rustlib/src/rust/library/
+        run: cargo nextest run --no-fail-fast --hide-progress-bar --status-level fail
 
       - name: clippy
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'macos-latest'
         run: cargo clippy --all-targets -- -D clippy::disallowed_macros -D clippy::dbg_macro -D clippy::todo -D clippy::print_stdout -D clippy::print_stderr
 
-      - name: rustfmt
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo fmt -- --check
-
-  # Weird targets to catch non-portable code
-  rust-cross:
+  analysis-stats:
     if: github.repository == 'rust-lang/rust-analyzer'
-    name: Rust Cross
     runs-on: ubuntu-latest
-
     env:
-      targets: "powerpc-unknown-linux-gnu x86_64-unknown-linux-musl"
-      # The rust-analyzer binary is not expected to compile on WASM, but the IDE
-      # crate should
-      targets_ide: "wasm32-unknown-unknown"
+      RUSTC_BOOTSTRAP: 1
 
     steps:
       - name: Checkout repository
@@ -141,23 +130,95 @@ jobs:
       - name: Install Rust toolchain
         run: |
           rustup update --no-self-update stable
-          rustup target add ${{ env.targets }} ${{ env.targets_ide }}
+          rustup default stable
+          rustup component add rustfmt
 
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609
+      # - name: Cache Dependencies
+      #   uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
 
-      - name: Check
+      - name: Bump opt-level
+        run: sed -i '/\[profile.dev]/a opt-level=1' Cargo.toml
+
+      - run: cargo build -p rust-analyzer
+
+      - name: ./rust-analyzer
+        run: ./target/debug/rust-analyzer analysis-stats . -q
+
+      - name: sysroot/lib/rustlib/src/rust/library/
+        run: ./target/debug/rust-analyzer analysis-stats --with-deps --no-sysroot --no-test $(rustc --print sysroot)/lib/rustlib/src/rust/library/ -q
+
+  rustfmt:
+    if: github.repository == 'rust-lang/rust-analyzer'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
         run: |
-          for target in ${{ env.targets }}; do
-            cargo check --target=$target --all-targets
-          done
-          for target in ${{ env.targets_ide }}; do
-            cargo check -p ide --target=$target --all-targets
-          done
+          rustup update --no-self-update stable
+          rustup default stable
+          rustup component add rustfmt
+
+      - run: cargo fmt -- --check
+
+  miri:
+    if: github.repository == 'rust-lang/rust-analyzer'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update --no-self-update nightly
+          rustup default nightly
+          rustup component add miri
+
+      # - name: Cache Dependencies
+      #   uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+
+      - run: cargo miri test -p intern
+
+  # Weird targets to catch non-portable code
+  rust-cross:
+    if: github.repository == 'rust-lang/rust-analyzer'
+    name: Rust Cross
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target: [powerpc-unknown-linux-gnu, x86_64-unknown-linux-musl, wasm32-unknown-unknown]
+        include:
+          # The rust-analyzer binary is not expected to compile on WASM, but the IDE
+          # crate should
+          - target: wasm32-unknown-unknown
+            ide-only: true
+    env:
+      RUSTFLAGS: "-Dwarnings"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update --no-self-update stable
+          rustup target add ${{ matrix.target }}
+
+      # - name: Cache Dependencies
+      #   uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+
+      - run: cargo check --target=${{ matrix.target }} --all-targets -p ide
+        if: ${{ matrix.ide-only }}
+      - run: cargo check --target=${{ matrix.target }} --all-targets
+        if: ${{ !matrix.ide-only }}
 
   typescript:
     needs: changes
-    if: github.repository == 'rust-lang/rust-analyzer'
+    if: github.repository == 'rust-lang/rust-analyzer' && needs.changes.outputs.typescript == 'true'
     name: TypeScript
     strategy:
       fail-fast: false
@@ -169,21 +230,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        if: needs.changes.outputs.typescript == 'true'
 
       - name: Install Nodejs
         uses: actions/setup-node@v4
         with:
           node-version: 22
-        if: needs.changes.outputs.typescript == 'true'
 
       - name: Install xvfb
-        if: matrix.os == 'ubuntu-latest' && needs.changes.outputs.typescript == 'true'
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y xvfb
 
       - run: npm ci
         working-directory: ./editors/code
-        if: needs.changes.outputs.typescript == 'true'
 
       #    - run: npm audit || { sleep 10 && npm audit; } || { sleep 30 && npm audit; }
       #      if: runner.os == 'Linux'
@@ -192,27 +250,24 @@ jobs:
       # If this steps fails, your code's type integrity might be wrong at some places at TypeScript level.
       - run: npm run typecheck
         working-directory: ./editors/code
-        if: needs.changes.outputs.typescript == 'true'
 
       # You may fix the code automatically by running `npm run lint:fix` if this steps fails.
       - run: npm run lint
         working-directory: ./editors/code
-        if: needs.changes.outputs.typescript == 'true'
 
       # To fix this steps, please run `npm run format`.
       - run: npm run format:check
         working-directory: ./editors/code
-        if: needs.changes.outputs.typescript == 'true'
 
       - name: Run VS Code tests (Linux)
-        if: matrix.os == 'ubuntu-latest' && needs.changes.outputs.typescript == 'true'
+        if: matrix.os == 'ubuntu-latest'
         env:
           VSCODE_CLI: 1
         run: xvfb-run npm test
         working-directory: ./editors/code
 
       - name: Run VS Code tests (Windows)
-        if: matrix.os == 'windows-latest' && needs.changes.outputs.typescript == 'true'
+        if: matrix.os == 'windows-latest'
         env:
           VSCODE_CLI: 1
         run: npm test
@@ -220,7 +275,6 @@ jobs:
 
       - run: npm run package --scripts-prepend-node-path
         working-directory: ./editors/code
-        if: needs.changes.outputs.typescript == 'true'
 
   typo-check:
     name: Typo Check
@@ -242,7 +296,7 @@ jobs:
         run: typos
 
   conclusion:
-    needs: [rust, rust-cross, typescript, typo-check]
+    needs: [rust, rust-cross, typescript, typo-check, proc-macro-srv, miri, rustfmt, analysis-stats]
     # We need to ensure this job does *not* get skipped if its dependencies fail,
     # because a skipped job is considered a success by GitHub. So we have to
     # overwrite `if:`. We use `!cancelled()` to ensure the job does still not get run
@@ -257,5 +311,5 @@ jobs:
         run: |
           # Print the dependent jobs to see them in the CI log
           jq -C <<< '${{ toJson(needs) }}'
-          # Check if all jobs that we depend on (in the needs array) were successful.
-          jq --exit-status 'all(.result == "success")' <<< '${{ toJson(needs) }}'
+          # Check if all jobs that we depend on (in the needs array) were successful (or have been skipped).
+          jq --exit-status 'all(.result == "success" or .result == "skipped")' <<< '${{ toJson(needs) }}'

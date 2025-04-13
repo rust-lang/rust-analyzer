@@ -4,7 +4,7 @@
 use std::{fmt, io, process::Command, time::Duration};
 
 use cargo_metadata::PackageId;
-use crossbeam_channel::{select_biased, unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, select_biased, unbounded};
 use ide_db::FxHashSet;
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
@@ -17,7 +17,7 @@ pub(crate) use cargo_metadata::diagnostic::{
 use toolchain::Tool;
 use triomphe::Arc;
 
-use crate::command::{CommandHandle, ParseFromLine};
+use crate::command::{CargoParser, CommandHandle};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) enum InvocationStrategy {
@@ -244,8 +244,14 @@ struct FlycheckActor {
     /// The receiver side of the channel mentioned above.
     command_receiver: Option<Receiver<CargoCheckMessage>>,
     diagnostics_cleared_for: FxHashSet<Arc<PackageId>>,
-    diagnostics_cleared_for_all: bool,
-    diagnostics_received: bool,
+    diagnostics_received: DiagnosticsReceived,
+}
+
+#[derive(PartialEq)]
+enum DiagnosticsReceived {
+    Yes,
+    No,
+    YesAndClearedForAll,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -276,8 +282,7 @@ impl FlycheckActor {
             command_handle: None,
             command_receiver: None,
             diagnostics_cleared_for: Default::default(),
-            diagnostics_cleared_for_all: false,
-            diagnostics_received: false,
+            diagnostics_received: DiagnosticsReceived::No,
         }
     }
 
@@ -324,7 +329,7 @@ impl FlycheckActor {
 
                     tracing::debug!(?command, "will restart flycheck");
                     let (sender, receiver) = unbounded();
-                    match CommandHandle::spawn(command, sender) {
+                    match CommandHandle::spawn(command, CargoCheckParser, sender) {
                         Ok(command_handle) => {
                             tracing::debug!(command = formatted_command, "did restart flycheck");
                             self.command_handle = Some(command_handle);
@@ -354,7 +359,7 @@ impl FlycheckActor {
                             error
                         );
                     }
-                    if !self.diagnostics_received {
+                    if self.diagnostics_received == DiagnosticsReceived::No {
                         tracing::trace!(flycheck_id = self.id, "clearing diagnostics");
                         // We finished without receiving any diagnostics.
                         // Clear everything for good measure
@@ -396,7 +401,9 @@ impl FlycheckActor {
                             package_id = package_id.as_ref().map(|it| &it.repr),
                             "diagnostic received"
                         );
-                        self.diagnostics_received = true;
+                        if self.diagnostics_received == DiagnosticsReceived::No {
+                            self.diagnostics_received = DiagnosticsReceived::Yes;
+                        }
                         if let Some(package_id) = &package_id {
                             if self.diagnostics_cleared_for.insert(package_id.clone()) {
                                 tracing::trace!(
@@ -409,8 +416,10 @@ impl FlycheckActor {
                                     package_id: Some(package_id.clone()),
                                 });
                             }
-                        } else if !self.diagnostics_cleared_for_all {
-                            self.diagnostics_cleared_for_all = true;
+                        } else if self.diagnostics_received
+                            != DiagnosticsReceived::YesAndClearedForAll
+                        {
+                            self.diagnostics_received = DiagnosticsReceived::YesAndClearedForAll;
                             self.send(FlycheckMessage::ClearDiagnostics {
                                 id: self.id,
                                 package_id: None,
@@ -445,8 +454,7 @@ impl FlycheckActor {
 
     fn clear_diagnostics_state(&mut self) {
         self.diagnostics_cleared_for.clear();
-        self.diagnostics_cleared_for_all = false;
-        self.diagnostics_received = false;
+        self.diagnostics_received = DiagnosticsReceived::No;
     }
 
     /// Construct a `Command` object for checking the user's code. If the user
@@ -550,8 +558,10 @@ enum CargoCheckMessage {
     Diagnostic { diagnostic: Diagnostic, package_id: Option<Arc<PackageId>> },
 }
 
-impl ParseFromLine for CargoCheckMessage {
-    fn from_line(line: &str, error: &mut String) -> Option<Self> {
+struct CargoCheckParser;
+
+impl CargoParser<CargoCheckMessage> for CargoCheckParser {
+    fn from_line(&self, line: &str, error: &mut String) -> Option<CargoCheckMessage> {
         let mut deserializer = serde_json::Deserializer::from_str(line);
         deserializer.disable_recursion_limit();
         if let Ok(message) = JsonMessage::deserialize(&mut deserializer) {
@@ -580,7 +590,7 @@ impl ParseFromLine for CargoCheckMessage {
         None
     }
 
-    fn from_eof() -> Option<Self> {
+    fn from_eof(&self) -> Option<CargoCheckMessage> {
         None
     }
 }

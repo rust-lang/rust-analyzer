@@ -1,26 +1,26 @@
 //! A higher level attributes based on TokenTree, with also some shortcuts.
 use std::{borrow::Cow, fmt, ops};
 
-use base_db::CrateId;
+use base_db::Crate;
 use cfg::CfgExpr;
 use either::Either;
-use intern::{sym, Interned, Symbol};
+use intern::{Interned, Symbol, sym};
 
 use mbe::{DelimiterKind, Punct};
-use smallvec::{smallvec, SmallVec};
-use span::{Span, SyntaxContextId};
+use smallvec::{SmallVec, smallvec};
+use span::{Span, SyntaxContext};
 use syntax::unescape;
-use syntax::{ast, match_ast, AstNode, AstToken, SyntaxNode};
-use syntax_bridge::{desugar_doc_comment_text, syntax_node_to_token_tree, DocCommentDesugarMode};
+use syntax::{AstNode, AstToken, SyntaxNode, ast, match_ast};
+use syntax_bridge::{DocCommentDesugarMode, desugar_doc_comment_text, syntax_node_to_token_tree};
 use triomphe::ThinArc;
 
 use crate::name::Name;
 use crate::{
+    InFile,
     db::ExpandDatabase,
     mod_path::ModPath,
     span_map::SpanMapRef,
-    tt::{self, token_to_literal, TopSubtree},
-    InFile,
+    tt::{self, TopSubtree, token_to_literal},
 };
 
 /// Syntactical attributes, without filtering of `cfg_attr`s.
@@ -119,7 +119,7 @@ impl RawAttrs {
 
     /// Processes `cfg_attr`s, returning the resulting semantic `Attrs`.
     // FIXME: This should return a different type, signaling it was filtered?
-    pub fn filter(self, db: &dyn ExpandDatabase, krate: CrateId) -> RawAttrs {
+    pub fn filter(self, db: &dyn ExpandDatabase, krate: Crate) -> RawAttrs {
         let has_cfg_attrs = self
             .iter()
             .any(|attr| attr.path.as_ident().is_some_and(|name| *name == sym::cfg_attr.clone()));
@@ -127,7 +127,7 @@ impl RawAttrs {
             return self;
         }
 
-        let crate_graph = db.crate_graph();
+        let cfg_options = krate.cfg_options(db);
         let new_attrs =
             self.iter()
                 .flat_map(|attr| -> SmallVec<[_; 1]> {
@@ -151,7 +151,6 @@ impl RawAttrs {
                         |(idx, attr)| Attr::from_tt(db, attr, index.with_cfg_attr(idx)),
                     );
 
-                    let cfg_options = &crate_graph[krate].cfg_options;
                     let cfg = TopSubtree::from_token_trees(subtree.top_subtree().delimiter, cfg);
                     let cfg = CfgExpr::parse(&cfg);
                     if cfg_options.check(&cfg) == Some(false) {
@@ -211,7 +210,7 @@ pub struct Attr {
     pub id: AttrId,
     pub path: Interned<ModPath>,
     pub input: Option<Box<AttrInput>>,
-    pub ctxt: SyntaxContextId,
+    pub ctxt: SyntaxContext,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -306,13 +305,12 @@ impl Attr {
                 Some(Box::new(AttrInput::TokenTree(tt::TopSubtree::from_subtree(tree))))
             }
             (Some(tt::TokenTree::Leaf(tt::Leaf::Punct(tt::Punct { char: '=', .. }))), _) => {
-                let input = match input.flat_tokens().get(1) {
+                match input.flat_tokens().get(1) {
                     Some(tt::TokenTree::Leaf(tt::Leaf::Literal(lit))) => {
                         Some(Box::new(AttrInput::Literal(lit.clone())))
                     }
                     _ => None,
-                };
-                input
+                }
             }
             _ => None,
         };

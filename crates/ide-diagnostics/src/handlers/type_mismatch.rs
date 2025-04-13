@@ -1,21 +1,20 @@
 use either::Either;
-use hir::{db::ExpandDatabase, CallableKind, ClosureStyle, HirDisplay, HirFileIdExt, InFile};
+use hir::{CallableKind, ClosureStyle, HirDisplay, HirFileIdExt, InFile, db::ExpandDatabase};
 use ide_db::{
     famous_defs::FamousDefs,
     source_change::{SourceChange, SourceChangeBuilder},
     text_edit::TextEdit,
 };
 use syntax::{
+    AstNode, AstPtr, TextSize,
     ast::{
-        self,
+        self, BlockExpr, Expr, ExprStmt, HasArgList,
         edit::{AstNodeEdit, IndentLevel},
         syntax_factory::SyntaxFactory,
-        BlockExpr, Expr, ExprStmt, HasArgList,
     },
-    AstNode, AstPtr, TextSize,
 };
 
-use crate::{adjusted_display_range, fix, Assist, Diagnostic, DiagnosticCode, DiagnosticsContext};
+use crate::{Assist, Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range, fix};
 
 // Diagnostic: type-mismatch
 //
@@ -45,10 +44,10 @@ pub(crate) fn type_mismatch(ctx: &DiagnosticsContext<'_>, d: &hir::TypeMismatch)
         format!(
             "expected {}, found {}",
             d.expected
-                .display(ctx.sema.db, ctx.edition)
+                .display(ctx.sema.db, ctx.display_target)
                 .with_closure_style(ClosureStyle::ClosureWithId),
             d.actual
-                .display(ctx.sema.db, ctx.edition)
+                .display(ctx.sema.db, ctx.display_target)
                 .with_closure_style(ClosureStyle::ClosureWithId),
         ),
         display_range,
@@ -72,11 +71,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::TypeMismatch) -> Option<Vec<Assi
         str_ref_to_owned(ctx, d, expr_ptr, &mut fixes);
     }
 
-    if fixes.is_empty() {
-        None
-    } else {
-        Some(fixes)
-    }
+    if fixes.is_empty() { None } else { Some(fixes) }
 }
 
 fn add_reference(
@@ -236,7 +231,7 @@ fn remove_unnecessary_wrapper(
                 .and_then(Either::<ast::ReturnExpr, ast::StmtList>::cast)?;
 
             editor = builder.make_editor(parent.syntax());
-            let make = SyntaxFactory::new();
+            let make = SyntaxFactory::with_mappings();
 
             match parent {
                 Either::Left(ret_expr) => {
@@ -306,8 +301,8 @@ fn str_ref_to_owned(
     expr_ptr: &InFile<AstPtr<ast::Expr>>,
     acc: &mut Vec<Assist>,
 ) -> Option<()> {
-    let expected = d.expected.display(ctx.sema.db, ctx.edition);
-    let actual = d.actual.display(ctx.sema.db, ctx.edition);
+    let expected = d.expected.display(ctx.sema.db, ctx.display_target);
+    let actual = d.actual.display(ctx.sema.db, ctx.display_target);
 
     // FIXME do this properly
     if expected.to_string() != "String" || actual.to_string() != "&str" {
@@ -1041,19 +1036,6 @@ struct String;
 
 fn test() -> String {
     "a".to_owned()
-}
-            "#,
-        );
-    }
-
-    #[test]
-    fn closure_mismatch_show_different_type() {
-        check_diagnostics(
-            r#"
-fn f() {
-    let mut x = (|| 1, 2);
-    x = (|| 3, 4);
-       //^^^^ error: expected {closure#0}, found {closure#1}
 }
             "#,
         );

@@ -1,12 +1,12 @@
-use hir::{sym, HasSource, Name};
+use hir::{HasSource, Name, sym};
 use syntax::{
-    ast::{self, HasName},
     AstNode,
+    ast::{self, HasName},
 };
 
 use crate::{
+    AssistId,
     assist_context::{AssistContext, Assists},
-    AssistId, AssistKind,
 };
 
 // Assist: generate_is_empty_from_len
@@ -69,7 +69,7 @@ pub(crate) fn generate_is_empty_from_len(acc: &mut Assists, ctx: &AssistContext<
     let range = node.syntax().value.text_range();
 
     acc.add(
-        AssistId("generate_is_empty_from_len", AssistKind::Generate),
+        AssistId::generate("generate_is_empty_from_len"),
         "Generate a is_empty impl from a len function",
         range,
         |builder| {

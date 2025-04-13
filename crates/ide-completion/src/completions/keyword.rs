@@ -56,6 +56,7 @@ mod tests {
                 kw extern
                 kw fn
                 kw impl
+                kw impl for
                 kw trait
             "#]],
         );
@@ -76,6 +77,7 @@ fn foo(a: A) { a.$0 }
                 kw await                                                           expr.await
                 sn box                                                         Box::new(expr)
                 sn call                                                        function(expr)
+                sn const                                                             const {}
                 sn dbg                                                             dbg!(expr)
                 sn dbgr                                                           dbg!(&expr)
                 sn deref                                                                *expr
@@ -103,6 +105,7 @@ fn foo() {
                 kw await                                                                          expr.await
                 sn box                                                                        Box::new(expr)
                 sn call                                                                       function(expr)
+                sn const                                                                            const {}
                 sn dbg                                                                            dbg!(expr)
                 sn dbgr                                                                          dbg!(&expr)
                 sn deref                                                                               *expr
@@ -132,6 +135,7 @@ fn foo(a: A) { a.$0 }
                 kw await                                                           expr.await
                 sn box                                                         Box::new(expr)
                 sn call                                                        function(expr)
+                sn const                                                             const {}
                 sn dbg                                                             dbg!(expr)
                 sn dbgr                                                           dbg!(&expr)
                 sn deref                                                                *expr
@@ -329,5 +333,35 @@ fn main() {
 }
 ",
         )
+    }
+
+    #[test]
+    fn completes_let_with_space() {
+        check_edit(
+            "let",
+            r#"
+fn main() {
+    $0
+}
+"#,
+            r#"
+fn main() {
+    let $0
+}
+"#,
+        );
+        check_edit(
+            "letm",
+            r#"
+fn main() {
+    $0
+}
+"#,
+            r#"
+fn main() {
+    let mut $0
+}
+"#,
+        );
     }
 }

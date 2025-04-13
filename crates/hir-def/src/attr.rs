@@ -2,31 +2,32 @@
 
 use std::{borrow::Cow, hash::Hash, ops};
 
-use base_db::CrateId;
+use base_db::Crate;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_expand::{
-    attrs::{collect_attrs, Attr, AttrId, RawAttrs},
     HirFileId, InFile,
+    attrs::{Attr, AttrId, RawAttrs, collect_attrs},
 };
-use intern::{sym, Symbol};
+use intern::{Symbol, sym};
 use la_arena::{ArenaMap, Idx, RawIdx};
 use mbe::DelimiterKind;
+use rustc_abi::ReprOptions;
 use syntax::{
-    ast::{self, HasAttrs},
     AstPtr,
+    ast::{self, HasAttrs},
 };
 use triomphe::Arc;
 use tt::iter::{TtElement, TtIter};
 
 use crate::{
+    AdtId, AttrDefId, GenericParamId, HasModule, ItemTreeLoc, LocalFieldId, Lookup, MacroId,
+    VariantId,
     db::DefDatabase,
     item_tree::{AttrOwner, FieldParent, ItemTreeNode},
     lang_item::LangItem,
     nameres::{ModuleOrigin, ModuleSource},
     src::{HasChildSource, HasSource},
-    AdtId, AttrDefId, GenericParamId, HasModule, ItemTreeLoc, LocalFieldId, Lookup, MacroId,
-    VariantId,
 };
 
 /// Desugared attributes of an item post `cfg_attr` expansion.
@@ -44,8 +45,8 @@ impl Attrs {
         (**self).iter().find(|attr| attr.id == id)
     }
 
-    pub(crate) fn filter(db: &dyn DefDatabase, krate: CrateId, raw_attrs: RawAttrs) -> Attrs {
-        Attrs(raw_attrs.filter(db.upcast(), krate))
+    pub(crate) fn filter(db: &dyn DefDatabase, krate: Crate, raw_attrs: RawAttrs) -> Attrs {
+        Attrs(raw_attrs.filter(db, krate))
     }
 }
 
@@ -75,8 +76,6 @@ impl Attrs {
         let _p = tracing::info_span!("fields_attrs_query").entered();
         // FIXME: There should be some proper form of mapping between item tree field ids and hir field ids
         let mut res = ArenaMap::default();
-
-        let crate_graph = db.crate_graph();
         let item_tree;
         let (parent, fields, krate) = match v {
             VariantId::EnumVariantId(it) => {
@@ -84,7 +83,7 @@ impl Attrs {
                 let krate = loc.parent.lookup(db).container.krate;
                 item_tree = loc.id.item_tree(db);
                 let variant = &item_tree[loc.id.value];
-                (FieldParent::Variant(loc.id.value), &variant.fields, krate)
+                (FieldParent::EnumVariant(loc.id.value), &variant.fields, krate)
             }
             VariantId::StructId(it) => {
                 let loc = it.lookup(db);
@@ -102,7 +101,7 @@ impl Attrs {
             }
         };
 
-        let cfg_options = &crate_graph[krate].cfg_options;
+        let cfg_options = krate.cfg_options(db);
 
         let mut idx = 0;
         for (id, _field) in fields.iter().enumerate() {
@@ -222,6 +221,141 @@ impl Attrs {
     pub fn is_unstable(&self) -> bool {
         self.by_key(&sym::unstable).exists()
     }
+
+    pub fn rustc_legacy_const_generics(&self) -> Option<Box<Box<[u32]>>> {
+        self.by_key(&sym::rustc_legacy_const_generics)
+            .tt_values()
+            .next()
+            .map(parse_rustc_legacy_const_generics)
+            .filter(|it| !it.is_empty())
+            .map(Box::new)
+    }
+
+    pub fn repr(&self) -> Option<ReprOptions> {
+        self.by_key(&sym::repr).tt_values().filter_map(parse_repr_tt).fold(None, |acc, repr| {
+            acc.map_or(Some(repr), |mut acc| {
+                merge_repr(&mut acc, repr);
+                Some(acc)
+            })
+        })
+    }
+}
+
+fn parse_rustc_legacy_const_generics(tt: &crate::tt::TopSubtree) -> Box<[u32]> {
+    let mut indices = Vec::new();
+    let mut iter = tt.iter();
+    while let (Some(first), second) = (iter.next(), iter.next()) {
+        match first {
+            TtElement::Leaf(tt::Leaf::Literal(lit)) => match lit.symbol.as_str().parse() {
+                Ok(index) => indices.push(index),
+                Err(_) => break,
+            },
+            _ => break,
+        }
+
+        if let Some(comma) = second {
+            match comma {
+                TtElement::Leaf(tt::Leaf::Punct(punct)) if punct.char == ',' => {}
+                _ => break,
+            }
+        }
+    }
+
+    indices.into_boxed_slice()
+}
+
+fn merge_repr(this: &mut ReprOptions, other: ReprOptions) {
+    let ReprOptions { int, align, pack, flags, field_shuffle_seed: _ } = this;
+    flags.insert(other.flags);
+    *align = (*align).max(other.align);
+    *pack = match (*pack, other.pack) {
+        (Some(pack), None) | (None, Some(pack)) => Some(pack),
+        _ => (*pack).min(other.pack),
+    };
+    if other.int.is_some() {
+        *int = other.int;
+    }
+}
+
+fn parse_repr_tt(tt: &crate::tt::TopSubtree) -> Option<ReprOptions> {
+    use crate::builtin_type::{BuiltinInt, BuiltinUint};
+    use rustc_abi::{Align, Integer, IntegerType, ReprFlags, ReprOptions};
+
+    match tt.top_subtree().delimiter {
+        tt::Delimiter { kind: DelimiterKind::Parenthesis, .. } => {}
+        _ => return None,
+    }
+
+    let mut acc = ReprOptions::default();
+    let mut tts = tt.iter();
+    while let Some(tt) = tts.next() {
+        let TtElement::Leaf(tt::Leaf::Ident(ident)) = tt else {
+            continue;
+        };
+        let repr = match &ident.sym {
+            s if *s == sym::packed => {
+                let pack = if let Some(TtElement::Subtree(_, mut tt_iter)) = tts.peek() {
+                    tts.next();
+                    if let Some(TtElement::Leaf(tt::Leaf::Literal(lit))) = tt_iter.next() {
+                        lit.symbol.as_str().parse().unwrap_or_default()
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                };
+                let pack = Some(Align::from_bytes(pack).unwrap_or(Align::ONE));
+                ReprOptions { pack, ..Default::default() }
+            }
+            s if *s == sym::align => {
+                let mut align = None;
+                if let Some(TtElement::Subtree(_, mut tt_iter)) = tts.peek() {
+                    tts.next();
+                    if let Some(TtElement::Leaf(tt::Leaf::Literal(lit))) = tt_iter.next() {
+                        if let Ok(a) = lit.symbol.as_str().parse() {
+                            align = Align::from_bytes(a).ok();
+                        }
+                    }
+                }
+                ReprOptions { align, ..Default::default() }
+            }
+            s if *s == sym::C => ReprOptions { flags: ReprFlags::IS_C, ..Default::default() },
+            s if *s == sym::transparent => {
+                ReprOptions { flags: ReprFlags::IS_TRANSPARENT, ..Default::default() }
+            }
+            s if *s == sym::simd => ReprOptions { flags: ReprFlags::IS_SIMD, ..Default::default() },
+            repr => {
+                let mut int = None;
+                if let Some(builtin) = BuiltinInt::from_suffix_sym(repr)
+                    .map(Either::Left)
+                    .or_else(|| BuiltinUint::from_suffix_sym(repr).map(Either::Right))
+                {
+                    int = Some(match builtin {
+                        Either::Left(bi) => match bi {
+                            BuiltinInt::Isize => IntegerType::Pointer(true),
+                            BuiltinInt::I8 => IntegerType::Fixed(Integer::I8, true),
+                            BuiltinInt::I16 => IntegerType::Fixed(Integer::I16, true),
+                            BuiltinInt::I32 => IntegerType::Fixed(Integer::I32, true),
+                            BuiltinInt::I64 => IntegerType::Fixed(Integer::I64, true),
+                            BuiltinInt::I128 => IntegerType::Fixed(Integer::I128, true),
+                        },
+                        Either::Right(bu) => match bu {
+                            BuiltinUint::Usize => IntegerType::Pointer(false),
+                            BuiltinUint::U8 => IntegerType::Fixed(Integer::I8, false),
+                            BuiltinUint::U16 => IntegerType::Fixed(Integer::I16, false),
+                            BuiltinUint::U32 => IntegerType::Fixed(Integer::I32, false),
+                            BuiltinUint::U64 => IntegerType::Fixed(Integer::I64, false),
+                            BuiltinUint::U128 => IntegerType::Fixed(Integer::I128, false),
+                        },
+                    });
+                }
+                ReprOptions { int, ..Default::default() }
+            }
+        };
+        merge_repr(&mut acc, repr);
+    }
+
+    Some(acc)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -373,7 +507,7 @@ impl AttrsWithOwner {
                     // FIXME: We should be never getting `None` here.
                     match src.value.get(it.local_id()) {
                         Some(val) => RawAttrs::from_attrs_owner(
-                            db.upcast(),
+                            db,
                             src.with_value(val),
                             db.span_map(src.file_id).as_ref(),
                         ),
@@ -385,7 +519,7 @@ impl AttrsWithOwner {
                     // FIXME: We should be never getting `None` here.
                     match src.value.get(it.local_id()) {
                         Some(val) => RawAttrs::from_attrs_owner(
-                            db.upcast(),
+                            db,
                             src.with_value(val),
                             db.span_map(src.file_id).as_ref(),
                         ),
@@ -397,7 +531,7 @@ impl AttrsWithOwner {
                     // FIXME: We should be never getting `None` here.
                     match src.value.get(it.local_id) {
                         Some(val) => RawAttrs::from_attrs_owner(
-                            db.upcast(),
+                            db,
                             src.with_value(val),
                             db.span_map(src.file_id).as_ref(),
                         ),
@@ -410,7 +544,7 @@ impl AttrsWithOwner {
             AttrDefId::UseId(it) => attrs_from_item_tree_loc(db, it),
         };
 
-        let attrs = raw_attrs.filter(db.upcast(), def.krate(db));
+        let attrs = raw_attrs.filter(db, def.krate(db));
         Attrs(attrs)
     }
 
@@ -601,17 +735,14 @@ impl<'attr> AttrQuery<'attr> {
 
 fn any_has_attrs<'db>(
     db: &(dyn DefDatabase + 'db),
-    id: impl Lookup<
-        Database<'db> = dyn DefDatabase + 'db,
-        Data = impl HasSource<Value = impl ast::HasAttrs>,
-    >,
+    id: impl Lookup<Database = dyn DefDatabase, Data = impl HasSource<Value = impl ast::HasAttrs>>,
 ) -> InFile<ast::AnyHasAttrs> {
     id.lookup(db).source(db).map(ast::AnyHasAttrs::new)
 }
 
 fn attrs_from_item_tree_loc<'db, N: ItemTreeNode>(
     db: &(dyn DefDatabase + 'db),
-    lookup: impl Lookup<Database<'db> = dyn DefDatabase + 'db, Data = impl ItemTreeLoc<Id = N>>,
+    lookup: impl Lookup<Database = dyn DefDatabase, Data = impl ItemTreeLoc<Id = N>>,
 ) -> RawAttrs {
     let id = lookup.lookup(db).item_tree_id();
     let tree = id.item_tree(db);
@@ -649,8 +780,8 @@ mod tests {
 
     use hir_expand::span_map::{RealSpanMap, SpanMap};
     use span::FileId;
-    use syntax::{ast, AstNode, TextRange};
-    use syntax_bridge::{syntax_node_to_token_tree, DocCommentDesugarMode};
+    use syntax::{AstNode, TextRange, ast};
+    use syntax_bridge::{DocCommentDesugarMode, syntax_node_to_token_tree};
 
     use crate::attr::{DocAtom, DocExpr};
 

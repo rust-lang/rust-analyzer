@@ -5,6 +5,8 @@
 //! expansion.
 #![cfg_attr(feature = "in-rust-tree", feature(rustc_private))]
 
+pub use intern;
+
 pub mod attrs;
 pub mod builtin;
 pub mod change;
@@ -31,22 +33,22 @@ use triomphe::Arc;
 use core::fmt;
 use std::hash::Hash;
 
-use base_db::{ra_salsa::InternValueTrivial, CrateId};
+use base_db::Crate;
 use either::Either;
 use span::{
     Edition, EditionedFileId, ErasedFileAstId, FileAstId, HirFileIdRepr, Span, SpanAnchor,
-    SyntaxContextData, SyntaxContextId,
+    SyntaxContext,
 };
 use syntax::{
-    ast::{self, AstNode},
     SyntaxNode, SyntaxToken, TextRange, TextSize,
+    ast::{self, AstNode},
 };
 
 use crate::{
     attrs::AttrId,
     builtin::{
-        include_input_to_file_id, BuiltinAttrExpander, BuiltinDeriveExpander,
-        BuiltinFnLikeExpander, EagerExpander,
+        BuiltinAttrExpander, BuiltinDeriveExpander, BuiltinFnLikeExpander, EagerExpander,
+        include_input_to_file_id,
     },
     db::ExpandDatabase,
     mod_path::ModPath,
@@ -65,7 +67,7 @@ pub use span::{HirFileId, MacroCallId, MacroFileId};
 
 pub mod tt {
     pub use span::Span;
-    pub use tt::{token_to_literal, DelimiterKind, IdentIsRaw, LitKind, Spacing};
+    pub use tt::{DelimiterKind, IdentIsRaw, LitKind, Spacing, token_to_literal};
 
     pub type Delimiter = ::tt::Delimiter<Span>;
     pub type DelimSpan = ::tt::DelimSpan<Span>;
@@ -87,17 +89,17 @@ pub mod tt {
 macro_rules! impl_intern_lookup {
     ($db:ident, $id:ident, $loc:ident, $intern:ident, $lookup:ident) => {
         impl $crate::Intern for $loc {
-            type Database<'db> = dyn $db + 'db;
+            type Database = dyn $db;
             type ID = $id;
-            fn intern(self, db: &Self::Database<'_>) -> $id {
+            fn intern(self, db: &Self::Database) -> Self::ID {
                 db.$intern(self)
             }
         }
 
         impl $crate::Lookup for $id {
-            type Database<'db> = dyn $db + 'db;
+            type Database = dyn $db;
             type Data = $loc;
-            fn lookup(&self, db: &Self::Database<'_>) -> $loc {
+            fn lookup(&self, db: &Self::Database) -> Self::Data {
                 db.$lookup(*self)
             }
         }
@@ -106,15 +108,15 @@ macro_rules! impl_intern_lookup {
 
 // ideally these would be defined in base-db, but the orphan rule doesn't let us
 pub trait Intern {
-    type Database<'db>: ?Sized;
+    type Database: ?Sized;
     type ID;
-    fn intern(self, db: &Self::Database<'_>) -> Self::ID;
+    fn intern(self, db: &Self::Database) -> Self::ID;
 }
 
 pub trait Lookup {
-    type Database<'db>: ?Sized;
+    type Database: ?Sized;
     type Data;
-    fn lookup(&self, db: &Self::Database<'_>) -> Self::Data;
+    fn lookup(&self, db: &Self::Database) -> Self::Data;
 }
 
 impl_intern_lookup!(
@@ -123,14 +125,6 @@ impl_intern_lookup!(
     MacroCallLoc,
     intern_macro_call,
     lookup_intern_macro_call
-);
-
-impl_intern_lookup!(
-    ExpandDatabase,
-    SyntaxContextId,
-    SyntaxContextData,
-    intern_syntax_context,
-    lookup_intern_syntax_context
 );
 
 pub type ExpandResult<T> = ValueResult<T, ExpandError>;
@@ -163,7 +157,7 @@ impl ExpandError {
 pub enum ExpandErrorKind {
     /// Attribute macro expansion is disabled.
     ProcMacroAttrExpansionDisabled,
-    MissingProcMacroExpander(CrateId),
+    MissingProcMacroExpander(Crate),
     /// The macro for this call is disabled.
     MacroDisabled,
     /// The macro definition has errors.
@@ -206,14 +200,17 @@ impl ExpandErrorKind {
                 kind: RenderedExpandError::DISABLED,
             },
             &ExpandErrorKind::MissingProcMacroExpander(def_crate) => {
-                match db.proc_macros().get_error_for_crate(def_crate) {
+                match db.proc_macros_for_crate(def_crate).as_ref().and_then(|it| it.get_error()) {
                     Some((e, hard_err)) => RenderedExpandError {
                         message: e.to_owned(),
                         error: hard_err,
                         kind: RenderedExpandError::GENERAL_KIND,
                     },
                     None => RenderedExpandError {
-                        message: format!("internal error: proc-macro map is missing error entry for crate {def_crate:?}"),
+                        message: format!(
+                            "internal error: proc-macro map is missing error entry for crate {:?}",
+                            def_crate
+                        ),
                         error: true,
                         kind: RenderedExpandError::GENERAL_KIND,
                     },
@@ -256,15 +253,14 @@ impl From<mbe::ExpandError> for ExpandError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroCallLoc {
     pub def: MacroDefId,
-    pub krate: CrateId,
+    pub krate: Crate,
     pub kind: MacroCallKind,
-    pub ctxt: SyntaxContextId,
+    pub ctxt: SyntaxContext,
 }
-impl InternValueTrivial for MacroCallLoc {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MacroDefId {
-    pub krate: CrateId,
+    pub krate: Crate,
     pub edition: Edition,
     pub kind: MacroDefKind,
     pub local_inner: bool,
@@ -285,6 +281,17 @@ impl MacroDefKind {
     #[inline]
     pub fn is_declarative(&self) -> bool {
         matches!(self, MacroDefKind::Declarative(..))
+    }
+
+    pub fn erased_ast_id(&self) -> ErasedAstId {
+        match *self {
+            MacroDefKind::ProcMacro(id, ..) => id.erase(),
+            MacroDefKind::BuiltIn(id, _)
+            | MacroDefKind::BuiltInAttr(id, _)
+            | MacroDefKind::BuiltInDerive(id, _)
+            | MacroDefKind::BuiltInEager(id, _)
+            | MacroDefKind::Declarative(id, ..) => id.erase(),
+        }
     }
 }
 
@@ -355,7 +362,7 @@ impl HirFileIdExt for HirFileId {
     fn edition(self, db: &dyn ExpandDatabase) -> Edition {
         match self.repr() {
             HirFileIdRepr::FileId(file_id) => file_id.edition(),
-            HirFileIdRepr::MacroFile(m) => m.macro_call_id.lookup(db).def.edition,
+            HirFileIdRepr::MacroFile(m) => db.lookup_intern_macro_call(m.macro_call_id).def.edition,
         }
     }
     fn original_file(self, db: &dyn ExpandDatabase) -> EditionedFileId {
@@ -364,7 +371,7 @@ impl HirFileIdExt for HirFileId {
             match file_id.repr() {
                 HirFileIdRepr::FileId(id) => break id,
                 HirFileIdRepr::MacroFile(MacroFileId { macro_call_id }) => {
-                    file_id = macro_call_id.lookup(db).kind.file_id();
+                    file_id = db.lookup_intern_macro_call(macro_call_id).kind.file_id()
                 }
             }
         }
@@ -396,7 +403,7 @@ impl HirFileIdExt for HirFileId {
         loop {
             match call.file_id.repr() {
                 HirFileIdRepr::FileId(file_id) => {
-                    break Some(InRealFile { file_id, value: call.value })
+                    break Some(InRealFile { file_id, value: call.value });
                 }
                 HirFileIdRepr::MacroFile(MacroFileId { macro_call_id }) => {
                     call = db.lookup_intern_macro_call(macro_call_id).to_node(db);
@@ -407,7 +414,7 @@ impl HirFileIdExt for HirFileId {
 
     fn as_builtin_derive_attr_node(&self, db: &dyn ExpandDatabase) -> Option<InFile<ast::Attr>> {
         let macro_file = self.macro_file()?;
-        let loc: MacroCallLoc = db.lookup_intern_macro_call(macro_file.macro_call_id);
+        let loc = db.lookup_intern_macro_call(macro_file.macro_call_id);
         let attr = match loc.def.kind {
             MacroDefKind::BuiltInDerive(..) => loc.to_node(db),
             _ => return None,
@@ -465,7 +472,7 @@ impl MacroFileIdExt for MacroFileId {
         let mut level = 0;
         let mut macro_file = self;
         loop {
-            let loc: MacroCallLoc = db.lookup_intern_macro_call(macro_file.macro_call_id);
+            let loc = db.lookup_intern_macro_call(macro_file.macro_call_id);
 
             level += 1;
             macro_file = match loc.kind.file_id().repr() {
@@ -475,7 +482,7 @@ impl MacroFileIdExt for MacroFileId {
         }
     }
     fn parent(self, db: &dyn ExpandDatabase) -> HirFileId {
-        self.macro_call_id.lookup(db).kind.file_id()
+        db.lookup_intern_macro_call(self.macro_call_id).kind.file_id()
     }
 
     /// Return expansion information if it is a macro-expansion file
@@ -532,11 +539,11 @@ impl MacroDefId {
     pub fn make_call(
         self,
         db: &dyn ExpandDatabase,
-        krate: CrateId,
+        krate: Crate,
         kind: MacroCallKind,
-        ctxt: SyntaxContextId,
+        ctxt: SyntaxContext,
     ) -> MacroCallId {
-        MacroCallLoc { def: self, krate, kind, ctxt }.intern(db)
+        db.intern_macro_call(MacroCallLoc { def: self, krate, kind, ctxt })
     }
 
     pub fn definition_range(&self, db: &dyn ExpandDatabase) -> InFile<TextRange> {
@@ -690,7 +697,7 @@ impl MacroCallLoc {
 }
 
 impl MacroCallKind {
-    fn descr(&self) -> &'static str {
+    pub fn descr(&self) -> &'static str {
         match self {
             MacroCallKind::FnLike { .. } => "macro call",
             MacroCallKind::Derive { .. } => "derive macro",
@@ -838,7 +845,7 @@ impl ExpansionInfo {
     pub fn map_range_down_exact(
         &self,
         span: Span,
-    ) -> Option<InMacroFile<impl Iterator<Item = (SyntaxToken, SyntaxContextId)> + '_>> {
+    ) -> Option<InMacroFile<impl Iterator<Item = (SyntaxToken, SyntaxContext)> + '_>> {
         let tokens = self.exp_map.ranges_with_span_exact(span).flat_map(move |(range, ctx)| {
             self.expanded.value.covering_element(range).into_token().zip(Some(ctx))
         });
@@ -853,7 +860,7 @@ impl ExpansionInfo {
     pub fn map_range_down(
         &self,
         span: Span,
-    ) -> Option<InMacroFile<impl Iterator<Item = (SyntaxToken, SyntaxContextId)> + '_>> {
+    ) -> Option<InMacroFile<impl Iterator<Item = (SyntaxToken, SyntaxContext)> + '_>> {
         let tokens = self.exp_map.ranges_with_span(span).flat_map(move |(range, ctx)| {
             self.expanded.value.covering_element(range).into_token().zip(Some(ctx))
         });
@@ -866,7 +873,7 @@ impl ExpansionInfo {
         &self,
         db: &dyn ExpandDatabase,
         offset: TextSize,
-    ) -> (FileRange, SyntaxContextId) {
+    ) -> (FileRange, SyntaxContext) {
         debug_assert!(self.expanded.value.text_range().contains(offset));
         span_for_offset(db, &self.exp_map, offset)
     }
@@ -876,7 +883,7 @@ impl ExpansionInfo {
         &self,
         db: &dyn ExpandDatabase,
         range: TextRange,
-    ) -> Option<(FileRange, SyntaxContextId)> {
+    ) -> Option<(FileRange, SyntaxContext)> {
         debug_assert!(self.expanded.value.text_range().contains_range(range));
         map_node_range_up(db, &self.exp_map, range)
     }
@@ -960,7 +967,7 @@ pub fn map_node_range_up(
     db: &dyn ExpandDatabase,
     exp_map: &ExpansionSpanMap,
     range: TextRange,
-) -> Option<(FileRange, SyntaxContextId)> {
+) -> Option<(FileRange, SyntaxContext)> {
     let mut spans = exp_map.spans_for_range(range);
     let Span { range, anchor, ctx } = spans.next()?;
     let mut start = range.start();
@@ -987,7 +994,7 @@ pub fn map_node_range_up_aggregated(
     db: &dyn ExpandDatabase,
     exp_map: &ExpansionSpanMap,
     range: TextRange,
-) -> FxHashMap<(SpanAnchor, SyntaxContextId), TextRange> {
+) -> FxHashMap<(SpanAnchor, SyntaxContext), TextRange> {
     let mut map = FxHashMap::default();
     for span in exp_map.spans_for_range(range) {
         let range = map.entry((span.anchor, span.ctx)).or_insert_with(|| span.range);
@@ -1009,7 +1016,7 @@ pub fn span_for_offset(
     db: &dyn ExpandDatabase,
     exp_map: &ExpansionSpanMap,
     offset: TextSize,
-) -> (FileRange, SyntaxContextId) {
+) -> (FileRange, SyntaxContext) {
     let span = exp_map.span_at(offset);
     let anchor_offset = db
         .ast_id_map(span.anchor.file_id.into())

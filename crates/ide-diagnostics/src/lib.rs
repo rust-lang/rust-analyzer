@@ -25,6 +25,7 @@
 
 mod handlers {
     pub(crate) mod await_outside_of_async;
+    pub(crate) mod bad_rtn;
     pub(crate) mod break_outside_of_loop;
     pub(crate) mod expected_function;
     pub(crate) mod generic_args_prohibited;
@@ -81,21 +82,25 @@ mod tests;
 use std::{collections::hash_map, iter, sync::LazyLock};
 
 use either::Either;
-use hir::{db::ExpandDatabase, diagnostics::AnyDiagnostic, Crate, HirFileId, InFile, Semantics};
+use hir::{
+    Crate, DisplayTarget, HirFileId, InFile, Semantics, db::ExpandDatabase,
+    diagnostics::AnyDiagnostic,
+};
+use ide_db::base_db::salsa::AsDynDatabase;
 use ide_db::{
-    assists::{Assist, AssistId, AssistKind, AssistResolveStrategy},
-    base_db::{ReleaseChannel, SourceDatabase},
-    generated::lints::{Lint, LintGroup, CLIPPY_LINT_GROUPS, DEFAULT_LINTS, DEFAULT_LINT_GROUPS},
+    EditionedFileId, FileId, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, SnippetCap,
+    assists::{Assist, AssistId, AssistResolveStrategy},
+    base_db::{ReleaseChannel, RootQueryDb as _},
+    generated::lints::{CLIPPY_LINT_GROUPS, DEFAULT_LINT_GROUPS, DEFAULT_LINTS, Lint, LintGroup},
     imports::insert_use::InsertUseConfig,
     label::Label,
     source_change::SourceChange,
     syntax_helpers::node_ext::parse_tt_as_comma_sep_paths,
-    EditionedFileId, FileId, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, SnippetCap,
 };
 use itertools::Itertools;
 use syntax::{
+    AstPtr, Edition, NodeOrToken, SmolStr, SyntaxKind, SyntaxNode, SyntaxNodePtr, T, TextRange,
     ast::{self, AstNode, HasAttrs},
-    AstPtr, Edition, NodeOrToken, SmolStr, SyntaxKind, SyntaxNode, SyntaxNodePtr, TextRange, T,
 };
 
 // FIXME: Make this an enum
@@ -277,6 +282,7 @@ struct DiagnosticsContext<'a> {
     sema: Semantics<'a, RootDatabase>,
     resolve: &'a AssistResolveStrategy,
     edition: Edition,
+    display_target: DisplayTarget,
     is_nightly: bool,
 }
 
@@ -315,13 +321,17 @@ pub fn syntax_diagnostics(
     }
 
     let sema = Semantics::new(db);
-    let file_id = sema
+    let editioned_file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
 
+    let (file_id, _) = editioned_file_id.unpack();
+
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), editioned_file_id);
+
     // [#3434] Only take first 128 errors to prevent slowing down editor/ide, the number 128 is chosen arbitrarily.
-    db.parse_errors(file_id)
-        .as_deref()
+    db.parse_errors(editioned_file_id_wrapper)
         .into_iter()
         .flatten()
         .take(128)
@@ -329,7 +339,7 @@ pub fn syntax_diagnostics(
             Diagnostic::new(
                 DiagnosticCode::SyntaxError,
                 format!("Syntax Error: {err}"),
-                FileRange { file_id: file_id.into(), range: err.range() },
+                FileRange { file_id, range: err.range() },
             )
         })
         .collect()
@@ -345,26 +355,31 @@ pub fn semantic_diagnostics(
 ) -> Vec<Diagnostic> {
     let _p = tracing::info_span!("semantic_diagnostics").entered();
     let sema = Semantics::new(db);
-    let file_id = sema
+    let editioned_file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
+
+    let (file_id, edition) = editioned_file_id.unpack();
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(db.as_dyn_database(), editioned_file_id);
+
     let mut res = Vec::new();
 
-    let parse = sema.parse(file_id);
+    let parse = sema.parse(editioned_file_id_wrapper);
 
     // FIXME: This iterates the entire file which is a rather expensive operation.
     // We should implement these differently in some form?
     // Salsa caching + incremental re-parse would be better here
     for node in parse.syntax().descendants() {
-        handlers::useless_braces::useless_braces(&mut res, file_id, &node);
-        handlers::field_shorthand::field_shorthand(&mut res, file_id, &node);
+        handlers::useless_braces::useless_braces(&mut res, editioned_file_id, &node);
+        handlers::field_shorthand::field_shorthand(&mut res, editioned_file_id, &node);
         handlers::json_is_not_rust::json_in_items(
             &sema,
             &mut res,
-            file_id,
+            editioned_file_id,
             &node,
             config,
-            file_id.edition(),
+            edition,
         );
     }
 
@@ -374,18 +389,30 @@ pub fn semantic_diagnostics(
         module.and_then(|m| db.toolchain_channel(m.krate().into())),
         Some(ReleaseChannel::Nightly) | None
     );
-    let ctx = DiagnosticsContext { config, sema, resolve, edition: file_id.edition(), is_nightly };
+
+    let krate = match module {
+        Some(module) => module.krate(),
+        None => {
+            match db.all_crates().last() {
+                Some(last) => (*last).into(),
+                // short-circuit, return an empty vec of diagnostics
+                None => return vec![],
+            }
+        }
+    };
+    let display_target = krate.to_display_target(db);
+    let ctx = DiagnosticsContext { config, sema, resolve, edition, is_nightly, display_target };
 
     let mut diags = Vec::new();
     match module {
         // A bunch of parse errors in a file indicate some bigger structural parse changes in the
         // file, so we skip semantic diagnostics so we can show these faster.
         Some(m) => {
-            if db.parse_errors(file_id).as_deref().is_none_or(|es| es.len() < 16) {
+            if db.parse_errors(editioned_file_id_wrapper).is_none_or(|es| es.len() < 16) {
                 m.diagnostics(db, &mut diags, config.style_lints);
             }
         }
-        None => handlers::unlinked_file::unlinked_file(&ctx, &mut res, file_id.file_id()),
+        None => handlers::unlinked_file::unlinked_file(&ctx, &mut res, editioned_file_id.file_id()),
     }
 
     for diag in diags {
@@ -473,6 +500,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::ParenthesizedGenericArgsWithoutFnTrait(d) => {
                 handlers::parenthesized_generic_args_without_fn_trait::parenthesized_generic_args_without_fn_trait(&ctx, &d)
             }
+            AnyDiagnostic::BadRtn(d) => handlers::bad_rtn::bad_rtn(&ctx, &d),
         };
         res.push(d)
     }
@@ -502,7 +530,7 @@ pub fn semantic_diagnostics(
         &mut FxHashMap::default(),
         &mut lints,
         &mut Vec::new(),
-        file_id.edition(),
+        editioned_file_id.edition(),
     );
 
     res.retain(|d| d.severity != Severity::Allow);
@@ -544,7 +572,7 @@ fn handle_diag_from_macros(
     let span_map = sema.db.expansion_span_map(macro_file);
     let mut spans = span_map.spans_for_range(node.text_range());
     if spans.any(|span| {
-        sema.db.lookup_intern_syntax_context(span.ctx).outer_expn.is_some_and(|expansion| {
+        span.ctx.outer_expn(sema.db).is_some_and(|expansion| {
             let macro_call =
                 sema.db.lookup_intern_macro_call(expansion.as_macro_file().macro_call_id);
             // We don't want to show diagnostics for non-local macros at all, but proc macros authors
@@ -752,9 +780,9 @@ fn fill_lint_attrs(
                     }
                 });
 
-                let all_matching_groups = lint_groups(&diag.code, edition)
-                    .iter()
-                    .filter_map(|lint_group| cached.get(lint_group));
+                let lints = lint_groups(&diag.code, edition);
+                let all_matching_groups =
+                    lints.iter().filter_map(|lint_group| cached.get(lint_group));
                 let cached_severity =
                     all_matching_groups.min_by_key(|it| it.depth).map(|it| it.severity);
 
@@ -962,7 +990,7 @@ fn fix(id: &'static str, label: &str, source_change: SourceChange, target: TextR
 fn unresolved_fix(id: &'static str, label: &str, target: TextRange) -> Assist {
     assert!(!id.contains(' '));
     Assist {
-        id: AssistId(id, AssistKind::QuickFix),
+        id: AssistId::quick_fix(id),
         label: Label::new(label.to_owned()),
         group: None,
         target,

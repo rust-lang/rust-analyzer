@@ -9,7 +9,7 @@
 use std::{cell::RefCell, io, mem, process::Command};
 
 use base_db::Env;
-use cargo_metadata::{camino::Utf8Path, Message};
+use cargo_metadata::{Message, camino::Utf8Path};
 use cfg::CfgAtom;
 use itertools::Itertools;
 use la_arena::ArenaMap;
@@ -19,8 +19,8 @@ use serde::Deserialize as _;
 use toolchain::Tool;
 
 use crate::{
-    utf8_stdout, CargoConfig, CargoFeatures, CargoWorkspace, InvocationStrategy, ManifestPath,
-    Package, Sysroot, TargetKind,
+    CargoConfig, CargoFeatures, CargoWorkspace, InvocationStrategy, ManifestPath, Package, Sysroot,
+    TargetKind, utf8_stdout,
 };
 
 /// Output of the build script and proc-macro building steps for a workspace.
@@ -343,7 +343,8 @@ impl WorkspaceBuildScripts {
                     Message::CompilerArtifact(message) => {
                         with_output_for(&message.package_id.repr, &mut |name, data| {
                             progress(format!("building proc-macros: {name}"));
-                            if message.target.kind.iter().any(|k| k == "proc-macro") {
+                            if message.target.kind.contains(&cargo_metadata::TargetKind::ProcMacro)
+                            {
                                 // Skip rmeta file
                                 if let Some(filename) =
                                     message.filenames.iter().find(|file| is_dylib(file))

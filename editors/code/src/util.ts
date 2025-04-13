@@ -18,7 +18,7 @@ export type Env = {
 };
 
 class Log {
-    private readonly output = vscode.window.createOutputChannel("Rust Analyzer Client", {
+    private readonly output = vscode.window.createOutputChannel("rust-analyzer Extension", {
         log: true,
     });
 
@@ -88,6 +88,10 @@ export function isCargoRunnableArgs(
 
 export function isRustEditor(editor: vscode.TextEditor): editor is RustEditor {
     return isRustDocument(editor.document);
+}
+
+export function isCargoTomlEditor(editor: vscode.TextEditor): editor is RustEditor {
+    return isCargoTomlDocument(editor.document);
 }
 
 export function isDocumentInWorkspace(document: RustDocument): boolean {

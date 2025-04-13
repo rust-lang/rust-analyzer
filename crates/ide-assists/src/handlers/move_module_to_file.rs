@@ -1,16 +1,16 @@
 use std::iter;
 
 use ast::edit::IndentLevel;
-use hir::{sym, HasAttrs};
+use hir::{HasAttrs, sym};
 use ide_db::base_db::AnchoredPathBuf;
 use itertools::Itertools;
 use stdx::format_to;
 use syntax::{
-    ast::{self, edit::AstNodeEdit, HasName},
     AstNode, SmolStr, TextRange,
+    ast::{self, HasName, edit::AstNodeEdit},
 };
 
-use crate::{AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, Assists};
 
 // Assist: move_module_to_file
 //
@@ -45,7 +45,7 @@ pub(crate) fn move_module_to_file(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     let parent_module = module_def.parent(ctx.db())?;
 
     acc.add(
-        AssistId("move_module_to_file", AssistKind::RefactorExtract),
+        AssistId::refactor_extract("move_module_to_file"),
         "Extract module to file",
         target,
         |builder| {

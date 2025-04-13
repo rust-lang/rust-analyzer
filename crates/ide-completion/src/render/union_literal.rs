@@ -6,11 +6,11 @@ use itertools::Itertools;
 use syntax::ToSmolStr;
 
 use crate::{
-    render::{
-        variant::{format_literal_label, format_literal_lookup, visible_fields},
-        RenderContext,
-    },
     CompletionItem, CompletionItemKind,
+    render::{
+        RenderContext,
+        variant::{format_literal_label, format_literal_lookup, visible_fields},
+    },
 };
 
 pub(crate) fn render_union_literal(
@@ -88,7 +88,7 @@ pub(crate) fn render_union_literal(
             f(&format_args!(
                 "{}: {}",
                 field.name(ctx.db()).display(ctx.db(), ctx.completion.edition),
-                field.ty(ctx.db()).display(ctx.db(), ctx.completion.edition)
+                field.ty(ctx.db()).display(ctx.db(), ctx.completion.display_target)
             ))
         }),
         if fields_omitted { ", .." } else { "" }

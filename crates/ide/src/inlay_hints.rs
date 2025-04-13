@@ -5,21 +5,22 @@ use std::{
 
 use either::Either;
 use hir::{
-    sym, ClosureStyle, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef,
-    ModuleDefId, Semantics,
+    ClosureStyle, DisplayTarget, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef,
+    ModuleDefId, Semantics, sym,
 };
-use ide_db::{famous_defs::FamousDefs, FileRange, RootDatabase};
-use ide_db::{text_edit::TextEdit, FxHashSet};
+use ide_db::{FileRange, RootDatabase, base_db::salsa::AsDynDatabase, famous_defs::FamousDefs};
+use ide_db::{FxHashSet, text_edit::TextEdit};
 use itertools::Itertools;
-use smallvec::{smallvec, SmallVec};
-use span::{Edition, EditionedFileId};
+use smallvec::{SmallVec, smallvec};
+use span::EditionedFileId;
 use stdx::never;
 use syntax::{
+    SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
     ast::{self, AstNode, HasGenericParams},
-    format_smolstr, match_ast, SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
+    format_smolstr, match_ast,
 };
 
-use crate::{navigation_target::TryToNav, FileId};
+use crate::{FileId, navigation_target::TryToNav};
 
 mod adjustment;
 mod bind_pat;
@@ -86,7 +87,9 @@ pub(crate) fn inlay_hints(
     let file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let file = sema.parse(file_id);
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(sema.db.as_dyn_database(), file_id);
+    let file = sema.parse(editioned_file_id_wrapper);
     let file = file.syntax();
 
     let mut acc = Vec::new();
@@ -137,7 +140,9 @@ pub(crate) fn inlay_hints_resolve(
     let file_id = sema
         .attach_first_edition(file_id)
         .unwrap_or_else(|| EditionedFileId::current_edition(file_id));
-    let file = sema.parse(file_id);
+    let editioned_file_id_wrapper =
+        ide_db::base_db::EditionedFileId::new(sema.db.as_dyn_database(), file_id);
+    let file = sema.parse(editioned_file_id_wrapper);
     let file = file.syntax();
 
     let scope = sema.scope(file)?;
@@ -207,7 +212,11 @@ fn hints(
     file_id: EditionedFileId,
     node: SyntaxNode,
 ) {
-    closing_brace::hints(hints, sema, config, file_id, node.clone());
+    let Some(krate) = sema.first_crate(file_id.file_id()) else {
+        return;
+    };
+    let display_target = krate.to_display_target(sema.db);
+    closing_brace::hints(hints, sema, config, file_id, display_target, node.clone());
     if let Some(any_has_generic_args) = ast::AnyHasGenericArgs::cast(node.clone()) {
         generic_param::hints(hints, famous_defs, config, any_has_generic_args);
     }
@@ -215,8 +224,8 @@ fn hints(
     match_ast! {
         match node {
             ast::Expr(expr) => {
-                chaining::hints(hints, famous_defs, config, file_id, &expr);
-                adjustment::hints(hints, famous_defs, config, file_id, &expr);
+                chaining::hints(hints, famous_defs, config, display_target, &expr);
+                adjustment::hints(hints, famous_defs, config, display_target, &expr);
                 match expr {
                     ast::Expr::CallExpr(it) => param_name::hints(hints, famous_defs, config, file_id, ast::Expr::from(it)),
                     ast::Expr::MethodCallExpr(it) => {
@@ -224,7 +233,7 @@ fn hints(
                     }
                     ast::Expr::ClosureExpr(it) => {
                         closure_captures::hints(hints, famous_defs, config, file_id, it.clone());
-                        closure_ret::hints(hints, famous_defs, config, file_id, it)
+                        closure_ret::hints(hints, famous_defs, config, display_target, it)
                     },
                     ast::Expr::RangeExpr(it) => range_exclusive::hints(hints, famous_defs, config, file_id,  it),
                     _ => Some(()),
@@ -234,7 +243,7 @@ fn hints(
                 binding_mode::hints(hints, famous_defs, config, file_id,  &it);
                 match it {
                     ast::Pat::IdentPat(it) => {
-                        bind_pat::hints(hints, famous_defs, config, file_id, &it);
+                        bind_pat::hints(hints, famous_defs, config, display_target, &it);
                     }
                     ast::Pat::RangePat(it) => {
                         range_exclusive::hints(hints, famous_defs, config, file_id, it);
@@ -704,7 +713,7 @@ fn label_of_ty(
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
     ty: &hir::Type,
-    edition: Edition,
+    display_target: DisplayTarget,
 ) -> Option<InlayHintLabel> {
     fn rec(
         sema: &Semantics<'_, RootDatabase>,
@@ -713,7 +722,7 @@ fn label_of_ty(
         ty: &hir::Type,
         label_builder: &mut InlayHintLabelBuilder<'_>,
         config: &InlayHintsConfig,
-        edition: Edition,
+        display_target: DisplayTarget,
     ) -> Result<(), HirDisplayError> {
         let iter_item_type = hint_iterator(sema, famous_defs, ty);
         match iter_item_type {
@@ -744,12 +753,12 @@ fn label_of_ty(
                 label_builder.write_str(LABEL_ITEM)?;
                 label_builder.end_location_link();
                 label_builder.write_str(LABEL_MIDDLE2)?;
-                rec(sema, famous_defs, max_length, &ty, label_builder, config, edition)?;
+                rec(sema, famous_defs, max_length, &ty, label_builder, config, display_target)?;
                 label_builder.write_str(LABEL_END)?;
                 Ok(())
             }
             None => ty
-                .display_truncated(sema.db, max_length, edition)
+                .display_truncated(sema.db, max_length, display_target)
                 .with_closure_style(config.closure_style)
                 .write_to(label_builder),
         }
@@ -762,7 +771,8 @@ fn label_of_ty(
         result: InlayHintLabel::default(),
         resolve: config.fields_to_resolve.resolve_label_location,
     };
-    let _ = rec(sema, famous_defs, config.max_length, ty, &mut label_builder, config, edition);
+    let _ =
+        rec(sema, famous_defs, config.max_length, ty, &mut label_builder, config, display_target);
     let r = label_builder.finish();
     Some(r)
 }
@@ -834,9 +844,9 @@ mod tests {
     use itertools::Itertools;
     use test_utils::extract_annotations;
 
-    use crate::inlay_hints::{AdjustmentHints, AdjustmentHintsMode};
     use crate::DiscriminantHints;
-    use crate::{fixture, inlay_hints::InlayHintsConfig, LifetimeElisionHints};
+    use crate::inlay_hints::{AdjustmentHints, AdjustmentHintsMode};
+    use crate::{LifetimeElisionHints, fixture, inlay_hints::InlayHintsConfig};
 
     use super::{ClosureReturnTypeHints, GenericParameterHints, InlayFieldsToResolve};
 

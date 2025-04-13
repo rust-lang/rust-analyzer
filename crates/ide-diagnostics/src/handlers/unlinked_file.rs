@@ -2,20 +2,19 @@
 
 use std::iter;
 
-use hir::{db::DefDatabase, DefMap, InFile, ModuleSource};
+use hir::{DefMap, InFile, ModuleSource, db::DefDatabase};
+use ide_db::base_db::RootQueryDb;
 use ide_db::text_edit::TextEdit;
 use ide_db::{
-    base_db::{FileLoader, SourceDatabase, SourceRootDatabase},
-    source_change::SourceChange,
-    FileId, FileRange, LineIndexDatabase,
+    FileId, FileRange, LineIndexDatabase, base_db::SourceDatabase, source_change::SourceChange,
 };
 use paths::Utf8Component;
 use syntax::{
-    ast::{self, edit::IndentLevel, HasModuleItem, HasName},
     AstNode, TextRange,
+    ast::{self, HasModuleItem, HasName, edit::IndentLevel},
 };
 
-use crate::{fix, Assist, Diagnostic, DiagnosticCode, DiagnosticsContext, Severity};
+use crate::{Assist, Diagnostic, DiagnosticCode, DiagnosticsContext, Severity, fix};
 
 // Diagnostic: unlinked-file
 //
@@ -36,7 +35,9 @@ pub(crate) fn unlinked_file(
         "This file is not included anywhere in the module tree, so rust-analyzer can't offer IDE services."
     };
 
-    let message = format!("{message}\n\nIf you're intentionally working on unowned files, you can silence this warning by adding \"unlinked-file\" to rust-analyzer.diagnostics.disabled in your settings.");
+    let message = format!(
+        "{message}\n\nIf you're intentionally working on unowned files, you can silence this warning by adding \"unlinked-file\" to rust-analyzer.diagnostics.disabled in your settings."
+    );
 
     let mut unused = true;
 
@@ -48,6 +49,7 @@ pub(crate) fn unlinked_file(
         // Only show this diagnostic on the first three characters of
         // the file, to avoid overwhelming the user during startup.
         range = SourceDatabase::file_text(ctx.sema.db, file_id)
+            .text(ctx.sema.db)
             .char_indices()
             .take(3)
             .last()
@@ -78,7 +80,11 @@ fn fixes(
     // If there's an existing module that could add `mod` or `pub mod` items to include the unlinked file,
     // suggest that as a fix.
 
-    let source_root = ctx.sema.db.source_root(ctx.sema.db.file_source_root(file_id));
+    let db = ctx.sema.db;
+
+    let source_root = ctx.sema.db.file_source_root(file_id).source_root_id(db);
+    let source_root = ctx.sema.db.source_root(source_root).source_root(db);
+
     let our_path = source_root.path_for_file(&file_id)?;
     let parent = our_path.parent()?;
     let (module_name, _) = our_path.name_and_extension()?;
@@ -93,7 +99,8 @@ fn fixes(
     };
 
     // check crate roots, i.e. main.rs, lib.rs, ...
-    'crates: for &krate in &*ctx.sema.db.relevant_crates(file_id) {
+    let relevant_crates = db.relevant_crates(file_id);
+    'crates: for &krate in &*relevant_crates {
         let crate_def_map = ctx.sema.db.crate_def_map(krate);
 
         let root_module = &crate_def_map[DefMap::ROOT];
@@ -141,7 +148,8 @@ fn fixes(
             paths.into_iter().find_map(|path| source_root.file_for_path(&path))
         })?;
     stack.pop();
-    'crates: for &krate in ctx.sema.db.relevant_crates(parent_id).iter() {
+    let relevant_crates = db.relevant_crates(parent_id);
+    'crates: for &krate in relevant_crates.iter() {
         let crate_def_map = ctx.sema.db.crate_def_map(krate);
         let Some((_, module)) = crate_def_map.modules().find(|(_, module)| {
             module.origin.file_id().map(Into::into) == Some(parent_id) && !module.origin.is_inline()

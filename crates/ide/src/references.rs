@@ -11,21 +11,22 @@
 
 use hir::{PathResolution, Semantics};
 use ide_db::{
+    FileId, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
     search::{ReferenceCategory, SearchScope, UsageSearchResult},
-    FileId, RootDatabase,
 };
 use itertools::Itertools;
 use nohash_hasher::IntMap;
 use span::Edition;
 use syntax::{
-    ast::{self, HasName},
-    match_ast, AstNode,
+    AstNode,
     SyntaxKind::*,
-    SyntaxNode, TextRange, TextSize, T,
+    SyntaxNode, T, TextRange, TextSize,
+    ast::{self, HasName},
+    match_ast,
 };
 
-use crate::{highlight_related, FilePosition, HighlightedRange, NavigationTarget, TryToNav};
+use crate::{FilePosition, HighlightedRange, NavigationTarget, TryToNav, highlight_related};
 
 #[derive(Debug, Clone)]
 pub struct ReferenceSearchResult {
@@ -123,11 +124,11 @@ pub(crate) fn find_all_refs(
     }
 }
 
-pub(crate) fn find_defs<'a>(
-    sema: &'a Semantics<'_, RootDatabase>,
+pub(crate) fn find_defs(
+    sema: &Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
     offset: TextSize,
-) -> Option<impl IntoIterator<Item = Definition> + 'a> {
+) -> Option<Vec<Definition>> {
     let token = syntax.token_at_offset(offset).find(|t| {
         matches!(
             t.kind(),
@@ -336,12 +337,12 @@ fn handle_control_flow_keywords(
 
 #[cfg(test)]
 mod tests {
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
     use ide_db::FileId;
     use span::EditionedFileId;
     use stdx::format_to;
 
-    use crate::{fixture, SearchScope};
+    use crate::{SearchScope, fixture};
 
     #[test]
     fn exclude_tests() {

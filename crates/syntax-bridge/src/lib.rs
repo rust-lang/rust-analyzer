@@ -7,12 +7,13 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use span::{Edition, SpanAnchor, SpanData, SpanMap};
 use stdx::{format_to, never};
 use syntax::{
-    ast::{self, make::tokens::doc_comment},
-    format_smolstr, AstToken, Parse, PreorderWithTokens, SmolStr, SyntaxElement,
+    AstToken, Parse, PreorderWithTokens, SmolStr, SyntaxElement,
     SyntaxKind::{self, *},
-    SyntaxNode, SyntaxToken, SyntaxTreeBuilder, TextRange, TextSize, WalkEvent, T,
+    SyntaxNode, SyntaxToken, SyntaxTreeBuilder, T, TextRange, TextSize, WalkEvent,
+    ast::{self, make::tokens::doc_comment},
+    format_smolstr,
 };
-use tt::{buffer::Cursor, token_to_literal};
+use tt::{Punct, buffer::Cursor, token_to_literal};
 
 pub mod prettify_macro_expansion;
 mod to_parser_input;
@@ -45,7 +46,7 @@ impl<S: Copy, SM: SpanMapper<S>> SpanMapper<S> for &SM {
 /// Dummy things for testing where spans don't matter.
 pub mod dummy_test_span_utils {
 
-    use span::{Span, SyntaxContextId};
+    use span::{Span, SyntaxContext};
 
     use super::*;
 
@@ -58,7 +59,7 @@ pub mod dummy_test_span_utils {
             ),
             ast_id: span::ROOT_ERASED_FILE_AST_ID,
         },
-        ctx: SyntaxContextId::root(Edition::CURRENT),
+        ctx: SyntaxContext::root(Edition::CURRENT),
     };
 
     pub struct DummyTestSpanMap;
@@ -74,7 +75,7 @@ pub mod dummy_test_span_utils {
                     ),
                     ast_id: span::ROOT_ERASED_FILE_AST_ID,
                 },
-                ctx: SyntaxContextId::root(Edition::CURRENT),
+                ctx: SyntaxContext::root(Edition::CURRENT),
             }
         }
     }
@@ -217,8 +218,39 @@ where
         tt::TopSubtreeBuilder::new(tt::Delimiter::invisible_spanned(conv.call_site()));
 
     while let Some((token, abs_range)) = conv.bump() {
-        let delimiter = builder.expected_delimiter().map(|it| it.kind);
         let tt = match token.as_leaf() {
+            // These delimiters are not actually valid punctuation, but we produce them in syntax fixup.
+            // So we need to handle them specially here.
+            Some(&tt::Leaf::Punct(Punct {
+                char: char @ ('(' | ')' | '{' | '}' | '[' | ']'),
+                span,
+                spacing: _,
+            })) => {
+                let found_expected_delimiter =
+                    builder.expected_delimiters().enumerate().find(|(_, delim)| match delim.kind {
+                        tt::DelimiterKind::Parenthesis => char == ')',
+                        tt::DelimiterKind::Brace => char == '}',
+                        tt::DelimiterKind::Bracket => char == ']',
+                        tt::DelimiterKind::Invisible => false,
+                    });
+                if let Some((idx, _)) = found_expected_delimiter {
+                    for _ in 0..=idx {
+                        builder.close(span);
+                    }
+                    continue;
+                }
+
+                let delim = match char {
+                    '(' => tt::DelimiterKind::Parenthesis,
+                    '{' => tt::DelimiterKind::Brace,
+                    '[' => tt::DelimiterKind::Bracket,
+                    _ => panic!("unmatched closing delimiter from syntax fixup"),
+                };
+
+                // Start a new subtree
+                builder.open(delim, span);
+                continue;
+            }
             Some(leaf) => leaf.clone(),
             None => match token.kind(conv) {
                 // Desugar doc comments into doc attributes
@@ -228,17 +260,24 @@ where
                     continue;
                 }
                 kind if kind.is_punct() && kind != UNDERSCORE => {
-                    let expected = match delimiter {
-                        Some(tt::DelimiterKind::Parenthesis) => Some(T![')']),
-                        Some(tt::DelimiterKind::Brace) => Some(T!['}']),
-                        Some(tt::DelimiterKind::Bracket) => Some(T![']']),
-                        Some(tt::DelimiterKind::Invisible) | None => None,
-                    };
+                    let found_expected_delimiter =
+                        builder.expected_delimiters().enumerate().find(|(_, delim)| {
+                            match delim.kind {
+                                tt::DelimiterKind::Parenthesis => kind == T![')'],
+                                tt::DelimiterKind::Brace => kind == T!['}'],
+                                tt::DelimiterKind::Bracket => kind == T![']'],
+                                tt::DelimiterKind::Invisible => false,
+                            }
+                        });
 
                     // Current token is a closing delimiter that we expect, fix up the closing span
-                    // and end the subtree here
-                    if matches!(expected, Some(expected) if expected == kind) {
-                        builder.close(conv.span_for(abs_range));
+                    // and end the subtree here.
+                    // We also close any open inner subtrees that might be missing their delimiter.
+                    if let Some((idx, _)) = found_expected_delimiter {
+                        for _ in 0..=idx {
+                            // FIXME: record an error somewhere if we're closing more than one tree here?
+                            builder.close(conv.span_for(abs_range));
+                        }
                         continue;
                     }
 
@@ -262,6 +301,7 @@ where
                     let Some(char) = token.to_char(conv) else {
                         panic!("Token from lexer must be single char: token = {token:#?}")
                     };
+                    // FIXME: this might still be an unmatched closing delimiter? Maybe we should assert here
                     tt::Leaf::from(tt::Punct { char, spacing, span: conv.span_for(abs_range) })
                 }
                 kind => {
@@ -317,11 +357,10 @@ where
         builder.push(tt);
     }
 
-    // If we get here, we've consumed all input tokens.
-    // We might have more than one subtree in the stack, if the delimiters are improperly balanced.
-    // Merge them so we're left with one.
-    builder.flatten_unclosed_subtrees();
-
+    while builder.expected_delimiters().next().is_some() {
+        // FIXME: record an error somewhere?
+        builder.close(conv.call_site());
+    }
     builder.build_skip_top_subtree()
 }
 

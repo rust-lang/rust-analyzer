@@ -3,30 +3,32 @@ use std::collections::BTreeSet;
 use ast::make;
 use either::Either;
 use hir::{
+    FileRange, PathResolution, Semantics, TypeInfo,
     db::{ExpandDatabase, HirDatabase},
-    sym, FileRange, PathResolution, Semantics, TypeInfo,
+    sym,
 };
 use ide_db::{
-    base_db::CrateId,
+    EditionedFileId, RootDatabase,
+    base_db::Crate,
     defs::Definition,
     imports::insert_use::remove_path_if_in_use_stmt,
     path_transform::PathTransform,
     search::{FileReference, FileReferenceNode, SearchScope},
     source_change::SourceChangeBuilder,
     syntax_helpers::{node_ext::expr_as_name_ref, prettify_macro_expansion},
-    EditionedFileId, RootDatabase,
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use syntax::{
+    AstNode, NodeOrToken, SyntaxKind,
     ast::{
-        self, edit::IndentLevel, edit_in_place::Indent, HasArgList, HasGenericArgs, Pat, PathExpr,
+        self, HasArgList, HasGenericArgs, Pat, PathExpr, edit::IndentLevel, edit_in_place::Indent,
     },
-    ted, AstNode, NodeOrToken, SyntaxKind,
+    ted,
 };
 
 use crate::{
+    AssistId,
     assist_context::{AssistContext, Assists},
-    AssistId, AssistKind,
 };
 
 // Assist: inline_into_callers
@@ -96,7 +98,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
     }
 
     acc.add(
-        AssistId("inline_into_callers", AssistKind::RefactorInline),
+        AssistId::refactor_inline("inline_into_callers"),
         "Inline into all callers",
         name.syntax().text_range(),
         |builder| {
@@ -230,32 +232,27 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     }
 
     let syntax = call_info.node.syntax().clone();
-    acc.add(
-        AssistId("inline_call", AssistKind::RefactorInline),
-        label,
-        syntax.text_range(),
-        |builder| {
-            let replacement = inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info);
-            builder.replace_ast(
-                match call_info.node {
-                    ast::CallableExpr::Call(it) => ast::Expr::CallExpr(it),
-                    ast::CallableExpr::MethodCall(it) => ast::Expr::MethodCallExpr(it),
-                },
-                replacement,
-            );
-        },
-    )
+    acc.add(AssistId::refactor_inline("inline_call"), label, syntax.text_range(), |builder| {
+        let replacement = inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info);
+        builder.replace_ast(
+            match call_info.node {
+                ast::CallableExpr::Call(it) => ast::Expr::CallExpr(it),
+                ast::CallableExpr::MethodCall(it) => ast::Expr::MethodCallExpr(it),
+            },
+            replacement,
+        );
+    })
 }
 
 struct CallInfo {
     node: ast::CallableExpr,
     arguments: Vec<ast::Expr>,
     generic_arg_list: Option<ast::GenericArgList>,
-    krate: CrateId,
+    krate: Crate,
 }
 
 impl CallInfo {
-    fn from_name_ref(name_ref: ast::NameRef, krate: CrateId) -> Option<CallInfo> {
+    fn from_name_ref(name_ref: ast::NameRef, krate: Crate) -> Option<CallInfo> {
         let parent = name_ref.syntax().parent()?;
         if let Some(call) = ast::MethodCallExpr::cast(parent.clone()) {
             let receiver = call.receiver()?;

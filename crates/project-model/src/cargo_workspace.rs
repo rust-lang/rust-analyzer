@@ -35,6 +35,8 @@ pub struct CargoWorkspace {
     target_directory: AbsPathBuf,
     manifest_path: ManifestPath,
     is_virtual_workspace: bool,
+    /// Whether this workspace represents the sysroot workspace.
+    is_sysroot: bool,
     /// Environment variables set in the `.cargo/config` file.
     config_env: Env,
 }
@@ -106,7 +108,10 @@ pub struct CargoConfig {
     pub invocation_strategy: InvocationStrategy,
     /// Optional path to use instead of `target` when building
     pub target_dir: Option<Utf8PathBuf>,
+    /// Gate `#[test]` behind `#[cfg(test)]`
     pub set_test: bool,
+    /// Load the project without any dependencies
+    pub no_deps: bool,
 }
 
 pub type Package = Idx<PackageData>;
@@ -224,21 +229,26 @@ pub enum TargetKind {
     Example,
     Test,
     Bench,
+    /// Cargo calls this kind `custom-build`
     BuildScript,
     Other,
 }
 
 impl TargetKind {
-    fn new(kinds: &[String]) -> TargetKind {
+    fn new(kinds: &[cargo_metadata::TargetKind]) -> TargetKind {
         for kind in kinds {
-            return match kind.as_str() {
-                "bin" => TargetKind::Bin,
-                "test" => TargetKind::Test,
-                "bench" => TargetKind::Bench,
-                "example" => TargetKind::Example,
-                "custom-build" => TargetKind::BuildScript,
-                "proc-macro" => TargetKind::Lib { is_proc_macro: true },
-                _ if kind.contains("lib") => TargetKind::Lib { is_proc_macro: false },
+            return match kind {
+                cargo_metadata::TargetKind::Bin => TargetKind::Bin,
+                cargo_metadata::TargetKind::Test => TargetKind::Test,
+                cargo_metadata::TargetKind::Bench => TargetKind::Bench,
+                cargo_metadata::TargetKind::Example => TargetKind::Example,
+                cargo_metadata::TargetKind::CustomBuild => TargetKind::BuildScript,
+                cargo_metadata::TargetKind::ProcMacro => TargetKind::Lib { is_proc_macro: true },
+                cargo_metadata::TargetKind::Lib
+                | cargo_metadata::TargetKind::DyLib
+                | cargo_metadata::TargetKind::CDyLib
+                | cargo_metadata::TargetKind::StaticLib
+                | cargo_metadata::TargetKind::RLib => TargetKind::Lib { is_proc_macro: false },
                 _ => continue,
             };
         }
@@ -251,6 +261,22 @@ impl TargetKind {
 
     pub fn is_proc_macro(self) -> bool {
         matches!(self, TargetKind::Lib { is_proc_macro: true })
+    }
+
+    /// If this is a valid cargo target, returns the name cargo uses in command line arguments
+    /// and output, otherwise None.
+    /// https://docs.rs/cargo_metadata/latest/cargo_metadata/enum.TargetKind.html
+    pub fn as_cargo_target(self) -> Option<&'static str> {
+        match self {
+            TargetKind::Bin => Some("bin"),
+            TargetKind::Lib { is_proc_macro: true } => Some("proc-macro"),
+            TargetKind::Lib { is_proc_macro: false } => Some("lib"),
+            TargetKind::Example => Some("example"),
+            TargetKind::Test => Some("test"),
+            TargetKind::Bench => Some("bench"),
+            TargetKind::BuildScript => Some("custom-build"),
+            TargetKind::Other => None,
+        }
     }
 }
 
@@ -285,10 +311,27 @@ impl CargoWorkspace {
         current_dir: &AbsPath,
         config: &CargoMetadataConfig,
         sysroot: &Sysroot,
+        no_deps: bool,
         locked: bool,
         progress: &dyn Fn(String),
     ) -> anyhow::Result<(cargo_metadata::Metadata, Option<anyhow::Error>)> {
-        Self::fetch_metadata_(cargo_toml, current_dir, config, sysroot, locked, false, progress)
+        let res = Self::fetch_metadata_(
+            cargo_toml,
+            current_dir,
+            config,
+            sysroot,
+            no_deps,
+            locked,
+            progress,
+        );
+        if let Ok((_, Some(ref e))) = res {
+            tracing::warn!(
+                %cargo_toml,
+                ?e,
+                "`cargo metadata` failed, but retry with `--no-deps` succeeded"
+            );
+        }
+        res
     }
 
     fn fetch_metadata_(
@@ -296,8 +339,8 @@ impl CargoWorkspace {
         current_dir: &AbsPath,
         config: &CargoMetadataConfig,
         sysroot: &Sysroot,
-        locked: bool,
         no_deps: bool,
+        locked: bool,
         progress: &dyn Fn(String),
     ) -> anyhow::Result<(cargo_metadata::Metadata, Option<anyhow::Error>)> {
         let cargo = sysroot.tool(Tool::Cargo, current_dir);
@@ -402,6 +445,7 @@ impl CargoWorkspace {
         mut meta: cargo_metadata::Metadata,
         ws_manifest_path: ManifestPath,
         cargo_config_env: Env,
+        is_sysroot: bool,
     ) -> CargoWorkspace {
         let mut pkg_by_id = FxHashMap::default();
         let mut packages = Arena::default();
@@ -440,7 +484,7 @@ impl CargoWorkspace {
                 cargo_metadata::Edition::E2015 => Edition::Edition2015,
                 cargo_metadata::Edition::E2018 => Edition::Edition2018,
                 cargo_metadata::Edition::E2021 => Edition::Edition2021,
-                cargo_metadata::Edition::_E2024 => Edition::Edition2024,
+                cargo_metadata::Edition::E2024 => Edition::Edition2024,
                 _ => {
                     tracing::error!("Unsupported edition `{:?}`", edition);
                     Edition::CURRENT
@@ -523,6 +567,7 @@ impl CargoWorkspace {
             target_directory,
             manifest_path: ws_manifest_path,
             is_virtual_workspace,
+            is_sysroot,
             config_env: cargo_config_env,
         }
     }
@@ -580,7 +625,7 @@ impl CargoWorkspace {
         // this pkg is inside this cargo workspace, fallback to workspace root
         if found {
             return Some(vec![
-                ManifestPath::try_from(self.workspace_root().join("Cargo.toml")).ok()?
+                ManifestPath::try_from(self.workspace_root().join("Cargo.toml")).ok()?,
             ]);
         }
 
@@ -615,5 +660,9 @@ impl CargoWorkspace {
 
     pub fn env(&self) -> &Env {
         &self.config_env
+    }
+
+    pub fn is_sysroot(&self) -> bool {
+        self.is_sysroot
     }
 }

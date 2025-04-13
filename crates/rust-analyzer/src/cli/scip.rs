@@ -8,7 +8,7 @@ use ide::{
     TokenStaticData, VendoredLibrariesConfig,
 };
 use ide_db::LineIndexDatabase;
-use load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice};
+use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scip::types::{self as scip_types, SymbolInformation};
 use tracing::error;
@@ -128,7 +128,7 @@ impl flags::Scip {
             };
 
         // Generates symbols from token monikers.
-        let mut symbol_generator = SymbolGenerator::new();
+        let mut symbol_generator = SymbolGenerator::default();
 
         for StaticIndexedFile { file_id, tokens, .. } in si.files {
             symbol_generator.clear_document_local_state();
@@ -417,16 +417,13 @@ struct TokenSymbols {
     is_inherent_impl: bool,
 }
 
+#[derive(Default)]
 struct SymbolGenerator {
     token_to_symbols: FxHashMap<TokenId, Option<TokenSymbols>>,
     local_count: usize,
 }
 
 impl SymbolGenerator {
-    fn new() -> Self {
-        SymbolGenerator { token_to_symbols: FxHashMap::default(), local_count: 0 }
-    }
-
     fn clear_document_local_state(&mut self) {
         self.local_count = 0;
     }

@@ -136,10 +136,9 @@ impl MirLowerCtx<'_> {
         match &self.body.exprs[expr_id] {
             Expr::Path(p) => {
                 let resolver_guard =
-                    self.resolver.update_to_inner_scope(self.db.upcast(), self.owner, expr_id);
+                    self.resolver.update_to_inner_scope(self.db, self.owner, expr_id);
                 let hygiene = self.body.expr_path_hygiene(expr_id);
-                let resolved =
-                    self.resolver.resolve_path_in_value_ns_fully(self.db.upcast(), p, hygiene);
+                let resolved = self.resolver.resolve_path_in_value_ns_fully(self.db, p, hygiene);
                 self.resolver.reset_to_guard(resolver_guard);
                 let Some(pr) = resolved else {
                     return try_rvalue(self);
@@ -195,7 +194,7 @@ impl MirLowerCtx<'_> {
                                     self.resolve_lang_item(LangItem::DerefMut)?.as_trait()
                                 {
                                     if let Some(deref_fn) =
-                                        self.db.trait_data(deref_trait).method_by_name(
+                                        self.db.trait_items(deref_trait).method_by_name(
                                             &Name::new_symbol_root(sym::deref_mut.clone()),
                                         )
                                     {
@@ -353,7 +352,7 @@ impl MirLowerCtx<'_> {
             .ok_or(MirLowerError::LangItemNotFound(trait_lang_item))?;
         let deref_fn = self
             .db
-            .trait_data(deref_trait)
+            .trait_items(deref_trait)
             .method_by_name(&trait_method_name)
             .ok_or(MirLowerError::LangItemNotFound(trait_lang_item))?;
         let deref_fn_op = Operand::const_zst(

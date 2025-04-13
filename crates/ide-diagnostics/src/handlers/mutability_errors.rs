@@ -1,9 +1,9 @@
 use hir::db::ExpandDatabase;
 use ide_db::source_change::SourceChange;
 use ide_db::text_edit::TextEdit;
-use syntax::{ast, AstNode, SyntaxKind, SyntaxNode, SyntaxNodePtr, SyntaxToken, T};
+use syntax::{AstNode, SyntaxKind, SyntaxNode, SyntaxNodePtr, SyntaxToken, T, ast};
 
-use crate::{fix, Diagnostic, DiagnosticCode, DiagnosticsContext};
+use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 
 // Diagnostic: need-mut
 //
@@ -1258,7 +1258,7 @@ fn foo(mut foo: Foo) {
 
 pub struct A {}
 pub unsafe fn foo(a: *mut A) {
-    let mut b = || -> *mut A { &mut *a };
+    let mut b = || -> *mut A { unsafe { &mut *a } };
       //^^^^^ 💡 warn: variable does not need to be mutable
     let _ = b();
 }

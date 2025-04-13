@@ -4,15 +4,16 @@
 
 mod block;
 
+use itertools::Itertools;
 use rowan::Direction;
-use rustc_lexer::unescape::{self, unescape_mixed, unescape_unicode, Mode};
+use rustc_lexer::unescape::{self, Mode, unescape_mixed, unescape_unicode};
 
 use crate::{
-    algo,
-    ast::{self, HasAttrs, HasVisibility, IsString, RangeItem},
-    match_ast, AstNode, SyntaxError,
+    AstNode, SyntaxError,
     SyntaxKind::{CONST, FN, INT_NUMBER, TYPE_ALIAS},
-    SyntaxNode, SyntaxToken, TextSize, T,
+    SyntaxNode, SyntaxToken, T, TextSize, algo,
+    ast::{self, HasAttrs, HasVisibility, IsString, RangeItem},
+    match_ast,
 };
 
 pub(crate) fn validate(root: &SyntaxNode, errors: &mut Vec<SyntaxError>) {
@@ -37,6 +38,8 @@ pub(crate) fn validate(root: &SyntaxNode, errors: &mut Vec<SyntaxError>) {
                 ast::FnPtrType(it) => validate_trait_object_fn_ptr_ret_ty(it, errors),
                 ast::MacroRules(it) => validate_macro_rules(it, errors),
                 ast::LetExpr(it) => validate_let_expr(it, errors),
+                ast::DynTraitType(it) => errors.extend(validate_trait_object_ty(it)),
+                ast::ImplTraitType(it) => errors.extend(validate_impl_object_ty(it)),
                 _ => (),
             }
         }
@@ -315,42 +318,105 @@ fn validate_path_keywords(segment: ast::PathSegment, errors: &mut Vec<SyntaxErro
 }
 
 fn validate_trait_object_ref_ty(ty: ast::RefType, errors: &mut Vec<SyntaxError>) {
-    if let Some(ast::Type::DynTraitType(ty)) = ty.ty() {
-        if let Some(err) = validate_trait_object_ty(ty) {
-            errors.push(err);
+    match ty.ty() {
+        Some(ast::Type::DynTraitType(ty)) => {
+            if let Some(err) = validate_trait_object_ty_plus(ty) {
+                errors.push(err);
+            }
         }
+        Some(ast::Type::ImplTraitType(ty)) => {
+            if let Some(err) = validate_impl_object_ty_plus(ty) {
+                errors.push(err);
+            }
+        }
+        _ => (),
     }
 }
 
 fn validate_trait_object_ptr_ty(ty: ast::PtrType, errors: &mut Vec<SyntaxError>) {
-    if let Some(ast::Type::DynTraitType(ty)) = ty.ty() {
-        if let Some(err) = validate_trait_object_ty(ty) {
-            errors.push(err);
+    match ty.ty() {
+        Some(ast::Type::DynTraitType(ty)) => {
+            if let Some(err) = validate_trait_object_ty_plus(ty) {
+                errors.push(err);
+            }
         }
+        Some(ast::Type::ImplTraitType(ty)) => {
+            if let Some(err) = validate_impl_object_ty_plus(ty) {
+                errors.push(err);
+            }
+        }
+        _ => (),
     }
 }
 
 fn validate_trait_object_fn_ptr_ret_ty(ty: ast::FnPtrType, errors: &mut Vec<SyntaxError>) {
-    if let Some(ast::Type::DynTraitType(ty)) = ty.ret_type().and_then(|ty| ty.ty()) {
-        if let Some(err) = validate_trait_object_ty(ty) {
-            errors.push(err);
+    match ty.ret_type().and_then(|ty| ty.ty()) {
+        Some(ast::Type::DynTraitType(ty)) => {
+            if let Some(err) = validate_trait_object_ty_plus(ty) {
+                errors.push(err);
+            }
         }
+        Some(ast::Type::ImplTraitType(ty)) => {
+            if let Some(err) = validate_impl_object_ty_plus(ty) {
+                errors.push(err);
+            }
+        }
+        _ => (),
     }
 }
 
 fn validate_trait_object_ty(ty: ast::DynTraitType) -> Option<SyntaxError> {
     let tbl = ty.type_bound_list()?;
+    let no_bounds = tbl.bounds().filter_map(|it| it.ty()).next().is_none();
 
-    if tbl.bounds().count() > 1 {
-        let dyn_token = ty.dyn_token()?;
-        let potential_parenthesis =
-            algo::skip_trivia_token(dyn_token.prev_token()?, Direction::Prev)?;
-        let kind = potential_parenthesis.kind();
-        if !matches!(kind, T!['('] | T![<] | T![=]) {
-            return Some(SyntaxError::new("ambiguous `+` in a type", ty.syntax().text_range()));
-        }
+    match no_bounds {
+        true => Some(SyntaxError::new(
+            "At least one trait is required for an object type",
+            ty.syntax().text_range(),
+        )),
+        false => None,
     }
-    None
+}
+
+fn validate_impl_object_ty(ty: ast::ImplTraitType) -> Option<SyntaxError> {
+    let tbl = ty.type_bound_list()?;
+    let no_bounds = tbl.bounds().filter_map(|it| it.ty()).next().is_none();
+
+    match no_bounds {
+        true => Some(SyntaxError::new(
+            "At least one trait is required for an object type",
+            ty.syntax().text_range(),
+        )),
+        false => None,
+    }
+}
+
+// FIXME: This is not a validation error, this is a context dependent parse error
+fn validate_trait_object_ty_plus(ty: ast::DynTraitType) -> Option<SyntaxError> {
+    let dyn_token = ty.dyn_token()?;
+    let preceding_token = algo::skip_trivia_token(dyn_token.prev_token()?, Direction::Prev)?;
+    let tbl = ty.type_bound_list()?;
+    let more_than_one_bound = tbl.bounds().next_tuple::<(_, _)>().is_some();
+
+    if more_than_one_bound && !matches!(preceding_token.kind(), T!['('] | T![<] | T![=]) {
+        Some(SyntaxError::new("ambiguous `+` in a type", ty.syntax().text_range()))
+    } else {
+        None
+    }
+}
+
+// FIXME: This is not a validation error, this is a context dependent parse error
+fn validate_impl_object_ty_plus(ty: ast::ImplTraitType) -> Option<SyntaxError> {
+    let dyn_token = ty.impl_token()?;
+    let preceding_token = algo::skip_trivia_token(dyn_token.prev_token()?, Direction::Prev)?;
+    let tbl = ty.type_bound_list()?;
+    let more_than_one_bound = tbl.bounds().next_tuple::<(_, _)>().is_some();
+
+    if more_than_one_bound && !matches!(preceding_token.kind(), T!['('] | T![<] | T![=]) {
+        Some(SyntaxError::new("ambiguous `+` in a type", ty.syntax().text_range()))
+    } else {
+        None
+    }
 }
 
 fn validate_macro_rules(mac: ast::MacroRules, errors: &mut Vec<SyntaxError>) {

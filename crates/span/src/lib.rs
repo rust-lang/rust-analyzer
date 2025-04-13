@@ -1,16 +1,13 @@
 //! File and span related types.
 use std::fmt::{self, Write};
 
-#[cfg(feature = "ra-salsa")]
-use ra_salsa::InternId;
-
 mod ast_id;
 mod hygiene;
 mod map;
 
 pub use self::{
     ast_id::{AstIdMap, AstIdNode, ErasedFileAstId, FileAstId},
-    hygiene::{SyntaxContextData, SyntaxContextId, Transparency},
+    hygiene::{SyntaxContext, Transparency},
     map::{RealSpanMap, SpanMap},
 };
 
@@ -31,7 +28,7 @@ pub const FIXUP_ERASED_FILE_AST_ID_MARKER: ErasedFileAstId =
     // is required to be stable for the proc-macro-server
     ErasedFileAstId::from_raw(!0 - 1);
 
-pub type Span = SpanData<SyntaxContextId>;
+pub type Span = SpanData<SyntaxContext>;
 
 impl Span {
     pub fn cover(self, other: Span) -> Span {
@@ -183,6 +180,22 @@ impl EditionedFileId {
     }
 }
 
+#[cfg(not(feature = "salsa"))]
+mod salsa {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub(crate) struct Id(u32);
+
+    impl Id {
+        pub(crate) const fn from_u32(u32: u32) -> Self {
+            Self(u32)
+        }
+
+        pub(crate) const fn as_u32(self) -> u32 {
+            self.0
+        }
+    }
+}
+
 /// Input to the analyzer is a set of files, where each file is identified by
 /// `FileId` and contains source code. However, another source of source code in
 /// Rust are macros: each macro can be thought of as producing a "temporary
@@ -202,11 +215,25 @@ impl EditionedFileId {
 /// `MacroCallId`.
 // FIXME: Give this a better fitting name
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct HirFileId(u32);
+pub struct HirFileId(salsa::Id);
+
+#[cfg(feature = "salsa")]
+impl salsa::plumbing::AsId for HirFileId {
+    fn as_id(&self) -> salsa::Id {
+        self.0
+    }
+}
+
+#[cfg(feature = "salsa")]
+impl salsa::plumbing::FromId for HirFileId {
+    fn from_id(id: salsa::Id) -> Self {
+        HirFileId(id)
+    }
+}
 
 impl From<HirFileId> for u32 {
     fn from(value: HirFileId) -> Self {
-        value.0
+        value.0.as_u32()
     }
 }
 
@@ -262,15 +289,19 @@ pub struct MacroFileId {
 /// `MacroCallId` identifies a particular macro invocation, like
 /// `println!("Hello, {}", world)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MacroCallId(InternId);
+pub struct MacroCallId(salsa::Id);
 
-#[cfg(feature = "ra-salsa")]
-impl ra_salsa::InternKey for MacroCallId {
-    fn from_intern_id(v: ra_salsa::InternId) -> Self {
-        MacroCallId(v)
-    }
-    fn as_intern_id(&self) -> ra_salsa::InternId {
+#[cfg(feature = "salsa")]
+impl salsa::plumbing::AsId for MacroCallId {
+    fn as_id(&self) -> salsa::Id {
         self.0
+    }
+}
+
+#[cfg(feature = "salsa")]
+impl salsa::plumbing::FromId for MacroCallId {
+    fn from_id(id: salsa::Id) -> Self {
+        MacroCallId(id)
     }
 }
 
@@ -307,16 +338,16 @@ impl From<EditionedFileId> for HirFileId {
     #[allow(clippy::let_unit_value)]
     fn from(id: EditionedFileId) -> Self {
         assert!(id.as_u32() <= Self::MAX_HIR_FILE_ID, "FileId index {} is too large", id.as_u32());
-        HirFileId(id.as_u32())
+        HirFileId(salsa::Id::from_u32(id.0))
     }
 }
 
 impl From<MacroFileId> for HirFileId {
     #[allow(clippy::let_unit_value)]
     fn from(MacroFileId { macro_call_id: MacroCallId(id) }: MacroFileId) -> Self {
-        let id = id.as_u32();
+        let id: u32 = id.as_u32();
         assert!(id <= Self::MAX_HIR_FILE_ID, "MacroCallId index {id} is too large");
-        HirFileId(id | Self::MACRO_FILE_TAG_MASK)
+        HirFileId(salsa::Id::from_u32(id | Self::MACRO_FILE_TAG_MASK))
     }
 }
 
@@ -326,33 +357,37 @@ impl HirFileId {
 
     #[inline]
     pub fn is_macro(self) -> bool {
-        self.0 & Self::MACRO_FILE_TAG_MASK != 0
+        self.0.as_u32() & Self::MACRO_FILE_TAG_MASK != 0
     }
 
     #[inline]
     pub fn macro_file(self) -> Option<MacroFileId> {
-        match self.0 & Self::MACRO_FILE_TAG_MASK {
+        match self.0.as_u32() & Self::MACRO_FILE_TAG_MASK {
             0 => None,
             _ => Some(MacroFileId {
-                macro_call_id: MacroCallId(InternId::from(self.0 ^ Self::MACRO_FILE_TAG_MASK)),
+                macro_call_id: MacroCallId(salsa::Id::from_u32(
+                    self.0.as_u32() ^ Self::MACRO_FILE_TAG_MASK,
+                )),
             }),
         }
     }
 
     #[inline]
     pub fn file_id(self) -> Option<EditionedFileId> {
-        match self.0 & Self::MACRO_FILE_TAG_MASK {
-            0 => Some(EditionedFileId(self.0)),
+        match self.0.as_u32() & Self::MACRO_FILE_TAG_MASK {
+            0 => Some(EditionedFileId(self.0.as_u32())),
             _ => None,
         }
     }
 
     #[inline]
     pub fn repr(self) -> HirFileIdRepr {
-        match self.0 & Self::MACRO_FILE_TAG_MASK {
-            0 => HirFileIdRepr::FileId(EditionedFileId(self.0)),
+        match self.0.as_u32() & Self::MACRO_FILE_TAG_MASK {
+            0 => HirFileIdRepr::FileId(EditionedFileId(self.0.as_u32())),
             _ => HirFileIdRepr::MacroFile(MacroFileId {
-                macro_call_id: MacroCallId(InternId::from(self.0 ^ Self::MACRO_FILE_TAG_MASK)),
+                macro_call_id: MacroCallId(salsa::Id::from_u32(
+                    self.0.as_u32() ^ Self::MACRO_FILE_TAG_MASK,
+                )),
             }),
         }
     }
@@ -369,72 +404,3 @@ impl std::fmt::Debug for TokenId {
         self.0.fmt(f)
     }
 }
-
-#[cfg(not(feature = "ra-salsa"))]
-mod intern_id_proxy {
-    use std::fmt;
-    use std::num::NonZeroU32;
-
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub(super) struct InternId {
-        value: NonZeroU32,
-    }
-
-    impl InternId {
-        pub(super) const MAX: u32 = 0xFFFF_FF00;
-
-        pub(super) const unsafe fn new_unchecked(value: u32) -> Self {
-            debug_assert!(value < InternId::MAX);
-            let value = unsafe { NonZeroU32::new_unchecked(value + 1) };
-            InternId { value }
-        }
-
-        pub(super) fn as_u32(self) -> u32 {
-            self.value.get() - 1
-        }
-
-        pub(super) fn as_usize(self) -> usize {
-            self.as_u32() as usize
-        }
-    }
-
-    impl From<InternId> for u32 {
-        fn from(raw: InternId) -> u32 {
-            raw.as_u32()
-        }
-    }
-
-    impl From<InternId> for usize {
-        fn from(raw: InternId) -> usize {
-            raw.as_usize()
-        }
-    }
-
-    impl From<u32> for InternId {
-        fn from(id: u32) -> InternId {
-            assert!(id < InternId::MAX);
-            unsafe { InternId::new_unchecked(id) }
-        }
-    }
-
-    impl From<usize> for InternId {
-        fn from(id: usize) -> InternId {
-            assert!(id < (InternId::MAX as usize));
-            unsafe { InternId::new_unchecked(id as u32) }
-        }
-    }
-
-    impl fmt::Debug for InternId {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            self.as_usize().fmt(f)
-        }
-    }
-
-    impl fmt::Display for InternId {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            self.as_usize().fmt(f)
-        }
-    }
-}
-#[cfg(not(feature = "ra-salsa"))]
-use intern_id_proxy::InternId;

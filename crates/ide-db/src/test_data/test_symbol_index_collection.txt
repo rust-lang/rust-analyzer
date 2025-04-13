@@ -2,7 +2,9 @@
     (
         Module {
             id: ModuleId {
-                krate: Idx::<CrateData>(0),
+                krate: Crate(
+                    Id(2c00),
+                ),
                 block: None,
                 local_id: Idx::<ModuleData>(0),
             },
@@ -13,7 +15,7 @@
                 def: TypeAlias(
                     TypeAlias {
                         id: TypeAliasId(
-                            0,
+                            7c00,
                         ),
                     },
                 ),
@@ -22,7 +24,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: TYPE_ALIAS,
@@ -38,13 +40,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "CONST",
                 def: Const(
                     Const {
                         id: ConstId(
-                            0,
+                            7400,
                         ),
                     },
                 ),
@@ -53,7 +56,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: CONST,
@@ -69,13 +72,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "CONST_WITH_INNER",
                 def: Const(
                     Const {
                         id: ConstId(
-                            2,
+                            7402,
                         ),
                     },
                 ),
@@ -84,7 +88,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: CONST,
@@ -100,6 +104,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "Enum",
@@ -107,7 +112,7 @@
                     Enum(
                         Enum {
                             id: EnumId(
-                                0,
+                                6000,
                             ),
                         },
                     ),
@@ -117,7 +122,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: ENUM,
@@ -133,6 +138,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "ItemLikeMacro",
@@ -140,7 +146,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                0,
+                                5c00,
                             ),
                         ),
                     },
@@ -150,7 +156,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -166,6 +172,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "Macro",
@@ -173,7 +180,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                0,
+                                5c00,
                             ),
                         ),
                     },
@@ -183,7 +190,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MACRO_DEF,
@@ -199,13 +206,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "STATIC",
                 def: Static(
                     Static {
                         id: StaticId(
-                            0,
+                            7800,
                         ),
                     },
                 ),
@@ -214,7 +222,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STATIC,
@@ -230,6 +238,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "Struct",
@@ -237,7 +246,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                1,
+                                5801,
                             ),
                         },
                     ),
@@ -247,7 +256,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -263,6 +272,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "StructFromMacro",
@@ -270,14 +280,14 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0,
+                                5800,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
                     hir_file_id: MacroFile(
-                        0,
+                        Id(4400),
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -293,6 +303,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "StructInFn",
@@ -300,7 +311,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                5,
+                                5805,
                             ),
                         },
                     ),
@@ -310,7 +321,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -328,6 +339,7 @@
                 ),
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "StructInNamedConst",
@@ -335,7 +347,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                6,
+                                5806,
                             ),
                         },
                     ),
@@ -345,7 +357,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -363,6 +375,7 @@
                 ),
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "StructInUnnamedConst",
@@ -370,7 +383,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                7,
+                                5807,
                             ),
                         },
                     ),
@@ -380,7 +393,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -396,6 +409,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "StructT",
@@ -403,7 +417,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                2,
+                                5802,
                             ),
                         },
                     ),
@@ -413,7 +427,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -429,13 +443,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "Trait",
                 def: Trait(
                     Trait {
                         id: TraitId(
-                            0,
+                            6c00,
                         ),
                     },
                 ),
@@ -444,7 +459,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: TRAIT,
@@ -460,6 +475,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "Trait",
@@ -467,7 +483,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                0,
+                                5c00,
                             ),
                         ),
                     },
@@ -477,7 +493,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -493,6 +509,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "Union",
@@ -500,7 +517,7 @@
                     Union(
                         Union {
                             id: UnionId(
-                                0,
+                                6400,
                             ),
                         },
                     ),
@@ -510,7 +527,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: UNION,
@@ -526,13 +543,16 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "a_mod",
                 def: Module(
                     Module {
                         id: ModuleId {
-                            krate: Idx::<CrateData>(0),
+                            krate: Crate(
+                                Id(2c00),
+                            ),
                             block: None,
                             local_id: Idx::<ModuleData>(1),
                         },
@@ -543,7 +563,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MODULE,
@@ -559,13 +579,16 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "b_mod",
                 def: Module(
                     Module {
                         id: ModuleId {
-                            krate: Idx::<CrateData>(0),
+                            krate: Crate(
+                                Id(2c00),
+                            ),
                             block: None,
                             local_id: Idx::<ModuleData>(2),
                         },
@@ -576,7 +599,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MODULE,
@@ -592,6 +615,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "define_struct",
@@ -599,7 +623,7 @@
                     Macro {
                         id: MacroRulesId(
                             MacroRulesId(
-                                1,
+                                4001,
                             ),
                         ),
                     },
@@ -609,7 +633,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MACRO_RULES,
@@ -625,13 +649,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "generic_impl_fn",
                 def: Function(
                     Function {
                         id: FunctionId(
-                            2,
+                            7002,
                         ),
                     },
                 ),
@@ -640,7 +665,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
@@ -658,13 +683,14 @@
                 ),
                 is_alias: false,
                 is_assoc: true,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "impl_fn",
                 def: Function(
                     Function {
                         id: FunctionId(
-                            1,
+                            7001,
                         ),
                     },
                 ),
@@ -673,7 +699,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
@@ -691,6 +717,7 @@
                 ),
                 is_alias: false,
                 is_assoc: true,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "macro_rules_macro",
@@ -698,7 +725,7 @@
                     Macro {
                         id: MacroRulesId(
                             MacroRulesId(
-                                0,
+                                4000,
                             ),
                         ),
                     },
@@ -708,7 +735,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: MACRO_RULES,
@@ -724,13 +751,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "main",
                 def: Function(
                     Function {
                         id: FunctionId(
-                            0,
+                            7000,
                         ),
                     },
                 ),
@@ -739,7 +767,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
@@ -755,6 +783,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "really_define_struct",
@@ -762,7 +791,7 @@
                     Macro {
                         id: MacroRulesId(
                             MacroRulesId(
-                                1,
+                                4001,
                             ),
                         ),
                     },
@@ -772,7 +801,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -788,13 +817,14 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "trait_fn",
                 def: Function(
                     Function {
                         id: FunctionId(
-                            3,
+                            7003,
                         ),
                     },
                 ),
@@ -803,7 +833,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: FN,
@@ -821,13 +851,16 @@
                 ),
                 is_alias: false,
                 is_assoc: true,
+                do_not_complete: Yes,
             },
         ],
     ),
     (
         Module {
             id: ModuleId {
-                krate: Idx::<CrateData>(0),
+                krate: Crate(
+                    Id(2c00),
+                ),
                 block: None,
                 local_id: Idx::<ModuleData>(1),
             },
@@ -839,7 +872,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                3,
+                                5803,
                             ),
                         },
                     ),
@@ -849,7 +882,7 @@
                         FileId(
                             0,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -865,13 +898,16 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
         ],
     ),
     (
         Module {
             id: ModuleId {
-                krate: Idx::<CrateData>(0),
+                krate: Crate(
+                    Id(2c00),
+                ),
                 block: None,
                 local_id: Idx::<ModuleData>(2),
             },
@@ -882,7 +918,7 @@
                 def: Trait(
                     Trait {
                         id: TraitId(
-                            0,
+                            6c00,
                         ),
                     },
                 ),
@@ -891,7 +927,7 @@
                         FileId(
                             1,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -907,6 +943,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "IsThisJustATrait",
@@ -914,7 +951,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                0,
+                                5c00,
                             ),
                         ),
                     },
@@ -924,7 +961,7 @@
                         FileId(
                             1,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -940,6 +977,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "StructInModB",
@@ -947,7 +985,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4,
+                                5804,
                             ),
                         },
                     ),
@@ -957,7 +995,7 @@
                         FileId(
                             1,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: STRUCT,
@@ -973,6 +1011,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "SuperItemLikeMacro",
@@ -980,7 +1019,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                0,
+                                5c00,
                             ),
                         ),
                     },
@@ -990,7 +1029,7 @@
                         FileId(
                             1,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -1006,6 +1045,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
             FileSymbol {
                 name: "ThisStruct",
@@ -1013,7 +1053,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4,
+                                5804,
                             ),
                         },
                     ),
@@ -1023,7 +1063,7 @@
                         FileId(
                             1,
                         ),
-                        Edition2021,
+                        Edition2024,
                     ),
                     ptr: SyntaxNodePtr {
                         kind: USE_TREE,
@@ -1039,6 +1079,7 @@
                 container_name: None,
                 is_alias: false,
                 is_assoc: false,
+                do_not_complete: Yes,
             },
         ],
     ),

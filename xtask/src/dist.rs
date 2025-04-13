@@ -5,10 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 use time::OffsetDateTime;
-use xshell::{cmd, Shell};
-use zip::{write::FileOptions, DateTime, ZipWriter};
+use xshell::{Shell, cmd};
+use zip::{DateTime, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
     date_iso,
@@ -125,7 +125,7 @@ fn zip(src_path: &Path, symbols_path: Option<&PathBuf>, dest_path: &Path) -> any
     let mut writer = ZipWriter::new(BufWriter::new(file));
     writer.start_file(
         src_path.file_name().unwrap().to_str().unwrap(),
-        FileOptions::default()
+        SimpleFileOptions::default()
             .last_modified_time(
                 DateTime::try_from(OffsetDateTime::from(std::fs::metadata(src_path)?.modified()?))
                     .unwrap(),
@@ -139,7 +139,7 @@ fn zip(src_path: &Path, symbols_path: Option<&PathBuf>, dest_path: &Path) -> any
     if let Some(symbols_path) = symbols_path {
         writer.start_file(
             symbols_path.file_name().unwrap().to_str().unwrap(),
-            FileOptions::default()
+            SimpleFileOptions::default()
                 .last_modified_time(
                     DateTime::try_from(OffsetDateTime::from(
                         std::fs::metadata(src_path)?.modified()?,

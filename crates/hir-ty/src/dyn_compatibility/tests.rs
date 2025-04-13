@@ -40,8 +40,11 @@ fn check_dyn_compatibility<'a>(
             .declarations()
             .filter_map(|def| {
                 if let hir_def::ModuleDefId::TraitId(trait_id) = def {
-                    let name =
-                        db.trait_data(trait_id).name.display_no_db(file_id.edition()).to_smolstr();
+                    let name = db
+                        .trait_signature(trait_id)
+                        .name
+                        .display_no_db(file_id.edition())
+                        .to_smolstr();
                     Some((trait_id, name))
                 } else {
                     None
@@ -53,7 +56,7 @@ fn check_dyn_compatibility<'a>(
             continue;
         };
         let mut osvs = FxHashSet::default();
-        dyn_compatibility_with_callback(&db, trait_id, &mut |osv| {
+        _ = dyn_compatibility_with_callback(&db, trait_id, &mut |osv| {
             osvs.insert(match osv {
                 DynCompatibilityViolation::SizedSelf => SizedSelf,
                 DynCompatibilityViolation::SelfReferential => SelfReferential,

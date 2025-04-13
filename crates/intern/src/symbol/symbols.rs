@@ -7,8 +7,8 @@ use dashmap::{DashMap, SharedValue};
 use rustc_hash::FxHasher;
 
 use crate::{
-    symbol::{SymbolProxy, TaggedArcPtr},
     Symbol,
+    symbol::{SymbolProxy, TaggedArcPtr},
 };
 
 macro_rules! define_symbols {
@@ -161,6 +161,7 @@ define_symbols! {
     bitxor_assign,
     bitxor,
     bool,
+    bootstrap,
     box_free,
     Box,
     boxed,
@@ -185,6 +186,7 @@ define_symbols! {
     Clone,
     coerce_unsized,
     column,
+    completion,
     compile_error,
     concat_bytes,
     concat_idents,
@@ -520,4 +522,12 @@ define_symbols! {
     win64,
     array,
     boxed_slice,
+    completions,
+    ignore_flyimport,
+    ignore_flyimport_methods,
+    ignore_methods,
+    position,
+    flags,
+    precision,
+    width,
 }

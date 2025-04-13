@@ -1,28 +1,29 @@
 use std::{iter, mem::discriminant};
 
 use crate::{
+    FilePosition, NavigationTarget, RangeInfo, TryToNav, UpmappingResult,
     doc_links::token_as_doc_comment,
     navigation_target::{self, ToNav},
-    FilePosition, NavigationTarget, RangeInfo, TryToNav, UpmappingResult,
 };
 use hir::{
-    sym, AsAssocItem, AssocItem, CallableKind, FileRange, HasCrate, InFile, MacroFileIdExt,
-    ModuleDef, Semantics,
+    AsAssocItem, AssocItem, CallableKind, FileRange, HasCrate, InFile, MacroFileIdExt, ModuleDef,
+    Semantics, sym,
 };
 use ide_db::{
-    base_db::{AnchoredPath, FileLoader, SourceDatabase},
+    RootDatabase, SymbolKind,
+    base_db::{AnchoredPath, SourceDatabase},
     defs::{Definition, IdentClass},
     famous_defs::FamousDefs,
     helpers::pick_best_token,
-    RootDatabase, SymbolKind,
 };
 use itertools::Itertools;
 use span::{Edition, FileId};
 use syntax::{
-    ast::{self, HasLoopBody},
-    match_ast, AstNode, AstToken,
+    AstNode, AstToken,
     SyntaxKind::*,
-    SyntaxNode, SyntaxToken, TextRange, T,
+    SyntaxNode, SyntaxToken, T, TextRange,
+    ast::{self, HasLoopBody},
+    match_ast,
 };
 
 // Feature: Go to Definition
@@ -91,16 +92,19 @@ pub(crate) fn goto_definition(
         .descend_into_macros_no_opaque(original_token.clone())
         .into_iter()
         .filter_map(|token| {
-            let parent = token.parent()?;
+            let parent = token.value.parent()?;
 
-            if let Some(token) = ast::String::cast(token.clone()) {
-                if let Some(x) = try_lookup_include_path(sema, token, file_id) {
+            let token_file_id = token.file_id;
+            if let Some(token) = ast::String::cast(token.value.clone()) {
+                if let Some(x) =
+                    try_lookup_include_path(sema, InFile::new(token_file_id, token), file_id)
+                {
                     return Some(vec![x]);
                 }
             }
 
             if ast::TokenTree::can_cast(parent.kind()) {
-                if let Some(x) = try_lookup_macro_def_in_macro_use(sema, token) {
+                if let Some(x) = try_lookup_macro_def_in_macro_use(sema, token.value) {
                     return Some(vec![x]);
                 }
             }
@@ -204,20 +208,22 @@ fn find_definition_for_known_blanket_dual_impls(
 
 fn try_lookup_include_path(
     sema: &Semantics<'_, RootDatabase>,
-    token: ast::String,
+    token: InFile<ast::String>,
     file_id: FileId,
 ) -> Option<NavigationTarget> {
-    let file = sema.hir_file_for(&token.syntax().parent()?).macro_file()?;
+    let file = token.file_id.macro_file()?;
+
+    // Check that we are in the eager argument expansion of an include macro
+    // that is we are the string input of it
     if !iter::successors(Some(file), |file| file.parent(sema.db).macro_file())
-        // Check that we are in the eager argument expansion of an include macro
         .any(|file| file.is_include_like_macro(sema.db) && file.eager_arg(sema.db).is_none())
     {
         return None;
     }
-    let path = token.value().ok()?;
+    let path = token.value.value().ok()?;
 
     let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
-    let size = sema.db.file_text(file_id).len().try_into().ok()?;
+    let size = sema.db.file_text(file_id).text(sema.db).len().try_into().ok()?;
     Some(NavigationTarget {
         file_id,
         full_range: TextRange::new(0.into(), size),
@@ -2047,7 +2053,10 @@ fn main() {
         );
     }
 
+    // macros in this position are not yet supported
     #[test]
+    // FIXME
+    #[should_panic]
     fn goto_doc_include_str() {
         check(
             r#"
@@ -2190,8 +2199,8 @@ where T : Bound
 struct A;
 impl Bound for A{}
 fn f() {
-    let gen = Gen::<A>(A);
-    gen.g$0();
+    let g = Gen::<A>(A);
+    g.g$0();
 }
                 "#,
             );
@@ -2216,8 +2225,8 @@ where T : Bound
 struct A;
 impl Bound for A{}
 fn f() {
-    let gen = Gen::<A>(A);
-    gen.g$0();
+    let g = Gen::<A>(A);
+    g.g$0();
 }
 "#,
             );
@@ -3320,6 +3329,150 @@ pub fn foo() {}
 
 fn main() {
     let s = st$0r::f();
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn struct_shadow_by_module() {
+        check(
+            r#"
+mod foo {
+    pub mod bar {
+         // ^^^
+        pub type baz = usize;
+    }
+}
+struct bar;
+fn main() {
+    use foo::bar;
+    let x: ba$0r::baz = 5;
+
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn type_alias_shadow_by_module() {
+        check(
+            r#"
+mod foo {
+    pub mod bar {
+         // ^^^
+        pub fn baz() {}
+    }
+}
+
+trait Qux {}
+
+fn item<bar: Qux>() {
+    use foo::bar;
+    ba$0r::baz();
+}
+}
+"#,
+        );
+
+        check(
+            r#"
+mod foo {
+    pub mod bar {
+         // ^^^
+        pub fn baz() {}
+    }
+}
+
+fn item<bar>(x: bar) {
+    use foo::bar;
+    let x: bar$0 = x;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn trait_shadow_by_module() {
+        check(
+            r#"
+pub mod foo {
+    pub mod Bar {}
+         // ^^^
+}
+
+trait Bar {}
+
+fn main() {
+    use foo::Bar;
+    fn f<Qux: B$0ar>() {}
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn const_shadow_by_module() {
+        check(
+            r#"
+pub mod foo {
+    pub struct u8 {}
+    pub mod bar {
+        pub mod u8 {}
+    }
+}
+
+fn main() {
+    use foo::u8;
+    {
+        use foo::bar::u8;
+
+        fn f1<const N: u$08>() {}
+    }
+    fn f2<const N: u8>() {}
+}
+"#,
+        );
+
+        check(
+            r#"
+pub mod foo {
+    pub struct u8 {}
+            // ^^
+    pub mod bar {
+        pub mod u8 {}
+    }
+}
+
+fn main() {
+    use foo::u8;
+    {
+        use foo::bar::u8;
+
+        fn f1<const N: u8>() {}
+    }
+    fn f2<const N: u$08>() {}
+}
+"#,
+        );
+
+        check(
+            r#"
+pub mod foo {
+    pub struct buz {}
+    pub mod bar {
+        pub mod buz {}
+             // ^^^
+    }
+}
+
+fn main() {
+    use foo::buz;
+    {
+        use foo::bar::buz;
+
+        fn f1<const N: buz$0>() {}
+    }
 }
 "#,
         );

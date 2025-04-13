@@ -1,7 +1,7 @@
-use ide_db::assists::{AssistId, AssistKind};
+use ide_db::assists::AssistId;
 use syntax::{
-    ast::{self, make, Expr, HasArgList},
     AstNode,
+    ast::{self, Expr, HasArgList, make},
 };
 
 use crate::{AssistContext, Assists};
@@ -60,7 +60,7 @@ pub(crate) fn replace_with_lazy_method(acc: &mut Assists, ctx: &AssistContext<'_
     )?;
 
     acc.add(
-        AssistId("replace_with_lazy_method", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("replace_with_lazy_method"),
         format!("Replace {method_name} with {method_name_lazy}"),
         call.syntax().text_range(),
         |builder| {
@@ -74,11 +74,7 @@ pub(crate) fn replace_with_lazy_method(acc: &mut Assists, ctx: &AssistContext<'_
 fn into_closure(param: &Expr) -> Expr {
     (|| {
         if let ast::Expr::CallExpr(call) = param {
-            if call.arg_list()?.args().count() == 0 {
-                Some(call.expr()?)
-            } else {
-                None
-            }
+            if call.arg_list()?.args().count() == 0 { Some(call.expr()?) } else { None }
         } else {
             None
         }
@@ -140,7 +136,7 @@ pub(crate) fn replace_with_eager_method(acc: &mut Assists, ctx: &AssistContext<'
     )?;
 
     acc.add(
-        AssistId("replace_with_eager_method", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("replace_with_eager_method"),
         format!("Replace {method_name} with {method_name_eager}"),
         call.syntax().text_range(),
         |builder| {
@@ -154,11 +150,7 @@ pub(crate) fn replace_with_eager_method(acc: &mut Assists, ctx: &AssistContext<'
 fn into_call(param: &Expr) -> Expr {
     (|| {
         if let ast::Expr::ClosureExpr(closure) = param {
-            if closure.param_list()?.params().count() == 0 {
-                Some(closure.body()?)
-            } else {
-                None
-            }
+            if closure.param_list()?.params().count() == 0 { Some(closure.body()?) } else { None }
         } else {
             None
         }

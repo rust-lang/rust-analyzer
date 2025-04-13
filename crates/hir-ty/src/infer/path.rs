@@ -2,21 +2,22 @@
 
 use chalk_ir::cast::Cast;
 use hir_def::{
-    path::{Path, PathSegment},
-    resolver::{ResolveValueResult, TypeNs, ValueNs},
     AdtId, AssocItemId, GenericDefId, ItemContainerId, Lookup,
+    expr_store::path::{Path, PathSegment},
+    resolver::{ResolveValueResult, TypeNs, ValueNs},
 };
 use hir_expand::name::Name;
 use stdx::never;
 
 use crate::{
+    InferenceDiagnostic, Interner, Substitution, TraitRef, TraitRefExt, Ty, TyBuilder, TyExt,
+    TyKind, ValueTyDefId,
     builder::ParamKind,
     consteval, error_lifetime,
     generics::generics,
     infer::diagnostics::InferenceTyLoweringContext as TyLoweringContext,
     method_resolution::{self, VisibleFromModule},
-    to_chalk_trait_id, InferenceDiagnostic, Interner, Substitution, TraitRef, TraitRefExt, Ty,
-    TyBuilder, TyExt, TyKind, ValueTyDefId,
+    to_chalk_trait_id,
 };
 
 use super::{ExprOrPatId, InferenceContext, InferenceTyDiagnosticSource};
@@ -63,10 +64,10 @@ impl InferenceContext<'_> {
                         never!("uninferred pattern?");
                         None
                     }
-                }
+                };
             }
             ValueNs::ImplSelf(impl_id) => {
-                let generics = crate::generics::generics(self.db.upcast(), impl_id.into());
+                let generics = crate::generics::generics(self.db, impl_id.into());
                 let substs = generics.placeholder_subst(self.db);
                 let ty = self.db.impl_self_ty(impl_id).substitute(Interner, &substs);
                 return if let Some((AdtId::StructId(struct_id), substs)) = ty.as_adt() {
@@ -81,7 +82,7 @@ impl InferenceContext<'_> {
                 };
             }
             ValueNs::GenericParam(it) => {
-                return Some(ValuePathResolution::NonGeneric(self.db.const_param_ty(it)))
+                return Some(ValuePathResolution::NonGeneric(self.db.const_param_ty(it)));
             }
         };
 
@@ -127,7 +128,7 @@ impl InferenceContext<'_> {
         }
 
         let parent_substs = self_subst.or_else(|| {
-            let generics = generics(self.db.upcast(), generic_def);
+            let generics = generics(self.db, generic_def);
             let parent_params_len = generics.parent_generics()?.len();
             let parent_args = &substs[substs.len() - parent_params_len..];
             Some(Substitution::from_iter(Interner, parent_args))
@@ -158,10 +159,10 @@ impl InferenceContext<'_> {
         let mut ctx = TyLoweringContext::new(
             self.db,
             &self.resolver,
-            &self.body.types,
-            self.owner.into(),
+            self.body,
             &self.diagnostics,
             InferenceTyDiagnosticSource::Body,
+            self.generic_def,
         );
         let mut path_ctx = if no_diagnostics {
             ctx.at_path_forget_diagnostics(path)
@@ -254,13 +255,13 @@ impl InferenceContext<'_> {
 
         // We need to add `Self: Trait` obligation when `def` is a trait assoc item.
         let container = match def {
-            GenericDefId::FunctionId(id) => id.lookup(self.db.upcast()).container,
-            GenericDefId::ConstId(id) => id.lookup(self.db.upcast()).container,
+            GenericDefId::FunctionId(id) => id.lookup(self.db).container,
+            GenericDefId::ConstId(id) => id.lookup(self.db).container,
             _ => return,
         };
 
         if let ItemContainerId::TraitId(trait_) = container {
-            let param_len = generics(self.db.upcast(), def).len_self();
+            let param_len = generics(self.db, def).len_self();
             let parent_subst =
                 Substitution::from_iter(Interner, subst.iter(Interner).skip(param_len));
             let trait_ref =
@@ -277,10 +278,10 @@ impl InferenceContext<'_> {
     ) -> Option<(ValueNs, Substitution)> {
         let trait_ = trait_ref.hir_trait_id();
         let item =
-            self.db.trait_data(trait_).items.iter().map(|(_name, id)| *id).find_map(|item| {
+            self.db.trait_items(trait_).items.iter().map(|(_name, id)| *id).find_map(|item| {
                 match item {
                     AssocItemId::FunctionId(func) => {
-                        if segment.name == &self.db.function_data(func).name {
+                        if segment.name == &self.db.function_signature(func).name {
                             Some(AssocItemId::FunctionId(func))
                         } else {
                             None
@@ -288,7 +289,7 @@ impl InferenceContext<'_> {
                     }
 
                     AssocItemId::ConstId(konst) => {
-                        if self.db.const_data(konst).name.as_ref() == Some(segment.name) {
+                        if self.db.const_signature(konst).name.as_ref() == Some(segment.name) {
                             Some(AssocItemId::ConstId(konst))
                         } else {
                             None
@@ -350,10 +351,8 @@ impl InferenceContext<'_> {
         let (item, visible) = res?;
 
         let (def, container) = match item {
-            AssocItemId::FunctionId(f) => {
-                (ValueNs::FunctionId(f), f.lookup(self.db.upcast()).container)
-            }
-            AssocItemId::ConstId(c) => (ValueNs::ConstId(c), c.lookup(self.db.upcast()).container),
+            AssocItemId::FunctionId(f) => (ValueNs::FunctionId(f), f.lookup(self.db).container),
+            AssocItemId::ConstId(c) => (ValueNs::ConstId(c), c.lookup(self.db).container),
             AssocItemId::TypeAliasId(_) => unreachable!(),
         };
         let substs = match container {
@@ -398,7 +397,7 @@ impl InferenceContext<'_> {
             Some((AdtId::EnumId(e), subst)) => (e, subst),
             _ => return None,
         };
-        let enum_data = self.db.enum_data(enum_id);
+        let enum_data = self.db.enum_variants(enum_id);
         let variant = enum_data.variant(name)?;
         self.write_variant_resolution(id, variant.into());
         Some((ValueNs::EnumVariantId(variant), subst.clone()))

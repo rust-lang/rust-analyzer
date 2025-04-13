@@ -3,12 +3,12 @@
 mod overly_long_real_world_cases;
 
 use ide_db::{
-    assists::AssistResolveStrategy, base_db::SourceDatabase, LineIndexDatabase, RootDatabase,
+    LineIndexDatabase, RootDatabase, assists::AssistResolveStrategy, base_db::SourceDatabase,
 };
 use itertools::Itertools;
 use stdx::trim_indent;
 use test_fixture::WithFixture;
-use test_utils::{assert_eq_text, extract_annotations, MiniCore};
+use test_utils::{MiniCore, assert_eq_text, extract_annotations};
 
 use crate::{DiagnosticsConfig, ExprFillDefaultMode, Severity};
 
@@ -85,7 +85,7 @@ fn check_nth_fix_with_config(
     let actual = {
         let source_change = fix.source_change.as_ref().unwrap();
         let file_id = *source_change.source_file_edits.keys().next().unwrap();
-        let mut actual = db.file_text(file_id).to_string();
+        let mut actual = db.file_text(file_id).text(&db).to_string();
 
         for (edit, snippet_edit) in source_change.source_file_edits.values() {
             edit.apply(&mut actual);
@@ -142,7 +142,7 @@ pub(crate) fn check_has_fix(
                     let actual = {
                         let source_change = fix.source_change.as_ref().unwrap();
                         let file_id = *source_change.source_file_edits.keys().next().unwrap();
-                        let mut actual = db.file_text(file_id).to_string();
+                        let mut actual = db.file_text(file_id).text(&db).to_string();
 
                         for (edit, snippet_edit) in source_change.source_file_edits.values() {
                             edit.apply(&mut actual);
@@ -190,7 +190,7 @@ pub(crate) fn check_has_single_fix(
                     let actual = {
                         let source_change = fix.source_change.as_ref().unwrap();
                         let file_id = *source_change.source_file_edits.keys().next().unwrap();
-                        let mut actual = db.file_text(file_id).to_string();
+                        let mut actual = db.file_text(file_id).text(&db).to_string();
 
                         for (edit, snippet_edit) in source_change.source_file_edits.values() {
                             edit.apply(&mut actual);
@@ -276,8 +276,9 @@ pub(crate) fn check_diagnostics_with_config(
         let line_index = db.line_index(file_id);
 
         let mut actual = annotations.remove(&file_id).unwrap_or_default();
-        let expected = extract_annotations(&db.file_text(file_id));
-        actual.sort_by_key(|(range, _)| range.start());
+        let mut expected = extract_annotations(&db.file_text(file_id).text(&db));
+        expected.sort_by_key(|(range, s)| (range.start(), s.clone()));
+        actual.sort_by_key(|(range, s)| (range.start(), s.clone()));
         // FIXME: We should panic on duplicates instead, but includes currently cause us to report
         // diagnostics twice for the calling module when both files are queried.
         actual.dedup();
@@ -289,7 +290,7 @@ pub(crate) fn check_diagnostics_with_config(
             for (e, _) in &actual {
                 eprintln!(
                     "Code in range {e:?} = {}",
-                    &db.file_text(file_id)[usize::from(e.start())..usize::from(e.end())]
+                    &db.file_text(file_id).text(&db)[usize::from(e.start())..usize::from(e.end())]
                 )
             }
         }

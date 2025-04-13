@@ -1,15 +1,15 @@
 //! Span maps for real files and macro expansions.
 
-use span::{EditionedFileId, HirFileId, HirFileIdRepr, MacroFileId, Span, SyntaxContextId};
+use span::{EditionedFileId, HirFileId, HirFileIdRepr, MacroFileId, Span, SyntaxContext};
 use stdx::TupleExt;
-use syntax::{ast, AstNode, TextRange};
+use syntax::{AstNode, TextRange, ast};
 use triomphe::Arc;
 
 pub use span::RealSpanMap;
 
 use crate::{attrs::collect_attrs, db::ExpandDatabase};
 
-pub type ExpansionSpanMap = span::SpanMap<SyntaxContextId>;
+pub type ExpansionSpanMap = span::SpanMap<SyntaxContext>;
 
 /// Spanmap for a macro file or a real file
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -79,10 +79,16 @@ impl SpanMapRef<'_> {
     }
 }
 
-pub(crate) fn real_span_map(db: &dyn ExpandDatabase, file_id: EditionedFileId) -> Arc<RealSpanMap> {
+pub(crate) fn real_span_map(
+    db: &dyn ExpandDatabase,
+    editioned_file_id: EditionedFileId,
+) -> Arc<RealSpanMap> {
     use syntax::ast::HasModuleItem;
     let mut pairs = vec![(syntax::TextSize::new(0), span::ROOT_ERASED_FILE_AST_ID)];
-    let ast_id_map = db.ast_id_map(file_id.into());
+    let ast_id_map = db.ast_id_map(editioned_file_id.into());
+
+    let file_id = base_db::EditionedFileId::new(db, editioned_file_id);
+
     let tree = db.parse(file_id).tree();
     // This is an incrementality layer. Basically we can't use absolute ranges for our spans as that
     // would mean we'd invalidate everything whenever we type. So instead we make the text ranges
@@ -134,7 +140,7 @@ pub(crate) fn real_span_map(db: &dyn ExpandDatabase, file_id: EditionedFileId) -
     });
 
     Arc::new(RealSpanMap::from_file(
-        file_id,
+        editioned_file_id,
         pairs.into_boxed_slice(),
         tree.syntax().text_range().end(),
     ))

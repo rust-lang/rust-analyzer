@@ -2,16 +2,17 @@
 
 use hir::{FileRange, Semantics};
 use ide_db::EditionedFileId;
-use ide_db::{label::Label, FileId, RootDatabase};
+use ide_db::base_db::salsa::AsDynDatabase;
+use ide_db::{FileId, RootDatabase, label::Label};
 use syntax::Edition;
 use syntax::{
-    algo::{self, find_node_at_offset, find_node_at_range},
     AstNode, AstToken, Direction, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange,
     TextSize, TokenAtOffset,
+    algo::{self, find_node_at_offset, find_node_at_range},
 };
 
 use crate::{
-    assist_config::AssistConfig, Assist, AssistId, AssistKind, AssistResolveStrategy, GroupLabel,
+    Assist, AssistId, AssistKind, AssistResolveStrategy, GroupLabel, assist_config::AssistConfig,
 };
 
 pub(crate) use ide_db::source_change::{SourceChangeBuilder, TreeMutator};
@@ -64,7 +65,10 @@ impl<'a> AssistContext<'a> {
         config: &'a AssistConfig,
         frange: FileRange,
     ) -> AssistContext<'a> {
-        let source_file = sema.parse(frange.file_id);
+        let editioned_file_id =
+            ide_db::base_db::EditionedFileId::new(sema.db.as_dyn_database(), frange.file_id);
+
+        let source_file = sema.parse(editioned_file_id);
 
         let start = frange.range.start();
         let end = frange.range.end();

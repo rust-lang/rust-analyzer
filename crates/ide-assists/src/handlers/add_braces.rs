@@ -1,9 +1,9 @@
 use syntax::{
-    ast::{self, edit_in_place::Indent, syntax_factory::SyntaxFactory},
     AstNode,
+    ast::{self, edit_in_place::Indent, syntax_factory::SyntaxFactory},
 };
 
-use crate::{AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, Assists};
 
 // Assist: add_braces
 //
@@ -32,14 +32,14 @@ pub(crate) fn add_braces(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
     let (expr_type, expr) = get_replacement_node(ctx)?;
 
     acc.add(
-        AssistId("add_braces", AssistKind::RefactorRewrite),
+        AssistId::refactor_rewrite("add_braces"),
         match expr_type {
             ParentType::ClosureExpr => "Add braces to closure body",
             ParentType::MatchArmExpr => "Add braces to arm expression",
         },
         expr.syntax().text_range(),
         |builder| {
-            let make = SyntaxFactory::new();
+            let make = SyntaxFactory::with_mappings();
             let mut editor = builder.make_editor(expr.syntax());
 
             let block_expr = make.block_expr(None, Some(expr.clone()));

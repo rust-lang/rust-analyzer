@@ -7,13 +7,13 @@ use std::ops::Not;
 
 use either::Either;
 use hir::{
-    Adjust, Adjustment, AutoBorrow, HirDisplay, Mutability, OverloadedDeref, PointerCast, Safety,
+    Adjust, Adjustment, AutoBorrow, DisplayTarget, HirDisplay, Mutability, OverloadedDeref,
+    PointerCast, Safety,
 };
 use ide_db::famous_defs::FamousDefs;
 
 use ide_db::text_edit::TextEditBuilder;
-use span::EditionedFileId;
-use syntax::ast::{self, prec::ExprPrecedence, AstNode};
+use syntax::ast::{self, AstNode, prec::ExprPrecedence};
 
 use crate::{
     AdjustmentHints, AdjustmentHintsMode, InlayHint, InlayHintLabel, InlayHintLabelPart,
@@ -24,7 +24,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: EditionedFileId,
+    display_target: DisplayTarget,
     expr: &ast::Expr,
 ) -> Option<()> {
     if config.adjustment_hints_hide_outside_unsafe && !sema.is_inside_unsafe(expr) {
@@ -163,8 +163,8 @@ pub(super) fn hints(
             tooltip: Some(config.lazy_tooltip(|| {
                 InlayTooltip::Markdown(format!(
                     "`{}` → `{}` ({coercion} coercion)",
-                    source.display(sema.db, file_id.edition()),
-                    target.display(sema.db, file_id.edition()),
+                    source.display(sema.db, display_target),
+                    target.display(sema.db, display_target),
                 ))
             })),
         };
@@ -224,7 +224,7 @@ fn mode_and_needs_parens_for_adjustment_hints(
     expr: &ast::Expr,
     mode: AdjustmentHintsMode,
 ) -> (bool, bool, bool) {
-    use {std::cmp::Ordering::*, AdjustmentHintsMode::*};
+    use {AdjustmentHintsMode::*, std::cmp::Ordering::*};
 
     match mode {
         Prefix | Postfix => {
@@ -284,8 +284,8 @@ fn needs_parens_for_adjustment_hints(expr: &ast::Expr, postfix: bool) -> (bool, 
 #[cfg(test)]
 mod tests {
     use crate::{
-        inlay_hints::tests::{check_with_config, DISABLED_CONFIG},
         AdjustmentHints, AdjustmentHintsMode, InlayHintsConfig,
+        inlay_hints::tests::{DISABLED_CONFIG, check_with_config},
     };
 
     #[test]

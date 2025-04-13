@@ -1,17 +1,18 @@
 use std::iter::{self, Peekable};
 
 use either::Either;
-use hir::{sym, Adt, Crate, HasAttrs, ImportPathConfig, ModuleDef, Semantics};
-use ide_db::syntax_helpers::suggest_name;
+use hir::{Adt, Crate, HasAttrs, ImportPathConfig, ModuleDef, Semantics, sym};
 use ide_db::RootDatabase;
+use ide_db::base_db::salsa::AsDynDatabase;
+use ide_db::syntax_helpers::suggest_name;
 use ide_db::{famous_defs::FamousDefs, helpers::mod_path_to_ast};
 use itertools::Itertools;
 use syntax::ast::edit::IndentLevel;
 use syntax::ast::edit_in_place::Indent;
 use syntax::ast::syntax_factory::SyntaxFactory;
-use syntax::ast::{self, make, AstNode, MatchArmList, MatchExpr, Pat};
+use syntax::ast::{self, AstNode, MatchArmList, MatchExpr, Pat, make};
 
-use crate::{utils, AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, Assists, utils};
 
 // Assist: add_missing_match_arms
 //
@@ -76,7 +77,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
 
     let cfg = ctx.config.import_path_config();
 
-    let make = SyntaxFactory::new();
+    let make = SyntaxFactory::with_mappings();
 
     let module = ctx.sema.scope(expr.syntax())?.module();
     let (mut missing_pats, is_non_exhaustive, has_hidden_variants): (
@@ -204,7 +205,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
     }
 
     acc.add(
-        AssistId("add_missing_match_arms", AssistKind::QuickFix),
+        AssistId::quick_fix("add_missing_match_arms"),
         "Fill match arms",
         ctx.sema.original_range(match_expr.syntax()).range,
         |builder| {
@@ -256,7 +257,12 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
             // Just replace the element that the original range came from
             let old_place = {
                 // Find the original element
-                let file = ctx.sema.parse(arm_list_range.file_id);
+                let editioned_file_id = ide_db::base_db::EditionedFileId::new(
+                    ctx.sema.db.as_dyn_database(),
+                    arm_list_range.file_id,
+                );
+
+                let file = ctx.sema.parse(editioned_file_id);
                 let old_place = file.syntax().covering_element(arm_list_range.range);
 
                 match old_place {
@@ -461,7 +467,7 @@ fn build_pat(
             let fields = var.fields(db);
             let pat: ast::Pat = match var.kind(db) {
                 hir::StructKind::Tuple => {
-                    let mut name_generator = suggest_name::NameGenerator::new();
+                    let mut name_generator = suggest_name::NameGenerator::default();
                     let pats = fields.into_iter().map(|f| {
                         let name = name_generator.for_type(&f.ty(db), db, edition);
                         match name {
