@@ -13,6 +13,7 @@ use hir::{PathResolution, Semantics};
 use ide_db::{
     FileId, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
+    helpers::pick_best_token,
     search::{ReferenceCategory, SearchScope, UsageSearchResult},
 };
 use itertools::Itertools;
@@ -309,10 +310,11 @@ fn handle_control_flow_keywords(
     let file = sema.parse_guess_edition(file_id);
     let edition =
         sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
-    let token = file
-        .syntax()
-        .token_at_offset(offset)
-        .find(|t| t.kind().is_keyword(edition) || t.kind() == T![=>])?;
+    let token = pick_best_token(file.syntax().token_at_offset(offset), |kind| match kind {
+        _ if kind.is_keyword(edition) => 4,
+        T![=>] => 3,
+        _ => 1,
+    })?;
 
     let references = match token.kind() {
         T![fn] | T![return] | T![try] => highlight_related::highlight_exit_points(sema, token),
@@ -323,7 +325,7 @@ fn handle_control_flow_keywords(
         T![for] if token.parent().and_then(ast::ForExpr::cast).is_some() => {
             highlight_related::highlight_break_points(sema, token)
         }
-        T![if] | T![=>] | T![match] => highlight_related::highlight_branches(sema, token),
+        T![if] | T![=>] | T![match] => highlight_related::highlight_branch_exit_points(sema, token),
         _ => return None,
     }
     .into_iter()

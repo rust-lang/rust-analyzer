@@ -307,7 +307,7 @@ fn highlight_references(
     if res.is_empty() { None } else { Some(res.into_iter().collect()) }
 }
 
-pub(crate) fn highlight_branches(
+pub(crate) fn highlight_branch_exit_points(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
 ) -> FxHashMap<EditionedFileId, Vec<HighlightedRange>> {
@@ -332,17 +332,10 @@ pub(crate) fn highlight_branches(
         });
     };
 
+    let nodes = goto_definition::find_branch_root(sema, &token).into_iter();
     match token.kind() {
         T![match] => {
-            for token in sema.descend_into_macros(token.clone()) {
-                let Some(match_expr) = sema
-                    .token_ancestors_with_macros(token)
-                    .take_while(|node| !ast::MacroCall::can_cast(node.kind()))
-                    .find_map(ast::MatchExpr::cast)
-                else {
-                    continue;
-                };
-
+            for match_expr in nodes.filter_map(ast::MatchExpr::cast) {
                 let file_id = sema.hir_file_for(match_expr.syntax());
                 let range = match_expr.match_token().map(|token| token.text_range());
                 push_to_highlights(file_id, range, &mut highlights);
@@ -350,22 +343,13 @@ pub(crate) fn highlight_branches(
                 let Some(arm_list) = match_expr.match_arm_list() else {
                     continue;
                 };
-
                 for arm in arm_list.arms() {
                     push_tail_expr(arm.expr(), &mut highlights);
                 }
             }
         }
         T![=>] => {
-            for token in sema.descend_into_macros(token.clone()) {
-                let Some(arm) = sema
-                    .token_ancestors_with_macros(token)
-                    .take_while(|node| !ast::MacroCall::can_cast(node.kind()))
-                    .find_map(ast::MatchArm::cast)
-                else {
-                    continue;
-                };
-
+            for arm in nodes.filter_map(ast::MatchArm::cast) {
                 let file_id = sema.hir_file_for(arm.syntax());
                 let range = arm.fat_arrow_token().map(|token| token.text_range());
                 push_to_highlights(file_id, range, &mut highlights);
@@ -374,27 +358,7 @@ pub(crate) fn highlight_branches(
             }
         }
         T![if] => {
-            for token in sema.descend_into_macros(token.clone()) {
-                let Some(if_expr) = sema
-                    .token_ancestors_with_macros(token)
-                    .take_while(|node| !ast::MacroCall::can_cast(node.kind()))
-                    .find_map(ast::IfExpr::cast)
-                else {
-                    continue;
-                };
-
-                // Find the root of the if expression
-                let mut if_to_process = iter::successors(Some(if_expr.clone()), |if_expr| {
-                    let parent_if = if_expr.syntax().parent().and_then(ast::IfExpr::cast)?;
-                    if let ast::ElseBranch::IfExpr(nested_if) = parent_if.else_branch()? {
-                        (nested_if.syntax() == if_expr.syntax()).then_some(parent_if)
-                    } else {
-                        None
-                    }
-                })
-                .last()
-                .or(Some(if_expr));
-
+            for mut if_to_process in nodes.map(ast::IfExpr::cast) {
                 while let Some(cur_if) = if_to_process.take() {
                     let file_id = sema.hir_file_for(cur_if.syntax());
 
@@ -2235,7 +2199,7 @@ fn main() {
 
     #[test]
     fn no_branches_when_disabled() {
-        let config = HighlightRelatedConfig { branches: false, ..ENABLED_CONFIG };
+        let config = HighlightRelatedConfig { branch_exit_points: false, ..ENABLED_CONFIG };
         check_with_config(
             r#"
 fn main() {
