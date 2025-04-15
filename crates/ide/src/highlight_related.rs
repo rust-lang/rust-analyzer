@@ -39,7 +39,7 @@ pub struct HighlightRelatedConfig {
     pub break_points: bool,
     pub closure_captures: bool,
     pub yield_points: bool,
-    pub branches: bool,
+    pub branch_exit_points: bool,
 }
 
 type HighlightMap = FxHashMap<EditionedFileId, FxHashSet<HighlightedRange>>;
@@ -85,8 +85,8 @@ pub(crate) fn highlight_related(
         T![fn] | T![return] | T![->] if config.exit_points => {
             highlight_exit_points(sema, token).remove(&file_id)
         }
-        T![match] | T![=>] | T![if] if config.branches => {
-            highlight_branches(sema, token).remove(&file_id)
+        T![match] | T![=>] | T![if] if config.branch_exit_points => {
+            highlight_branch_exit_points(sema, token).remove(&file_id)
         }
         T![await] | T![async] if config.yield_points => {
             highlight_yield_points(sema, token).remove(&file_id)
@@ -834,7 +834,7 @@ mod tests {
         references: true,
         closure_captures: true,
         yield_points: true,
-        branches: true,
+        branch_exit_points: true,
     };
 
     #[track_caller]
