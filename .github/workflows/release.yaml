@@ -9,6 +9,7 @@ on:
     branches:
       - release
       - trigger-nightly
+  pull_request:
 
 env:
   CARGO_INCREMENTAL: 0
@@ -198,6 +199,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: ["dist", "dist-x86_64-unknown-linux-musl"]
     steps:
+      - name: Fail
+        run: exit 1
       - name: Install Nodejs
         uses: actions/setup-node@v4
         with:
