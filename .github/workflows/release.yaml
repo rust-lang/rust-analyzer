@@ -100,11 +100,11 @@ jobs:
 
       - name: Dist (plain)
         if: ${{ !matrix.zig_target }}
-        run: cargo xtask dist --client-patch-version ${{ github.run_number }} ${{ matrix.pgo && format('--pgo {0}', matrix.pgo) || ''}}
+        run: cargo xtask dist --mimalloc --client-patch-version ${{ github.run_number }} ${{ matrix.pgo && format('--pgo {0}', matrix.pgo) || ''}}
 
       - name: Dist (using zigbuild)
         if: ${{ matrix.zig_target }}
-        run: RA_TARGET=${{ matrix.zig_target}} cargo xtask dist --client-patch-version ${{ github.run_number }} --zig ${{ matrix.pgo && format('--pgo {0}', matrix.pgo) || ''}}
+        run: RA_TARGET=${{ matrix.zig_target}} cargo xtask dist --mimalloc --client-patch-version ${{ github.run_number }} --zig ${{ matrix.pgo && format('--pgo {0}', matrix.pgo) || ''}}
 
       - run: npm ci
         working-directory: editors/code
@@ -169,7 +169,7 @@ jobs:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
       - name: Dist
-        run: cargo xtask dist --client-patch-version ${{ github.run_number }}
+        run: cargo xtask dist --mimalloc --client-patch-version ${{ github.run_number }}
 
       - run: npm ci
         working-directory: editors/code
