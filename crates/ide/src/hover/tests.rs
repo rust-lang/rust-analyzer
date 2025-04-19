@@ -7180,9 +7180,9 @@ fn foo() {
 }
 "#,
         expect![[r#"
-                ```rust
-                &str
-                ```"#]],
+            ```rust
+            &'static str
+            ```"#]],
     );
 }
 
@@ -8323,7 +8323,7 @@ format_args!("{aaaaa$0}");
             *aaaaa*
 
             ```rust
-            let aaaaa: &str
+            let aaaaa: &'static str
             ```
         "#]],
     );
@@ -8343,7 +8343,7 @@ format_args!("{$0aaaaa}");
             *aaaaa*
 
             ```rust
-            let aaaaa: &str
+            let aaaaa: &'static str
             ```
         "#]],
     );
@@ -8363,7 +8363,7 @@ format_args!(r"{$0aaaaa}");
             *aaaaa*
 
             ```rust
-            let aaaaa: &str
+            let aaaaa: &'static str
             ```
         "#]],
     );
@@ -8388,7 +8388,7 @@ foo!(r"{$0aaaaa}");
             *aaaaa*
 
             ```rust
-            let aaaaa: &str
+            let aaaaa: &'static str
             ```
         "#]],
     );
@@ -8432,7 +8432,7 @@ fn main() {
         expect![[r#"
             *"🦀\u{1f980}\\\x41"*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
@@ -8448,7 +8448,7 @@ fn main() {
         expect![[r#"
             *r"🦀\u{1f980}\\\x41"*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
@@ -8470,7 +8470,7 @@ fsdghs";
 
             fsdghs"*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
@@ -8490,7 +8490,7 @@ fn main() {
         expect![[r#"
             *c"🦀\u{1f980}\\\x41"*
             ```rust
-            &{unknown}
+            &'static {unknown}
             ```
             ___
 
@@ -8509,7 +8509,7 @@ fn main() {
         expect![[r#"
             *r"`[^`]*`"*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
@@ -8524,7 +8524,7 @@ fn main() {
         expect![[r#"
             *r"`"*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
@@ -8539,7 +8539,7 @@ fn main() {
         expect![[r#"
             *r"    "*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
@@ -8555,12 +8555,12 @@ fn main() {
         expect![[r#"
             *r" Hello World "*
             ```rust
-            &str
+            &'static str
             ```
             ___
 
             value of literal: `  Hello World  `
-"#]],
+        "#]],
     )
 }
 
@@ -8575,7 +8575,7 @@ fn main() {
         expect![[r#"
             *b"\xF0\x9F\xA6\x80\\"*
             ```rust
-            &[u8; 5]
+            &'static [u8; 5]
             ```
             ___
 
@@ -8591,7 +8591,7 @@ fn main() {
         expect![[r#"
             *br"\xF0\x9F\xA6\x80\\"*
             ```rust
-            &[u8; 18]
+            &'static [u8; 18]
             ```
             ___
 
@@ -9165,7 +9165,7 @@ struct Pedro$0<'a> {
 
             ```rust
             struct Pedro<'a> {
-                hola: &str,
+                hola: &'a str,
             }
             ```
 
@@ -10032,7 +10032,7 @@ fn baz() {
 
             ---
 
-            `U` = `i32`, `T` = `&str`
+            `U` = `i32`, `T` = `&'static str`
         "#]],
     );
 }
@@ -10125,7 +10125,7 @@ fn bar() {
 
             ---
 
-            `T` = `i8`, `U` = `&str`
+            `T` = `i8`, `U` = `&'static str`
         "#]],
     );
 }
