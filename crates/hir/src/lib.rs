@@ -3772,12 +3772,15 @@ impl GenericSubstitution {
             TypeOrConstParamData::TypeParamData(param) => Some(param.name.clone()),
             TypeOrConstParamData::ConstParamData(_) => None,
         });
-        // The `Substitution` is first self then container, we want the reverse order.
-        let self_params = self.subst.type_parameters(Interner).zip(type_params);
-        let container_params = self.subst.as_slice(Interner)[generics.len()..]
+        let parent_len = self.subst.len(Interner) - generics.len();
+        let container_params = self.subst.as_slice(Interner)[..parent_len]
             .iter()
             .filter_map(|param| param.ty(Interner).cloned())
             .zip(container_type_params.into_iter().flatten());
+        let self_params = self.subst.as_slice(Interner)[parent_len..]
+            .iter()
+            .filter_map(|param| param.ty(Interner).cloned())
+            .zip(type_params);
         container_params
             .chain(self_params)
             .filter_map(|(ty, name)| {
