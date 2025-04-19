@@ -493,6 +493,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "fluent-build"
+version = "0.0.0"
+dependencies = [
+ "expect-test",
+ "fluent-syntax",
+ "proc-macro2",
+ "quote",
+ "test-fixture",
+ "test-utils",
+]
+
+[[package]]
+name = "fluent-files"
+version = "0.0.0"
+dependencies = [
+ "expect-test",
+ "fluent-build",
+ "test-fixture",
+ "test-utils",
+]
+
+[[package]]
+name = "fluent-syntax"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a530c4694a6a8d528794ee9bbd8ba0122e779629ac908d15ad5a7ae7763a33d"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "foldhash"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -967,6 +998,7 @@ dependencies = [
  "cov-mark",
  "either",
  "expect-test",
+ "fluent-files",
  "hir",
  "ide-db",
  "itertools 0.14.0",
