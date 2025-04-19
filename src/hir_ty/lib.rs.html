@@ -1,0 +1,1043 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/hir-ty/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-6c3ea77c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hir_ty" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0 (05f9846f8 2025-03-31)" data-channel="1.86.0" data-search-js="search-581efc7a.js" data-settings-js="settings-6dad6058.js" ><script src="../../static.files/storage-3a5871a4.js"></script><script defer src="../../static.files/src-script-b8d3f215.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-4d63596a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">hir_ty/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! The type system. We currently use this to infer types for completion, hover
+<a href=#2 id=2 data-nosnippet>2</a>//! information and various assists.
+<a href=#3 id=3 data-nosnippet>3</a>
+<a href=#4 id=4 data-nosnippet>4</a></span><span class="attr">#![cfg_attr(feature = <span class="string">"in-rust-tree"</span>, feature(rustc_private))]
+<a href=#5 id=5 data-nosnippet>5</a>
+<a href=#6 id=6 data-nosnippet>6</a>#[cfg(feature = <span class="string">"in-rust-tree"</span>)]
+<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">extern crate </span>rustc_index;
+<a href=#8 id=8 data-nosnippet>8</a>
+<a href=#9 id=9 data-nosnippet>9</a><span class="attr">#[cfg(not(feature = <span class="string">"in-rust-tree"</span>))]
+<a href=#10 id=10 data-nosnippet>10</a></span><span class="kw">extern crate </span>ra_ap_rustc_index <span class="kw">as </span>rustc_index;
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a><span class="attr">#[cfg(feature = <span class="string">"in-rust-tree"</span>)]
+<a href=#13 id=13 data-nosnippet>13</a></span><span class="kw">extern crate </span>rustc_abi;
+<a href=#14 id=14 data-nosnippet>14</a>
+<a href=#15 id=15 data-nosnippet>15</a><span class="attr">#[cfg(not(feature = <span class="string">"in-rust-tree"</span>))]
+<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">extern crate </span>ra_ap_rustc_abi <span class="kw">as </span>rustc_abi;
+<a href=#17 id=17 data-nosnippet>17</a>
+<a href=#18 id=18 data-nosnippet>18</a><span class="attr">#[cfg(feature = <span class="string">"in-rust-tree"</span>)]
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">extern crate </span>rustc_pattern_analysis;
+<a href=#20 id=20 data-nosnippet>20</a>
+<a href=#21 id=21 data-nosnippet>21</a><span class="attr">#[cfg(not(feature = <span class="string">"in-rust-tree"</span>))]
+<a href=#22 id=22 data-nosnippet>22</a></span><span class="kw">extern crate </span>ra_ap_rustc_pattern_analysis <span class="kw">as </span>rustc_pattern_analysis;
+<a href=#23 id=23 data-nosnippet>23</a>
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">mod </span>builder;
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">mod </span>chalk_db;
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">mod </span>chalk_ext;
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">mod </span>drop;
+<a href=#28 id=28 data-nosnippet>28</a><span class="kw">mod </span>infer;
+<a href=#29 id=29 data-nosnippet>29</a><span class="kw">mod </span>inhabitedness;
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">mod </span>interner;
+<a href=#31 id=31 data-nosnippet>31</a><span class="kw">mod </span>lower;
+<a href=#32 id=32 data-nosnippet>32</a><span class="kw">mod </span>mapping;
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">mod </span>target_feature;
+<a href=#34 id=34 data-nosnippet>34</a><span class="kw">mod </span>tls;
+<a href=#35 id=35 data-nosnippet>35</a><span class="kw">mod </span>utils;
+<a href=#36 id=36 data-nosnippet>36</a>
+<a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub mod </span>autoderef;
+<a href=#38 id=38 data-nosnippet>38</a><span class="kw">pub mod </span>consteval;
+<a href=#39 id=39 data-nosnippet>39</a><span class="kw">pub mod </span>db;
+<a href=#40 id=40 data-nosnippet>40</a><span class="kw">pub mod </span>diagnostics;
+<a href=#41 id=41 data-nosnippet>41</a><span class="kw">pub mod </span>display;
+<a href=#42 id=42 data-nosnippet>42</a><span class="kw">pub mod </span>dyn_compatibility;
+<a href=#43 id=43 data-nosnippet>43</a><span class="kw">pub mod </span>generics;
+<a href=#44 id=44 data-nosnippet>44</a><span class="kw">pub mod </span>lang_items;
+<a href=#45 id=45 data-nosnippet>45</a><span class="kw">pub mod </span>layout;
+<a href=#46 id=46 data-nosnippet>46</a><span class="kw">pub mod </span>method_resolution;
+<a href=#47 id=47 data-nosnippet>47</a><span class="kw">pub mod </span>mir;
+<a href=#48 id=48 data-nosnippet>48</a><span class="kw">pub mod </span>primitive;
+<a href=#49 id=49 data-nosnippet>49</a><span class="kw">pub mod </span>traits;
+<a href=#50 id=50 data-nosnippet>50</a>
+<a href=#51 id=51 data-nosnippet>51</a><span class="attr">#[cfg(test)]
+<a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">mod </span>test_db;
+<a href=#53 id=53 data-nosnippet>53</a><span class="attr">#[cfg(test)]
+<a href=#54 id=54 data-nosnippet>54</a></span><span class="kw">mod </span>tests;
+<a href=#55 id=55 data-nosnippet>55</a><span class="kw">mod </span>variance;
+<a href=#56 id=56 data-nosnippet>56</a>
+<a href=#57 id=57 data-nosnippet>57</a><span class="kw">use </span>std::hash::Hash;
+<a href=#58 id=58 data-nosnippet>58</a>
+<a href=#59 id=59 data-nosnippet>59</a><span class="kw">use </span>chalk_ir::{
+<a href=#60 id=60 data-nosnippet>60</a>    NoSolution,
+<a href=#61 id=61 data-nosnippet>61</a>    fold::{Shift, TypeFoldable},
+<a href=#62 id=62 data-nosnippet>62</a>    interner::HasInterner,
+<a href=#63 id=63 data-nosnippet>63</a>};
+<a href=#64 id=64 data-nosnippet>64</a><span class="kw">use </span>either::Either;
+<a href=#65 id=65 data-nosnippet>65</a><span class="kw">use </span>hir_def::{CallableDefId, GeneralConstId, TypeOrConstParamId, hir::ExprId, type_ref::Rawness};
+<a href=#66 id=66 data-nosnippet>66</a><span class="kw">use </span>hir_expand::name::Name;
+<a href=#67 id=67 data-nosnippet>67</a><span class="kw">use </span>indexmap::{IndexMap, map::Entry};
+<a href=#68 id=68 data-nosnippet>68</a><span class="kw">use </span>intern::{Symbol, sym};
+<a href=#69 id=69 data-nosnippet>69</a><span class="kw">use </span>la_arena::{Arena, Idx};
+<a href=#70 id=70 data-nosnippet>70</a><span class="kw">use </span>mir::{MirEvalError, VTableMap};
+<a href=#71 id=71 data-nosnippet>71</a><span class="kw">use </span>rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+<a href=#72 id=72 data-nosnippet>72</a><span class="kw">use </span>syntax::ast::{ConstArg, make};
+<a href=#73 id=73 data-nosnippet>73</a><span class="kw">use </span>traits::FnTrait;
+<a href=#74 id=74 data-nosnippet>74</a><span class="kw">use </span>triomphe::Arc;
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a><span class="kw">use crate</span>::{
+<a href=#77 id=77 data-nosnippet>77</a>    consteval::unknown_const,
+<a href=#78 id=78 data-nosnippet>78</a>    db::HirDatabase,
+<a href=#79 id=79 data-nosnippet>79</a>    display::{DisplayTarget, HirDisplay},
+<a href=#80 id=80 data-nosnippet>80</a>    generics::Generics,
+<a href=#81 id=81 data-nosnippet>81</a>    infer::unify::InferenceTable,
+<a href=#82 id=82 data-nosnippet>82</a>};
+<a href=#83 id=83 data-nosnippet>83</a>
+<a href=#84 id=84 data-nosnippet>84</a><span class="kw">pub use </span>autoderef::autoderef;
+<a href=#85 id=85 data-nosnippet>85</a><span class="kw">pub use </span>builder::{ParamKind, TyBuilder};
+<a href=#86 id=86 data-nosnippet>86</a><span class="kw">pub use </span>chalk_ext::<span class="kw-2">*</span>;
+<a href=#87 id=87 data-nosnippet>87</a><span class="kw">pub use </span>drop::DropGlue;
+<a href=#88 id=88 data-nosnippet>88</a><span class="kw">pub use </span>infer::{
+<a href=#89 id=89 data-nosnippet>89</a>    Adjust, Adjustment, AutoBorrow, BindingMode, InferenceDiagnostic, InferenceResult,
+<a href=#90 id=90 data-nosnippet>90</a>    InferenceTyDiagnosticSource, OverloadedDeref, PointerCast,
+<a href=#91 id=91 data-nosnippet>91</a>    cast::CastError,
+<a href=#92 id=92 data-nosnippet>92</a>    closure::{CaptureKind, CapturedItem},
+<a href=#93 id=93 data-nosnippet>93</a>    could_coerce, could_unify, could_unify_deeply,
+<a href=#94 id=94 data-nosnippet>94</a>};
+<a href=#95 id=95 data-nosnippet>95</a><span class="kw">pub use </span>interner::Interner;
+<a href=#96 id=96 data-nosnippet>96</a><span class="kw">pub use </span>lower::{
+<a href=#97 id=97 data-nosnippet>97</a>    ImplTraitLoweringMode, ParamLoweringMode, TyDefId, TyLoweringContext, ValueTyDefId,
+<a href=#98 id=98 data-nosnippet>98</a>    associated_type_shorthand_candidates, diagnostics::<span class="kw-2">*</span>,
+<a href=#99 id=99 data-nosnippet>99</a>};
+<a href=#100 id=100 data-nosnippet>100</a><span class="kw">pub use </span>mapping::{
+<a href=#101 id=101 data-nosnippet>101</a>    from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx,
+<a href=#102 id=102 data-nosnippet>102</a>    lt_from_placeholder_idx, lt_to_placeholder_idx, to_assoc_type_id, to_chalk_trait_id,
+<a href=#103 id=103 data-nosnippet>103</a>    to_foreign_def_id, to_placeholder_idx,
+<a href=#104 id=104 data-nosnippet>104</a>};
+<a href=#105 id=105 data-nosnippet>105</a><span class="kw">pub use </span>method_resolution::check_orphan_rules;
+<a href=#106 id=106 data-nosnippet>106</a><span class="kw">pub use </span>target_feature::TargetFeatures;
+<a href=#107 id=107 data-nosnippet>107</a><span class="kw">pub use </span>traits::TraitEnvironment;
+<a href=#108 id=108 data-nosnippet>108</a><span class="kw">pub use </span>utils::{Unsafety, all_super_traits, direct_super_traits, is_fn_unsafe_to_call};
+<a href=#109 id=109 data-nosnippet>109</a><span class="kw">pub use </span>variance::Variance;
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a><span class="kw">pub use </span>chalk_ir::{
+<a href=#112 id=112 data-nosnippet>112</a>    AdtId, BoundVar, DebruijnIndex, Mutability, Safety, Scalar, TyVariableKind,
+<a href=#113 id=113 data-nosnippet>113</a>    cast::Cast,
+<a href=#114 id=114 data-nosnippet>114</a>    visit::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
+<a href=#115 id=115 data-nosnippet>115</a>};
+<a href=#116 id=116 data-nosnippet>116</a>
+<a href=#117 id=117 data-nosnippet>117</a><span class="kw">pub type </span>ForeignDefId = chalk_ir::ForeignDefId&lt;Interner&gt;;
+<a href=#118 id=118 data-nosnippet>118</a><span class="kw">pub type </span>AssocTypeId = chalk_ir::AssocTypeId&lt;Interner&gt;;
+<a href=#119 id=119 data-nosnippet>119</a><span class="kw">pub type </span>FnDefId = chalk_ir::FnDefId&lt;Interner&gt;;
+<a href=#120 id=120 data-nosnippet>120</a><span class="kw">pub type </span>ClosureId = chalk_ir::ClosureId&lt;Interner&gt;;
+<a href=#121 id=121 data-nosnippet>121</a><span class="kw">pub type </span>OpaqueTyId = chalk_ir::OpaqueTyId&lt;Interner&gt;;
+<a href=#122 id=122 data-nosnippet>122</a><span class="kw">pub type </span>PlaceholderIndex = chalk_ir::PlaceholderIndex;
+<a href=#123 id=123 data-nosnippet>123</a>
+<a href=#124 id=124 data-nosnippet>124</a><span class="kw">pub type </span>VariableKind = chalk_ir::VariableKind&lt;Interner&gt;;
+<a href=#125 id=125 data-nosnippet>125</a><span class="kw">pub type </span>VariableKinds = chalk_ir::VariableKinds&lt;Interner&gt;;
+<a href=#126 id=126 data-nosnippet>126</a><span class="kw">pub type </span>CanonicalVarKinds = chalk_ir::CanonicalVarKinds&lt;Interner&gt;;
+<a href=#127 id=127 data-nosnippet>127</a><span class="doccomment">/// Represents generic parameters and an item bound by them. When the item has parent, the binders
+<a href=#128 id=128 data-nosnippet>128</a>/// also contain the generic parameters for its parent. See chalk's documentation for details.
+<a href=#129 id=129 data-nosnippet>129</a>///
+<a href=#130 id=130 data-nosnippet>130</a>/// One thing to keep in mind when working with `Binders` (and `Substitution`s, which represent
+<a href=#131 id=131 data-nosnippet>131</a>/// generic arguments) in rust-analyzer is that the ordering within *is* significant - the generic
+<a href=#132 id=132 data-nosnippet>132</a>/// parameters/arguments for an item MUST come before those for its parent. This is to facilitate
+<a href=#133 id=133 data-nosnippet>133</a>/// the integration with chalk-solve, which mildly puts constraints as such. See #13335 for its
+<a href=#134 id=134 data-nosnippet>134</a>/// motivation in detail.
+<a href=#135 id=135 data-nosnippet>135</a></span><span class="kw">pub type </span>Binders&lt;T&gt; = chalk_ir::Binders&lt;T&gt;;
+<a href=#136 id=136 data-nosnippet>136</a><span class="doccomment">/// Interned list of generic arguments for an item. When an item has parent, the `Substitution` for
+<a href=#137 id=137 data-nosnippet>137</a>/// it contains generic arguments for both its parent and itself. See chalk's documentation for
+<a href=#138 id=138 data-nosnippet>138</a>/// details.
+<a href=#139 id=139 data-nosnippet>139</a>///
+<a href=#140 id=140 data-nosnippet>140</a>/// See `Binders` for the constraint on the ordering.
+<a href=#141 id=141 data-nosnippet>141</a></span><span class="kw">pub type </span>Substitution = chalk_ir::Substitution&lt;Interner&gt;;
+<a href=#142 id=142 data-nosnippet>142</a><span class="kw">pub type </span>GenericArg = chalk_ir::GenericArg&lt;Interner&gt;;
+<a href=#143 id=143 data-nosnippet>143</a><span class="kw">pub type </span>GenericArgData = chalk_ir::GenericArgData&lt;Interner&gt;;
+<a href=#144 id=144 data-nosnippet>144</a>
+<a href=#145 id=145 data-nosnippet>145</a><span class="kw">pub type </span>Ty = chalk_ir::Ty&lt;Interner&gt;;
+<a href=#146 id=146 data-nosnippet>146</a><span class="kw">pub type </span>TyKind = chalk_ir::TyKind&lt;Interner&gt;;
+<a href=#147 id=147 data-nosnippet>147</a><span class="kw">pub type </span>TypeFlags = chalk_ir::TypeFlags;
+<a href=#148 id=148 data-nosnippet>148</a><span class="kw">pub type </span>DynTy = chalk_ir::DynTy&lt;Interner&gt;;
+<a href=#149 id=149 data-nosnippet>149</a><span class="kw">pub type </span>FnPointer = chalk_ir::FnPointer&lt;Interner&gt;;
+<a href=#150 id=150 data-nosnippet>150</a><span class="comment">// pub type FnSubst = chalk_ir::FnSubst&lt;Interner&gt;; // a re-export so we don't lose the tuple constructor
+<a href=#151 id=151 data-nosnippet>151</a></span><span class="kw">pub use </span>chalk_ir::FnSubst;
+<a href=#152 id=152 data-nosnippet>152</a><span class="kw">pub type </span>ProjectionTy = chalk_ir::ProjectionTy&lt;Interner&gt;;
+<a href=#153 id=153 data-nosnippet>153</a><span class="kw">pub type </span>AliasTy = chalk_ir::AliasTy&lt;Interner&gt;;
+<a href=#154 id=154 data-nosnippet>154</a><span class="kw">pub type </span>OpaqueTy = chalk_ir::OpaqueTy&lt;Interner&gt;;
+<a href=#155 id=155 data-nosnippet>155</a><span class="kw">pub type </span>InferenceVar = chalk_ir::InferenceVar;
+<a href=#156 id=156 data-nosnippet>156</a>
+<a href=#157 id=157 data-nosnippet>157</a><span class="kw">pub type </span>Lifetime = chalk_ir::Lifetime&lt;Interner&gt;;
+<a href=#158 id=158 data-nosnippet>158</a><span class="kw">pub type </span>LifetimeData = chalk_ir::LifetimeData&lt;Interner&gt;;
+<a href=#159 id=159 data-nosnippet>159</a><span class="kw">pub type </span>LifetimeOutlives = chalk_ir::LifetimeOutlives&lt;Interner&gt;;
+<a href=#160 id=160 data-nosnippet>160</a>
+<a href=#161 id=161 data-nosnippet>161</a><span class="kw">pub type </span>Const = chalk_ir::Const&lt;Interner&gt;;
+<a href=#162 id=162 data-nosnippet>162</a><span class="kw">pub type </span>ConstData = chalk_ir::ConstData&lt;Interner&gt;;
+<a href=#163 id=163 data-nosnippet>163</a><span class="kw">pub type </span>ConstValue = chalk_ir::ConstValue&lt;Interner&gt;;
+<a href=#164 id=164 data-nosnippet>164</a><span class="kw">pub type </span>ConcreteConst = chalk_ir::ConcreteConst&lt;Interner&gt;;
+<a href=#165 id=165 data-nosnippet>165</a>
+<a href=#166 id=166 data-nosnippet>166</a><span class="kw">pub type </span>ChalkTraitId = chalk_ir::TraitId&lt;Interner&gt;;
+<a href=#167 id=167 data-nosnippet>167</a><span class="kw">pub type </span>TraitRef = chalk_ir::TraitRef&lt;Interner&gt;;
+<a href=#168 id=168 data-nosnippet>168</a><span class="kw">pub type </span>QuantifiedWhereClause = Binders&lt;WhereClause&gt;;
+<a href=#169 id=169 data-nosnippet>169</a><span class="kw">pub type </span>QuantifiedWhereClauses = chalk_ir::QuantifiedWhereClauses&lt;Interner&gt;;
+<a href=#170 id=170 data-nosnippet>170</a><span class="kw">pub type </span>Canonical&lt;T&gt; = chalk_ir::Canonical&lt;T&gt;;
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a><span class="kw">pub type </span>FnSig = chalk_ir::FnSig&lt;Interner&gt;;
+<a href=#173 id=173 data-nosnippet>173</a>
+<a href=#174 id=174 data-nosnippet>174</a><span class="kw">pub type </span>InEnvironment&lt;T&gt; = chalk_ir::InEnvironment&lt;T&gt;;
+<a href=#175 id=175 data-nosnippet>175</a><span class="kw">pub type </span>Environment = chalk_ir::Environment&lt;Interner&gt;;
+<a href=#176 id=176 data-nosnippet>176</a><span class="kw">pub type </span>DomainGoal = chalk_ir::DomainGoal&lt;Interner&gt;;
+<a href=#177 id=177 data-nosnippet>177</a><span class="kw">pub type </span>Goal = chalk_ir::Goal&lt;Interner&gt;;
+<a href=#178 id=178 data-nosnippet>178</a><span class="kw">pub type </span>AliasEq = chalk_ir::AliasEq&lt;Interner&gt;;
+<a href=#179 id=179 data-nosnippet>179</a><span class="kw">pub type </span>Solution = chalk_solve::Solution&lt;Interner&gt;;
+<a href=#180 id=180 data-nosnippet>180</a><span class="kw">pub type </span>Constraint = chalk_ir::Constraint&lt;Interner&gt;;
+<a href=#181 id=181 data-nosnippet>181</a><span class="kw">pub type </span>Constraints = chalk_ir::Constraints&lt;Interner&gt;;
+<a href=#182 id=182 data-nosnippet>182</a><span class="kw">pub type </span>ConstrainedSubst = chalk_ir::ConstrainedSubst&lt;Interner&gt;;
+<a href=#183 id=183 data-nosnippet>183</a><span class="kw">pub type </span>Guidance = chalk_solve::Guidance&lt;Interner&gt;;
+<a href=#184 id=184 data-nosnippet>184</a><span class="kw">pub type </span>WhereClause = chalk_ir::WhereClause&lt;Interner&gt;;
+<a href=#185 id=185 data-nosnippet>185</a>
+<a href=#186 id=186 data-nosnippet>186</a><span class="kw">pub type </span>CanonicalVarKind = chalk_ir::CanonicalVarKind&lt;Interner&gt;;
+<a href=#187 id=187 data-nosnippet>187</a><span class="kw">pub type </span>GoalData = chalk_ir::GoalData&lt;Interner&gt;;
+<a href=#188 id=188 data-nosnippet>188</a><span class="kw">pub type </span>Goals = chalk_ir::Goals&lt;Interner&gt;;
+<a href=#189 id=189 data-nosnippet>189</a><span class="kw">pub type </span>ProgramClauseData = chalk_ir::ProgramClauseData&lt;Interner&gt;;
+<a href=#190 id=190 data-nosnippet>190</a><span class="kw">pub type </span>ProgramClause = chalk_ir::ProgramClause&lt;Interner&gt;;
+<a href=#191 id=191 data-nosnippet>191</a><span class="kw">pub type </span>ProgramClauses = chalk_ir::ProgramClauses&lt;Interner&gt;;
+<a href=#192 id=192 data-nosnippet>192</a><span class="kw">pub type </span>TyData = chalk_ir::TyData&lt;Interner&gt;;
+<a href=#193 id=193 data-nosnippet>193</a><span class="kw">pub type </span>Variances = chalk_ir::Variances&lt;Interner&gt;;
+<a href=#194 id=194 data-nosnippet>194</a>
+<a href=#195 id=195 data-nosnippet>195</a><span class="doccomment">/// A constant can have reference to other things. Memory map job is holding
+<a href=#196 id=196 data-nosnippet>196</a>/// the necessary bits of memory of the const eval session to keep the constant
+<a href=#197 id=197 data-nosnippet>197</a>/// meaningful.
+<a href=#198 id=198 data-nosnippet>198</a></span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, Eq)]
+<a href=#199 id=199 data-nosnippet>199</a></span><span class="kw">pub enum </span>MemoryMap {
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="attr">#[default]
+<a href=#201 id=201 data-nosnippet>201</a>    </span>Empty,
+<a href=#202 id=202 data-nosnippet>202</a>    Simple(Box&lt;[u8]&gt;),
+<a href=#203 id=203 data-nosnippet>203</a>    Complex(Box&lt;ComplexMemoryMap&gt;),
+<a href=#204 id=204 data-nosnippet>204</a>}
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a><span class="attr">#[derive(Debug, Default, Clone, PartialEq, Eq)]
+<a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">pub struct </span>ComplexMemoryMap {
+<a href=#208 id=208 data-nosnippet>208</a>    memory: IndexMap&lt;usize, Box&lt;[u8]&gt;, FxBuildHasher&gt;,
+<a href=#209 id=209 data-nosnippet>209</a>    vtable: VTableMap,
+<a href=#210 id=210 data-nosnippet>210</a>}
+<a href=#211 id=211 data-nosnippet>211</a>
+<a href=#212 id=212 data-nosnippet>212</a><span class="kw">impl </span>ComplexMemoryMap {
+<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, addr: usize, val: Box&lt;[u8]&gt;) {
+<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">match </span><span class="self">self</span>.memory.entry(addr) {
+<a href=#215 id=215 data-nosnippet>215</a>            Entry::Occupied(<span class="kw-2">mut </span>e) =&gt; {
+<a href=#216 id=216 data-nosnippet>216</a>                <span class="kw">if </span>e.get().len() &lt; val.len() {
+<a href=#217 id=217 data-nosnippet>217</a>                    e.insert(val);
+<a href=#218 id=218 data-nosnippet>218</a>                }
+<a href=#219 id=219 data-nosnippet>219</a>            }
+<a href=#220 id=220 data-nosnippet>220</a>            Entry::Vacant(e) =&gt; {
+<a href=#221 id=221 data-nosnippet>221</a>                e.insert(val);
+<a href=#222 id=222 data-nosnippet>222</a>            }
+<a href=#223 id=223 data-nosnippet>223</a>        }
+<a href=#224 id=224 data-nosnippet>224</a>    }
+<a href=#225 id=225 data-nosnippet>225</a>}
+<a href=#226 id=226 data-nosnippet>226</a>
+<a href=#227 id=227 data-nosnippet>227</a><span class="kw">impl </span>MemoryMap {
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">pub fn </span>vtable_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, id: usize) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>Ty, MirEvalError&gt; {
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#230 id=230 data-nosnippet>230</a>            MemoryMap::Empty | MemoryMap::Simple(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(MirEvalError::InvalidVTableId(id)),
+<a href=#231 id=231 data-nosnippet>231</a>            MemoryMap::Complex(cm) =&gt; cm.vtable.ty(id),
+<a href=#232 id=232 data-nosnippet>232</a>        }
+<a href=#233 id=233 data-nosnippet>233</a>    }
+<a href=#234 id=234 data-nosnippet>234</a>
+<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">fn </span>simple(v: Box&lt;[u8]&gt;) -&gt; <span class="self">Self </span>{
+<a href=#236 id=236 data-nosnippet>236</a>        MemoryMap::Simple(v)
+<a href=#237 id=237 data-nosnippet>237</a>    }
+<a href=#238 id=238 data-nosnippet>238</a>
+<a href=#239 id=239 data-nosnippet>239</a>    <span class="doccomment">/// This functions convert each address by a function `f` which gets the byte intervals and assign an address
+<a href=#240 id=240 data-nosnippet>240</a>    /// to them. It is useful when you want to load a constant with a memory map in a new memory. You can pass an
+<a href=#241 id=241 data-nosnippet>241</a>    /// allocator function as `f` and it will return a mapping of old addresses to new addresses.
+<a href=#242 id=242 data-nosnippet>242</a>    </span><span class="kw">fn </span>transform_addresses(
+<a href=#243 id=243 data-nosnippet>243</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>[u8], usize) -&gt; <span class="prelude-ty">Result</span>&lt;usize, MirEvalError&gt;,
+<a href=#245 id=245 data-nosnippet>245</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;FxHashMap&lt;usize, usize&gt;, MirEvalError&gt; {
+<a href=#246 id=246 data-nosnippet>246</a>        <span class="kw">let </span><span class="kw-2">mut </span>transform = |(addr, val): (<span class="kw-2">&amp;</span>usize, <span class="kw-2">&amp;</span>[u8])| {
+<a href=#247 id=247 data-nosnippet>247</a>            <span class="kw">let </span>addr = <span class="kw-2">*</span>addr;
+<a href=#248 id=248 data-nosnippet>248</a>            <span class="kw">let </span>align = <span class="kw">if </span>addr == <span class="number">0 </span>{ <span class="number">64 </span>} <span class="kw">else </span>{ (addr - (addr &amp; (addr - <span class="number">1</span>))).min(<span class="number">64</span>) };
+<a href=#249 id=249 data-nosnippet>249</a>            f(val, align).map(|it| (addr, it))
+<a href=#250 id=250 data-nosnippet>250</a>        };
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#252 id=252 data-nosnippet>252</a>            MemoryMap::Empty =&gt; <span class="prelude-val">Ok</span>(Default::default()),
+<a href=#253 id=253 data-nosnippet>253</a>            MemoryMap::Simple(m) =&gt; transform((<span class="kw-2">&amp;</span><span class="number">0</span>, m)).map(|(addr, val)| {
+<a href=#254 id=254 data-nosnippet>254</a>                <span class="kw">let </span><span class="kw-2">mut </span>map = FxHashMap::with_capacity_and_hasher(<span class="number">1</span>, rustc_hash::FxBuildHasher);
+<a href=#255 id=255 data-nosnippet>255</a>                map.insert(addr, val);
+<a href=#256 id=256 data-nosnippet>256</a>                map
+<a href=#257 id=257 data-nosnippet>257</a>            }),
+<a href=#258 id=258 data-nosnippet>258</a>            MemoryMap::Complex(cm) =&gt; {
+<a href=#259 id=259 data-nosnippet>259</a>                cm.memory.iter().map(|(addr, val)| transform((addr, val))).collect()
+<a href=#260 id=260 data-nosnippet>260</a>            }
+<a href=#261 id=261 data-nosnippet>261</a>        }
+<a href=#262 id=262 data-nosnippet>262</a>    }
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a>    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, addr: usize, size: usize) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt; {
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">if </span>size == <span class="number">0 </span>{
+<a href=#266 id=266 data-nosnippet>266</a>            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>[])
+<a href=#267 id=267 data-nosnippet>267</a>        } <span class="kw">else </span>{
+<a href=#268 id=268 data-nosnippet>268</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#269 id=269 data-nosnippet>269</a>                MemoryMap::Empty =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>[]),
+<a href=#270 id=270 data-nosnippet>270</a>                MemoryMap::Simple(m) <span class="kw">if </span>addr == <span class="number">0 </span>=&gt; m.get(<span class="number">0</span>..size),
+<a href=#271 id=271 data-nosnippet>271</a>                MemoryMap::Simple(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<a href=#272 id=272 data-nosnippet>272</a>                MemoryMap::Complex(cm) =&gt; cm.memory.get(<span class="kw-2">&amp;</span>addr)<span class="question-mark">?</span>.get(<span class="number">0</span>..size),
+<a href=#273 id=273 data-nosnippet>273</a>            }
+<a href=#274 id=274 data-nosnippet>274</a>        }
+<a href=#275 id=275 data-nosnippet>275</a>    }
+<a href=#276 id=276 data-nosnippet>276</a>}
+<a href=#277 id=277 data-nosnippet>277</a>
+<a href=#278 id=278 data-nosnippet>278</a><span class="doccomment">/// A concrete constant value
+<a href=#279 id=279 data-nosnippet>279</a></span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq)]
+<a href=#280 id=280 data-nosnippet>280</a></span><span class="kw">pub enum </span>ConstScalar {
+<a href=#281 id=281 data-nosnippet>281</a>    Bytes(Box&lt;[u8]&gt;, MemoryMap),
+<a href=#282 id=282 data-nosnippet>282</a>    <span class="comment">// FIXME: this is a hack to get around chalk not being able to represent unevaluatable
+<a href=#283 id=283 data-nosnippet>283</a>    // constants
+<a href=#284 id=284 data-nosnippet>284</a>    </span>UnevaluatedConst(GeneralConstId, Substitution),
+<a href=#285 id=285 data-nosnippet>285</a>    <span class="doccomment">/// Case of an unknown value that rustc might know but we don't
+<a href=#286 id=286 data-nosnippet>286</a>    </span><span class="comment">// FIXME: this is a hack to get around chalk not being able to represent unevaluatable
+<a href=#287 id=287 data-nosnippet>287</a>    // constants
+<a href=#288 id=288 data-nosnippet>288</a>    // https://github.com/rust-lang/rust-analyzer/pull/8813#issuecomment-840679177
+<a href=#289 id=289 data-nosnippet>289</a>    // https://rust-lang.zulipchat.com/#narrow/stream/144729-wg-traits/topic/Handling.20non.20evaluatable.20constants'.20equality/near/238386348
+<a href=#290 id=290 data-nosnippet>290</a>    </span>Unknown,
+<a href=#291 id=291 data-nosnippet>291</a>}
+<a href=#292 id=292 data-nosnippet>292</a>
+<a href=#293 id=293 data-nosnippet>293</a><span class="kw">impl </span>Hash <span class="kw">for </span>ConstScalar {
+<a href=#294 id=294 data-nosnippet>294</a>    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
+<a href=#295 id=295 data-nosnippet>295</a>        core::mem::discriminant(<span class="self">self</span>).hash(state);
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">if let </span>ConstScalar::Bytes(b, <span class="kw">_</span>) = <span class="self">self </span>{
+<a href=#297 id=297 data-nosnippet>297</a>            b.hash(state)
+<a href=#298 id=298 data-nosnippet>298</a>        }
+<a href=#299 id=299 data-nosnippet>299</a>    }
+<a href=#300 id=300 data-nosnippet>300</a>}
+<a href=#301 id=301 data-nosnippet>301</a>
+<a href=#302 id=302 data-nosnippet>302</a><span class="doccomment">/// Return an index of a parameter in the generic type parameter list by it's id.
+<a href=#303 id=303 data-nosnippet>303</a></span><span class="kw">pub fn </span>param_idx(db: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HirDatabase, id: TypeOrConstParamId) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+<a href=#304 id=304 data-nosnippet>304</a>    generics::generics(db, id.parent).type_or_const_param_idx(id)
+<a href=#305 id=305 data-nosnippet>305</a>}
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>wrap_empty_binders&lt;T&gt;(value: T) -&gt; Binders&lt;T&gt;
+<a href=#308 id=308 data-nosnippet>308</a><span class="kw">where
+<a href=#309 id=309 data-nosnippet>309</a>    </span>T: TypeFoldable&lt;Interner&gt; + HasInterner&lt;Interner = Interner&gt;,
+<a href=#310 id=310 data-nosnippet>310</a>{
+<a href=#311 id=311 data-nosnippet>311</a>    Binders::empty(Interner, value.shifted_in_from(Interner, DebruijnIndex::ONE))
+<a href=#312 id=312 data-nosnippet>312</a>}
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>make_type_and_const_binders&lt;T: HasInterner&lt;Interner = Interner&gt;&gt;(
+<a href=#315 id=315 data-nosnippet>315</a>    which_is_const: <span class="kw">impl </span>Iterator&lt;Item = <span class="prelude-ty">Option</span>&lt;Ty&gt;&gt;,
+<a href=#316 id=316 data-nosnippet>316</a>    value: T,
+<a href=#317 id=317 data-nosnippet>317</a>) -&gt; Binders&lt;T&gt; {
+<a href=#318 id=318 data-nosnippet>318</a>    Binders::new(
+<a href=#319 id=319 data-nosnippet>319</a>        VariableKinds::from_iter(
+<a href=#320 id=320 data-nosnippet>320</a>            Interner,
+<a href=#321 id=321 data-nosnippet>321</a>            which_is_const.map(|x| {
+<a href=#322 id=322 data-nosnippet>322</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = x {
+<a href=#323 id=323 data-nosnippet>323</a>                    chalk_ir::VariableKind::Const(ty)
+<a href=#324 id=324 data-nosnippet>324</a>                } <span class="kw">else </span>{
+<a href=#325 id=325 data-nosnippet>325</a>                    chalk_ir::VariableKind::Ty(chalk_ir::TyVariableKind::General)
+<a href=#326 id=326 data-nosnippet>326</a>                }
+<a href=#327 id=327 data-nosnippet>327</a>            }),
+<a href=#328 id=328 data-nosnippet>328</a>        ),
+<a href=#329 id=329 data-nosnippet>329</a>        value,
+<a href=#330 id=330 data-nosnippet>330</a>    )
+<a href=#331 id=331 data-nosnippet>331</a>}
+<a href=#332 id=332 data-nosnippet>332</a>
+<a href=#333 id=333 data-nosnippet>333</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>make_single_type_binders&lt;T: HasInterner&lt;Interner = Interner&gt;&gt;(
+<a href=#334 id=334 data-nosnippet>334</a>    value: T,
+<a href=#335 id=335 data-nosnippet>335</a>) -&gt; Binders&lt;T&gt; {
+<a href=#336 id=336 data-nosnippet>336</a>    Binders::new(
+<a href=#337 id=337 data-nosnippet>337</a>        VariableKinds::from_iter(
+<a href=#338 id=338 data-nosnippet>338</a>            Interner,
+<a href=#339 id=339 data-nosnippet>339</a>            std::iter::once(chalk_ir::VariableKind::Ty(chalk_ir::TyVariableKind::General)),
+<a href=#340 id=340 data-nosnippet>340</a>        ),
+<a href=#341 id=341 data-nosnippet>341</a>        value,
+<a href=#342 id=342 data-nosnippet>342</a>    )
+<a href=#343 id=343 data-nosnippet>343</a>}
+<a href=#344 id=344 data-nosnippet>344</a>
+<a href=#345 id=345 data-nosnippet>345</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>make_binders&lt;T: HasInterner&lt;Interner = Interner&gt;&gt;(
+<a href=#346 id=346 data-nosnippet>346</a>    db: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HirDatabase,
+<a href=#347 id=347 data-nosnippet>347</a>    generics: <span class="kw-2">&amp;</span>Generics,
+<a href=#348 id=348 data-nosnippet>348</a>    value: T,
+<a href=#349 id=349 data-nosnippet>349</a>) -&gt; Binders&lt;T&gt; {
+<a href=#350 id=350 data-nosnippet>350</a>    Binders::new(
+<a href=#351 id=351 data-nosnippet>351</a>        VariableKinds::from_iter(
+<a href=#352 id=352 data-nosnippet>352</a>            Interner,
+<a href=#353 id=353 data-nosnippet>353</a>            generics.iter_id().map(|x| <span class="kw">match </span>x {
+<a href=#354 id=354 data-nosnippet>354</a>                hir_def::GenericParamId::ConstParamId(id) =&gt; {
+<a href=#355 id=355 data-nosnippet>355</a>                    chalk_ir::VariableKind::Const(db.const_param_ty(id))
+<a href=#356 id=356 data-nosnippet>356</a>                }
+<a href=#357 id=357 data-nosnippet>357</a>                hir_def::GenericParamId::TypeParamId(<span class="kw">_</span>) =&gt; {
+<a href=#358 id=358 data-nosnippet>358</a>                    chalk_ir::VariableKind::Ty(chalk_ir::TyVariableKind::General)
+<a href=#359 id=359 data-nosnippet>359</a>                }
+<a href=#360 id=360 data-nosnippet>360</a>                hir_def::GenericParamId::LifetimeParamId(<span class="kw">_</span>) =&gt; chalk_ir::VariableKind::Lifetime,
+<a href=#361 id=361 data-nosnippet>361</a>            }),
+<a href=#362 id=362 data-nosnippet>362</a>        ),
+<a href=#363 id=363 data-nosnippet>363</a>        value,
+<a href=#364 id=364 data-nosnippet>364</a>    )
+<a href=#365 id=365 data-nosnippet>365</a>}
+<a href=#366 id=366 data-nosnippet>366</a>
+<a href=#367 id=367 data-nosnippet>367</a><span class="comment">// FIXME: get rid of this, just replace it by FnPointer
+<a href=#368 id=368 data-nosnippet>368</a></span><span class="doccomment">/// A function signature as seen by type inference: Several parameter types and
+<a href=#369 id=369 data-nosnippet>369</a>/// one return type.
+<a href=#370 id=370 data-nosnippet>370</a></span><span class="attr">#[derive(Clone, PartialEq, Eq, Debug)]
+<a href=#371 id=371 data-nosnippet>371</a></span><span class="kw">pub struct </span>CallableSig {
+<a href=#372 id=372 data-nosnippet>372</a>    params_and_return: Arc&lt;[Ty]&gt;,
+<a href=#373 id=373 data-nosnippet>373</a>    is_varargs: bool,
+<a href=#374 id=374 data-nosnippet>374</a>    safety: Safety,
+<a href=#375 id=375 data-nosnippet>375</a>    abi: FnAbi,
+<a href=#376 id=376 data-nosnippet>376</a>}
+<a href=#377 id=377 data-nosnippet>377</a>
+<a href=#378 id=378 data-nosnippet>378</a><span class="macro">has_interner!</span>(CallableSig);
+<a href=#379 id=379 data-nosnippet>379</a>
+<a href=#380 id=380 data-nosnippet>380</a><span class="attr">#[derive(Debug, Copy, Clone, Eq)]
+<a href=#381 id=381 data-nosnippet>381</a></span><span class="kw">pub enum </span>FnAbi {
+<a href=#382 id=382 data-nosnippet>382</a>    Aapcs,
+<a href=#383 id=383 data-nosnippet>383</a>    AapcsUnwind,
+<a href=#384 id=384 data-nosnippet>384</a>    AvrInterrupt,
+<a href=#385 id=385 data-nosnippet>385</a>    AvrNonBlockingInterrupt,
+<a href=#386 id=386 data-nosnippet>386</a>    C,
+<a href=#387 id=387 data-nosnippet>387</a>    CCmseNonsecureCall,
+<a href=#388 id=388 data-nosnippet>388</a>    CCmseNonsecureEntry,
+<a href=#389 id=389 data-nosnippet>389</a>    CDecl,
+<a href=#390 id=390 data-nosnippet>390</a>    CDeclUnwind,
+<a href=#391 id=391 data-nosnippet>391</a>    CUnwind,
+<a href=#392 id=392 data-nosnippet>392</a>    Efiapi,
+<a href=#393 id=393 data-nosnippet>393</a>    Fastcall,
+<a href=#394 id=394 data-nosnippet>394</a>    FastcallUnwind,
+<a href=#395 id=395 data-nosnippet>395</a>    Msp430Interrupt,
+<a href=#396 id=396 data-nosnippet>396</a>    PtxKernel,
+<a href=#397 id=397 data-nosnippet>397</a>    RiscvInterruptM,
+<a href=#398 id=398 data-nosnippet>398</a>    RiscvInterruptS,
+<a href=#399 id=399 data-nosnippet>399</a>    Rust,
+<a href=#400 id=400 data-nosnippet>400</a>    RustCall,
+<a href=#401 id=401 data-nosnippet>401</a>    RustCold,
+<a href=#402 id=402 data-nosnippet>402</a>    RustIntrinsic,
+<a href=#403 id=403 data-nosnippet>403</a>    Stdcall,
+<a href=#404 id=404 data-nosnippet>404</a>    StdcallUnwind,
+<a href=#405 id=405 data-nosnippet>405</a>    System,
+<a href=#406 id=406 data-nosnippet>406</a>    SystemUnwind,
+<a href=#407 id=407 data-nosnippet>407</a>    Sysv64,
+<a href=#408 id=408 data-nosnippet>408</a>    Sysv64Unwind,
+<a href=#409 id=409 data-nosnippet>409</a>    Thiscall,
+<a href=#410 id=410 data-nosnippet>410</a>    ThiscallUnwind,
+<a href=#411 id=411 data-nosnippet>411</a>    Unadjusted,
+<a href=#412 id=412 data-nosnippet>412</a>    Vectorcall,
+<a href=#413 id=413 data-nosnippet>413</a>    VectorcallUnwind,
+<a href=#414 id=414 data-nosnippet>414</a>    Wasm,
+<a href=#415 id=415 data-nosnippet>415</a>    Win64,
+<a href=#416 id=416 data-nosnippet>416</a>    Win64Unwind,
+<a href=#417 id=417 data-nosnippet>417</a>    X86Interrupt,
+<a href=#418 id=418 data-nosnippet>418</a>    Unknown,
+<a href=#419 id=419 data-nosnippet>419</a>}
+<a href=#420 id=420 data-nosnippet>420</a>
+<a href=#421 id=421 data-nosnippet>421</a><span class="kw">impl </span>PartialEq <span class="kw">for </span>FnAbi {
+<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, _other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+<a href=#423 id=423 data-nosnippet>423</a>        <span class="comment">// FIXME: Proper equality breaks `coercion::two_closures_lub` test
+<a href=#424 id=424 data-nosnippet>424</a>        </span><span class="bool-val">true
+<a href=#425 id=425 data-nosnippet>425</a>    </span>}
+<a href=#426 id=426 data-nosnippet>426</a>}
+<a href=#427 id=427 data-nosnippet>427</a>
+<a href=#428 id=428 data-nosnippet>428</a><span class="kw">impl </span>Hash <span class="kw">for </span>FnAbi {
+<a href=#429 id=429 data-nosnippet>429</a>    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
+<a href=#430 id=430 data-nosnippet>430</a>        <span class="comment">// Required because of the FIXME above and due to us implementing `Eq`, without this
+<a href=#431 id=431 data-nosnippet>431</a>        // we would break the `Hash` + `Eq` contract
+<a href=#432 id=432 data-nosnippet>432</a>        </span>core::mem::discriminant(<span class="kw-2">&amp;</span><span class="self">Self</span>::Unknown).hash(state);
+<a href=#433 id=433 data-nosnippet>433</a>    }
+<a href=#434 id=434 data-nosnippet>434</a>}
+<a href=#435 id=435 data-nosnippet>435</a>
+<a href=#436 id=436 data-nosnippet>436</a><span class="kw">impl </span>FnAbi {
+<a href=#437 id=437 data-nosnippet>437</a>    <span class="attr">#[rustfmt::skip]
+<a href=#438 id=438 data-nosnippet>438</a>    </span><span class="kw">pub fn </span>from_symbol(s: <span class="kw-2">&amp;</span>Symbol) -&gt; FnAbi {
+<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw">match </span>s {
+<a href=#440 id=440 data-nosnippet>440</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::aapcs_dash_unwind =&gt; FnAbi::AapcsUnwind,
+<a href=#441 id=441 data-nosnippet>441</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::aapcs =&gt; FnAbi::Aapcs,
+<a href=#442 id=442 data-nosnippet>442</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::avr_dash_interrupt =&gt; FnAbi::AvrInterrupt,
+<a href=#443 id=443 data-nosnippet>443</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::avr_dash_non_dash_blocking_dash_interrupt =&gt; FnAbi::AvrNonBlockingInterrupt,
+<a href=#444 id=444 data-nosnippet>444</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::C_dash_cmse_dash_nonsecure_dash_call =&gt; FnAbi::CCmseNonsecureCall,
+<a href=#445 id=445 data-nosnippet>445</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::C_dash_cmse_dash_nonsecure_dash_entry =&gt; FnAbi::CCmseNonsecureEntry,
+<a href=#446 id=446 data-nosnippet>446</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::C_dash_unwind =&gt; FnAbi::CUnwind,
+<a href=#447 id=447 data-nosnippet>447</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::C =&gt; FnAbi::C,
+<a href=#448 id=448 data-nosnippet>448</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::cdecl_dash_unwind =&gt; FnAbi::CDeclUnwind,
+<a href=#449 id=449 data-nosnippet>449</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::cdecl =&gt; FnAbi::CDecl,
+<a href=#450 id=450 data-nosnippet>450</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::efiapi =&gt; FnAbi::Efiapi,
+<a href=#451 id=451 data-nosnippet>451</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::fastcall_dash_unwind =&gt; FnAbi::FastcallUnwind,
+<a href=#452 id=452 data-nosnippet>452</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::fastcall =&gt; FnAbi::Fastcall,
+<a href=#453 id=453 data-nosnippet>453</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::msp430_dash_interrupt =&gt; FnAbi::Msp430Interrupt,
+<a href=#454 id=454 data-nosnippet>454</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::ptx_dash_kernel =&gt; FnAbi::PtxKernel,
+<a href=#455 id=455 data-nosnippet>455</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::riscv_dash_interrupt_dash_m =&gt; FnAbi::RiscvInterruptM,
+<a href=#456 id=456 data-nosnippet>456</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::riscv_dash_interrupt_dash_s =&gt; FnAbi::RiscvInterruptS,
+<a href=#457 id=457 data-nosnippet>457</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::rust_dash_call =&gt; FnAbi::RustCall,
+<a href=#458 id=458 data-nosnippet>458</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::rust_dash_cold =&gt; FnAbi::RustCold,
+<a href=#459 id=459 data-nosnippet>459</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::rust_dash_intrinsic =&gt; FnAbi::RustIntrinsic,
+<a href=#460 id=460 data-nosnippet>460</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::Rust =&gt; FnAbi::Rust,
+<a href=#461 id=461 data-nosnippet>461</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::stdcall_dash_unwind =&gt; FnAbi::StdcallUnwind,
+<a href=#462 id=462 data-nosnippet>462</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::stdcall =&gt; FnAbi::Stdcall,
+<a href=#463 id=463 data-nosnippet>463</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::system_dash_unwind =&gt; FnAbi::SystemUnwind,
+<a href=#464 id=464 data-nosnippet>464</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::system =&gt; FnAbi::System,
+<a href=#465 id=465 data-nosnippet>465</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::sysv64_dash_unwind =&gt; FnAbi::Sysv64Unwind,
+<a href=#466 id=466 data-nosnippet>466</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::sysv64 =&gt; FnAbi::Sysv64,
+<a href=#467 id=467 data-nosnippet>467</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::thiscall_dash_unwind =&gt; FnAbi::ThiscallUnwind,
+<a href=#468 id=468 data-nosnippet>468</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::thiscall =&gt; FnAbi::Thiscall,
+<a href=#469 id=469 data-nosnippet>469</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::unadjusted =&gt; FnAbi::Unadjusted,
+<a href=#470 id=470 data-nosnippet>470</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::vectorcall_dash_unwind =&gt; FnAbi::VectorcallUnwind,
+<a href=#471 id=471 data-nosnippet>471</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::vectorcall =&gt; FnAbi::Vectorcall,
+<a href=#472 id=472 data-nosnippet>472</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::wasm =&gt; FnAbi::Wasm,
+<a href=#473 id=473 data-nosnippet>473</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::win64_dash_unwind =&gt; FnAbi::Win64Unwind,
+<a href=#474 id=474 data-nosnippet>474</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::win64 =&gt; FnAbi::Win64,
+<a href=#475 id=475 data-nosnippet>475</a>            s <span class="kw">if </span><span class="kw-2">*</span>s == sym::x86_dash_interrupt =&gt; FnAbi::X86Interrupt,
+<a href=#476 id=476 data-nosnippet>476</a>            <span class="kw">_ </span>=&gt; FnAbi::Unknown,
+<a href=#477 id=477 data-nosnippet>477</a>        }
+<a href=#478 id=478 data-nosnippet>478</a>    }
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a>    <span class="kw">pub fn </span>as_str(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#481 id=481 data-nosnippet>481</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#482 id=482 data-nosnippet>482</a>            FnAbi::Aapcs =&gt; <span class="string">"aapcs"</span>,
+<a href=#483 id=483 data-nosnippet>483</a>            FnAbi::AapcsUnwind =&gt; <span class="string">"aapcs-unwind"</span>,
+<a href=#484 id=484 data-nosnippet>484</a>            FnAbi::AvrInterrupt =&gt; <span class="string">"avr-interrupt"</span>,
+<a href=#485 id=485 data-nosnippet>485</a>            FnAbi::AvrNonBlockingInterrupt =&gt; <span class="string">"avr-non-blocking-interrupt"</span>,
+<a href=#486 id=486 data-nosnippet>486</a>            FnAbi::C =&gt; <span class="string">"C"</span>,
+<a href=#487 id=487 data-nosnippet>487</a>            FnAbi::CCmseNonsecureCall =&gt; <span class="string">"C-cmse-nonsecure-call"</span>,
+<a href=#488 id=488 data-nosnippet>488</a>            FnAbi::CCmseNonsecureEntry =&gt; <span class="string">"C-cmse-nonsecure-entry"</span>,
+<a href=#489 id=489 data-nosnippet>489</a>            FnAbi::CDecl =&gt; <span class="string">"C-decl"</span>,
+<a href=#490 id=490 data-nosnippet>490</a>            FnAbi::CDeclUnwind =&gt; <span class="string">"cdecl-unwind"</span>,
+<a href=#491 id=491 data-nosnippet>491</a>            FnAbi::CUnwind =&gt; <span class="string">"C-unwind"</span>,
+<a href=#492 id=492 data-nosnippet>492</a>            FnAbi::Efiapi =&gt; <span class="string">"efiapi"</span>,
+<a href=#493 id=493 data-nosnippet>493</a>            FnAbi::Fastcall =&gt; <span class="string">"fastcall"</span>,
+<a href=#494 id=494 data-nosnippet>494</a>            FnAbi::FastcallUnwind =&gt; <span class="string">"fastcall-unwind"</span>,
+<a href=#495 id=495 data-nosnippet>495</a>            FnAbi::Msp430Interrupt =&gt; <span class="string">"msp430-interrupt"</span>,
+<a href=#496 id=496 data-nosnippet>496</a>            FnAbi::PtxKernel =&gt; <span class="string">"ptx-kernel"</span>,
+<a href=#497 id=497 data-nosnippet>497</a>            FnAbi::RiscvInterruptM =&gt; <span class="string">"riscv-interrupt-m"</span>,
+<a href=#498 id=498 data-nosnippet>498</a>            FnAbi::RiscvInterruptS =&gt; <span class="string">"riscv-interrupt-s"</span>,
+<a href=#499 id=499 data-nosnippet>499</a>            FnAbi::Rust =&gt; <span class="string">"Rust"</span>,
+<a href=#500 id=500 data-nosnippet>500</a>            FnAbi::RustCall =&gt; <span class="string">"rust-call"</span>,
+<a href=#501 id=501 data-nosnippet>501</a>            FnAbi::RustCold =&gt; <span class="string">"rust-cold"</span>,
+<a href=#502 id=502 data-nosnippet>502</a>            FnAbi::RustIntrinsic =&gt; <span class="string">"rust-intrinsic"</span>,
+<a href=#503 id=503 data-nosnippet>503</a>            FnAbi::Stdcall =&gt; <span class="string">"stdcall"</span>,
+<a href=#504 id=504 data-nosnippet>504</a>            FnAbi::StdcallUnwind =&gt; <span class="string">"stdcall-unwind"</span>,
+<a href=#505 id=505 data-nosnippet>505</a>            FnAbi::System =&gt; <span class="string">"system"</span>,
+<a href=#506 id=506 data-nosnippet>506</a>            FnAbi::SystemUnwind =&gt; <span class="string">"system-unwind"</span>,
+<a href=#507 id=507 data-nosnippet>507</a>            FnAbi::Sysv64 =&gt; <span class="string">"sysv64"</span>,
+<a href=#508 id=508 data-nosnippet>508</a>            FnAbi::Sysv64Unwind =&gt; <span class="string">"sysv64-unwind"</span>,
+<a href=#509 id=509 data-nosnippet>509</a>            FnAbi::Thiscall =&gt; <span class="string">"thiscall"</span>,
+<a href=#510 id=510 data-nosnippet>510</a>            FnAbi::ThiscallUnwind =&gt; <span class="string">"thiscall-unwind"</span>,
+<a href=#511 id=511 data-nosnippet>511</a>            FnAbi::Unadjusted =&gt; <span class="string">"unadjusted"</span>,
+<a href=#512 id=512 data-nosnippet>512</a>            FnAbi::Vectorcall =&gt; <span class="string">"vectorcall"</span>,
+<a href=#513 id=513 data-nosnippet>513</a>            FnAbi::VectorcallUnwind =&gt; <span class="string">"vectorcall-unwind"</span>,
+<a href=#514 id=514 data-nosnippet>514</a>            FnAbi::Wasm =&gt; <span class="string">"wasm"</span>,
+<a href=#515 id=515 data-nosnippet>515</a>            FnAbi::Win64 =&gt; <span class="string">"win64"</span>,
+<a href=#516 id=516 data-nosnippet>516</a>            FnAbi::Win64Unwind =&gt; <span class="string">"win64-unwind"</span>,
+<a href=#517 id=517 data-nosnippet>517</a>            FnAbi::X86Interrupt =&gt; <span class="string">"x86-interrupt"</span>,
+<a href=#518 id=518 data-nosnippet>518</a>            FnAbi::Unknown =&gt; <span class="string">"unknown-abi"</span>,
+<a href=#519 id=519 data-nosnippet>519</a>        }
+<a href=#520 id=520 data-nosnippet>520</a>    }
+<a href=#521 id=521 data-nosnippet>521</a>}
+<a href=#522 id=522 data-nosnippet>522</a>
+<a href=#523 id=523 data-nosnippet>523</a><span class="doccomment">/// A polymorphic function signature.
+<a href=#524 id=524 data-nosnippet>524</a></span><span class="kw">pub type </span>PolyFnSig = Binders&lt;CallableSig&gt;;
+<a href=#525 id=525 data-nosnippet>525</a>
+<a href=#526 id=526 data-nosnippet>526</a><span class="kw">impl </span>CallableSig {
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="kw">pub fn </span>from_params_and_return(
+<a href=#528 id=528 data-nosnippet>528</a>        params: <span class="kw">impl </span>ExactSizeIterator&lt;Item = Ty&gt;,
+<a href=#529 id=529 data-nosnippet>529</a>        ret: Ty,
+<a href=#530 id=530 data-nosnippet>530</a>        is_varargs: bool,
+<a href=#531 id=531 data-nosnippet>531</a>        safety: Safety,
+<a href=#532 id=532 data-nosnippet>532</a>        abi: FnAbi,
+<a href=#533 id=533 data-nosnippet>533</a>    ) -&gt; CallableSig {
+<a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">let </span><span class="kw-2">mut </span>params_and_return = Vec::with_capacity(params.len() + <span class="number">1</span>);
+<a href=#535 id=535 data-nosnippet>535</a>        params_and_return.extend(params);
+<a href=#536 id=536 data-nosnippet>536</a>        params_and_return.push(ret);
+<a href=#537 id=537 data-nosnippet>537</a>        CallableSig { params_and_return: params_and_return.into(), is_varargs, safety, abi }
+<a href=#538 id=538 data-nosnippet>538</a>    }
+<a href=#539 id=539 data-nosnippet>539</a>
+<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">pub fn </span>from_def(db: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HirDatabase, def: FnDefId, substs: <span class="kw-2">&amp;</span>Substitution) -&gt; CallableSig {
+<a href=#541 id=541 data-nosnippet>541</a>        <span class="kw">let </span>callable_def = db.lookup_intern_callable_def(def.into());
+<a href=#542 id=542 data-nosnippet>542</a>        <span class="kw">let </span>sig = db.callable_item_signature(callable_def);
+<a href=#543 id=543 data-nosnippet>543</a>        sig.substitute(Interner, substs)
+<a href=#544 id=544 data-nosnippet>544</a>    }
+<a href=#545 id=545 data-nosnippet>545</a>    <span class="kw">pub fn </span>from_fn_ptr(fn_ptr: <span class="kw-2">&amp;</span>FnPointer) -&gt; CallableSig {
+<a href=#546 id=546 data-nosnippet>546</a>        CallableSig {
+<a href=#547 id=547 data-nosnippet>547</a>            <span class="comment">// FIXME: what to do about lifetime params? -&gt; return PolyFnSig
+<a href=#548 id=548 data-nosnippet>548</a>            </span>params_and_return: Arc::from_iter(
+<a href=#549 id=549 data-nosnippet>549</a>                fn_ptr
+<a href=#550 id=550 data-nosnippet>550</a>                    .substitution
+<a href=#551 id=551 data-nosnippet>551</a>                    .clone()
+<a href=#552 id=552 data-nosnippet>552</a>                    .shifted_out_to(Interner, DebruijnIndex::ONE)
+<a href=#553 id=553 data-nosnippet>553</a>                    .expect(<span class="string">"unexpected lifetime vars in fn ptr"</span>)
+<a href=#554 id=554 data-nosnippet>554</a>                    .<span class="number">0
+<a href=#555 id=555 data-nosnippet>555</a>                    </span>.as_slice(Interner)
+<a href=#556 id=556 data-nosnippet>556</a>                    .iter()
+<a href=#557 id=557 data-nosnippet>557</a>                    .map(|arg| arg.assert_ty_ref(Interner).clone()),
+<a href=#558 id=558 data-nosnippet>558</a>            ),
+<a href=#559 id=559 data-nosnippet>559</a>            is_varargs: fn_ptr.sig.variadic,
+<a href=#560 id=560 data-nosnippet>560</a>            safety: fn_ptr.sig.safety,
+<a href=#561 id=561 data-nosnippet>561</a>            abi: fn_ptr.sig.abi,
+<a href=#562 id=562 data-nosnippet>562</a>        }
+<a href=#563 id=563 data-nosnippet>563</a>    }
+<a href=#564 id=564 data-nosnippet>564</a>
+<a href=#565 id=565 data-nosnippet>565</a>    <span class="kw">pub fn </span>to_fn_ptr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FnPointer {
+<a href=#566 id=566 data-nosnippet>566</a>        FnPointer {
+<a href=#567 id=567 data-nosnippet>567</a>            num_binders: <span class="number">0</span>,
+<a href=#568 id=568 data-nosnippet>568</a>            sig: FnSig { abi: <span class="self">self</span>.abi, safety: <span class="self">self</span>.safety, variadic: <span class="self">self</span>.is_varargs },
+<a href=#569 id=569 data-nosnippet>569</a>            substitution: FnSubst(Substitution::from_iter(
+<a href=#570 id=570 data-nosnippet>570</a>                Interner,
+<a href=#571 id=571 data-nosnippet>571</a>                <span class="self">self</span>.params_and_return.iter().cloned(),
+<a href=#572 id=572 data-nosnippet>572</a>            )),
+<a href=#573 id=573 data-nosnippet>573</a>        }
+<a href=#574 id=574 data-nosnippet>574</a>    }
+<a href=#575 id=575 data-nosnippet>575</a>
+<a href=#576 id=576 data-nosnippet>576</a>    <span class="kw">pub fn </span>abi(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FnAbi {
+<a href=#577 id=577 data-nosnippet>577</a>        <span class="self">self</span>.abi
+<a href=#578 id=578 data-nosnippet>578</a>    }
+<a href=#579 id=579 data-nosnippet>579</a>
+<a href=#580 id=580 data-nosnippet>580</a>    <span class="kw">pub fn </span>params(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
+<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.params_and_return[<span class="number">0</span>..<span class="self">self</span>.params_and_return.len() - <span class="number">1</span>]
+<a href=#582 id=582 data-nosnippet>582</a>    }
+<a href=#583 id=583 data-nosnippet>583</a>
+<a href=#584 id=584 data-nosnippet>584</a>    <span class="kw">pub fn </span>ret(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Ty {
+<a href=#585 id=585 data-nosnippet>585</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.params_and_return[<span class="self">self</span>.params_and_return.len() - <span class="number">1</span>]
+<a href=#586 id=586 data-nosnippet>586</a>    }
+<a href=#587 id=587 data-nosnippet>587</a>}
+<a href=#588 id=588 data-nosnippet>588</a>
+<a href=#589 id=589 data-nosnippet>589</a><span class="kw">impl </span>TypeFoldable&lt;Interner&gt; <span class="kw">for </span>CallableSig {
+<a href=#590 id=590 data-nosnippet>590</a>    <span class="kw">fn </span>try_fold_with&lt;E&gt;(
+<a href=#591 id=591 data-nosnippet>591</a>        <span class="self">self</span>,
+<a href=#592 id=592 data-nosnippet>592</a>        folder: <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>chalk_ir::fold::FallibleTypeFolder&lt;Interner, Error = E&gt;,
+<a href=#593 id=593 data-nosnippet>593</a>        outer_binder: DebruijnIndex,
+<a href=#594 id=594 data-nosnippet>594</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, E&gt; {
+<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">let </span>vec = <span class="self">self</span>.params_and_return.to_vec();
+<a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">let </span>folded = vec.try_fold_with(folder, outer_binder)<span class="question-mark">?</span>;
+<a href=#597 id=597 data-nosnippet>597</a>        <span class="prelude-val">Ok</span>(CallableSig {
+<a href=#598 id=598 data-nosnippet>598</a>            params_and_return: folded.into(),
+<a href=#599 id=599 data-nosnippet>599</a>            is_varargs: <span class="self">self</span>.is_varargs,
+<a href=#600 id=600 data-nosnippet>600</a>            safety: <span class="self">self</span>.safety,
+<a href=#601 id=601 data-nosnippet>601</a>            abi: <span class="self">self</span>.abi,
+<a href=#602 id=602 data-nosnippet>602</a>        })
+<a href=#603 id=603 data-nosnippet>603</a>    }
+<a href=#604 id=604 data-nosnippet>604</a>}
+<a href=#605 id=605 data-nosnippet>605</a>
+<a href=#606 id=606 data-nosnippet>606</a><span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+<a href=#607 id=607 data-nosnippet>607</a></span><span class="kw">pub enum </span>ImplTraitId {
+<a href=#608 id=608 data-nosnippet>608</a>    ReturnTypeImplTrait(hir_def::FunctionId, ImplTraitIdx),
+<a href=#609 id=609 data-nosnippet>609</a>    TypeAliasImplTrait(hir_def::TypeAliasId, ImplTraitIdx),
+<a href=#610 id=610 data-nosnippet>610</a>    AsyncBlockTypeImplTrait(hir_def::DefWithBodyId, ExprId),
+<a href=#611 id=611 data-nosnippet>611</a>}
+<a href=#612 id=612 data-nosnippet>612</a>
+<a href=#613 id=613 data-nosnippet>613</a><span class="attr">#[derive(PartialEq, Eq, Debug, Hash)]
+<a href=#614 id=614 data-nosnippet>614</a></span><span class="kw">pub struct </span>ImplTraits {
+<a href=#615 id=615 data-nosnippet>615</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) impl_traits: Arena&lt;ImplTrait&gt;,
+<a href=#616 id=616 data-nosnippet>616</a>}
+<a href=#617 id=617 data-nosnippet>617</a>
+<a href=#618 id=618 data-nosnippet>618</a><span class="macro">has_interner!</span>(ImplTraits);
+<a href=#619 id=619 data-nosnippet>619</a>
+<a href=#620 id=620 data-nosnippet>620</a><span class="attr">#[derive(PartialEq, Eq, Debug, Hash)]
+<a href=#621 id=621 data-nosnippet>621</a></span><span class="kw">pub struct </span>ImplTrait {
+<a href=#622 id=622 data-nosnippet>622</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) bounds: Binders&lt;Vec&lt;QuantifiedWhereClause&gt;&gt;,
+<a href=#623 id=623 data-nosnippet>623</a>}
+<a href=#624 id=624 data-nosnippet>624</a>
+<a href=#625 id=625 data-nosnippet>625</a><span class="kw">pub type </span>ImplTraitIdx = Idx&lt;ImplTrait&gt;;
+<a href=#626 id=626 data-nosnippet>626</a>
+<a href=#627 id=627 data-nosnippet>627</a><span class="kw">pub fn </span>static_lifetime() -&gt; Lifetime {
+<a href=#628 id=628 data-nosnippet>628</a>    LifetimeData::Static.intern(Interner)
+<a href=#629 id=629 data-nosnippet>629</a>}
+<a href=#630 id=630 data-nosnippet>630</a>
+<a href=#631 id=631 data-nosnippet>631</a><span class="kw">pub fn </span>error_lifetime() -&gt; Lifetime {
+<a href=#632 id=632 data-nosnippet>632</a>    LifetimeData::Error.intern(Interner)
+<a href=#633 id=633 data-nosnippet>633</a>}
+<a href=#634 id=634 data-nosnippet>634</a>
+<a href=#635 id=635 data-nosnippet>635</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_free_vars&lt;T: HasInterner&lt;Interner = Interner&gt; + TypeFoldable&lt;Interner&gt;&gt;(
+<a href=#636 id=636 data-nosnippet>636</a>    t: T,
+<a href=#637 id=637 data-nosnippet>637</a>    for_ty: <span class="kw">impl </span>FnMut(BoundVar, DebruijnIndex) -&gt; Ty,
+<a href=#638 id=638 data-nosnippet>638</a>    for_const: <span class="kw">impl </span>FnMut(Ty, BoundVar, DebruijnIndex) -&gt; Const,
+<a href=#639 id=639 data-nosnippet>639</a>) -&gt; T {
+<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">use </span>chalk_ir::fold::TypeFolder;
+<a href=#641 id=641 data-nosnippet>641</a>
+<a href=#642 id=642 data-nosnippet>642</a>    <span class="attr">#[derive(chalk_derive::FallibleTypeFolder)]
+<a href=#643 id=643 data-nosnippet>643</a>    #[has_interner(Interner)]
+<a href=#644 id=644 data-nosnippet>644</a>    </span><span class="kw">struct </span>FreeVarFolder&lt;
+<a href=#645 id=645 data-nosnippet>645</a>        F1: FnMut(BoundVar, DebruijnIndex) -&gt; Ty,
+<a href=#646 id=646 data-nosnippet>646</a>        F2: FnMut(Ty, BoundVar, DebruijnIndex) -&gt; Const,
+<a href=#647 id=647 data-nosnippet>647</a>    &gt;(F1, F2);
+<a href=#648 id=648 data-nosnippet>648</a>    <span class="kw">impl</span>&lt;F1: FnMut(BoundVar, DebruijnIndex) -&gt; Ty, F2: FnMut(Ty, BoundVar, DebruijnIndex) -&gt; Const&gt;
+<a href=#649 id=649 data-nosnippet>649</a>        TypeFolder&lt;Interner&gt; <span class="kw">for </span>FreeVarFolder&lt;F1, F2&gt;
+<a href=#650 id=650 data-nosnippet>650</a>    {
+<a href=#651 id=651 data-nosnippet>651</a>        <span class="kw">fn </span>as_dyn(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>TypeFolder&lt;Interner&gt; {
+<a href=#652 id=652 data-nosnippet>652</a>            <span class="self">self
+<a href=#653 id=653 data-nosnippet>653</a>        </span>}
+<a href=#654 id=654 data-nosnippet>654</a>
+<a href=#655 id=655 data-nosnippet>655</a>        <span class="kw">fn </span>interner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Interner {
+<a href=#656 id=656 data-nosnippet>656</a>            Interner
+<a href=#657 id=657 data-nosnippet>657</a>        }
+<a href=#658 id=658 data-nosnippet>658</a>
+<a href=#659 id=659 data-nosnippet>659</a>        <span class="kw">fn </span>fold_free_var_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bound_var: BoundVar, outer_binder: DebruijnIndex) -&gt; Ty {
+<a href=#660 id=660 data-nosnippet>660</a>            <span class="self">self</span>.<span class="number">0</span>(bound_var, outer_binder)
+<a href=#661 id=661 data-nosnippet>661</a>        }
+<a href=#662 id=662 data-nosnippet>662</a>
+<a href=#663 id=663 data-nosnippet>663</a>        <span class="kw">fn </span>fold_free_var_const(
+<a href=#664 id=664 data-nosnippet>664</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#665 id=665 data-nosnippet>665</a>            ty: Ty,
+<a href=#666 id=666 data-nosnippet>666</a>            bound_var: BoundVar,
+<a href=#667 id=667 data-nosnippet>667</a>            outer_binder: DebruijnIndex,
+<a href=#668 id=668 data-nosnippet>668</a>        ) -&gt; Const {
+<a href=#669 id=669 data-nosnippet>669</a>            <span class="self">self</span>.<span class="number">1</span>(ty, bound_var, outer_binder)
+<a href=#670 id=670 data-nosnippet>670</a>        }
+<a href=#671 id=671 data-nosnippet>671</a>    }
+<a href=#672 id=672 data-nosnippet>672</a>    t.fold_with(<span class="kw-2">&amp;mut </span>FreeVarFolder(for_ty, for_const), DebruijnIndex::INNERMOST)
+<a href=#673 id=673 data-nosnippet>673</a>}
+<a href=#674 id=674 data-nosnippet>674</a>
+<a href=#675 id=675 data-nosnippet>675</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_tys&lt;T: HasInterner&lt;Interner = Interner&gt; + TypeFoldable&lt;Interner&gt;&gt;(
+<a href=#676 id=676 data-nosnippet>676</a>    t: T,
+<a href=#677 id=677 data-nosnippet>677</a>    <span class="kw-2">mut </span>for_ty: <span class="kw">impl </span>FnMut(Ty, DebruijnIndex) -&gt; Ty,
+<a href=#678 id=678 data-nosnippet>678</a>    binders: DebruijnIndex,
+<a href=#679 id=679 data-nosnippet>679</a>) -&gt; T {
+<a href=#680 id=680 data-nosnippet>680</a>    fold_tys_and_consts(
+<a href=#681 id=681 data-nosnippet>681</a>        t,
+<a href=#682 id=682 data-nosnippet>682</a>        |x, d| <span class="kw">match </span>x {
+<a href=#683 id=683 data-nosnippet>683</a>            Either::Left(x) =&gt; Either::Left(for_ty(x, d)),
+<a href=#684 id=684 data-nosnippet>684</a>            Either::Right(x) =&gt; Either::Right(x),
+<a href=#685 id=685 data-nosnippet>685</a>        },
+<a href=#686 id=686 data-nosnippet>686</a>        binders,
+<a href=#687 id=687 data-nosnippet>687</a>    )
+<a href=#688 id=688 data-nosnippet>688</a>}
+<a href=#689 id=689 data-nosnippet>689</a>
+<a href=#690 id=690 data-nosnippet>690</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_tys_and_consts&lt;T: HasInterner&lt;Interner = Interner&gt; + TypeFoldable&lt;Interner&gt;&gt;(
+<a href=#691 id=691 data-nosnippet>691</a>    t: T,
+<a href=#692 id=692 data-nosnippet>692</a>    f: <span class="kw">impl </span>FnMut(Either&lt;Ty, Const&gt;, DebruijnIndex) -&gt; Either&lt;Ty, Const&gt;,
+<a href=#693 id=693 data-nosnippet>693</a>    binders: DebruijnIndex,
+<a href=#694 id=694 data-nosnippet>694</a>) -&gt; T {
+<a href=#695 id=695 data-nosnippet>695</a>    <span class="kw">use </span>chalk_ir::fold::{TypeFolder, TypeSuperFoldable};
+<a href=#696 id=696 data-nosnippet>696</a>    <span class="attr">#[derive(chalk_derive::FallibleTypeFolder)]
+<a href=#697 id=697 data-nosnippet>697</a>    #[has_interner(Interner)]
+<a href=#698 id=698 data-nosnippet>698</a>    </span><span class="kw">struct </span>TyFolder&lt;F: FnMut(Either&lt;Ty, Const&gt;, DebruijnIndex) -&gt; Either&lt;Ty, Const&gt;&gt;(F);
+<a href=#699 id=699 data-nosnippet>699</a>    <span class="kw">impl</span>&lt;F: FnMut(Either&lt;Ty, Const&gt;, DebruijnIndex) -&gt; Either&lt;Ty, Const&gt;&gt; TypeFolder&lt;Interner&gt;
+<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">for </span>TyFolder&lt;F&gt;
+<a href=#701 id=701 data-nosnippet>701</a>    {
+<a href=#702 id=702 data-nosnippet>702</a>        <span class="kw">fn </span>as_dyn(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>TypeFolder&lt;Interner&gt; {
+<a href=#703 id=703 data-nosnippet>703</a>            <span class="self">self
+<a href=#704 id=704 data-nosnippet>704</a>        </span>}
+<a href=#705 id=705 data-nosnippet>705</a>
+<a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">fn </span>interner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Interner {
+<a href=#707 id=707 data-nosnippet>707</a>            Interner
+<a href=#708 id=708 data-nosnippet>708</a>        }
+<a href=#709 id=709 data-nosnippet>709</a>
+<a href=#710 id=710 data-nosnippet>710</a>        <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: Ty, outer_binder: DebruijnIndex) -&gt; Ty {
+<a href=#711 id=711 data-nosnippet>711</a>            <span class="kw">let </span>ty = ty.super_fold_with(<span class="self">self</span>.as_dyn(), outer_binder);
+<a href=#712 id=712 data-nosnippet>712</a>            <span class="self">self</span>.<span class="number">0</span>(Either::Left(ty), outer_binder).left().unwrap()
+<a href=#713 id=713 data-nosnippet>713</a>        }
+<a href=#714 id=714 data-nosnippet>714</a>
+<a href=#715 id=715 data-nosnippet>715</a>        <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: Const, outer_binder: DebruijnIndex) -&gt; Const {
+<a href=#716 id=716 data-nosnippet>716</a>            <span class="self">self</span>.<span class="number">0</span>(Either::Right(c), outer_binder).right().unwrap()
+<a href=#717 id=717 data-nosnippet>717</a>        }
+<a href=#718 id=718 data-nosnippet>718</a>    }
+<a href=#719 id=719 data-nosnippet>719</a>    t.fold_with(<span class="kw-2">&amp;mut </span>TyFolder(f), binders)
+<a href=#720 id=720 data-nosnippet>720</a>}
+<a href=#721 id=721 data-nosnippet>721</a>
+<a href=#722 id=722 data-nosnippet>722</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_generic_args&lt;T: HasInterner&lt;Interner = Interner&gt; + TypeFoldable&lt;Interner&gt;&gt;(
+<a href=#723 id=723 data-nosnippet>723</a>    t: T,
+<a href=#724 id=724 data-nosnippet>724</a>    f: <span class="kw">impl </span>FnMut(GenericArgData, DebruijnIndex) -&gt; GenericArgData,
+<a href=#725 id=725 data-nosnippet>725</a>    binders: DebruijnIndex,
+<a href=#726 id=726 data-nosnippet>726</a>) -&gt; T {
+<a href=#727 id=727 data-nosnippet>727</a>    <span class="kw">use </span>chalk_ir::fold::{TypeFolder, TypeSuperFoldable};
+<a href=#728 id=728 data-nosnippet>728</a>    <span class="attr">#[derive(chalk_derive::FallibleTypeFolder)]
+<a href=#729 id=729 data-nosnippet>729</a>    #[has_interner(Interner)]
+<a href=#730 id=730 data-nosnippet>730</a>    </span><span class="kw">struct </span>TyFolder&lt;F: FnMut(GenericArgData, DebruijnIndex) -&gt; GenericArgData&gt;(F);
+<a href=#731 id=731 data-nosnippet>731</a>    <span class="kw">impl</span>&lt;F: FnMut(GenericArgData, DebruijnIndex) -&gt; GenericArgData&gt; TypeFolder&lt;Interner&gt;
+<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">for </span>TyFolder&lt;F&gt;
+<a href=#733 id=733 data-nosnippet>733</a>    {
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="kw">fn </span>as_dyn(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>TypeFolder&lt;Interner&gt; {
+<a href=#735 id=735 data-nosnippet>735</a>            <span class="self">self
+<a href=#736 id=736 data-nosnippet>736</a>        </span>}
+<a href=#737 id=737 data-nosnippet>737</a>
+<a href=#738 id=738 data-nosnippet>738</a>        <span class="kw">fn </span>interner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Interner {
+<a href=#739 id=739 data-nosnippet>739</a>            Interner
+<a href=#740 id=740 data-nosnippet>740</a>        }
+<a href=#741 id=741 data-nosnippet>741</a>
+<a href=#742 id=742 data-nosnippet>742</a>        <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: Ty, outer_binder: DebruijnIndex) -&gt; Ty {
+<a href=#743 id=743 data-nosnippet>743</a>            <span class="kw">let </span>ty = ty.super_fold_with(<span class="self">self</span>.as_dyn(), outer_binder);
+<a href=#744 id=744 data-nosnippet>744</a>            <span class="self">self</span>.<span class="number">0</span>(GenericArgData::Ty(ty), outer_binder)
+<a href=#745 id=745 data-nosnippet>745</a>                .intern(Interner)
+<a href=#746 id=746 data-nosnippet>746</a>                .ty(Interner)
+<a href=#747 id=747 data-nosnippet>747</a>                .unwrap()
+<a href=#748 id=748 data-nosnippet>748</a>                .clone()
+<a href=#749 id=749 data-nosnippet>749</a>        }
+<a href=#750 id=750 data-nosnippet>750</a>
+<a href=#751 id=751 data-nosnippet>751</a>        <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: Const, outer_binder: DebruijnIndex) -&gt; Const {
+<a href=#752 id=752 data-nosnippet>752</a>            <span class="self">self</span>.<span class="number">0</span>(GenericArgData::Const(c), outer_binder)
+<a href=#753 id=753 data-nosnippet>753</a>                .intern(Interner)
+<a href=#754 id=754 data-nosnippet>754</a>                .constant(Interner)
+<a href=#755 id=755 data-nosnippet>755</a>                .unwrap()
+<a href=#756 id=756 data-nosnippet>756</a>                .clone()
+<a href=#757 id=757 data-nosnippet>757</a>        }
+<a href=#758 id=758 data-nosnippet>758</a>
+<a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">fn </span>fold_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, lt: Lifetime, outer_binder: DebruijnIndex) -&gt; Lifetime {
+<a href=#760 id=760 data-nosnippet>760</a>            <span class="kw">let </span>lt = lt.super_fold_with(<span class="self">self</span>.as_dyn(), outer_binder);
+<a href=#761 id=761 data-nosnippet>761</a>            <span class="self">self</span>.<span class="number">0</span>(GenericArgData::Lifetime(lt), outer_binder)
+<a href=#762 id=762 data-nosnippet>762</a>                .intern(Interner)
+<a href=#763 id=763 data-nosnippet>763</a>                .lifetime(Interner)
+<a href=#764 id=764 data-nosnippet>764</a>                .unwrap()
+<a href=#765 id=765 data-nosnippet>765</a>                .clone()
+<a href=#766 id=766 data-nosnippet>766</a>        }
+<a href=#767 id=767 data-nosnippet>767</a>    }
+<a href=#768 id=768 data-nosnippet>768</a>    t.fold_with(<span class="kw-2">&amp;mut </span>TyFolder(f), binders)
+<a href=#769 id=769 data-nosnippet>769</a>}
+<a href=#770 id=770 data-nosnippet>770</a>
+<a href=#771 id=771 data-nosnippet>771</a><span class="doccomment">/// 'Canonicalizes' the `t` by replacing any errors with new variables. Also
+<a href=#772 id=772 data-nosnippet>772</a>/// ensures there are no unbound variables or inference variables anywhere in
+<a href=#773 id=773 data-nosnippet>773</a>/// the `t`.
+<a href=#774 id=774 data-nosnippet>774</a></span><span class="kw">pub fn </span>replace_errors_with_variables&lt;T&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; Canonical&lt;T&gt;
+<a href=#775 id=775 data-nosnippet>775</a><span class="kw">where
+<a href=#776 id=776 data-nosnippet>776</a>    </span>T: HasInterner&lt;Interner = Interner&gt; + TypeFoldable&lt;Interner&gt; + Clone,
+<a href=#777 id=777 data-nosnippet>777</a>{
+<a href=#778 id=778 data-nosnippet>778</a>    <span class="kw">use </span>chalk_ir::{
+<a href=#779 id=779 data-nosnippet>779</a>        Fallible,
+<a href=#780 id=780 data-nosnippet>780</a>        fold::{FallibleTypeFolder, TypeSuperFoldable},
+<a href=#781 id=781 data-nosnippet>781</a>    };
+<a href=#782 id=782 data-nosnippet>782</a>    <span class="kw">struct </span>ErrorReplacer {
+<a href=#783 id=783 data-nosnippet>783</a>        vars: usize,
+<a href=#784 id=784 data-nosnippet>784</a>    }
+<a href=#785 id=785 data-nosnippet>785</a>    <span class="kw">impl </span>FallibleTypeFolder&lt;Interner&gt; <span class="kw">for </span>ErrorReplacer {
+<a href=#786 id=786 data-nosnippet>786</a>        <span class="kw">type </span>Error = NoSolution;
+<a href=#787 id=787 data-nosnippet>787</a>
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="kw">fn </span>as_dyn(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>FallibleTypeFolder&lt;Interner, Error = <span class="self">Self</span>::Error&gt; {
+<a href=#789 id=789 data-nosnippet>789</a>            <span class="self">self
+<a href=#790 id=790 data-nosnippet>790</a>        </span>}
+<a href=#791 id=791 data-nosnippet>791</a>
+<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">fn </span>interner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Interner {
+<a href=#793 id=793 data-nosnippet>793</a>            Interner
+<a href=#794 id=794 data-nosnippet>794</a>        }
+<a href=#795 id=795 data-nosnippet>795</a>
+<a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: Ty, outer_binder: DebruijnIndex) -&gt; Fallible&lt;Ty&gt; {
+<a href=#797 id=797 data-nosnippet>797</a>            <span class="kw">if let </span>TyKind::Error = ty.kind(Interner) {
+<a href=#798 id=798 data-nosnippet>798</a>                <span class="kw">let </span>index = <span class="self">self</span>.vars;
+<a href=#799 id=799 data-nosnippet>799</a>                <span class="self">self</span>.vars += <span class="number">1</span>;
+<a href=#800 id=800 data-nosnippet>800</a>                <span class="prelude-val">Ok</span>(TyKind::BoundVar(BoundVar::new(outer_binder, index)).intern(Interner))
+<a href=#801 id=801 data-nosnippet>801</a>            } <span class="kw">else </span>{
+<a href=#802 id=802 data-nosnippet>802</a>                ty.try_super_fold_with(<span class="self">self</span>.as_dyn(), outer_binder)
+<a href=#803 id=803 data-nosnippet>803</a>            }
+<a href=#804 id=804 data-nosnippet>804</a>        }
+<a href=#805 id=805 data-nosnippet>805</a>
+<a href=#806 id=806 data-nosnippet>806</a>        <span class="kw">fn </span>try_fold_inference_ty(
+<a href=#807 id=807 data-nosnippet>807</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#808 id=808 data-nosnippet>808</a>            _var: InferenceVar,
+<a href=#809 id=809 data-nosnippet>809</a>            _kind: TyVariableKind,
+<a href=#810 id=810 data-nosnippet>810</a>            _outer_binder: DebruijnIndex,
+<a href=#811 id=811 data-nosnippet>811</a>        ) -&gt; Fallible&lt;Ty&gt; {
+<a href=#812 id=812 data-nosnippet>812</a>            <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) {
+<a href=#813 id=813 data-nosnippet>813</a>                <span class="comment">// we don't want to just panic here, because then the error message
+<a href=#814 id=814 data-nosnippet>814</a>                // won't contain the whole thing, which would not be very helpful
+<a href=#815 id=815 data-nosnippet>815</a>                </span><span class="prelude-val">Err</span>(NoSolution)
+<a href=#816 id=816 data-nosnippet>816</a>            } <span class="kw">else </span>{
+<a href=#817 id=817 data-nosnippet>817</a>                <span class="prelude-val">Ok</span>(TyKind::Error.intern(Interner))
+<a href=#818 id=818 data-nosnippet>818</a>            }
+<a href=#819 id=819 data-nosnippet>819</a>        }
+<a href=#820 id=820 data-nosnippet>820</a>
+<a href=#821 id=821 data-nosnippet>821</a>        <span class="kw">fn </span>try_fold_free_var_ty(
+<a href=#822 id=822 data-nosnippet>822</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#823 id=823 data-nosnippet>823</a>            _bound_var: BoundVar,
+<a href=#824 id=824 data-nosnippet>824</a>            _outer_binder: DebruijnIndex,
+<a href=#825 id=825 data-nosnippet>825</a>        ) -&gt; Fallible&lt;Ty&gt; {
+<a href=#826 id=826 data-nosnippet>826</a>            <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) {
+<a href=#827 id=827 data-nosnippet>827</a>                <span class="comment">// we don't want to just panic here, because then the error message
+<a href=#828 id=828 data-nosnippet>828</a>                // won't contain the whole thing, which would not be very helpful
+<a href=#829 id=829 data-nosnippet>829</a>                </span><span class="prelude-val">Err</span>(NoSolution)
+<a href=#830 id=830 data-nosnippet>830</a>            } <span class="kw">else </span>{
+<a href=#831 id=831 data-nosnippet>831</a>                <span class="prelude-val">Ok</span>(TyKind::Error.intern(Interner))
+<a href=#832 id=832 data-nosnippet>832</a>            }
+<a href=#833 id=833 data-nosnippet>833</a>        }
+<a href=#834 id=834 data-nosnippet>834</a>
+<a href=#835 id=835 data-nosnippet>835</a>        <span class="kw">fn </span>try_fold_inference_const(
+<a href=#836 id=836 data-nosnippet>836</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#837 id=837 data-nosnippet>837</a>            ty: Ty,
+<a href=#838 id=838 data-nosnippet>838</a>            _var: InferenceVar,
+<a href=#839 id=839 data-nosnippet>839</a>            _outer_binder: DebruijnIndex,
+<a href=#840 id=840 data-nosnippet>840</a>        ) -&gt; Fallible&lt;Const&gt; {
+<a href=#841 id=841 data-nosnippet>841</a>            <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) { <span class="prelude-val">Err</span>(NoSolution) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(unknown_const(ty)) }
+<a href=#842 id=842 data-nosnippet>842</a>        }
+<a href=#843 id=843 data-nosnippet>843</a>
+<a href=#844 id=844 data-nosnippet>844</a>        <span class="kw">fn </span>try_fold_free_var_const(
+<a href=#845 id=845 data-nosnippet>845</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#846 id=846 data-nosnippet>846</a>            ty: Ty,
+<a href=#847 id=847 data-nosnippet>847</a>            _bound_var: BoundVar,
+<a href=#848 id=848 data-nosnippet>848</a>            _outer_binder: DebruijnIndex,
+<a href=#849 id=849 data-nosnippet>849</a>        ) -&gt; Fallible&lt;Const&gt; {
+<a href=#850 id=850 data-nosnippet>850</a>            <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) { <span class="prelude-val">Err</span>(NoSolution) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(unknown_const(ty)) }
+<a href=#851 id=851 data-nosnippet>851</a>        }
+<a href=#852 id=852 data-nosnippet>852</a>
+<a href=#853 id=853 data-nosnippet>853</a>        <span class="kw">fn </span>try_fold_inference_lifetime(
+<a href=#854 id=854 data-nosnippet>854</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#855 id=855 data-nosnippet>855</a>            _var: InferenceVar,
+<a href=#856 id=856 data-nosnippet>856</a>            _outer_binder: DebruijnIndex,
+<a href=#857 id=857 data-nosnippet>857</a>        ) -&gt; Fallible&lt;Lifetime&gt; {
+<a href=#858 id=858 data-nosnippet>858</a>            <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) { <span class="prelude-val">Err</span>(NoSolution) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(error_lifetime()) }
+<a href=#859 id=859 data-nosnippet>859</a>        }
+<a href=#860 id=860 data-nosnippet>860</a>
+<a href=#861 id=861 data-nosnippet>861</a>        <span class="kw">fn </span>try_fold_free_var_lifetime(
+<a href=#862 id=862 data-nosnippet>862</a>            <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#863 id=863 data-nosnippet>863</a>            _bound_var: BoundVar,
+<a href=#864 id=864 data-nosnippet>864</a>            _outer_binder: DebruijnIndex,
+<a href=#865 id=865 data-nosnippet>865</a>        ) -&gt; Fallible&lt;Lifetime&gt; {
+<a href=#866 id=866 data-nosnippet>866</a>            <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) { <span class="prelude-val">Err</span>(NoSolution) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(error_lifetime()) }
+<a href=#867 id=867 data-nosnippet>867</a>        }
+<a href=#868 id=868 data-nosnippet>868</a>    }
+<a href=#869 id=869 data-nosnippet>869</a>    <span class="kw">let </span><span class="kw-2">mut </span>error_replacer = ErrorReplacer { vars: <span class="number">0 </span>};
+<a href=#870 id=870 data-nosnippet>870</a>    <span class="kw">let </span>value = <span class="kw">match </span>t.clone().try_fold_with(<span class="kw-2">&amp;mut </span>error_replacer, DebruijnIndex::INNERMOST) {
+<a href=#871 id=871 data-nosnippet>871</a>        <span class="prelude-val">Ok</span>(t) =&gt; t,
+<a href=#872 id=872 data-nosnippet>872</a>        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">"Encountered unbound or inference vars in {t:?}"</span>),
+<a href=#873 id=873 data-nosnippet>873</a>    };
+<a href=#874 id=874 data-nosnippet>874</a>    <span class="kw">let </span>kinds = (<span class="number">0</span>..error_replacer.vars).map(|<span class="kw">_</span>| {
+<a href=#875 id=875 data-nosnippet>875</a>        chalk_ir::CanonicalVarKind::new(
+<a href=#876 id=876 data-nosnippet>876</a>            chalk_ir::VariableKind::Ty(TyVariableKind::General),
+<a href=#877 id=877 data-nosnippet>877</a>            chalk_ir::UniverseIndex::ROOT,
+<a href=#878 id=878 data-nosnippet>878</a>        )
+<a href=#879 id=879 data-nosnippet>879</a>    });
+<a href=#880 id=880 data-nosnippet>880</a>    Canonical { value, binders: chalk_ir::CanonicalVarKinds::from_iter(Interner, kinds) }
+<a href=#881 id=881 data-nosnippet>881</a>}
+<a href=#882 id=882 data-nosnippet>882</a>
+<a href=#883 id=883 data-nosnippet>883</a><span class="kw">pub fn </span>callable_sig_from_fn_trait(
+<a href=#884 id=884 data-nosnippet>884</a>    self_ty: <span class="kw-2">&amp;</span>Ty,
+<a href=#885 id=885 data-nosnippet>885</a>    trait_env: Arc&lt;TraitEnvironment&gt;,
+<a href=#886 id=886 data-nosnippet>886</a>    db: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HirDatabase,
+<a href=#887 id=887 data-nosnippet>887</a>) -&gt; <span class="prelude-ty">Option</span>&lt;(FnTrait, CallableSig)&gt; {
+<a href=#888 id=888 data-nosnippet>888</a>    <span class="kw">let </span>krate = trait_env.krate;
+<a href=#889 id=889 data-nosnippet>889</a>    <span class="kw">let </span>fn_once_trait = FnTrait::FnOnce.get_id(db, krate)<span class="question-mark">?</span>;
+<a href=#890 id=890 data-nosnippet>890</a>    <span class="kw">let </span>output_assoc_type = db
+<a href=#891 id=891 data-nosnippet>891</a>        .trait_items(fn_once_trait)
+<a href=#892 id=892 data-nosnippet>892</a>        .associated_type_by_name(<span class="kw-2">&amp;</span>Name::new_symbol_root(sym::Output.clone()))<span class="question-mark">?</span>;
+<a href=#893 id=893 data-nosnippet>893</a>
+<a href=#894 id=894 data-nosnippet>894</a>    <span class="kw">let </span><span class="kw-2">mut </span>table = InferenceTable::new(db, trait_env.clone());
+<a href=#895 id=895 data-nosnippet>895</a>    <span class="kw">let </span>b = TyBuilder::trait_ref(db, fn_once_trait);
+<a href=#896 id=896 data-nosnippet>896</a>    <span class="kw">if </span>b.remaining() != <span class="number">2 </span>{
+<a href=#897 id=897 data-nosnippet>897</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
+<a href=#898 id=898 data-nosnippet>898</a>    }
+<a href=#899 id=899 data-nosnippet>899</a>
+<a href=#900 id=900 data-nosnippet>900</a>    <span class="comment">// Register two obligations:
+<a href=#901 id=901 data-nosnippet>901</a>    // - Self: FnOnce&lt;?args_ty&gt;
+<a href=#902 id=902 data-nosnippet>902</a>    // - &lt;Self as FnOnce&lt;?args_ty&gt;&gt;::Output == ?ret_ty
+<a href=#903 id=903 data-nosnippet>903</a>    </span><span class="kw">let </span>args_ty = table.new_type_var();
+<a href=#904 id=904 data-nosnippet>904</a>    <span class="kw">let </span><span class="kw-2">mut </span>trait_ref = b.push(self_ty.clone()).push(args_ty.clone()).build();
+<a href=#905 id=905 data-nosnippet>905</a>    <span class="kw">let </span>projection = TyBuilder::assoc_type_projection(
+<a href=#906 id=906 data-nosnippet>906</a>        db,
+<a href=#907 id=907 data-nosnippet>907</a>        output_assoc_type,
+<a href=#908 id=908 data-nosnippet>908</a>        <span class="prelude-val">Some</span>(trait_ref.substitution.clone()),
+<a href=#909 id=909 data-nosnippet>909</a>    )
+<a href=#910 id=910 data-nosnippet>910</a>    .build();
+<a href=#911 id=911 data-nosnippet>911</a>
+<a href=#912 id=912 data-nosnippet>912</a>    <span class="kw">let </span>block = trait_env.block;
+<a href=#913 id=913 data-nosnippet>913</a>    <span class="kw">let </span>trait_env = trait_env.env.clone();
+<a href=#914 id=914 data-nosnippet>914</a>    <span class="kw">let </span>obligation =
+<a href=#915 id=915 data-nosnippet>915</a>        InEnvironment { goal: trait_ref.clone().cast(Interner), environment: trait_env.clone() };
+<a href=#916 id=916 data-nosnippet>916</a>    <span class="kw">let </span>canonical = table.canonicalize(obligation.clone());
+<a href=#917 id=917 data-nosnippet>917</a>    <span class="kw">if </span>db.trait_solve(krate, block, canonical.cast(Interner)).is_some() {
+<a href=#918 id=918 data-nosnippet>918</a>        table.register_obligation(obligation.goal);
+<a href=#919 id=919 data-nosnippet>919</a>        <span class="kw">let </span>return_ty = table.normalize_projection_ty(projection);
+<a href=#920 id=920 data-nosnippet>920</a>        <span class="kw">for </span>fn_x <span class="kw">in </span>[FnTrait::Fn, FnTrait::FnMut, FnTrait::FnOnce] {
+<a href=#921 id=921 data-nosnippet>921</a>            <span class="kw">let </span>fn_x_trait = fn_x.get_id(db, krate)<span class="question-mark">?</span>;
+<a href=#922 id=922 data-nosnippet>922</a>            trait_ref.trait_id = to_chalk_trait_id(fn_x_trait);
+<a href=#923 id=923 data-nosnippet>923</a>            <span class="kw">let </span>obligation: chalk_ir::InEnvironment&lt;chalk_ir::Goal&lt;Interner&gt;&gt; = InEnvironment {
+<a href=#924 id=924 data-nosnippet>924</a>                goal: trait_ref.clone().cast(Interner),
+<a href=#925 id=925 data-nosnippet>925</a>                environment: trait_env.clone(),
+<a href=#926 id=926 data-nosnippet>926</a>            };
+<a href=#927 id=927 data-nosnippet>927</a>            <span class="kw">let </span>canonical = table.canonicalize(obligation.clone());
+<a href=#928 id=928 data-nosnippet>928</a>            <span class="kw">if </span>db.trait_solve(krate, block, canonical.cast(Interner)).is_some() {
+<a href=#929 id=929 data-nosnippet>929</a>                <span class="kw">let </span>ret_ty = table.resolve_completely(return_ty);
+<a href=#930 id=930 data-nosnippet>930</a>                <span class="kw">let </span>args_ty = table.resolve_completely(args_ty);
+<a href=#931 id=931 data-nosnippet>931</a>                <span class="kw">let </span>params = args_ty
+<a href=#932 id=932 data-nosnippet>932</a>                    .as_tuple()<span class="question-mark">?
+<a href=#933 id=933 data-nosnippet>933</a>                    </span>.iter(Interner)
+<a href=#934 id=934 data-nosnippet>934</a>                    .map(|it| it.assert_ty_ref(Interner))
+<a href=#935 id=935 data-nosnippet>935</a>                    .cloned();
+<a href=#936 id=936 data-nosnippet>936</a>
+<a href=#937 id=937 data-nosnippet>937</a>                <span class="kw">return </span><span class="prelude-val">Some</span>((
+<a href=#938 id=938 data-nosnippet>938</a>                    fn_x,
+<a href=#939 id=939 data-nosnippet>939</a>                    CallableSig::from_params_and_return(
+<a href=#940 id=940 data-nosnippet>940</a>                        params,
+<a href=#941 id=941 data-nosnippet>941</a>                        ret_ty,
+<a href=#942 id=942 data-nosnippet>942</a>                        <span class="bool-val">false</span>,
+<a href=#943 id=943 data-nosnippet>943</a>                        Safety::Safe,
+<a href=#944 id=944 data-nosnippet>944</a>                        FnAbi::RustCall,
+<a href=#945 id=945 data-nosnippet>945</a>                    ),
+<a href=#946 id=946 data-nosnippet>946</a>                ));
+<a href=#947 id=947 data-nosnippet>947</a>            }
+<a href=#948 id=948 data-nosnippet>948</a>        }
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="macro">unreachable!</span>(<span class="string">"It should at least implement FnOnce at this point"</span>);
+<a href=#950 id=950 data-nosnippet>950</a>    } <span class="kw">else </span>{
+<a href=#951 id=951 data-nosnippet>951</a>        <span class="prelude-val">None
+<a href=#952 id=952 data-nosnippet>952</a>    </span>}
+<a href=#953 id=953 data-nosnippet>953</a>}
+<a href=#954 id=954 data-nosnippet>954</a>
+<a href=#955 id=955 data-nosnippet>955</a><span class="kw">struct </span>PlaceholderCollector&lt;<span class="lifetime">'db</span>&gt; {
+<a href=#956 id=956 data-nosnippet>956</a>    db: <span class="kw-2">&amp;</span><span class="lifetime">'db </span><span class="kw">dyn </span>HirDatabase,
+<a href=#957 id=957 data-nosnippet>957</a>    placeholders: FxHashSet&lt;TypeOrConstParamId&gt;,
+<a href=#958 id=958 data-nosnippet>958</a>}
+<a href=#959 id=959 data-nosnippet>959</a>
+<a href=#960 id=960 data-nosnippet>960</a><span class="kw">impl </span>PlaceholderCollector&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#961 id=961 data-nosnippet>961</a>    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: PlaceholderIndex) {
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="kw">let </span>id = from_placeholder_idx(<span class="self">self</span>.db, idx);
+<a href=#963 id=963 data-nosnippet>963</a>        <span class="self">self</span>.placeholders.insert(id);
+<a href=#964 id=964 data-nosnippet>964</a>    }
+<a href=#965 id=965 data-nosnippet>965</a>}
+<a href=#966 id=966 data-nosnippet>966</a>
+<a href=#967 id=967 data-nosnippet>967</a><span class="kw">impl </span>TypeVisitor&lt;Interner&gt; <span class="kw">for </span>PlaceholderCollector&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#968 id=968 data-nosnippet>968</a>    <span class="kw">type </span>BreakTy = ();
+<a href=#969 id=969 data-nosnippet>969</a>
+<a href=#970 id=970 data-nosnippet>970</a>    <span class="kw">fn </span>as_dyn(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="kw">dyn </span>TypeVisitor&lt;Interner, BreakTy = <span class="self">Self</span>::BreakTy&gt; {
+<a href=#971 id=971 data-nosnippet>971</a>        <span class="self">self
+<a href=#972 id=972 data-nosnippet>972</a>    </span>}
+<a href=#973 id=973 data-nosnippet>973</a>
+<a href=#974 id=974 data-nosnippet>974</a>    <span class="kw">fn </span>interner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Interner {
+<a href=#975 id=975 data-nosnippet>975</a>        Interner
+<a href=#976 id=976 data-nosnippet>976</a>    }
+<a href=#977 id=977 data-nosnippet>977</a>
+<a href=#978 id=978 data-nosnippet>978</a>    <span class="kw">fn </span>visit_ty(
+<a href=#979 id=979 data-nosnippet>979</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#980 id=980 data-nosnippet>980</a>        ty: <span class="kw-2">&amp;</span>Ty,
+<a href=#981 id=981 data-nosnippet>981</a>        outer_binder: DebruijnIndex,
+<a href=#982 id=982 data-nosnippet>982</a>    ) -&gt; std::ops::ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
+<a href=#983 id=983 data-nosnippet>983</a>        <span class="kw">let </span>has_placeholder_bits = TypeFlags::HAS_TY_PLACEHOLDER | TypeFlags::HAS_CT_PLACEHOLDER;
+<a href=#984 id=984 data-nosnippet>984</a>        <span class="kw">let </span>TyData { kind, flags } = ty.data(Interner);
+<a href=#985 id=985 data-nosnippet>985</a>
+<a href=#986 id=986 data-nosnippet>986</a>        <span class="kw">if let </span>TyKind::Placeholder(idx) = kind {
+<a href=#987 id=987 data-nosnippet>987</a>            <span class="self">self</span>.collect(<span class="kw-2">*</span>idx);
+<a href=#988 id=988 data-nosnippet>988</a>        } <span class="kw">else if </span>flags.intersects(has_placeholder_bits) {
+<a href=#989 id=989 data-nosnippet>989</a>            <span class="kw">return </span>ty.super_visit_with(<span class="self">self</span>, outer_binder);
+<a href=#990 id=990 data-nosnippet>990</a>        } <span class="kw">else </span>{
+<a href=#991 id=991 data-nosnippet>991</a>            <span class="comment">// Fast path: don't visit inner types (e.g. generic arguments) when `flags` indicate
+<a href=#992 id=992 data-nosnippet>992</a>            // that there are no placeholders.
+<a href=#993 id=993 data-nosnippet>993</a>        </span>}
+<a href=#994 id=994 data-nosnippet>994</a>
+<a href=#995 id=995 data-nosnippet>995</a>        std::ops::ControlFlow::Continue(())
+<a href=#996 id=996 data-nosnippet>996</a>    }
+<a href=#997 id=997 data-nosnippet>997</a>
+<a href=#998 id=998 data-nosnippet>998</a>    <span class="kw">fn </span>visit_const(
+<a href=#999 id=999 data-nosnippet>999</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1000 id=1000 data-nosnippet>1000</a>        constant: <span class="kw-2">&amp;</span>chalk_ir::Const&lt;Interner&gt;,
+<a href=#1001 id=1001 data-nosnippet>1001</a>        _outer_binder: DebruijnIndex,
+<a href=#1002 id=1002 data-nosnippet>1002</a>    ) -&gt; std::ops::ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
+<a href=#1003 id=1003 data-nosnippet>1003</a>        <span class="kw">if let </span>chalk_ir::ConstValue::Placeholder(idx) = constant.data(Interner).value {
+<a href=#1004 id=1004 data-nosnippet>1004</a>            <span class="self">self</span>.collect(idx);
+<a href=#1005 id=1005 data-nosnippet>1005</a>        }
+<a href=#1006 id=1006 data-nosnippet>1006</a>        std::ops::ControlFlow::Continue(())
+<a href=#1007 id=1007 data-nosnippet>1007</a>    }
+<a href=#1008 id=1008 data-nosnippet>1008</a>}
+<a href=#1009 id=1009 data-nosnippet>1009</a>
+<a href=#1010 id=1010 data-nosnippet>1010</a><span class="doccomment">/// Returns unique placeholders for types and consts contained in `value`.
+<a href=#1011 id=1011 data-nosnippet>1011</a></span><span class="kw">pub fn </span>collect_placeholders&lt;T&gt;(value: <span class="kw-2">&amp;</span>T, db: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HirDatabase) -&gt; Vec&lt;TypeOrConstParamId&gt;
+<a href=#1012 id=1012 data-nosnippet>1012</a><span class="kw">where
+<a href=#1013 id=1013 data-nosnippet>1013</a>    </span>T: <span class="question-mark">?</span>Sized + TypeVisitable&lt;Interner&gt;,
+<a href=#1014 id=1014 data-nosnippet>1014</a>{
+<a href=#1015 id=1015 data-nosnippet>1015</a>    <span class="kw">let </span><span class="kw-2">mut </span>collector = PlaceholderCollector { db, placeholders: FxHashSet::default() };
+<a href=#1016 id=1016 data-nosnippet>1016</a>    <span class="kw">_ </span>= value.visit_with(<span class="kw-2">&amp;mut </span>collector, DebruijnIndex::INNERMOST);
+<a href=#1017 id=1017 data-nosnippet>1017</a>    collector.placeholders.into_iter().collect()
+<a href=#1018 id=1018 data-nosnippet>1018</a>}
+<a href=#1019 id=1019 data-nosnippet>1019</a>
+<a href=#1020 id=1020 data-nosnippet>1020</a><span class="kw">pub fn </span>known_const_to_ast(
+<a href=#1021 id=1021 data-nosnippet>1021</a>    konst: <span class="kw-2">&amp;</span>Const,
+<a href=#1022 id=1022 data-nosnippet>1022</a>    db: <span class="kw-2">&amp;</span><span class="kw">dyn </span>HirDatabase,
+<a href=#1023 id=1023 data-nosnippet>1023</a>    display_target: DisplayTarget,
+<a href=#1024 id=1024 data-nosnippet>1024</a>) -&gt; <span class="prelude-ty">Option</span>&lt;ConstArg&gt; {
+<a href=#1025 id=1025 data-nosnippet>1025</a>    <span class="prelude-val">Some</span>(make::expr_const_value(konst.display(db, display_target).to_string().as_str()))
+<a href=#1026 id=1026 data-nosnippet>1026</a>}
+<a href=#1027 id=1027 data-nosnippet>1027</a>
+<a href=#1028 id=1028 data-nosnippet>1028</a><span class="attr">#[derive(Debug, Copy, Clone)]
+<a href=#1029 id=1029 data-nosnippet>1029</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>DeclOrigin {
+<a href=#1030 id=1030 data-nosnippet>1030</a>    LetExpr,
+<a href=#1031 id=1031 data-nosnippet>1031</a>    <span class="doccomment">/// from `let x = ..`
+<a href=#1032 id=1032 data-nosnippet>1032</a>    </span>LocalDecl {
+<a href=#1033 id=1033 data-nosnippet>1033</a>        has_else: bool,
+<a href=#1034 id=1034 data-nosnippet>1034</a>    },
+<a href=#1035 id=1035 data-nosnippet>1035</a>}
+<a href=#1036 id=1036 data-nosnippet>1036</a>
+<a href=#1037 id=1037 data-nosnippet>1037</a><span class="doccomment">/// Provides context for checking patterns in declarations. More specifically this
+<a href=#1038 id=1038 data-nosnippet>1038</a>/// allows us to infer array types if the pattern is irrefutable and allows us to infer
+<a href=#1039 id=1039 data-nosnippet>1039</a>/// the size of the array. See issue rust-lang/rust#76342.
+<a href=#1040 id=1040 data-nosnippet>1040</a></span><span class="attr">#[derive(Debug, Copy, Clone)]
+<a href=#1041 id=1041 data-nosnippet>1041</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DeclContext {
+<a href=#1042 id=1042 data-nosnippet>1042</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) origin: DeclOrigin,
+<a href=#1043 id=1043 data-nosnippet>1043</a>}</code></pre></div></section></main></body></html>

@@ -1,0 +1,1 @@
+searchState.loadedDescShard("query_group_macro", 0, "A macro that mimics the old Salsa-style <code>#[query_group]</code> …")
