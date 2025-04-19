@@ -58,7 +58,7 @@ mod view_memory_layout;
 mod view_mir;
 mod view_syntax_tree;
 
-use std::panic::UnwindSafe;
+use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 use cfg::CfgOptions;
 use fetch_crates::CrateInfo;
@@ -534,7 +534,11 @@ impl Analysis {
         position: FilePosition,
         search_scope: Option<SearchScope>,
     ) -> Cancellable<Option<Vec<ReferenceSearchResult>>> {
-        self.with_db(|db| references::find_all_refs(&Semantics::new(db), position, search_scope))
+        let search_scope = AssertUnwindSafe(search_scope);
+        self.with_db(|db| {
+            let _ = &search_scope;
+            references::find_all_refs(&Semantics::new(db), position, search_scope.0)
+        })
     }
 
     /// Returns a short text describing element at position.
@@ -656,7 +660,11 @@ impl Analysis {
         position: FilePosition,
         search_scope: Option<SearchScope>,
     ) -> Cancellable<Vec<Runnable>> {
-        self.with_db(|db| runnables::related_tests(db, position, search_scope))
+        let search_scope = AssertUnwindSafe(search_scope);
+        self.with_db(|db| {
+            let _ = &search_scope;
+            runnables::related_tests(db, position, search_scope.0)
+        })
     }
 
     /// Computes syntax highlighting for the given file
@@ -847,6 +855,10 @@ impl Analysis {
         position: FilePosition,
     ) -> Cancellable<Option<RecursiveMemoryLayout>> {
         self.with_db(|db| view_memory_layout(db, position))
+    }
+
+    pub fn editioned_file_id_to_vfs(&self, file_id: hir::EditionedFileId) -> FileId {
+        file_id.file_id(&self.db)
     }
 
     /// Performs an operation on the database that may be canceled.
