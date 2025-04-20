@@ -524,9 +524,17 @@ pub enum InlayTooltip {
     Markdown(String),
 }
 
-#[derive(Default, Hash)]
+#[derive(Default)]
 pub struct InlayHintLabel {
     pub parts: SmallVec<[InlayHintLabelPart; 1]>,
+    pub tooltip: Option<LazyProperty<String>>,
+}
+
+impl std::hash::Hash for InlayHintLabel {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.parts.hash(state);
+        self.tooltip.is_some().hash(state);
+    }
 }
 
 impl InlayHintLabel {
@@ -537,6 +545,7 @@ impl InlayHintLabel {
     ) -> InlayHintLabel {
         InlayHintLabel {
             parts: smallvec![InlayHintLabelPart { text: s.into(), linked_location, tooltip }],
+            tooltip: None,
         }
     }
 
@@ -582,6 +591,7 @@ impl From<String> for InlayHintLabel {
     fn from(s: String) -> Self {
         Self {
             parts: smallvec![InlayHintLabelPart { text: s, linked_location: None, tooltip: None }],
+            tooltip: None,
         }
     }
 }
@@ -592,8 +602,9 @@ impl From<&str> for InlayHintLabel {
             parts: smallvec![InlayHintLabelPart {
                 text: s.into(),
                 linked_location: None,
-                tooltip: None
+                tooltip: None,
             }],
+            tooltip: None,
         }
     }
 }
@@ -606,7 +617,10 @@ impl fmt::Display for InlayHintLabel {
 
 impl fmt::Debug for InlayHintLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(&self.parts).finish()
+        f.debug_struct("InlayHintLabel")
+            .field("parts", &self.parts)
+            .field("tooltip", &self.tooltip)
+            .finish()
     }
 }
 
@@ -703,6 +717,13 @@ impl InlayHintLabelBuilder<'_> {
         }
     }
 
+    fn write_to_label_and_tooltip(&mut self, s: &str) -> fmt::Result {
+        if let Some(LazyProperty::Computed(ref mut tooltip)) = self.result.tooltip {
+            tooltip.push_str(s);
+        }
+        self.write_str(s)
+    }
+
     fn finish(mut self) -> InlayHintLabel {
         self.make_new_part();
         self.result
@@ -744,31 +765,44 @@ fn label_of_ty(
                     )
                 });
 
-                label_builder.write_str(LABEL_START)?;
+                label_builder.write_to_label_and_tooltip(LABEL_START)?;
                 label_builder.start_location_link(ModuleDef::from(iter_trait).into());
-                label_builder.write_str(LABEL_ITERATOR)?;
+                label_builder.write_to_label_and_tooltip(LABEL_ITERATOR)?;
                 label_builder.end_location_link();
-                label_builder.write_str(LABEL_MIDDLE)?;
+                label_builder.write_to_label_and_tooltip(LABEL_MIDDLE)?;
                 label_builder.start_location_link(ModuleDef::from(item).into());
-                label_builder.write_str(LABEL_ITEM)?;
+                label_builder.write_to_label_and_tooltip(LABEL_ITEM)?;
                 label_builder.end_location_link();
-                label_builder.write_str(LABEL_MIDDLE2)?;
+                label_builder.write_to_label_and_tooltip(LABEL_MIDDLE2)?;
                 rec(sema, famous_defs, max_length, &ty, label_builder, config, display_target)?;
-                label_builder.write_str(LABEL_END)?;
+                label_builder.write_to_label_and_tooltip(LABEL_END)?;
                 Ok(())
             }
-            None => ty
-                .display_truncated(sema.db, max_length, display_target)
-                .with_closure_style(config.closure_style)
-                .write_to(label_builder),
+            None => {
+                if let Some(LazyProperty::Computed(ref mut tooltip)) = label_builder.result.tooltip
+                {
+                    ty.display(sema.db, display_target)
+                        .with_closure_style(config.closure_style)
+                        .write_to(tooltip)?;
+                }
+
+                ty.display_truncated(sema.db, max_length, display_target)
+                    .with_closure_style(config.closure_style)
+                    .write_to(label_builder)
+            }
         }
     }
 
+    let tooltip = if config.fields_to_resolve.resolve_label_tooltip {
+        Some(LazyProperty::Lazy)
+    } else {
+        Some(LazyProperty::Computed(String::new()))
+    };
     let mut label_builder = InlayHintLabelBuilder {
         db: sema.db,
         last_part: String::new(),
         location: None,
-        result: InlayHintLabel::default(),
+        result: InlayHintLabel { tooltip, ..Default::default() },
         resolve: config.fields_to_resolve.resolve_label_location,
     };
     let _ =
@@ -964,6 +998,22 @@ mod tests {
             inlay_hints.into_iter().filter_map(|hint| hint.text_edit?.computed()).collect();
 
         assert!(edits.is_empty(), "unexpected edits: {edits:?}");
+    }
+
+    #[track_caller]
+    pub(super) fn check_tooltip(
+        config: InlayHintsConfig,
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        expect: Expect,
+    ) {
+        let (analysis, file_id) = fixture::file(ra_fixture);
+        let inlay_hints = analysis.inlay_hints(&config, file_id, None).unwrap();
+
+        let tooltips = inlay_hints
+            .into_iter()
+            .filter_map(|hint| hint.label.tooltip?.computed())
+            .collect::<Vec<_>>();
+        expect.assert_debug_eq(&tooltips);
     }
 
     #[test]
