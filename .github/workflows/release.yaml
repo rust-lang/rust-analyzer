@@ -4,6 +4,15 @@ on:
     - cron: "0 0 * * *" # midnight UTC
 
   workflow_dispatch:
+    inputs:
+      channel:
+        description: "the channel to release to"
+        required: true
+        default: "nightly"
+        type: choice
+        options:
+          - nightly
+          - stable
 
   push:
     branches:
@@ -112,23 +121,23 @@ jobs:
         working-directory: editors/code
 
       - name: Package Extension (release)
-        if: github.ref == 'refs/heads/release' && matrix.code-target
+        if: (github.ref == 'refs/heads/release' || ${{ inputs.channel == 'stable' }}) && matrix.code-target
         run: npx vsce package -o "../../dist/rust-analyzer-${{ matrix.code-target }}.vsix" --target ${{ matrix.code-target }}
         working-directory: editors/code
 
       - name: Package Extension (nightly)
-        if: github.ref != 'refs/heads/release' && matrix.code-target
+        if: github.ref != 'refs/heads/release' && ${{ inputs.channel == 'nightly' }} && matrix.code-target
         run: npx vsce package -o "../../dist/rust-analyzer-${{ matrix.code-target }}.vsix" --target ${{ matrix.code-target }} --pre-release
         working-directory: editors/code
 
       - if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: rm -rf editors/code/server
 
-      - if: matrix.target == 'x86_64-unknown-linux-gnu' && github.ref == 'refs/heads/release'
+      - if: matrix.target == 'x86_64-unknown-linux-gnu' && (github.ref == 'refs/heads/release' || ${{ inputs.channel == 'stable' }})
         run: npx vsce package -o ../../dist/rust-analyzer-no-server.vsix
         working-directory: editors/code
 
-      - if: matrix.target == 'x86_64-unknown-linux-gnu' && github.ref != 'refs/heads/release'
+      - if: matrix.target == 'x86_64-unknown-linux-gnu' && github.ref != 'refs/heads/release' && ${{ inputs.channel == 'nightly' }}
         run: npx vsce package -o ../../dist/rust-analyzer-no-server.vsix --pre-release
         working-directory: editors/code
 
@@ -177,12 +186,12 @@ jobs:
         working-directory: editors/code
 
       - name: Package Extension (release)
-        if: github.ref == 'refs/heads/release'
+        if: github.ref == 'refs/heads/release' || ${{ inputs.channel == 'stable' }}
         run: npx vsce package -o "../../dist/rust-analyzer-alpine-x64.vsix" --target alpine-x64
         working-directory: editors/code
 
       - name: Package Extension (nightly)
-        if: github.ref != 'refs/heads/release'
+        if: github.ref != 'refs/heads/release' && ${{ inputs.channel == 'nightly' }}
         run: npx vsce package -o "../../dist/rust-analyzer-alpine-x64.vsix" --target alpine-x64 --pre-release
         working-directory: editors/code
 
@@ -206,9 +215,9 @@ jobs:
           node-version: 22
 
       - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
-        if: github.ref == 'refs/heads/release'
+        if: github.ref == 'refs/heads/release' || ${{ inputs.channel == 'stable' }}
       - run: echo "TAG=nightly" >> $GITHUB_ENV
-        if: github.ref != 'refs/heads/release'
+        if: github.ref != 'refs/heads/release' && ${{ inputs.channel == 'nightly' }}
       - run: 'echo "TAG: $TAG"'
 
       - name: Checkout repository
@@ -270,24 +279,24 @@ jobs:
         working-directory: ./editors/code
 
       - name: Publish Extension (Code Marketplace, release)
-        if: github.ref == 'refs/heads/release' && github.repository == 'rust-lang/rust-analyzer'
+        if: github.repository == 'rust-lang/rust-analyzer' && ${{ env.TAG != 'nightly' }}
         working-directory: ./editors/code
         # token from https://dev.azure.com/rust-analyzer/
         run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
 
       - name: Publish Extension (OpenVSX, release)
-        if: github.ref == 'refs/heads/release' && github.repository == 'rust-lang/rust-analyzer'
+        if: github.repository == 'rust-lang/rust-analyzer' && ${{ env.TAG != 'nightly' }}
         working-directory: ./editors/code
         run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
         timeout-minutes: 2
 
       - name: Publish Extension (Code Marketplace, nightly)
-        if: github.ref != 'refs/heads/release' && github.repository == 'rust-lang/rust-analyzer'
+        if: github.repository == 'rust-lang/rust-analyzer' && ${{ env.TAG == 'nightly' }}
         working-directory: ./editors/code
         run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix --pre-release
 
       - name: Publish Extension (OpenVSX, nightly)
-        if: github.ref != 'refs/heads/release' && github.repository == 'rust-lang/rust-analyzer'
+        if: github.repository == 'rust-lang/rust-analyzer' && ${{ env.TAG == 'nightly' }}
         working-directory: ./editors/code
         run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
         timeout-minutes: 2
