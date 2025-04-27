@@ -1,6 +1,6 @@
 use either::Either;
 use hir::{
-    AssocItem, HirDisplay, HirFileIdExt, ImportPathConfig, InFile, Type,
+    AssocItem, HirDisplay, ImportPathConfig, InFile, Type,
     db::{ExpandDatabase, HirDatabase},
     sym,
 };
@@ -85,7 +85,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
         Some(vec![fix(
             "fill_missing_fields",
             "Fill struct fields",
-            SourceChange::from_text_edit(range.file_id, edit),
+            SourceChange::from_text_edit(range.file_id.file_id(ctx.sema.db), edit),
             range.range,
         )])
     };
@@ -207,14 +207,17 @@ fn get_default_constructor(
         }
     }
 
-    let krate = ctx.sema.file_to_module_def(d.file.original_file(ctx.sema.db))?.krate();
+    let krate = ctx
+        .sema
+        .file_to_module_def(d.file.original_file(ctx.sema.db).file_id(ctx.sema.db))?
+        .krate();
     let module = krate.root_module();
 
     // Look for a ::new() associated function
     let has_new_func = ty
         .iterate_assoc_items(ctx.sema.db, krate, |assoc_item| {
             if let AssocItem::Function(func) = assoc_item {
-                if func.name(ctx.sema.db) == sym::new.clone()
+                if func.name(ctx.sema.db) == sym::new
                     && func.assoc_fn_params(ctx.sema.db).is_empty()
                 {
                     return Some(());

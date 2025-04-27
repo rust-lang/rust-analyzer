@@ -183,17 +183,7 @@ impl EditionedFileId {
 #[cfg(not(feature = "salsa"))]
 mod salsa {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-    pub(crate) struct Id(u32);
-
-    impl Id {
-        pub(crate) const fn from_u32(u32: u32) -> Self {
-            Self(u32)
-        }
-
-        pub(crate) const fn as_u32(self) -> u32 {
-            self.0
-        }
-    }
+    pub struct Id(u32);
 }
 
 /// Input to the analyzer is a set of files, where each file is identified by
@@ -210,188 +200,16 @@ mod salsa {
 /// (`MacroCallId` uses the location interning. You can check details here:
 /// <https://en.wikipedia.org/wiki/String_interning>).
 ///
-/// The two variants are encoded in a single u32 which are differentiated by the MSB.
-/// If the MSB is 0, the value represents a `FileId`, otherwise the remaining 31 bits represent a
-/// `MacroCallId`.
+/// Internally this holds a `salsa::Id`, but we cannot use this definition here
+/// as it references things from base-db and hir-expand.
 // FIXME: Give this a better fitting name
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct HirFileId(salsa::Id);
-
-#[cfg(feature = "salsa")]
-impl salsa::plumbing::AsId for HirFileId {
-    fn as_id(&self) -> salsa::Id {
-        self.0
-    }
-}
-
-#[cfg(feature = "salsa")]
-impl salsa::plumbing::FromId for HirFileId {
-    fn from_id(id: salsa::Id) -> Self {
-        HirFileId(id)
-    }
-}
-
-impl From<HirFileId> for u32 {
-    fn from(value: HirFileId) -> Self {
-        value.0.as_u32()
-    }
-}
-
-impl From<MacroCallId> for HirFileId {
-    fn from(value: MacroCallId) -> Self {
-        value.as_file()
-    }
-}
-
-impl fmt::Debug for HirFileId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.repr().fmt(f)
-    }
-}
-
-impl PartialEq<FileId> for HirFileId {
-    fn eq(&self, &other: &FileId) -> bool {
-        self.file_id().map(EditionedFileId::file_id) == Some(other)
-    }
-}
-impl PartialEq<HirFileId> for FileId {
-    fn eq(&self, other: &HirFileId) -> bool {
-        other.file_id().map(EditionedFileId::file_id) == Some(*self)
-    }
-}
-
-impl PartialEq<EditionedFileId> for HirFileId {
-    fn eq(&self, &other: &EditionedFileId) -> bool {
-        *self == HirFileId::from(other)
-    }
-}
-impl PartialEq<HirFileId> for EditionedFileId {
-    fn eq(&self, &other: &HirFileId) -> bool {
-        other == HirFileId::from(*self)
-    }
-}
-impl PartialEq<EditionedFileId> for FileId {
-    fn eq(&self, &other: &EditionedFileId) -> bool {
-        *self == FileId::from(other)
-    }
-}
-impl PartialEq<FileId> for EditionedFileId {
-    fn eq(&self, &other: &FileId) -> bool {
-        other == FileId::from(*self)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MacroFileId {
-    pub macro_call_id: MacroCallId,
-}
+pub struct HirFileId(pub salsa::Id);
 
 /// `MacroCallId` identifies a particular macro invocation, like
 /// `println!("Hello, {}", world)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MacroCallId(salsa::Id);
-
-#[cfg(feature = "salsa")]
-impl salsa::plumbing::AsId for MacroCallId {
-    fn as_id(&self) -> salsa::Id {
-        self.0
-    }
-}
-
-#[cfg(feature = "salsa")]
-impl salsa::plumbing::FromId for MacroCallId {
-    fn from_id(id: salsa::Id) -> Self {
-        MacroCallId(id)
-    }
-}
-
-impl MacroCallId {
-    pub const MAX_ID: u32 = 0x7fff_ffff;
-
-    pub fn as_file(self) -> HirFileId {
-        MacroFileId { macro_call_id: self }.into()
-    }
-
-    pub fn as_macro_file(self) -> MacroFileId {
-        MacroFileId { macro_call_id: self }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HirFileIdRepr {
-    FileId(EditionedFileId),
-    MacroFile(MacroFileId),
-}
-
-impl fmt::Debug for HirFileIdRepr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::FileId(arg0) => arg0.fmt(f),
-            Self::MacroFile(arg0) => {
-                f.debug_tuple("MacroFile").field(&arg0.macro_call_id.0).finish()
-            }
-        }
-    }
-}
-
-impl From<EditionedFileId> for HirFileId {
-    #[allow(clippy::let_unit_value)]
-    fn from(id: EditionedFileId) -> Self {
-        assert!(id.as_u32() <= Self::MAX_HIR_FILE_ID, "FileId index {} is too large", id.as_u32());
-        HirFileId(salsa::Id::from_u32(id.0))
-    }
-}
-
-impl From<MacroFileId> for HirFileId {
-    #[allow(clippy::let_unit_value)]
-    fn from(MacroFileId { macro_call_id: MacroCallId(id) }: MacroFileId) -> Self {
-        let id: u32 = id.as_u32();
-        assert!(id <= Self::MAX_HIR_FILE_ID, "MacroCallId index {id} is too large");
-        HirFileId(salsa::Id::from_u32(id | Self::MACRO_FILE_TAG_MASK))
-    }
-}
-
-impl HirFileId {
-    const MAX_HIR_FILE_ID: u32 = u32::MAX ^ Self::MACRO_FILE_TAG_MASK;
-    const MACRO_FILE_TAG_MASK: u32 = 1 << 31;
-
-    #[inline]
-    pub fn is_macro(self) -> bool {
-        self.0.as_u32() & Self::MACRO_FILE_TAG_MASK != 0
-    }
-
-    #[inline]
-    pub fn macro_file(self) -> Option<MacroFileId> {
-        match self.0.as_u32() & Self::MACRO_FILE_TAG_MASK {
-            0 => None,
-            _ => Some(MacroFileId {
-                macro_call_id: MacroCallId(salsa::Id::from_u32(
-                    self.0.as_u32() ^ Self::MACRO_FILE_TAG_MASK,
-                )),
-            }),
-        }
-    }
-
-    #[inline]
-    pub fn file_id(self) -> Option<EditionedFileId> {
-        match self.0.as_u32() & Self::MACRO_FILE_TAG_MASK {
-            0 => Some(EditionedFileId(self.0.as_u32())),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    pub fn repr(self) -> HirFileIdRepr {
-        match self.0.as_u32() & Self::MACRO_FILE_TAG_MASK {
-            0 => HirFileIdRepr::FileId(EditionedFileId(self.0.as_u32())),
-            _ => HirFileIdRepr::MacroFile(MacroFileId {
-                macro_call_id: MacroCallId(salsa::Id::from_u32(
-                    self.0.as_u32() ^ Self::MACRO_FILE_TAG_MASK,
-                )),
-            }),
-        }
-    }
-}
+pub struct MacroCallId(pub salsa::Id);
 
 /// Legacy span type, only defined here as it is still used by the proc-macro server.
 /// While rust-analyzer doesn't use this anymore at all, RustRover relies on the legacy type for

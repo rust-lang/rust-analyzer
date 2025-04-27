@@ -16,16 +16,15 @@ use hir_def::{
     db::DefDatabase,
     expr_store::{ExpressionStore, path::Path},
     find_path::{self, PrefixKind},
-    hir::generics::{
-        TypeOrConstParamData, TypeParamProvenance, WherePredicate, WherePredicateTypeTarget,
-    },
+    hir::generics::{TypeOrConstParamData, TypeParamProvenance, WherePredicate},
     item_scope::ItemInNs,
     item_tree::FieldsShape,
     lang_item::{LangItem, LangItemTarget},
     nameres::DefMap,
     signatures::VariantFields,
     type_ref::{
-        ConstRef, LifetimeRef, TraitBoundModifier, TypeBound, TypeRef, TypeRefId, UseArgRef,
+        ConstRef, LifetimeRef, LifetimeRefId, TraitBoundModifier, TypeBound, TypeRef, TypeRefId,
+        UseArgRef,
     },
     visibility::Visibility,
 };
@@ -621,9 +620,8 @@ impl HirDisplay for ProjectionTy {
                 .name
                 .display(f.db, f.edition())
         )?;
-        let proj_params_count =
-            self.substitution.len(Interner) - trait_ref.substitution.len(Interner);
-        let proj_params = &self.substitution.as_slice(Interner)[..proj_params_count];
+        let proj_params =
+            &self.substitution.as_slice(Interner)[trait_ref.substitution.len(Interner)..];
         hir_fmt_generics(f, proj_params, None, None)
     }
 }
@@ -1196,27 +1194,31 @@ impl HirDisplay for Ty {
 
                         // Normally, functions cannot have default parameters, but they can,
                         // for function-like things such as struct names or enum variants.
-                        // The former cannot have defaults but parents, and the later cannot have
-                        // parents but defaults.
-                        // So, if `parent_len` > 0, it have a parent and thus it doesn't have any
-                        // default. Therefore, we shouldn't subtract defaults because those defaults
-                        // are from their parents.
-                        // And if `parent_len` == 0, either parents don't exists or they don't have
-                        // any defaults. Thus, we can - and should - subtract defaults.
-                        let without_impl = if parent_len > 0 {
-                            params_len - parent_len - impl_
+                        // The former cannot have defaults but does have parents,
+                        // but the latter cannot have parents but can have defaults.
+                        //
+                        // However, it's also true that *traits* can have defaults too.
+                        // In this case, there can be no function params.
+                        let parent_end = if parent_len > 0 {
+                            // If `parent_len` > 0, then there cannot be defaults on the function
+                            // and all defaults must come from the parent.
+                            parent_len - defaults
                         } else {
-                            params_len - parent_len - impl_ - defaults
+                            parent_len
                         };
-                        // parent's params (those from enclosing impl or trait, if any).
-                        let (fn_params, parent_params) = parameters.split_at(without_impl + impl_);
+                        let fn_params_no_impl_or_defaults = parameters.len() - parent_end - impl_;
+                        let (parent_params, fn_params) = parameters.split_at(parent_end);
 
                         write!(f, "<")?;
                         hir_fmt_generic_arguments(f, parent_params, None)?;
                         if !parent_params.is_empty() && !fn_params.is_empty() {
                             write!(f, ", ")?;
                         }
-                        hir_fmt_generic_arguments(f, &fn_params[0..without_impl], None)?;
+                        hir_fmt_generic_arguments(
+                            f,
+                            &fn_params[..fn_params_no_impl_or_defaults],
+                            None,
+                        )?;
                         write!(f, ">")?;
                     }
                 }
@@ -1350,9 +1352,8 @@ impl HirDisplay for Ty {
                             .lang_item(body.module(db).krate(), LangItem::Future)
                             .and_then(LangItemTarget::as_trait);
                         let output = future_trait.and_then(|t| {
-                            db.trait_items(t).associated_type_by_name(&Name::new_symbol_root(
-                                sym::Output.clone(),
-                            ))
+                            db.trait_items(t)
+                                .associated_type_by_name(&Name::new_symbol_root(sym::Output))
                         });
                         write!(f, "impl ")?;
                         if let Some(t) = future_trait {
@@ -1638,7 +1639,7 @@ fn generic_args_sans_defaults<'ga>(
                         Some(default_parameter) => {
                             // !is_err(default_parameter.skip_binders())
                             // &&
-                            arg != &default_parameter.clone().substitute(Interner, &parameters)
+                            arg != &default_parameter.clone().substitute(Interner, &parameters[..i])
                         }
                     }
                 };
@@ -1873,11 +1874,12 @@ fn write_bounds_like_dyn_trait(
                     f.end_location_link();
 
                     let proj_arg_count = generics(f.db, assoc_ty_id.into()).len_self();
+                    let parent_len = proj.substitution.len(Interner) - proj_arg_count;
                     if proj_arg_count > 0 {
                         write!(f, "<")?;
                         hir_fmt_generic_arguments(
                             f,
-                            &proj.substitution.as_slice(Interner)[..proj_arg_count],
+                            &proj.substitution.as_slice(Interner)[parent_len..],
                             None,
                         )?;
                         write!(f, ">")?;
@@ -2084,20 +2086,29 @@ impl<T: HirDisplayWithExpressionStore> HirDisplay for ExpressionStoreAdapter<'_,
         T::hir_fmt(&self.0, f, self.1)
     }
 }
-impl HirDisplayWithExpressionStore for LifetimeRef {
+impl HirDisplayWithExpressionStore for LifetimeRefId {
     fn hir_fmt(
         &self,
         f: &mut HirFormatter<'_>,
-        _store: &ExpressionStore,
+        store: &ExpressionStore,
     ) -> Result<(), HirDisplayError> {
-        match self {
+        match &store[*self] {
             LifetimeRef::Named(name) => write!(f, "{}", name.display(f.db, f.edition())),
             LifetimeRef::Static => write!(f, "'static"),
             LifetimeRef::Placeholder => write!(f, "'_"),
             LifetimeRef::Error => write!(f, "'{{error}}"),
+            &LifetimeRef::Param(lifetime_param_id) => {
+                let generic_params = f.db.generic_params(lifetime_param_id.parent);
+                write!(
+                    f,
+                    "{}",
+                    generic_params[lifetime_param_id.local_id].name.display(f.db, f.edition())
+                )
+            }
         }
     }
 }
+
 impl HirDisplayWithExpressionStore for TypeRefId {
     fn hir_fmt(
         &self,
@@ -2116,15 +2127,15 @@ impl HirDisplayWithExpressionStore for TypeRefId {
                             generic_params
                                 .where_predicates()
                                 .filter_map(|it| match it {
-                                    WherePredicate::TypeBound {
-                                        target: WherePredicateTypeTarget::TypeOrConstParam(p),
-                                        bound,
+                                    WherePredicate::TypeBound { target, bound }
+                                    | WherePredicate::ForLifetime { lifetimes: _, target, bound }
+                                        if matches!(
+                                            store[*target],
+                                            TypeRef::TypeParam(t) if t == *param
+                                        ) =>
+                                    {
+                                        Some(bound)
                                     }
-                                    | WherePredicate::ForLifetime {
-                                        lifetimes: _,
-                                        target: WherePredicateTypeTarget::TypeOrConstParam(p),
-                                        bound,
-                                    } if *p == param.local_id() => Some(bound),
                                     _ => None,
                                 })
                                 .map(ExpressionStoreAdapter::wrap(store)),
@@ -2314,8 +2325,8 @@ impl HirDisplayWithExpressionStore for Path {
                 let name = crate_data
                     .display_name
                     .as_ref()
-                    .map(|name| name.canonical_name())
-                    .unwrap_or(&sym::dollar_crate);
+                    .map(|name| (*name.canonical_name()).clone())
+                    .unwrap_or(sym::dollar_crate);
                 write!(f, "{name}")?
             }
         }

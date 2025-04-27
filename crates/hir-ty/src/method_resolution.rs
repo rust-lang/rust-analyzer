@@ -197,7 +197,7 @@ impl TraitImpls {
                 // FIXME: Reservation impls should be considered during coherence checks. If we are
                 // (ever) to implement coherence checks, this filtering should be done by the trait
                 // solver.
-                if db.attrs(impl_id.into()).by_key(&sym::rustc_reservation_impl).exists() {
+                if db.attrs(impl_id.into()).by_key(sym::rustc_reservation_impl).exists() {
                     continue;
                 }
                 let target_trait = match db.impl_trait(impl_id) {
@@ -655,7 +655,7 @@ pub fn is_dyn_method(
     let fn_params = fn_subst.len(Interner) - trait_params;
     let trait_ref = TraitRef {
         trait_id: to_chalk_trait_id(trait_id),
-        substitution: Substitution::from_iter(Interner, fn_subst.iter(Interner).skip(fn_params)),
+        substitution: Substitution::from_iter(Interner, fn_subst.iter(Interner).take(trait_params)),
     };
     let self_ty = trait_ref.self_type_parameter(Interner);
     if let TyKind::Dyn(d) = self_ty.kind(Interner) {
@@ -694,10 +694,9 @@ pub(crate) fn lookup_impl_method_query(
         return (func, fn_subst);
     };
     let trait_params = db.generic_params(trait_id.into()).len();
-    let fn_params = fn_subst.len(Interner) - trait_params;
     let trait_ref = TraitRef {
         trait_id: to_chalk_trait_id(trait_id),
-        substitution: Substitution::from_iter(Interner, fn_subst.iter(Interner).skip(fn_params)),
+        substitution: Substitution::from_iter(Interner, fn_subst.iter(Interner).take(trait_params)),
     };
 
     let name = &db.function_signature(func).name;
@@ -713,7 +712,7 @@ pub(crate) fn lookup_impl_method_query(
         impl_fn,
         Substitution::from_iter(
             Interner,
-            fn_subst.iter(Interner).take(fn_params).chain(impl_subst.iter(Interner)),
+            impl_subst.iter(Interner).chain(fn_subst.iter(Interner).skip(trait_params)),
         ),
     )
 }

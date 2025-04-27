@@ -426,7 +426,7 @@ config_data! {
         ///
         /// Similarly, the JSON representation of `DiscoverArgument::Buildfile` is:
         ///
-        /// ```
+        /// ```json
         /// {
         ///     "buildfile": "BUILD"
         /// }
@@ -534,7 +534,7 @@ config_data! {
         imports_granularity_enforce: bool              = false,
         /// How imports should be grouped into use statements.
         imports_granularity_group: ImportGranularityDef  = ImportGranularityDef::Crate,
-        /// Group inserted imports by the [following order](https://rust-analyzer.github.io/manual.html#auto-import). Groups are separated by newlines.
+        /// Group inserted imports by the [following order](https://rust-analyzer.github.io/book/features.html#auto-import). Groups are separated by newlines.
         imports_group_enable: bool                           = true,
         /// Whether to allow import insertion to merge new imports into single path glob imports like `use std::fmt::*;`.
         imports_merge_glob: bool           = true,
@@ -602,7 +602,7 @@ config_data! {
         cargo_extraArgs: Vec<String> = vec![],
         /// Extra environment variables that will be set when running cargo, rustc
         /// or other commands within the workspace. Useful for setting RUSTFLAGS.
-        cargo_extraEnv: FxHashMap<String, String> = FxHashMap::default(),
+        cargo_extraEnv: FxHashMap<String, Option<String>> = FxHashMap::default(),
         /// List of features to activate.
         ///
         /// Set this to `"all"` to pass `--all-features` to cargo.
@@ -652,7 +652,7 @@ config_data! {
         check_extraArgs | checkOnSave_extraArgs: Vec<String>             = vec![],
         /// Extra environment variables that will be set when running `cargo check`.
         /// Extends `#rust-analyzer.cargo.extraEnv#`.
-        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, String> = FxHashMap::default(),
+        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, Option<String>> = FxHashMap::default(),
         /// List of features to activate. Defaults to
         /// `#rust-analyzer.cargo.features#`.
         ///
@@ -921,10 +921,9 @@ impl Config {
             tracing::info!("updating config from JSON: {:#}", json);
 
             if !(json.is_null() || json.as_object().is_some_and(|it| it.is_empty())) {
-                let mut json_errors = vec![];
                 let detached_files = get_field_json::<Vec<Utf8PathBuf>>(
                     &mut json,
-                    &mut json_errors,
+                    &mut Vec::new(),
                     "detachedFiles",
                     None,
                 )
@@ -936,17 +935,19 @@ impl Config {
                 patch_old_style::patch_json_for_outdated_configs(&mut json);
 
                 let mut json_errors = vec![];
-                let snips = get_field_json::<FxIndexMap<String, SnippetDef>>(
-                    &mut json,
-                    &mut json_errors,
-                    "completion_snippets_custom",
-                    None,
-                )
-                .unwrap_or(self.completion_snippets_custom().to_owned());
+
+                let input = FullConfigInput::from_json(json, &mut json_errors);
 
                 // IMPORTANT : This holds as long as ` completion_snippets_custom` is declared `client`.
                 config.snippets.clear();
 
+                let snips = input
+                    .global
+                    .completion_snippets_custom
+                    .as_ref()
+                    .unwrap_or(&self.default_config.global.completion_snippets_custom);
+                #[allow(dead_code)]
+                let _ = Self::completion_snippets_custom;
                 for (name, def) in snips.iter() {
                     if def.prefix.is_empty() && def.postfix.is_empty() {
                         continue;
@@ -973,8 +974,9 @@ impl Config {
                         )),
                     }
                 }
+
                 config.client_config = (
-                    FullConfigInput::from_json(json, &mut json_errors),
+                    input,
                     ConfigErrors(
                         json_errors
                             .into_iter()
@@ -1382,18 +1384,21 @@ impl ConfigErrors {
 
 impl fmt::Display for ConfigErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let errors = self.0.iter().format_with("\n", |inner, f| match &**inner {
-            ConfigErrorInner::Json { config_key: key, error: e } => {
-                f(key)?;
-                f(&": ")?;
-                f(e)
-            }
-            ConfigErrorInner::Toml { config_key: key, error: e } => {
-                f(key)?;
-                f(&": ")?;
-                f(e)
-            }
-            ConfigErrorInner::ParseError { reason } => f(reason),
+        let errors = self.0.iter().format_with("\n", |inner, f| {
+            match &**inner {
+                ConfigErrorInner::Json { config_key: key, error: e } => {
+                    f(key)?;
+                    f(&": ")?;
+                    f(e)
+                }
+                ConfigErrorInner::Toml { config_key: key, error: e } => {
+                    f(key)?;
+                    f(&": ")?;
+                    f(e)
+                }
+                ConfigErrorInner::ParseError { reason } => f(reason),
+            }?;
+            f(&";")
         });
         write!(f, "invalid config value{}:\n{}", if self.0.len() == 1 { "" } else { "s" }, errors)
     }
@@ -1879,7 +1884,10 @@ impl Config {
         self.cargo_extraArgs(source_root)
     }
 
-    pub fn extra_env(&self, source_root: Option<SourceRootId>) -> &FxHashMap<String, String> {
+    pub fn extra_env(
+        &self,
+        source_root: Option<SourceRootId>,
+    ) -> &FxHashMap<String, Option<String>> {
         self.cargo_extraEnv(source_root)
     }
 
@@ -1889,7 +1897,10 @@ impl Config {
         extra_args
     }
 
-    pub fn check_extra_env(&self, source_root: Option<SourceRootId>) -> FxHashMap<String, String> {
+    pub fn check_extra_env(
+        &self,
+        source_root: Option<SourceRootId>,
+    ) -> FxHashMap<String, Option<String>> {
         let mut extra_env = self.cargo_extraEnv(source_root).clone();
         extra_env.extend(self.check_extraEnv(source_root).clone());
         extra_env
@@ -2725,10 +2736,6 @@ pub enum NumThreads {
 }
 
 macro_rules! _default_val {
-    (@verbatim: $s:literal, $ty:ty) => {{
-        let default_: $ty = serde_json::from_str(&$s).unwrap();
-        default_
-    }};
     ($default:expr, $ty:ty) => {{
         let default_: $ty = $default;
         default_
@@ -2737,9 +2744,6 @@ macro_rules! _default_val {
 use _default_val as default_val;
 
 macro_rules! _default_str {
-    (@verbatim: $s:literal, $_ty:ty) => {
-        $s.to_owned()
-    };
     ($default:expr, $ty:ty) => {{
         let val = default_val!($default, $ty);
         serde_json::to_string_pretty(&val).unwrap()
@@ -2880,7 +2884,7 @@ macro_rules! _config_data {
     ($(#[doc=$dox:literal])* $modname:ident: struct $name:ident <- $input:ident -> {
         $(
             $(#[doc=$doc:literal])*
-            $vis:vis $field:ident $(| $alias:ident)*: $ty:ty = $(@$marker:ident: )? $default:expr,
+            $vis:vis $field:ident $(| $alias:ident)*: $ty:ty = $default:expr,
         )*
     }) => {
         /// Default config values for this grouping.
@@ -2917,7 +2921,7 @@ macro_rules! _config_data {
         impl Default for $name {
             fn default() -> Self {
                 $name {$(
-                    $field: default_val!($(@$marker:)? $default, $ty),
+                    $field: default_val!($default, $ty),
                 )*}
             }
         }
@@ -2953,7 +2957,7 @@ macro_rules! _config_data {
                     $({
                         let field = stringify!($field);
                         let ty = stringify!($ty);
-                        let default = default_str!($(@$marker:)? $default, $ty);
+                        let default = default_str!($default, $ty);
 
                         (field, ty, &[$($doc),*], default)
                     },)*
@@ -3091,8 +3095,7 @@ fn get_field_json<T: DeserializeOwned>(
             json.pointer_mut(&pointer)
                 .map(|it| serde_json::from_value(it.take()).map_err(|e| (e, pointer)))
         })
-        .find(Result::is_ok)
-        .and_then(|res| match res {
+        .flat_map(|res| match res {
             Ok(it) => Some(it),
             Err((e, pointer)) => {
                 tracing::warn!("Failed to deserialize config field at {}: {:?}", pointer, e);
@@ -3100,6 +3103,7 @@ fn get_field_json<T: DeserializeOwned>(
                 None
             }
         })
+        .next()
 }
 
 fn get_field_toml<T: DeserializeOwned>(
@@ -3652,12 +3656,16 @@ fn validate_toml_table(
 #[cfg(test)]
 fn manual(fields: &[SchemaField]) -> String {
     fields.iter().fold(String::new(), |mut acc, (field, _ty, doc, default)| {
-        let name = format!("rust-analyzer.{}", field.replace('_', "."));
+        let id = field.replace('_', ".");
+        let name = format!("rust-analyzer.{id}");
         let doc = doc_comment_to_string(doc);
         if default.contains('\n') {
-            format_to_acc!(acc, " **{name}**\n\nDefault:\n\n```{default}\n\n```\n\n {doc}\n\n ")
+            format_to_acc!(
+                acc,
+                "## {name} {{#{id}}}\n\nDefault:\n```json\n{default}\n```\n\n{doc}\n\n"
+            )
         } else {
-            format_to_acc!(acc, "**{name}** (default: {default})\n\n {doc}\n\n")
+            format_to_acc!(acc, "## {name} {{#{id}}}\n\nDefault: `{default}`\n\n{doc}\n\n")
         }
     })
 }

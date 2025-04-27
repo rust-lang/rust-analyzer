@@ -330,7 +330,11 @@ fn invert_special_case_legacy(expr: &ast::Expr) -> Option<ast::Expr> {
                 T![>] => T![<=],
                 T![>=] => T![<],
                 // Parenthesize other expressions before prefixing `!`
-                _ => return Some(make::expr_prefix(T![!], make::expr_paren(expr.clone())).into()),
+                _ => {
+                    return Some(
+                        make::expr_prefix(T![!], make::expr_paren(expr.clone()).into()).into(),
+                    );
+                }
             };
             ted::replace(op_token, make::token(rev_token));
             Some(bin.into())
@@ -347,7 +351,7 @@ fn invert_special_case_legacy(expr: &ast::Expr) -> Option<ast::Expr> {
                 "is_err" => "is_ok",
                 _ => return None,
             };
-            Some(make::expr_method_call(receiver, make::name_ref(method), arg_list))
+            Some(make::expr_method_call(receiver, make::name_ref(method), arg_list).into())
         }
         ast::Expr::PrefixExpr(pe) if pe.op_kind()? == ast::UnaryOp::Not => match pe.expr()? {
             ast::Expr::ParenExpr(parexpr) => parexpr.expr(),
@@ -852,6 +856,7 @@ impl ReferenceConversion {
                     make::expr_ref(expr, false)
                 } else {
                     make::expr_method_call(expr, make::name_ref("as_ref"), make::arg_list([]))
+                        .into()
                 }
             }
         }
@@ -1019,6 +1024,20 @@ fn test_required_hashes() {
     assert_eq!(0, required_hashes("#abc"));
     assert_eq!(3, required_hashes("#ab\"##c"));
     assert_eq!(5, required_hashes("#ab\"##\"####c"));
+}
+
+/// Calculate the string literal suffix length
+pub(crate) fn string_suffix(s: &str) -> Option<&str> {
+    s.rfind(['"', '\'', '#']).map(|i| &s[i + 1..])
+}
+#[test]
+fn test_string_suffix() {
+    assert_eq!(Some(""), string_suffix(r#""abc""#));
+    assert_eq!(Some(""), string_suffix(r#""""#));
+    assert_eq!(Some("a"), string_suffix(r#"""a"#));
+    assert_eq!(Some("i32"), string_suffix(r#"""i32"#));
+    assert_eq!(Some("i32"), string_suffix(r#"r""i32"#));
+    assert_eq!(Some("i32"), string_suffix(r##"r#""#i32"##));
 }
 
 /// Replaces the record expression, handling field shorthands including inside macros.

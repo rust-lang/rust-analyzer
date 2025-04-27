@@ -133,7 +133,7 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
                 }
 
                 editor.add_mappings(make.finish_with_mappings());
-                builder.add_file_edits(ctx.file_id(), editor);
+                builder.add_file_edits(ctx.vfs_file_id(), editor);
             },
         );
     }
@@ -181,8 +181,8 @@ impl WrapperKind {
 
     fn symbol(&self) -> hir::Symbol {
         match self {
-            WrapperKind::Option => hir::sym::Option.clone(),
-            WrapperKind::Result => hir::sym::Result.clone(),
+            WrapperKind::Option => hir::sym::Option,
+            WrapperKind::Result => hir::sym::Result,
         }
     }
 }

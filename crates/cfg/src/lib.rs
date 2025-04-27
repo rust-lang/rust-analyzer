@@ -31,7 +31,7 @@ pub struct CfgOptions {
 
 impl Default for CfgOptions {
     fn default() -> Self {
-        Self { enabled: FxHashSet::from_iter([CfgAtom::Flag(sym::true_.clone())]) }
+        Self { enabled: FxHashSet::from_iter([CfgAtom::Flag(sym::true_)]) }
     }
 }
 
@@ -109,6 +109,11 @@ impl CfgOptions {
         let mut enabled = self.enabled.iter().cloned().collect::<Box<[_]>>();
         enabled.sort_unstable();
         HashableCfgOptions { _enabled: enabled }
+    }
+
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.enabled.shrink_to_fit();
     }
 }
 

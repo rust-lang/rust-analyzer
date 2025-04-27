@@ -158,7 +158,7 @@ fn run_dbg_replacement(
                 None => false,
             };
             let expr = replace_nested_dbgs(expr.clone());
-            let expr = if wrap { make::expr_paren(expr.clone()) } else { expr.clone_subtree() };
+            let expr = if wrap { make::expr_paren(expr.clone()).into() } else { expr.clone_subtree() };
             editor.replace(macro_call.syntax(), expr.syntax().clone_for_update());
             (macro_call.syntax().text_range(), Some(expr))
         }

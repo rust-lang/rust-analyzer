@@ -219,7 +219,7 @@ impl Resolver {
                 Scope::ExprScope(_) | Scope::MacroDefScope(_) => continue,
                 Scope::GenericParams { params, def } => {
                     if let &GenericDefId::ImplId(impl_) = def {
-                        if *first_name == sym::Self_.clone() {
+                        if *first_name == sym::Self_ {
                             return Some((
                                 TypeNs::SelfType(impl_),
                                 remaining_idx(),
@@ -228,7 +228,7 @@ impl Resolver {
                             ));
                         }
                     } else if let &GenericDefId::AdtId(adt) = def {
-                        if *first_name == sym::Self_.clone() {
+                        if *first_name == sym::Self_ {
                             return Some((
                                 TypeNs::AdtSelfType(adt),
                                 remaining_idx(),
@@ -365,7 +365,7 @@ impl Resolver {
             }
         };
         let n_segments = path.segments().len();
-        let tmp = Name::new_symbol_root(sym::self_.clone());
+        let tmp = Name::new_symbol_root(sym::self_);
         let first_name = if path.is_self() { &tmp } else { path.segments().first()? };
         let skip_to_mod = path.kind != PathKind::Plain && !path.is_self();
         if skip_to_mod {
@@ -397,7 +397,7 @@ impl Resolver {
                     }
                     Scope::GenericParams { params, def } => {
                         if let &GenericDefId::ImplId(impl_) = def {
-                            if *first_name == sym::Self_.clone() {
+                            if *first_name == sym::Self_ {
                                 return Some((
                                     ResolveValueResult::ValueNs(ValueNs::ImplSelf(impl_), None),
                                     ResolvePathResultPrefixInfo::default(),
@@ -425,14 +425,14 @@ impl Resolver {
                     Scope::ExprScope(_) | Scope::MacroDefScope(_) => continue,
                     Scope::GenericParams { params, def } => {
                         if let &GenericDefId::ImplId(impl_) = def {
-                            if *first_name == sym::Self_.clone() {
+                            if *first_name == sym::Self_ {
                                 return Some((
                                     ResolveValueResult::Partial(TypeNs::SelfType(impl_), 1, None),
                                     ResolvePathResultPrefixInfo::default(),
                                 ));
                             }
                         } else if let &GenericDefId::AdtId(adt) = def {
-                            if *first_name == sym::Self_.clone() {
+                            if *first_name == sym::Self_ {
                                 let ty = TypeNs::AdtSelfType(adt);
                                 return Some((
                                     ResolveValueResult::Partial(ty, 1, None),
@@ -527,6 +527,9 @@ impl Resolver {
                 _ => None,
             }),
             LifetimeRef::Placeholder | LifetimeRef::Error => None,
+            LifetimeRef::Param(lifetime_param_id) => {
+                Some(LifetimeNs::LifetimeParam(*lifetime_param_id))
+            }
         }
     }
 
@@ -917,7 +920,7 @@ fn handle_macro_def_scope(
             // and use its parent expansion.
             *hygiene_id = HygieneId::new(parent_ctx.opaque_and_semitransparent(db));
             *hygiene_info = parent_ctx.outer_expn(db).map(|expansion| {
-                let expansion = db.lookup_intern_macro_call(expansion);
+                let expansion = db.lookup_intern_macro_call(expansion.into());
                 (parent_ctx.parent(db), expansion.def)
             });
         }
@@ -932,7 +935,7 @@ fn hygiene_info(
     if !hygiene_id.is_root() {
         let ctx = hygiene_id.lookup();
         ctx.outer_expn(db).map(|expansion| {
-            let expansion = db.lookup_intern_macro_call(expansion);
+            let expansion = db.lookup_intern_macro_call(expansion.into());
             (ctx.parent(db), expansion.def)
         })
     } else {
@@ -1004,12 +1007,9 @@ impl Scope {
             }
             &Scope::GenericParams { ref params, def: parent } => {
                 if let GenericDefId::ImplId(impl_) = parent {
-                    acc.add(
-                        &Name::new_symbol_root(sym::Self_.clone()),
-                        ScopeDef::ImplSelfType(impl_),
-                    );
+                    acc.add(&Name::new_symbol_root(sym::Self_), ScopeDef::ImplSelfType(impl_));
                 } else if let GenericDefId::AdtId(adt) = parent {
-                    acc.add(&Name::new_symbol_root(sym::Self_.clone()), ScopeDef::AdtSelfType(adt));
+                    acc.add(&Name::new_symbol_root(sym::Self_), ScopeDef::AdtSelfType(adt));
                 }
 
                 for (local_id, param) in params.iter_type_or_consts() {

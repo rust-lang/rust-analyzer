@@ -124,7 +124,7 @@ impl Field {
     ) -> Option<Field> {
         let db = ctx.sema.db;
 
-        let module = ctx.sema.file_to_module_def(ctx.file_id())?;
+        let module = ctx.sema.file_to_module_def(ctx.vfs_file_id())?;
         let edition = module.krate().edition(ctx.db());
 
         let (name, range, ty) = match f {
@@ -751,7 +751,7 @@ fn func_assoc_item(
     }
     .clone_for_update();
 
-    let body = make::block_expr(vec![], Some(call)).clone_for_update();
+    let body = make::block_expr(vec![], Some(call.into())).clone_for_update();
     let func = make::fn_(
         item.visibility(),
         item.name()?,

@@ -5,7 +5,10 @@ mod tests;
 
 use std::iter;
 
-use crate::expr_store::{lower::ExprCollector, path::NormalPath};
+use crate::expr_store::{
+    lower::{ExprCollector, generics::ImplTraitLowerFn},
+    path::NormalPath,
+};
 
 use hir_expand::{
     mod_path::{ModPath, PathKind, resolve_crate_root},
@@ -16,11 +19,10 @@ use syntax::{
     AstPtr,
     ast::{self, AstNode, HasGenericArgs},
 };
-use thin_vec::ThinVec;
 
 use crate::{
     expr_store::path::{GenericArg, GenericArgs, Path},
-    type_ref::{TypeBound, TypeRef},
+    type_ref::TypeRef,
 };
 
 #[cfg(test)]
@@ -36,7 +38,7 @@ thread_local! {
 pub(super) fn lower_path(
     collector: &mut ExprCollector<'_>,
     mut path: ast::Path,
-    impl_trait_lower_fn: &mut impl FnMut(ThinVec<TypeBound>) -> TypeRef,
+    impl_trait_lower_fn: ImplTraitLowerFn<'_>,
 ) -> Option<Path> {
     let mut kind = PathKind::Plain;
     let mut type_anchor = None;
@@ -105,7 +107,7 @@ pub(super) fn lower_path(
                 push_segment(&segment, &mut segments, name);
             }
             ast::PathSegmentKind::SelfTypeKw => {
-                push_segment(&segment, &mut segments, Name::new_symbol_root(sym::Self_.clone()));
+                push_segment(&segment, &mut segments, Name::new_symbol_root(sym::Self_));
             }
             ast::PathSegmentKind::Type { type_ref, trait_ref } => {
                 debug_assert!(path.qualifier().is_none()); // this can only occur at the first segment
@@ -152,10 +154,8 @@ pub(super) fn lower_path(
                                 args: iter::once(self_type)
                                     .chain(it.args.iter().cloned())
                                     .collect(),
-
                                 has_self_type: true,
-                                bindings: it.bindings.clone(),
-                                parenthesized: it.parenthesized,
+                                ..it
                             },
                             None => GenericArgs {
                                 args: Box::new([self_type]),
@@ -215,7 +215,7 @@ pub(super) fn lower_path(
         if let Some(_macro_call) = path.syntax().parent().and_then(ast::MacroCall::cast) {
             let syn_ctxt = collector.expander.ctx_for_range(path.segment()?.syntax().text_range());
             if let Some(macro_call_id) = syn_ctxt.outer_expn(collector.db) {
-                if collector.db.lookup_intern_macro_call(macro_call_id).def.local_inner {
+                if collector.db.lookup_intern_macro_call(macro_call_id.into()).def.local_inner {
                     kind = match resolve_crate_root(collector.db, syn_ctxt) {
                         Some(crate_root) => PathKind::DollarCrate(crate_root),
                         None => PathKind::Crate,

@@ -3,10 +3,10 @@
 use std::{io, path::Path};
 
 use crossbeam_channel::Sender;
+use ide_db::FxHashMap;
 use paths::{AbsPathBuf, Utf8Path, Utf8PathBuf};
 use project_model::ProjectJsonData;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tracing::{info_span, span::EnteredSpan};
 
 use crate::command::{CargoParser, CommandHandle};
@@ -62,7 +62,8 @@ impl DiscoverCommand {
             })
             .collect();
 
-        let mut cmd = toolchain::command(command, current_dir);
+        // TODO: are we sure the extra env should be empty?
+        let mut cmd = toolchain::command(command, current_dir, &FxHashMap::default());
         cmd.args(args);
 
         Ok(DiscoverHandle {
@@ -119,18 +120,19 @@ struct DiscoverProjectParser;
 
 impl CargoParser<DiscoverProjectMessage> for DiscoverProjectParser {
     fn from_line(&self, line: &str, _error: &mut String) -> Option<DiscoverProjectMessage> {
-        // can the line even be deserialized as JSON?
-        let Ok(data) = serde_json::from_str::<Value>(line) else {
-            let err = DiscoverProjectData::Error { error: line.to_owned(), source: None };
-            return Some(DiscoverProjectMessage::new(err));
-        };
-
-        let Ok(data) = serde_json::from_value::<DiscoverProjectData>(data) else {
-            return None;
-        };
-
-        let msg = DiscoverProjectMessage::new(data);
-        Some(msg)
+        match serde_json::from_str::<DiscoverProjectData>(line) {
+            Ok(data) => {
+                let msg = DiscoverProjectMessage::new(data);
+                Some(msg)
+            }
+            Err(err) => {
+                let err = DiscoverProjectData::Error {
+                    error: format!("{:#?}\n{}", err, line),
+                    source: None,
+                };
+                Some(DiscoverProjectMessage::new(err))
+            }
+        }
     }
 
     fn from_eof(&self) -> Option<DiscoverProjectMessage> {

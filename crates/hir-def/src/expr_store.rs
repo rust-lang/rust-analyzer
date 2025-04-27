@@ -13,11 +13,11 @@ use std::ops::{Deref, Index};
 
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
-use hir_expand::{ExpandError, InFile, mod_path::ModPath, name::Name};
+use hir_expand::{ExpandError, InFile, MacroCallId, mod_path::ModPath, name::Name};
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use span::{Edition, MacroFileId, SyntaxContext};
+use span::{Edition, SyntaxContext};
 use syntax::{AstPtr, SyntaxNodePtr, ast};
 use triomphe::Arc;
 use tt::TextRange;
@@ -31,11 +31,13 @@ use crate::{
         PatId, RecordFieldPat, Statement,
     },
     nameres::DefMap,
-    type_ref::{PathId, TypeRef, TypeRefId},
+    type_ref::{LifetimeRef, LifetimeRefId, PathId, TypeRef, TypeRefId},
 };
 
 pub use self::body::{Body, BodySourceMap};
-pub use self::lower::hir_segment_to_ast_segment;
+pub use self::lower::{
+    hir_assoc_type_binding_to_ast, hir_generic_arg_to_ast, hir_segment_to_ast_segment,
+};
 
 /// A wrapper around [`span::SyntaxContextId`] that is intended only for comparisons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -85,6 +87,9 @@ pub type MacroCallPtr = AstPtr<ast::MacroCall>;
 pub type TypePtr = AstPtr<ast::Type>;
 pub type TypeSource = InFile<TypePtr>;
 
+pub type LifetimePtr = AstPtr<ast::Lifetime>;
+pub type LifetimeSource = InFile<LifetimePtr>;
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct ExpressionStore {
     pub exprs: Arena<Expr>,
@@ -92,20 +97,13 @@ pub struct ExpressionStore {
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
     pub types: Arena<TypeRef>,
+    pub lifetimes: Arena<LifetimeRef>,
     /// Id of the closure/coroutine that owns the corresponding binding. If a binding is owned by the
     /// top level expression, it will not be listed in here.
     pub binding_owners: FxHashMap<BindingId, ExprId>,
     /// Block expressions in this store that may contain inner items.
     block_scopes: Box<[BlockId]>,
 
-    /// A map from binding to its hygiene ID.
-    ///
-    /// Bindings that don't come from macro expansion are not allocated to save space, so not all bindings appear here.
-    /// If a binding does not appear here it has `SyntaxContextId::ROOT`.
-    ///
-    /// Note that this may not be the direct `SyntaxContextId` of the binding's expansion, because transparent
-    /// expansions are attributed to their parent expansion (recursively).
-    binding_hygiene: FxHashMap<BindingId, HygieneId>,
     /// A map from an variable usages to their hygiene ID.
     ///
     /// Expressions (and destructuing patterns) that can be recorded here are single segment path, although not all single segments path refer
@@ -136,9 +134,12 @@ pub struct ExpressionStoreSourceMap {
     types_map_back: ArenaMap<TypeRefId, TypeSource>,
     types_map: FxHashMap<TypeSource, TypeRefId>,
 
+    lifetime_map_back: ArenaMap<LifetimeRefId, LifetimeSource>,
+    lifetime_map: FxHashMap<LifetimeSource, LifetimeRefId>,
+
     template_map: Option<Box<FormatTemplate>>,
 
-    pub expansions: FxHashMap<InFile<MacroCallPtr>, MacroFileId>,
+    pub expansions: FxHashMap<InFile<MacroCallPtr>, MacroCallId>,
 
     /// Diagnostics accumulated during lowering. These contain `AstPtr`s and so are stored in
     /// the source map (since they're just as volatile).
@@ -152,10 +153,10 @@ pub struct ExpressionStoreBuilder {
     pub pats: Arena<Pat>,
     pub bindings: Arena<Binding>,
     pub labels: Arena<Label>,
+    pub lifetimes: Arena<LifetimeRef>,
     pub binding_owners: FxHashMap<BindingId, ExprId>,
     pub types: Arena<TypeRef>,
     block_scopes: Vec<BlockId>,
-    binding_hygiene: FxHashMap<BindingId, HygieneId>,
     ident_hygiene: FxHashMap<ExprOrPatId, HygieneId>,
 }
 
@@ -192,18 +193,18 @@ impl ExpressionStoreBuilder {
             mut pats,
             mut bindings,
             mut binding_owners,
-            mut binding_hygiene,
             mut ident_hygiene,
             mut types,
+            mut lifetimes,
         } = self;
         exprs.shrink_to_fit();
         labels.shrink_to_fit();
         pats.shrink_to_fit();
         bindings.shrink_to_fit();
         binding_owners.shrink_to_fit();
-        binding_hygiene.shrink_to_fit();
         ident_hygiene.shrink_to_fit();
         types.shrink_to_fit();
+        lifetimes.shrink_to_fit();
 
         ExpressionStore {
             exprs,
@@ -212,8 +213,8 @@ impl ExpressionStoreBuilder {
             labels,
             binding_owners,
             types,
+            lifetimes,
             block_scopes: block_scopes.into_boxed_slice(),
-            binding_hygiene,
             ident_hygiene,
         }
     }
@@ -556,7 +557,7 @@ impl ExpressionStore {
     }
 
     fn binding_hygiene(&self, binding: BindingId) -> HygieneId {
-        self.binding_hygiene.get(&binding).copied().unwrap_or(HygieneId::ROOT)
+        self.bindings[binding].hygiene
     }
 
     pub fn expr_path_hygiene(&self, expr: ExprId) -> HygieneId {
@@ -614,6 +615,15 @@ impl Index<TypeRefId> for ExpressionStore {
         &self.types[b]
     }
 }
+
+impl Index<LifetimeRefId> for ExpressionStore {
+    type Output = LifetimeRef;
+
+    fn index(&self, b: LifetimeRefId) -> &LifetimeRef {
+        &self.lifetimes[b]
+    }
+}
+
 impl Index<PathId> for ExpressionStore {
     type Output = Path;
 
@@ -645,12 +655,12 @@ impl ExpressionStoreSourceMap {
         self.expr_map.get(&src).cloned()
     }
 
-    pub fn node_macro_file(&self, node: InFile<&ast::MacroCall>) -> Option<MacroFileId> {
+    pub fn node_macro_file(&self, node: InFile<&ast::MacroCall>) -> Option<MacroCallId> {
         let src = node.map(AstPtr::new);
         self.expansions.get(&src).cloned()
     }
 
-    pub fn macro_calls(&self) -> impl Iterator<Item = (InFile<MacroCallPtr>, MacroFileId)> + '_ {
+    pub fn macro_calls(&self) -> impl Iterator<Item = (InFile<MacroCallPtr>, MacroCallId)> + '_ {
         self.expansions.iter().map(|(&a, &b)| (a, b))
     }
 
@@ -696,11 +706,11 @@ impl ExpressionStoreSourceMap {
         self.expr_map.get(&src).copied()
     }
 
-    pub fn expansions(&self) -> impl Iterator<Item = (&InFile<MacroCallPtr>, &MacroFileId)> {
+    pub fn expansions(&self) -> impl Iterator<Item = (&InFile<MacroCallPtr>, &MacroCallId)> {
         self.expansions.iter()
     }
 
-    pub fn expansion(&self, node: InFile<&ast::MacroCall>) -> Option<MacroFileId> {
+    pub fn expansion(&self, node: InFile<&ast::MacroCall>) -> Option<MacroCallId> {
         self.expansions.get(&node.map(AstPtr::new)).copied()
     }
 
@@ -755,6 +765,8 @@ impl ExpressionStoreSourceMap {
             binding_definitions,
             types_map,
             types_map_back,
+            lifetime_map_back,
+            lifetime_map,
         } = self;
         if let Some(template_map) = template_map {
             let FormatTemplate {
@@ -779,5 +791,7 @@ impl ExpressionStoreSourceMap {
         binding_definitions.shrink_to_fit();
         types_map.shrink_to_fit();
         types_map_back.shrink_to_fit();
+        lifetime_map.shrink_to_fit();
+        lifetime_map_back.shrink_to_fit();
     }
 }

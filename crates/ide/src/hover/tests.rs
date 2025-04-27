@@ -8929,7 +8929,7 @@ fn main(notable$0: u32) {}
 
             ---
 
-            Implements notable traits: Notable\<Assoc = &str, Assoc2 = char>
+            Implements notable traits: `Notable<Assoc = &str, Assoc2 = char>`
 
             ---
 
@@ -9054,7 +9054,7 @@ fn main() {
             S
             ```
             ___
-            Implements notable traits: Future<Output = u32>, Iterator<Item = S>, Notable"#]],
+            Implements notable traits: `Future<Output = u32>`, `Iterator<Item = S>`, `Notable`"#]],
     );
 }
 
@@ -10759,6 +10759,38 @@ fn bar(v: &Foo<i32>) {
             ---
 
             `T` = `i32`, `U` = `u32`
+        "#]],
+    );
+}
+
+#[test]
+fn extra_lifetime_param_on_trait_method_subst() {
+    check(
+        r#"
+struct AudioFormat;
+
+trait ValueEnum {
+    fn to_possible_value(&self);
+}
+
+impl ValueEnum for AudioFormat {
+    fn to_possible_value<'a>(&'a self) {}
+}
+
+fn main() {
+    ValueEnum::to_possible_value$0(&AudioFormat);
+}
+    "#,
+        expect![[r#"
+            *to_possible_value*
+
+            ```rust
+            ra_test_fixture::AudioFormat
+            ```
+
+            ```rust
+            fn to_possible_value<'a>(&'a self)
+            ```
         "#]],
     );
 }

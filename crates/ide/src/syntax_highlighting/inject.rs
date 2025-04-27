@@ -3,12 +3,11 @@
 use std::mem;
 
 use either::Either;
-use hir::{HirFileId, InFile, Semantics, sym};
+use hir::{EditionedFileId, HirFileId, InFile, Semantics, sym};
 use ide_db::{
     SymbolKind, active_parameter::ActiveParameter, defs::Definition,
     documentation::docs_with_rangemap, rust_doc::is_rust_fence,
 };
-use span::EditionedFileId;
 use syntax::{
     AstToken, NodeOrToken, SyntaxNode, TextRange, TextSize,
     ast::{self, AstNode, IsString, QuoteOffsets},
@@ -161,7 +160,7 @@ pub(super) fn doc_comment(
     let mut new_comments = Vec::new();
     let mut string;
 
-    for attr in attributes.by_key(&sym::doc).attrs() {
+    for attr in attributes.by_key(sym::doc).attrs() {
         let InFile { file_id, value: src } = attrs_source_map.source_of(attr);
         if file_id != src_file_id {
             continue;

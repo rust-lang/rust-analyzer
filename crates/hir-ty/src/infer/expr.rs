@@ -12,7 +12,7 @@ use hir_def::{
     expr_store::path::{GenericArg, GenericArgs, Path},
     hir::{
         ArithOp, Array, AsmOperand, AsmOptions, BinaryOp, Expr, ExprId, ExprOrPatId, LabelId,
-        Literal, Pat, PatId, Statement, UnaryOp,
+        Literal, Pat, PatId, Statement, UnaryOp, generics::GenericParamDataRef,
     },
     lang_item::{LangItem, LangItemTarget},
     resolver::ValueNs,
@@ -24,11 +24,11 @@ use syntax::ast::RangeOp;
 
 use crate::{
     Adjust, Adjustment, AdtId, AutoBorrow, Binders, CallableDefId, CallableSig, DeclContext,
-    DeclOrigin, Interner, Rawness, Scalar, Substitution, TraitEnvironment, TraitRef, Ty, TyBuilder,
-    TyExt, TyKind,
+    DeclOrigin, IncorrectGenericsLenKind, Interner, Rawness, Scalar, Substitution,
+    TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind,
     autoderef::{Autoderef, builtin_deref, deref_by_trait},
-    consteval, error_lifetime,
-    generics::{Generics, generics},
+    consteval,
+    generics::generics,
     infer::{
         BreakableKind,
         coerce::{CoerceMany, CoerceNever, CoercionCause},
@@ -36,7 +36,10 @@ use crate::{
         pat::contains_explicit_ref_binding,
     },
     lang_items::lang_items_for_bin_op,
-    lower::{ParamLoweringMode, generic_arg_to_chalk, lower_to_chalk_mutability},
+    lower::{
+        LifetimeElisionKind, ParamLoweringMode, lower_to_chalk_mutability,
+        path::{GenericArgsLowerer, TypeLikeConst, substs_from_args_and_bindings},
+    },
     mapping::{ToChalk, from_chalk},
     method_resolution::{self, VisibleFromModule},
     primitive::{self, UintTy},
@@ -654,7 +657,7 @@ impl InferenceContext<'_> {
                             if let Some(deref_fn) = self
                                 .db
                                 .trait_items(deref_trait)
-                                .method_by_name(&Name::new_symbol_root(sym::deref.clone()))
+                                .method_by_name(&Name::new_symbol_root(sym::deref))
                             {
                                 // FIXME: this is wrong in multiple ways, subst is empty, and we emit it even for builtin deref (note that
                                 // the mutability is not wrong, and will be fixed in `self.infer_mut`).
@@ -809,11 +812,11 @@ impl InferenceContext<'_> {
                         self_ty.clone(),
                         self.table.new_lifetime_var(),
                     ));
-                    self.write_expr_adj(*base, adj);
+                    self.write_expr_adj(*base, adj.into_boxed_slice());
                     if let Some(func) = self
                         .db
                         .trait_items(index_trait)
-                        .method_by_name(&Name::new_symbol_root(sym::index.clone()))
+                        .method_by_name(&Name::new_symbol_root(sym::index))
                     {
                         let subst = TyBuilder::subst_for_def(self.db, index_trait, None);
                         if subst.remaining() != 2 {
@@ -1353,10 +1356,10 @@ impl InferenceContext<'_> {
                     if let TyKind::Ref(mtbl, lt, _) = p_left.kind(Interner) {
                         self.write_expr_adj(
                             lhs,
-                            vec![Adjustment {
+                            Box::new([Adjustment {
                                 kind: Adjust::Borrow(AutoBorrow::Ref(lt.clone(), *mtbl)),
                                 target: p_left.clone(),
-                            }],
+                            }]),
                         );
                     }
                 }
@@ -1365,10 +1368,10 @@ impl InferenceContext<'_> {
                     if let TyKind::Ref(mtbl, lt, _) = p_right.kind(Interner) {
                         self.write_expr_adj(
                             rhs,
-                            vec![Adjustment {
+                            Box::new([Adjustment {
                                 kind: Adjust::Borrow(AutoBorrow::Ref(lt.clone(), *mtbl)),
                                 target: p_right.clone(),
-                            }],
+                            }]),
                         );
                     }
                 }
@@ -1624,7 +1627,7 @@ impl InferenceContext<'_> {
 
         match self.lookup_field(&receiver_ty, name) {
             Some((ty, field_id, adjustments, is_public)) => {
-                self.write_expr_adj(receiver, adjustments);
+                self.write_expr_adj(receiver, adjustments.into_boxed_slice());
                 self.result.field_resolutions.insert(tgt_expr, field_id);
                 if !is_public {
                     if let Either::Left(field) = field_id {
@@ -1658,9 +1661,8 @@ impl InferenceContext<'_> {
                 match resolved {
                     Some((adjust, func, _)) => {
                         let (ty, adjustments) = adjust.apply(&mut self.table, receiver_ty);
-                        let generics = generics(self.db, func.into());
-                        let substs = self.substs_for_method_call(generics, None);
-                        self.write_expr_adj(receiver, adjustments);
+                        let substs = self.substs_for_method_call(tgt_expr, func.into(), None);
+                        self.write_expr_adj(receiver, adjustments.into_boxed_slice());
                         self.write_method_resolution(tgt_expr, func, substs.clone());
 
                         self.check_method_call(
@@ -1705,9 +1707,7 @@ impl InferenceContext<'_> {
                 if let TyKind::Closure(c, _) =
                     self.table.resolve_completely(callee_ty.clone()).kind(Interner)
                 {
-                    if let Some(par) = self.current_closure {
-                        self.closure_dependencies.entry(par).or_default().push(*c);
-                    }
+                    self.add_current_closure_dependency(*c);
                     self.deferred_closures.entry(*c).or_default().push((
                         derefed_callee.clone(),
                         callee_ty.clone(),
@@ -1725,7 +1725,7 @@ impl InferenceContext<'_> {
                         tgt_expr,
                     );
                 }
-                self.write_expr_adj(callee, adjustments);
+                self.write_expr_adj(callee, adjustments.into_boxed_slice());
                 (params, ret_ty)
             }
             None => {
@@ -1809,10 +1809,9 @@ impl InferenceContext<'_> {
                 }
 
                 let (ty, adjustments) = adjust.apply(&mut self.table, receiver_ty);
-                self.write_expr_adj(receiver, adjustments);
+                self.write_expr_adj(receiver, adjustments.into_boxed_slice());
 
-                let generics = generics(self.db, func.into());
-                let substs = self.substs_for_method_call(generics, generic_args);
+                let substs = self.substs_for_method_call(tgt_expr, func.into(), generic_args);
                 self.write_method_resolution(tgt_expr, func, substs.clone());
                 self.check_method_call(
                     tgt_expr,
@@ -1829,7 +1828,7 @@ impl InferenceContext<'_> {
                 let field_with_same_name_exists = match self.lookup_field(&receiver_ty, method_name)
                 {
                     Some((ty, field_id, adjustments, _public)) => {
-                        self.write_expr_adj(receiver, adjustments);
+                        self.write_expr_adj(receiver, adjustments.into_boxed_slice());
                         self.result.field_resolutions.insert(tgt_expr, field_id);
                         Some(ty)
                     }
@@ -1862,8 +1861,7 @@ impl InferenceContext<'_> {
 
                 let recovered = match assoc_func_with_same_name {
                     Some(f) => {
-                        let generics = generics(self.db, f.into());
-                        let substs = self.substs_for_method_call(generics, generic_args);
+                        let substs = self.substs_for_method_call(tgt_expr, f.into(), generic_args);
                         let f = self
                             .db
                             .value_ty(f.into())
@@ -2053,77 +2051,147 @@ impl InferenceContext<'_> {
 
     fn substs_for_method_call(
         &mut self,
-        def_generics: Generics,
+        expr: ExprId,
+        def: GenericDefId,
         generic_args: Option<&GenericArgs>,
     ) -> Substitution {
-        let (
-            parent_params,
-            has_self_param,
-            type_params,
-            const_params,
-            impl_trait_params,
-            lifetime_params,
-        ) = def_generics.provenance_split();
-        assert!(!has_self_param); // method shouldn't have another Self param
-        let total_len =
-            parent_params + type_params + const_params + impl_trait_params + lifetime_params;
-        let mut substs = Vec::with_capacity(total_len);
+        struct LowererCtx<'a, 'b> {
+            ctx: &'a mut InferenceContext<'b>,
+            expr: ExprId,
+        }
 
-        // handle provided arguments
-        if let Some(generic_args) = generic_args {
-            // if args are provided, it should be all of them, but we can't rely on that
-            let self_params = type_params + const_params + lifetime_params;
-
-            let mut args = generic_args.args.iter().peekable();
-            for kind_id in def_generics.iter_self_id().take(self_params) {
-                let arg = args.peek();
-                let arg = match (kind_id, arg) {
-                    // Lifetimes can be inferred.
-                    // Once we have implemented lifetime inference correctly,
-                    // this should be handled in a proper way.
-                    (
-                        GenericParamId::LifetimeParamId(_),
-                        None | Some(GenericArg::Type(_) | GenericArg::Const(_)),
-                    ) => error_lifetime().cast(Interner),
-
-                    // If we run out of `generic_args`, stop pushing substs
-                    (_, None) => break,
-
-                    // Normal cases
-                    (_, Some(_)) => generic_arg_to_chalk(
-                        self.db,
-                        kind_id,
-                        args.next().unwrap(), // `peek()` is `Some(_)`, so guaranteed no panic
-                        self,
-                        &self.body.store,
-                        |this, type_ref| this.make_body_ty(type_ref),
-                        |this, c, ty| this.make_body_const(*c, ty),
-                        |this, path, ty| this.make_path_as_body_const(path, ty),
-                        |this, lt_ref| this.make_body_lifetime(lt_ref),
-                    ),
-                };
-
-                substs.push(arg);
+        impl GenericArgsLowerer for LowererCtx<'_, '_> {
+            fn report_len_mismatch(
+                &mut self,
+                def: GenericDefId,
+                provided_count: u32,
+                expected_count: u32,
+                kind: IncorrectGenericsLenKind,
+            ) {
+                self.ctx.push_diagnostic(InferenceDiagnostic::MethodCallIncorrectGenericsLen {
+                    expr: self.expr,
+                    provided_count,
+                    expected_count,
+                    kind,
+                    def,
+                });
             }
-        };
 
-        // Handle everything else as unknown. This also handles generic arguments for the method's
-        // parent (impl or trait), which should come after those for the method.
-        for (id, _data) in def_generics.iter().skip(substs.len()) {
-            match id {
-                GenericParamId::TypeParamId(_) => {
-                    substs.push(self.table.new_type_var().cast(Interner))
+            fn report_arg_mismatch(
+                &mut self,
+                param_id: GenericParamId,
+                arg_idx: u32,
+                has_self_arg: bool,
+            ) {
+                self.ctx.push_diagnostic(InferenceDiagnostic::MethodCallIncorrectGenericsOrder {
+                    expr: self.expr,
+                    param_id,
+                    arg_idx,
+                    has_self_arg,
+                });
+            }
+
+            fn provided_kind(
+                &mut self,
+                param_id: GenericParamId,
+                param: GenericParamDataRef<'_>,
+                arg: &GenericArg,
+            ) -> crate::GenericArg {
+                match (param, arg) {
+                    (GenericParamDataRef::LifetimeParamData(_), GenericArg::Lifetime(lifetime)) => {
+                        self.ctx.make_body_lifetime(*lifetime).cast(Interner)
+                    }
+                    (GenericParamDataRef::TypeParamData(_), GenericArg::Type(type_ref)) => {
+                        self.ctx.make_body_ty(*type_ref).cast(Interner)
+                    }
+                    (GenericParamDataRef::ConstParamData(_), GenericArg::Const(konst)) => {
+                        let GenericParamId::ConstParamId(const_id) = param_id else {
+                            unreachable!("non-const param ID for const param");
+                        };
+                        let const_ty = self.ctx.db.const_param_ty(const_id);
+                        self.ctx.make_body_const(*konst, const_ty).cast(Interner)
+                    }
+                    _ => unreachable!("unmatching param kinds were passed to `provided_kind()`"),
                 }
-                GenericParamId::ConstParamId(id) => {
-                    substs.push(self.table.new_const_var(self.db.const_param_ty(id)).cast(Interner))
+            }
+
+            fn provided_type_like_const(
+                &mut self,
+                const_ty: Ty,
+                arg: TypeLikeConst<'_>,
+            ) -> crate::Const {
+                match arg {
+                    TypeLikeConst::Path(path) => self.ctx.make_path_as_body_const(path, const_ty),
+                    TypeLikeConst::Infer => self.ctx.table.new_const_var(const_ty),
                 }
-                GenericParamId::LifetimeParamId(_) => {
-                    substs.push(self.table.new_lifetime_var().cast(Interner))
+            }
+
+            fn inferred_kind(
+                &mut self,
+                _def: GenericDefId,
+                param_id: GenericParamId,
+                _param: GenericParamDataRef<'_>,
+                _infer_args: bool,
+                _preceding_args: &[crate::GenericArg],
+            ) -> crate::GenericArg {
+                // Always create an inference var, even when `infer_args == false`. This helps with diagnostics,
+                // and I think it's also required in the presence of `impl Trait` (that must be inferred).
+                match param_id {
+                    GenericParamId::TypeParamId(_) => self.ctx.table.new_type_var().cast(Interner),
+                    GenericParamId::ConstParamId(const_id) => self
+                        .ctx
+                        .table
+                        .new_const_var(self.ctx.db.const_param_ty(const_id))
+                        .cast(Interner),
+                    GenericParamId::LifetimeParamId(_) => {
+                        self.ctx.table.new_lifetime_var().cast(Interner)
+                    }
                 }
+            }
+
+            fn parent_arg(&mut self, param_id: GenericParamId) -> crate::GenericArg {
+                match param_id {
+                    GenericParamId::TypeParamId(_) => self.ctx.table.new_type_var().cast(Interner),
+                    GenericParamId::ConstParamId(const_id) => self
+                        .ctx
+                        .table
+                        .new_const_var(self.ctx.db.const_param_ty(const_id))
+                        .cast(Interner),
+                    GenericParamId::LifetimeParamId(_) => {
+                        self.ctx.table.new_lifetime_var().cast(Interner)
+                    }
+                }
+            }
+
+            fn report_elided_lifetimes_in_path(
+                &mut self,
+                _def: GenericDefId,
+                _expected_count: u32,
+                _hard_error: bool,
+            ) {
+                unreachable!("we set `LifetimeElisionKind::Infer`")
+            }
+
+            fn report_elision_failure(&mut self, _def: GenericDefId, _expected_count: u32) {
+                unreachable!("we set `LifetimeElisionKind::Infer`")
+            }
+
+            fn report_missing_lifetime(&mut self, _def: GenericDefId, _expected_count: u32) {
+                unreachable!("we set `LifetimeElisionKind::Infer`")
             }
         }
-        assert_eq!(substs.len(), total_len);
-        Substitution::from_iter(Interner, substs)
+
+        substs_from_args_and_bindings(
+            self.db,
+            self.body,
+            generic_args,
+            def,
+            true,
+            LifetimeElisionKind::Infer,
+            false,
+            None,
+            &mut LowererCtx { ctx: self, expr },
+        )
     }
 
     fn register_obligations_for_call(&mut self, callable_ty: &Ty) {
@@ -2145,13 +2213,12 @@ impl InferenceContext<'_> {
                 CallableDefId::FunctionId(f) => {
                     if let ItemContainerId::TraitId(trait_) = f.lookup(self.db).container {
                         // construct a TraitRef
-                        let params_len = parameters.len(Interner);
                         let trait_params_len = generics(self.db, trait_.into()).len();
                         let substs = Substitution::from_iter(
                             Interner,
                             // The generic parameters for the trait come after those for the
                             // function.
-                            &parameters.as_slice(Interner)[params_len - trait_params_len..],
+                            &parameters.as_slice(Interner)[..trait_params_len],
                         );
                         self.push_obligation(
                             TraitRef { trait_id: to_chalk_trait_id(trait_), substitution: substs }

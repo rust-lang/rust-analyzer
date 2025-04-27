@@ -94,8 +94,8 @@ pub use infer::{
 };
 pub use interner::Interner;
 pub use lower::{
-    ImplTraitLoweringMode, ParamLoweringMode, TyDefId, TyLoweringContext, ValueTyDefId,
-    associated_type_shorthand_candidates, diagnostics::*,
+    ImplTraitLoweringMode, LifetimeElisionKind, ParamLoweringMode, TyDefId, TyLoweringContext,
+    ValueTyDefId, associated_type_shorthand_candidates, diagnostics::*,
 };
 pub use mapping::{
     from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id, from_placeholder_idx,
@@ -347,20 +347,24 @@ pub(crate) fn make_binders<T: HasInterner<Interner = Interner>>(
     generics: &Generics,
     value: T,
 ) -> Binders<T> {
-    Binders::new(
-        VariableKinds::from_iter(
-            Interner,
-            generics.iter_id().map(|x| match x {
-                hir_def::GenericParamId::ConstParamId(id) => {
-                    chalk_ir::VariableKind::Const(db.const_param_ty(id))
-                }
-                hir_def::GenericParamId::TypeParamId(_) => {
-                    chalk_ir::VariableKind::Ty(chalk_ir::TyVariableKind::General)
-                }
-                hir_def::GenericParamId::LifetimeParamId(_) => chalk_ir::VariableKind::Lifetime,
-            }),
-        ),
-        value,
+    Binders::new(variable_kinds_from_iter(db, generics.iter_id()), value)
+}
+
+pub(crate) fn variable_kinds_from_iter(
+    db: &dyn HirDatabase,
+    iter: impl Iterator<Item = hir_def::GenericParamId>,
+) -> VariableKinds {
+    VariableKinds::from_iter(
+        Interner,
+        iter.map(|x| match x {
+            hir_def::GenericParamId::ConstParamId(id) => {
+                chalk_ir::VariableKind::Const(db.const_param_ty(id))
+            }
+            hir_def::GenericParamId::TypeParamId(_) => {
+                chalk_ir::VariableKind::Ty(chalk_ir::TyVariableKind::General)
+            }
+            hir_def::GenericParamId::LifetimeParamId(_) => chalk_ir::VariableKind::Lifetime,
+        }),
     )
 }
 
@@ -525,13 +529,13 @@ pub type PolyFnSig = Binders<CallableSig>;
 
 impl CallableSig {
     pub fn from_params_and_return(
-        params: impl ExactSizeIterator<Item = Ty>,
+        params: impl Iterator<Item = Ty>,
         ret: Ty,
         is_varargs: bool,
         safety: Safety,
         abi: FnAbi,
     ) -> CallableSig {
-        let mut params_and_return = Vec::with_capacity(params.len() + 1);
+        let mut params_and_return = Vec::with_capacity(params.size_hint().0 + 1);
         params_and_return.extend(params);
         params_and_return.push(ret);
         CallableSig { params_and_return: params_and_return.into(), is_varargs, safety, abi }
@@ -889,7 +893,7 @@ pub fn callable_sig_from_fn_trait(
     let fn_once_trait = FnTrait::FnOnce.get_id(db, krate)?;
     let output_assoc_type = db
         .trait_items(fn_once_trait)
-        .associated_type_by_name(&Name::new_symbol_root(sym::Output.clone()))?;
+        .associated_type_by_name(&Name::new_symbol_root(sym::Output))?;
 
     let mut table = InferenceTable::new(db, trait_env.clone());
     let b = TyBuilder::trait_ref(db, fn_once_trait);

@@ -7,12 +7,11 @@ use hir_def::signatures::StructFlags;
 use stdx::never;
 use triomphe::Arc;
 
-use crate::db::HirDatabaseData;
 use crate::{
-    AliasTy, Canonical, CanonicalVarKinds, InEnvironment, Interner, ProjectionTy, TraitEnvironment,
-    Ty, TyBuilder, TyKind, db::HirDatabase, method_resolution::TyFingerprint,
+    AliasTy, Canonical, CanonicalVarKinds, ConcreteConst, ConstScalar, ConstValue, InEnvironment,
+    Interner, ProjectionTy, TraitEnvironment, Ty, TyBuilder, TyKind, db::HirDatabase,
+    method_resolution::TyFingerprint,
 };
-use crate::{ConcreteConst, ConstScalar, ConstValue};
 
 fn has_destructor(db: &dyn HirDatabase, adt: AdtId) -> bool {
     let module = match adt {
@@ -194,10 +193,8 @@ fn is_copy(db: &dyn HirDatabase, ty: Ty, env: Arc<TraitEnvironment>) -> bool {
     db.trait_solve(env.krate, env.block, goal).is_some()
 }
 
-pub(crate) fn has_drop_glue_recover(
+pub(crate) fn has_drop_glue_cycle_result(
     _db: &dyn HirDatabase,
-    _cycle: &salsa::Cycle,
-    _: HirDatabaseData,
     _ty: Ty,
     _env: Arc<TraitEnvironment>,
 ) -> DropGlue {

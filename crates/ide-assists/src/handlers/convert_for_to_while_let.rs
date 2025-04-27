@@ -60,13 +60,13 @@ pub(crate) fn convert_for_loop_to_while_let(
             {
                 (expr, Some(make.name_ref(method.as_str())))
             } else if let ast::Expr::RefExpr(_) = iterable {
-                (make::expr_paren(iterable), Some(make.name_ref("into_iter")))
+                (make::expr_paren(iterable).into(), Some(make.name_ref("into_iter")))
             } else {
                 (iterable, Some(make.name_ref("into_iter")))
             };
 
             let iterable = if let Some(method) = method {
-                make::expr_method_call(iterable, method, make::arg_list([]))
+                make::expr_method_call(iterable, method, make::arg_list([])).into()
             } else {
                 iterable
             };
@@ -101,7 +101,7 @@ pub(crate) fn convert_for_loop_to_while_let(
             editor.replace(for_loop.syntax(), while_loop.syntax());
 
             editor.add_mappings(make.finish_with_mappings());
-            builder.add_file_edits(ctx.file_id(), editor);
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
@@ -118,9 +118,9 @@ fn is_ref_and_impls_iter_method(
         _ => return None,
     };
     let wanted_method = Name::new_symbol_root(if ref_expr.mut_token().is_some() {
-        sym::iter_mut.clone()
+        sym::iter_mut
     } else {
-        sym::iter.clone()
+        sym::iter
     });
     let expr_behind_ref = ref_expr.expr()?;
     let ty = sema.type_of_expr(&expr_behind_ref)?.adjusted();

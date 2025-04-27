@@ -46,7 +46,7 @@ debug = 2
 
 # ungrammar = { path = "../ungrammar" }
 
-# rust-analyzer-salsa = { path = "../salsa" }
+# salsa = { path = "../salsa" }
 
 [workspace.dependencies]
 # local crates
@@ -104,10 +104,10 @@ arrayvec = "0.7.6"
 bitflags = "2.9.0"
 cargo_metadata = "0.19.2"
 camino = "1.1.9"
-chalk-solve = { version = "0.100.0", default-features = false }
-chalk-ir = "0.100.0"
-chalk-recursive = { version = "0.100.0", default-features = false }
-chalk-derive = "0.100.0"
+chalk-solve = { version = "0.102.0", default-features = false }
+chalk-ir = "0.102.0"
+chalk-recursive = { version = "0.102.0", default-features = false }
+chalk-derive = "0.102.0"
 crossbeam-channel = "0.5.15"
 dissimilar = "1.0.10"
 dot = "0.1.4"
@@ -131,7 +131,7 @@ process-wrap = { version = "8.2.0", features = ["std"] }
 pulldown-cmark-to-cmark = "10.0.4"
 pulldown-cmark = { version = "0.9.6", default-features = false }
 rayon = "1.10.0"
-salsa = "0.19"
+salsa = "0.20.0"
 rustc-hash = "2.1.1"
 semver = "1.0.26"
 serde = { version = "1.0.219" }
@@ -158,11 +158,10 @@ triomphe = { version = "0.1.14", default-features = false, features = ["std"] }
 url = "2.5.4"
 xshell = "0.2.7"
 
-
 # We need to freeze the version of the crate, as the raw-api feature is considered unstable
-dashmap = { version = "=5.5.3", features = ["raw-api"] }
+dashmap = { version = "=6.1.0", features = ["raw-api", "inline"] }
 # We need to freeze the version of the crate, as it needs to match with dashmap
-hashbrown = { version = "=0.14.5", features = [
+hashbrown = { version = "0.14.0", features = [
   "inline-more",
 ], default-features = false }
 

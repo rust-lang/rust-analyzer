@@ -14,7 +14,7 @@ use crate::{
 };
 use either::Either;
 use hir_def::{
-    AssocItemId, CallableDefId, ConstId, DefWithBodyId, FieldId, FunctionId, GenericDefId,
+    AdtId, AssocItemId, CallableDefId, ConstId, DefWithBodyId, FieldId, FunctionId, GenericDefId,
     ItemContainerId, LocalFieldId, Lookup, ModuleDefId, StructId, TraitId, VariantId,
     expr_store::{
         Body, BodySourceMap, ExpressionStore, ExpressionStoreSourceMap, HygieneId,
@@ -26,16 +26,16 @@ use hir_def::{
     lang_item::LangItem,
     nameres::MacroSubNs,
     resolver::{HasResolver, Resolver, TypeNs, ValueNs, resolver_for_scope},
-    type_ref::{Mutability, TypeRef, TypeRefId},
+    type_ref::{Mutability, TypeRefId},
 };
 use hir_expand::{
-    HirFileId, InFile, MacroFileId, MacroFileIdExt,
+    HirFileId, InFile, MacroCallId,
     mod_path::{ModPath, PathKind, path},
     name::{AsName, Name},
 };
 use hir_ty::{
-    Adjustment, InferenceResult, Interner, Substitution, TraitEnvironment, Ty, TyExt, TyKind,
-    TyLoweringContext,
+    Adjustment, AliasTy, InferenceResult, Interner, LifetimeElisionKind, ProjectionTy,
+    Substitution, TraitEnvironment, Ty, TyExt, TyKind, TyLoweringContext,
     diagnostics::{
         InsideUnsafeBlock, record_literal_missing_fields, record_pattern_missing_fields,
         unsafe_operations,
@@ -47,10 +47,10 @@ use hir_ty::{
 use intern::sym;
 use itertools::Itertools;
 use smallvec::SmallVec;
-use syntax::ast::{RangeItem, RangeOp};
+use stdx::never;
 use syntax::{
     SyntaxKind, SyntaxNode, TextRange, TextSize,
-    ast::{self, AstNode},
+    ast::{self, AstNode, RangeItem, RangeOp},
 };
 use triomphe::Arc;
 
@@ -216,7 +216,7 @@ impl SourceAnalyzer {
         })
     }
 
-    pub(crate) fn expansion(&self, node: InFile<&ast::MacroCall>) -> Option<MacroFileId> {
+    pub(crate) fn expansion(&self, node: InFile<&ast::MacroCall>) -> Option<MacroCallId> {
         self.store_sm()?.expansion(node)
     }
 
@@ -261,11 +261,15 @@ impl SourceAnalyzer {
 
     pub(crate) fn type_of_type(&self, db: &dyn HirDatabase, ty: &ast::Type) -> Option<Type> {
         let type_ref = self.type_id(ty)?;
-        let ty = hir_ty::TyLoweringContext::new(
+        let ty = TyLoweringContext::new(
             db,
             &self.resolver,
             self.store()?,
             self.resolver.generic_def()?,
+            // FIXME: Is this correct here? Anyway that should impact mostly diagnostics, which we don't emit here
+            // (this can impact the lifetimes generated, e.g. in `const` they won't be `'static`, but this seems like a
+            // small problem).
+            LifetimeElisionKind::Infer,
         )
         .lower_ty(type_ref);
         Some(Type::new_with_resolver(db, &self.resolver, ty))
@@ -541,7 +545,7 @@ impl SourceAnalyzer {
                 let items = into_future_trait.items(db);
                 let into_future_type = items.into_iter().find_map(|item| match item {
                     AssocItem::TypeAlias(alias)
-                        if alias.name(db) == Name::new_symbol_root(sym::IntoFuture.clone()) =>
+                        if alias.name(db) == Name::new_symbol_root(sym::IntoFuture) =>
                     {
                         Some(alias)
                     }
@@ -570,11 +574,8 @@ impl SourceAnalyzer {
                 // This can be either `Deref::deref` or `DerefMut::deref_mut`.
                 // Since deref kind is inferenced and stored in `InferenceResult.method_resolution`,
                 // use that result to find out which one it is.
-                let (deref_trait, deref) = self.lang_trait_fn(
-                    db,
-                    LangItem::Deref,
-                    &Name::new_symbol_root(sym::deref.clone()),
-                )?;
+                let (deref_trait, deref) =
+                    self.lang_trait_fn(db, LangItem::Deref, &Name::new_symbol_root(sym::deref))?;
                 self.infer()
                     .and_then(|infer| {
                         let expr = self.expr_id(prefix_expr.clone().into())?.as_expr()?;
@@ -582,17 +583,17 @@ impl SourceAnalyzer {
                         let (deref_mut_trait, deref_mut) = self.lang_trait_fn(
                             db,
                             LangItem::DerefMut,
-                            &Name::new_symbol_root(sym::deref_mut.clone()),
+                            &Name::new_symbol_root(sym::deref_mut),
                         )?;
                         if func == deref_mut { Some((deref_mut_trait, deref_mut)) } else { None }
                     })
                     .unwrap_or((deref_trait, deref))
             }
             ast::UnaryOp::Not => {
-                self.lang_trait_fn(db, LangItem::Not, &Name::new_symbol_root(sym::not.clone()))?
+                self.lang_trait_fn(db, LangItem::Not, &Name::new_symbol_root(sym::not))?
             }
             ast::UnaryOp::Neg => {
-                self.lang_trait_fn(db, LangItem::Neg, &Name::new_symbol_root(sym::neg.clone()))?
+                self.lang_trait_fn(db, LangItem::Neg, &Name::new_symbol_root(sym::neg))?
             }
         };
 
@@ -614,7 +615,7 @@ impl SourceAnalyzer {
         let index_ty = self.ty_of_expr(index_expr.index()?)?;
 
         let (index_trait, index_fn) =
-            self.lang_trait_fn(db, LangItem::Index, &Name::new_symbol_root(sym::index.clone()))?;
+            self.lang_trait_fn(db, LangItem::Index, &Name::new_symbol_root(sym::index))?;
         let (op_trait, op_fn) = self
             .infer()
             .and_then(|infer| {
@@ -623,7 +624,7 @@ impl SourceAnalyzer {
                 let (index_mut_trait, index_mut_fn) = self.lang_trait_fn(
                     db,
                     LangItem::IndexMut,
-                    &Name::new_symbol_root(sym::index_mut.clone()),
+                    &Name::new_symbol_root(sym::index_mut),
                 )?;
                 if func == index_mut_fn { Some((index_mut_trait, index_mut_fn)) } else { None }
             })
@@ -750,7 +751,7 @@ impl SourceAnalyzer {
         let bs = self.store_sm()?;
         bs.expansion(macro_call).and_then(|it| {
             // FIXME: Block def maps
-            let def = it.macro_call_id.lookup(db).def;
+            let def = it.lookup(db).def;
             db.crate_def_map(def.krate)
                 .macro_def_to_macro_id
                 .get(&def.kind.erased_ast_id())
@@ -790,6 +791,78 @@ impl SourceAnalyzer {
             .all_generic_params()
             .find_map(|(params, parent)| params.find_type_by_name(&name, *parent))
             .map(crate::TypeParam::from)
+    }
+
+    pub(crate) fn resolve_offset_of_field(
+        &self,
+        db: &dyn HirDatabase,
+        name_ref: &ast::NameRef,
+    ) -> Option<(Either<crate::Variant, crate::Field>, GenericSubstitution)> {
+        let offset_of_expr = ast::OffsetOfExpr::cast(name_ref.syntax().parent()?)?;
+        let container = offset_of_expr.ty()?;
+        let container = self.type_of_type(db, &container)?;
+
+        let trait_env = container.env;
+        let mut container = Either::Right(container.ty);
+        for field_name in offset_of_expr.fields() {
+            if let Some(
+                TyKind::Alias(AliasTy::Projection(ProjectionTy { associated_ty_id, substitution }))
+                | TyKind::AssociatedType(associated_ty_id, substitution),
+            ) = container.as_ref().right().map(|it| it.kind(Interner))
+            {
+                let projection = ProjectionTy {
+                    associated_ty_id: *associated_ty_id,
+                    substitution: substitution.clone(),
+                };
+                container = Either::Right(db.normalize_projection(projection, trait_env.clone()));
+            }
+            let handle_variants = |variant, subst: &Substitution, container: &mut _| {
+                let fields = db.variant_fields(variant);
+                let field = fields.field(&field_name.as_name())?;
+                let field_types = db.field_types(variant);
+                *container = Either::Right(field_types[field].clone().substitute(Interner, subst));
+                let generic_def = match variant {
+                    VariantId::EnumVariantId(it) => it.loc(db).parent.into(),
+                    VariantId::StructId(it) => it.into(),
+                    VariantId::UnionId(it) => it.into(),
+                };
+                Some((
+                    Either::Right(Field { parent: variant.into(), id: field }),
+                    generic_def,
+                    subst.clone(),
+                ))
+            };
+            let temp_ty = TyKind::Error.intern(Interner);
+            let (field_def, generic_def, subst) =
+                match std::mem::replace(&mut container, Either::Right(temp_ty.clone())) {
+                    Either::Left((variant_id, subst)) => {
+                        handle_variants(VariantId::from(variant_id), &subst, &mut container)?
+                    }
+                    Either::Right(container_ty) => match container_ty.kind(Interner) {
+                        TyKind::Adt(adt_id, subst) => match adt_id.0 {
+                            AdtId::StructId(id) => {
+                                handle_variants(id.into(), subst, &mut container)?
+                            }
+                            AdtId::UnionId(id) => {
+                                handle_variants(id.into(), subst, &mut container)?
+                            }
+                            AdtId::EnumId(id) => {
+                                let variants = db.enum_variants(id);
+                                let variant = variants.variant(&field_name.as_name())?;
+                                container = Either::Left((variant, subst.clone()));
+                                (Either::Left(Variant { id: variant }), id.into(), subst.clone())
+                            }
+                        },
+                        _ => return None,
+                    },
+                };
+
+            if field_name.syntax().text_range() == name_ref.syntax().text_range() {
+                return Some((field_def, GenericSubstitution::new(generic_def, subst, trait_env)));
+            }
+        }
+        never!("the `NameRef` is a child of the `OffsetOfExpr`, we should've visited it");
+        None
     }
 
     pub(crate) fn resolve_path(
@@ -931,9 +1004,11 @@ impl SourceAnalyzer {
 
         // FIXME: collectiong here shouldnt be necessary?
         let mut collector = ExprCollector::new(db, self.resolver.module(), self.file_id);
-        let hir_path = collector.lower_path(path.clone(), &mut |_| TypeRef::Error)?;
-        let parent_hir_path =
-            path.parent_path().and_then(|p| collector.lower_path(p, &mut |_| TypeRef::Error));
+        let hir_path =
+            collector.lower_path(path.clone(), &mut ExprCollector::impl_trait_error_allocator)?;
+        let parent_hir_path = path
+            .parent_path()
+            .and_then(|p| collector.lower_path(p, &mut ExprCollector::impl_trait_error_allocator));
         let store = collector.store.finish();
 
         // Case where path is a qualifier of a use tree, e.g. foo::bar::{Baz, Qux} where we are
@@ -1197,15 +1272,11 @@ impl SourceAnalyzer {
         &self,
         db: &dyn HirDatabase,
         macro_call: InFile<&ast::MacroCall>,
-    ) -> Option<MacroFileId> {
+    ) -> Option<MacroCallId> {
         self.store_sm().and_then(|bs| bs.expansion(macro_call)).or_else(|| {
-            self.resolver
-                .item_scope()
-                .macro_invoc(
-                    macro_call
-                        .with_value(db.ast_id_map(macro_call.file_id).ast_id(macro_call.value)),
-                )
-                .map(|it| it.as_macro_file())
+            self.resolver.item_scope().macro_invoc(
+                macro_call.with_value(db.ast_id_map(macro_call.file_id).ast_id(macro_call.value)),
+            )
         })
     }
 
@@ -1488,7 +1559,8 @@ fn resolve_hir_path_(
         let (ty, unresolved) = match path.type_anchor() {
             Some(type_ref) => resolver.generic_def().and_then(|def| {
                 let (_, res) =
-                    TyLoweringContext::new(db, resolver, store?, def).lower_ty_ext(type_ref);
+                    TyLoweringContext::new(db, resolver, store?, def, LifetimeElisionKind::Infer)
+                        .lower_ty_ext(type_ref);
                 res.map(|ty_ns| (ty_ns, path.segments().first()))
             }),
             None => {
@@ -1616,7 +1688,8 @@ fn resolve_hir_path_qualifier(
         let (ty, unresolved) = match path.type_anchor() {
             Some(type_ref) => resolver.generic_def().and_then(|def| {
                 let (_, res) =
-                    TyLoweringContext::new(db, resolver, store, def).lower_ty_ext(type_ref);
+                    TyLoweringContext::new(db, resolver, store, def, LifetimeElisionKind::Infer)
+                        .lower_ty_ext(type_ref);
                 res.map(|ty_ns| (ty_ns, path.segments().first()))
             }),
             None => {

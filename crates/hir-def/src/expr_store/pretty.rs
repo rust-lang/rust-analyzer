@@ -10,18 +10,18 @@ use hir_expand::{Lookup, mod_path::PathKind};
 use itertools::Itertools;
 use span::Edition;
 
-use crate::signatures::StructFlags;
 use crate::{
     AdtId, DefWithBodyId, GenericDefId, ItemTreeLoc, TypeParamId, VariantId,
     expr_store::path::{GenericArg, GenericArgs},
     hir::{
         Array, BindingAnnotation, CaptureBy, ClosureKind, Literal, Movability, Statement,
-        generics::{GenericParams, WherePredicate, WherePredicateTypeTarget},
+        generics::{GenericParams, WherePredicate},
     },
     lang_item::LangItemTarget,
     signatures::{FnFlags, FunctionSignature, StructSignature},
     type_ref::{ConstRef, LifetimeRef, Mutability, TraitBoundModifier, TypeBound, UseArgRef},
 };
+use crate::{LifetimeParamId, signatures::StructFlags};
 use crate::{item_tree::FieldsShape, signatures::FieldData};
 
 use super::*;
@@ -336,25 +336,15 @@ fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: 
                     w!(p, ",\n");
                 }
                 match pred {
-                    WherePredicate::TypeBound { target, bound } => match target {
-                        &WherePredicateTypeTarget::TypeRef(idx) => {
-                            p.print_type_ref(idx);
-                            w!(p, ": ");
-                            p.print_type_bounds(std::slice::from_ref(bound));
-                        }
-                        WherePredicateTypeTarget::TypeOrConstParam(idx) => {
-                            match generic_params[*idx].name() {
-                                Some(name) => w!(p, "{}", name.display(db, p.edition)),
-                                None => w!(p, "Param[{}]", idx.into_raw()),
-                            }
-                            w!(p, ": ");
-                            p.print_type_bounds(std::slice::from_ref(bound));
-                        }
-                    },
-                    WherePredicate::Lifetime { target, bound } => {
-                        p.print_lifetime_ref(target);
+                    WherePredicate::TypeBound { target, bound } => {
+                        p.print_type_ref(*target);
                         w!(p, ": ");
-                        p.print_lifetime_ref(bound);
+                        p.print_type_bounds(std::slice::from_ref(bound));
+                    }
+                    WherePredicate::Lifetime { target, bound } => {
+                        p.print_lifetime_ref(*target);
+                        w!(p, ": ");
+                        p.print_lifetime_ref(*bound);
                     }
                     WherePredicate::ForLifetime { lifetimes, target, bound } => {
                         w!(p, "for<");
@@ -365,21 +355,9 @@ fn print_where_clauses(db: &dyn DefDatabase, generic_params: &GenericParams, p: 
                             w!(p, "{}", lifetime.display(db, p.edition));
                         }
                         w!(p, "> ");
-                        match target {
-                            WherePredicateTypeTarget::TypeRef(idx) => {
-                                p.print_type_ref(*idx);
-                                w!(p, ": ");
-                                p.print_type_bounds(std::slice::from_ref(bound));
-                            }
-                            WherePredicateTypeTarget::TypeOrConstParam(idx) => {
-                                match generic_params[*idx].name() {
-                                    Some(name) => w!(p, "{}", name.display(db, p.edition)),
-                                    None => w!(p, "Param[{}]", idx.into_raw()),
-                                }
-                                w!(p, ": ");
-                                p.print_type_bounds(std::slice::from_ref(bound));
-                            }
-                        }
+                        p.print_type_ref(*target);
+                        w!(p, ": ");
+                        p.print_type_bounds(std::slice::from_ref(bound));
                     }
                 }
             }
@@ -1221,7 +1199,7 @@ impl Printer<'_> {
         match arg {
             GenericArg::Type(ty) => self.print_type_ref(*ty),
             GenericArg::Const(ConstRef { expr }) => self.print_expr(*expr),
-            GenericArg::Lifetime(lt) => self.print_lifetime_ref(lt),
+            GenericArg::Lifetime(lt) => self.print_lifetime_ref(*lt),
         }
     }
 
@@ -1234,14 +1212,20 @@ impl Printer<'_> {
         }
     }
 
-    pub(crate) fn print_lifetime_ref(&mut self, lt_ref: &LifetimeRef) {
-        match lt_ref {
+    pub(crate) fn print_lifetime_param(&mut self, param: LifetimeParamId) {
+        let generic_params = self.db.generic_params(param.parent);
+        w!(self, "{}", generic_params[param.local_id].name.display(self.db, self.edition))
+    }
+
+    pub(crate) fn print_lifetime_ref(&mut self, lt_ref: LifetimeRefId) {
+        match &self.store[lt_ref] {
             LifetimeRef::Static => w!(self, "'static"),
             LifetimeRef::Named(lt) => {
                 w!(self, "{}", lt.display(self.db, self.edition))
             }
             LifetimeRef::Placeholder => w!(self, "'_"),
             LifetimeRef::Error => w!(self, "'{{error}}"),
+            &LifetimeRef::Param(p) => self.print_lifetime_param(p),
         }
     }
 
@@ -1277,7 +1261,7 @@ impl Printer<'_> {
                 };
                 w!(self, "&");
                 if let Some(lt) = &ref_.lifetime {
-                    self.print_lifetime_ref(lt);
+                    self.print_lifetime_ref(*lt);
                     w!(self, " ");
                 }
                 w!(self, "{mtbl}");
@@ -1360,7 +1344,7 @@ impl Printer<'_> {
                     );
                     self.print_path(&self.store[*path]);
                 }
-                TypeBound::Lifetime(lt) => self.print_lifetime_ref(lt),
+                TypeBound::Lifetime(lt) => self.print_lifetime_ref(*lt),
                 TypeBound::Use(args) => {
                     w!(self, "use<");
                     let mut first = true;
@@ -1372,7 +1356,7 @@ impl Printer<'_> {
                             UseArgRef::Name(it) => {
                                 w!(self, "{}", it.display(self.db, self.edition))
                             }
-                            UseArgRef::Lifetime(it) => self.print_lifetime_ref(it),
+                            UseArgRef::Lifetime(it) => self.print_lifetime_ref(*it),
                         }
                     }
                     w!(self, ">")

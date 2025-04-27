@@ -25,22 +25,17 @@ use chalk_ir::{
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId,
-    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, LocalFieldId, Lookup, StaticId,
-    StructId, TypeAliasId, TypeOrConstParamId, UnionId, VariantId,
+    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, ItemContainerId, LocalFieldId,
+    Lookup, StaticId, StructId, TypeAliasId, TypeOrConstParamId, UnionId, VariantId,
     builtin_type::BuiltinType,
-    expr_store::{
-        ExpressionStore,
-        path::{GenericArg, Path},
-    },
-    hir::generics::{
-        GenericParamDataRef, TypeOrConstParamData, WherePredicate, WherePredicateTypeTarget,
-    },
+    expr_store::{ExpressionStore, path::Path},
+    hir::generics::{GenericParamDataRef, TypeOrConstParamData, WherePredicate},
     item_tree::FieldsShape,
     lang_item::LangItem,
     resolver::{HasResolver, LifetimeNs, Resolver, TypeNs},
-    signatures::{TraitFlags, TypeAliasFlags},
+    signatures::{FunctionSignature, TraitFlags, TypeAliasFlags},
     type_ref::{
-        ConstRef, LifetimeRef, LiteralConstRef, PathId, TraitBoundModifier,
+        ConstRef, LifetimeRefId, LiteralConstRef, PathId, TraitBoundModifier,
         TraitRef as HirTraitRef, TypeBound, TypeRef, TypeRefId,
     },
 };
@@ -48,18 +43,17 @@ use hir_expand::name::Name;
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashSet;
 use rustc_pattern_analysis::Captures;
-use salsa::Cycle;
 use stdx::{impl_from, never};
 use triomphe::{Arc, ThinArc};
 
 use crate::{
     AliasTy, Binders, BoundVar, CallableSig, Const, DebruijnIndex, DynTy, FnAbi, FnPointer, FnSig,
     FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime, LifetimeData,
-    LifetimeOutlives, ParamKind, PolyFnSig, ProgramClause, QuantifiedWhereClause,
-    QuantifiedWhereClauses, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder,
-    TyKind, WhereClause, all_super_traits,
+    LifetimeOutlives, PolyFnSig, ProgramClause, QuantifiedWhereClause, QuantifiedWhereClauses,
+    Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder, TyKind, WhereClause,
+    all_super_traits,
     consteval::{intern_const_ref, path_to_const, unknown_const, unknown_const_as_generic},
-    db::{HirDatabase, HirDatabaseData},
+    db::HirDatabase,
     error_lifetime,
     generics::{Generics, generics, trait_self_param_idx},
     lower::{
@@ -70,6 +64,7 @@ use crate::{
     mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::all_super_trait_refs,
+    variable_kinds_from_iter,
 };
 
 #[derive(Debug, Default)]
@@ -89,6 +84,72 @@ impl ImplTraitLoweringState {
 
 pub(crate) struct PathDiagnosticCallbackData(TypeRefId);
 
+#[derive(Debug, Clone)]
+pub enum LifetimeElisionKind {
+    /// Create a new anonymous lifetime parameter and reference it.
+    ///
+    /// If `report_in_path`, report an error when encountering lifetime elision in a path:
+    /// ```compile_fail
+    /// struct Foo<'a> { x: &'a () }
+    /// async fn foo(x: Foo) {}
+    /// ```
+    ///
+    /// Note: the error should not trigger when the elided lifetime is in a pattern or
+    /// expression-position path:
+    /// ```
+    /// struct Foo<'a> { x: &'a () }
+    /// async fn foo(Foo { x: _ }: Foo<'_>) {}
+    /// ```
+    AnonymousCreateParameter { report_in_path: bool },
+
+    /// Replace all anonymous lifetimes by provided lifetime.
+    Elided(Lifetime),
+
+    /// Give a hard error when either `&` or `'_` is written. Used to
+    /// rule out things like `where T: Foo<'_>`. Does not imply an
+    /// error on default object bounds (e.g., `Box<dyn Foo>`).
+    AnonymousReportError,
+
+    /// Resolves elided lifetimes to `'static` if there are no other lifetimes in scope,
+    /// otherwise give a warning that the previous behavior of introducing a new early-bound
+    /// lifetime is a bug and will be removed (if `only_lint` is enabled).
+    StaticIfNoLifetimeInScope { only_lint: bool },
+
+    /// Signal we cannot find which should be the anonymous lifetime.
+    ElisionFailure,
+
+    /// Infer all elided lifetimes.
+    Infer,
+}
+
+impl LifetimeElisionKind {
+    #[inline]
+    pub(crate) fn for_const(const_parent: ItemContainerId) -> LifetimeElisionKind {
+        match const_parent {
+            ItemContainerId::ExternBlockId(_) | ItemContainerId::ModuleId(_) => {
+                LifetimeElisionKind::Elided(static_lifetime())
+            }
+            ItemContainerId::ImplId(_) => {
+                LifetimeElisionKind::StaticIfNoLifetimeInScope { only_lint: true }
+            }
+            ItemContainerId::TraitId(_) => {
+                LifetimeElisionKind::StaticIfNoLifetimeInScope { only_lint: false }
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn for_fn_params(data: &FunctionSignature) -> LifetimeElisionKind {
+        LifetimeElisionKind::AnonymousCreateParameter { report_in_path: data.is_async() }
+    }
+
+    #[inline]
+    pub(crate) fn for_fn_ret() -> LifetimeElisionKind {
+        // FIXME: We should use the elided lifetime here, or `ElisionFailure`.
+        LifetimeElisionKind::Elided(error_lifetime())
+    }
+}
+
 #[derive(Debug)]
 pub struct TyLoweringContext<'a> {
     pub db: &'a dyn HirDatabase,
@@ -106,6 +167,7 @@ pub struct TyLoweringContext<'a> {
     /// Tracks types with explicit `?Sized` bounds.
     pub(crate) unsized_types: FxHashSet<Ty>,
     pub(crate) diagnostics: Vec<TyLoweringDiagnostic>,
+    lifetime_elision: LifetimeElisionKind,
 }
 
 impl<'a> TyLoweringContext<'a> {
@@ -114,6 +176,7 @@ impl<'a> TyLoweringContext<'a> {
         resolver: &'a Resolver,
         store: &'a ExpressionStore,
         def: GenericDefId,
+        lifetime_elision: LifetimeElisionKind,
     ) -> Self {
         let impl_trait_mode = ImplTraitLoweringState::new(ImplTraitLoweringMode::Disallowed);
         let type_param_mode = ParamLoweringMode::Placeholder;
@@ -129,6 +192,7 @@ impl<'a> TyLoweringContext<'a> {
             type_param_mode,
             unsized_types: FxHashSet::default(),
             diagnostics: Vec::new(),
+            lifetime_elision,
         }
     }
 
@@ -149,6 +213,17 @@ impl<'a> TyLoweringContext<'a> {
         f: impl FnOnce(&mut TyLoweringContext<'_>) -> T,
     ) -> T {
         self.with_debruijn(self.in_binders.shifted_in_from(debruijn), f)
+    }
+
+    fn with_lifetime_elision<T>(
+        &mut self,
+        lifetime_elision: LifetimeElisionKind,
+        f: impl FnOnce(&mut TyLoweringContext<'_>) -> T,
+    ) -> T {
+        let old_lifetime_elision = mem::replace(&mut self.lifetime_elision, lifetime_elision);
+        let result = f(self);
+        self.lifetime_elision = old_lifetime_elision;
+        result
     }
 
     pub fn with_impl_trait_mode(self, impl_trait_mode: ImplTraitLoweringMode) -> Self {
@@ -295,17 +370,25 @@ impl<'a> TyLoweringContext<'a> {
                 let lifetime = ref_
                     .lifetime
                     .as_ref()
-                    .map_or_else(error_lifetime, |lr| self.lower_lifetime(lr));
+                    .map_or_else(error_lifetime, |&lr| self.lower_lifetime(lr));
                 TyKind::Ref(lower_to_chalk_mutability(ref_.mutability), lifetime, inner_ty)
                     .intern(Interner)
             }
             TypeRef::Placeholder => TyKind::Error.intern(Interner),
             TypeRef::Fn(fn_) => {
                 let substs = self.with_shifted_in(DebruijnIndex::ONE, |ctx| {
-                    Substitution::from_iter(
-                        Interner,
-                        fn_.params.iter().map(|&(_, tr)| ctx.lower_ty(tr)),
-                    )
+                    let (params, ret) = fn_.split_params_and_ret();
+                    let mut subst = Vec::with_capacity(fn_.params.len());
+                    ctx.with_lifetime_elision(
+                        LifetimeElisionKind::AnonymousCreateParameter { report_in_path: false },
+                        |ctx| {
+                            subst.extend(params.iter().map(|&(_, tr)| ctx.lower_ty(tr)));
+                        },
+                    );
+                    ctx.with_lifetime_elision(LifetimeElisionKind::for_fn_ret(), |ctx| {
+                        subst.push(ctx.lower_ty(ret));
+                    });
+                    Substitution::from_iter(Interner, subst)
                 });
                 TyKind::Function(FnPointer {
                     num_binders: 0, // FIXME lower `for<'a> fn()` correctly
@@ -423,7 +506,7 @@ impl<'a> TyLoweringContext<'a> {
         if let Some(type_ref) = path.type_anchor() {
             let (ty, res) = self.lower_ty_ext(type_ref);
             let mut ctx = self.at_path(path_id);
-            return ctx.lower_ty_relative_path(ty, res);
+            return ctx.lower_ty_relative_path(ty, res, false);
         }
 
         let mut ctx = self.at_path(path_id);
@@ -453,7 +536,7 @@ impl<'a> TyLoweringContext<'a> {
             TypeNs::TraitId(tr) => tr,
             _ => return None,
         };
-        Some((ctx.lower_trait_ref_from_resolved_path(resolved, explicit_self_ty), ctx))
+        Some((ctx.lower_trait_ref_from_resolved_path(resolved, explicit_self_ty, false), ctx))
     }
 
     fn lower_trait_ref(
@@ -464,37 +547,21 @@ impl<'a> TyLoweringContext<'a> {
         self.lower_trait_ref_from_path(trait_ref.path, explicit_self_ty).map(|it| it.0)
     }
 
+    /// When lowering predicates from parents (impl, traits) for children defs (fns, consts, types), `generics` should
+    /// contain the `Generics` for the **child**, while `predicate_owner` should contain the `GenericDefId` of the
+    /// **parent**. This is important so we generate the correct bound var/placeholder.
     pub(crate) fn lower_where_predicate<'b>(
         &'b mut self,
         where_predicate: &'b WherePredicate,
-        generics: &'b Generics,
         ignore_bindings: bool,
     ) -> impl Iterator<Item = QuantifiedWhereClause> + use<'a, 'b> {
         match where_predicate {
             WherePredicate::ForLifetime { target, bound, .. }
             | WherePredicate::TypeBound { target, bound } => {
-                let self_ty = match target {
-                    WherePredicateTypeTarget::TypeRef(type_ref) => self.lower_ty(*type_ref),
-                    &WherePredicateTypeTarget::TypeOrConstParam(local_id) => {
-                        let param_id =
-                            hir_def::TypeOrConstParamId { parent: generics.def(), local_id };
-                        match self.type_param_mode {
-                            ParamLoweringMode::Placeholder => {
-                                TyKind::Placeholder(to_placeholder_idx(self.db, param_id))
-                            }
-                            ParamLoweringMode::Variable => {
-                                let idx = generics
-                                    .type_or_const_param_idx(param_id)
-                                    .expect("matching generics");
-                                TyKind::BoundVar(BoundVar::new(DebruijnIndex::INNERMOST, idx))
-                            }
-                        }
-                        .intern(Interner)
-                    }
-                };
+                let self_ty = self.lower_ty(*target);
                 Either::Left(self.lower_type_bound(bound, self_ty, ignore_bindings))
             }
-            WherePredicate::Lifetime { bound, target } => Either::Right(iter::once(
+            &WherePredicate::Lifetime { bound, target } => Either::Right(iter::once(
                 crate::wrap_empty_binders(WhereClause::LifetimeOutlives(LifetimeOutlives {
                     a: self.lower_lifetime(bound),
                     b: self.lower_lifetime(target),
@@ -537,7 +604,7 @@ impl<'a> TyLoweringContext<'a> {
                     self.unsized_types.insert(self_ty);
                 }
             }
-            TypeBound::Lifetime(l) => {
+            &TypeBound::Lifetime(l) => {
                 let lifetime = self.lower_lifetime(l);
                 clause = Some(crate::wrap_empty_binders(WhereClause::TypeOutlives(TypeOutlives {
                     ty: self_ty,
@@ -688,8 +755,8 @@ impl<'a> TyLoweringContext<'a> {
         ImplTrait { bounds: crate::make_single_type_binders(predicates) }
     }
 
-    pub fn lower_lifetime(&self, lifetime: &LifetimeRef) -> Lifetime {
-        match self.resolver.resolve_lifetime(lifetime) {
+    pub fn lower_lifetime(&self, lifetime: LifetimeRefId) -> Lifetime {
+        match self.resolver.resolve_lifetime(&self.store[lifetime]) {
             Some(resolution) => match resolution {
                 LifetimeNs::Static => static_lifetime(),
                 LifetimeNs::LifetimeParam(id) => match self.type_param_mode {
@@ -765,14 +832,8 @@ fn named_associated_type_shorthand_candidates<R>(
 
             let impl_id_as_generic_def: GenericDefId = impl_id.into();
             if impl_id_as_generic_def != def {
-                // `trait_ref` contains `BoundVar`s bound by impl's `Binders`, but here we need
-                // `BoundVar`s from `def`'s point of view.
-                // FIXME: A `HirDatabase` query may be handy if this process is needed in more
-                // places. It'd be almost identical as `impl_trait_query` where `resolver` would be
-                // of `def` instead of `impl_id`.
-                let starting_idx = generics(db, def).len_self();
                 let subst = TyBuilder::subst_for_def(db, impl_id, None)
-                    .fill_with_bound_vars(DebruijnIndex::INNERMOST, starting_idx)
+                    .fill_with_bound_vars(DebruijnIndex::INNERMOST, 0)
                     .build();
                 let trait_ref = subst.apply(trait_ref, Interner);
                 search(trait_ref)
@@ -798,16 +859,8 @@ fn named_associated_type_shorthand_candidates<R>(
             if let GenericDefId::TraitId(trait_id) = param_id.parent() {
                 let trait_generics = generics(db, trait_id.into());
                 if trait_generics[param_id.local_id()].is_trait_self() {
-                    let def_generics = generics(db, def);
-                    let starting_idx = match def {
-                        GenericDefId::TraitId(_) => 0,
-                        // `def` is an item within trait. We need to substitute `BoundVar`s but
-                        // remember that they are for parent (i.e. trait) generic params so they
-                        // come after our own params.
-                        _ => def_generics.len_self(),
-                    };
                     let trait_ref = TyBuilder::trait_ref(db, trait_id)
-                        .fill_with_bound_vars(DebruijnIndex::INNERMOST, starting_idx)
+                        .fill_with_bound_vars(DebruijnIndex::INNERMOST, 0)
                         .build();
                     return search(trait_ref);
                 }
@@ -844,8 +897,14 @@ pub(crate) fn field_types_with_diagnostics_query(
     };
     let generics = generics(db, def);
     let mut res = ArenaMap::default();
-    let mut ctx = TyLoweringContext::new(db, &resolver, &var_data.store, def)
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &var_data.store,
+        def,
+        LifetimeElisionKind::AnonymousReportError,
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
     for (field_id, field_data) in var_data.fields().iter() {
         res.insert(field_id, make_binders(db, &generics, ctx.lower_ty(field_data.type_ref)));
     }
@@ -868,26 +927,24 @@ pub(crate) fn generic_predicates_for_param_query(
 ) -> GenericPredicates {
     let generics = generics(db, def);
     let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, generics.store(), def)
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        generics.store(),
+        def,
+        LifetimeElisionKind::AnonymousReportError,
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
 
     // we have to filter out all other predicates *first*, before attempting to lower them
-    let predicate = |pred: &_, generics: &Generics, ctx: &mut TyLoweringContext<'_>| match pred {
+    let predicate = |pred: &_, ctx: &mut TyLoweringContext<'_>| match pred {
         WherePredicate::ForLifetime { target, bound, .. }
         | WherePredicate::TypeBound { target, bound, .. } => {
-            let invalid_target = match target {
-                WherePredicateTypeTarget::TypeRef(type_ref) => {
-                    ctx.lower_ty_only_param(*type_ref) != Some(param_id)
-                }
-                &WherePredicateTypeTarget::TypeOrConstParam(local_id) => {
-                    let target_id = TypeOrConstParamId { parent: generics.def(), local_id };
-                    target_id != param_id
-                }
-            };
+            let invalid_target = { ctx.lower_ty_only_param(*target) != Some(param_id) };
             if invalid_target {
                 // If this is filtered out without lowering, `?Sized` is not gathered into `ctx.unsized_types`
                 if let TypeBound::Path(_, TraitBoundModifier::Maybe) = bound {
-                    ctx.lower_where_predicate(pred, generics, true).for_each(drop);
+                    ctx.lower_where_predicate(pred, true).for_each(drop);
                 }
                 return false;
             }
@@ -922,10 +979,9 @@ pub(crate) fn generic_predicates_for_param_query(
     {
         ctx.store = maybe_parent_generics.store();
         for pred in maybe_parent_generics.where_predicates() {
-            if predicate(pred, maybe_parent_generics, &mut ctx) {
+            if predicate(pred, &mut ctx) {
                 predicates.extend(
-                    ctx.lower_where_predicate(pred, maybe_parent_generics, true)
-                        .map(|p| make_binders(db, &generics, p)),
+                    ctx.lower_where_predicate(pred, true).map(|p| make_binders(db, &generics, p)),
                 );
             }
         }
@@ -950,10 +1006,8 @@ pub(crate) fn generic_predicates_for_param_query(
     GenericPredicates(predicates.is_empty().not().then(|| predicates.into()))
 }
 
-pub(crate) fn generic_predicates_for_param_recover(
+pub(crate) fn generic_predicates_for_param_cycle_result(
     _db: &dyn HirDatabase,
-    _cycle: &salsa::Cycle,
-    _: HirDatabaseData,
     _def: GenericDefId,
     _param_id: TypeOrConstParamId,
     _assoc_name: Option<Name>,
@@ -978,8 +1032,14 @@ pub(crate) fn trait_environment_query(
 ) -> Arc<TraitEnvironment> {
     let generics = generics(db, def);
     let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, generics.store(), def)
-        .with_type_param_mode(ParamLoweringMode::Placeholder);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        generics.store(),
+        def,
+        LifetimeElisionKind::AnonymousReportError,
+    )
+    .with_type_param_mode(ParamLoweringMode::Placeholder);
     let mut traits_in_scope = Vec::new();
     let mut clauses = Vec::new();
     for maybe_parent_generics in
@@ -987,7 +1047,7 @@ pub(crate) fn trait_environment_query(
     {
         ctx.store = maybe_parent_generics.store();
         for pred in maybe_parent_generics.where_predicates() {
-            for pred in ctx.lower_where_predicate(pred, maybe_parent_generics, false) {
+            for pred in ctx.lower_where_predicate(pred, false) {
                 if let WhereClause::Implemented(tr) = pred.skip_binders() {
                     traits_in_scope
                         .push((tr.self_type_parameter(Interner).clone(), tr.hir_trait_id()));
@@ -1075,8 +1135,14 @@ where
 {
     let generics = generics(db, def);
     let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, generics.store(), def)
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        generics.store(),
+        def,
+        LifetimeElisionKind::AnonymousReportError,
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
 
     let mut predicates = Vec::new();
     for maybe_parent_generics in
@@ -1085,9 +1151,10 @@ where
         ctx.store = maybe_parent_generics.store();
         for pred in maybe_parent_generics.where_predicates() {
             if filter(pred, maybe_parent_generics.def()) {
+                // We deliberately use `generics` and not `maybe_parent_generics` here. This is not a mistake!
+                // If we use the parent generics
                 predicates.extend(
-                    ctx.lower_where_predicate(pred, maybe_parent_generics, false)
-                        .map(|p| make_binders(db, &generics, p)),
+                    ctx.lower_where_predicate(pred, false).map(|p| make_binders(db, &generics, p)),
                 );
             }
         }
@@ -1174,29 +1241,41 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
         return (GenericDefaults(None), None);
     }
     let resolver = def.resolver(db);
-    let parent_start_idx = generic_params.len_self();
 
-    let mut ctx = TyLoweringContext::new(db, &resolver, generic_params.store(), def)
-        .with_impl_trait_mode(ImplTraitLoweringMode::Disallowed)
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        generic_params.store(),
+        def,
+        LifetimeElisionKind::AnonymousReportError,
+    )
+    .with_impl_trait_mode(ImplTraitLoweringMode::Disallowed)
+    .with_type_param_mode(ParamLoweringMode::Variable);
     let mut idx = 0;
+    let mut has_any_default = false;
     let mut defaults = generic_params
-        .iter_self()
-        .map(|(id, p)| {
-            let result =
-                handle_generic_param(&mut ctx, idx, id, p, parent_start_idx, &generic_params);
+        .iter_parents_with_store()
+        .map(|((id, p), store)| {
+            ctx.store = store;
+            let (result, has_default) = handle_generic_param(&mut ctx, idx, id, p, &generic_params);
+            has_any_default |= has_default;
             idx += 1;
             result
         })
         .collect::<Vec<_>>();
-    let diagnostics = create_diagnostics(mem::take(&mut ctx.diagnostics));
-    defaults.extend(generic_params.iter_parents_with_store().map(|((id, p), store)| {
-        ctx.store = store;
-        let result = handle_generic_param(&mut ctx, idx, id, p, parent_start_idx, &generic_params);
+    ctx.diagnostics.clear(); // Don't include diagnostics from the parent.
+    defaults.extend(generic_params.iter_self().map(|(id, p)| {
+        let (result, has_default) = handle_generic_param(&mut ctx, idx, id, p, &generic_params);
+        has_any_default |= has_default;
         idx += 1;
         result
     }));
-    let defaults = GenericDefaults(Some(Arc::from_iter(defaults)));
+    let diagnostics = create_diagnostics(mem::take(&mut ctx.diagnostics));
+    let defaults = if has_any_default {
+        GenericDefaults(Some(Arc::from_iter(defaults)))
+    } else {
+        GenericDefaults(None)
+    };
     return (defaults, diagnostics);
 
     fn handle_generic_param(
@@ -1204,18 +1283,21 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
         idx: usize,
         id: GenericParamId,
         p: GenericParamDataRef<'_>,
-        parent_start_idx: usize,
         generic_params: &Generics,
-    ) -> Binders<crate::GenericArg> {
+    ) -> (Binders<crate::GenericArg>, bool) {
+        let binders = variable_kinds_from_iter(ctx.db, generic_params.iter_id().take(idx));
         match p {
             GenericParamDataRef::TypeParamData(p) => {
-                let ty = p.default.as_ref().map_or(TyKind::Error.intern(Interner), |ty| {
-                    // Each default can only refer to previous parameters.
-                    // Type variable default referring to parameter coming
-                    // after it is forbidden (FIXME: report diagnostic)
-                    fallback_bound_vars(ctx.lower_ty(*ty), idx, parent_start_idx)
-                });
-                crate::make_binders(ctx.db, generic_params, ty.cast(Interner))
+                let ty = p.default.as_ref().map_or_else(
+                    || TyKind::Error.intern(Interner),
+                    |ty| {
+                        // Each default can only refer to previous parameters.
+                        // Type variable default referring to parameter coming
+                        // after it is forbidden (FIXME: report diagnostic)
+                        fallback_bound_vars(ctx.lower_ty(*ty), idx)
+                    },
+                );
+                (Binders::new(binders, ty.cast(Interner)), p.default.is_some())
             }
             GenericParamDataRef::ConstParamData(p) => {
                 let GenericParamId::ConstParamId(id) = id else {
@@ -1231,50 +1313,47 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
                     },
                 );
                 // Each default can only refer to previous parameters, see above.
-                val = fallback_bound_vars(val, idx, parent_start_idx);
-                make_binders(ctx.db, generic_params, val)
+                val = fallback_bound_vars(val, idx);
+                (Binders::new(binders, val), p.default.is_some())
             }
             GenericParamDataRef::LifetimeParamData(_) => {
-                make_binders(ctx.db, generic_params, error_lifetime().cast(Interner))
+                (Binders::new(binders, error_lifetime().cast(Interner)), false)
             }
         }
     }
 }
 
-pub(crate) fn generic_defaults_with_diagnostics_recover(
-    db: &dyn HirDatabase,
-    _cycle: &Cycle,
-    def: GenericDefId,
+pub(crate) fn generic_defaults_with_diagnostics_cycle_result(
+    _db: &dyn HirDatabase,
+    _def: GenericDefId,
 ) -> (GenericDefaults, Diagnostics) {
-    let generic_params = generics(db, def);
-    if generic_params.len() == 0 {
-        return (GenericDefaults(None), None);
-    }
-    // FIXME: this code is not covered in tests.
-    // we still need one default per parameter
-    let defaults = GenericDefaults(Some(Arc::from_iter(generic_params.iter_id().map(|id| {
-        let val = match id {
-            GenericParamId::TypeParamId(_) => TyKind::Error.intern(Interner).cast(Interner),
-            GenericParamId::ConstParamId(id) => unknown_const_as_generic(db.const_param_ty(id)),
-            GenericParamId::LifetimeParamId(_) => error_lifetime().cast(Interner),
-        };
-        crate::make_binders(db, &generic_params, val)
-    }))));
-    (defaults, None)
+    (GenericDefaults(None), None)
 }
 
 fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
     let data = db.function_signature(def);
     let resolver = def.resolver(db);
-    let mut ctx_params = TyLoweringContext::new(db, &resolver, &data.store, def.into())
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx_params = TyLoweringContext::new(
+        db,
+        &resolver,
+        &data.store,
+        def.into(),
+        LifetimeElisionKind::for_fn_params(&data),
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
     let params = data.params.iter().map(|&tr| ctx_params.lower_ty(tr));
 
     let ret = match data.ret_type {
         Some(ret_type) => {
-            let mut ctx_ret = TyLoweringContext::new(db, &resolver, &data.store, def.into())
-                .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
-                .with_type_param_mode(ParamLoweringMode::Variable);
+            let mut ctx_ret = TyLoweringContext::new(
+                db,
+                &resolver,
+                &data.store,
+                def.into(),
+                LifetimeElisionKind::for_fn_ret(),
+            )
+            .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+            .with_type_param_mode(ParamLoweringMode::Variable);
             ctx_ret.lower_ty(ret_type)
         }
         None => TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner),
@@ -1307,8 +1386,15 @@ fn type_for_const(db: &dyn HirDatabase, def: ConstId) -> Binders<Ty> {
     let data = db.const_signature(def);
     let generics = generics(db, def.into());
     let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, &data.store, def.into())
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let parent = def.loc(db).container;
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &data.store,
+        def.into(),
+        LifetimeElisionKind::for_const(parent),
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
 
     make_binders(db, &generics, ctx.lower_ty(data.type_ref))
 }
@@ -1317,18 +1403,20 @@ fn type_for_const(db: &dyn HirDatabase, def: ConstId) -> Binders<Ty> {
 fn type_for_static(db: &dyn HirDatabase, def: StaticId) -> Binders<Ty> {
     let data = db.static_signature(def);
     let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, &data.store, def.into());
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &data.store,
+        def.into(),
+        LifetimeElisionKind::Elided(static_lifetime()),
+    );
 
     Binders::empty(Interner, ctx.lower_ty(data.type_ref))
 }
 
 fn fn_sig_for_struct_constructor(db: &dyn HirDatabase, def: StructId) -> PolyFnSig {
-    let struct_data = db.variant_fields(def.into());
-    let fields = struct_data.fields();
-    let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, &struct_data.store, def.into())
-        .with_type_param_mode(ParamLoweringMode::Variable);
-    let params = fields.iter().map(|(_, field)| ctx.lower_ty(field.type_ref));
+    let field_tys = db.field_types(def.into());
+    let params = field_tys.iter().map(|(_, ty)| ty.skip_binders().clone());
     let (ret, binders) = type_for_adt(db, def.into()).into_value_and_skipped_binders();
     Binders::new(
         binders,
@@ -1355,13 +1443,9 @@ fn type_for_struct_constructor(db: &dyn HirDatabase, def: StructId) -> Option<Bi
 }
 
 fn fn_sig_for_enum_variant_constructor(db: &dyn HirDatabase, def: EnumVariantId) -> PolyFnSig {
-    let var_data = db.variant_fields(def.into());
-    let fields = var_data.fields();
-    let resolver = def.resolver(db);
+    let field_tys = db.field_types(def.into());
+    let params = field_tys.iter().map(|(_, ty)| ty.skip_binders().clone());
     let parent = def.lookup(db).parent;
-    let mut ctx = TyLoweringContext::new(db, &resolver, &var_data.store, parent.into())
-        .with_type_param_mode(ParamLoweringMode::Variable);
-    let params = fields.iter().map(|(_, field)| ctx.lower_ty(field.type_ref));
     let (ret, binders) = type_for_adt(db, parent.into()).into_value_and_skipped_binders();
     Binders::new(
         binders,
@@ -1391,16 +1475,12 @@ fn type_for_enum_variant_constructor(
     }
 }
 
-#[salsa::tracked(recovery_fn = type_for_adt_recovery)]
+#[salsa::tracked(cycle_result = type_for_adt_cycle_result)]
 fn type_for_adt_tracked(db: &dyn HirDatabase, adt: AdtId) -> Binders<Ty> {
     type_for_adt(db, adt)
 }
 
-pub(crate) fn type_for_adt_recovery(
-    db: &dyn HirDatabase,
-    _cycle: &salsa::Cycle,
-    adt: AdtId,
-) -> Binders<Ty> {
+fn type_for_adt_cycle_result(db: &dyn HirDatabase, adt: AdtId) -> Binders<Ty> {
     let generics = generics(db, adt.into());
     make_binders(db, &generics, TyKind::Error.intern(Interner))
 }
@@ -1424,9 +1504,15 @@ pub(crate) fn type_for_type_alias_with_diagnostics_query(
     } else {
         let resolver = t.resolver(db);
         let alias = db.type_alias_signature(t);
-        let mut ctx = TyLoweringContext::new(db, &resolver, &alias.store, t.into())
-            .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
-            .with_type_param_mode(ParamLoweringMode::Variable);
+        let mut ctx = TyLoweringContext::new(
+            db,
+            &resolver,
+            &alias.store,
+            t.into(),
+            LifetimeElisionKind::AnonymousReportError,
+        )
+        .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+        .with_type_param_mode(ParamLoweringMode::Variable);
         let res = alias
             .ty
             .map(|type_ref| ctx.lower_ty(type_ref))
@@ -1438,9 +1524,8 @@ pub(crate) fn type_for_type_alias_with_diagnostics_query(
     (make_binders(db, &generics, inner), diags)
 }
 
-pub(crate) fn type_for_type_alias_with_diagnostics_query_recover(
+pub(crate) fn type_for_type_alias_with_diagnostics_cycle_result(
     db: &dyn HirDatabase,
-    _cycle: &salsa::Cycle,
     adt: TypeAliasId,
 ) -> (Binders<Ty>, Diagnostics) {
     let generics = generics(db, adt.into());
@@ -1513,8 +1598,14 @@ pub(crate) fn impl_self_ty_with_diagnostics_query(
     let impl_data = db.impl_signature(impl_id);
     let resolver = impl_id.resolver(db);
     let generics = generics(db, impl_id.into());
-    let mut ctx = TyLoweringContext::new(db, &resolver, &impl_data.store, impl_id.into())
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &impl_data.store,
+        impl_id.into(),
+        LifetimeElisionKind::AnonymousCreateParameter { report_in_path: true },
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
     (
         make_binders(db, &generics, ctx.lower_ty(impl_data.self_ty)),
         create_diagnostics(ctx.diagnostics),
@@ -1533,7 +1624,13 @@ pub(crate) fn const_param_ty_with_diagnostics_query(
     let (parent_data, store) = db.generic_params_and_store(def.parent());
     let data = &parent_data[def.local_id()];
     let resolver = def.parent().resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, &store, def.parent());
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &store,
+        def.parent(),
+        LifetimeElisionKind::AnonymousReportError,
+    );
     let ty = match data {
         TypeOrConstParamData::TypeParamData(_) => {
             never!();
@@ -1544,12 +1641,11 @@ pub(crate) fn const_param_ty_with_diagnostics_query(
     (ty, create_diagnostics(ctx.diagnostics))
 }
 
-pub(crate) fn impl_self_ty_with_diagnostics_recover(
+pub(crate) fn impl_self_ty_with_diagnostics_cycle_result(
     db: &dyn HirDatabase,
-    _cycle: &salsa::Cycle,
     impl_id: ImplId,
 ) -> (Binders<Ty>, Diagnostics) {
-    let generics = generics(db, (impl_id).into());
+    let generics = generics(db, impl_id.into());
     (make_binders(db, &generics, TyKind::Error.intern(Interner)), None)
 }
 
@@ -1563,8 +1659,14 @@ pub(crate) fn impl_trait_with_diagnostics_query(
 ) -> Option<(Binders<TraitRef>, Diagnostics)> {
     let impl_data = db.impl_signature(impl_id);
     let resolver = impl_id.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, &impl_data.store, impl_id.into())
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &impl_data.store,
+        impl_id.into(),
+        LifetimeElisionKind::AnonymousCreateParameter { report_in_path: true },
+    )
+    .with_type_param_mode(ParamLoweringMode::Variable);
     let (self_ty, binders) = db.impl_self_ty(impl_id).into_value_and_skipped_binders();
     let target_trait = impl_data.target_trait.as_ref()?;
     let trait_ref = Binders::new(binders, ctx.lower_trait_ref(target_trait, self_ty)?);
@@ -1578,9 +1680,10 @@ pub(crate) fn return_type_impl_traits(
     // FIXME unify with fn_sig_for_fn instead of doing lowering twice, maybe
     let data = db.function_signature(def);
     let resolver = def.resolver(db);
-    let mut ctx_ret = TyLoweringContext::new(db, &resolver, &data.store, def.into())
-        .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx_ret =
+        TyLoweringContext::new(db, &resolver, &data.store, def.into(), LifetimeElisionKind::Infer)
+            .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+            .with_type_param_mode(ParamLoweringMode::Variable);
     if let Some(ret_type) = data.ret_type {
         let _ret = ctx_ret.lower_ty(ret_type);
     }
@@ -1600,9 +1703,15 @@ pub(crate) fn type_alias_impl_traits(
 ) -> Option<Arc<Binders<ImplTraits>>> {
     let data = db.type_alias_signature(def);
     let resolver = def.resolver(db);
-    let mut ctx = TyLoweringContext::new(db, &resolver, &data.store, def.into())
-        .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
-        .with_type_param_mode(ParamLoweringMode::Variable);
+    let mut ctx = TyLoweringContext::new(
+        db,
+        &resolver,
+        &data.store,
+        def.into(),
+        LifetimeElisionKind::AnonymousReportError,
+    )
+    .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+    .with_type_param_mode(ParamLoweringMode::Variable);
     if let Some(type_ref) = data.ty {
         let _ty = ctx.lower_ty(type_ref);
     }
@@ -1622,73 +1731,14 @@ pub(crate) fn lower_to_chalk_mutability(m: hir_def::type_ref::Mutability) -> Mut
     }
 }
 
-/// Checks if the provided generic arg matches its expected kind, then lower them via
-/// provided closures. Use unknown if there was kind mismatch.
-///
-pub(crate) fn generic_arg_to_chalk<'a, T>(
-    db: &dyn HirDatabase,
-    kind_id: GenericParamId,
-    arg: &'a GenericArg,
-    this: &mut T,
-    store: &ExpressionStore,
-    for_type: impl FnOnce(&mut T, TypeRefId) -> Ty + 'a,
-    for_const: impl FnOnce(&mut T, &ConstRef, Ty) -> Const + 'a,
-    for_const_ty_path_fallback: impl FnOnce(&mut T, &Path, Ty) -> Const + 'a,
-    for_lifetime: impl FnOnce(&mut T, &LifetimeRef) -> Lifetime + 'a,
-) -> crate::GenericArg {
-    let kind = match kind_id {
-        GenericParamId::TypeParamId(_) => ParamKind::Type,
-        GenericParamId::ConstParamId(id) => {
-            let ty = db.const_param_ty(id);
-            ParamKind::Const(ty)
-        }
-        GenericParamId::LifetimeParamId(_) => ParamKind::Lifetime,
-    };
-    match (arg, kind) {
-        (GenericArg::Type(type_ref), ParamKind::Type) => for_type(this, *type_ref).cast(Interner),
-        (GenericArg::Const(c), ParamKind::Const(c_ty)) => for_const(this, c, c_ty).cast(Interner),
-        (GenericArg::Lifetime(lifetime_ref), ParamKind::Lifetime) => {
-            for_lifetime(this, lifetime_ref).cast(Interner)
-        }
-        (GenericArg::Const(_), ParamKind::Type) => TyKind::Error.intern(Interner).cast(Interner),
-        (GenericArg::Lifetime(_), ParamKind::Type) => TyKind::Error.intern(Interner).cast(Interner),
-        (GenericArg::Type(t), ParamKind::Const(c_ty)) => match &store[*t] {
-            TypeRef::Path(p) => for_const_ty_path_fallback(this, p, c_ty).cast(Interner),
-            _ => unknown_const_as_generic(c_ty),
-        },
-        (GenericArg::Lifetime(_), ParamKind::Const(c_ty)) => unknown_const_as_generic(c_ty),
-        (GenericArg::Type(_), ParamKind::Lifetime) => error_lifetime().cast(Interner),
-        (GenericArg::Const(_), ParamKind::Lifetime) => error_lifetime().cast(Interner),
-    }
-}
-
 /// Replaces any 'free' `BoundVar`s in `s` by `TyKind::Error` from the perspective of generic
-/// parameter whose index is `param_index`. A `BoundVar` is free when it is or (syntactically)
-/// appears after the generic parameter of `param_index`.
+/// parameter whose index is `param_index`. A `BoundVar` is free when it appears after the
+/// generic parameter of `param_index`.
 fn fallback_bound_vars<T: TypeFoldable<Interner> + HasInterner<Interner = Interner>>(
     s: T,
     param_index: usize,
-    parent_start: usize,
 ) -> T {
-    // Keep in mind that parent generic parameters, if any, come *after* those of the item in
-    // question. In the diagrams below, `c*` and `p*` represent generic parameters of the item and
-    // its parent respectively.
-    let is_allowed = |index| {
-        if param_index < parent_start {
-            // The parameter of `param_index` is one from the item in question. Any parent generic
-            // parameters or the item's generic parameters that come before `param_index` is
-            // allowed.
-            // [c1, .., cj, .., ck, p1, .., pl] where cj is `param_index`
-            //  ^^^^^^              ^^^^^^^^^^ these are allowed
-            !(param_index..parent_start).contains(&index)
-        } else {
-            // The parameter of `param_index` is one from the parent generics. Only parent generic
-            // parameters that come before `param_index` are allowed.
-            // [c1, .., ck, p1, .., pj, .., pl] where pj is `param_index`
-            //              ^^^^^^ these are allowed
-            (parent_start..param_index).contains(&index)
-        }
-    };
+    let is_allowed = |index| (0..param_index).contains(&index);
 
     crate::fold_free_vars(
         s,

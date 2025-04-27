@@ -32,12 +32,9 @@ pub mod ext {
     use super::*;
 
     pub fn simple_ident_pat(name: ast::Name) -> ast::IdentPat {
-        return from_text(&name.text());
-
-        fn from_text(text: &str) -> ast::IdentPat {
-            ast_from_text(&format!("fn f({text}: ())"))
-        }
+        ast_from_text(&format!("fn f({}: ())", name.text()))
     }
+
     pub fn ident_path(ident: &str) -> ast::Path {
         path_unqualified(path_segment(name_ref(ident)))
     }
@@ -81,7 +78,6 @@ pub mod ext {
     pub fn expr_self() -> ast::Expr {
         expr_from_text("self")
     }
-
     pub fn zero_number() -> ast::Expr {
         expr_from_text("0")
     }
@@ -115,6 +111,10 @@ pub mod ext {
     }
     pub fn ty_result(t: ast::Type, e: ast::Type) -> ast::Type {
         ty_from_text(&format!("Result<{t}, {e}>"))
+    }
+
+    pub fn token_tree_from_node(node: &ast::SyntaxNode) -> ast::TokenTree {
+        ast_from_text(&format!("todo!{node}"))
     }
 }
 
@@ -633,18 +633,18 @@ pub fn expr_prefix(op: SyntaxKind, expr: ast::Expr) -> ast::PrefixExpr {
     let token = token(op);
     expr_from_text(&format!("{token}{expr}"))
 }
-pub fn expr_call(f: ast::Expr, arg_list: ast::ArgList) -> ast::Expr {
+pub fn expr_call(f: ast::Expr, arg_list: ast::ArgList) -> ast::CallExpr {
     expr_from_text(&format!("{f}{arg_list}"))
 }
 pub fn expr_method_call(
     receiver: ast::Expr,
     method: ast::NameRef,
     arg_list: ast::ArgList,
-) -> ast::Expr {
+) -> ast::MethodCallExpr {
     expr_from_text(&format!("{receiver}.{method}{arg_list}"))
 }
-pub fn expr_macro_call(f: ast::Expr, arg_list: ast::ArgList) -> ast::Expr {
-    expr_from_text(&format!("{f}!{arg_list}"))
+pub fn expr_macro(path: ast::Path, tt: ast::TokenTree) -> ast::MacroExpr {
+    expr_from_text(&format!("{path}!{tt}"))
 }
 pub fn expr_ref(expr: ast::Expr, exclusive: bool) -> ast::Expr {
     expr_from_text(&if exclusive { format!("&mut {expr}") } else { format!("&{expr}") })
@@ -652,14 +652,17 @@ pub fn expr_ref(expr: ast::Expr, exclusive: bool) -> ast::Expr {
 pub fn expr_reborrow(expr: ast::Expr) -> ast::Expr {
     expr_from_text(&format!("&mut *{expr}"))
 }
-pub fn expr_closure(pats: impl IntoIterator<Item = ast::Param>, expr: ast::Expr) -> ast::Expr {
+pub fn expr_closure(
+    pats: impl IntoIterator<Item = ast::Param>,
+    expr: ast::Expr,
+) -> ast::ClosureExpr {
     let params = pats.into_iter().join(", ");
     expr_from_text(&format!("|{params}| {expr}"))
 }
 pub fn expr_field(receiver: ast::Expr, field: &str) -> ast::Expr {
     expr_from_text(&format!("{receiver}.{field}"))
 }
-pub fn expr_paren(expr: ast::Expr) -> ast::Expr {
+pub fn expr_paren(expr: ast::Expr) -> ast::ParenExpr {
     expr_from_text(&format!("({expr})"))
 }
 pub fn expr_tuple(elements: impl IntoIterator<Item = ast::Expr>) -> ast::TupleExpr {
@@ -1223,7 +1226,7 @@ pub fn meta_path(path: ast::Path) -> ast::Meta {
 
 pub fn token_tree(
     delimiter: SyntaxKind,
-    tt: Vec<NodeOrToken<ast::TokenTree, SyntaxToken>>,
+    tt: impl IntoIterator<Item = NodeOrToken<ast::TokenTree, SyntaxToken>>,
 ) -> ast::TokenTree {
     let (l_delimiter, r_delimiter) = match delimiter {
         T!['('] => ('(', ')'),

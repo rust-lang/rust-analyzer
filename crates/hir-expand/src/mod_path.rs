@@ -111,8 +111,7 @@ impl ModPath {
 
     #[allow(non_snake_case)]
     pub fn is_Self(&self) -> bool {
-        self.kind == PathKind::Plain
-            && matches!(&*self.segments, [name] if *name == sym::Self_.clone())
+        self.kind == PathKind::Plain && matches!(&*self.segments, [name] if *name == sym::Self_)
     }
 
     /// If this path is a single identifier, like `foo`, return its name.
@@ -251,7 +250,7 @@ fn convert_path(
             }
         }
         ast::PathSegmentKind::SelfTypeKw => {
-            ModPath::from_segments(PathKind::Plain, Some(Name::new_symbol_root(sym::Self_.clone())))
+            ModPath::from_segments(PathKind::Plain, Some(Name::new_symbol_root(sym::Self_)))
         }
         ast::PathSegmentKind::CrateKw => ModPath::from_segments(PathKind::Crate, iter::empty()),
         ast::PathSegmentKind::SelfKw => handle_super_kw(0)?,
@@ -278,7 +277,7 @@ fn convert_path(
         if let Some(_macro_call) = path.syntax().parent().and_then(ast::MacroCall::cast) {
             let syn_ctx = span_for_range(segment.syntax().text_range());
             if let Some(macro_call_id) = syn_ctx.outer_expn(db) {
-                if db.lookup_intern_macro_call(macro_call_id).def.local_inner {
+                if db.lookup_intern_macro_call(macro_call_id.into()).def.local_inner {
                     mod_path.kind = match resolve_crate_root(db, syn_ctx) {
                         Some(crate_root) => PathKind::DollarCrate(crate_root),
                         None => PathKind::Crate,
@@ -353,7 +352,7 @@ pub fn resolve_crate_root(db: &dyn ExpandDatabase, mut ctxt: SyntaxContext) -> O
         result_mark = Some(mark);
     }
 
-    result_mark.map(|call| db.lookup_intern_macro_call(call).def.krate)
+    result_mark.map(|call| db.lookup_intern_macro_call(call.into()).def.krate)
 }
 
 pub use crate::name as __name;
@@ -399,7 +398,7 @@ pub use crate::__path as path;
 macro_rules! __tool_path {
     ($start:ident $(:: $seg:ident)*) => ({
         $crate::mod_path::ModPath::from_segments($crate::mod_path::PathKind::Plain, vec![
-            $crate::name::Name::new_symbol_root($crate::intern::sym::rust_analyzer.clone()), $crate::name::Name::new_symbol_root($crate::intern::sym::$start.clone()), $($crate::name::Name::new_symbol_root($crate::intern::sym::$seg.clone()),)*
+            $crate::name::Name::new_symbol_root($crate::intern::sym::rust_analyzer), $crate::name::Name::new_symbol_root($crate::intern::sym::$start.clone()), $($crate::name::Name::new_symbol_root($crate::intern::sym::$seg.clone()),)*
         ])
     });
 }

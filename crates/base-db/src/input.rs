@@ -16,11 +16,11 @@ use intern::Symbol;
 use la_arena::{Arena, Idx, RawIdx};
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use salsa::{Durability, Setter};
-use span::{Edition, EditionedFileId};
+use span::Edition;
 use triomphe::Arc;
 use vfs::{AbsPathBuf, AnchoredPath, FileId, VfsPath, file_set::FileSet};
 
-use crate::{CrateWorkspaceData, RootQueryDb};
+use crate::{CrateWorkspaceData, EditionedFileId, RootQueryDb};
 
 pub type ProcMacroPaths = FxHashMap<CrateBuilderId, Result<(String, AbsPathBuf), String>>;
 
@@ -392,7 +392,7 @@ impl BuiltDependency {
 
 pub type CratesIdMap = FxHashMap<CrateBuilderId, Crate>;
 
-#[salsa::input(no_debug)]
+#[salsa::input]
 #[derive(Debug)]
 pub struct Crate {
     #[return_ref]
@@ -422,8 +422,8 @@ impl CrateGraphBuilder {
         edition: Edition,
         display_name: Option<CrateDisplayName>,
         version: Option<String>,
-        cfg_options: CfgOptions,
-        potential_cfg_options: Option<CfgOptions>,
+        mut cfg_options: CfgOptions,
+        mut potential_cfg_options: Option<CfgOptions>,
         mut env: Env,
         origin: CrateOrigin,
         is_proc_macro: bool,
@@ -431,6 +431,10 @@ impl CrateGraphBuilder {
         ws_data: Arc<CrateWorkspaceData>,
     ) -> CrateBuilderId {
         env.entries.shrink_to_fit();
+        cfg_options.shrink_to_fit();
+        if let Some(potential_cfg_options) = &mut potential_cfg_options {
+            potential_cfg_options.shrink_to_fit();
+        }
         self.arena.alloc(CrateBuilder {
             basic: CrateData {
                 root_file_id,
@@ -773,8 +777,8 @@ pub(crate) fn transitive_rev_deps(db: &dyn RootQueryDb, of: Crate) -> FxHashSet<
 }
 
 impl BuiltCrateData {
-    pub fn root_file_id(&self) -> EditionedFileId {
-        EditionedFileId::new(self.root_file_id, self.edition)
+    pub fn root_file_id(&self, db: &dyn salsa::Database) -> EditionedFileId {
+        EditionedFileId::new(db, self.root_file_id, self.edition)
     }
 }
 

@@ -12,6 +12,7 @@ use hir_def::expr_store::path::Path;
 use hir_def::{hir::ExprOrPatId, resolver::Resolver};
 use la_arena::{Idx, RawIdx};
 
+use crate::lower::LifetimeElisionKind;
 use crate::{
     InferenceDiagnostic, InferenceTyDiagnosticSource, TyLoweringContext, TyLoweringDiagnostic,
     db::HirDatabase,
@@ -65,8 +66,13 @@ impl<'a> InferenceTyLoweringContext<'a> {
         diagnostics: &'a Diagnostics,
         source: InferenceTyDiagnosticSource,
         generic_def: GenericDefId,
+        lifetime_elision: LifetimeElisionKind,
     ) -> Self {
-        Self { ctx: TyLoweringContext::new(db, resolver, store, generic_def), diagnostics, source }
+        Self {
+            ctx: TyLoweringContext::new(db, resolver, store, generic_def, lifetime_elision),
+            diagnostics,
+            source,
+        }
     }
 
     #[inline]

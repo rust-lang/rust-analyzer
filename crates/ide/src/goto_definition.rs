@@ -6,8 +6,7 @@ use crate::{
     navigation_target::{self, ToNav},
 };
 use hir::{
-    AsAssocItem, AssocItem, CallableKind, FileRange, HasCrate, InFile, MacroFileIdExt, ModuleDef,
-    Semantics, sym,
+    AsAssocItem, AssocItem, CallableKind, FileRange, HasCrate, InFile, ModuleDef, Semantics, sym,
 };
 use ide_db::{
     RootDatabase, SymbolKind,
@@ -44,7 +43,7 @@ pub(crate) fn goto_definition(
     let sema = &Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let edition =
-        sema.attach_first_edition(file_id).map(|it| it.edition()).unwrap_or(Edition::CURRENT);
+        sema.attach_first_edition(file_id).map(|it| it.edition(db)).unwrap_or(Edition::CURRENT);
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT
         | INT_NUMBER
@@ -364,7 +363,7 @@ fn nav_for_exit_points(
 
                         if let Some(FileRange { file_id, range }) = focus_frange {
                             let contains_frange = |nav: &NavigationTarget| {
-                                nav.file_id == file_id && nav.full_range.contains_range(range)
+                                nav.file_id == file_id.file_id(db) && nav.full_range.contains_range(range)
                             };
 
                             if let Some(def_site) = nav.def_site.as_mut() {
@@ -3475,6 +3474,76 @@ fn main() {
     }
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn offset_of() {
+        check(
+            r#"
+//- minicore: offset_of
+struct Foo {
+    field: i32,
+ // ^^^^^
+}
+
+fn foo() {
+    let _ = core::mem::offset_of!(Foo, fiel$0d);
+}
+        "#,
+        );
+
+        check(
+            r#"
+//- minicore: offset_of
+struct Bar(Foo);
+struct Foo {
+    field: i32,
+ // ^^^^^
+}
+
+fn foo() {
+    let _ = core::mem::offset_of!(Bar, 0.fiel$0d);
+}
+        "#,
+        );
+
+        check(
+            r#"
+//- minicore: offset_of
+struct Bar(Baz);
+enum Baz {
+    Abc(Foo),
+    None,
+}
+struct Foo {
+    field: i32,
+ // ^^^^^
+}
+
+fn foo() {
+    let _ = core::mem::offset_of!(Bar, 0.Abc.0.fiel$0d);
+}
+        "#,
+        );
+
+        check(
+            r#"
+//- minicore: offset_of
+struct Bar(Baz);
+enum Baz {
+    Abc(Foo),
+ // ^^^
+    None,
+}
+struct Foo {
+    field: i32,
+}
+
+fn foo() {
+    let _ = core::mem::offset_of!(Bar, 0.Ab$0c.0.field);
+}
+        "#,
         );
     }
 }

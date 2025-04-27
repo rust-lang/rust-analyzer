@@ -82,7 +82,7 @@ use itertools::Itertools;
 use nameres::diagnostics::DefDiagnosticKind;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
-use span::{Edition, EditionedFileId, FileId, MacroCallId};
+use span::{Edition, FileId};
 use stdx::{format_to, impl_from, never};
 use syntax::{
     AstNode, AstPtr, SmolStr, SyntaxNode, SyntaxNodePtr, T, TextRange, ToSmolStr,
@@ -129,7 +129,7 @@ pub use {
         {ModuleDefId, TraitId},
     },
     hir_expand::{
-        ExpandResult, HirFileId, HirFileIdExt, MacroFileId, MacroFileIdExt, MacroKind,
+        EditionedFileId, ExpandResult, HirFileId, MacroCallId, MacroKind,
         attrs::{Attr, AttrId},
         change::ChangeWithProcMacros,
         files::{
@@ -274,7 +274,7 @@ impl Crate {
     pub fn get_html_root_url(self: &Crate, db: &dyn HirDatabase) -> Option<String> {
         // Look for #![doc(html_root_url = "...")]
         let attrs = db.attrs(AttrDefId::ModuleId(self.root_module().into()));
-        let doc_url = attrs.by_key(&sym::doc).find_string_value_in_tt(&sym::html_root_url);
+        let doc_url = attrs.by_key(sym::doc).find_string_value_in_tt(sym::html_root_url);
         doc_url.map(|s| s.trim_matches('"').trim_end_matches('/').to_owned() + "/")
     }
 
@@ -799,7 +799,7 @@ impl Module {
                         ))
                     });
                 let res = type_params.chain(lifetime_params).any(|p| {
-                    db.attrs(AttrDefId::GenericParamId(p)).by_key(&sym::may_dangle).exists()
+                    db.attrs(AttrDefId::GenericParamId(p)).by_key(sym::may_dangle).exists()
                 });
                 Some(res)
             })()
@@ -954,10 +954,11 @@ fn macro_call_diagnostics(
         let node =
             InFile::new(file_id, db.ast_id_map(file_id).get_erased(loc.kind.erased_ast_id()));
         let RenderedExpandError { message, error, kind } = err.render_to_string(db);
-        let precise_location = if err.span().anchor.file_id == file_id {
+        let editioned_file_id = EditionedFileId::from_span(db, err.span().anchor.file_id);
+        let precise_location = if editioned_file_id == file_id {
             Some(
                 err.span().range
-                    + db.ast_id_map(err.span().anchor.file_id.into())
+                    + db.ast_id_map(editioned_file_id.into())
                         .get_erased(err.span().anchor.ast_id)
                         .text_range()
                         .start(),
@@ -1708,10 +1709,11 @@ impl_from!(Struct, Union, Enum for Adt);
 impl Adt {
     pub fn has_non_default_type_params(self, db: &dyn HirDatabase) -> bool {
         let subst = db.generic_defaults(self.into());
-        subst.iter().any(|ty| match ty.skip_binders().data(Interner) {
-            GenericArgData::Ty(it) => it.is_unknown(),
-            _ => false,
-        })
+        (subst.is_empty() && db.generic_params(self.into()).len_type_or_consts() != 0)
+            || subst.iter().any(|ty| match ty.skip_binders().data(Interner) {
+                GenericArgData::Ty(it) => it.is_unknown(),
+                _ => false,
+            })
     }
 
     pub fn layout(self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
@@ -1926,7 +1928,7 @@ impl DefWithBody {
 
         source_map
             .macro_calls()
-            .for_each(|(_ast_id, call_id)| macro_call_diagnostics(db, call_id.macro_call_id, acc));
+            .for_each(|(_ast_id, call_id)| macro_call_diagnostics(db, call_id, acc));
 
         expr_store_diagnostics(db, acc, &source_map);
 
@@ -2055,7 +2057,7 @@ impl DefWithBody {
                         continue;
                     }
                     let mut need_mut = &mol[local];
-                    if body[binding_id].name == sym::self_.clone()
+                    if body[binding_id].name == sym::self_
                         && need_mut == &mir::MutabilityReason::Unused
                     {
                         need_mut = &mir::MutabilityReason::Not;
@@ -2145,10 +2147,11 @@ fn expr_store_diagnostics(
             ExpressionStoreDiagnostics::MacroError { node, err } => {
                 let RenderedExpandError { message, error, kind } = err.render_to_string(db);
 
-                let precise_location = if err.span().anchor.file_id == node.file_id {
+                let editioned_file_id = EditionedFileId::from_span(db, err.span().anchor.file_id);
+                let precise_location = if editioned_file_id == node.file_id {
                     Some(
                         err.span().range
-                            + db.ast_id_map(err.span().anchor.file_id.into())
+                            + db.ast_id_map(editioned_file_id.into())
                                 .get_erased(err.span().anchor.ast_id)
                                 .text_range()
                                 .start(),
@@ -2998,10 +3001,11 @@ pub struct TypeAlias {
 impl TypeAlias {
     pub fn has_non_default_type_params(self, db: &dyn HirDatabase) -> bool {
         let subst = db.generic_defaults(self.id.into());
-        subst.iter().any(|ty| match ty.skip_binders().data(Interner) {
-            GenericArgData::Ty(it) => it.is_unknown(),
-            _ => false,
-        })
+        (subst.is_empty() && db.generic_params(self.id.into()).len_type_or_consts() != 0)
+            || subst.iter().any(|ty| match ty.skip_binders().data(Interner) {
+                GenericArgData::Ty(it) => it.is_unknown(),
+                _ => false,
+            })
     }
 
     pub fn module(self, db: &dyn HirDatabase) -> Module {
@@ -3043,7 +3047,7 @@ pub struct StaticLifetime;
 
 impl StaticLifetime {
     pub fn name(self) -> Name {
-        Name::new_symbol_root(sym::tick_static.clone())
+        Name::new_symbol_root(sym::tick_static)
     }
 }
 
@@ -3158,7 +3162,7 @@ impl Macro {
     }
 
     pub fn is_macro_export(self, db: &dyn HirDatabase) -> bool {
-        matches!(self.id, MacroId::MacroRulesId(_) if db.attrs(self.id.into()).by_key(&sym::macro_export).exists())
+        matches!(self.id, MacroId::MacroRulesId(_) if db.attrs(self.id.into()).by_key(sym::macro_export).exists())
     }
 
     pub fn is_proc_macro(self) -> bool {
@@ -3730,6 +3734,23 @@ impl GenericDef {
             }
         }
     }
+
+    /// Returns a string describing the kind of this type.
+    #[inline]
+    pub fn description(self) -> &'static str {
+        match self {
+            GenericDef::Function(_) => "function",
+            GenericDef::Adt(Adt::Struct(_)) => "struct",
+            GenericDef::Adt(Adt::Enum(_)) => "enum",
+            GenericDef::Adt(Adt::Union(_)) => "union",
+            GenericDef::Trait(_) => "trait",
+            GenericDef::TraitAlias(_) => "trait alias",
+            GenericDef::TypeAlias(_) => "type alias",
+            GenericDef::Impl(_) => "impl",
+            GenericDef::Const(_) => "constant",
+            GenericDef::Static(_) => "static",
+        }
+    }
 }
 
 // We cannot call this `Substitution` unfortunately...
@@ -3772,16 +3793,23 @@ impl GenericSubstitution {
             TypeOrConstParamData::TypeParamData(param) => Some(param.name.clone()),
             TypeOrConstParamData::ConstParamData(_) => None,
         });
-        // The `Substitution` is first self then container, we want the reverse order.
-        let self_params = self.subst.type_parameters(Interner).zip(type_params);
-        let container_params = self.subst.as_slice(Interner)[generics.len()..]
+        let parent_len = self.subst.len(Interner)
+            - generics
+                .iter_type_or_consts()
+                .filter(|g| matches!(g.1, TypeOrConstParamData::TypeParamData(..)))
+                .count();
+        let container_params = self.subst.as_slice(Interner)[..parent_len]
             .iter()
             .filter_map(|param| param.ty(Interner).cloned())
             .zip(container_type_params.into_iter().flatten());
+        let self_params = self.subst.as_slice(Interner)[parent_len..]
+            .iter()
+            .filter_map(|param| param.ty(Interner).cloned())
+            .zip(type_params);
         container_params
             .chain(self_params)
             .filter_map(|(ty, name)| {
-                Some((name?.symbol().clone(), Type { ty, env: self.env.clone() }))
+                Some((name?.symbol().clone(), Type { ty: ty.clone(), env: self.env.clone() }))
             })
             .collect()
     }
@@ -3863,7 +3891,7 @@ impl Local {
     }
 
     pub fn is_self(self, db: &dyn HirDatabase) -> bool {
-        self.name(db) == sym::self_.clone()
+        self.name(db) == sym::self_
     }
 
     pub fn is_mut(self, db: &dyn HirDatabase) -> bool {
@@ -4267,7 +4295,8 @@ fn generic_arg_from_param(db: &dyn HirDatabase, id: TypeOrConstParamId) -> Optio
     let local_idx = hir_ty::param_idx(db, id)?;
     let defaults = db.generic_defaults(id.parent);
     let ty = defaults.get(local_idx)?.clone();
-    let subst = TyBuilder::placeholder_subst(db, id.parent);
+    let full_subst = TyBuilder::placeholder_subst(db, id.parent);
+    let subst = &full_subst.as_slice(Interner)[..local_idx];
     Some(ty.substitute(Interner, &subst))
 }
 
@@ -4469,7 +4498,7 @@ impl Impl {
         let src = self.source(db)?;
 
         let macro_file = src.file_id.macro_file()?;
-        let loc = macro_file.macro_call_id.lookup(db);
+        let loc = macro_file.lookup(db);
         let (derive_attr, derive_index) = match loc.kind {
             MacroCallKind::Derive { ast_id, derive_attr_index, derive_index, .. } => {
                 let module_id = self.id.lookup(db).container;
@@ -4482,9 +4511,8 @@ impl Impl {
             }
             _ => return None,
         };
-        let file_id = MacroFileId { macro_call_id: derive_attr };
         let path = db
-            .parse_macro_expansion(file_id)
+            .parse_macro_expansion(derive_attr)
             .value
             .0
             .syntax_node()
@@ -4492,7 +4520,7 @@ impl Impl {
             .nth(derive_index as usize)
             .and_then(<ast::Attr as AstNode>::cast)
             .and_then(|it| it.path())?;
-        Some(InMacroFile { file_id, value: path })
+        Some(InMacroFile { file_id: derive_attr, value: path })
     }
 
     pub fn check_orphan_rules(self, db: &dyn HirDatabase) -> bool {
@@ -4980,9 +5008,8 @@ impl Type {
             return None;
         }
 
-        let output_assoc_type = db
-            .trait_items(trait_)
-            .associated_type_by_name(&Name::new_symbol_root(sym::Output.clone()))?;
+        let output_assoc_type =
+            db.trait_items(trait_).associated_type_by_name(&Name::new_symbol_root(sym::Output))?;
         self.normalize_trait_assoc_type(db, &[], output_assoc_type.into())
     }
 
@@ -4998,7 +5025,7 @@ impl Type {
         let iterator_trait = db.lang_item(self.env.krate, LangItem::Iterator)?.as_trait()?;
         let iterator_item = db
             .trait_items(iterator_trait)
-            .associated_type_by_name(&Name::new_symbol_root(sym::Item.clone()))?;
+            .associated_type_by_name(&Name::new_symbol_root(sym::Item))?;
         self.normalize_trait_assoc_type(db, &[], iterator_item.into())
     }
 
@@ -5030,7 +5057,7 @@ impl Type {
 
         let into_iter_assoc_type = db
             .trait_items(trait_)
-            .associated_type_by_name(&Name::new_symbol_root(sym::IntoIter.clone()))?;
+            .associated_type_by_name(&Name::new_symbol_root(sym::IntoIter))?;
         self.normalize_trait_assoc_type(db, &[], into_iter_assoc_type.into())
     }
 

@@ -23,7 +23,7 @@ use hir_def::{
 use hir_def::{Lookup, type_ref::TypeRefId};
 use hir_expand::name::Name;
 use intern::sym;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{SmallVec, smallvec};
 use stdx::{format_to, never};
 use syntax::utils::is_raw_identifier;
@@ -107,9 +107,7 @@ impl InferenceContext<'_> {
                 )
                 .intern(Interner);
                 self.deferred_closures.entry(closure_id).or_default();
-                if let Some(c) = self.current_closure {
-                    self.closure_dependencies.entry(c).or_default().push(closure_id);
-                }
+                self.add_current_closure_dependency(closure_id);
                 (Some(closure_id), closure_ty, None)
             }
         };
@@ -442,6 +440,8 @@ impl InferenceContext<'_> {
         // collect explicitly written argument types
         for arg_type in arg_types.iter() {
             let arg_ty = match arg_type {
+                // FIXME: I think rustc actually lowers closure params with `LifetimeElisionKind::AnonymousCreateParameter`
+                // (but the return type with infer).
                 Some(type_ref) => self.make_body_ty(*type_ref),
                 None => self.table.new_type_var(),
             };
@@ -869,8 +869,8 @@ impl CapturedItemWithoutTy {
 impl InferenceContext<'_> {
     fn place_of_expr(&mut self, tgt_expr: ExprId) -> Option<HirPlace> {
         let r = self.place_of_expr_without_adjust(tgt_expr)?;
-        let default = vec![];
-        let adjustments = self.result.expr_adjustments.get(&tgt_expr).unwrap_or(&default);
+        let adjustments =
+            self.result.expr_adjustments.get(&tgt_expr).map(|it| &**it).unwrap_or_default();
         apply_adjusts_to_place(&mut self.current_capture_span_stack, r, adjustments)
     }
 
@@ -1177,7 +1177,7 @@ impl InferenceContext<'_> {
                             if let Some(deref_fn) = self
                                 .db
                                 .trait_items(deref_trait)
-                                .method_by_name(&Name::new_symbol_root(sym::deref_mut.clone()))
+                                .method_by_name(&Name::new_symbol_root(sym::deref_mut))
                             {
                                 break 'b deref_fn == f;
                             }
@@ -1701,7 +1701,7 @@ impl InferenceContext<'_> {
             for (derefed_callee, callee_ty, params, expr) in exprs {
                 if let &Expr::Call { callee, .. } = &self.body[expr] {
                     let mut adjustments =
-                        self.result.expr_adjustments.remove(&callee).unwrap_or_default();
+                        self.result.expr_adjustments.remove(&callee).unwrap_or_default().into_vec();
                     self.write_fn_trait_method_resolution(
                         kind,
                         &derefed_callee,
@@ -1710,7 +1710,7 @@ impl InferenceContext<'_> {
                         &params,
                         expr,
                     );
-                    self.result.expr_adjustments.insert(callee, adjustments);
+                    self.result.expr_adjustments.insert(callee, adjustments.into_boxed_slice());
                 }
             }
         }
@@ -1748,7 +1748,41 @@ impl InferenceContext<'_> {
                 }
             }
         }
+        assert!(deferred_closures.is_empty(), "we should have analyzed all closures");
         result
+    }
+
+    pub(super) fn add_current_closure_dependency(&mut self, dep: ClosureId) {
+        if let Some(c) = self.current_closure {
+            if !dep_creates_cycle(&self.closure_dependencies, &mut FxHashSet::default(), c, dep) {
+                self.closure_dependencies.entry(c).or_default().push(dep);
+            }
+        }
+
+        fn dep_creates_cycle(
+            closure_dependencies: &FxHashMap<ClosureId, Vec<ClosureId>>,
+            visited: &mut FxHashSet<ClosureId>,
+            from: ClosureId,
+            to: ClosureId,
+        ) -> bool {
+            if !visited.insert(from) {
+                return false;
+            }
+
+            if from == to {
+                return true;
+            }
+
+            if let Some(deps) = closure_dependencies.get(&to) {
+                for dep in deps {
+                    if dep_creates_cycle(closure_dependencies, visited, from, *dep) {
+                        return true;
+                    }
+                }
+            }
+
+            false
+        }
     }
 }
 
