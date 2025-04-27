@@ -174,24 +174,24 @@ fn run_dbg_replacement(
 
 fn replace_nested_dbgs(expanded: ast::Expr) -> ast::Expr {
     let mut sub_editor = SyntaxEditor::new(expanded.syntax().clone());
-    // if let ast::Expr::MacroExpr(mac) = &expanded {
-    //     // Special-case when `expanded` itself is `dbg!()` since we cannot replace the whole tree
-    //     // with `ted`. It should be fairly rare as it means the user wrote `dbg!(dbg!(..))` but you
-    //     // never know how code ends up being!
-    //     let replaced = if let Some((_, expr_opt)) = run_dbg_replacement(mac, &mut sub_editor) {
-    //         match expr_opt {
-    //             Some(expr) => expr,
-    //             None => {
-    //                 stdx::never!("dbg! inside dbg! should not be just removed");
-    //                 expanded
-    //             }
-    //         }
-    //     } else {
-    //         expanded
-    //     };
+    if let ast::Expr::MacroExpr(mac) = &expanded {
+        // Special-case when `expanded` itself is `dbg!()` since we cannot replace the whole tree
+        // with `ted`. It should be fairly rare as it means the user wrote `dbg!(dbg!(..))` but you
+        // never know how code ends up being!
+        let replaced = if let Some((_, expr_opt)) = run_dbg_replacement(mac, &mut sub_editor) {
+            match expr_opt {
+                Some(expr) => expr,
+                None => {
+                    stdx::never!("dbg! inside dbg! should not be just removed");
+                    expanded
+                }
+            }
+        } else {
+            expanded
+        };
 
-    //     return replaced;
-    // }
+        return replaced;
+    }
 
     let macro_exprs = expanded.syntax().descendants().filter_map(ast::MacroExpr::cast);
 
@@ -202,11 +202,11 @@ fn replace_nested_dbgs(expanded: ast::Expr) -> ast::Expr {
             None => continue,
         };
 
-        // if let Some(expr) = expr_opt {
-        //     sub_editor.replace(mac.syntax(), expr.syntax().clone());
-        // } else {
-        //     sub_editor.delete(mac.syntax());
-        // }
+        if let Some(expr) = expr_opt {
+            sub_editor.replace(mac.syntax(), expr.syntax().clone());
+        } else {
+            sub_editor.delete(mac.syntax());
+        }
     }
 
     ast::Expr::cast(sub_editor.finish().new_root().clone()).unwrap()
