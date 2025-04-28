@@ -148,7 +148,7 @@ fn module_symbols(db: &dyn SymbolsDatabase, module: Module) -> Arc<SymbolIndex> 
 
 pub fn crate_symbols(db: &dyn SymbolsDatabase, krate: Crate) -> Box<[Arc<SymbolIndex>]> {
     let _p = tracing::info_span!("crate_symbols").entered();
-    krate.modules(db).into_iter().map(|module| db.module_symbols(module)).collect()
+    salsa::par_map(db, krate.modules(db), |db, module| db.module_symbols(module))
 }
 
 // Feature: Workspace Symbol
