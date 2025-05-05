@@ -4,14 +4,15 @@
 //! tests. This module also implements a couple of magic tricks, like renaming
 //! `self` and to `self` (to switch between associated function and method).
 
+use std::collections::HashMap;
+
 use hir::{AsAssocItem, InFile, Semantics};
 use ide_db::{
     FileId, FileRange, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
-    rename::{IdentifierKind, bail, format_err, source_edit_from_references},
+    rename::{IdentifierKind, RenameDefinition, bail, format_err, source_edit_from_references},
     source_change::SourceChangeBuilder,
 };
-use itertools::Itertools;
 use stdx::{always, never};
 use syntax::{AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize, ast};
 
@@ -33,8 +34,12 @@ pub(crate) fn prepare_rename(
     let source_file = sema.parse_guess_edition(position.file_id);
     let syntax = source_file.syntax();
 
-    let res = find_definitions(&sema, syntax, position)?
-        .map(|(frange, kind, def)| {
+    let definitions = find_definitions(&sema, syntax, position)?;
+
+    let res = definitions
+        .definitions
+        .into_iter()
+        .map(|(.., frange, kind, def)| {
             // ensure all ranges are valid
 
             if def.range_for_rename(&sema).is_none() {
@@ -93,6 +98,8 @@ pub(crate) fn rename(
 
     let ops: RenameResult<Vec<SourceChange>> = match alias_fallback {
         Some(_) => defs
+            .definitions
+            .into_iter()
             // FIXME: This can use the `ide_db::rename_reference` (or def.rename) method once we can
             // properly find "direct" usages/references.
             .map(|(.., def)| {
@@ -127,21 +134,43 @@ pub(crate) fn rename(
                 Ok(source_change)
             })
             .collect(),
-        None => defs
-            .map(|(.., def)| {
+        None => {
+            fn one(
+                sema: &Semantics<'_, RootDatabase>,
+                def: Definition,
+                new_name: &str,
+                rename_definition: RenameDefinition,
+            ) -> Result<SourceChange, RenameError> {
                 if let Definition::Local(local) = def {
                     if let Some(self_param) = local.as_self_param(sema.db) {
                         cov_mark::hit!(rename_self_to_param);
-                        return rename_self_to_param(&sema, local, self_param, new_name);
+                        return rename_self_to_param(sema, local, self_param, new_name);
                     }
                     if new_name == "self" {
                         cov_mark::hit!(rename_to_self);
-                        return rename_to_self(&sema, local);
+                        return rename_to_self(sema, local);
                     }
                 }
-                def.rename(&sema, new_name)
-            })
-            .collect(),
+                def.rename(sema, new_name, rename_definition)
+            }
+
+            let FoundDefinitions { original_name, definitions, related } = defs;
+
+            let direct_renames = definitions
+                .into_iter()
+                .map(|(.., def)| one(&sema, def, new_name, RenameDefinition::Yes));
+
+            let related_renames = related.into_iter().map(|(related_name, (.., def))| {
+                let new_name = match &original_name {
+                    Some(original_name) => &related_name.replace(original_name, new_name),
+                    None => new_name,
+                };
+
+                one(&sema, def, &new_name, RenameDefinition::No)
+            });
+
+            direct_renames.chain(related_renames).collect()
+        }
     };
 
     ops?.into_iter()
@@ -159,7 +188,7 @@ pub(crate) fn will_rename_file(
     let sema = Semantics::new(db);
     let module = sema.file_to_module_def(file_id)?;
     let def = Definition::Module(module);
-    let mut change = def.rename(&sema, new_name_stem).ok()?;
+    let mut change = def.rename(&sema, new_name_stem, RenameDefinition::Yes).ok()?;
     change.file_system_edits.clear();
     Some(change)
 }
@@ -196,113 +225,143 @@ fn alias_fallback(
     Some(builder.finish())
 }
 
+#[derive(Debug)]
+struct FoundDefinitions {
+    original_name: Option<String>,
+    definitions: Vec<FoundDefinition>,
+    related: Vec<(String, FoundDefinition)>,
+}
+
+// #[derive(Debug)]
+// struct FoundDefinition(FileRange, SyntaxKind, Definition);
+type FoundDefinition = (FileRange, SyntaxKind, Definition);
+
 fn find_definitions(
     sema: &Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
     FilePosition { file_id, offset }: FilePosition,
-) -> RenameResult<impl Iterator<Item = (FileRange, SyntaxKind, Definition)>> {
+) -> RenameResult<FoundDefinitions> {
     let token = syntax.token_at_offset(offset).find(|t| matches!(t.kind(), SyntaxKind::STRING));
 
     if let Some((range, Some(resolution))) =
         token.and_then(|token| sema.check_for_format_args_template(token, offset))
     {
-        return Ok(vec![(
-            FileRange { file_id, range },
-            SyntaxKind::STRING,
-            Definition::from(resolution),
-        )]
-        .into_iter());
+        return Ok(FoundDefinitions {
+            original_name: None,
+            definitions: vec![(
+                FileRange { file_id, range },
+                SyntaxKind::STRING,
+                Definition::from(resolution),
+            )],
+            related: vec![],
+        });
     }
 
-    let symbols =
-        sema.find_nodes_at_offset_with_descend::<ast::NameLike>(syntax, offset).map(|name_like| {
-            let kind = name_like.syntax().kind();
-            let range = sema
-                .original_range_opt(name_like.syntax())
-                .ok_or_else(|| format_err!("No references found at position"))?;
-            let res = match &name_like {
-                // renaming aliases would rename the item being aliased as the HIR doesn't track aliases yet
-                ast::NameLike::Name(name)
-                    if name
-                        .syntax()
-                        .parent().is_some_and(|it| ast::Rename::can_cast(it.kind()))
-                        // FIXME: uncomment this once we resolve to usages to extern crate declarations
-                        // && name
-                        //     .syntax()
-                        //     .ancestors()
-                        //     .nth(2)
-                        //     .map_or(true, |it| !ast::ExternCrate::can_cast(it.kind()))
-                        =>
-                {
-                    bail!("Renaming aliases is currently unsupported")
-                }
-                ast::NameLike::Name(name) => NameClass::classify(sema, name)
+    // JPG: What happens if we trigger a rename on *not* the defining usage?
+    let token = syntax.token_at_offset(offset).find(|t| matches!(t.kind(), SyntaxKind::IDENT));
+    let original_name = token.map(|t| t.text().to_owned());
+
+    let mut definitions = HashMap::new();
+    let mut related = HashMap::new();
+
+    for name_like in
+        sema.find_nodes_at_offset_with_descend_any_name::<ast::NameLike>(syntax, offset)
+    {
+        let kind = name_like.syntax().kind();
+        let range = sema
+            .original_range_opt(name_like.syntax())
+            .ok_or_else(|| format_err!("No references found at position"))?;
+
+        let res = match &name_like {
+            // renaming aliases would rename the item being aliased as the HIR doesn't track aliases yet
+            ast::NameLike::Name(name)
+                if name
+                .syntax()
+                .parent().is_some_and(|it| ast::Rename::can_cast(it.kind()))
+            // FIXME: uncomment this once we resolve to usages to extern crate declarations
+            // && name
+            //     .syntax()
+            //     .ancestors()
+            //     .nth(2)
+            //     .map_or(true, |it| !ast::ExternCrate::can_cast(it.kind()))
+                =>
+            {
+                bail!("Renaming aliases is currently unsupported")
+            }
+            ast::NameLike::Name(name) => NameClass::classify(sema, name)
+                .map(|class| match class {
+                    NameClass::Definition(it) | NameClass::ConstReference(it) => it,
+                    NameClass::PatFieldShorthand { local_def, field_ref: _, adt_subst: _ } => {
+                        Definition::Local(local_def)
+                    }
+                })
+                .ok_or_else(|| format_err!("No references found at position")),
+            ast::NameLike::NameRef(name_ref) => {
+                NameRefClass::classify(sema, name_ref)
                     .map(|class| match class {
-                        NameClass::Definition(it) | NameClass::ConstReference(it) => it,
-                        NameClass::PatFieldShorthand { local_def, field_ref: _, adt_subst: _ } => {
-                            Definition::Local(local_def)
+                        NameRefClass::Definition(def, _) => def,
+                        NameRefClass::FieldShorthand { local_ref, field_ref: _, adt_subst: _ } => {
+                            Definition::Local(local_ref)
+                        }
+                        NameRefClass::ExternCrateShorthand { decl, .. } => {
+                            Definition::ExternCrateDecl(decl)
                         }
                     })
-                    .ok_or_else(|| format_err!("No references found at position")),
-                ast::NameLike::NameRef(name_ref) => {
-                    NameRefClass::classify(sema, name_ref)
-                        .map(|class| match class {
-                            NameRefClass::Definition(def, _) => def,
-                            NameRefClass::FieldShorthand { local_ref, field_ref: _, adt_subst: _ } => {
-                                Definition::Local(local_ref)
-                            }
-                            NameRefClass::ExternCrateShorthand { decl, .. } => {
-                                Definition::ExternCrateDecl(decl)
-                            }
-                        })
-                        // FIXME: uncomment this once we resolve to usages to extern crate declarations
-                        .filter(|def| !matches!(def, Definition::ExternCrateDecl(..)))
-                        .ok_or_else(|| format_err!("No references found at position"))
-                        .and_then(|def| {
-                            // if the name differs from the definitions name it has to be an alias
-                            if def
-                                .name(sema.db).is_some_and(|it| it.as_str() != name_ref.text().trim_start_matches("r#"))
-                            {
-                                Err(format_err!("Renaming aliases is currently unsupported"))
-                            } else {
-                                Ok(def)
-                            }
-                        })
-                }
-                ast::NameLike::Lifetime(lifetime) => {
-                    NameRefClass::classify_lifetime(sema, lifetime)
-                        .and_then(|class| match class {
-                            NameRefClass::Definition(def, _) => Some(def),
+                // FIXME: uncomment this once we resolve to usages to extern crate declarations
+                    .filter(|def| !matches!(def, Definition::ExternCrateDecl(..)))
+                    .ok_or_else(|| format_err!("No references found at position"))
+                    .and_then(|def| {
+                        // if the name differs from the definitions name it has to be an alias
+                        if def
+                            .name(sema.db).is_some_and(|it| it.as_str() != name_ref.text().trim_start_matches("r#"))
+                        {
+                            Err(format_err!("Renaming aliases is currently unsupported"))
+                        } else {
+                            Ok(def)
+                        }
+                    })
+            }
+            ast::NameLike::Lifetime(lifetime) => {
+                NameRefClass::classify_lifetime(sema, lifetime)
+                    .and_then(|class| match class {
+                        NameRefClass::Definition(def, _) => Some(def),
+                        _ => None,
+                    })
+                    .or_else(|| {
+                        NameClass::classify_lifetime(sema, lifetime).and_then(|it| match it {
+                            NameClass::Definition(it) => Some(it),
                             _ => None,
                         })
-                        .or_else(|| {
-                            NameClass::classify_lifetime(sema, lifetime).and_then(|it| match it {
-                                NameClass::Definition(it) => Some(it),
-                                _ => None,
-                            })
-                        })
-                        .ok_or_else(|| format_err!("No references found at position"))
-                }
-            };
-            res.map(|def| (range, kind, def))
-        });
-
-    let res: RenameResult<Vec<_>> = symbols.collect();
-    match res {
-        Ok(v) => {
-            if v.is_empty() {
-                // FIXME: some semantic duplication between "empty vec" and "Err()"
-                Err(format_err!("No references found at position"))
-            } else {
-                // remove duplicates, comparing `Definition`s
-                Ok(v.into_iter()
-                    .unique_by(|&(.., def)| def)
-                    .map(|(a, b, c)| (a.into_file_id(sema.db), b, c))
-                    .collect::<Vec<_>>()
-                    .into_iter())
+                    })
+                    .ok_or_else(|| format_err!("No references found at position"))
             }
+        };
+
+        let range = range.into_file_id(sema.db);
+        let def = (range, kind, res?);
+
+        let related_name = name_like.text();
+        let related_name = related_name.as_str();
+
+        let name_matches =
+            original_name.as_deref().is_some_and(|original_name| original_name == related_name);
+
+        // remove duplicates, comparing `Definition`s
+        if name_matches {
+            definitions.insert(def.2, def);
+        } else {
+            related.insert(def.2, (related_name.to_owned(), def));
         }
-        Err(e) => Err(e),
+    }
+
+    if definitions.is_empty() {
+        // FIXME: some semantic duplication between "empty vec" and "Err()"
+        Err(format_err!("No references found at position"))
+    } else {
+        let definitions = definitions.into_values().collect();
+        let related = related.into_values().collect();
+
+        Ok(FoundDefinitions { original_name, definitions, related })
     }
 }
 
@@ -3259,6 +3318,109 @@ trait Trait<T> {
 trait Trait<U> {
     fn foo() -> impl use<U> Trait {}
 }
+"#,
+        );
+    }
+
+    #[test]
+    fn rename_macro_generated_type_from_type_with_a_suffix() {
+        check(
+            "Bar",
+            r#"
+//- proc_macros: generate_suffixed_type
+#[proc_macros::generate_suffixed_type]
+struct Foo$0;
+
+fn usage(_: FooSuffix) {}
+usage(FooSuffix);
+"#,
+            r#"
+#[proc_macros::generate_suffixed_type]
+struct Bar;
+
+fn usage(_: BarSuffix) {}
+usage(BarSuffix);
+"#,
+        );
+    }
+
+    #[test]
+    fn rename_macro_generated_type_from_type_usage_with_a_suffix() {
+        check(
+            "Bar",
+            r#"
+//- proc_macros: generate_suffixed_type
+#[proc_macros::generate_suffixed_type]
+struct Foo;
+
+fn usage(_: FooSuffix) {}
+usage(FooSuffix);
+
+fn other_place() { Foo$0; }
+"#,
+            r#"
+#[proc_macros::generate_suffixed_type]
+struct Bar;
+
+fn usage(_: BarSuffix) {}
+usage(BarSuffix);
+
+fn other_place() { Bar; }
+"#,
+        );
+    }
+
+    #[test]
+    fn rename_macro_generated_type_from_variant_with_a_suffix() {
+        check(
+            "Bar",
+            r#"
+//- proc_macros: generate_suffixed_type
+#[proc_macros::generate_suffixed_type]
+enum Quux {
+    Foo$0,
+}
+
+fn usage(_: FooSuffix) {}
+usage(FooSuffix);
+"#,
+            r#"
+#[proc_macros::generate_suffixed_type]
+enum Quux {
+    Bar,
+}
+
+fn usage(_: BarSuffix) {}
+usage(BarSuffix);
+"#,
+        );
+    }
+
+
+    #[test]
+    fn rename_macro_generated_type_from_variant_usage_with_a_suffix() {
+        check(
+            "Bar",
+            r#"
+//- proc_macros: generate_suffixed_type
+#[proc_macros::generate_suffixed_type]
+enum Quux {
+    Foo,
+}
+
+fn usage(_: FooSuffix) {}
+usage(FooSuffix);
+
+fn other_place() { Quux::Foo$0; }
+"#,
+            r#"
+#[proc_macros::generate_suffixed_type]
+enum Quux {
+    Bar,
+}
+
+fn usage(_: BarSuffix) {}
+usage(BartSuffix);
 "#,
         );
     }

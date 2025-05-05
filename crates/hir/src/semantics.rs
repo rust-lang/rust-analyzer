@@ -222,6 +222,20 @@ impl<DB: HirDatabase> Semantics<'_, DB> {
         self.imp.descend_node_at_offset(node, offset).filter_map(|mut it| it.find_map(N::cast))
     }
 
+    /// Find an AstNode by offset inside SyntaxNode, if it is inside
+    /// an attribute macro call, descend it and find again. Do not
+    /// care if the found name doesn't match the original name.
+    // FIXME: Rethink this API
+    pub fn find_nodes_at_offset_with_descend_any_name<'slf, N: AstNode + 'slf>(
+        &'slf self,
+        node: &SyntaxNode,
+        offset: TextSize,
+    ) -> impl Iterator<Item = N> + 'slf {
+        self.imp
+            .descend_node_at_offset_any_name(node, offset)
+            .filter_map(|mut it| it.find_map(N::cast))
+    }
+
     pub fn resolve_range_pat(&self, range_pat: &ast::RangePat) -> Option<Struct> {
         self.imp.resolve_range_pat(range_pat).map(Struct::from)
     }
@@ -972,6 +986,29 @@ impl<'db> SemanticsImpl<'db> {
         r
     }
 
+    /// Descends the token into expansions, returning the tokens that matches the input
+    /// token's [`SyntaxKind`].
+    pub fn descend_into_macros_exact_any_name(
+        &self,
+        token: SyntaxToken,
+    ) -> SmallVec<[SyntaxToken; 1]> {
+        let mut r = smallvec![];
+        let kind = token.kind();
+
+        self.descend_into_macros_cb(token.clone(), |InFile { value, file_id: _ }, ctx| {
+            let mapped_kind = value.kind();
+            let any_ident_match = || kind.is_any_identifier() && value.kind().is_any_identifier();
+            let matches = (kind == mapped_kind || any_ident_match()) && !ctx.is_opaque(self.db);
+            if matches {
+                r.push(value);
+            }
+        });
+        if r.is_empty() {
+            r.push(token);
+        }
+        r
+    }
+
     /// Descends the token into expansions, returning the first token that matches the input
     /// token's [`SyntaxKind`] and text.
     pub fn descend_into_macros_single_exact(&self, token: SyntaxToken) -> SyntaxToken {
@@ -1240,6 +1277,29 @@ impl<'db> SemanticsImpl<'db> {
     ) -> impl Iterator<Item = impl Iterator<Item = SyntaxNode> + '_> + '_ {
         node.token_at_offset(offset)
             .map(move |token| self.descend_into_macros_exact(token))
+            .map(|descendants| {
+                descendants.into_iter().map(move |it| self.token_ancestors_with_macros(it))
+            })
+            // re-order the tokens from token_at_offset by returning the ancestors with the smaller first nodes first
+            // See algo::ancestors_at_offset, which uses the same approach
+            .kmerge_by(|left, right| {
+                left.clone()
+                    .map(|node| node.text_range().len())
+                    .lt(right.clone().map(|node| node.text_range().len()))
+            })
+    }
+
+    // Note this return type is deliberate as [`find_nodes_at_offset_with_descend`] wants to stop
+    // traversing the inner iterator when it finds a node.
+    // The outer iterator is over the tokens descendants
+    // The inner iterator is the ancestors of a descendant
+    fn descend_node_at_offset_any_name(
+        &self,
+        node: &SyntaxNode,
+        offset: TextSize,
+    ) -> impl Iterator<Item = impl Iterator<Item = SyntaxNode> + '_> + '_ {
+        node.token_at_offset(offset)
+            .map(move |token| self.descend_into_macros_exact_any_name(token))
             .map(|descendants| {
                 descendants.into_iter().map(move |it| self.token_ancestors_with_macros(it))
             })
