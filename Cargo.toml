@@ -94,9 +94,9 @@ ra-ap-rustc_pattern_analysis = { version = "0.110", default-features = false }
 # local crates that aren't published to crates.io. These should not have versions.
 
 # in-tree crates that are published separately and follow semver. See lib/README.md
-line-index = { version = "0.1.2" }
-la-arena = { version = "0.3.1" }
-lsp-server = { version = "0.7.8" }
+line-index = { version = "0.1.2", path = "./lib/line-index" }
+la-arena = { version = "0.3.1", path = "./lib/la-arena" }
+lsp-server = { version = "0.7.8", path = "./lib/lsp-server" }
 
 # non-local crates
 anyhow = "1.0.97"

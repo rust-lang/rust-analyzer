@@ -81,7 +81,7 @@ dependencies = [
  "cfg",
  "dashmap",
  "intern",
- "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "la-arena",
  "query-group-macro",
  "rustc-hash 2.1.1",
  "salsa",
@@ -623,7 +623,7 @@ dependencies = [
  "indexmap",
  "intern",
  "itertools 0.14.0",
- "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "la-arena",
  "mbe",
  "query-group-macro",
  "ra-ap-rustc_abi",
@@ -693,7 +693,7 @@ dependencies = [
  "indexmap",
  "intern",
  "itertools 0.14.0",
- "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "la-arena",
  "oorandom",
  "project-model",
  "query-group-macro",
@@ -931,7 +931,7 @@ dependencies = [
  "hir",
  "indexmap",
  "itertools 0.14.0",
- "line-index 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "line-index",
  "memchr",
  "nohash-hasher",
  "parser",
@@ -1102,12 +1102,9 @@ dependencies = [
 [[package]]
 name = "la-arena"
 version = "0.3.1"
-
-[[package]]
-name = "la-arena"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3752f229dcc5a481d60f385fa479ff46818033d881d2d801aa27dffcfb5e8306"
+dependencies = [
+ "nonmax",
+]
 
 [[package]]
 name = "lazy_static"
@@ -1158,16 +1155,6 @@ version = "0.1.2"
 dependencies = [
  "nohash-hasher",
  "oorandom",
- "text-size",
-]
-
-[[package]]
-name = "line-index"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e27e0ed5a392a7f5ba0b3808a2afccff16c64933312c84b57618b49d1209bd2"
-dependencies = [
- "nohash-hasher",
  "text-size",
 ]
 
@@ -1233,19 +1220,6 @@ dependencies = [
  "ctrlc",
  "log",
  "lsp-types",
- "serde",
- "serde_derive",
- "serde_json",
-]
-
-[[package]]
-name = "lsp-server"
-version = "0.7.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9462c4dc73e17f971ec1f171d44bfffb72e65a130117233388a0ebc7ec5656f9"
-dependencies = [
- "crossbeam-channel",
- "log",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1373,6 +1347,12 @@ name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
+
+[[package]]
+name = "nonmax"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "610a5acd306ec67f907abe5567859a3c693fb9886eb1f012ab8f2a47bef3db51"
 
 [[package]]
 name = "notify"
@@ -1672,7 +1652,7 @@ dependencies = [
  "expect-test",
  "intern",
  "itertools 0.14.0",
- "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "la-arena",
  "paths",
  "rustc-hash 2.1.1",
  "semver",
@@ -1943,7 +1923,7 @@ dependencies = [
  "intern",
  "itertools 0.14.0",
  "load-cargo",
- "lsp-server 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lsp-server",
  "lsp-types",
  "memchr",
  "mimalloc",
@@ -2207,7 +2187,7 @@ name = "span"
 version = "0.0.0"
 dependencies = [
  "hashbrown 0.14.5",
- "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "la-arena",
  "rustc-hash 2.1.1",
  "salsa",
  "stdx",

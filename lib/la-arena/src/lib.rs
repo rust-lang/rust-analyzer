@@ -13,34 +13,35 @@ use std::{
 
 mod map;
 pub use map::{ArenaMap, Entry, OccupiedEntry, VacantEntry};
+use nonmax::NonMaxU32;
 
 /// The raw index of a value in an arena.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RawIdx(u32);
+pub struct RawIdx(NonMaxU32);
 
 impl RawIdx {
     /// Constructs a [`RawIdx`] from a u32.
     pub const fn from_u32(u32: u32) -> Self {
-        RawIdx(u32)
+        RawIdx(NonMaxU32::new(u32).unwrap())
     }
 
     /// Deconstructs a [`RawIdx`] into the underlying u32.
     pub const fn into_u32(self) -> u32 {
-        self.0
+        self.0.get()
     }
 }
 
 impl From<RawIdx> for u32 {
     #[inline]
     fn from(raw: RawIdx) -> u32 {
-        raw.0
+        raw.into_u32()
     }
 }
 
 impl From<u32> for RawIdx {
     #[inline]
     fn from(idx: u32) -> RawIdx {
-        RawIdx(idx)
+        RawIdx::from_u32(idx)
     }
 }
 
@@ -375,7 +376,10 @@ impl<T> Arena<T> {
     pub fn iter(
         &self,
     ) -> impl ExactSizeIterator<Item = (Idx<T>, &T)> + DoubleEndedIterator + Clone {
-        self.data.iter().enumerate().map(|(idx, value)| (Idx::from_raw(RawIdx(idx as u32)), value))
+        self.data
+            .iter()
+            .enumerate()
+            .map(|(idx, value)| (Idx::from_raw(RawIdx::from_u32(idx as u32)), value))
     }
 
     /// Returns an iterator over the arena’s mutable elements.
@@ -398,7 +402,7 @@ impl<T> Arena<T> {
         self.data
             .iter_mut()
             .enumerate()
-            .map(|(idx, value)| (Idx::from_raw(RawIdx(idx as u32)), value))
+            .map(|(idx, value)| (Idx::from_raw(RawIdx::from_u32(idx as u32)), value))
     }
 
     /// Returns an iterator over the arena’s values.
@@ -445,7 +449,7 @@ impl<T> Arena<T> {
     ///
     /// This method should remain private to make creating invalid `Idx`s harder.
     fn next_idx(&self) -> Idx<T> {
-        Idx::from_raw(RawIdx(self.data.len() as u32))
+        Idx::from_raw(RawIdx::from_u32(self.data.len() as u32))
     }
 }
 
@@ -464,14 +468,14 @@ impl<T> Default for Arena<T> {
 impl<T> Index<Idx<T>> for Arena<T> {
     type Output = T;
     fn index(&self, idx: Idx<T>) -> &T {
-        let idx = idx.into_raw().0 as usize;
+        let idx = idx.into_raw().into_u32() as usize;
         &self.data[idx]
     }
 }
 
 impl<T> IndexMut<Idx<T>> for Arena<T> {
     fn index_mut(&mut self, idx: Idx<T>) -> &mut T {
-        let idx = idx.into_raw().0 as usize;
+        let idx = idx.into_raw().into_u32() as usize;
         &mut self.data[idx]
     }
 }
@@ -501,7 +505,7 @@ impl<T> Iterator for IntoIter<T> {
     type Item = (Idx<T>, T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|(idx, value)| (Idx::from_raw(RawIdx(idx as u32)), value))
+        self.0.next().map(|(idx, value)| (Idx::from_raw(RawIdx::from_u32(idx as u32)), value))
     }
 }
 

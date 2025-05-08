@@ -11,3 +11,6 @@ rust-version = "1.85"
 
 [lints]
 workspace = true
+
+[dependencies]
+nonmax = "0.5.5"
