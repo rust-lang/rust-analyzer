@@ -3416,6 +3416,25 @@ mod std { pub mod ops { pub trait Add { fn add(self, _: Self) {} } impl Add for 
 }
 
 #[test]
+fn doctest_unwrap_array() {
+    check_doc_test(
+        "unwrap_array",
+        r#####"
+//- minicore: result
+fn main() {
+    $0let [foo, bar] = ["Foo", "Bar"];
+}
+"#####,
+        r#####"
+fn main() {
+    let foo = "Foo";
+    let bar = "Bar";
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_unwrap_block() {
     check_doc_test(
         "unwrap_block",
