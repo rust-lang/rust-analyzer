@@ -226,6 +226,7 @@ mod handlers {
     mod unmerge_match_arm;
     mod unnecessary_async;
     mod unqualify_method_call;
+    mod unwrap_array;
     mod unwrap_block;
     mod unwrap_return_type;
     mod unwrap_tuple;
@@ -370,6 +371,7 @@ mod handlers {
             unwrap_block::unwrap_block,
             unwrap_return_type::unwrap_return_type,
             unwrap_tuple::unwrap_tuple,
+            unwrap_array::unwrap_array,
             unwrap_type_to_generic_arg::unwrap_type_to_generic_arg,
             wrap_return_type::wrap_return_type,
             wrap_unwrap_cfg_attr::wrap_unwrap_cfg_attr,
