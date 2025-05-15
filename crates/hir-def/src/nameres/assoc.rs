@@ -112,6 +112,13 @@ impl ImplItems {
     pub fn attribute_calls(&self) -> impl Iterator<Item = (AstId<ast::Item>, MacroCallId)> + '_ {
         self.macro_calls.iter().flat_map(|it| it.iter()).copied()
     }
+
+    pub fn method_by_name(&self, name: &Name) -> Option<FunctionId> {
+        self.items.iter().find_map(|(item_name, item)| match item {
+            AssocItemId::FunctionId(t) if item_name == name => Some(*t),
+            _ => None,
+        })
+    }
 }
 
 struct AssocItemCollector<'a> {

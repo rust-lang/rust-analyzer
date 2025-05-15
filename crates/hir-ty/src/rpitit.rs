@@ -10,8 +10,7 @@ use chalk_ir::{
 };
 use chalk_solve::rust_ir::AssociatedTyValueBound;
 use hir_def::{
-    AssocItemId, ConstParamId, FunctionId, GenericDefId, GenericParamId, ImplId, ItemContainerId,
-    TraitId,
+    ConstParamId, FunctionId, GenericDefId, GenericParamId, ImplId, ItemContainerId, TraitId,
     hir::generics::{GenericParams, TypeOrConstParamData},
     resolver::HasResolver,
 };
@@ -78,16 +77,7 @@ pub(crate) fn impl_method_rpitit_values(
     let trait_method_generics = generics(db, trait_method_id.into());
     let trait_method = db.function_signature(trait_method_id);
     let impl_trait_ref = db.impl_trait(impl_id).expect("invalid impl passed to Chalk");
-    let impl_method = impl_items.items.iter().find_map(|(name, id)| {
-        if *name == trait_method.name {
-            match *id {
-                AssocItemId::FunctionId(it) => Some(it),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    });
+    let impl_method = impl_items.method_by_name(&trait_method.name);
     let impl_method = match impl_method {
         Some(impl_method) => impl_method,
         None => {
@@ -244,7 +234,7 @@ fn defaulted_impl_method_rpitit_values(
         Interner,
         variable_kinds_from_generics(
             db,
-            trait_method_generics.iter_self_id().chain(impl_generics.iter_id()),
+            impl_generics.iter_id().chain(trait_method_generics.iter_self_id()),
         ),
     );
     defaulted_rpitit_values
@@ -639,4 +629,26 @@ pub(crate) fn add_method_body_rpitit_clauses(
         }
         _ => {}
     }
+}
+
+pub(crate) fn recovery_rpitit_value(
+    db: &dyn HirDatabase,
+    impl_assoc: RpititImplAssocTyId,
+) -> Arc<AssociatedTyValue> {
+    let impl_assoc = impl_assoc.loc(db);
+    let trait_assoc = impl_assoc.trait_assoc.loc(db);
+    let impl_generics = generics(db, impl_assoc.impl_id.into());
+    let trait_method_generics = generics(db, trait_assoc.synthesized_from_method.into());
+    let binders = VariableKinds::from_iter(
+        Interner,
+        variable_kinds_from_generics(
+            db,
+            impl_generics.iter_id().chain(trait_method_generics.iter_self_id()),
+        ),
+    );
+    Arc::new(AssociatedTyValue {
+        associated_ty_id: to_assoc_type_id_rpitit(impl_assoc.trait_assoc),
+        impl_id: impl_assoc.impl_id.to_chalk(db),
+        value: Binders::new(binders, AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) }),
+    })
 }

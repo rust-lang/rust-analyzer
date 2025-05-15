@@ -13,9 +13,7 @@ use chalk_ir::{
     cast::{Cast, Caster},
     fold::shift::Shift,
 };
-use chalk_solve::rust_ir::{
-    self, AssociatedTyDatumBound, AssociatedTyValueBound, OpaqueTyDatumBound, WellKnownTrait,
-};
+use chalk_solve::rust_ir::{self, AssociatedTyDatumBound, OpaqueTyDatumBound, WellKnownTrait};
 
 use base_db::Crate;
 use hir_def::{
@@ -33,15 +31,16 @@ use crate::{
     db::{HirDatabase, InternedCoroutine},
     from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id,
     generics::generics,
-    lower::LifetimeElisionKind,
-    lower::trait_fn_signature,
+    lower::{LifetimeElisionKind, trait_fn_signature},
     make_binders, make_single_type_binders,
     mapping::{
         AnyImplAssocType, AnyTraitAssocType, ToChalk, from_assoc_type_value_id, from_chalk,
         to_assoc_type_id_rpitit, to_assoc_type_value_id, to_assoc_type_value_id_rpitit,
     },
     method_resolution::{ALL_FLOAT_FPS, ALL_INT_FPS, TraitImpls, TyFingerprint},
-    rpitit::{RpititImplAssocTy, RpititImplAssocTyId, impl_method_rpitit_values},
+    rpitit::{
+        RpititImplAssocTy, RpititImplAssocTyId, impl_method_rpitit_values, recovery_rpitit_value,
+    },
     to_assoc_type_id, to_chalk_trait_id,
     traits::ChalkContext,
     utils::ClosureSubst,
@@ -1020,18 +1019,7 @@ pub(crate) fn associated_ty_value_cycle(
         AnyImplAssocType::Normal(type_alias) => {
             type_alias_associated_ty_value(db, krate, type_alias)
         }
-        AnyImplAssocType::Rpitit(assoc_type_id) => {
-            let assoc = assoc_type_id.loc(db);
-            let trait_assoc = assoc.trait_assoc.loc(db);
-            Arc::new(AssociatedTyValue {
-                associated_ty_id: to_assoc_type_id_rpitit(assoc.trait_assoc),
-                impl_id: assoc.impl_id.to_chalk(db),
-                value: trait_assoc
-                    .bounds
-                    .as_ref()
-                    .map(|_| AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) }),
-            })
-        }
+        AnyImplAssocType::Rpitit(assoc_type_id) => recovery_rpitit_value(db, assoc_type_id),
     }
 }
 

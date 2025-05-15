@@ -5190,3 +5190,43 @@ trait Trait {
         "#]],
     );
 }
+
+#[test]
+fn rpitit_cycle_with_impl_generics() {
+    check_infer(
+        r#"
+//- minicore: sized, iterator
+pub trait HasAttrs: Sized {
+    fn foo(self) -> impl Iterator<Item = ()> {
+        loop {}
+    }
+}
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+impl<L, R> HasAttrs for Either<L, R>
+where
+    L: HasAttrs,
+    R: HasAttrs,
+{
+}
+struct AnyHasAttrs;
+impl HasAttrs for AnyHasAttrs {}
+
+fn foo(v: AnyHasAttrs) {
+    v.foo();
+}
+    "#,
+        expect![[r#"
+            39..43 'self': Self
+            73..96 '{     ...     }': !
+            83..90 'loop {}': !
+            88..90 '{}': ()
+            290..291 'v': AnyHasAttrs
+            306..322 '{     ...o(); }': ()
+            312..313 'v': AnyHasAttrs
+            312..319 'v.foo()': {unknown}
+        "#]],
+    );
+}
