@@ -4937,13 +4937,15 @@ fn bar<'a, 'b, T, const N: usize, U, const M: usize, Ty: Trait<'a, T, N>>(v: &Ty
 }
     "#,
         // The `{unknown}` is not related to RPITIT, see https://github.com/rust-lang/rust-analyzer/issues/19392.
+        // The ordering (lifetimes before `Self`) is not representative of what happens;
+        // it's just that our display infra shows lifetimes first.
         expect![[r#"
             72..76 'self': &'? Self
             183..184 'v': &'? Ty
             191..227 '{     ...>(); }': ()
-            201..202 '_': (Trait::__foo_rpitit<'b, U, M, Ty, '?, {unknown}, _>,)
+            201..202 '_': (Trait::__foo_rpitit<'?, {unknown}, _, 'b, U, M, Ty>,)
             205..206 'v': &'? Ty
-            205..224 'v.foo:..., M>()': (Trait::__foo_rpitit<'b, U, M, Ty, '?, {unknown}, _>,)
+            205..224 'v.foo:..., M>()': (Trait::__foo_rpitit<'?, {unknown}, _, 'b, U, M, Ty>,)
         "#]],
     );
 }
@@ -5074,14 +5076,14 @@ impl<T> Trait for Foo<T> {
     "#,
         expect![[r#"
             type __foo_rpitit: T1;
-            type __foo_rpitit: T2<?1.2> + T2<i32> + ?Sized;
-            type __bar_rpitit: T2<bool> + T3<?1.0, ?1.0, 123> + Trait;
+            type __foo_rpitit: T2<?1.0> + T2<i32> + ?Sized;
+            type __bar_rpitit: T2<bool> + T3<?1.1, ?1.1, 123> + Trait;
             type __baz_rpitit: T1;
             type __baz_rpitit: T4<Assoc = impl T1>;
 
             type __foo_rpitit = impl T1;
-            type __foo_rpitit = ?0.1;
-            type __bar_rpitit = impl T2<T>;
+            type __foo_rpitit = ?0.2;
+            type __bar_rpitit = impl T2<?2.0>;
             type __baz_rpitit = ();
             type __baz_rpitit = impl T4<Assoc = ()>;
         "#]],
@@ -5107,5 +5109,50 @@ impl Trait for () {
 
             type __foo_rpitit = ();
         "#]],
+    );
+}
+
+#[test]
+fn defaulted_method_with_rpitit() {
+    check_rpitit(
+        r#"
+//- minicore: sized
+//- /helpers.rs crate:helpers
+pub trait Bar<'a, B: ?Sized, C: ?Sized, D: ?Sized> {}
+
+//- /lib.rs crate:library deps:helpers
+use helpers::*;
+trait Trait<T> {
+    fn foo<'a, B>() -> impl Bar<'a, B, Self, T>;
+}
+struct Foo<T>(T);
+impl<T, U> Trait<(Foo<()>, U)> for Foo<T> {}
+    "#,
+        // The debruijn index in the value is 2, but should be 0 to refer to the associated
+        // type generics. It is 2 because opaques are wrapped in two binders, and so the 0
+        // is shifted in twice. Since users are not expected to see debruijn indices anyway,
+        // this does not matter.
+        expect![[r#"
+            type __foo_rpitit: Bar<?1.2, ?1.3, ?1.0, ?1.1>;
+
+            type __foo_rpitit = impl Bar<?2.2, ?2.3, Foo<?2.2>, (Foo<()>, ?2.3)>;
+        "#]],
+    );
+}
+
+#[test]
+fn check_foo() {
+    check_rpitit(
+        r#"
+//- minicore: future, send, sized
+use core::future::Future;
+
+trait DesugaredAsyncTrait {
+    fn foo(&self) -> impl Future<Output = usize> + Send;
+}
+
+impl DesugaredAsyncTrait for () {}
+    "#,
+        expect![[r#""#]],
     );
 }

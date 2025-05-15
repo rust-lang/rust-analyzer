@@ -684,7 +684,8 @@ impl HirDisplay for ProjectionTy {
                         ),
                         &assoc_type
                             .bounds
-                            .skip_binders()
+                            .clone()
+                            .substitute(Interner, &self.substitution)
                             .iter()
                             .map(|bound| {
                                 // We ignore `Self` anyway when formatting, so it's fine put an error type in it.

@@ -97,10 +97,8 @@ impl DebugContext<'_> {
                 AnyTraitAssocType::Rpitit(assoc_type) => {
                     let assoc_type = assoc_type.loc(self.0);
                     let method_data = self.0.function_signature(assoc_type.synthesized_from_method);
-                    let placeholder_assoc_type_name = format!(
-                        "__{}_rpitit",
-                        method_data.name.display(self.0, Edition::LATEST).to_string()
-                    );
+                    let placeholder_assoc_type_name =
+                        format!("__{}_rpitit", method_data.name.display(self.0, Edition::LATEST));
                     (assoc_type.trait_id, placeholder_assoc_type_name)
                 }
             };

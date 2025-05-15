@@ -52,7 +52,7 @@ use crate::{
     FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime, LifetimeData,
     LifetimeOutlives, PlaceholderIndex, PolyFnSig, ProgramClause, ProjectionTy,
     QuantifiedWhereClause, QuantifiedWhereClauses, Substitution, TraitEnvironment, TraitRef,
-    TraitRefExt, Ty, TyBuilder, TyKind, VariableKind, VariableKinds, WhereClause, all_super_traits,
+    TraitRefExt, Ty, TyBuilder, TyKind, VariableKinds, WhereClause, all_super_traits,
     chalk_db::generic_predicate_to_inline_bound,
     consteval::{intern_const_ref, path_to_const, unknown_const, unknown_const_as_generic},
     db::HirDatabase,
@@ -450,8 +450,7 @@ impl<'a> TyLoweringContext<'a> {
                             |a| ImplTraitId::TypeAliasImplTrait(a, idx),
                         );
                         let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
-                        let generics = generics(self.db, origin.either(|f| f.into(), |a| a.into()));
-                        let parameters = generics.bound_vars_subst(self.db, self.in_binders);
+                        let parameters = self.subst_for_generics();
                         TyKind::OpaqueType(opaque_ty_id, parameters).intern(Interner)
                     }
                     ImplTraitLoweringMode::Disallowed => {
@@ -519,15 +518,7 @@ impl<'a> TyLoweringContext<'a> {
 
         let assoc_type_binders = VariableKinds::from_iter(
             Interner,
-            method_generics.iter_id().map(|param_id| match param_id {
-                GenericParamId::TypeParamId(_) => {
-                    VariableKind::Ty(chalk_ir::TyVariableKind::General)
-                }
-                GenericParamId::ConstParamId(param_id) => {
-                    VariableKind::Const(self.db.const_param_ty(param_id))
-                }
-                GenericParamId::LifetimeParamId(_) => VariableKind::Lifetime,
-            }),
+            variable_kinds_from_generics(self.db, method_generics.iter_id()),
         );
 
         let returned_subst = self.subst_for_generics();
