@@ -120,11 +120,11 @@ pub(crate) fn impl_method_rpitit_values(
         &impl_method_placeholder_subst.as_slice(Interner)[..impl_method_generics.len_parent()];
     // We want to substitute the TraitRef with placeholders, but placeholders from the method, not the impl.
     let impl_trait_ref = impl_trait_ref.substitute(Interner, trait_ref_placeholder_subst);
-    let trait_to_impl_args = Substitution::from_iter(
-        Interner,
-        impl_trait_ref.substitution.as_slice(Interner).iter().chain(
-            &impl_method_placeholder_subst.as_slice(Interner)[impl_method_generics.len_parent()..],
-        ),
+    let trait_to_impl_args = rebase_impl_params_onto_trait(
+        db,
+        &impl_trait_ref.substitution,
+        &impl_method_generics,
+        &trait_method_generics,
     );
     let trait_method_ret = db
         .callable_item_signature(trait_method_id.into())
@@ -559,41 +559,11 @@ pub(crate) fn add_method_body_rpitit_clauses(
 
                         let trait_ref_subst =
                             trait_ref.clone().substitute(Interner, &impl_method_subst);
-                        // Lifetime parameters may change between trait and impl, and we don't check from that in `impl_method_rpitit_values()`
-                        // (because it's valid). So fill them with errors.
-                        // FIXME: This isn't really correct, we should still fill the lifetimes. rustc does some kind of mapping, I think there
-                        // are also restrictions on what exactly lifetimes can change between trait and impl.
-                        let trait_method_subst = std::iter::repeat_n(
-                            error_lifetime().cast(Interner),
-                            trait_method_generics.len_lifetimes_self(),
-                        )
-                        .chain(
-                            impl_method_generics.iter_self_type_or_consts_id().map(
-                                |(param_id, param_data)| {
-                                    let placeholder = to_placeholder_idx(db, param_id);
-                                    match param_data {
-                                        TypeOrConstParamData::TypeParamData(_) => {
-                                            placeholder.to_ty(Interner).cast(Interner)
-                                        }
-                                        TypeOrConstParamData::ConstParamData(_) => placeholder
-                                            .to_const(
-                                                Interner,
-                                                db.const_param_ty(ConstParamId::from_unchecked(
-                                                    param_id,
-                                                )),
-                                            )
-                                            .cast(Interner),
-                                    }
-                                },
-                            ),
-                        );
-                        let trait_subst = Substitution::from_iter(
-                            Interner,
-                            trait_ref_subst
-                                .substitution
-                                .iter(Interner)
-                                .cloned()
-                                .chain(trait_method_subst),
+                        let trait_subst = rebase_impl_params_onto_trait(
+                            db,
+                            &trait_ref_subst.substitution,
+                            impl_method_generics,
+                            &trait_method_generics,
                         );
 
                         (impl_subst, trait_subst)
@@ -629,6 +599,36 @@ pub(crate) fn add_method_body_rpitit_clauses(
         }
         _ => {}
     }
+}
+
+/// Returns a `Substitution` that works like the trait method, but with the impl method params.
+fn rebase_impl_params_onto_trait(
+    db: &dyn HirDatabase,
+    trait_ref_subst: &Substitution,
+    impl_method_generics: &Generics,
+    trait_method_generics: &Generics,
+) -> Substitution {
+    // Lifetime parameters may change between trait and impl, and we don't check from that in `impl_method_rpitit_values()`
+    // (because it's valid). So fill them with errors.
+    // FIXME: This isn't really correct, we should still fill the lifetimes. rustc does some kind of mapping, I think there
+    // are also restrictions on what exactly lifetimes can change between trait and impl.
+    let trait_method_subst = std::iter::repeat_n(
+        error_lifetime().cast(Interner),
+        trait_method_generics.len_lifetimes_self(),
+    )
+    .chain(impl_method_generics.iter_self_type_or_consts_id().map(|(param_id, param_data)| {
+        let placeholder = to_placeholder_idx(db, param_id);
+        match param_data {
+            TypeOrConstParamData::TypeParamData(_) => placeholder.to_ty(Interner).cast(Interner),
+            TypeOrConstParamData::ConstParamData(_) => placeholder
+                .to_const(Interner, db.const_param_ty(ConstParamId::from_unchecked(param_id)))
+                .cast(Interner),
+        }
+    }));
+    Substitution::from_iter(
+        Interner,
+        trait_ref_subst.iter(Interner).cloned().chain(trait_method_subst),
+    )
 }
 
 pub(crate) fn recovery_rpitit_value(
