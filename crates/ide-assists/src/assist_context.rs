@@ -1,6 +1,7 @@
 //! See [`AssistContext`].
 
 use hir::{EditionedFileId, FileRange, Semantics};
+use ide_db::source_change::UserChoiceGroup;
 use ide_db::{FileId, RootDatabase, label::Label};
 use syntax::Edition;
 use syntax::{
@@ -202,6 +203,36 @@ impl Assists {
         self.add_impl(Some(group), id, label.into(), target, &mut |it| f.take().unwrap()(it))
     }
 
+    /// Give user multiple choices, user's choice will be passed to `f` as a list of indices.
+    /// The indices are the indices of the choices in the original list.
+    pub(crate) fn add_choices(
+        &mut self,
+        group: &Option<GroupLabel>,
+        id: AssistId,
+        label: impl Into<String>,
+        target: TextRange,
+        choices: Vec<Vec<String>>,
+        f: impl FnOnce(&mut SourceChangeBuilder, &[usize]) + Send + 'static,
+    ) -> Option<()> {
+        if !self.is_allowed(&id) {
+            return None;
+        }
+        let label = Label::new(label.into());
+        let group = group.clone();
+
+        self.buf.push(Assist {
+            id,
+            label,
+            group,
+            target,
+            source_change: None,
+            command: None,
+            user_choice_group: Some(UserChoiceGroup::new(choices, f)),
+        });
+
+        Some(())
+    }
+
     fn add_impl(
         &mut self,
         group: Option<&GroupLabel>,
@@ -226,7 +257,15 @@ impl Assists {
 
         let label = Label::new(label);
         let group = group.cloned();
-        self.buf.push(Assist { id, label, group, target, source_change, command });
+        self.buf.push(Assist {
+            id,
+            label,
+            group,
+            target,
+            source_change,
+            command,
+            user_choice_group: None,
+        });
         Some(())
     }
 

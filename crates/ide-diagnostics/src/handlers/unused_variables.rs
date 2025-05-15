@@ -80,6 +80,7 @@ fn fixes(
             TextEdit::replace(name_range, format!("_{}", var_name.display(db, edition))),
         )),
         command: None,
+        user_choice_group: None,
     }])
 }
 

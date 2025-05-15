@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use syntax::TextRange;
 
-use crate::{label::Label, source_change::SourceChange};
+use crate::{label::Label, source_change::{SourceChange, UserChoiceGroup}};
 
 #[derive(Debug, Clone)]
 pub struct Assist {
@@ -31,6 +31,8 @@ pub struct Assist {
     pub source_change: Option<SourceChange>,
     /// The command to execute after the assist is applied.
     pub command: Option<Command>,
+    /// The group of choices to show to the user when applying the assist.
+    pub user_choice_group: Option<UserChoiceGroup>
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
