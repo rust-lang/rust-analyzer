@@ -4,7 +4,7 @@
 //! tests. This module also implements a couple of magic tricks, like renaming
 //! `self` and to `self` (to switch between associated function and method).
 
-use hir::{AsAssocItem, InFile, Semantics};
+use hir::{AsAssocItem, InFile, PathResolution, Semantics};
 use ide_db::{
     FileId, FileRange, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
@@ -120,7 +120,13 @@ pub(crate) fn rename(
                 source_change.extend(usages.references.get_mut(&file_id).iter().map(|refs| {
                     (
                         position.file_id,
-                        source_edit_from_references(refs, def, new_name, file_id.edition(db)),
+                        source_edit_from_references(
+                            &sema,
+                            refs,
+                            def,
+                            new_name,
+                            file_id.edition(db),
+                        ),
                     )
                 }));
 
@@ -245,29 +251,47 @@ fn find_definitions(
                     })
                     .ok_or_else(|| format_err!("No references found at position")),
                 ast::NameLike::NameRef(name_ref) => {
-                    NameRefClass::classify(sema, name_ref)
-                        .map(|class| match class {
-                            NameRefClass::Definition(def, _) => def,
-                            NameRefClass::FieldShorthand { local_ref, field_ref: _, adt_subst: _ } => {
-                                Definition::Local(local_ref)
+                    if let Some(path) =  ast::UseTree::find_tail_use_tree_for_name_ref(name_ref).and_then(|u| u.path()).and_then(|p| sema.resolve_path_per_ns(&p)){
+                        let defs = path.to_small_vec().into_iter().filter_map(|res| match res{
+                            Some(PathResolution::Def(def)) => Some(Definition::from(def)),
+                            _ => None,
+                        }).unique().collect::<Vec<_>>();
+                        match defs.len() {
+                            0 => Err(format_err!("No references found at position")),
+                            1 => {
+                                if defs[0].name(sema.db).is_some_and(|it| it.as_str() != name_ref.text().trim_start_matches("r#")) {
+                                    Err(format_err!("Renaming aliases is currently unsupported"))
+                                } else {
+                                    Ok(defs[0])
+                                }
                             }
-                            NameRefClass::ExternCrateShorthand { decl, .. } => {
-                                Definition::ExternCrateDecl(decl)
-                            }
-                        })
-                        // FIXME: uncomment this once we resolve to usages to extern crate declarations
-                        .filter(|def| !matches!(def, Definition::ExternCrateDecl(..)))
-                        .ok_or_else(|| format_err!("No references found at position"))
-                        .and_then(|def| {
-                            // if the name differs from the definitions name it has to be an alias
-                            if def
-                                .name(sema.db).is_some_and(|it| it.as_str() != name_ref.text().trim_start_matches("r#"))
-                            {
-                                Err(format_err!("Renaming aliases is currently unsupported"))
-                            } else {
-                                Ok(def)
-                            }
-                        })
+                            2.. => Err(format_err!("Ambiguous import is currently unsupported")),
+                        }
+                    } else {
+                        NameRefClass::classify(sema, name_ref)
+                            .map(|class| match class {
+                                NameRefClass::Definition(def, _) => def,
+                                NameRefClass::FieldShorthand { local_ref, field_ref: _, adt_subst: _ } => {
+                                    Definition::Local(local_ref)
+                                }
+                                NameRefClass::ExternCrateShorthand { decl, .. } => {
+                                    Definition::ExternCrateDecl(decl)
+                                }
+                            })
+                            // FIXME: uncomment this once we resolve to usages to extern crate declarations
+                            .filter(|def| !matches!(def, Definition::ExternCrateDecl(..)))
+                            .ok_or_else(|| format_err!("No references found at position"))
+                            .and_then(|def| {
+                                // if the name differs from the definitions name it has to be an alias
+                                if def
+                                    .name(sema.db).is_some_and(|it| it.as_str() != name_ref.text().trim_start_matches("r#"))
+                                {
+                                    Err(format_err!("Renaming aliases is currently unsupported"))
+                                } else {
+                                    Ok(def)
+                                }
+                            })
+                    }
                 }
                 ast::NameLike::Lifetime(lifetime) => {
                     NameRefClass::classify_lifetime(sema, lifetime)
@@ -370,7 +394,7 @@ fn rename_to_self(
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
             file_id.file_id(sema.db),
-            source_edit_from_references(references, def, "self", file_id.edition(sema.db)),
+            source_edit_from_references(sema, references, def, "self", file_id.edition(sema.db)),
         )
     }));
     source_change.insert_source_edit(
@@ -409,7 +433,7 @@ fn rename_self_to_param(
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
             file_id.file_id(sema.db),
-            source_edit_from_references(references, def, new_name, file_id.edition(sema.db)),
+            source_edit_from_references(sema, references, def, new_name, file_id.edition(sema.db)),
         )
     }));
     Ok(source_change)
@@ -3260,6 +3284,152 @@ trait Trait<U> {
     fn foo() -> impl use<U> Trait {}
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn rename_conflicts_in_name_space() {
+        check(
+            "qux",
+            r#"
+use foo::bar;
+
+mod foo {
+    pub mod bar$0 {}
+    pub fn bar() {}
+}
+"#,
+            r#"
+use foo::{qux, bar};
+
+mod foo {
+    pub mod qux {}
+    pub fn bar() {}
+}
+"#,
+        );
+
+        check(
+            "qux",
+            r#"
+use foo::{bar, baz};
+
+mod foo {
+    pub mod bar$0 {}
+    pub fn bar() {}
+    pub fn baz() {}
+}
+"#,
+            r#"
+use foo::{{qux, bar}, baz};
+
+mod foo {
+    pub mod qux {}
+    pub fn bar() {}
+    pub fn baz() {}
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn rename_conflicts_value_in_name_space() {
+        check(
+            "qux",
+            r#"
+use foo::bar;
+
+mod foo {
+    pub mod bar {}
+    pub fn bar$0() {}
+}
+"#,
+            r#"
+use foo::{qux, bar};
+
+mod foo {
+    pub mod bar {}
+    pub fn qux() {}
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn rename_conflicts_struct_fn_in_name_space() {
+        check(
+            "Renamed",
+            r#"
+pub use aligned::Aligned;
+
+mod aligned {
+    pub struct Aligned$0 {
+        size: usize,
+    }
+    pub fn Aligned(size: usize) -> Aligned {
+        Aligned { size }
+    }
+}
+"#,
+            r#"
+pub use aligned::{Renamed, Aligned};
+
+mod aligned {
+    pub struct Renamed {
+        size: usize,
+    }
+    pub fn Aligned(size: usize) -> Renamed {
+        Renamed { size }
+    }
+}
+"#,
+        );
+
+        check(
+            "Renamed",
+            r#"
+pub use aligned::Aligned;
+
+mod aligned {
+    pub struct Aligned {
+        size: usize,
+    }
+    pub fn Aligned$0(size: usize) -> Aligned {
+        Aligned { size }
+    }
+}
+"#,
+            r#"
+pub use aligned::{Renamed, Aligned};
+
+mod aligned {
+    pub struct Aligned {
+        size: usize,
+    }
+    pub fn Renamed(size: usize) -> Aligned {
+        Aligned { size }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn disallow_ambiguous_import() {
+        check_prepare(
+            r#"
+pub use aligned::Aligned$0;
+
+mod aligned {
+    pub struct Aligned {
+        size: usize,
+    }
+    pub fn Aligned(size: usize) -> Aligned {
+        Aligned { size }
+    }
+}
+"#,
+            expect!["Ambiguous import is currently unsupported"],
         );
     }
 }

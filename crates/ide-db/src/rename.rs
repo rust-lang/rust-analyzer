@@ -29,6 +29,7 @@ use crate::{
 use base_db::AnchoredPathBuf;
 use either::Either;
 use hir::{EditionedFileId, FieldSource, FileRange, InFile, ModuleSource, Semantics};
+use itertools::Itertools;
 use span::{Edition, FileId, SyntaxContext};
 use stdx::{TupleExt, never};
 use syntax::{
@@ -316,7 +317,7 @@ fn rename_mod(
     let ref_edits = usages.iter().map(|(file_id, references)| {
         (
             file_id.file_id(sema.db),
-            source_edit_from_references(references, def, new_name, file_id.edition(sema.db)),
+            source_edit_from_references(sema, references, def, new_name, file_id.edition(sema.db)),
         )
     });
     source_change.extend(ref_edits);
@@ -363,7 +364,7 @@ fn rename_reference(
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
             file_id.file_id(sema.db),
-            source_edit_from_references(references, def, new_name, file_id.edition(sema.db)),
+            source_edit_from_references(sema, references, def, new_name, file_id.edition(sema.db)),
         )
     }));
 
@@ -375,6 +376,7 @@ fn rename_reference(
 }
 
 pub fn source_edit_from_references(
+    sema: &Semantics<'_, RootDatabase>,
     references: &[FileReference],
     def: Definition,
     new_name: &str,
@@ -395,7 +397,7 @@ pub fn source_edit_from_references(
             // to make special rewrites like shorthand syntax and such, so just rename the node in
             // the macro input
             FileReferenceNode::NameRef(name_ref) if name_range == range => {
-                source_edit_from_name_ref(&mut edit, name_ref, &new_name, def)
+                source_edit_from_name_ref(&mut edit, sema, name_ref, &new_name, def)
             }
             FileReferenceNode::Name(name) if name_range == range => {
                 source_edit_from_name(&mut edit, name, &new_name)
@@ -438,6 +440,7 @@ fn source_edit_from_name(edit: &mut TextEditBuilder, name: &ast::Name, new_name:
 
 fn source_edit_from_name_ref(
     edit: &mut TextEditBuilder,
+    sema: &Semantics<'_, RootDatabase>,
     name_ref: &ast::NameRef,
     new_name: &str,
     def: Definition,
@@ -525,6 +528,31 @@ fn source_edit_from_name_ref(
             }
             _ => (),
         }
+    } else if let Some(res) = ast::UseTree::find_tail_use_tree_for_name_ref(name_ref)
+        .and_then(|u| u.path())
+        .and_then(|p| sema.resolve_path_per_ns(&p))
+    {
+        let res = res
+            .to_small_vec()
+            .into_iter()
+            .flatten()
+            .filter_map(|res| match res {
+                hir::PathResolution::Def(def) => Some(Definition::from(def)),
+                _ => None,
+            })
+            .unique()
+            .collect::<Vec<_>>();
+
+        let range = name_ref.syntax().text_range();
+        if res.iter().any(|res| res == &def) {
+            if res.len() == 1 {
+                edit.replace(range, new_name.to_owned());
+            } else {
+                edit.replace(range, format!("{{{}, {}}}", new_name, name_ref.text()));
+            }
+        }
+
+        return true;
     }
     false
 }

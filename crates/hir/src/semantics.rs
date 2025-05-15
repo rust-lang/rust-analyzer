@@ -121,6 +121,9 @@ impl PathResolutionPerNs {
     pub fn any(&self) -> Option<PathResolution> {
         self.type_ns.or(self.value_ns).or(self.macro_ns)
     }
+    pub fn to_small_vec(&self) -> SmallVec<[Option<PathResolution>; 3]> {
+        smallvec![self.type_ns, self.value_ns, self.macro_ns,]
+    }
 }
 
 #[derive(Debug)]
