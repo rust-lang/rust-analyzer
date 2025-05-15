@@ -205,6 +205,8 @@ impl Assists {
 
     /// Give user multiple choices, user's choice will be passed to `f` as a list of indices.
     /// The indices are the indices of the choices in the original list.
+    /// TODO(discord9): remove allow(unused) once auto import all use this function
+    #[allow(unused)]
     pub(crate) fn add_choices(
         &mut self,
         group: &Option<GroupLabel>,
