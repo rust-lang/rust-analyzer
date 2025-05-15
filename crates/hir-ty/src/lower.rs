@@ -27,7 +27,7 @@ use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId,
     FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, ItemContainerId, LocalFieldId,
-    Lookup, StaticId, StructId, TypeAliasId, TypeOrConstParamId, UnionId, VariantId,
+    Lookup, StaticId, StructId, TraitId, TypeAliasId, TypeOrConstParamId, UnionId, VariantId,
     builtin_type::BuiltinType,
     expr_store::{ExpressionStore, path::Path},
     hir::generics::{GenericParamDataRef, TypeOrConstParamData, WherePredicate},
@@ -64,7 +64,7 @@ use crate::{
     },
     make_binders,
     mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx, to_assoc_type_id_rpitit},
-    rpitit::{RpititTraitAssocTy, RpititTraitAssocTyId},
+    rpitit::{RpititTraitAssocTy, RpititTraitAssocTyId, add_method_body_rpitit_clauses},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::all_super_trait_refs,
     variable_kinds_from_generics,
@@ -1180,7 +1180,16 @@ pub(crate) fn trait_environment_for_body_query(
         let krate = def.module(db).krate();
         return TraitEnvironment::empty(krate);
     };
-    db.trait_environment(def)
+
+    let generics = generics(db, def);
+    let (resolver, traits_in_scope, mut clauses) = trait_environment_shared(db, def, &generics);
+
+    if let GenericDefId::FunctionId(function) = def {
+        add_method_body_rpitit_clauses(db, &generics, &mut clauses, function);
+    }
+
+    let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
+    TraitEnvironment::new(resolver, None, traits_in_scope.into_boxed_slice(), env)
 }
 
 pub(crate) fn trait_environment_query(
@@ -1188,6 +1197,16 @@ pub(crate) fn trait_environment_query(
     def: GenericDefId,
 ) -> Arc<TraitEnvironment> {
     let generics = generics(db, def);
+    let (resolver, traits_in_scope, clauses) = trait_environment_shared(db, def, &generics);
+    let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
+    TraitEnvironment::new(resolver, None, traits_in_scope.into_boxed_slice(), env)
+}
+
+fn trait_environment_shared(
+    db: &dyn HirDatabase,
+    def: GenericDefId,
+    generics: &Generics,
+) -> (Crate, Vec<(Ty, TraitId)>, Vec<ProgramClause>) {
     let resolver = def.resolver(db);
     let mut ctx = TyLoweringContext::new(
         db,
@@ -1200,7 +1219,7 @@ pub(crate) fn trait_environment_query(
     let mut traits_in_scope = Vec::new();
     let mut clauses = Vec::new();
     for maybe_parent_generics in
-        std::iter::successors(Some(&generics), |generics| generics.parent_generics())
+        std::iter::successors(Some(generics), |generics| generics.parent_generics())
     {
         ctx.store = maybe_parent_generics.store();
         for pred in maybe_parent_generics.where_predicates() {
@@ -1240,9 +1259,7 @@ pub(crate) fn trait_environment_query(
         };
     }
 
-    let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
-
-    TraitEnvironment::new(resolver.krate(), None, traits_in_scope.into_boxed_slice(), env)
+    (resolver.krate(), traits_in_scope, clauses)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

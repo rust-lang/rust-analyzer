@@ -88,6 +88,14 @@ impl Generics {
         chain!(trait_self_param, toc)
     }
 
+    pub(crate) fn iter_self_type_or_consts_id(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (TypeOrConstParamId, &TypeOrConstParamData)> + '_ {
+        self.params
+            .iter_type_or_consts()
+            .map(|(local_id, data)| (TypeOrConstParamId { parent: self.def, local_id }, data))
+    }
+
     /// Iterate over the parent params followed by self params.
     pub(crate) fn iter(
         &self,

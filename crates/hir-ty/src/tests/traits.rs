@@ -5163,3 +5163,30 @@ impl DesugaredAsyncTrait for () {}
         "#]],
     );
 }
+
+#[test]
+fn rpitit_method_body() {
+    // This test checks that when inferring a defaulted/impl method with RPITITs, we tell Chalk the generated
+    // RPITITs assoc types have values.
+    // The expectation should not be (the assoc type) `__foo_rpitit` but (the opaque) `impl Trait`.
+    check_infer(
+        r#"
+//- minicore: sized
+trait Trait {
+    fn foo(&self) -> impl Trait {
+        let _ = self.foo();
+        loop {}
+    }
+}
+    "#,
+        expect![[r#"
+            26..30 'self': &'? Self
+            46..97 '{     ...     }': !
+            60..61 '_': impl Trait
+            64..68 'self': &'? Self
+            64..74 'self.foo()': impl Trait
+            84..91 'loop {}': !
+            89..91 '{}': ()
+        "#]],
+    );
+}

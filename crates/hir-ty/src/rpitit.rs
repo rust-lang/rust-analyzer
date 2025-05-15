@@ -10,7 +10,8 @@ use chalk_ir::{
 };
 use chalk_solve::rust_ir::AssociatedTyValueBound;
 use hir_def::{
-    AssocItemId, FunctionId, GenericDefId, GenericParamId, ImplId, TraitId,
+    AssocItemId, ConstParamId, FunctionId, GenericDefId, GenericParamId, ImplId, ItemContainerId,
+    TraitId,
     hir::generics::{GenericParams, TypeOrConstParamData},
     resolver::HasResolver,
 };
@@ -18,17 +19,17 @@ use rustc_hash::FxHashMap;
 use thin_vec::ThinVec;
 
 use crate::{
-    AliasTy, AnyTraitAssocType, Binders, Const, ConstData, ConstValue, DomainGoal, Goal, GoalData,
-    ImplTraitLoweringMode, InferenceTable, Interner, Lifetime, LifetimeData, LifetimeElisionKind,
-    ParamLoweringMode, PlaceholderIndex, ProjectionTy, Substitution, TraitRef, Ty, TyKind,
-    TyLoweringContext, VariableKinds,
+    AliasEq, AliasTy, AnyTraitAssocType, Binders, Const, ConstData, ConstValue, DomainGoal, Goal,
+    GoalData, ImplTraitLoweringMode, InferenceTable, Interner, Lifetime, LifetimeData,
+    LifetimeElisionKind, ParamLoweringMode, PlaceholderIndex, ProgramClause, ProjectionTy,
+    Substitution, TraitRef, Ty, TyKind, TyLoweringContext, VariableKinds, WhereClause,
     chalk_db::{AssociatedTyValue, inline_bound_to_generic_predicate},
     db::HirDatabase,
-    from_assoc_type_id, from_placeholder_idx,
+    error_lifetime, from_assoc_type_id, from_chalk_trait_id, from_placeholder_idx,
     generics::{Generics, generics},
     lt_from_placeholder_idx,
     mapping::{ToChalk, to_assoc_type_id_rpitit},
-    variable_kinds_from_generics,
+    to_placeholder_idx, variable_kinds_from_generics,
 };
 
 /// An associated type synthesized from a Return Position Impl Trait In Trait
@@ -72,7 +73,7 @@ pub(crate) fn impl_method_rpitit_values(
     db: &dyn HirDatabase,
     impl_id: ImplId,
     trait_method_id: FunctionId,
-) -> Box<[Arc<AssociatedTyValue>]> {
+) -> ThinVec<Arc<AssociatedTyValue>> {
     let impl_items = db.impl_items(impl_id);
     let trait_method_generics = generics(db, trait_method_id.into());
     let trait_method = db.function_signature(trait_method_id);
@@ -108,7 +109,7 @@ pub(crate) fn impl_method_rpitit_values(
         trait_method_generics.self_params(),
         impl_method_generics.self_params(),
     ) {
-        return Box::default();
+        return ThinVec::new();
     }
 
     // The inference algorithm works as follows: in the trait method, we replace each RPITIT with an infer var,
@@ -180,10 +181,12 @@ pub(crate) fn impl_method_rpitit_values(
             // generics in the binder.
             let impl_rpitit_binders = VariableKinds::from_iter(
                 Interner,
-                trait_assoc.bounds.binders.as_slice(Interner)[..trait_method_generics.len()]
-                    .iter()
-                    .cloned()
-                    .chain(variable_kinds_from_generics(db, impl_method_generics.iter_parent_id())),
+                variable_kinds_from_generics(db, impl_method_generics.iter_parent_id()).chain(
+                    trait_assoc.bounds.binders.as_slice(Interner)
+                        [trait_method_generics.len_parent()..]
+                        .iter()
+                        .cloned(),
+                ),
             );
             let impl_rpitit =
                 Binders::new(impl_rpitit_binders, AssociatedTyValueBound { ty: impl_rpitit });
@@ -202,7 +205,7 @@ fn defaulted_impl_method_rpitit_values(
     trait_method_id: FunctionId,
     impl_trait_ref: Binders<TraitRef>,
     trait_method_generics: &Generics,
-) -> Box<[Arc<AssociatedTyValue>]> {
+) -> ThinVec<Arc<AssociatedTyValue>> {
     let defaulted_rpitit_values = defaulted_trait_method_rpitit_values(db, trait_method_id);
     let impl_generics = generics(db, impl_id.into());
     // The associated type generics as the same as the trait method's, but we take the impl as
@@ -461,12 +464,14 @@ impl TypeFolder<Interner> for PlaceholderToBoundVarFolder<'_> {
             )
             .to_ty(Interner)
         } else if placeholder.parent == self.parent {
-            BoundVar::new(
-                DebruijnIndex::INNERMOST,
-                placeholder.local_id.into_raw().into_u32() as usize
-                    + self.parent_generics.len_lifetimes(),
-            )
-            .to_ty(Interner)
+            let local_id = placeholder.local_id.into_raw().into_u32();
+            let index = if matches!(self.parent, GenericDefId::TraitId(_)) && local_id == 0 {
+                // `Self` parameter.
+                0
+            } else {
+                local_id as usize + self.parent_generics.len_lifetimes()
+            };
+            BoundVar::new(DebruijnIndex::INNERMOST, index).to_ty(Interner)
         } else {
             TyKind::Placeholder(universe).intern(Interner)
         }
@@ -512,13 +517,126 @@ impl TypeFolder<Interner> for PlaceholderToBoundVarFolder<'_> {
             )
             .to_lifetime(Interner)
         } else if placeholder.parent == self.parent {
-            BoundVar::new(
-                DebruijnIndex::INNERMOST,
-                placeholder.local_id.into_raw().into_u32() as usize,
-            )
-            .to_lifetime(Interner)
+            let local_id = placeholder.local_id.into_raw().into_u32() as usize;
+            let index = if matches!(self.parent, GenericDefId::TraitId(_)) {
+                // Account for `Self` parameter that comes before lifetimes.
+                local_id + 1
+            } else {
+                local_id
+            };
+            BoundVar::new(DebruijnIndex::INNERMOST, index).to_lifetime(Interner)
         } else {
             Lifetime::new(Interner, LifetimeData::Placeholder(universe))
         }
+    }
+}
+
+/// When inferring a method body of a trait or impl, and that method has RPITITs, we need to add
+/// `RpititGeneratedAssoc = Type` clauses.
+pub(crate) fn add_method_body_rpitit_clauses(
+    db: &dyn HirDatabase,
+    impl_method_generics: &Generics,
+    clauses: &mut Vec<ProgramClause>,
+    impl_method: FunctionId,
+) {
+    match impl_method.loc(db).container {
+        ItemContainerId::ImplId(impl_id) => {
+            (|| {
+                let method_data = db.function_signature(impl_method);
+                let trait_ref = db.impl_trait(impl_id)?;
+                let trait_items =
+                    db.trait_items(from_chalk_trait_id(trait_ref.skip_binders().trait_id));
+                let trait_method = trait_items.method_by_name(&method_data.name)?;
+
+                let rpitits = impl_method_rpitit_values(db, impl_id, trait_method);
+                let mut substitution = None;
+                clauses.extend(rpitits.iter().map(|rpitit| {
+                    let (impl_subst, trait_subst) = substitution.get_or_insert_with(|| {
+                        let impl_method_subst = impl_method_generics.placeholder_subst(db);
+                        let trait_method_generics =
+                            crate::generics::generics(db, trait_method.into());
+                        let trait_method_subst = trait_method_generics.placeholder_subst(db);
+                        let impl_subst = Substitution::from_iter(
+                            Interner,
+                            impl_method_subst.as_slice(Interner)
+                                [..impl_method_generics.len_parent()]
+                                .iter()
+                                .chain(
+                                    &trait_method_subst.as_slice(Interner)
+                                        [trait_method_generics.len_parent()..],
+                                ),
+                        );
+
+                        let trait_ref_subst =
+                            trait_ref.clone().substitute(Interner, &impl_method_subst);
+                        // Lifetime parameters may change between trait and impl, and we don't check from that in `impl_method_rpitit_values()`
+                        // (because it's valid). So fill them with errors.
+                        // FIXME: This isn't really correct, we should still fill the lifetimes. rustc does some kind of mapping, I think there
+                        // are also restrictions on what exactly lifetimes can change between trait and impl.
+                        let trait_method_subst = std::iter::repeat_n(
+                            error_lifetime().cast(Interner),
+                            trait_method_generics.len_lifetimes_self(),
+                        )
+                        .chain(
+                            impl_method_generics.iter_self_type_or_consts_id().map(
+                                |(param_id, param_data)| {
+                                    let placeholder = to_placeholder_idx(db, param_id);
+                                    match param_data {
+                                        TypeOrConstParamData::TypeParamData(_) => {
+                                            placeholder.to_ty(Interner).cast(Interner)
+                                        }
+                                        TypeOrConstParamData::ConstParamData(_) => placeholder
+                                            .to_const(
+                                                Interner,
+                                                db.const_param_ty(ConstParamId::from_unchecked(
+                                                    param_id,
+                                                )),
+                                            )
+                                            .cast(Interner),
+                                    }
+                                },
+                            ),
+                        );
+                        let trait_subst = Substitution::from_iter(
+                            Interner,
+                            trait_ref_subst
+                                .substitution
+                                .iter(Interner)
+                                .cloned()
+                                .chain(trait_method_subst),
+                        );
+
+                        (impl_subst, trait_subst)
+                    });
+                    WhereClause::AliasEq(AliasEq {
+                        alias: AliasTy::Projection(ProjectionTy {
+                            associated_ty_id: rpitit.associated_ty_id,
+                            substitution: trait_subst.clone(),
+                        }),
+                        ty: rpitit.value.clone().substitute(Interner, &*impl_subst).ty,
+                    })
+                    .cast(Interner)
+                }));
+
+                Some(())
+            })();
+        }
+        ItemContainerId::TraitId(_) => {
+            let rpitits = defaulted_trait_method_rpitit_values(db, impl_method);
+            let mut substitution = None;
+            clauses.extend(rpitits.iter().map(|(trait_rpitit, rpitit_value)| {
+                let substitution =
+                    substitution.get_or_insert_with(|| impl_method_generics.placeholder_subst(db));
+                WhereClause::AliasEq(AliasEq {
+                    alias: AliasTy::Projection(ProjectionTy {
+                        associated_ty_id: to_assoc_type_id_rpitit(*trait_rpitit),
+                        substitution: substitution.clone(),
+                    }),
+                    ty: rpitit_value.clone().substitute(Interner, &*substitution),
+                })
+                .cast(Interner)
+            }));
+        }
+        _ => {}
     }
 }
