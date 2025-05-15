@@ -290,6 +290,7 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
     fn variances_of(&self, def: GenericDefId) -> Option<Arc<[crate::variance::Variance]>>;
 
     #[salsa::invoke(chalk_db::associated_ty_value_query)]
+    #[salsa::cycle(cycle_result = chalk_db::associated_ty_value_cycle)]
     fn associated_ty_value(
         &self,
         krate: Crate,

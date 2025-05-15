@@ -13,7 +13,9 @@ use chalk_ir::{
     cast::{Cast, Caster},
     fold::shift::Shift,
 };
-use chalk_solve::rust_ir::{self, AssociatedTyDatumBound, OpaqueTyDatumBound, WellKnownTrait};
+use chalk_solve::rust_ir::{
+    self, AssociatedTyDatumBound, AssociatedTyValueBound, OpaqueTyDatumBound, WellKnownTrait,
+};
 
 use base_db::Crate;
 use hir_def::{
@@ -1005,6 +1007,31 @@ pub(crate) fn associated_ty_value_query(
             type_alias_associated_ty_value(db, krate, type_alias)
         }
         AnyImplAssocType::Rpitit(assoc_type_id) => rpitit_associated_ty_value(db, assoc_type_id),
+    }
+}
+
+/// We need cycle recovery because RPITITs can cause cycles.
+pub(crate) fn associated_ty_value_cycle(
+    db: &dyn HirDatabase,
+    krate: Crate,
+    id: AssociatedTyValueId,
+) -> Arc<AssociatedTyValue> {
+    match from_assoc_type_value_id(db, id) {
+        AnyImplAssocType::Normal(type_alias) => {
+            type_alias_associated_ty_value(db, krate, type_alias)
+        }
+        AnyImplAssocType::Rpitit(assoc_type_id) => {
+            let assoc = assoc_type_id.loc(db);
+            let trait_assoc = assoc.trait_assoc.loc(db);
+            Arc::new(AssociatedTyValue {
+                associated_ty_id: to_assoc_type_id_rpitit(assoc.trait_assoc),
+                impl_id: assoc.impl_id.to_chalk(db),
+                value: trait_assoc
+                    .bounds
+                    .as_ref()
+                    .map(|_| AssociatedTyValueBound { ty: TyKind::Error.intern(Interner) }),
+            })
+        }
     }
 }
 

@@ -58,8 +58,16 @@ pub struct RpititImplAssocTy {
 
 impl_intern_key_ref!(RpititImplAssocTyId, RpititImplAssocTy);
 
+fn impl_method_rpitit_values_cycle(
+    _db: &dyn HirDatabase,
+    _impl_id: ImplId,
+    _trait_method_id: FunctionId,
+) -> ThinVec<Arc<AssociatedTyValue>> {
+    ThinVec::new()
+}
+
 // We return a list and not a hasmap because the number of RPITITs in a function should be small.
-#[salsa_macros::tracked(return_ref)]
+#[salsa_macros::tracked(return_ref, cycle_result = impl_method_rpitit_values_cycle)]
 pub(crate) fn impl_method_rpitit_values(
     db: &dyn HirDatabase,
     impl_id: ImplId,
@@ -249,11 +257,18 @@ fn defaulted_impl_method_rpitit_values(
         .collect()
 }
 
+fn defaulted_trait_method_rpitit_values_cycle(
+    _db: &dyn HirDatabase,
+    _method_id: FunctionId,
+) -> ThinVec<(RpititTraitAssocTyId, Binders<Ty>)> {
+    ThinVec::new()
+}
+
 /// This is called only for defaulted trait methods, as there the value of the RPITIT associated
 /// items on an impl (if the method body is left defaulted) is the same as with the trait method.
 // This returns an `ThinVec` and not `Box<[]>` because this is called from inference,
 // and most methods don't have RPITITs.
-#[salsa_macros::tracked(return_ref)]
+#[salsa_macros::tracked(return_ref, cycle_result = defaulted_trait_method_rpitit_values_cycle)]
 pub(crate) fn defaulted_trait_method_rpitit_values(
     db: &dyn HirDatabase,
     method_id: FunctionId,

@@ -5141,7 +5141,10 @@ impl<T, U> Trait<(Foo<()>, U)> for Foo<T> {}
 }
 
 #[test]
-fn check_foo() {
+fn rpitit_cycle() {
+    // This shouldn't cause a cycle, but it does due to Chalk shortcomings. It should be
+    // fixed when we switch to the new trait solver. However, I believe it will still possible
+    // to cause cycles with malformed code, so we still need the cycle handlers.
     check_rpitit(
         r#"
 //- minicore: future, send, sized
@@ -5153,6 +5156,10 @@ trait DesugaredAsyncTrait {
 
 impl DesugaredAsyncTrait for () {}
     "#,
-        expect![[r#""#]],
+        expect![[r#"
+            type __foo_rpitit: Future<Output = usize> + Send;
+
+            type __foo_rpitit = {unknown};
+        "#]],
     );
 }
