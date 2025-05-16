@@ -31,6 +31,7 @@
 //! }
 //! ```
 
+use hir::HirDisplay;
 use hir::{MacroCallId, Name, db::ExpandDatabase};
 use ide_db::text_edit::TextEdit;
 use ide_db::{
@@ -39,7 +40,7 @@ use ide_db::{
 };
 use syntax::{
     AstNode, SmolStr, SyntaxElement, SyntaxKind, T, TextRange, ToSmolStr,
-    ast::{self, HasGenericArgs, HasTypeBounds, edit_in_place::AttrsOwnerEdit, make},
+    ast::{self, HasTypeBounds, edit_in_place::AttrsOwnerEdit, make},
     format_smolstr, ted,
 };
 
@@ -185,12 +186,12 @@ fn add_function_impl(
     let fn_name = &func.name(ctx.db);
     let sugar: &[_] = if func.is_async(ctx.db) {
         &[AsyncSugaring::Async, AsyncSugaring::Desugar]
-    } else if func.returns_impl_future(ctx.db) {
-        &[AsyncSugaring::Plain, AsyncSugaring::Resugar]
+    } else if let Some(future_output) = func.returns_impl_future(ctx.db) {
+        &[AsyncSugaring::Plain, AsyncSugaring::Resugar { future_output }]
     } else {
         &[AsyncSugaring::Plain]
     };
-    for &sugaring in sugar {
+    for sugaring in sugar {
         add_function_impl_(acc, ctx, replacement_range, func, impl_def, fn_name, sugaring);
     }
 }
@@ -202,9 +203,9 @@ fn add_function_impl_(
     func: hir::Function,
     impl_def: hir::Impl,
     fn_name: &Name,
-    async_sugaring: AsyncSugaring,
+    async_sugaring: &AsyncSugaring,
 ) {
-    let async_ = if let AsyncSugaring::Async | AsyncSugaring::Resugar = async_sugaring {
+    let async_ = if let AsyncSugaring::Async | AsyncSugaring::Resugar { .. } = async_sugaring {
         "async "
     } else {
         ""
@@ -248,10 +249,10 @@ fn add_function_impl_(
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 enum AsyncSugaring {
     Desugar,
-    Resugar,
+    Resugar { future_output: hir::Type },
     Async,
     Plain,
 }
@@ -285,7 +286,7 @@ fn get_transformed_fn(
     ctx: &CompletionContext<'_>,
     fn_: ast::Fn,
     impl_def: hir::Impl,
-    async_: AsyncSugaring,
+    async_: &AsyncSugaring,
 ) -> Option<ast::Fn> {
     let trait_ = impl_def.trait_(ctx.db)?;
     let source_scope = &ctx.sema.scope(fn_.syntax())?;
@@ -323,31 +324,16 @@ fn get_transformed_fn(
             }
             fn_.async_token().unwrap().detach();
         }
-        AsyncSugaring::Resugar => {
-            let ty = fn_.ret_type()?.ty()?;
-            match &ty {
-                // best effort guessing here
-                ast::Type::ImplTraitType(t) => {
-                    let output = t.type_bound_list()?.bounds().find_map(|b| match b.ty()? {
-                        ast::Type::PathType(p) => {
-                            let p = p.path()?.segment()?;
-                            if p.name_ref()?.text() != "Future" {
-                                return None;
-                            }
-                            match p.generic_arg_list()?.generic_args().next()? {
-                                ast::GenericArg::AssocTypeArg(a)
-                                    if a.name_ref()?.text() == "Output" =>
-                                {
-                                    a.ty()
-                                }
-                                _ => None,
-                            }
-                        }
-                        _ => None,
-                    })?;
-                    ted::replace(ty.syntax(), output.syntax());
-                }
-                _ => (),
+        AsyncSugaring::Resugar { future_output } => {
+            let ast_ret = fn_.ret_type()?;
+            if future_output.is_unit() {
+                ted::remove(ast_ret.syntax());
+            } else {
+                let ret = future_output
+                    .display_source_code(ctx.db, ctx.module.into(), true)
+                    .unwrap_or_else(|_| "_".to_owned());
+                let ast_ret_ty = ast_ret.ty()?;
+                ted::replace(ast_ret_ty.syntax(), make::ty(&ret).syntax().clone_for_update());
             }
             ted::prepend_child(fn_.syntax(), make::token(T![async]));
         }

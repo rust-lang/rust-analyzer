@@ -911,7 +911,9 @@ impl<'a, 'b> PathLoweringContext<'a, 'b> {
                             (TypeRef::ImplTrait(_), ImplTraitLoweringMode::Disallowed) => (),
                             (
                                 _,
-                                ImplTraitLoweringMode::Disallowed | ImplTraitLoweringMode::Opaque,
+                                ImplTraitLoweringMode::Disallowed
+                                | ImplTraitLoweringMode::Opaque
+                                | ImplTraitLoweringMode::AssocType,
                             ) => {
                                 let ty = this.ctx.lower_ty(type_ref);
                                 let alias_eq = AliasEq {

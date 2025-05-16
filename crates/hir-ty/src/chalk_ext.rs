@@ -4,7 +4,7 @@ use chalk_ir::{
     FloatTy, IntTy, Mutability, Scalar, TyVariableKind, TypeOutlives, UintTy, cast::Cast,
 };
 use hir_def::{
-    DefWithBodyId, FunctionId, GenericDefId, HasModule, ItemContainerId, Lookup, TraitId,
+    DefWithBodyId, FunctionId, HasModule, ItemContainerId, Lookup, TraitId,
     builtin_type::{BuiltinFloat, BuiltinInt, BuiltinType, BuiltinUint},
     hir::generics::{TypeOrConstParamData, TypeParamProvenance},
     lang_item::LangItem,
@@ -12,11 +12,11 @@ use hir_def::{
 };
 
 use crate::{
-    AdtId, AliasEq, AliasTy, Binders, CallableDefId, CallableSig, Canonical, CanonicalVarKinds,
-    ClosureId, DynTy, FnPointer, ImplTraitId, InEnvironment, Interner, Lifetime, ProjectionTy,
-    QuantifiedWhereClause, Substitution, TraitRef, Ty, TyBuilder, TyKind, TypeFlags, WhereClause,
-    db::HirDatabase, from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id,
-    from_placeholder_idx, generics::generics, to_chalk_trait_id, utils::ClosureSubst,
+    AdtId, AliasEq, AliasTy, AssocTypeId, Binders, CallableDefId, CallableSig, Canonical,
+    CanonicalVarKinds, ClosureId, DynTy, FnPointer, ImplTraitId, InEnvironment, Interner, Lifetime,
+    ProjectionTy, QuantifiedWhereClause, Substitution, TraitRef, Ty, TyBuilder, TyKind, TypeFlags,
+    WhereClause, db::HirDatabase, from_assoc_type_id, from_chalk_trait_id, from_placeholder_idx,
+    generics::generics, mapping::AnyTraitAssocType, to_chalk_trait_id, utils::ClosureSubst,
 };
 
 pub trait TyExt {
@@ -39,7 +39,6 @@ pub trait TyExt {
     fn as_reference(&self) -> Option<(&Ty, Lifetime, Mutability)>;
     fn as_raw_ptr(&self) -> Option<(&Ty, Mutability)>;
     fn as_reference_or_ptr(&self) -> Option<(&Ty, Rawness, Mutability)>;
-    fn as_generic_def(&self, db: &dyn HirDatabase) -> Option<GenericDefId>;
 
     fn callable_def(&self, db: &dyn HirDatabase) -> Option<CallableDefId>;
     fn callable_sig(&self, db: &dyn HirDatabase) -> Option<CallableSig>;
@@ -183,19 +182,6 @@ impl TyExt for Ty {
         match self.kind(Interner) {
             TyKind::Ref(mutability, _, ty) => Some((ty, Rawness::Ref, *mutability)),
             TyKind::Raw(mutability, ty) => Some((ty, Rawness::RawPtr, *mutability)),
-            _ => None,
-        }
-    }
-
-    fn as_generic_def(&self, db: &dyn HirDatabase) -> Option<GenericDefId> {
-        match *self.kind(Interner) {
-            TyKind::Adt(AdtId(adt), ..) => Some(adt.into()),
-            TyKind::FnDef(callable, ..) => Some(GenericDefId::from_callable(
-                db,
-                db.lookup_intern_callable_def(callable.into()),
-            )),
-            TyKind::AssociatedType(type_alias, ..) => Some(from_assoc_type_id(type_alias).into()),
-            TyKind::Foreign(type_alias, ..) => Some(from_foreign_def_id(type_alias).into()),
             _ => None,
         }
     }
@@ -346,15 +332,9 @@ impl TyExt for Ty {
 
     fn associated_type_parent_trait(&self, db: &dyn HirDatabase) -> Option<TraitId> {
         match self.kind(Interner) {
-            TyKind::AssociatedType(id, ..) => match from_assoc_type_id(*id).lookup(db).container {
-                ItemContainerId::TraitId(trait_id) => Some(trait_id),
-                _ => None,
-            },
+            TyKind::AssociatedType(id, ..) => Some(assoc_type_parent_trait(db, *id)),
             TyKind::Alias(AliasTy::Projection(projection_ty)) => {
-                match from_assoc_type_id(projection_ty.associated_ty_id).lookup(db).container {
-                    ItemContainerId::TraitId(trait_id) => Some(trait_id),
-                    _ => None,
-                }
+                Some(assoc_type_parent_trait(db, projection_ty.associated_ty_id))
             }
             _ => None,
         }
@@ -405,6 +385,16 @@ impl TyExt for Ty {
     }
 }
 
+fn assoc_type_parent_trait(db: &dyn HirDatabase, id: AssocTypeId) -> TraitId {
+    match from_assoc_type_id(db, id) {
+        AnyTraitAssocType::Normal(type_alias) => match type_alias.lookup(db).container {
+            ItemContainerId::TraitId(trait_id) => trait_id,
+            _ => panic!("`AssocTypeId` without parent trait"),
+        },
+        AnyTraitAssocType::Rpitit(assoc_type) => assoc_type.loc(db).trait_id,
+    }
+}
+
 pub trait ProjectionTyExt {
     fn trait_ref(&self, db: &dyn HirDatabase) -> TraitRef;
     fn trait_(&self, db: &dyn HirDatabase) -> TraitId;
@@ -414,7 +404,15 @@ pub trait ProjectionTyExt {
 impl ProjectionTyExt for ProjectionTy {
     fn trait_ref(&self, db: &dyn HirDatabase) -> TraitRef {
         // FIXME: something like `Split` trait from chalk-solve might be nice.
-        let generics = generics(db, from_assoc_type_id(self.associated_ty_id).into());
+        let generic_def = match from_assoc_type_id(db, self.associated_ty_id) {
+            AnyTraitAssocType::Normal(type_alias) => type_alias.into(),
+            // FIXME: This isn't entirely correct, the generics of the RPITIT assoc type may differ from its method
+            // wrt. lifetimes, but we don't handle that currently. See https://rustc-dev-guide.rust-lang.org/return-position-impl-trait-in-trait.html.
+            AnyTraitAssocType::Rpitit(assoc_type) => {
+                assoc_type.loc(db).synthesized_from_method.into()
+            }
+        };
+        let generics = generics(db, generic_def);
         let parent_len = generics.parent_generics().map_or(0, |g| g.len_self());
         let substitution =
             Substitution::from_iter(Interner, self.substitution.iter(Interner).take(parent_len));
@@ -422,10 +420,7 @@ impl ProjectionTyExt for ProjectionTy {
     }
 
     fn trait_(&self, db: &dyn HirDatabase) -> TraitId {
-        match from_assoc_type_id(self.associated_ty_id).lookup(db).container {
-            ItemContainerId::TraitId(it) => it,
-            _ => panic!("projection ty without parent trait"),
-        }
+        assoc_type_parent_trait(db, self.associated_ty_id)
     }
 
     fn self_type_parameter(&self, db: &dyn HirDatabase) -> Ty {

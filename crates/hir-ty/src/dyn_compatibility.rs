@@ -19,7 +19,7 @@ use crate::{
     AliasEq, AliasTy, Binders, BoundVar, CallableSig, GoalData, ImplTraitId, Interner, OpaqueTyId,
     ProjectionTyExt, Solution, Substitution, TraitRef, Ty, TyKind, WhereClause, all_super_traits,
     db::HirDatabase,
-    from_assoc_type_id, from_chalk_trait_id,
+    from_chalk_trait_id,
     generics::{generics, trait_self_param_idx},
     to_chalk_trait_id,
     utils::elaborate_clause_supertraits,
@@ -171,18 +171,17 @@ fn bounds_reference_self(db: &dyn HirDatabase, trait_: TraitId) -> bool {
         .filter_map(|(_, it)| match *it {
             AssocItemId::TypeAliasId(id) => {
                 let assoc_ty_data = db.associated_ty_data(id);
-                Some(assoc_ty_data)
+                Some((id, assoc_ty_data))
             }
             _ => None,
         })
-        .any(|assoc_ty_data| {
+        .any(|(assoc_ty_id, assoc_ty_data)| {
             assoc_ty_data.binders.skip_binders().bounds.iter().any(|bound| {
-                let def = from_assoc_type_id(assoc_ty_data.id).into();
                 match bound.skip_binders() {
                     InlineBound::TraitBound(it) => it.args_no_self.iter().any(|arg| {
                         contains_illegal_self_type_reference(
                             db,
-                            def,
+                            assoc_ty_id.into(),
                             trait_,
                             arg,
                             DebruijnIndex::ONE,
@@ -192,7 +191,7 @@ fn bounds_reference_self(db: &dyn HirDatabase, trait_: TraitId) -> bool {
                     InlineBound::AliasEqBound(it) => it.parameters.iter().any(|arg| {
                         contains_illegal_self_type_reference(
                             db,
-                            def,
+                            assoc_ty_id.into(),
                             trait_,
                             arg,
                             DebruijnIndex::ONE,

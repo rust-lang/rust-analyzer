@@ -51,6 +51,10 @@ where
 }
 
 impl Generics {
+    pub(crate) fn self_params(&self) -> &GenericParams {
+        &self.params
+    }
+
     pub(crate) fn def(&self) -> GenericDefId {
         self.def
     }
@@ -82,6 +86,14 @@ impl Generics {
         let mut toc = self.params.iter_type_or_consts();
         let trait_self_param = self.has_trait_self_param.then(|| toc.next()).flatten();
         chain!(trait_self_param, toc)
+    }
+
+    pub(crate) fn iter_self_type_or_consts_id(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (TypeOrConstParamId, &TypeOrConstParamData)> + '_ {
+        self.params
+            .iter_type_or_consts()
+            .map(|(local_id, data)| (TypeOrConstParamId { parent: self.def, local_id }, data))
     }
 
     /// Iterate over the parent params followed by self params.
@@ -121,9 +133,11 @@ impl Generics {
 
     /// Returns total number of generic parameters in scope, including those from parent.
     pub(crate) fn len(&self) -> usize {
-        let parent = self.parent_generics().map_or(0, Generics::len);
-        let child = self.params.len();
-        parent + child
+        self.len_parent() + self.len_self()
+    }
+
+    pub(crate) fn len_parent(&self) -> usize {
+        self.parent_generics().map_or(0, Generics::len_self)
     }
 
     /// Returns numbers of generic parameters excluding those from parent.

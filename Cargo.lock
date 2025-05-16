@@ -712,6 +712,7 @@ dependencies = [
  "syntax",
  "test-fixture",
  "test-utils",
+ "thin-vec",
  "tracing",
  "tracing-subscriber",
  "tracing-tree",

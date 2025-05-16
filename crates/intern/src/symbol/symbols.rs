@@ -108,6 +108,7 @@ define_symbols! {
     vectorcall_dash_unwind = "vectorcall-unwind",
     win64_dash_unwind = "win64-unwind",
     x86_dash_interrupt = "x86-interrupt",
+    synthesized_rpitit_assoc = "$synthesized_RPITIT_assoc$",
 
     @PLAIN:
     __ra_fixup,
