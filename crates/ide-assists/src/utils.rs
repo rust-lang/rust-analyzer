@@ -1,5 +1,7 @@
 //! Assorted functions shared by several assists.
 
+use std::borrow::Cow;
+
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
 use hir::{
     DisplayTarget, HasAttrs as HirHasAttrs, HirDisplay, InFile, ModuleDef, PathResolution,
@@ -248,6 +250,35 @@ pub fn add_trait_assoc_items_to_impl(
     }
 
     first_item.unwrap()
+}
+
+pub(crate) fn indent_string(mut s: &str, indent_level: IndentLevel) -> Cow<'_, str> {
+    if indent_level.is_zero() || s.is_empty() {
+        return s.into();
+    }
+    let level = indent_level.0 as usize;
+
+    let indent = indent_level.to_string();
+    let mut buf = String::with_capacity(s.len() + level * 3 * 4);
+
+    if !s.starts_with('\n') {
+        buf.push_str(&indent);
+    }
+
+    while let Some((line, rest)) = s.split_once('\n') {
+        buf.push_str(line);
+        buf.push('\n');
+
+        if !rest.split_once('\n').map_or(rest, |s| s.0).is_empty() {
+            buf.push_str(&indent);
+        }
+
+        s = rest;
+    }
+
+    buf.push_str(s);
+
+    buf.into()
 }
 
 pub(crate) fn vis_offset(node: &SyntaxNode) -> TextSize {
