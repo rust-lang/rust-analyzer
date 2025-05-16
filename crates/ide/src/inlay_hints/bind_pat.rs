@@ -185,12 +185,21 @@ mod tests {
     use crate::{ClosureReturnTypeHints, fixture, inlay_hints::InlayHintsConfig};
 
     use crate::inlay_hints::tests::{
-        DISABLED_CONFIG, TEST_CONFIG, check, check_edit, check_no_edit, check_with_config,
+        DISABLED_CONFIG, TEST_CONFIG, check, check_edit, check_no_edit, check_tooltip,
+        check_with_config,
     };
 
     #[track_caller]
     fn check_types(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         check_with_config(InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG }, ra_fixture);
+    }
+
+    #[track_caller]
+    fn check_types_tooltip(
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        expect: expect_test::Expect,
+    ) {
+        check_tooltip(InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG }, ra_fixture, expect);
     }
 
     #[test]
@@ -1255,6 +1264,44 @@ where
     }
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn tooltip_for_bind_pat() {
+        check_types_tooltip(
+            r#"
+struct Struct<T, T2> {
+    a: T,
+    b: T2,
+}
+
+pub fn main() {
+    let x = Struct { a: Struct { a: Struct { a: 1, b: 2 }, b: 2 }, b: Struct { a: 1, b: 2 } };
+}
+            "#,
+            expect![[r#"
+                [
+                    "Struct<Struct<Struct<i32, i32>, i32>, Struct<i32, i32>>",
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn tooltip_for_bind_pat_with_type_alias() {
+        check_types_tooltip(
+            r#"
+//- minicore: option
+pub fn main() {
+    let x = Some(1);
+}
+            "#,
+            expect![[r#"
+                [
+                    "Option<i32>",
+                ]
+            "#]],
         );
     }
 }
