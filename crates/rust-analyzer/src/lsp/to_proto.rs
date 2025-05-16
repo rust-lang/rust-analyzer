@@ -908,7 +908,9 @@ pub(crate) fn folding_range(
         | FoldKind::WhereClause
         | FoldKind::ReturnType
         | FoldKind::Array
-        | FoldKind::MatchArm => None,
+        | FoldKind::MatchArm
+        | FoldKind::Stmt
+        | FoldKind::TailExpr => None,
     };
 
     let range = range(line_index, fold.range);
@@ -1995,7 +1997,7 @@ fn main() {
 
         let (analysis, file_id) = Analysis::from_single_file(text.to_owned());
         let folds = analysis.folding_ranges(file_id).unwrap();
-        assert_eq!(folds.len(), 4);
+        assert_eq!(folds.len(), 5);
 
         let line_index = LineIndex {
             index: Arc::new(ide::LineIndex::new(text)),
@@ -2005,7 +2007,7 @@ fn main() {
         let converted: Vec<lsp_types::FoldingRange> =
             folds.into_iter().map(|it| folding_range(text, &line_index, true, it)).collect();
 
-        let expected_lines = [(0, 2), (4, 10), (5, 6), (7, 9)];
+        let expected_lines = [(0, 2), (4, 10), (5, 9), (5, 6), (7, 9)];
         assert_eq!(converted.len(), expected_lines.len());
         for (folding_range, (start_line, end_line)) in converted.iter().zip(expected_lines.iter()) {
             assert_eq!(folding_range.start_line, *start_line);
