@@ -2359,6 +2359,42 @@ use std::{fmt::Formatter, io};
 }
 
 #[test]
+fn doctest_merge_let_stmts() {
+    check_doc_test(
+        "merge_let_stmts",
+        r#####"
+fn main() {
+    $0let a = 2;
+    let b = 3;$0
+}
+"#####,
+        r#####"
+fn main() {
+    let (a, b) = (2, 3);
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_merge_let_stmts_1() {
+    check_doc_test(
+        "merge_let_stmts",
+        r#####"
+fn main() {
+    $0let a: i32 = 2;
+    let b = 3;
+}
+"#####,
+        r#####"
+fn main() {
+    let (a, b): (i32, _) = (2, 3);
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_merge_match_arms() {
     check_doc_test(
         "merge_match_arms",
