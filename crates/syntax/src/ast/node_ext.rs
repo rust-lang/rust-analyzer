@@ -370,6 +370,18 @@ impl ast::UseTree {
         }
         this
     }
+
+    pub fn find_tail_use_tree_for_name_ref(name_ref: &ast::NameRef) -> Option<ast::UseTree> {
+        let use_tree = name_ref
+            .syntax()
+            .ancestors()
+            .find_map(ast::UseTree::cast)
+            .filter(|u| u.use_tree_list().is_none());
+
+        let path = use_tree.clone()?.syntax().first_child().and_then(ast::Path::cast)?;
+        let last_path = path.segments().last().and_then(|it| it.name_ref())?;
+        if last_path == *name_ref { use_tree } else { None }
+    }
 }
 
 impl ast::UseTreeList {
