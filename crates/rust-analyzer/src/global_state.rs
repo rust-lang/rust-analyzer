@@ -3,7 +3,10 @@
 //!
 //! Each tick provides an immutable snapshot of the state as `WorldSnapshot`.
 
-use std::{ops::Not as _, time::Instant};
+use std::{
+    ops::Not as _,
+    time::{Duration, Instant},
+};
 
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use hir::ChangeWithProcMacros;
@@ -113,6 +116,9 @@ pub(crate) struct GlobalState {
     pub(crate) discover_handle: Option<discover::DiscoverHandle>,
     pub(crate) discover_sender: Sender<discover::DiscoverProjectMessage>,
     pub(crate) discover_receiver: Receiver<discover::DiscoverProjectMessage>,
+
+    // Debouncing channel for switching
+    pub(crate) fetch_ws_receiver: Option<(Receiver<Instant>, FetchWorkspaceRequest)>,
 
     // VFS
     pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
@@ -263,6 +269,8 @@ impl GlobalState {
             discover_handle: None,
             discover_sender,
             discover_receiver,
+
+            fetch_ws_receiver: None,
 
             vfs: Arc::new(RwLock::new((vfs::Vfs::default(), Default::default()))),
             vfs_config_version: 0,
@@ -508,11 +516,12 @@ impl GlobalState {
             if let Some((path, force_crate_graph_reload)) = workspace_structure_change {
                 let _p = span!(Level::INFO, "GlobalState::process_changes/ws_structure_change")
                     .entered();
-
-                self.fetch_workspaces_queue.request_op(
-                    format!("workspace vfs file change: {path}"),
-                    FetchWorkspaceRequest { path: Some(path), force_crate_graph_reload },
-                );
+                if self.fetch_workspaces_queue.should_start_op().is_none() {
+                    self.fetch_ws_receiver = Some((
+                        crossbeam_channel::after(Duration::from_millis(50)),
+                        FetchWorkspaceRequest { path: Some(path), force_crate_graph_reload },
+                    ));
+                }
             }
         }
 
