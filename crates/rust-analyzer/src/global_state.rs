@@ -8,7 +8,7 @@ use std::{ops::Not as _, time::Instant};
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use hir::ChangeWithProcMacros;
 use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
-use ide_db::base_db::{Crate, ProcMacroPaths, SourceDatabase};
+use ide_db::{base_db::{Crate, ProcMacroPaths, SourceDatabase}, source_change::UserChoiceHandler};
 use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
@@ -171,6 +171,9 @@ pub(crate) struct GlobalState {
     /// this queue should run only *after* [`GlobalState::process_changes`] has
     /// been called.
     pub(crate) deferred_task_queue: TaskQueue,
+
+    /// For handling user choice group using `ShowMessageRequest`.
+    pub(crate) user_choice_handler: Arc<Mutex<UserChoiceHandler>>,
 }
 
 /// An immutable snapshot of the world's state at a point in time.
@@ -187,6 +190,8 @@ pub(crate) struct GlobalStateSnapshot {
     // FIXME: Can we derive this from somewhere else?
     pub(crate) proc_macros_loaded: bool,
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
+    /// For handling user choice group using `ShowMessageRequest`.
+    pub(crate) user_choice_handler: Arc<Mutex<UserChoiceHandler>>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
@@ -282,6 +287,8 @@ impl GlobalState {
             discover_workspace_queue: OpQueue::default(),
 
             deferred_task_queue: task_queue,
+
+            user_choice_handler: Arc::new(Mutex::new(UserChoiceHandler::default())),
         };
         // Apply any required database inputs from the config.
         this.update_configuration(config);
@@ -531,6 +538,7 @@ impl GlobalState {
             proc_macros_loaded: !self.config.expand_proc_macros()
                 || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false),
             flycheck: self.flycheck.clone(),
+            user_choice_handler: self.user_choice_handler.clone()
         }
     }
 

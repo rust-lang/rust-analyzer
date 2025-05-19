@@ -1,7 +1,7 @@
 //! See [`AssistContext`].
 
 use hir::{EditionedFileId, FileRange, Semantics};
-use ide_db::source_change::UserChoiceGroup;
+use ide_db::source_change::{UserChoice, UserChoiceGroup};
 use ide_db::{FileId, RootDatabase, label::Label};
 use syntax::Edition;
 use syntax::{
@@ -213,7 +213,7 @@ impl Assists {
         id: AssistId,
         label: impl Into<String>,
         target: TextRange,
-        choices: Vec<Vec<String>>,
+        choices: Vec<(String, Vec<String>)>,
         f: impl FnOnce(&mut SourceChangeBuilder, &[usize]) + Send + 'static,
     ) -> Option<()> {
         if !self.is_allowed(&id) {
@@ -229,7 +229,14 @@ impl Assists {
             target,
             source_change: None,
             command: None,
-            user_choice_group: Some(UserChoiceGroup::new(choices, f)),
+            user_choice_group: Some(UserChoiceGroup::new(
+                choices
+                    .into_iter()
+                    .map(|(title, choices)| UserChoice::new(title, choices))
+                    .collect(),
+                f,
+                self.file,
+            )),
         });
 
         Some(())
