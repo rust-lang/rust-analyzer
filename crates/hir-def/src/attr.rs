@@ -94,37 +94,45 @@ impl Attrs {
         v: VariantId,
     ) -> Arc<ArenaMap<LocalFieldId, Attrs>> {
         let _p = tracing::info_span!("fields_attrs_query").entered();
-        // FIXME: There should be some proper form of mapping between item tree field ids and hir field ids
         let mut res = ArenaMap::default();
         let item_tree;
-        let (parent, fields, krate) = match v {
+        let (parent, field_count, krate) = match v {
             VariantId::EnumVariantId(it) => {
                 let loc = it.lookup(db);
                 let krate = loc.parent.lookup(db).container.krate;
                 item_tree = loc.id.item_tree(db);
-                let variant = &item_tree[loc.id.value];
-                (FieldParent::EnumVariant(loc.id.value), &variant.fields, krate)
+                let node = loc.ast_ptr(db).to_node(db);
+                let field_count = node.field_list().map_or(0, |it| match it {
+                    ast::FieldList::RecordFieldList(it) => it.fields().count(),
+                    ast::FieldList::TupleFieldList(it) => it.fields().count(),
+                });
+                (FieldParent::EnumVariant(loc.id.value), field_count, krate)
             }
             VariantId::StructId(it) => {
                 let loc = it.lookup(db);
                 let krate = loc.container.krate;
                 item_tree = loc.id.item_tree(db);
-                let struct_ = &item_tree[loc.id.value];
-                (FieldParent::Struct(loc.id.value), &struct_.fields, krate)
+                let node = loc.ast_ptr(db).to_node(db);
+                let field_count = node.field_list().map_or(0, |it| match it {
+                    ast::FieldList::RecordFieldList(it) => it.fields().count(),
+                    ast::FieldList::TupleFieldList(it) => it.fields().count(),
+                });
+                (FieldParent::Struct(loc.id.value), field_count, krate)
             }
             VariantId::UnionId(it) => {
                 let loc = it.lookup(db);
                 let krate = loc.container.krate;
                 item_tree = loc.id.item_tree(db);
-                let union_ = &item_tree[loc.id.value];
-                (FieldParent::Union(loc.id.value), &union_.fields, krate)
+                let node = loc.ast_ptr(db).to_node(db);
+                let field_count = node.record_field_list().map_or(0, |it| it.fields().count());
+                (FieldParent::Union(loc.id.value), field_count, krate)
             }
         };
 
         let cfg_options = krate.cfg_options(db);
 
         let mut idx = 0;
-        for (id, _field) in fields.iter().enumerate() {
+        for id in 0..field_count {
             let attrs = item_tree.attrs(db, krate, AttrOwner::make_field_indexed(parent, id));
             if attrs.is_cfg_enabled(cfg_options) {
                 res.insert(Idx::from_raw(RawIdx::from(idx)), attrs);

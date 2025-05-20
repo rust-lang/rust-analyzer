@@ -44,12 +44,13 @@ use std::{
 };
 
 use ast::{AstNode, StructKind};
-use base_db::Crate;
+use base_db::{Crate, EditionedFileId};
+use either::Either;
 use hir_expand::{
     ExpandTo, HirFileId, InFile,
     attrs::RawAttrs,
     mod_path::{ModPath, PathKind},
-    name::Name,
+    name::{AsName, Name},
 };
 use intern::{Interned, Symbol};
 use la_arena::{Arena, Idx, RawIdx};
@@ -57,7 +58,11 @@ use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use span::{AstIdNode, Edition, FileAstId, SyntaxContext};
 use stdx::never;
-use syntax::{SyntaxKind, ast, match_ast};
+use syntax::{
+    SyntaxKind,
+    ast::{self, HasName, HasVisibility},
+    match_ast,
+};
 use triomphe::Arc;
 
 use crate::{BlockId, Lookup, attr::Attrs, db::DefDatabase};
@@ -194,6 +199,57 @@ impl ItemTree {
         Attrs::expand_cfg_attr(db, krate, self.raw_attrs(of).clone())
     }
 
+    pub(crate) fn fields<'a>(
+        &'a self,
+        db: &'a dyn DefDatabase,
+        file_id: HirFileId,
+        parent: FieldParent,
+        override_visibility: Option<RawVisibilityId>,
+    ) -> Option<Box<dyn Iterator<Item = (Name, RawVisibility, bool)> + 'a>> {
+        let ast_fields = match parent {
+            FieldParent::Struct(it) => {
+                InFile::new(file_id, self[it].ast_id).to_node(db).field_list()
+            }
+            FieldParent::Union(it) => InFile::new(file_id, self[it].ast_id)
+                .to_node(db)
+                .record_field_list()
+                .map(ast::FieldList::RecordFieldList),
+            FieldParent::EnumVariant(it) => {
+                InFile::new(file_id, self[it].ast_id).to_node(db).field_list()
+            }
+        }?;
+        let override_or_span_map =
+            override_visibility.map_or_else(|| Either::Right(db.span_map(file_id)), Either::Left);
+        let lower_vis =
+            move |field: Either<&ast::RecordField, &ast::TupleField>| match &override_or_span_map {
+                Either::Left(id) => self[*id].clone(),
+                Either::Right(span_map) => {
+                    let node = match field {
+                        Either::Left(it) => it.visibility(),
+                        Either::Right(it) => it.visibility(),
+                    };
+                    RawVisibility::from_ast(db, node, &mut |range| {
+                        span_map.span_for_range(range).ctx
+                    })
+                }
+            };
+        let res: Box<dyn Iterator<Item = (Name, RawVisibility, bool)>> = match ast_fields {
+            ast::FieldList::RecordFieldList(it) => Box::new(it.fields().map(move |f| {
+                (
+                    f.name().map_or(Name::missing(), |n| n.as_name()),
+                    lower_vis(Either::Left(&f)),
+                    f.unsafe_token().is_some(),
+                )
+            })),
+            ast::FieldList::TupleFieldList(it) => {
+                Box::new(it.fields().enumerate().map(move |(idx, f)| {
+                    (Name::new_tuple_field(idx), lower_vis(Either::Right(&f)), false)
+                }))
+            }
+        };
+        Some(res)
+    }
+
     /// Returns a count of a few, expensive items.
     ///
     /// For more detail, see [`ItemTreeDataStats`].
@@ -210,8 +266,8 @@ impl ItemTree {
         }
     }
 
-    pub fn pretty_print(&self, db: &dyn DefDatabase, edition: Edition) -> String {
-        pretty::print_item_tree(db, self, edition)
+    pub fn pretty_print(&self, db: &dyn DefDatabase, file_id: EditionedFileId) -> String {
+        pretty::print_item_tree(db, self, file_id)
     }
 
     fn data(&self) -> &ItemTreeData {
@@ -341,12 +397,12 @@ pub enum AttrOwner {
 
     Variant(FileItemTreeId<Variant>),
     // while not relevant to early name resolution, fields can contain visibility
-    Field(FieldParent, ItemTreeFieldId),
+    Field(FieldParent, usize),
 }
 
 impl AttrOwner {
     pub fn make_field_indexed(parent: FieldParent, idx: usize) -> Self {
-        AttrOwner::Field(parent, ItemTreeFieldId::from_raw(RawIdx::from_u32(idx as u32)))
+        AttrOwner::Field(parent, idx)
     }
 }
 
@@ -356,8 +412,6 @@ pub enum FieldParent {
     Union(FileItemTreeId<Union>),
     EnumVariant(FileItemTreeId<Variant>),
 }
-
-pub type ItemTreeFieldId = Idx<Field>;
 
 macro_rules! from_attrs {
     ( $( $var:ident($t:ty) ),+ $(,)? ) => {
@@ -725,7 +779,6 @@ pub struct Function {
 pub struct Struct {
     pub name: Name,
     pub visibility: RawVisibilityId,
-    pub fields: Box<[Field]>,
     pub shape: FieldsShape,
     pub ast_id: FileAstId<ast::Struct>,
 }
@@ -734,7 +787,6 @@ pub struct Struct {
 pub struct Union {
     pub name: Name,
     pub visibility: RawVisibilityId,
-    pub fields: Box<[Field]>,
     pub ast_id: FileAstId<ast::Union>,
 }
 
@@ -749,7 +801,6 @@ pub struct Enum {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Variant {
     pub name: Name,
-    pub fields: Box<[Field]>,
     pub shape: FieldsShape,
     pub ast_id: FileAstId<ast::Variant>,
 }
@@ -771,6 +822,16 @@ pub enum RawVisibility {
     Public,
 }
 
+impl RawVisibility {
+    pub fn from_ast(
+        db: &dyn DefDatabase,
+        node: Option<ast::Visibility>,
+        span_for_range: &mut dyn FnMut(::tt::TextRange) -> SyntaxContext,
+    ) -> Self {
+        lower::visibility_from_ast(db, node, span_for_range)
+    }
+}
+
 /// Whether the item was imported through an explicit `pub(crate) use` or just a `use` without
 /// visibility.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -783,16 +844,6 @@ impl VisibilityExplicitness {
     pub fn is_explicit(&self) -> bool {
         matches!(self, Self::Explicit)
     }
-}
-
-// FIXME: Remove this from item tree?
-/// A single field of an enum variant or struct
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Field {
-    pub name: Name,
-    pub visibility: RawVisibilityId,
-    // FIXME: Not an item tree property
-    pub is_unsafe: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

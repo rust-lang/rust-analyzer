@@ -29,7 +29,7 @@ use crate::{
     },
     hir::{ExprId, PatId, generics::GenericParams},
     item_tree::{
-        AttrOwner, Field, FieldParent, FieldsShape, FileItemTreeId, ItemTree, ItemTreeId, ModItem,
+        AttrOwner, FieldParent, FieldsShape, FileItemTreeId, ItemTree, ItemTreeId, ModItem,
         RawVisibility, RawVisibilityId,
     },
     lang_item::LangItem,
@@ -754,26 +754,24 @@ impl VariantFields {
                         &item_tree,
                         FieldParent::EnumVariant(loc.id.value),
                         loc.source(db).map(|src| {
-                            variant.fields.iter().zip(
-                                src.field_list()
-                                    .map(|it| {
-                                        match it {
-                                            ast::FieldList::RecordFieldList(record_field_list) => {
-                                                Either::Left(record_field_list.fields().map(|it| {
-                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
-                                                }))
-                                            }
-                                            ast::FieldList::TupleFieldList(field_list) => {
-                                                Either::Right(field_list.fields().map(|it| {
-                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
-                                                }))
-                                            }
+                            src.field_list()
+                                .map(|it| {
+                                    match it {
+                                        ast::FieldList::RecordFieldList(record_field_list) => {
+                                            Either::Left(record_field_list.fields().map(|it| {
+                                                (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                            }))
                                         }
-                                        .into_iter()
-                                    })
+                                        ast::FieldList::TupleFieldList(field_list) => {
+                                            Either::Right(field_list.fields().map(|it| {
+                                                (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                            }))
+                                        }
+                                    }
                                     .into_iter()
-                                    .flatten(),
-                            )
+                                })
+                                .into_iter()
+                                .flatten()
                         }),
                         Some(item_tree[parent.id.value].visibility),
                     ),
@@ -791,26 +789,24 @@ impl VariantFields {
                         &item_tree,
                         FieldParent::Struct(loc.id.value),
                         loc.source(db).map(|src| {
-                            strukt.fields.iter().zip(
-                                src.field_list()
-                                    .map(|it| {
-                                        match it {
-                                            ast::FieldList::RecordFieldList(record_field_list) => {
-                                                Either::Left(record_field_list.fields().map(|it| {
-                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
-                                                }))
-                                            }
-                                            ast::FieldList::TupleFieldList(field_list) => {
-                                                Either::Right(field_list.fields().map(|it| {
-                                                    (SyntaxNodePtr::new(it.syntax()), it.ty())
-                                                }))
-                                            }
+                            src.field_list()
+                                .map(|it| {
+                                    match it {
+                                        ast::FieldList::RecordFieldList(record_field_list) => {
+                                            Either::Left(record_field_list.fields().map(|it| {
+                                                (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                            }))
                                         }
-                                        .into_iter()
-                                    })
+                                        ast::FieldList::TupleFieldList(field_list) => {
+                                            Either::Right(field_list.fields().map(|it| {
+                                                (SyntaxNodePtr::new(it.syntax()), it.ty())
+                                            }))
+                                        }
+                                    }
                                     .into_iter()
-                                    .flatten(),
-                            )
+                                })
+                                .into_iter()
+                                .flatten()
                         }),
                         None,
                     ),
@@ -819,7 +815,6 @@ impl VariantFields {
             VariantId::UnionId(id) => {
                 let loc = id.lookup(db);
                 let item_tree = loc.id.item_tree(db);
-                let union = &item_tree[loc.id.value];
                 (
                     FieldsShape::Record,
                     lower_fields(
@@ -828,15 +823,12 @@ impl VariantFields {
                         &item_tree,
                         FieldParent::Union(loc.id.value),
                         loc.source(db).map(|src| {
-                            union.fields.iter().zip(
-                                src.record_field_list()
-                                    .map(|it| {
-                                        it.fields()
-                                            .map(|it| (SyntaxNodePtr::new(it.syntax()), it.ty()))
-                                    })
-                                    .into_iter()
-                                    .flatten(),
-                            )
+                            src.record_field_list()
+                                .map(|it| {
+                                    it.fields().map(|it| (SyntaxNodePtr::new(it.syntax()), it.ty()))
+                                })
+                                .into_iter()
+                                .flatten()
                         }),
                         None,
                     ),
@@ -860,27 +852,30 @@ impl VariantFields {
     }
 }
 
-fn lower_fields<'a>(
+fn lower_fields(
     db: &dyn DefDatabase,
     module: ModuleId,
     item_tree: &ItemTree,
     parent: FieldParent,
-    fields: InFile<impl Iterator<Item = (&'a Field, (SyntaxNodePtr, Option<ast::Type>))>>,
+    fields: InFile<impl Iterator<Item = (SyntaxNodePtr, Option<ast::Type>)>>,
     override_visibility: Option<RawVisibilityId>,
 ) -> (Arena<FieldData>, ExpressionStore, ExpressionStoreSourceMap) {
     let mut arena = Arena::new();
     let cfg_options = module.krate.cfg_options(db);
     let mut col = ExprCollector::new(db, module, fields.file_id);
-    for (idx, (field, (ptr, ty))) in fields.value.enumerate() {
+
+    for ((idx, (ptr, ty)), (name, visibility, is_unsafe)) in fields.value.enumerate().zip(
+        item_tree.fields(db, fields.file_id, parent, override_visibility).into_iter().flatten(),
+    ) {
         let attr_owner = AttrOwner::make_field_indexed(parent, idx);
         let attrs = item_tree.attrs(db, module.krate, attr_owner);
         if attrs.is_cfg_enabled(cfg_options) {
             arena.alloc(FieldData {
-                name: field.name.clone(),
+                name,
                 type_ref: col
                     .lower_type_ref_opt(ty, &mut ExprCollector::impl_trait_error_allocator),
-                visibility: item_tree[override_visibility.unwrap_or(field.visibility)].clone(),
-                is_unsafe: field.is_unsafe,
+                visibility,
+                is_unsafe,
             });
         } else {
             col.source_map.diagnostics.push(
