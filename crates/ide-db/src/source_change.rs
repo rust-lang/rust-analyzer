@@ -656,7 +656,7 @@ impl UserChoiceGroup {
         if question_idx < self.choice_options.len() && question_idx == self.cur_choices.len() {
             self.cur_choices.push(choice);
         } else {
-            return Err("Invalid index for choice group".to_string());
+            return Err("Invalid index for choice group".to_owned());
         }
 
         Ok(())

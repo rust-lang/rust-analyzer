@@ -143,7 +143,7 @@ impl GlobalState {
                 // spawn a new task to handle the finished choice, in case of panic
                 self.task_pool.handle.spawn(ThreadIntent::Worker, move || {
                     let result = panic::catch_unwind(move || {
-                        let _pctx = DbPanicContext::enter("ask_for_choice".to_string());
+                        let _pctx = DbPanicContext::enter("ask_for_choice".to_owned());
                         let mut source_change_builder =
                             SourceChangeBuilder::new(choice_group.file_id());
                         choice_group.finish(&mut source_change_builder);
@@ -152,7 +152,7 @@ impl GlobalState {
                     });
 
                     // it's either this or die horribly
-                    let empty_req_id = RequestId::from("".to_string());
+                    let empty_req_id = RequestId::from("".to_owned());
                     match result {
                         Ok(Ok(result)) => Task::Response(Response::new_ok(empty_req_id, result)),
                         Ok(Err(_cancelled)) => Task::Response(Response {
