@@ -155,6 +155,7 @@ mod tests {
                     },
                 ),
                 command: None,
+                user_choice_group: None,
             }
         "#]]
         .assert_debug_eq(&apply_in_file_assist);
@@ -213,6 +214,7 @@ mod tests {
                     },
                 ),
                 command: None,
+                user_choice_group: None,
             }
         "#]]
         .assert_debug_eq(&apply_in_workspace_assist);
@@ -254,6 +256,7 @@ mod tests {
                 target: 10..21,
                 source_change: None,
                 command: None,
+                user_choice_group: None,
             }
         "#]]
         .assert_debug_eq(&apply_in_file_assist);
@@ -275,6 +278,7 @@ mod tests {
                 target: 10..21,
                 source_change: None,
                 command: None,
+                user_choice_group: None,
             }
         "#]]
         .assert_debug_eq(&apply_in_workspace_assist);

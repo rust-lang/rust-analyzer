@@ -140,7 +140,6 @@ impl GlobalState {
                     return;
                 };
                 let snap = self.snapshot();
-                // TODO: handle finished choice
                 // spawn a new task to handle the finished choice, in case of panic
                 self.task_pool.handle.spawn(ThreadIntent::Worker, move || {
                     let result = panic::catch_unwind(move || {

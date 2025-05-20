@@ -562,7 +562,7 @@ impl PlaceSnippet {
 
 /// a function that takes a `SourceChangeBuilder` and a slice of indices
 /// which represent the indices of the choices made by the user
-/// which is the choice being made, each one from corrseponding choice list in `Assists::add_choices`
+/// which is the choice being made, each one from corresponding choice list in `Assists::add_choices`
 pub type ChoiceCallback = dyn FnOnce(&mut SourceChangeBuilder, &[usize]) + Send + 'static;
 
 /// Represents a group of choices offered to the user(Using ShowMessageRequest), along with a callback
@@ -714,5 +714,4 @@ impl UserChoiceHandler {
     pub fn set_awaiting(&mut self, awaiting: bool) {
         self.is_awaiting = awaiting;
     }
-
 }

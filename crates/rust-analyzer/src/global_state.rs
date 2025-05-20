@@ -8,7 +8,10 @@ use std::{ops::Not as _, time::Instant};
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use hir::ChangeWithProcMacros;
 use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
-use ide_db::{base_db::{Crate, ProcMacroPaths, SourceDatabase}, source_change::UserChoiceHandler};
+use ide_db::{
+    base_db::{Crate, ProcMacroPaths, SourceDatabase},
+    source_change::UserChoiceHandler,
+};
 use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
@@ -538,7 +541,7 @@ impl GlobalState {
             proc_macros_loaded: !self.config.expand_proc_macros()
                 || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false),
             flycheck: self.flycheck.clone(),
-            user_choice_handler: self.user_choice_handler.clone()
+            user_choice_handler: self.user_choice_handler.clone(),
         }
     }
 
