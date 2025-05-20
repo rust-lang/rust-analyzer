@@ -35,23 +35,23 @@ use a::{c, d::{e}};
             #![no_std]
             #![doc = " another file comment"]
 
-            // AstId: 1
+            // AstId: ExternCrate[B484, 0]
             pub(self) extern crate self as renamed;
 
-            // AstId: 2
+            // AstId: ExternCrate[B4FC, 0]
             pub(super) extern crate bli;
 
-            // AstId: 3
+            // AstId: Use[0000, 0]
             pub use crate::path::{nested, items as renamed, Trait as _};
 
-            // AstId: 4
+            // AstId: Use[0000, 1]
             pub(self) use globs::*;
 
             #[doc = " docs on import"]
-            // AstId: 5
+            // AstId: Use[0000, 2]
             pub(self) use crate::{A, B};
 
-            // AstId: 6
+            // AstId: Use[0000, 3]
             pub(self) use a::{c, d::{e}};
         "##]],
     );
@@ -75,18 +75,18 @@ extern "C" {
         "#,
         expect![[r##"
             #[on_extern_block]
-            // AstId: 1
+            // AstId: ExternBlock[0000, 0]
             extern "C" {
                 #[on_extern_type]
-                // AstId: 2
+                // AstId: TypeAlias[347F, 0]
                 pub(self) type ExType;
 
                 #[on_extern_static]
-                // AstId: 3
+                // AstId: Static[D0BC, 0]
                 pub(self) static EX_STATIC = _;
 
                 #[on_extern_fn]
-                // AstId: 4
+                // AstId: Fn[DB5F, 0]
                 pub(self) fn ex_fn;
             }
         "##]],
@@ -124,39 +124,39 @@ enum E {
 }
         "#,
         expect![[r#"
-            // AstId: 1
+            // AstId: Struct[0A3A, 0]
             pub(self) struct Unit;
 
             #[derive(Debug)]
-            // AstId: 2
+            // AstId: Struct[B09D, 0]
             pub(self) struct Struct {
                 #[doc = " fld docs"]
                 pub(self) fld,
             }
 
-            // AstId: 3
+            // AstId: Struct[466D, 0]
             pub(self) struct Tuple(
                 #[attr]
                 pub(self) 0,
             );
 
-            // AstId: 4
+            // AstId: Union[F20E, 0]
             pub(self) union Ize {
                 pub(self) a,
                 pub(self) b,
             }
 
-            // AstId: 5
+            // AstId: Enum[4082, 0]
             pub(self) enum E
-                // AstId: 6
+                // AstId: Variant[6602, 0]
                 #[doc = " comment on Unit"]
                 Unit,
-                // AstId: 7
+                // AstId: Variant[A235, 0]
                 #[doc = " comment on Tuple"]
                 Tuple(
                     pub(self) 0,
                 ),
-                // AstId: 8
+                // AstId: Variant[ABAB, 0]
                 Struct {
                     #[doc = " comment on a: u8"]
                     pub(self) a,
@@ -185,23 +185,23 @@ trait Tr: SuperTrait + 'lifetime {
 }
         "#,
         expect![[r#"
-            // AstId: 1
+            // AstId: Static[5832, 0]
             pub static ST = _;
 
-            // AstId: 2
+            // AstId: Const[EF58, 0]
             pub(self) const _ = _;
 
             #[attr]
             #[inner_attr_in_fn]
-            // AstId: 3
+            // AstId: Fn[8E64, 0]
             pub(self) fn f;
 
-            // AstId: 4
+            // AstId: Trait[9D45, 0]
             pub(self) trait Tr {
-                // AstId: 6
+                // AstId: TypeAlias[DCE0, 0]
                 pub(self) type Assoc;
 
-                // AstId: 7
+                // AstId: Fn[9941, 0]
                 pub(self) fn method;
             }
         "#]],
@@ -226,16 +226,16 @@ mod outline;
         expect![[r##"
             #[doc = " outer"]
             #[doc = " inner"]
-            // AstId: 1
+            // AstId: Module[1128, 0]
             pub(self) mod inline {
-                // AstId: 3
+                // AstId: Use[0000, 0]
                 pub(self) use super::*;
 
-                // AstId: 4
+                // AstId: Fn[7E05, 0]
                 pub(self) fn fn_in_module;
             }
 
-            // AstId: 2
+            // AstId: Module[22CE, 0]
             pub(self) mod outline;
         "##]],
     );
@@ -254,13 +254,13 @@ pub macro m2() {}
 m!();
         "#,
         expect![[r#"
-            // AstId: 1
+            // AstId: MacroRules[D26F, 0]
             macro_rules! m { ... }
 
-            // AstId: 2
+            // AstId: MacroDef[B3AF, 0]
             pub macro m2 { ... }
 
-            // AstId: 3, SyntaxContextId: ROOT2024, ExpandTo: Items
+            // AstId: MacroCall[B356, 0], SyntaxContextId: ROOT2024, ExpandTo: Items
             m!(...);
         "#]],
     );
@@ -273,7 +273,7 @@ fn pub_self() {
 pub(self) struct S;
         "#,
         expect![[r#"
-            // AstId: 1
+            // AstId: Struct[FF65, 0]
             pub(self) struct S;
         "#]],
     )
