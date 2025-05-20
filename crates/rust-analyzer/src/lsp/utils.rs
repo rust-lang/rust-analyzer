@@ -1,15 +1,21 @@
 //! Utilities for LSP-related boilerplate code.
-use std::{mem, ops::Range};
+use std::{mem, ops::Range, panic};
 
-use lsp_server::Notification;
-use lsp_types::request::Request;
+use ide_db::{base_db::DbPanicContext, source_change::SourceChangeBuilder};
+use lsp_server::{Notification, RequestId, Response, ResponseError};
+use lsp_types::{
+    ShowMessageRequestParams,
+    request::{Request, ShowMessageRequest},
+};
+use stdx::thread::ThreadIntent;
 use triomphe::Arc;
 
 use crate::{
     global_state::GlobalState,
     line_index::{LineEndings, LineIndex, PositionEncoding},
-    lsp::{LspError, from_proto},
+    lsp::{LspError, from_proto, to_proto},
     lsp_ext,
+    main_loop::Task,
 };
 
 pub(crate) fn invalid_params_error(message: String) -> LspError {
@@ -92,6 +98,166 @@ impl GlobalState {
                     lsp_types::ShowMessageParams { typ: lsp_types::MessageType::ERROR, message },
                 );
             }
+        }
+    }
+
+    /// Ask for user choice by sending ShowMessageRequest
+    pub(crate) fn ask_for_choice(&mut self) {
+        let params = {
+            let mut handler = self.user_choice_handler.lock();
+            if handler.is_awaiting() {
+                // already sent a request, do nothing
+                return;
+            }
+            let mut is_done_asking = false;
+            let params = if let Some(choice_group) = handler.first_mut_choice_group() {
+                if let Some((_idx, choice)) = choice_group.get_cur_question() {
+                    Some(ShowMessageRequestParams {
+                        typ: lsp_types::MessageType::INFO,
+                        message: choice.title.clone(),
+                        actions: Some(
+                            choice
+                                .actions
+                                .clone()
+                                .into_iter()
+                                .map(|action| lsp_types::MessageActionItem {
+                                    title: action,
+                                    properties: Default::default(),
+                                })
+                                .collect(),
+                        ),
+                    })
+                } else {
+                    is_done_asking = choice_group.is_done_asking();
+                    None
+                }
+            } else {
+                None
+            };
+
+            if is_done_asking {
+                let Some(choice_group) = handler.pop_choice_group() else {
+                    return;
+                };
+                let snap = self.snapshot();
+                // TODO: handle finished choice
+                // spawn a new task to handle the finished choice, in case of panic
+                self.task_pool.handle.spawn(ThreadIntent::Worker, move || {
+                    let result = panic::catch_unwind(move || {
+                        let _pctx = DbPanicContext::enter("ask_for_choice".to_string());
+                        let mut source_change_builder =
+                            SourceChangeBuilder::new(choice_group.file_id());
+                        choice_group.finish(&mut source_change_builder);
+                        let source_change = source_change_builder.finish();
+                        to_proto::workspace_edit(&snap, source_change)
+                    });
+
+                    // it's either this or die horribly
+                    let empty_req_id = RequestId::from("".to_string());
+                    match result {
+                        Ok(Ok(result)) => Task::Response(Response::new_ok(empty_req_id, result)),
+                        Ok(Err(_cancelled)) => Task::Response(Response {
+                            id: empty_req_id,
+                            result: None,
+                            error: Some(ResponseError {
+                                code: lsp_server::ErrorCode::ContentModified as i32,
+                                message: "content modified".to_owned(),
+                                data: None,
+                            }),
+                        }),
+                        Err(panic) => {
+                            let panic_message = panic
+                                .downcast_ref::<String>()
+                                .map(String::as_str)
+                                .or_else(|| panic.downcast_ref::<&str>().copied());
+
+                            let mut message = "request handler panicked".to_owned();
+                            if let Some(panic_message) = panic_message {
+                                message.push_str(": ");
+                                message.push_str(panic_message)
+                            } else if let Ok(_cancelled) =
+                                panic.downcast::<ide_db::base_db::salsa::Cancelled>()
+                            {
+                                tracing::error!(
+                                    "Cancellation propagated out of salsa! This is a bug"
+                                );
+                            }
+                            Task::Response(Response::new_err(
+                                empty_req_id,
+                                lsp_server::ErrorCode::InternalError as i32,
+                                message,
+                            ))
+                        }
+                    }
+                });
+            }
+
+            if params.is_some() {
+                handler.set_awaiting(true);
+            }
+            params
+        };
+
+        // send ShowMessageRequest to the client, and handle the response
+        if let Some(params) = params {
+            self.send_request::<ShowMessageRequest>(params, |state, response| {
+                let lsp_server::Response { error: None, result: Some(result), .. } = response
+                else {
+                    return;
+                };
+                let choice = match crate::from_json::<
+                    <lsp_types::request::ShowMessageRequest as lsp_types::request::Request>::Result,
+                >(
+                    lsp_types::request::ShowMessageRequest::METHOD, &result
+                ) {
+                    Ok(Some(item)) => Some(item.title.clone()),
+                    Err(err) => {
+                        tracing::error!("Failed to deserialize ShowMessageRequest result: {err}");
+                        None
+                    }
+                    // user made no choice
+                    Ok(None) => None,
+                };
+                let mut do_pop = false;
+                let mut handler = state.user_choice_handler.lock();
+                match (handler.first_mut_choice_group(), choice) {
+                    (Some(choice_group), Some(choice)) => {
+                        let Some((question_idx, user_choices)) = choice_group.get_cur_question()
+                        else {
+                            tracing::error!("No question found for user choice");
+                            return;
+                        };
+                        let choice_idx = user_choices
+                            .actions
+                            .iter()
+                            .position(|it| *it == choice)
+                            .unwrap_or(user_choices.actions.len());
+                        if let Err(err) = choice_group.make_choice(question_idx, choice_idx) {
+                            tracing::error!("Failed to make choice: {err}");
+                        }
+                    }
+                    (None, Some(choice)) => {
+                        tracing::error!("No ongoing choice group found for user choice: {choice}");
+                    }
+                    (Some(_), None) => {
+                        // user made no choice, pop&drop current choice group
+                        do_pop = true;
+                    }
+                    _ => (),
+                }
+
+                if do_pop {
+                    let group = handler.pop_choice_group();
+                    tracing::error!(
+                        "User made no choice, dropping current choice group: {group:?}"
+                    );
+                }
+                handler.set_awaiting(false);
+                drop(handler);
+
+                // recursively call handle_choice to handle the next question
+                state.ask_for_choice();
+            });
         }
     }
 

@@ -11,10 +11,7 @@ use std::{
 use crossbeam_channel::{Receiver, select};
 use ide_db::base_db::{SourceDatabase, VfsPath, salsa::Database as _};
 use lsp_server::{Connection, Notification, Request};
-use lsp_types::{
-    ShowMessageRequestParams, TextDocumentIdentifier, notification::Notification as _,
-    request::Request as _, request::ShowMessageRequest,
-};
+use lsp_types::{TextDocumentIdentifier, notification::Notification as _};
 use stdx::thread::ThreadIntent;
 use tracing::{Level, error, span};
 use vfs::{AbsPathBuf, FileId, loader::LoadingProgress};
@@ -714,108 +711,6 @@ impl GlobalState {
                     open_log_button,
                 );
             }
-        }
-    }
-
-    /// Ask for user choice by sending ShowMessageRequest
-    fn ask_for_choice(&mut self) {
-        let params = {
-            let mut handler = self.user_choice_handler.lock();
-            if handler.is_awaiting() {
-                // already sent a request, do nothing
-                return;
-            }
-            let params = if let Some(choice_group) = handler.first_mut_choice_group() {
-                if let Some((_idx, choice)) = choice_group.get_cur_question() {
-                    Some(ShowMessageRequestParams {
-                        typ: lsp_types::MessageType::INFO,
-                        message: choice.title.clone(),
-                        actions: Some(
-                            choice
-                                .actions
-                                .clone()
-                                .into_iter()
-                                .map(|action| lsp_types::MessageActionItem {
-                                    title: action,
-                                    properties: Default::default(),
-                                })
-                                .collect(),
-                        ),
-                    })
-                } else {
-                    // TODO: handle finished choice
-                    // spawn a new task to handle the finished choice, in case of panic
-                    None
-                }
-            } else {
-                None
-            };
-            if params.is_some() {
-                handler.set_awaiting(true);
-            }
-            params
-        };
-
-        // send ShowMessageRequest to the client, and handle the response
-        if let Some(params) = params {
-            self.send_request::<ShowMessageRequest>(params, |state, response| {
-                let lsp_server::Response { error: None, result: Some(result), .. } = response
-                else {
-                    return;
-                };
-                let choice = match crate::from_json::<
-                    <lsp_types::request::ShowMessageRequest as lsp_types::request::Request>::Result,
-                >(
-                    lsp_types::request::ShowMessageRequest::METHOD, &result
-                ) {
-                    Ok(Some(item)) => Some(item.title.clone()),
-                    Err(err) => {
-                        tracing::error!("Failed to deserialize ShowMessageRequest result: {err}");
-                        None
-                    }
-                    // user made no choice
-                    Ok(None) => None,
-                };
-                let mut do_pop = false;
-                let mut handler = state.user_choice_handler.lock();
-                match (handler.first_mut_choice_group(), choice) {
-                    (Some(choice_group), Some(choice)) => {
-                        let Some((question_idx, user_choices)) = choice_group.get_cur_question()
-                        else {
-                            tracing::error!("No question found for user choice");
-                            return;
-                        };
-                        let choice_idx = user_choices
-                            .actions
-                            .iter()
-                            .position(|it| *it == choice)
-                            .unwrap_or(user_choices.actions.len());
-                        if let Err(err) = choice_group.make_choice(question_idx, choice_idx) {
-                            tracing::error!("Failed to make choice: {err}");
-                        }
-                    }
-                    (None, Some(choice)) => {
-                        tracing::error!("No ongoing choice group found for user choice: {choice}");
-                    }
-                    (Some(_), None) => {
-                        // user made no choice, pop&drop current choice group
-                        do_pop = true;
-                    }
-                    _ => (),
-                }
-
-                if do_pop {
-                    let group = handler.pop_choice_group();
-                    tracing::error!(
-                        "User made no choice, dropping current choice group: {group:?}"
-                    );
-                }
-                handler.set_awaiting(false);
-                drop(handler);
-
-                // recursively call handle_choice to handle the next question
-                state.ask_for_choice();
-            });
         }
     }
 

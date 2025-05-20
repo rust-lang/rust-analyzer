@@ -644,6 +644,11 @@ impl UserChoiceGroup {
         }
     }
 
+    /// Whether the user has finished making their choices.
+    pub fn is_done_asking(&self) -> bool {
+        self.cur_choices.len() == self.choice_options.len()
+    }
+
     /// Make the idx-th choice in the group.
     /// `choice` is the index of the choice in the group(0-based).
     /// This function will be called when the user makes a choice.
@@ -663,6 +668,10 @@ impl UserChoiceGroup {
         let mut callback = self.callback.lock().unwrap();
         let callback = callback.take().expect("Callback already");
         callback(builder, &self.cur_choices);
+    }
+
+    pub fn file_id(&self) -> FileId {
+        self.file
     }
 }
 
@@ -696,10 +705,12 @@ impl UserChoiceHandler {
         self.queue.pop_front()
     }
 
+    /// Whether awaiting for sent request's response.
     pub fn is_awaiting(&self) -> bool {
         self.is_awaiting
     }
 
+    /// Sets the awaiting state.
     pub fn set_awaiting(&mut self, awaiting: bool) {
         self.is_awaiting = awaiting;
     }
