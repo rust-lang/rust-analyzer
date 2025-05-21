@@ -73,10 +73,10 @@ extern "C" {
     fn ex_fn();
 }
         "#,
-        expect![[r##"
+        expect![[r#"
             #[on_extern_block]
             // AstId: ExternBlock[0000, 0]
-            extern "C" {
+            extern {
                 #[on_extern_type]
                 // AstId: TypeAlias[A10F, 0]
                 pub(self) type ExType;
@@ -89,7 +89,7 @@ extern "C" {
                 // AstId: Fn[DB95, 0]
                 pub(self) fn ex_fn;
             }
-        "##]],
+        "#]],
     );
 }
 
@@ -129,39 +129,16 @@ enum E {
 
             #[derive(Debug)]
             // AstId: Struct[B5D9, 0]
-            pub(self) struct Struct {
-                #[doc = " fld docs"]
-                pub(self) fld,
-            }
+            pub(self) struct Struct { ... }
 
             // AstId: Struct[E782, 0]
-            pub(self) struct Tuple(
-                #[attr]
-                pub(self) 0,
-            );
+            pub(self) struct Tuple(...);
 
             // AstId: Union[C1CF, 0]
-            pub(self) union Ize {
-                pub(self) a,
-                pub(self) b,
-            }
+            pub(self) union Ize { ... }
 
             // AstId: Enum[70C0, 0]
-            pub(self) enum E {
-                // AstId: Variant[5B66, 0]
-                #[doc = " comment on Unit"]
-                Unit,
-                // AstId: Variant[6B3A, 0]
-                #[doc = " comment on Tuple"]
-                Tuple(
-                    pub(self) 0,
-                ),
-                // AstId: Variant[7BD8, 0]
-                Struct {
-                    #[doc = " comment on a: u8"]
-                    pub(self) a,
-                },
-            }
+            pub(self) enum E { ... }
         "#]],
     );
 }
@@ -197,13 +174,7 @@ trait Tr: SuperTrait + 'lifetime {
             pub(self) fn f;
 
             // AstId: Trait[B6E8, 0]
-            pub(self) trait Tr {
-                // AstId: TypeAlias[AC3B, 0]
-                pub(self) type Assoc;
-
-                // AstId: Fn[1C6A, 0]
-                pub(self) fn method;
-            }
+            pub(self) trait Tr { ... }
         "#]],
     );
 }
