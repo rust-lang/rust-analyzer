@@ -140,23 +140,23 @@ enum E {
                 pub(self) 0,
             );
 
-            // AstId: Union[83AF, 0]
+            // AstId: Union[2DBB, 0]
             pub(self) union Ize {
                 pub(self) a,
                 pub(self) b,
             }
 
             // AstId: Enum[7FF8, 0]
-            pub(self) enum E
-                // AstId: Variant[CA8D, 0]
+            pub(self) enum E {
+                // AstId: Variant[C717, 0]
                 #[doc = " comment on Unit"]
                 Unit,
-                // AstId: Variant[F89F, 0]
+                // AstId: Variant[AEAB, 0]
                 #[doc = " comment on Tuple"]
                 Tuple(
                     pub(self) 0,
                 ),
-                // AstId: Variant[C117, 0]
+                // AstId: Variant[4B1B, 0]
                 Struct {
                     #[doc = " comment on a: u8"]
                     pub(self) a,
