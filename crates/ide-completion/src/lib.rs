@@ -64,8 +64,8 @@ impl CompletionFieldsToResolve {
         Self {
             resolve_label_details: false,
             resolve_tags: false,
-            resolve_detail: false,
-            resolve_documentation: false,
+            resolve_detail: true,
+            resolve_documentation: true,
             resolve_filter_text: false,
             resolve_text_edit: false,
             resolve_command: false,
