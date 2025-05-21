@@ -147,7 +147,7 @@ enum E {
             }
 
             // AstId: Enum[4082, 0]
-            pub(self) enum E
+            pub(self) enum E {
                 // AstId: Variant[6602, 0]
                 #[doc = " comment on Unit"]
                 Unit,
