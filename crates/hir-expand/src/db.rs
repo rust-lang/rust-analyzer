@@ -60,6 +60,7 @@ pub trait ExpandDatabase: RootQueryDb {
     fn proc_macros_for_crate(&self, krate: Crate) -> Option<Arc<CrateProcMacros>>;
 
     #[salsa::invoke(ast_id_map)]
+    #[salsa::lru(512)]
     fn ast_id_map(&self, file_id: HirFileId) -> Arc<AstIdMap>;
 
     #[salsa::transparent]
