@@ -160,6 +160,7 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
 triomphe = { version = "0.1.14", default-features = false, features = ["std"] }
 url = "2.5.4"
 xshell = "0.2.7"
+thin-vec = "0.2.14"
 
 # We need to freeze the version of the crate, as the raw-api feature is considered unstable
 dashmap = { version = "=6.1.0", features = ["raw-api", "inline"] }
