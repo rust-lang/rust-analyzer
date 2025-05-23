@@ -1,7 +1,10 @@
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
-use syntax::ast::{self, AstNode, HasName};
+use syntax::ast::{self, AstNode, HasName, edit::AstNodeEdit};
 
-use crate::{AssistContext, AssistId, Assists, utils::generate_trait_impl_text_intransitive};
+use crate::{
+    AssistContext, AssistId, Assists,
+    utils::{generate_trait_impl_text_intransitive, indent_string},
+};
 
 // Assist: generate_from_impl_for_enum
 //
@@ -71,7 +74,7 @@ pub(crate) fn generate_from_impl_for_enum(
                 )
             };
             let from_impl = generate_trait_impl_text_intransitive(&enum_, &from_trait, &impl_code);
-            edit.insert(start_offset, from_impl);
+            edit.insert(start_offset, indent_string(&from_impl, enum_.indent_level()));
         },
     )
 }
@@ -293,6 +296,54 @@ enum Generic<'a> { One(&'a i32) }
 impl<'a> From<&'a i32> for Generic<'a> {
     fn from(v: &'a i32) -> Self {
         Self::One(v)
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_non_zero_indent() {
+        check_assist(
+            generate_from_impl_for_enum,
+            r#"
+//- minicore: from
+mod foo {
+    enum Generic<'a> { $0One(&'a i32) }
+}
+"#,
+            r#"
+mod foo {
+    enum Generic<'a> { One(&'a i32) }
+
+    impl<'a> From<&'a i32> for Generic<'a> {
+        fn from(v: &'a i32) -> Self {
+            Self::One(v)
+        }
+    }
+}
+"#,
+        );
+        check_assist(
+            generate_from_impl_for_enum,
+            r#"
+//- minicore: from
+mod foo {
+    mod bar {
+        enum Generic<'a> { $0One(&'a i32) }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        enum Generic<'a> { One(&'a i32) }
+
+        impl<'a> From<&'a i32> for Generic<'a> {
+            fn from(v: &'a i32) -> Self {
+                Self::One(v)
+            }
+        }
     }
 }
 "#,
