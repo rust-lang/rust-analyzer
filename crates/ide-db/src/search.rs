@@ -1170,6 +1170,22 @@ impl<'a> FindUsages<'a> {
         }
     }
 
+    fn is_related_import(&self, name_ref: &ast::NameRef) -> bool {
+        ast::UseTree::find_tail_use_tree_for_name_ref(name_ref)
+            .and_then(|u| u.path())
+            .and_then(|path| self.sema.resolve_path_per_ns(&path))
+            .map(|res| {
+                res.to_small_vec()
+                    .into_iter()
+                    .filter_map(|res| match res {
+                        Some(PathResolution::Def(def)) => Some(Definition::from(def)),
+                        _ => None,
+                    })
+                    .any(|def| def == self.def)
+            })
+            == Some(true)
+    }
+
     fn found_name_ref(
         &self,
         name_ref: &ast::NameRef,
@@ -1180,7 +1196,8 @@ impl<'a> FindUsages<'a> {
                 if self.def == def
                     // is our def a trait assoc item? then we want to find all assoc items from trait impls of our trait
                     || matches!(self.assoc_item_container, Some(hir::AssocItemContainer::Trait(_)))
-                        && convert_to_def_in_trait(self.sema.db, def) == self.def =>
+                        && convert_to_def_in_trait(self.sema.db, def) == self.def
+                    || self.is_related_import(name_ref) =>
             {
                 let FileRange { file_id, range } = self.sema.original_range(name_ref.syntax());
                 let reference = FileReference {

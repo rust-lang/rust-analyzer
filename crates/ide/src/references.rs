@@ -1762,7 +1762,6 @@ trait Trait {
         )
     }
 
-    // FIXME: import is classified as function
     #[test]
     fn attr() {
         check(
@@ -1776,6 +1775,7 @@ fn func() {}
             expect![[r#"
                 identity Attribute FileId(1) 1..107 32..40
 
+                FileId(0) 17..25 import
                 FileId(0) 43..51
             "#]],
         );
@@ -1793,7 +1793,6 @@ fn func$0() {}
         );
     }
 
-    // FIXME: import is classified as function
     #[test]
     fn proc_macro() {
         check(
@@ -1806,6 +1805,7 @@ mirror$0! {}
             expect![[r#"
                 mirror ProcMacro FileId(1) 1..77 22..28
 
+                FileId(0) 17..23 import
                 FileId(0) 26..32
             "#]],
         )
