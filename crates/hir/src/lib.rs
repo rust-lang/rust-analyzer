@@ -52,7 +52,7 @@ use hir_def::{
         BindingAnnotation, BindingId, Expr, ExprId, ExprOrPatId, LabelId, Pat,
         generics::{LifetimeParamData, TypeOrConstParamData, TypeParamProvenance},
     },
-    item_tree::{AttrOwner, FieldParent, ImportAlias, ItemTreeFieldId, ItemTreeNode},
+    item_tree::{AttrOwner, FieldParent, ImportAlias, ItemTreeNode},
     layout::{self, ReprOptions, TargetDataLayout},
     nameres::{self, diagnostics::DefDiagnostic},
     per_ns::PerNs,
@@ -1060,15 +1060,14 @@ fn emit_def_diagnostic_(
             // FIXME: This parses... We could probably store relative ranges for the children things
             // here in the item tree?
             (|| {
-                let process_field_list =
-                    |field_list: Option<_>, idx: ItemTreeFieldId| match field_list? {
-                        ast::FieldList::RecordFieldList(it) => Some(SyntaxNodePtr::new(
-                            it.fields().nth(idx.into_raw().into_u32() as usize)?.syntax(),
-                        )),
-                        ast::FieldList::TupleFieldList(it) => Some(SyntaxNodePtr::new(
-                            it.fields().nth(idx.into_raw().into_u32() as usize)?.syntax(),
-                        )),
-                    };
+                let process_field_list = |field_list: Option<_>, idx: usize| match field_list? {
+                    ast::FieldList::RecordFieldList(it) => {
+                        Some(SyntaxNodePtr::new(it.fields().nth(idx)?.syntax()))
+                    }
+                    ast::FieldList::TupleFieldList(it) => {
+                        Some(SyntaxNodePtr::new(it.fields().nth(idx)?.syntax()))
+                    }
+                };
                 let ptr = match *item {
                     AttrOwner::ModItem(it) => {
                         ast_id_map.get(it.ast_id(&item_tree)).syntax_node_ptr()
@@ -1097,7 +1096,7 @@ fn emit_def_diagnostic_(
                             .to_node(&db.parse_or_expand(tree.file_id()))
                             .record_field_list()?
                             .fields()
-                            .nth(idx.into_raw().into_u32() as usize)?
+                            .nth(idx)?
                             .syntax(),
                     ),
                 };
