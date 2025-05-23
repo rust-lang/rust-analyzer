@@ -146,17 +146,11 @@ impl TypeInfo {
     }
 }
 
-/// Primary API to get semantic information, like types, from syntax trees.
+/// Primary API to get semantic information, like types, from syntax trees,
+/// with tight coupling to underlying database.
 pub struct Semantics<'db, DB> {
     pub db: &'db DB,
-    imp: SemanticsImpl<'db>,
-}
-
-pub struct SemanticsImpl<'db> {
-    pub db: &'db dyn HirDatabase,
-    s2d_cache: RefCell<SourceToDefCache>,
-    /// MacroCall to its expansion's MacroCallId cache
-    macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, MacroCallId>>,
+    sema: DynSemantics<'db>,
 }
 
 impl<DB> fmt::Debug for Semantics<'_, DB> {
@@ -166,6 +160,36 @@ impl<DB> fmt::Debug for Semantics<'_, DB> {
 }
 
 impl<'db, DB> ops::Deref for Semantics<'db, DB> {
+    type Target = DynSemantics<'db>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sema
+    }
+}
+
+impl<'db, DB: HirDatabase> Semantics<'db, DB> {
+    pub fn new(db: &'db DB) -> Semantics<'db, DB> {
+        let sema = DynSemantics::new(db);
+        Self { db, sema }
+    }
+
+    pub fn into_dyn(self) -> DynSemantics<'db> {
+        self.sema
+    }
+}
+
+/// Primary API to get semantic information, like types, from syntax trees.
+pub struct DynSemantics<'db> {
+    imp: SemanticsImpl<'db>,
+}
+
+impl fmt::Debug for DynSemantics<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Semantics {{ ... }}")
+    }
+}
+
+impl<'db> ops::Deref for DynSemantics<'db> {
     type Target = SemanticsImpl<'db>;
 
     fn deref(&self) -> &Self::Target {
@@ -173,10 +197,9 @@ impl<'db, DB> ops::Deref for Semantics<'db, DB> {
     }
 }
 
-impl<DB: HirDatabase> Semantics<'_, DB> {
-    pub fn new(db: &DB) -> Semantics<'_, DB> {
-        let impl_ = SemanticsImpl::new(db);
-        Semantics { db, imp: impl_ }
+impl<'db> DynSemantics<'db> {
+    pub fn new(db: &'db dyn HirDatabase) -> Self {
+        Self { imp: SemanticsImpl::new(db) }
     }
 
     pub fn hir_file_for(&self, syntax_node: &SyntaxNode) -> HirFileId {
@@ -317,6 +340,13 @@ impl<DB: HirDatabase> Semantics<'_, DB> {
     pub fn to_union_def(&self, u: &ast::Union) -> Option<Union> {
         self.imp.to_def(u)
     }
+}
+
+pub struct SemanticsImpl<'db> {
+    pub db: &'db dyn HirDatabase,
+    s2d_cache: RefCell<SourceToDefCache>,
+    /// MacroCall to its expansion's MacroCallId cache
+    macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, MacroCallId>>,
 }
 
 impl<'db> SemanticsImpl<'db> {

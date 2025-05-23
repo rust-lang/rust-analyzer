@@ -5,7 +5,7 @@ use hir_ty::db::HirDatabase;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::{ModuleDef, ScopeDef, Semantics, SemanticsScope, Type};
+use crate::{DynSemantics, ModuleDef, ScopeDef, SemanticsScope, Type};
 
 mod expr;
 pub use expr::Expr;
@@ -214,9 +214,9 @@ impl LookupTable {
 
 /// Context for the `term_search` function
 #[derive(Debug)]
-pub struct TermSearchCtx<'a, DB: HirDatabase> {
+pub struct TermSearchCtx<'a> {
     /// Semantics for the program
-    pub sema: &'a Semantics<'a, DB>,
+    pub sema: &'a DynSemantics<'a>,
     /// Semantic scope, captures context for the term search
     pub scope: &'a SemanticsScope<'a>,
     /// Target / expected output type
@@ -263,7 +263,7 @@ impl Default for TermSearchConfig {
 /// Note that there are usually more ways we can get to the `goal` type but some are discarded to
 /// reduce the memory consumption. It is also unlikely anyone is willing ti browse through
 /// thousands of possible responses so we currently take first 10 from every tactic.
-pub fn term_search<DB: HirDatabase>(ctx: &TermSearchCtx<'_, DB>) -> Vec<Expr> {
+pub fn term_search(ctx: &TermSearchCtx<'_>) -> Vec<Expr> {
     let module = ctx.scope.module();
     let mut defs = FxHashSet::default();
     defs.insert(ScopeDef::ModuleDef(ModuleDef::Module(module)));

@@ -19,7 +19,7 @@ use intern::Symbol;
 use rustc_hash::FxHashMap;
 use syntax::{AstNode, AstPtr, SmolStr, SyntaxNode, SyntaxNodePtr, ToSmolStr, ast::HasName};
 
-use crate::{HasCrate, Module, ModuleDef, Semantics};
+use crate::{HasCrate, Module, ModuleDef, semantics::DynSemantics};
 
 pub type FxIndexSet<T> = indexmap::IndexSet<T, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
@@ -48,7 +48,7 @@ pub struct DeclarationLocation {
 }
 
 impl DeclarationLocation {
-    pub fn syntax<DB: HirDatabase>(&self, sema: &Semantics<'_, DB>) -> SyntaxNode {
+    pub fn syntax(&self, sema: &DynSemantics<'_>) -> SyntaxNode {
         let root = sema.parse_or_expand(self.hir_file_id);
         self.ptr.to_node(&root)
     }
