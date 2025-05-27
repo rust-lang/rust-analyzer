@@ -269,7 +269,8 @@ pub(crate) fn indent_string(mut s: &str, indent_level: IndentLevel) -> Cow<'_, s
         buf.push_str(line);
         buf.push('\n');
 
-        if !rest.split_once('\n').map_or(rest, |s| s.0).is_empty() {
+        let rest_line = rest.split_once('\n').map_or(rest, |s| s.0);
+        if !rest_line.is_empty() {
             buf.push_str(&indent);
         }
 
