@@ -187,7 +187,6 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
     fn generic_predicates_without_parent(&self, def: GenericDefId) -> GenericPredicates;
 
     #[salsa::invoke(crate::lower::trait_environment_for_body_query)]
-    #[salsa::transparent]
     fn trait_environment_for_body(&self, def: DefWithBodyId) -> Arc<TraitEnvironment>;
 
     #[salsa::invoke(crate::lower::trait_environment_query)]
@@ -290,6 +289,7 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
     fn variances_of(&self, def: GenericDefId) -> Option<Arc<[crate::variance::Variance]>>;
 
     #[salsa::invoke(chalk_db::associated_ty_value_query)]
+    #[salsa::cycle(cycle_result = chalk_db::associated_ty_value_cycle)]
     fn associated_ty_value(
         &self,
         krate: Crate,

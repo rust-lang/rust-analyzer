@@ -22,16 +22,17 @@ use chalk_ir::{
     interner::HasInterner,
 };
 
+use chalk_solve::rust_ir;
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId,
     FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, ItemContainerId, LocalFieldId,
-    Lookup, StaticId, StructId, TypeAliasId, TypeOrConstParamId, UnionId, VariantId,
+    Lookup, StaticId, StructId, TraitId, TypeAliasId, TypeOrConstParamId, UnionId, VariantId,
     builtin_type::BuiltinType,
     expr_store::{ExpressionStore, path::Path},
     hir::generics::{GenericParamDataRef, TypeOrConstParamData, WherePredicate},
     item_tree::FieldsShape,
-    lang_item::LangItem,
+    lang_item::{LangItem, lang_item},
     resolver::{HasResolver, LifetimeNs, Resolver, TypeNs},
     signatures::{FunctionSignature, TraitFlags, TypeAliasFlags},
     type_ref::{
@@ -43,14 +44,16 @@ use hir_expand::name::Name;
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashSet;
 use stdx::{impl_from, never};
+use thin_vec::ThinVec;
 use triomphe::{Arc, ThinArc};
 
 use crate::{
     AliasTy, Binders, BoundVar, CallableSig, Const, DebruijnIndex, DynTy, FnAbi, FnPointer, FnSig,
     FnSubst, ImplTrait, ImplTraitId, ImplTraits, Interner, Lifetime, LifetimeData,
-    LifetimeOutlives, PolyFnSig, ProgramClause, QuantifiedWhereClause, QuantifiedWhereClauses,
-    Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder, TyKind, WhereClause,
-    all_super_traits,
+    LifetimeOutlives, PlaceholderIndex, PolyFnSig, ProgramClause, ProjectionTy,
+    QuantifiedWhereClause, QuantifiedWhereClauses, Substitution, TraitEnvironment, TraitRef,
+    TraitRefExt, Ty, TyBuilder, TyKind, VariableKinds, WhereClause, all_super_traits,
+    chalk_db::generic_predicate_to_inline_bound,
     consteval::{intern_const_ref, path_to_const, unknown_const, unknown_const_as_generic},
     db::HirDatabase,
     error_lifetime,
@@ -60,10 +63,11 @@ use crate::{
         path::{PathDiagnosticCallback, PathLoweringContext},
     },
     make_binders,
-    mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx},
+    mapping::{ToChalk, from_chalk_trait_id, lt_to_placeholder_idx, to_assoc_type_id_rpitit},
+    rpitit::{RpititTraitAssocTy, RpititTraitAssocTyId, add_method_body_rpitit_clauses},
     static_lifetime, to_chalk_trait_id, to_placeholder_idx,
     utils::all_super_trait_refs,
-    variable_kinds_from_iter,
+    variable_kinds_from_generics,
 };
 
 #[derive(Debug, Default)]
@@ -74,10 +78,12 @@ struct ImplTraitLoweringState {
     mode: ImplTraitLoweringMode,
     // This is structured as a struct with fields and not as an enum because it helps with the borrow checker.
     opaque_type_data: Arena<ImplTrait>,
+    /// The associated types that were synthesized for `impl Trait`s if `mode` is [`ImplTraitLoweringMode::AssocType`].
+    synthesized_assoc_types: Vec<RpititTraitAssocTyId>,
 }
 impl ImplTraitLoweringState {
     fn new(mode: ImplTraitLoweringMode) -> ImplTraitLoweringState {
-        Self { mode, opaque_type_data: Arena::new() }
+        Self { mode, opaque_type_data: Arena::new(), synthesized_assoc_types: Vec::new() }
     }
 }
 
@@ -255,6 +261,12 @@ pub enum ImplTraitLoweringMode {
     /// i.e. for arguments of the function we're currently checking, and return
     /// types of functions we're calling.
     Opaque,
+    /// `impl Trait` gets lowered into a synthesized associated type, represented as
+    /// [`RpititTraitAssocTy`]. This is used when lowering RPITIT (Return Position Impl
+    /// Trait In Traits) in traits (not impls; inside an impl, RPITIT gets lowered into
+    /// an opaque then the return type is unified with that of the trait method to tell
+    /// the value of the associated types).
+    AssocType,
     /// `impl Trait` is disallowed and will be an error.
     #[default]
     Disallowed,
@@ -438,19 +450,154 @@ impl<'a> TyLoweringContext<'a> {
                             |a| ImplTraitId::TypeAliasImplTrait(a, idx),
                         );
                         let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
-                        let generics = generics(self.db, origin.either(|f| f.into(), |a| a.into()));
-                        let parameters = generics.bound_vars_subst(self.db, self.in_binders);
+                        let parameters = self.subst_for_generics();
                         TyKind::OpaqueType(opaque_ty_id, parameters).intern(Interner)
                     }
                     ImplTraitLoweringMode::Disallowed => {
                         // FIXME: report error
                         TyKind::Error.intern(Interner)
                     }
+                    ImplTraitLoweringMode::AssocType => self.lower_rpitit_in_trait(bounds),
                 }
             }
             TypeRef::Error => TyKind::Error.intern(Interner),
         };
         (ty, res)
+    }
+
+    /// Lowers a Return Position Impl Trait In Traits in the trait (not the impl).
+    ///
+    /// RPITITs create a synthesized associated type for each `impl Trait`. For example,
+    /// for the following trait:
+    /// ```ignore
+    /// trait Trait<'a, T, const N: usize> {
+    ///     fn foo<'b, U>(&self) -> impl Future<Output = impl Display>;
+    /// }
+    /// ```
+    /// We desugar it to the following:
+    /// ```ignore
+    /// trait Trait<'a, T, const N: usize> {
+    ///     type FooRpitit1<'b, U>: Display;
+    ///     type FooRpitit2<'b, U>: Future<Output = Self::FooRpitit1<'b, U>>;
+    ///     fn foo<'b, U>(&self) -> Self::FooRpitit2<'b, U>;
+    /// }
+    /// ```
+    /// Actually, lifetime parameters are lowered somewhat differently in rustc, but I didn't duplicate that here
+    /// (because we don't handle lifetimes generally yet).
+    ///
+    /// The way we implement this is that when we lower a trait method and encounter an `impl Trait`,
+    /// we intern a [`RpititTraitAssocTyId`] containing the bounds, and we collect all such instances
+    /// within a method. When asking for the trait datum, we walk its method and collect all of their
+    /// RPITITs.
+    ///
+    /// Then, we need to infer the value for these associated types for an impl. We do that in `impl_rpitit_values()`,
+    /// but the outline of the process is as follows: we walk the methods, and for each method we take its return
+    /// type in the impl, and equate with the its return type in the trait with all RPITITs swapped with inference vars.
+    /// Then those inference vars are the values for the associated types.
+    ///
+    /// For example, consider:
+    /// ```ignore
+    /// trait Trait {
+    ///     fn foo(&self) -> impl Debug;
+    /// }
+    ///
+    /// impl Trait for Foo {
+    ///     fn foo(&self) -> Option<impl Debug>;
+    /// }
+    /// ```
+    /// The equation will tell us that the hidden associated type has value `Option<impl Debug>` (note: this
+    /// `impl Debug` is **not** a RPITIT, it's a normal function RPIT!).
+    fn lower_rpitit_in_trait(&mut self, bounds: &[TypeBound]) -> Ty {
+        let method_generics = self.generics();
+        let Some(GenericDefId::FunctionId(method_id)) = self.resolver.generic_def() else {
+            panic!("`ImplTraitLoweringMode::AssocType` used outside a method");
+        };
+        let ItemContainerId::TraitId(trait_id) = method_id.loc(self.db).container else {
+            panic!("`ImplTraitLoweringMode::AssocType` used outside a trait method");
+        };
+
+        let assoc_type_binders = VariableKinds::from_iter(
+            Interner,
+            variable_kinds_from_generics(self.db, method_generics.iter_id()),
+        );
+
+        let returned_subst = self.subst_for_generics();
+
+        // This is a placeholder (pun intended): we insert it and then remove it.
+        // Ideally it'd be a projection `Self::SynthesizedAssoc`, but we have no way to refer
+        // to the associated type here because it was not created yet!
+        let self_ty = TyKind::Placeholder(PlaceholderIndex {
+            ui: chalk_ir::UniverseIndex::ROOT,
+            idx: usize::MAX,
+        })
+        .intern(Interner);
+        let mut assoc_type_bounds = Vec::new();
+        let db = self.db;
+        // FIXME: `DebruijnIndex::INNERMOST` does not seem correct here, we need level 1 binder
+        // (level 0 is the bound itself binders). But `lower_type_bound()` shifts the bound in.
+        // I guess what we actually need is for `ParamLoweringMode::Variable` to contain the debruijn
+        // index we want to lower generic parameters to, then another field for binders of HRTB.
+        // But since we don't handle HRTB at all currently this should be fine for now.
+        self.with_debruijn(DebruijnIndex::INNERMOST, |this| {
+            let old_param_lowering_mode =
+                mem::replace(&mut this.type_param_mode, ParamLoweringMode::Variable);
+            for bound in bounds {
+                for bound in this.lower_type_bound(bound, self_ty.clone(), false) {
+                    let bound = generic_predicate_to_inline_bound(db, &bound, &self_ty);
+                    if let Some(bound) = bound {
+                        assoc_type_bounds.push(bound);
+                    };
+                }
+            }
+
+            if !this.unsized_types.contains(&self_ty) {
+                let sized_trait = lang_item(db, this.resolver.krate(), LangItem::Sized)
+                    .and_then(|lang_item| lang_item.as_trait().map(to_chalk_trait_id));
+                let sized_bound = sized_trait.map(|sized_trait| {
+                    let trait_bound = rust_ir::TraitBound {
+                        trait_id: sized_trait,
+                        args_no_self: Default::default(),
+                    };
+                    let inline_bound = rust_ir::InlineBound::TraitBound(trait_bound);
+                    chalk_ir::Binders::empty(Interner, inline_bound)
+                });
+                if let Some(sized_bound) = sized_bound {
+                    assoc_type_bounds.push(sized_bound);
+                }
+            } else {
+                // Because we used a placeholder, we must remove it before we proceed, otherwise it can affect other RPITITs.
+                this.unsized_types.remove(&self_ty);
+            }
+
+            this.type_param_mode = old_param_lowering_mode;
+        });
+        assoc_type_bounds.shrink_to_fit();
+
+        let assoc_type = RpititTraitAssocTyId::new(
+            self.db,
+            RpititTraitAssocTy {
+                trait_id,
+                synthesized_from_method: method_id,
+                bounds: Binders::new(assoc_type_binders, assoc_type_bounds),
+            },
+        );
+        self.impl_trait_mode.synthesized_assoc_types.push(assoc_type);
+
+        // Now, in the place of the RPITIT, we insert a projection into this synthesized associated type.
+        TyKind::Alias(AliasTy::Projection(ProjectionTy {
+            associated_ty_id: to_assoc_type_id_rpitit(assoc_type),
+            substitution: returned_subst,
+        }))
+        .intern(Interner)
+    }
+
+    /// Returns a `Substitution` for the current owner, with the expected param lowering mode.
+    fn subst_for_generics(&mut self) -> Substitution {
+        let generics = self.generics();
+        match self.type_param_mode {
+            ParamLoweringMode::Placeholder => generics.placeholder_subst(self.db),
+            ParamLoweringMode::Variable => generics.bound_vars_subst(self.db, self.in_binders),
+        }
     }
 
     /// This is only for `generic_predicates_for_param`, where we can't just
@@ -776,10 +923,26 @@ impl<'a> TyLoweringContext<'a> {
 /// Build the signature of a callable item (function, struct or enum variant).
 pub(crate) fn callable_item_signature_query(db: &dyn HirDatabase, def: CallableDefId) -> PolyFnSig {
     match def {
-        CallableDefId::FunctionId(f) => fn_sig_for_fn(db, f),
+        CallableDefId::FunctionId(f) => {
+            let container = f.loc(db).container;
+            match container {
+                ItemContainerId::TraitId(_) => trait_fn_signature(db, f).0.clone(),
+                _ => fn_sig_for_fn(db, f, ImplTraitLoweringMode::Opaque).0,
+            }
+        }
         CallableDefId::StructId(s) => fn_sig_for_struct_constructor(db, s),
         CallableDefId::EnumVariantId(e) => fn_sig_for_enum_variant_constructor(db, e),
     }
+}
+
+#[salsa_macros::tracked(return_ref)]
+pub(crate) fn trait_fn_signature(
+    db: &dyn HirDatabase,
+    def: FunctionId,
+) -> (PolyFnSig, ThinVec<RpititTraitAssocTyId>) {
+    let (sig, rpitit_assoc_types) = fn_sig_for_fn(db, def, ImplTraitLoweringMode::AssocType);
+    let rpitit_assoc_types = ThinVec::from_iter(rpitit_assoc_types);
+    (sig, rpitit_assoc_types)
 }
 
 pub fn associated_type_shorthand_candidates<R>(
@@ -1017,7 +1180,16 @@ pub(crate) fn trait_environment_for_body_query(
         let krate = def.module(db).krate();
         return TraitEnvironment::empty(krate);
     };
-    db.trait_environment(def)
+
+    let generics = generics(db, def);
+    let (resolver, traits_in_scope, mut clauses) = trait_environment_shared(db, def, &generics);
+
+    if let GenericDefId::FunctionId(function) = def {
+        add_method_body_rpitit_clauses(db, &generics, &mut clauses, function);
+    }
+
+    let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
+    TraitEnvironment::new(resolver, None, traits_in_scope.into_boxed_slice(), env)
 }
 
 pub(crate) fn trait_environment_query(
@@ -1025,6 +1197,16 @@ pub(crate) fn trait_environment_query(
     def: GenericDefId,
 ) -> Arc<TraitEnvironment> {
     let generics = generics(db, def);
+    let (resolver, traits_in_scope, clauses) = trait_environment_shared(db, def, &generics);
+    let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
+    TraitEnvironment::new(resolver, None, traits_in_scope.into_boxed_slice(), env)
+}
+
+fn trait_environment_shared(
+    db: &dyn HirDatabase,
+    def: GenericDefId,
+    generics: &Generics,
+) -> (Crate, Vec<(Ty, TraitId)>, Vec<ProgramClause>) {
     let resolver = def.resolver(db);
     let mut ctx = TyLoweringContext::new(
         db,
@@ -1037,7 +1219,7 @@ pub(crate) fn trait_environment_query(
     let mut traits_in_scope = Vec::new();
     let mut clauses = Vec::new();
     for maybe_parent_generics in
-        std::iter::successors(Some(&generics), |generics| generics.parent_generics())
+        std::iter::successors(Some(generics), |generics| generics.parent_generics())
     {
         ctx.store = maybe_parent_generics.store();
         for pred in maybe_parent_generics.where_predicates() {
@@ -1077,9 +1259,7 @@ pub(crate) fn trait_environment_query(
         };
     }
 
-    let env = chalk_ir::Environment::new(Interner).add_clauses(Interner, clauses);
-
-    TraitEnvironment::new(resolver.krate(), None, traits_in_scope.into_boxed_slice(), env)
+    (resolver.krate(), traits_in_scope, clauses)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1277,7 +1457,10 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
         p: GenericParamDataRef<'_>,
         generic_params: &Generics,
     ) -> (Binders<crate::GenericArg>, bool) {
-        let binders = variable_kinds_from_iter(ctx.db, generic_params.iter_id().take(idx));
+        let binders = VariableKinds::from_iter(
+            Interner,
+            variable_kinds_from_generics(ctx.db, generic_params.iter_id().take(idx)),
+        );
         match p {
             GenericParamDataRef::TypeParamData(p) => {
                 let ty = p.default.as_ref().map_or_else(
@@ -1322,7 +1505,11 @@ pub(crate) fn generic_defaults_with_diagnostics_cycle_result(
     (GenericDefaults(None), None)
 }
 
-fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
+fn fn_sig_for_fn(
+    db: &dyn HirDatabase,
+    def: FunctionId,
+    return_type_impl_trait_mode: ImplTraitLoweringMode,
+) -> (PolyFnSig, Vec<RpititTraitAssocTyId>) {
     let data = db.function_signature(def);
     let resolver = def.resolver(db);
     let mut ctx_params = TyLoweringContext::new(
@@ -1335,6 +1522,7 @@ fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
     .with_type_param_mode(ParamLoweringMode::Variable);
     let params = data.params.iter().map(|&tr| ctx_params.lower_ty(tr));
 
+    let mut rpitit_assoc_types = Vec::new();
     let ret = match data.ret_type {
         Some(ret_type) => {
             let mut ctx_ret = TyLoweringContext::new(
@@ -1344,9 +1532,11 @@ fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
                 def.into(),
                 LifetimeElisionKind::for_fn_ret(),
             )
-            .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+            .with_impl_trait_mode(return_type_impl_trait_mode)
             .with_type_param_mode(ParamLoweringMode::Variable);
-            ctx_ret.lower_ty(ret_type)
+            let ret_type = ctx_ret.lower_ty(ret_type);
+            rpitit_assoc_types = ctx_ret.impl_trait_mode.synthesized_assoc_types;
+            ret_type
         }
         None => TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner),
     };
@@ -1358,7 +1548,8 @@ fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
         if data.is_unsafe() { Safety::Unsafe } else { Safety::Safe },
         data.abi.as_ref().map_or(FnAbi::Rust, FnAbi::from_symbol),
     );
-    make_binders(db, &generics, sig)
+    let sig = make_binders(db, &generics, sig);
+    (sig, rpitit_assoc_types)
 }
 
 /// Build the declared type of a function. This should not need to look at the
