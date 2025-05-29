@@ -452,8 +452,6 @@ pub struct InferenceResult {
     pub type_of_pat: ArenaMap<PatId, Ty>,
     pub type_of_binding: ArenaMap<BindingId, Ty>,
     pub type_of_rpit: ArenaMap<ImplTraitIdx, Ty>,
-    /// Type of the result of `.into_iter()` on the for. `ExprId` is the one of the whole for loop.
-    pub type_of_for_iterator: FxHashMap<ExprId, Ty>,
     type_mismatches: FxHashMap<ExprOrPatId, TypeMismatch>,
     /// Whether there are any type-mismatching errors in the result.
     // FIXME: This isn't as useful as initially thought due to us falling back placeholders to
@@ -752,7 +750,6 @@ impl<'db> InferenceContext<'db> {
             type_of_pat,
             type_of_binding,
             type_of_rpit,
-            type_of_for_iterator,
             type_mismatches,
             has_errors,
             binding_modes: _,
@@ -810,11 +807,6 @@ impl<'db> InferenceContext<'db> {
             *has_errors = *has_errors || ty.contains_unknown();
         }
         type_of_rpit.shrink_to_fit();
-        for ty in type_of_for_iterator.values_mut() {
-            *ty = table.resolve_completely(ty.clone());
-            *has_errors = *has_errors || ty.contains_unknown();
-        }
-        type_of_for_iterator.shrink_to_fit();
 
         *has_errors |= !type_mismatches.is_empty();
 
