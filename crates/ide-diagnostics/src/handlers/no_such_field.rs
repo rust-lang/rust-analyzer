@@ -430,6 +430,52 @@ fn f(s@m::Struct {
     }
 
     #[test]
+    fn test_struct_field_private_fix() {
+        check_diagnostics(
+            r#"
+mod m {
+    pub struct Struct {
+        field: u32,
+    }
+}
+fn f() {
+    let _ = m::Struct {
+        field: 0,
+      //^^^^^^^^ 💡 error: field is private
+    };
+}
+"#,
+        );
+
+        check_fix(
+            r#"
+mod m {
+    pub struct Struct {
+        field: u32,
+    }
+}
+fn f() {
+    let _ = m::Struct {
+        field$0: 0,
+    };
+}
+"#,
+            r#"
+mod m {
+    pub struct Struct {
+        pub field: u32,
+    }
+}
+fn f() {
+    let _ = m::Struct {
+        field: 0,
+    };
+}
+"#,
+        );
+    }
+
+    #[test]
     fn editions_between_macros() {
         check_diagnostics(
             r#"
