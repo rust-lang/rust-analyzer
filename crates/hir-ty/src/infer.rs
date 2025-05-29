@@ -423,6 +423,17 @@ pub enum PointerCast {
     Unsize,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum Resolution {
+    Method(FunctionId, Substitution),
+    Function(FunctionId, Substitution),
+    Const(ConstId, Substitution),
+    TypeAlias(TypeAliasId, Substitution),
+    Field(FieldId),
+    TupleField(TupleFieldId),
+    Variant(VariantId),
+}
+
 /// The result of type inference: A mapping from expressions and patterns to types.
 ///
 /// When you add a field that stores types (including `Substitution` and the like), don't forget
@@ -430,18 +441,20 @@ pub enum PointerCast {
 /// not appear in the final inference result.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct InferenceResult {
-    /// For each method call expr, records the function it resolves to.
-    method_resolutions: FxHashMap<ExprId, (FunctionId, Substitution)>,
-    /// For each field access expr, records the field it resolves to.
-    field_resolutions: FxHashMap<ExprId, Either<FieldId, TupleFieldId>>,
-    /// For each struct literal or pattern, records the variant it resolves to.
-    variant_resolutions: FxHashMap<ExprOrPatId, VariantId>,
-    /// For each associated item record what it resolves to
-    assoc_resolutions: FxHashMap<ExprOrPatId, (AssocItemId, Substitution)>,
+    resolution: FxHashMap<ExprOrPatId, Resolution>,
+    // /// For each method call expr, records the function it resolves to.
+    // method_resolutions: FxHashMap<ExprId, (FunctionId, Substitution)>,
+    // /// For each field access expr, records the field it resolves to.
+    // field_resolutions: FxHashMap<ExprId, Either<FieldId, TupleFieldId>>,
+    // /// For each struct literal or pattern, records the variant it resolves to.
+    // variant_resolutions: FxHashMap<ExprOrPatId, VariantId>,
+    // /// For each associated item record what it resolves to
+    // assoc_resolutions: FxHashMap<ExprOrPatId, (AssocItemId, Substitution)>,
     /// Whenever a tuple field expression access a tuple field, we allocate a tuple id in
     /// [`InferenceContext`] and store the tuples substitution there. This map is the reverse of
     /// that which allows us to resolve a [`TupleFieldId`]s type.
     pub tuple_field_access_types: FxHashMap<TupleId, Substitution>,
+
     /// During inference this field is empty and [`InferenceContext::diagnostics`] is filled instead.
     pub diagnostics: Box<[InferenceDiagnostic]>,
     pub type_of_expr: ArenaMap<ExprId, Ty>,
@@ -452,6 +465,7 @@ pub struct InferenceResult {
     pub type_of_pat: ArenaMap<PatId, Ty>,
     pub type_of_binding: ArenaMap<BindingId, Ty>,
     pub type_of_rpit: ArenaMap<ImplTraitIdx, Ty>,
+    // FIXME: Option<Box<>> this
     type_mismatches: FxHashMap<ExprOrPatId, TypeMismatch>,
     /// Whether there are any type-mismatching errors in the result.
     // FIXME: This isn't as useful as initially thought due to us falling back placeholders to
@@ -482,7 +496,10 @@ pub struct InferenceResult {
 
 impl InferenceResult {
     pub fn method_resolution(&self, expr: ExprId) -> Option<(FunctionId, Substitution)> {
-        self.method_resolutions.get(&expr).cloned()
+        self.resolution.get(&expr.into()).and_then(|res| match res {
+            Resolution::Method(id, sub) => Some((*id, sub.clone())),
+            _ => None,
+        })
     }
     pub fn pat_adjustments(&self, pat: PatId) -> &[Adjustment] {
         self.adjustments.get(&ExprOrPatId::PatId(pat)).map_or(&[], |v| v.as_ref())
@@ -491,13 +508,23 @@ impl InferenceResult {
         self.adjustments.get(&ExprOrPatId::ExprId(expr)).map_or(&[], |v| v.as_ref())
     }
     pub fn field_resolution(&self, expr: ExprId) -> Option<Either<FieldId, TupleFieldId>> {
-        self.field_resolutions.get(&expr).copied()
+        self.resolution.get(&expr.into()).and_then(|res| match res {
+            Resolution::Field(id) => Some(Either::Left(*id)),
+            Resolution::TupleField(id) => Some(Either::Right(*id)),
+            _ => None,
+        })
     }
     pub fn variant_resolution_for_expr(&self, id: ExprId) -> Option<VariantId> {
-        self.variant_resolutions.get(&id.into()).copied()
+        self.resolution.get(&id.into()).and_then(|res| match res {
+            Resolution::Variant(id) => Some(*id),
+            _ => None,
+        })
     }
     pub fn variant_resolution_for_pat(&self, id: PatId) -> Option<VariantId> {
-        self.variant_resolutions.get(&id.into()).copied()
+        self.resolution.get(&id.into()).and_then(|res| match res {
+            Resolution::Variant(id) => Some(*id),
+            _ => None,
+        })
     }
     pub fn variant_resolution_for_expr_or_pat(&self, id: ExprOrPatId) -> Option<VariantId> {
         match id {
@@ -506,10 +533,20 @@ impl InferenceResult {
         }
     }
     pub fn assoc_resolutions_for_expr(&self, id: ExprId) -> Option<(AssocItemId, Substitution)> {
-        self.assoc_resolutions.get(&id.into()).cloned()
+        self.resolution.get(&id.into()).and_then(|res| match *res {
+            Resolution::TypeAlias(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Const(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Function(id, ref sub) => Some((id.into(), sub.clone())),
+            _ => None,
+        })
     }
     pub fn assoc_resolutions_for_pat(&self, id: PatId) -> Option<(AssocItemId, Substitution)> {
-        self.assoc_resolutions.get(&id.into()).cloned()
+        self.resolution.get(&id.into()).and_then(|res| match *res {
+            Resolution::TypeAlias(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Const(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Function(id, ref sub) => Some((id.into(), sub.clone())),
+            _ => None,
+        })
     }
     pub fn assoc_resolutions_for_expr_or_pat(
         &self,
@@ -742,10 +779,7 @@ impl<'db> InferenceContext<'db> {
         // Destructure every single field so whenever new fields are added to `InferenceResult` we
         // don't forget to handle them here.
         let InferenceResult {
-            method_resolutions,
-            field_resolutions: _,
-            variant_resolutions: _,
-            assoc_resolutions,
+            resolution,
             type_of_expr,
             type_of_pat,
             type_of_binding,
@@ -851,18 +885,20 @@ impl<'db> InferenceContext<'db> {
             true
         });
         diagnostics.shrink_to_fit();
-        for (_, subst) in method_resolutions.values_mut() {
-            *subst = table.resolve_completely(subst.clone());
-            *has_errors =
-                *has_errors || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
+        for it in resolution.values_mut() {
+            match it {
+                Resolution::Method(_, subst)
+                | Resolution::Function(_, subst)
+                | Resolution::Const(_, subst)
+                | Resolution::TypeAlias(_, subst) => {
+                    *subst = table.resolve_completely(subst.clone());
+                    *has_errors = *has_errors
+                        || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
+                }
+                Resolution::Variant(_) | Resolution::Field(_) | Resolution::TupleField(_) => (),
+            }
         }
-        method_resolutions.shrink_to_fit();
-        for (_, subst) in assoc_resolutions.values_mut() {
-            *subst = table.resolve_completely(subst.clone());
-            *has_errors =
-                *has_errors || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
-        }
-        assoc_resolutions.shrink_to_fit();
+        resolution.shrink_to_fit();
         for adjustment in adjustments.values_mut().flatten() {
             adjustment.target = table.resolve_completely(adjustment.target.clone());
             *has_errors = *has_errors || adjustment.target.contains_unknown();
@@ -1273,15 +1309,25 @@ impl<'db> InferenceContext<'db> {
     }
 
     fn write_method_resolution(&mut self, expr: ExprId, func: FunctionId, subst: Substitution) {
-        self.result.method_resolutions.insert(expr, (func, subst));
+        self.result.resolution.insert(expr.into(), Resolution::Method(func, subst));
     }
 
     fn write_variant_resolution(&mut self, id: ExprOrPatId, variant: VariantId) {
-        self.result.variant_resolutions.insert(id, variant);
+        self.result.resolution.insert(id, Resolution::Variant(variant));
     }
 
     fn write_assoc_resolution(&mut self, id: ExprOrPatId, item: AssocItemId, subs: Substitution) {
-        self.result.assoc_resolutions.insert(id, (item, subs));
+        match item {
+            AssocItemId::FunctionId(function_id) => {
+                self.result.resolution.insert(id, Resolution::Function(function_id, subs))
+            }
+            AssocItemId::ConstId(const_id) => {
+                self.result.resolution.insert(id, Resolution::Const(const_id, subs))
+            }
+            AssocItemId::TypeAliasId(type_alias_id) => {
+                self.result.resolution.insert(id, Resolution::TypeAlias(type_alias_id, subs))
+            }
+        };
     }
 
     fn write_pat_ty(&mut self, pat: PatId, ty: Ty) {

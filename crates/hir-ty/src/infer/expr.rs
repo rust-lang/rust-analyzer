@@ -30,7 +30,7 @@ use crate::{
     consteval,
     generics::generics,
     infer::{
-        BreakableKind, ERROR_TY, UNIT_TY,
+        BreakableKind, ERROR_TY, Resolution, UNIT_TY,
         coerce::{CoerceMany, CoerceNever, CoercionCause},
         find_continuable,
         pat::contains_explicit_ref_binding,
@@ -1617,7 +1617,10 @@ impl InferenceContext<'_> {
         match self.lookup_field(&receiver_ty, name) {
             Some((ty, field_id, adjustments, is_public)) => {
                 self.write_expr_adj(receiver, adjustments.into_boxed_slice());
-                self.result.field_resolutions.insert(tgt_expr, field_id);
+                self.result.resolution.insert(
+                    tgt_expr.into(),
+                    field_id.either(Resolution::Field, Resolution::TupleField),
+                );
                 if !is_public {
                     if let Either::Left(field) = field_id {
                         // FIXME: Merge this diagnostic into UnresolvedField?
@@ -1818,7 +1821,10 @@ impl InferenceContext<'_> {
                 {
                     Some((ty, field_id, adjustments, _public)) => {
                         self.write_expr_adj(receiver, adjustments.into_boxed_slice());
-                        self.result.field_resolutions.insert(tgt_expr, field_id);
+                        self.result.resolution.insert(
+                            tgt_expr.into(),
+                            field_id.either(Resolution::Field, Resolution::TupleField),
+                        );
                         Some(ty)
                     }
                     None => None,
