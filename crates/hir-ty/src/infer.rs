@@ -460,9 +460,6 @@ pub struct InferenceResult {
     // `TyKind::Error`.
     // Which will then mark this field.
     pub(crate) has_errors: bool,
-    /// Interned common types to return references to.
-    /// Stores the types which were implicitly dereferenced in pattern binding modes.
-    pub pat_adjustments: FxHashMap<PatId, Vec<Ty>>,
     /// Stores the binding mode (`ref` in `let ref x = 2`) of bindings.
     ///
     /// This one is tied to the `PatId` instead of `BindingId`, because in some rare cases, a binding in an
@@ -477,7 +474,8 @@ pub struct InferenceResult {
     /// ```
     /// the first `rest` has implicit `ref` binding mode, but the second `rest` binding mode is `move`.
     pub binding_modes: ArenaMap<PatId, BindingMode>,
-    pub expr_adjustments: FxHashMap<ExprId, Box<[Adjustment]>>,
+    /// For patterns, this stores the types which were implicitly dereferenced in pattern binding modes.
+    adjustments: FxHashMap<ExprOrPatId, Box<[Adjustment]>>,
     pub(crate) closure_info: FxHashMap<ClosureId, (Vec<CapturedItem>, FnTrait)>,
     // FIXME: remove this field
     pub mutated_bindings_in_closure: FxHashSet<BindingId>,
@@ -487,6 +485,12 @@ pub struct InferenceResult {
 impl InferenceResult {
     pub fn method_resolution(&self, expr: ExprId) -> Option<(FunctionId, Substitution)> {
         self.method_resolutions.get(&expr).cloned()
+    }
+    pub fn pat_adjustments(&self, pat: PatId) -> &[Adjustment] {
+        self.adjustments.get(&ExprOrPatId::PatId(pat)).map_or(&[], |v| v.as_ref())
+    }
+    pub fn expr_adjustments(&self, expr: ExprId) -> &[Adjustment] {
+        self.adjustments.get(&ExprOrPatId::ExprId(expr)).map_or(&[], |v| v.as_ref())
     }
     pub fn field_resolution(&self, expr: ExprId) -> Option<Either<FieldId, TupleFieldId>> {
         self.field_resolutions.get(&expr).copied()
@@ -751,9 +755,8 @@ impl<'db> InferenceContext<'db> {
             type_of_for_iterator,
             type_mismatches,
             has_errors,
-            pat_adjustments,
             binding_modes: _,
-            expr_adjustments,
+            adjustments,
             // Types in `closure_info` have already been `resolve_completely()`'d during
             // `InferenceContext::infer_closures()` (in `HirPlace::ty()` specifically), so no need
             // to resolve them here.
@@ -769,7 +772,7 @@ impl<'db> InferenceContext<'db> {
         // Even though coercion casts provide type hints, we check casts after fallback for
         // backwards compatibility. This makes fallback a stronger type hint than a cast coercion.
         let mut apply_adjustments = |expr, adj: Vec<_>| {
-            expr_adjustments.insert(expr, adj.into_boxed_slice());
+            adjustments.insert(ExprOrPatId::ExprId(expr), adj.into_boxed_slice());
         };
         let mut set_coercion_cast = |expr| {
             coercion_casts.insert(expr);
@@ -868,16 +871,11 @@ impl<'db> InferenceContext<'db> {
                 *has_errors || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
         }
         assoc_resolutions.shrink_to_fit();
-        for adjustment in expr_adjustments.values_mut().flatten() {
+        for adjustment in adjustments.values_mut().flatten() {
             adjustment.target = table.resolve_completely(adjustment.target.clone());
             *has_errors = *has_errors || adjustment.target.contains_unknown();
         }
-        expr_adjustments.shrink_to_fit();
-        for adjustment in pat_adjustments.values_mut().flatten() {
-            *adjustment = table.resolve_completely(adjustment.clone());
-            *has_errors = *has_errors || adjustment.contains_unknown();
-        }
-        pat_adjustments.shrink_to_fit();
+        adjustments.shrink_to_fit();
         result.tuple_field_access_types = tuple_field_accesses_rev
             .into_iter()
             .enumerate()
@@ -1260,7 +1258,7 @@ impl<'db> InferenceContext<'db> {
         if adjustments.is_empty() {
             return;
         }
-        match self.result.expr_adjustments.entry(expr) {
+        match self.result.adjustments.entry(expr.into()) {
             std::collections::hash_map::Entry::Occupied(mut entry) => {
                 match (&mut entry.get_mut()[..], &adjustments[..]) {
                     (

@@ -113,13 +113,9 @@ impl<'a> PatCtxt<'a> {
         // Pattern adjustment is part of RFC 2005-match-ergonomics.
         // More info https://github.com/rust-lang/rust/issues/42640#issuecomment-313535089
         let unadjusted_pat = self.lower_pattern_unadjusted(pat);
-        self.infer.pat_adjustments.get(&pat).map(|it| &**it).unwrap_or_default().iter().rev().fold(
-            unadjusted_pat,
-            |subpattern, ref_ty| Pat {
-                ty: ref_ty.clone(),
-                kind: Box::new(PatKind::Deref { subpattern }),
-            },
-        )
+        self.infer.pat_adjustments(pat).iter().rev().fold(unadjusted_pat, |subpattern, ref_ty| {
+            Pat { ty: ref_ty.target.clone(), kind: Box::new(PatKind::Deref { subpattern }) }
+        })
     }
 
     fn lower_pattern_unadjusted(&mut self, pat: PatId) -> Pat {

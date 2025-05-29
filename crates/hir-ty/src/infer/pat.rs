@@ -11,8 +11,8 @@ use hir_expand::name::Name;
 use stdx::TupleExt;
 
 use crate::{
-    DeclContext, DeclOrigin, InferenceDiagnostic, Interner, Mutability, Scalar, Substitution, Ty,
-    TyBuilder, TyExt, TyKind,
+    Adjust, Adjustment, DeclContext, DeclOrigin, InferenceDiagnostic, Interner, Mutability, Scalar,
+    Substitution, Ty, TyBuilder, TyExt, TyKind,
     consteval::{self, try_const_usize, usize_const},
     infer::{
         BindingMode, ERROR_TY, Expectation, InferenceContext, TypeMismatch, coerce::CoerceNever,
@@ -250,7 +250,8 @@ impl InferenceContext<'_> {
         } else if self.is_non_ref_pat(self.body, pat) {
             let mut pat_adjustments = Vec::new();
             while let Some((inner, _lifetime, mutability)) = expected.as_reference() {
-                pat_adjustments.push(expected.clone());
+                pat_adjustments
+                    .push(Adjustment { kind: Adjust::Deref(None), target: expected.clone() });
                 expected = self.resolve_ty_shallow(inner);
                 default_bm = match default_bm {
                     BindingMode::Move => BindingMode::Ref(mutability),
@@ -260,8 +261,7 @@ impl InferenceContext<'_> {
             }
 
             if !pat_adjustments.is_empty() {
-                pat_adjustments.shrink_to_fit();
-                self.result.pat_adjustments.insert(pat, pat_adjustments);
+                self.result.adjustments.insert(pat.into(), pat_adjustments.into_boxed_slice());
             }
         }
 
@@ -306,12 +306,13 @@ impl InferenceContext<'_> {
                 match self.table.coerce(&expected, &ty_inserted_vars, CoerceNever::Yes) {
                     Ok((adjustments, coerced_ty)) => {
                         if !adjustments.is_empty() {
-                            self.result
-                                .pat_adjustments
-                                .entry(pat)
-                                .or_default()
-                                .extend(adjustments.into_iter().map(|adjust| adjust.target));
+                            let adjustments = match self.result.adjustments.remove(&pat.into()) {
+                                Some(prev) => prev.into_iter().chain(adjustments).collect(),
+                                None => adjustments.into_boxed_slice(),
+                            };
+                            self.result.adjustments.insert(pat.into(), adjustments);
                         }
+
                         self.write_pat_ty(pat, coerced_ty);
                         return self.pat_ty_after_adjustment(pat);
                     }
@@ -419,10 +420,10 @@ impl InferenceContext<'_> {
 
     fn pat_ty_after_adjustment(&self, pat: PatId) -> Ty {
         self.result
-            .pat_adjustments
-            .get(&pat)
+            .adjustments
+            .get(&pat.into())
             .and_then(|it| it.first())
-            .unwrap_or(&self.result.type_of_pat[pat])
+            .map_or_else(|| &self.result.type_of_pat[pat], |adj| &adj.target)
             .clone()
     }
 

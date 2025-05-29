@@ -279,9 +279,9 @@ impl ExprValidator {
     fn is_known_valid_scrutinee(&self, scrutinee_expr: ExprId, db: &dyn HirDatabase) -> bool {
         if self
             .infer
-            .expr_adjustments
-            .get(&scrutinee_expr)
-            .is_some_and(|adjusts| adjusts.iter().any(|a| matches!(a.kind, Adjust::Deref(..))))
+            .expr_adjustments(scrutinee_expr)
+            .iter()
+            .any(|a| matches!(a.kind, Adjust::Deref(..)))
         {
             return false;
         }

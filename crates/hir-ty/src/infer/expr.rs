@@ -250,12 +250,10 @@ impl InferenceContext<'_> {
         // While we don't allow *arbitrary* coercions here, we *do* allow
         // coercions from `!` to `expected`.
         if ty.is_never() {
-            if let Some(adjustments) = self.result.expr_adjustments.get(&expr) {
-                return if let [Adjustment { kind: Adjust::NeverToAny, target }] = &**adjustments {
-                    target.clone()
-                } else {
-                    self.err_ty()
-                };
+            match self.result.expr_adjustments(expr) {
+                [Adjustment { kind: Adjust::NeverToAny, target }] => return target.clone(),
+                [_, ..] => return self.err_ty(),
+                [] => (),
             }
 
             if let Some(target) = expected.only_has_type(&mut self.table) {

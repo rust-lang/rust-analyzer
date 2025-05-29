@@ -254,7 +254,8 @@ impl<'db> SourceAnalyzer<'db> {
         // expressions nor patterns).
         let expr_id = self.expr_id(expr.clone())?.as_expr()?;
         let infer = self.infer()?;
-        infer.expr_adjustments.get(&expr_id).map(|v| &**v)
+        let adjustment = infer.expr_adjustments(expr_id);
+        if adjustment.is_empty() { None } else { Some(adjustment) }
     }
 
     pub(crate) fn type_of_type(&self, db: &'db dyn HirDatabase, ty: &ast::Type) -> Option<Type> {
@@ -282,7 +283,7 @@ impl<'db> SourceAnalyzer<'db> {
         let infer = self.infer()?;
         let coerced = expr_id
             .as_expr()
-            .and_then(|expr_id| infer.expr_adjustments.get(&expr_id))
+            .map(|expr_id| infer.expr_adjustments(expr_id))
             .and_then(|adjusts| adjusts.last().map(|adjust| adjust.target.clone()));
         let ty = infer[expr_id].clone();
         let mk_ty = |ty| Type::new_with_resolver(db, &self.resolver, ty);
@@ -297,15 +298,12 @@ impl<'db> SourceAnalyzer<'db> {
         let expr_or_pat_id = self.pat_id(pat)?;
         let infer = self.infer()?;
         let coerced = match expr_or_pat_id {
-            ExprOrPatId::ExprId(idx) => infer
-                .expr_adjustments
-                .get(&idx)
-                .and_then(|adjusts| adjusts.last().cloned())
-                .map(|adjust| adjust.target),
-            ExprOrPatId::PatId(idx) => {
-                infer.pat_adjustments.get(&idx).and_then(|adjusts| adjusts.last().cloned())
-            }
-        };
+            ExprOrPatId::ExprId(idx) => infer.expr_adjustments(idx),
+            ExprOrPatId::PatId(idx) => infer.pat_adjustments(idx),
+        }
+        .last()
+        .cloned()
+        .map(|adjust| adjust.target);
 
         let ty = infer[expr_or_pat_id].clone();
         let mk_ty = |ty| Type::new_with_resolver(db, &self.resolver, ty);
@@ -356,14 +354,12 @@ impl<'db> SourceAnalyzer<'db> {
     ) -> Option<SmallVec<[Type; 1]>> {
         let pat_id = self.pat_id(pat)?;
         let infer = self.infer()?;
-        Some(
-            infer
-                .pat_adjustments
-                .get(&pat_id.as_pat()?)?
-                .iter()
-                .map(|ty| Type::new_with_resolver(db, &self.resolver, ty.clone()))
-                .collect(),
-        )
+        let collect: SmallVec<_> = infer
+            .pat_adjustments(pat_id.as_pat()?)
+            .iter()
+            .map(|ty| Type::new_with_resolver(db, &self.resolver, ty.target.clone()))
+            .collect();
+        if collect.is_empty() { None } else { Some(collect) }
     }
 
     pub(crate) fn resolve_method_call_as_callable(
@@ -1780,7 +1776,7 @@ pub(crate) fn name_hygiene(db: &dyn HirDatabase, name: InFile<&SyntaxNode>) -> H
 }
 
 fn type_of_expr_including_adjust(infer: &InferenceResult, id: ExprId) -> Option<&Ty> {
-    match infer.expr_adjustments.get(&id).and_then(|adjustments| adjustments.last()) {
+    match infer.expr_adjustments(id).last() {
         Some(adjustment) => Some(&adjustment.target),
         None => infer.type_of_expr.get(id),
     }

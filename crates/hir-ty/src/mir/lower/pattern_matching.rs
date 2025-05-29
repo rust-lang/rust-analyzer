@@ -119,7 +119,7 @@ impl MirLowerCtx<'_> {
         pattern: PatId,
         mode: MatchingMode,
     ) -> Result<(BasicBlockId, Option<BasicBlockId>)> {
-        let cnt = self.infer.pat_adjustments.get(&pattern).map(|x| x.len()).unwrap_or_default();
+        let cnt = self.infer.pat_adjustments(pattern).len();
         cond_place.projection = self.result.projection_store.intern(
             cond_place
                 .projection

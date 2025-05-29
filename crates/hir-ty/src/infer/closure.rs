@@ -905,8 +905,7 @@ impl CapturedItemWithoutTy {
 impl InferenceContext<'_> {
     fn place_of_expr(&mut self, tgt_expr: ExprId) -> Option<HirPlace> {
         let r = self.place_of_expr_without_adjust(tgt_expr)?;
-        let adjustments =
-            self.result.expr_adjustments.get(&tgt_expr).map(|it| &**it).unwrap_or_default();
+        let adjustments = self.result.expr_adjustments(tgt_expr);
         apply_adjusts_to_place(&mut self.current_capture_span_stack, r, adjustments)
     }
 
@@ -1087,12 +1086,12 @@ impl InferenceContext<'_> {
     }
 
     fn walk_expr(&mut self, tgt_expr: ExprId) {
-        if let Some(it) = self.result.expr_adjustments.get_mut(&tgt_expr) {
+        if let Some(it) = self.result.adjustments.get_mut(&tgt_expr.into()) {
             // FIXME: this take is completely unneeded, and just is here to make borrow checker
             // happy. Remove it if you can.
             let x_taken = mem::take(it);
             self.walk_expr_with_adjust(tgt_expr, &x_taken);
-            *self.result.expr_adjustments.get_mut(&tgt_expr).unwrap() = x_taken;
+            *self.result.adjustments.get_mut(&tgt_expr.into()).unwrap() = x_taken;
         } else {
             self.walk_expr_without_adjust(tgt_expr);
         }
@@ -1389,7 +1388,7 @@ impl InferenceContext<'_> {
                 },
             },
         }
-        if self.result.pat_adjustments.get(&p).is_some_and(|it| !it.is_empty()) {
+        if !self.result.pat_adjustments(p).is_empty() {
             for_mut = BorrowKind::Mut { kind: MutBorrowKind::ClosureCapture };
         }
         self.body.walk_pats_shallow(p, |p| self.walk_pat_inner(p, update_result, for_mut));
@@ -1401,10 +1400,8 @@ impl InferenceContext<'_> {
 
     fn expr_ty_after_adjustments(&self, e: ExprId) -> Ty {
         let mut ty = None;
-        if let Some(it) = self.result.expr_adjustments.get(&e) {
-            if let Some(it) = it.last() {
-                ty = Some(it.target.clone());
-            }
+        if let Some(it) = self.result.expr_adjustments(e).last() {
+            ty = Some(it.target.clone());
         }
         ty.unwrap_or_else(|| self.expr_ty(e))
     }
@@ -1515,8 +1512,7 @@ impl InferenceContext<'_> {
     }
 
     fn consume_with_pat(&mut self, mut place: HirPlace, tgt_pat: PatId) {
-        let adjustments_count =
-            self.result.pat_adjustments.get(&tgt_pat).map(|it| it.len()).unwrap_or_default();
+        let adjustments_count = self.result.pat_adjustments(tgt_pat).len();
         place.projections.extend((0..adjustments_count).map(|_| ProjectionElem::Deref));
         self.current_capture_span_stack
             .extend((0..adjustments_count).map(|_| MirSpan::PatId(tgt_pat)));
@@ -1736,8 +1732,12 @@ impl InferenceContext<'_> {
 
             for (derefed_callee, callee_ty, params, expr) in exprs {
                 if let &Expr::Call { callee, .. } = &self.body[expr] {
-                    let mut adjustments =
-                        self.result.expr_adjustments.remove(&callee).unwrap_or_default().into_vec();
+                    let mut adjustments = self
+                        .result
+                        .adjustments
+                        .remove(&callee.into())
+                        .unwrap_or_default()
+                        .into_vec();
                     self.write_fn_trait_method_resolution(
                         kind,
                         &derefed_callee,
@@ -1746,7 +1746,7 @@ impl InferenceContext<'_> {
                         &params,
                         expr,
                     );
-                    self.result.expr_adjustments.insert(callee, adjustments.into_boxed_slice());
+                    self.result.adjustments.insert(callee.into(), adjustments.into_boxed_slice());
                 }
             }
         }

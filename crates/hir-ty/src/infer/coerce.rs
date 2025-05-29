@@ -160,7 +160,7 @@ impl CoerceMany {
         // - [Comment from rustc](https://github.com/rust-lang/rust/blob/5ff18d0eaefd1bd9ab8ec33dab2404a44e7631ed/compiler/rustc_hir_typeck/src/coercion.rs#L1334-L1335)
         // First try to coerce the new expression to the type of the previous ones,
         // but only if the new expression has no coercion already applied to it.
-        if expr.is_none_or(|expr| !ctx.result.expr_adjustments.contains_key(&expr)) {
+        if expr.is_none_or(|expr| !ctx.result.adjustments.contains_key(&expr.into())) {
             if let Ok(res) = ctx.coerce(expr, &expr_ty, &self.merged_ty(), CoerceNever::Yes) {
                 self.final_ty = Some(res);
                 if let Some(expr) = expr {
