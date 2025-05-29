@@ -15,7 +15,7 @@ use crate::{
     TyBuilder, TyExt, TyKind,
     consteval::{self, try_const_usize, usize_const},
     infer::{
-        BindingMode, Expectation, InferenceContext, TypeMismatch, coerce::CoerceNever,
+        BindingMode, ERROR_TY, Expectation, InferenceContext, TypeMismatch, coerce::CoerceNever,
         expr::ExprIsRead,
     },
     lower::lower_to_chalk_mutability,
@@ -354,7 +354,7 @@ impl InferenceContext<'_> {
                             subst.at(Interner, 0).assert_ty_ref(Interner).clone(),
                             subst.as_slice(Interner).get(1).and_then(|a| a.ty(Interner).cloned()),
                         ),
-                        _ => (self.result.standard_types.unknown.clone(), None),
+                        _ => (ERROR_TY.clone(), None),
                     };
 
                     let inner_ty = self.infer_pat(*inner, &inner_ty, default_bm, decl);

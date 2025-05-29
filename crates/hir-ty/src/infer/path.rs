@@ -15,7 +15,7 @@ use crate::{
     builder::ParamKind,
     consteval, error_lifetime,
     generics::generics,
-    infer::diagnostics::InferenceTyLoweringContext as TyLoweringContext,
+    infer::{ERROR_TY, diagnostics::InferenceTyLoweringContext as TyLoweringContext},
     lower::LifetimeElisionKind,
     method_resolution::{self, VisibleFromModule},
     to_chalk_trait_id,
@@ -114,9 +114,7 @@ impl InferenceContext<'_> {
             let substs = builder
                 .fill(|x| {
                     it.next().unwrap_or_else(|| match x {
-                        ParamKind::Type => {
-                            self.result.standard_types.unknown.clone().cast(Interner)
-                        }
+                        ParamKind::Type => ERROR_TY.clone().cast(Interner),
                         ParamKind::Const(ty) => consteval::unknown_const_as_generic(ty.clone()),
                         ParamKind::Lifetime => error_lifetime().cast(Interner),
                     })
@@ -138,7 +136,7 @@ impl InferenceContext<'_> {
         let substs = builder
             .fill(|x| {
                 it.next().unwrap_or_else(|| match x {
-                    ParamKind::Type => self.result.standard_types.unknown.clone().cast(Interner),
+                    ParamKind::Type => ERROR_TY.clone().cast(Interner),
                     ParamKind::Const(ty) => consteval::unknown_const_as_generic(ty.clone()),
                     ParamKind::Lifetime => error_lifetime().cast(Interner),
                 })

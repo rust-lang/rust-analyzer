@@ -23,10 +23,10 @@ mod pat;
 mod path;
 pub(crate) mod unify;
 
-use std::{cell::OnceCell, convert::identity, iter, ops::Index};
+use std::{cell::OnceCell, convert::identity, iter, ops::Index, sync::LazyLock};
 
 use chalk_ir::{
-    DebruijnIndex, Mutability, Safety, Scalar, TyKind, TypeFlags, Variance,
+    DebruijnIndex, Mutability, Safety, TyKind, TypeFlags, Variance,
     cast::Cast,
     fold::TypeFoldable,
     interner::HasInterner,
@@ -195,6 +195,10 @@ pub enum InferenceTyDiagnosticSource {
     Signature,
 }
 
+pub(crate) static ERROR_TY: LazyLock<Ty> = LazyLock::new(|| TyKind::Error.intern(Interner));
+pub(crate) static UNIT_TY: LazyLock<Ty> =
+    LazyLock::new(|| TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner));
+
 #[derive(Debug)]
 pub(crate) struct TypeError;
 pub(crate) type InferResult<T> = Result<InferOk<T>, TypeError>;
@@ -299,24 +303,6 @@ pub struct TypeMismatch {
     pub actual: Ty,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-struct InternedStandardTypes {
-    unknown: Ty,
-    bool_: Ty,
-    unit: Ty,
-    never: Ty,
-}
-
-impl Default for InternedStandardTypes {
-    fn default() -> Self {
-        InternedStandardTypes {
-            unknown: TyKind::Error.intern(Interner),
-            bool_: TyKind::Scalar(Scalar::Bool).intern(Interner),
-            unit: TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner),
-            never: TyKind::Never.intern(Interner),
-        }
-    }
-}
 /// Represents coercing a value to a different type of value.
 ///
 /// We transform values by following a number of `Adjust` steps in order.
@@ -475,8 +461,6 @@ pub struct InferenceResult {
     // Which will then mark this field.
     pub(crate) has_errors: bool,
     /// Interned common types to return references to.
-    // FIXME: Move this into `InferenceContext`
-    standard_types: InternedStandardTypes,
     /// Stores the types which were implicitly dereferenced in pattern binding modes.
     pub pat_adjustments: FxHashMap<PatId, Vec<Ty>>,
     /// Stores the binding mode (`ref` in `let ref x = 2`) of bindings.
@@ -564,7 +548,7 @@ impl Index<ExprId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, expr: ExprId) -> &Ty {
-        self.type_of_expr.get(expr).unwrap_or(&self.standard_types.unknown)
+        self.type_of_expr.get(expr).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -572,7 +556,7 @@ impl Index<PatId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, pat: PatId) -> &Ty {
-        self.type_of_pat.get(pat).unwrap_or(&self.standard_types.unknown)
+        self.type_of_pat.get(pat).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -580,7 +564,7 @@ impl Index<ExprOrPatId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, id: ExprOrPatId) -> &Ty {
-        self.type_of_expr_or_pat(id).unwrap_or(&self.standard_types.unknown)
+        self.type_of_expr_or_pat(id).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -588,7 +572,7 @@ impl Index<BindingId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, b: BindingId) -> &Ty {
-        self.type_of_binding.get(b).unwrap_or(&self.standard_types.unknown)
+        self.type_of_binding.get(b).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -767,7 +751,6 @@ impl<'db> InferenceContext<'db> {
             type_of_for_iterator,
             type_mismatches,
             has_errors,
-            standard_types: _,
             pat_adjustments,
             binding_modes: _,
             expr_adjustments,
@@ -1022,7 +1005,7 @@ impl<'db> InferenceContext<'db> {
                     return_ty
                 }
             }
-            None => self.result.standard_types.unit.clone(),
+            None => UNIT_TY.clone(),
         };
 
         self.return_ty = self.normalize_associated_types_in(return_ty);
@@ -1400,7 +1383,7 @@ impl<'db> InferenceContext<'db> {
     }
 
     fn err_ty(&self) -> Ty {
-        self.result.standard_types.unknown.clone()
+        TyKind::Error.intern(Interner)
     }
 
     fn make_body_lifetime(&mut self, lifetime_ref: LifetimeRefId) -> Lifetime {

@@ -35,7 +35,7 @@ use crate::{
     db::{HirDatabase, InternedClosure, InternedCoroutine},
     error_lifetime, from_assoc_type_id, from_chalk_trait_id, from_placeholder_idx,
     generics::Generics,
-    infer::{BreakableKind, CoerceMany, Diverges, coerce::CoerceNever},
+    infer::{BreakableKind, CoerceMany, Diverges, ERROR_TY, UNIT_TY, coerce::CoerceNever},
     make_binders,
     mir::{BorrowKind, MirSpan, MutBorrowKind, ProjectionElem},
     to_assoc_type_id, to_chalk_trait_id,
@@ -82,7 +82,7 @@ impl InferenceContext<'_> {
                     // When `sig_tys.len() == 1` the first type is the return type, not the
                     // first parameter type.
                     Some(ty) if sig_tys.len() > 1 => ty.assert_ty_ref(Interner).clone(),
-                    _ => self.result.standard_types.unit.clone(),
+                    _ => UNIT_TY.clone(),
                 };
                 let yield_ty = self.table.new_type_var();
 
@@ -337,7 +337,7 @@ impl InferenceContext<'_> {
                 .map(to_chalk_trait_id)
                 .collect();
 
-        let self_ty = self.result.standard_types.unknown.clone();
+        let self_ty = ERROR_TY.clone();
         let bounds = dyn_ty.bounds.clone().substitute(Interner, &[self_ty.cast(Interner)]);
         for bound in bounds.iter(Interner) {
             // NOTE(skip_binders): the extracted types are rebound by the returned `FnPointer`

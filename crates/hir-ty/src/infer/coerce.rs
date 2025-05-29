@@ -19,7 +19,7 @@ use crate::{
     db::HirDatabase,
     infer::{
         Adjust, Adjustment, AutoBorrow, InferOk, InferenceContext, OverloadedDeref, PointerCast,
-        TypeError, TypeMismatch,
+        TypeError, TypeMismatch, UNIT_TY,
     },
     utils::ClosureSubst,
 };
@@ -85,12 +85,8 @@ impl CoerceMany {
         self.final_ty.clone().unwrap_or_else(|| self.expected_ty.clone())
     }
 
-    pub(super) fn complete(self, ctx: &mut InferenceContext<'_>) -> Ty {
-        if let Some(final_ty) = self.final_ty {
-            final_ty
-        } else {
-            ctx.result.standard_types.never.clone()
-        }
+    pub(super) fn complete(self) -> Ty {
+        if let Some(final_ty) = self.final_ty { final_ty } else { TyKind::Never.intern(Interner) }
     }
 
     pub(super) fn coerce_forced_unit(
@@ -98,7 +94,7 @@ impl CoerceMany {
         ctx: &mut InferenceContext<'_>,
         cause: CoercionCause,
     ) {
-        self.coerce(ctx, None, &ctx.result.standard_types.unit.clone(), cause)
+        self.coerce(ctx, None, &UNIT_TY.clone(), cause)
     }
 
     /// Merge two types from different branches, with possible coercion.

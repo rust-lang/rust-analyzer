@@ -30,7 +30,7 @@ use crate::{
     consteval,
     generics::generics,
     infer::{
-        BreakableKind,
+        BreakableKind, ERROR_TY, UNIT_TY,
         coerce::{CoerceMany, CoerceNever, CoercionCause},
         find_continuable,
         pat::contains_explicit_ref_binding,
@@ -292,7 +292,7 @@ impl InferenceContext<'_> {
                 let expected = &expected.adjust_for_branches(&mut self.table);
                 self.infer_expr_coerce_never(
                     condition,
-                    &Expectation::HasType(self.result.standard_types.bool_.clone()),
+                    &Expectation::HasType(TyKind::Scalar(Scalar::Bool).intern(Interner)),
                     ExprIsRead::Yes,
                 );
 
@@ -320,7 +320,7 @@ impl InferenceContext<'_> {
                     }
                 }
 
-                coerce.complete(self)
+                coerce.complete()
             }
             &Expr::Let { pat, expr } => {
                 let child_is_read = if self.pat_guaranteed_to_constitute_read_for_never(pat) {
@@ -334,7 +334,7 @@ impl InferenceContext<'_> {
                     &input_ty,
                     Some(DeclContext { origin: DeclOrigin::LetExpr }),
                 );
-                self.result.standard_types.bool_.clone()
+                TyKind::Scalar(Scalar::Bool).intern(Interner)
             }
             Expr::Block { statements, tail, label, id } => {
                 self.infer_block(tgt_expr, *id, statements, *tail, *label, expected)
@@ -369,7 +369,7 @@ impl InferenceContext<'_> {
                         self.diverges = Diverges::Maybe;
                         breaks
                     }
-                    None => self.result.standard_types.never.clone(),
+                    None => TyKind::Never.intern(Interner),
                 }
             }
             Expr::Closure { body, args, ret_type, arg_types, closure_kind, capture_by: _ } => self
@@ -394,7 +394,7 @@ impl InferenceContext<'_> {
 
                 if arms.is_empty() {
                     self.diverges = Diverges::Always;
-                    self.result.standard_types.never.clone()
+                    TyKind::Never.intern(Interner)
                 } else {
                     let matchee_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
                     let mut all_arms_diverge = Diverges::Always;
@@ -407,9 +407,7 @@ impl InferenceContext<'_> {
                     let result_ty = match &expected {
                         // We don't coerce to `()` so that if the match expression is a
                         // statement it's branches can have any consistent type.
-                        Expectation::HasType(ty) if *ty != self.result.standard_types.unit => {
-                            ty.clone()
-                        }
+                        Expectation::HasType(ty) if !ty.is_unit() => ty.clone(),
                         _ => self.table.new_type_var(),
                     };
                     let mut coerce = CoerceMany::new(result_ty);
@@ -419,7 +417,9 @@ impl InferenceContext<'_> {
                             self.diverges = Diverges::Maybe;
                             self.infer_expr_coerce_never(
                                 guard_expr,
-                                &Expectation::HasType(self.result.standard_types.bool_.clone()),
+                                &Expectation::HasType(
+                                    TyKind::Scalar(Scalar::Bool).intern(Interner),
+                                ),
                                 ExprIsRead::Yes,
                             );
                         }
@@ -432,7 +432,7 @@ impl InferenceContext<'_> {
 
                     self.diverges = matchee_diverges | all_arms_diverge;
 
-                    coerce.complete(self)
+                    coerce.complete()
                 }
             }
             Expr::Path(p) => self.infer_expr_path(p, tgt_expr.into(), tgt_expr),
@@ -444,7 +444,7 @@ impl InferenceContext<'_> {
                         bad_value_break: false,
                     });
                 };
-                self.result.standard_types.never.clone()
+                TyKind::Never.intern(Interner)
             }
             &Expr::Break { expr, label } => {
                 let val_ty = if let Some(expr) = expr {
@@ -496,7 +496,7 @@ impl InferenceContext<'_> {
                         });
                     }
                 }
-                self.result.standard_types.never.clone()
+                TyKind::Never.intern(Interner)
             }
             &Expr::Return { expr } => self.infer_expr_return(tgt_expr, expr),
             &Expr::Become { expr } => self.infer_expr_become(expr),
@@ -509,20 +509,20 @@ impl InferenceContext<'_> {
                             ExprIsRead::Yes,
                         );
                     } else {
-                        let unit = self.result.standard_types.unit.clone();
+                        let unit = UNIT_TY.clone();
                         let _ = self.coerce(Some(tgt_expr), &unit, &yield_ty, CoerceNever::Yes);
                     }
                     resume_ty
                 } else {
                     // FIXME: report error (yield expr in non-coroutine)
-                    self.result.standard_types.unknown.clone()
+                    ERROR_TY.clone()
                 }
             }
             Expr::Yeet { expr } => {
                 if let &Some(expr) = expr {
                     self.infer_expr_no_expect(expr, ExprIsRead::Yes);
                 }
-                self.result.standard_types.never.clone()
+                TyKind::Never.intern(Interner)
             }
             Expr::RecordLit { path, fields, spread, .. } => {
                 let (ty, def_id) = self.resolve_variant(tgt_expr.into(), path.as_deref(), false);
@@ -702,16 +702,16 @@ impl InferenceContext<'_> {
             }
             Expr::BinaryOp { lhs, rhs, op } => match op {
                 Some(BinaryOp::LogicOp(_)) => {
-                    let bool_ty = self.result.standard_types.bool_.clone();
+                    let bool_ty = TyKind::Scalar(Scalar::Bool).intern(Interner);
                     self.infer_expr_coerce(
                         *lhs,
-                        &Expectation::HasType(bool_ty.clone()),
+                        &Expectation::HasType(TyKind::Scalar(Scalar::Bool).intern(Interner)),
                         ExprIsRead::Yes,
                     );
                     let lhs_diverges = self.diverges;
                     self.infer_expr_coerce(
                         *rhs,
-                        &Expectation::HasType(bool_ty.clone()),
+                        &Expectation::HasType(TyKind::Scalar(Scalar::Bool).intern(Interner)),
                         ExprIsRead::Yes,
                     );
                     // Depending on the LHS' value, the RHS can never execute.
@@ -748,7 +748,7 @@ impl InferenceContext<'_> {
                     self.inside_assignment = false;
                     self.resolver.reset_to_guard(resolver_guard);
                 }
-                self.result.standard_types.unit.clone()
+                UNIT_TY.clone()
             }
             Expr::Range { lhs, rhs, range_type } => {
                 let lhs_ty =
@@ -862,7 +862,7 @@ impl InferenceContext<'_> {
             }
             Expr::Array(array) => self.infer_expr_array(array, expected),
             Expr::Literal(lit) => match lit {
-                Literal::Bool(..) => self.result.standard_types.bool_.clone(),
+                Literal::Bool(..) => TyKind::Scalar(Scalar::Bool).intern(Interner),
                 Literal::String(..) => {
                     TyKind::Ref(Mutability::Not, static_lifetime(), TyKind::Str.intern(Interner))
                         .intern(Interner)
@@ -1004,7 +1004,7 @@ impl InferenceContext<'_> {
                     AsmOperand::Label(expr) => {
                         self.infer_expr(
                             expr,
-                            &Expectation::HasType(self.result.standard_types.unit.clone()),
+                            &Expectation::HasType(UNIT_TY.clone()),
                             ExprIsRead::No,
                         );
                     }
@@ -1014,11 +1014,7 @@ impl InferenceContext<'_> {
                     // FIXME: `sym` should report for things that are not functions or statics.
                     AsmOperand::Sym(_) => (),
                 });
-                if diverge {
-                    self.result.standard_types.never.clone()
-                } else {
-                    self.result.standard_types.unit.clone()
-                }
+                if diverge { TyKind::Never.intern(Interner) } else { UNIT_TY.clone() }
             }
         };
         // use a new type variable if we got unknown here
@@ -1182,7 +1178,7 @@ impl InferenceContext<'_> {
                     coerce.coerce(self, Some(expr), &cur_elem_ty, CoercionCause::Expr(expr));
                 }
                 (
-                    coerce.complete(self),
+                    coerce.complete(),
                     consteval::usize_const(self.db, Some(elements.len() as u128), krate),
                 )
             }
@@ -1247,7 +1243,7 @@ impl InferenceContext<'_> {
                 }
             }
         }
-        self.result.standard_types.never.clone()
+        TyKind::Never.intern(Interner)
     }
 
     fn infer_expr_become(&mut self, expr: ExprId) -> Ty {
@@ -1271,7 +1267,7 @@ impl InferenceContext<'_> {
             }
         }
 
-        self.result.standard_types.never.clone()
+        TyKind::Never.intern(Interner)
     }
 
     fn infer_expr_box(&mut self, inner_expr: ExprId, expected: &Expectation) -> Ty {
@@ -1461,7 +1457,7 @@ impl InferenceContext<'_> {
                                     mem::replace(&mut this.diverges, Diverges::Maybe);
                                 this.infer_expr_coerce(
                                     *expr,
-                                    &Expectation::HasType(this.result.standard_types.never.clone()),
+                                    &Expectation::HasType(TyKind::Never.intern(Interner)),
                                     ExprIsRead::Yes,
                                 );
                                 this.diverges = previous_diverges;
@@ -1473,7 +1469,7 @@ impl InferenceContext<'_> {
                             } else {
                                 this.infer_expr_coerce(
                                     expr,
-                                    &Expectation::HasType(this.result.standard_types.unit.clone()),
+                                    &Expectation::HasType(UNIT_TY.clone()),
                                     ExprIsRead::Yes,
                                 );
                             }
@@ -1504,26 +1500,15 @@ impl InferenceContext<'_> {
                         } else {
                             CoerceNever::No
                         };
-                        if this
-                            .coerce(
-                                Some(expr),
-                                &this.result.standard_types.unit.clone(),
-                                &t,
-                                coerce_never,
-                            )
-                            .is_err()
-                        {
+                        if this.coerce(Some(expr), &UNIT_TY.clone(), &t, coerce_never).is_err() {
                             this.result.type_mismatches.insert(
                                 expr.into(),
-                                TypeMismatch {
-                                    expected: t.clone(),
-                                    actual: this.result.standard_types.unit.clone(),
-                                },
+                                TypeMismatch { expected: t.clone(), actual: UNIT_TY.clone() },
                             );
                         }
                         t
                     } else {
-                        this.result.standard_types.unit.clone()
+                        UNIT_TY.clone()
                     }
                 }
             });
@@ -2311,7 +2296,7 @@ impl InferenceContext<'_> {
 
         let output_ty = match op {
             BinaryOp::LogicOp(_) => {
-                let bool_ = self.result.standard_types.bool_.clone();
+                let bool_ = TyKind::Scalar(Scalar::Bool).intern(Interner);
                 self.unify(&lhs, &bool_);
                 self.unify(&rhs, &bool_);
                 bool_
@@ -2331,7 +2316,7 @@ impl InferenceContext<'_> {
             BinaryOp::CmpOp(_) => {
                 // LHS and RHS will have the same type
                 self.unify(&lhs, &rhs);
-                self.result.standard_types.bool_.clone()
+                TyKind::Scalar(Scalar::Bool).intern(Interner)
             }
 
             BinaryOp::Assignment { op: None } => {
@@ -2342,7 +2327,7 @@ impl InferenceContext<'_> {
             BinaryOp::Assignment { .. } => unreachable!("handled above"),
         };
 
-        if is_assign { self.result.standard_types.unit.clone() } else { output_ty }
+        if is_assign { UNIT_TY.clone() } else { output_ty }
     }
 
     fn is_builtin_binop(&mut self, lhs: &Ty, rhs: &Ty, op: BinaryOp) -> bool {
@@ -2416,6 +2401,6 @@ impl InferenceContext<'_> {
         });
         let res = cb(self);
         let ctx = self.breakables.pop().expect("breakable stack broken");
-        (if ctx.may_break { ctx.coerce.map(|ctx| ctx.complete(self)) } else { None }, res)
+        (if ctx.may_break { ctx.coerce.map(|ctx| ctx.complete()) } else { None }, res)
     }
 }
