@@ -443,7 +443,7 @@ pub struct InferenceResult {
     /// that which allows us to resolve a [`TupleFieldId`]s type.
     pub tuple_field_access_types: FxHashMap<TupleId, Substitution>,
     /// During inference this field is empty and [`InferenceContext::diagnostics`] is filled instead.
-    pub diagnostics: Vec<InferenceDiagnostic>,
+    pub diagnostics: Box<[InferenceDiagnostic]>,
     pub type_of_expr: ArenaMap<ExprId, Ty>,
     /// For each pattern record the type it resolves to.
     ///
@@ -879,7 +879,7 @@ impl<'db> InferenceContext<'db> {
             .collect();
         result.tuple_field_access_types.shrink_to_fit();
 
-        result.diagnostics = diagnostics;
+        result.diagnostics = diagnostics.into_boxed_slice();
 
         result
     }
