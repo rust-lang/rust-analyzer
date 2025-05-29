@@ -16,12 +16,10 @@ use crate::{Assist, Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 pub(crate) fn no_such_field(ctx: &DiagnosticsContext<'_>, d: &hir::NoSuchField) -> Diagnostic {
     let (code, message) = if d.private.is_some() {
         ("E0451", "field is private")
+    } else if let VariantId::EnumVariantId(_) = d.variant {
+        ("E0559", "no such field")
     } else {
-        if let VariantId::EnumVariantId(_) = d.variant {
-            ("E0559", "no such field")
-        } else {
-            ("E0560", "no such field")
-        }
+        ("E0560", "no such field")
     };
 
     let node = d.field.map(Into::into);
