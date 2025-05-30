@@ -3,6 +3,8 @@
 //!
 //! It can be viewed as a dual for `Change`.
 
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 use std::{collections::hash_map::Entry, fmt, iter, mem};
 
 use crate::imports::insert_use::{ImportScope, ImportScopeKind};
@@ -567,5 +569,161 @@ impl PlaceSnippet {
                 vec![Snippet::PlaceholderGroup(it.into_iter().map(|it| it.text_range()).collect())]
             }
         }
+    }
+}
+
+/// a function that takes a `SourceChangeBuilder` and a slice of indices
+/// which represent the indices of the choices made by the user
+/// which is the choice being made, each one from corresponding choice list in `Assists::add_choices`
+pub type ChoiceCallback = dyn FnOnce(&mut SourceChangeBuilder, &[usize]) + Send + 'static;
+
+/// Represents a group of choices offered to the user(Using ShowMessageRequest), along with a callback
+/// to be executed based on the user's selection.
+///
+/// This is typically used in scenarios like "assists" or "quick fixes" where
+/// the user needs to pick from several options to proceed with a source code change.
+#[derive(Clone)]
+pub struct UserChoiceGroup {
+    /// A list of choice groups. Each inner tuple's first string is title, second vector represents a set of options
+    /// from which the user can make one selection.
+    /// For example, `choice_options[0]` might be `["Question 1", ["Option A", "Option B"]]` and
+    /// `choices[1]` might be `["Question 2", ["Setting X", "Setting Y"]]`.
+    choice_options: Vec<UserChoice>,
+    /// The callback function to be invoked with the user's selections.
+    /// The `&[usize]` argument to the callback will contain the indices
+    /// of the choices made by the user, corresponding to each group in `choice_options`.
+    callback: Arc<Mutex<Option<Box<ChoiceCallback>>>>,
+    /// The current choices made by the user, represented as a vector of indices.
+    cur_choices: Vec<usize>,
+    /// The file ID associated with the choices. Used for construct SourceChangeBuilder.
+    /// This is typically the file where the changes will be applied.
+    file: FileId,
+}
+
+#[derive(Debug, Clone)]
+pub struct UserChoice {
+    pub title: String,
+    pub actions: Vec<String>,
+}
+
+impl UserChoice {
+    pub fn new(title: String, actions: Vec<String>) -> Self {
+        Self { title, actions }
+    }
+}
+
+impl std::fmt::Debug for UserChoiceGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UserChoiceGroup")
+            .field("choice_options", &self.choice_options)
+            .field("callback", &"<ChoiceCallback>")
+            .field("cur_choices", &self.cur_choices)
+            .finish()
+    }
+}
+
+impl UserChoiceGroup {
+    /// Creates a new `UserChoiceGroup`.
+    ///
+    /// # Arguments
+    ///
+    /// * `choice_options`: A vector of `UserChoice` objects representing the choices
+    /// * `callback`: A function that will be called with the indices of the
+    ///   user's selections after they make their choices.
+    ///
+    pub fn new(
+        choice_options: Vec<UserChoice>,
+        callback: impl FnOnce(&mut SourceChangeBuilder, &[usize]) + Send + 'static,
+        file: FileId,
+    ) -> Self {
+        Self {
+            cur_choices: vec![],
+            choice_options,
+            callback: Arc::new(Mutex::new(Some(Box::new(callback)))),
+            file,
+        }
+    }
+
+    /// Returns (`idx`, `title`, `choices`) of the current question.
+    ///
+    pub fn get_cur_question(&self) -> Option<(usize, &UserChoice)> {
+        if self.cur_choices.len() < self.choice_options.len() {
+            let idx = self.cur_choices.len();
+            let user_choice = &self.choice_options[idx];
+            Some((idx, user_choice))
+        } else {
+            None
+        }
+    }
+
+    /// Whether the user has finished making their choices.
+    pub fn is_done_asking(&self) -> bool {
+        self.cur_choices.len() == self.choice_options.len()
+    }
+
+    /// Make the idx-th choice in the group.
+    /// `choice` is the index of the choice in the group(0-based).
+    /// This function will be called when the user makes a choice.
+    pub fn make_choice(&mut self, question_idx: usize, choice: usize) -> Result<(), String> {
+        if question_idx < self.choice_options.len() && question_idx == self.cur_choices.len() {
+            self.cur_choices.push(choice);
+        } else {
+            return Err("Invalid index for choice group".to_owned());
+        }
+
+        Ok(())
+    }
+
+    /// Finalizes the choices made by the user and invokes the callback.
+    /// This function should be called when the user has finished making their choices.
+    pub fn finish(self, builder: &mut SourceChangeBuilder) {
+        let mut callback = self.callback.lock().unwrap();
+        let callback = callback.take().expect("Callback already");
+        callback(builder, &self.cur_choices);
+    }
+
+    pub fn file_id(&self) -> FileId {
+        self.file
+    }
+}
+
+/// A handler for managing user choices in a queue.
+#[derive(Debug, Default)]
+pub struct UserChoiceHandler {
+    /// If multiple choice group are made, we will queue them up and ask the user
+    /// one by one.
+    queue: VecDeque<UserChoiceGroup>,
+    /// Indicates if the first choice group in the queue is being processed. Prevent send requests repeatedly.
+    is_awaiting: bool,
+}
+
+impl UserChoiceHandler {
+    /// Creates a new `UserChoiceHandler`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a new `UserChoiceGroup` to the queue.
+    pub fn add_choice_group(&mut self, group: UserChoiceGroup) {
+        self.queue.push_back(group);
+    }
+
+    pub fn first_mut_choice_group(&mut self) -> Option<&mut UserChoiceGroup> {
+        self.queue.front_mut()
+    }
+
+    pub fn pop_choice_group(&mut self) -> Option<UserChoiceGroup> {
+        self.set_awaiting(false);
+        self.queue.pop_front()
+    }
+
+    /// Whether awaiting for sent request's response.
+    pub fn is_awaiting(&self) -> bool {
+        self.is_awaiting
+    }
+
+    /// Sets the awaiting state.
+    pub fn set_awaiting(&mut self, awaiting: bool) {
+        self.is_awaiting = awaiting;
     }
 }

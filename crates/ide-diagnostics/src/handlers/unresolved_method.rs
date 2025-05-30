@@ -104,6 +104,7 @@ fn field_fix(
             (file_id.file_id(ctx.sema.db), TextEdit::insert(range.end(), ")".to_owned())),
         ])),
         command: None,
+        user_choice_group: None,
     })
 }
 
@@ -185,6 +186,7 @@ fn assoc_func_fix(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall) -
                 TextEdit::replace(range, assoc_func_call_expr_string),
             )),
             command: None,
+            user_choice_group: None,
         })
     } else {
         None
