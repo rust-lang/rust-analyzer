@@ -60,12 +60,7 @@ fn field_is_private_fixes(
 ) -> Option<Vec<Assist>> {
     let def_crate = private_field.krate(sema.db);
     let usage_crate = sema.file_to_module_def(usage_file_id.file_id(sema.db))?.krate();
-    let visibility: String;
-    if usage_crate == def_crate {
-        visibility = "pub(crate) ".into();
-    } else {
-        visibility = "pub ".into();
-    };
+    let visibility = if usage_crate == def_crate { "pub(crate) " } else { "pub " };
 
     let source = private_field.source(sema.db)?;
     let def_file_id = source.file_id.original_file(sema.db);
