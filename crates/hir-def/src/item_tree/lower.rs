@@ -20,11 +20,11 @@ use triomphe::Arc;
 use crate::{
     db::DefDatabase,
     item_tree::{
-        AssocItem, AttrOwner, Const, Enum, ExternBlock, ExternCrate, Field, FieldParent,
-        FieldsShape, FileItemTreeId, Function, Idx, Impl, ImportAlias, Interned, ItemTree,
-        ItemTreeData, Macro2, MacroCall, MacroRules, Mod, ModItem, ModKind, ModPath, Name, Range,
-        RawAttrs, RawIdx, RawVisibility, RawVisibilityId, Static, Struct, StructKind, Trait,
-        TraitAlias, TypeAlias, Union, Use, UseTree, UseTreeKind, Variant, VisibilityExplicitness,
+        AssocItem, AttrOwner, Const, Enum, ExternBlock, ExternCrate, FieldParent, FieldsShape,
+        FileItemTreeId, Function, Idx, Impl, ImportAlias, Interned, ItemTree, ItemTreeData, Macro2,
+        MacroCall, MacroRules, Mod, ModItem, ModKind, ModPath, Name, Range, RawAttrs, RawIdx,
+        RawVisibility, RawVisibilityId, Static, Struct, StructKind, Trait, TraitAlias, TypeAlias,
+        Union, Use, UseTree, UseTreeKind, Variant, VisibilityExplicitness,
     },
 };
 
@@ -187,18 +187,12 @@ impl<'a> Ctx<'a> {
         let visibility = self.lower_visibility(strukt);
         let name = strukt.name()?.as_name();
         let ast_id = self.source_ast_id_map.ast_id(strukt);
-        let (fields, kind, attrs) = self.lower_fields(&strukt.kind());
-        let res = Struct { name, visibility, fields, shape: kind, ast_id };
+        let (kind, attrs) = self.lower_fields(&strukt.kind());
+        let res = Struct { name, visibility, shape: kind, ast_id };
         let id = id(self.data().structs.alloc(res));
 
         for (idx, attr) in attrs {
-            self.add_attrs(
-                AttrOwner::Field(
-                    FieldParent::Struct(id),
-                    Idx::from_raw(RawIdx::from_u32(idx as u32)),
-                ),
-                attr,
-            );
+            self.add_attrs(AttrOwner::Field(FieldParent::Struct(id), idx), attr);
         }
         Some(id)
     }
@@ -206,74 +200,46 @@ impl<'a> Ctx<'a> {
     fn lower_fields(
         &mut self,
         strukt_kind: &ast::StructKind,
-    ) -> (Box<[Field]>, FieldsShape, Vec<(usize, RawAttrs)>) {
+    ) -> (FieldsShape, Vec<(usize, RawAttrs)>) {
         match strukt_kind {
             ast::StructKind::Record(it) => {
-                let mut fields = vec![];
                 let mut attrs = vec![];
 
                 for (i, field) in it.fields().enumerate() {
-                    let data = self.lower_record_field(&field);
-                    fields.push(data);
                     let attr = RawAttrs::new(self.db, &field, self.span_map());
                     if !attr.is_empty() {
                         attrs.push((i, attr))
                     }
                 }
-                (fields.into(), FieldsShape::Record, attrs)
+                (FieldsShape::Record, attrs)
             }
             ast::StructKind::Tuple(it) => {
-                let mut fields = vec![];
                 let mut attrs = vec![];
 
                 for (i, field) in it.fields().enumerate() {
-                    let data = self.lower_tuple_field(i, &field);
-                    fields.push(data);
                     let attr = RawAttrs::new(self.db, &field, self.span_map());
                     if !attr.is_empty() {
                         attrs.push((i, attr))
                     }
                 }
-                (fields.into(), FieldsShape::Tuple, attrs)
+                (FieldsShape::Tuple, attrs)
             }
-            ast::StructKind::Unit => (Box::default(), FieldsShape::Unit, Vec::default()),
+            ast::StructKind::Unit => (FieldsShape::Unit, Vec::default()),
         }
-    }
-
-    fn lower_record_field(&mut self, field: &ast::RecordField) -> Field {
-        let name = match field.name() {
-            Some(name) => name.as_name(),
-            None => Name::missing(),
-        };
-        let visibility = self.lower_visibility(field);
-
-        Field { name, visibility, is_unsafe: field.unsafe_token().is_some() }
-    }
-
-    fn lower_tuple_field(&mut self, idx: usize, field: &ast::TupleField) -> Field {
-        let name = Name::new_tuple_field(idx);
-        let visibility = self.lower_visibility(field);
-        Field { name, visibility, is_unsafe: false }
     }
 
     fn lower_union(&mut self, union: &ast::Union) -> Option<FileItemTreeId<Union>> {
         let visibility = self.lower_visibility(union);
         let name = union.name()?.as_name();
         let ast_id = self.source_ast_id_map.ast_id(union);
-        let (fields, _, attrs) = match union.record_field_list() {
+        let (_, attrs) = match union.record_field_list() {
             Some(record_field_list) => self.lower_fields(&StructKind::Record(record_field_list)),
-            None => (Box::default(), FieldsShape::Record, Vec::default()),
+            None => (FieldsShape::Record, Vec::default()),
         };
-        let res = Union { name, visibility, fields, ast_id };
+        let res = Union { name, visibility, ast_id };
         let id = id(self.data().unions.alloc(res));
         for (idx, attr) in attrs {
-            self.add_attrs(
-                AttrOwner::Field(
-                    FieldParent::Union(id),
-                    Idx::from_raw(RawIdx::from_u32(idx as u32)),
-                ),
-                attr,
-            );
+            self.add_attrs(AttrOwner::Field(FieldParent::Union(id), idx), attr);
         }
         Some(id)
     }
@@ -308,16 +274,13 @@ impl<'a> Ctx<'a> {
             Some(name) => name.as_name(),
             None => Name::missing(),
         };
-        let (fields, kind, attrs) = self.lower_fields(&variant.kind());
+        let (kind, attrs) = self.lower_fields(&variant.kind());
         let ast_id = self.source_ast_id_map.ast_id(variant);
-        let res = Variant { name, fields, shape: kind, ast_id };
+        let res = Variant { name, shape: kind, ast_id };
         let id = self.data().variants.alloc(res);
         for (idx, attr) in attrs {
             self.add_attrs(
-                AttrOwner::Field(
-                    FieldParent::EnumVariant(FileItemTreeId(id)),
-                    Idx::from_raw(RawIdx::from_u32(idx as u32)),
-                ),
+                AttrOwner::Field(FieldParent::EnumVariant(FileItemTreeId(id)), idx),
                 attr,
             );
         }
@@ -626,7 +589,7 @@ fn private_vis() -> RawVisibility {
     )
 }
 
-fn visibility_from_ast(
+pub(super) fn visibility_from_ast(
     db: &dyn DefDatabase,
     node: Option<ast::Visibility>,
     span_for_range: &mut dyn FnMut(::tt::TextRange) -> SyntaxContext,
