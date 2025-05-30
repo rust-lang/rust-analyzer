@@ -67,7 +67,7 @@ fn field_is_private_fixes(
     let (range, _) = source.syntax().original_file_range_opt(sema.db)?;
     let source_change = SourceChange::from_text_edit(
         def_file_id.file_id(sema.db),
-        TextEdit::insert(range.range.start(), visibility),
+        TextEdit::insert(range.range.start(), visibility.into()),
     );
 
     Some(vec![fix(
