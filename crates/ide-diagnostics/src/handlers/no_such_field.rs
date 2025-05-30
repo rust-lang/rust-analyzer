@@ -63,10 +63,9 @@ fn field_is_private_fixes(
     let visibility = if usage_crate == def_crate { "pub(crate) " } else { "pub " };
 
     let source = private_field.source(sema.db)?;
-    let def_file_id = source.file_id.original_file(sema.db);
     let (range, _) = source.syntax().original_file_range_opt(sema.db)?;
     let source_change = SourceChange::from_text_edit(
-        def_file_id.file_id(sema.db),
+        range.file_id.file_id(sema.db),
         TextEdit::insert(range.range.start(), visibility.into()),
     );
 
