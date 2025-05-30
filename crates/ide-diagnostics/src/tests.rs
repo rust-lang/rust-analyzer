@@ -1,6 +1,7 @@
 #![allow(clippy::print_stderr)]
 
 mod overly_long_real_world_cases;
+mod tests_that_need_diagnostics_trigger;
 
 use ide_db::{
     LineIndexDatabase, RootDatabase,
