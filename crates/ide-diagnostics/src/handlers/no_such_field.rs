@@ -1,5 +1,5 @@
 use either::Either;
-use hir::Field;
+use hir::{Field, HasCrate};
 use hir::{HasSource, HirDisplay, Semantics, VariantId, db::ExpandDatabase};
 use ide_db::text_edit::TextEdit;
 use ide_db::{EditionedFileId, RootDatabase, source_change::SourceChange};
@@ -58,11 +58,12 @@ fn field_is_private_fixes(
     record_expr_field: &ast::RecordExprField,
     private_field: Field,
 ) -> Option<Vec<Assist>> {
+    let def_crate = private_field.krate(sema.db);
+    let usage_crate = sema.file_to_module_def(usage_file_id.file_id(sema.db))?.krate();
+    let visibility = if usage_crate == def_crate { "pub(crate) " } else { "pub " };
+
     let source = private_field.source(sema.db)?;
     let def_file_id = source.file_id.original_file(sema.db);
-
-    let visibility = if usage_file_id == def_file_id { "pub " } else { "pub(crate) " };
-
     let source_change = SourceChange::from_text_edit(
         def_file_id.file_id(sema.db),
         TextEdit::insert(source.syntax().text_range().start(), visibility.into()),
@@ -428,7 +429,7 @@ fn f(s@m::Struct {
     }
 
     #[test]
-    fn test_struct_field_private_fix() {
+    fn test_struct_field_private_same_crate_fix() {
         check_diagnostics(
             r#"
 mod m {
@@ -461,13 +462,38 @@ fn f() {
             r#"
 mod m {
     pub struct Struct {
-        pub field: u32,
+        pub(crate) field: u32,
     }
 }
 fn f() {
     let _ = m::Struct {
         field: 0,
     };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_struct_field_private_other_crate_fix() {
+        check_fix(
+            r#"
+//- /lib.rs crate:another_crate
+pub struct Struct {
+    field: u32,
+}
+//- /lib.rs crate:this_crate deps:another_crate
+use another_crate;
+
+fn f() {
+    let _ = another_crate::Struct {
+        field$0: 0,
+    };
+}
+"#,
+            r#"
+pub struct Struct {
+    pub field: u32,
 }
 "#,
         );
