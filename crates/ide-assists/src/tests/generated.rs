@@ -1225,29 +1225,6 @@ fn main() {
 }
 
 #[test]
-fn doctest_fix_visibility() {
-    check_doc_test(
-        "fix_visibility",
-        r#####"
-mod m {
-    fn frobnicate() {}
-}
-fn main() {
-    m::frobnicate$0();
-}
-"#####,
-        r#####"
-mod m {
-    $0pub(crate) fn frobnicate() {}
-}
-fn main() {
-    m::frobnicate();
-}
-"#####,
-    )
-}
-
-#[test]
 fn doctest_flip_binexpr() {
     check_doc_test(
         "flip_binexpr",
