@@ -73,7 +73,7 @@ fn field_is_private_fixes(
         "increase_field_visibility",
         "Increase field visibility",
         source_change,
-        record_expr_field.syntax().text_range(),
+        sema.original_range(record_expr_field.syntax()).range,
     )])
 }
 
@@ -144,7 +144,7 @@ fn missing_record_expr_field_fixes(
         "create_field",
         "Create field",
         source_change,
-        record_expr_field.syntax().text_range(),
+        sema.original_range(record_expr_field.syntax()).range,
     )]);
 
     fn record_field_list(field_def_list: ast::FieldList) -> Option<ast::RecordFieldList> {
