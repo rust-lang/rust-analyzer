@@ -296,6 +296,29 @@ impl<'db> UnsafeVisitor<'db> {
 
                         return;
                     }
+                    Expr::Field { .. } => {
+                        if matches!(
+                            self.infer.field_resolution(*expr),
+                            Some(Either::Left(FieldId { parent: VariantId::UnionId(_), .. }))
+                        ) {
+                            match &self.body.exprs[*expr] {
+                                Expr::Field { expr, .. } => {
+                                    // Visit the base expression (e.g., `self` in `self.field`) for safety,
+                                    // but don't trigger the union field access error since we're just
+                                    // creating a raw pointer, not actually reading the field
+                                    self.walk_expr(*expr);
+                                }
+                                _ => {
+                                    self.body.walk_child_exprs_without_pats(*expr, |child| {
+                                        // If it's not a field access for some reason, fall back to normal walking
+                                        // This shouldn't happen based on how this function is called
+                                        self.walk_expr(child)
+                                    });
+                                }
+                            }
+                            return;
+                        }
+                    }
                     _ => (),
                 }
             }
