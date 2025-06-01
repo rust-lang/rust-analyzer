@@ -261,10 +261,10 @@ where
         return s;
     }
     let mut s = &*s;
-    let level = indent_level.0 as usize;
+    let expect_indent_len = indent_level.0 as usize * 5 * 4;
 
     let indent = indent_level.to_string();
-    let mut buf = String::with_capacity(s.len() + level * 3 * 4);
+    let mut buf = String::with_capacity(s.len() + expect_indent_len);
 
     if !s.starts_with('\n') {
         buf.push_str(&indent);
