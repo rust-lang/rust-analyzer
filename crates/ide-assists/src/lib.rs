@@ -156,6 +156,7 @@ mod handlers {
     mod flip_comma;
     mod flip_or_pattern;
     mod flip_trait_bound;
+    mod generate_binary_ops_impl;
     mod generate_blanket_trait_impl;
     mod generate_constant;
     mod generate_default_from_enum_variant;
@@ -313,6 +314,7 @@ mod handlers {
             generate_impl::generate_impl_trait,
             generate_is_empty_from_len::generate_is_empty_from_len,
             generate_mut_trait_impl::generate_mut_trait_impl,
+            generate_binary_ops_impl::generate_binary_ops_impl,
             generate_new::generate_new,
             generate_trait_from_impl::generate_trait_from_impl,
             generate_single_field_struct_from::generate_single_field_struct_from,
