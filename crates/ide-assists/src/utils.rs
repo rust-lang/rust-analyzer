@@ -583,7 +583,7 @@ pub(crate) fn find_impl_block_end(impl_def: ast::Impl, buf: &mut String) -> Opti
     buf.push('\n');
     let mut end_token =
         impl_def.assoc_item_list().and_then(|it| it.r_curly_token())?.prev_sibling_or_token()?;
-    if end_token.kind() == WHITESPACE {
+    while end_token.kind() == WHITESPACE {
         end_token = end_token.prev_sibling_or_token()?
     }
     let end = end_token.text_range().end();
