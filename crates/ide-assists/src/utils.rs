@@ -252,10 +252,15 @@ pub fn add_trait_assoc_items_to_impl(
     first_item.unwrap()
 }
 
-pub(crate) fn indent_string(mut s: &str, indent_level: IndentLevel) -> Cow<'_, str> {
+pub(crate) fn indent_string<'a, S>(s: S, indent_level: IndentLevel) -> Cow<'a, str>
+where
+    Cow<'a, str>: From<S>,
+{
+    let s = Cow::from(s);
     if indent_level.is_zero() || s.is_empty() {
-        return s.into();
+        return s;
     }
+    let mut s = &*s;
     let level = indent_level.0 as usize;
 
     let indent = indent_level.to_string();
@@ -576,12 +581,12 @@ fn has_any_fn(imp: &ast::Impl, names: &[String]) -> bool {
 // FIXME: this partially overlaps with `find_struct_impl`
 pub(crate) fn find_impl_block_end(impl_def: ast::Impl, buf: &mut String) -> Option<TextSize> {
     buf.push('\n');
-    let end = impl_def
-        .assoc_item_list()
-        .and_then(|it| it.r_curly_token())?
-        .prev_sibling_or_token()?
-        .text_range()
-        .end();
+    let mut end_token =
+        impl_def.assoc_item_list().and_then(|it| it.r_curly_token())?.prev_sibling_or_token()?;
+    if end_token.kind() == WHITESPACE {
+        end_token = end_token.prev_sibling_or_token()?
+    }
+    let end = end_token.text_range().end();
     Some(end)
 }
 
@@ -795,20 +800,20 @@ pub(crate) fn add_method_to_adt(
     impl_def: Option<ast::Impl>,
     method: &str,
 ) {
-    let mut buf = String::with_capacity(method.len() + 2);
+    let mut buf = Cow::from(String::with_capacity(method.len() + 2));
     if impl_def.is_some() {
-        buf.push('\n');
+        buf.to_mut().push('\n');
     }
-    buf.push_str(method);
 
-    let start_offset = impl_def
-        .and_then(|impl_def| find_impl_block_end(impl_def, &mut buf))
-        .unwrap_or_else(|| {
-            buf = generate_impl_text(adt, &buf);
-            adt.syntax().text_range().end()
-        });
+    let found_offset = impl_def.and_then(|impl_def| find_impl_block_end(impl_def, buf.to_mut()));
 
-    builder.insert(start_offset, buf);
+    buf.to_mut().push_str(method);
+    let start_offset = found_offset.unwrap_or_else(|| {
+        buf = generate_impl_text(adt, &buf).into();
+        adt.syntax().text_range().end()
+    });
+
+    builder.insert(start_offset, indent_string(buf, AstNodeEdit::indent_level(adt)));
 }
 
 #[derive(Debug)]

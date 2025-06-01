@@ -1,7 +1,7 @@
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
-use syntax::ast::{self, AstNode, HasName};
+use syntax::ast::{self, AstNode, HasName, edit::AstNodeEdit};
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{AssistContext, AssistId, Assists, utils::indent_string};
 
 // Assist: generate_default_from_enum_variant
 //
@@ -34,7 +34,8 @@ pub(crate) fn generate_default_from_enum_variant(
 ) -> Option<()> {
     let variant = ctx.find_node_at_offset::<ast::Variant>()?;
     let variant_name = variant.name()?;
-    let enum_name = variant.parent_enum().name()?;
+    let enum_adt = variant.parent_enum();
+    let enum_name = enum_adt.name()?;
     if !matches!(variant.kind(), ast::StructKind::Unit) {
         cov_mark::hit!(test_gen_default_on_non_unit_variant_not_implemented);
         return None;
@@ -61,7 +62,7 @@ impl Default for {enum_name} {{
     }}
 }}"#,
             );
-            edit.insert(start_offset, buf);
+            edit.insert(start_offset, indent_string(&buf, enum_adt.indent_level()));
         },
     )
 }
@@ -108,6 +109,42 @@ enum Variant {
 impl Default for Variant {
     fn default() -> Self {
         Self::Minor
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_generate_default_from_variant_with_indent() {
+        check_assist(
+            generate_default_from_enum_variant,
+            r#"
+//- minicore: default
+mod foo {
+    mod bar {
+        enum Variant {
+            Undefined,
+            Minor$0,
+            Major,
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        enum Variant {
+            Undefined,
+            Minor,
+            Major,
+        }
+
+        impl Default for Variant {
+            fn default() -> Self {
+                Self::Minor
+            }
+        }
     }
 }
 "#,

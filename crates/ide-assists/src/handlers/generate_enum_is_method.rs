@@ -112,6 +112,45 @@ impl Variant {
     }
 
     #[test]
+    fn test_generate_enum_is_from_variant_with_indent() {
+        check_assist(
+            generate_enum_is_method,
+            r#"
+mod foo {
+    mod bar {
+        enum Variant {
+            Undefined,
+            Minor$0,
+            Major,
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        enum Variant {
+            Undefined,
+            Minor,
+            Major,
+        }
+
+        impl Variant {
+            /// Returns `true` if the variant is [`Minor`].
+            ///
+            /// [`Minor`]: Variant::Minor
+            #[must_use]
+            fn is_minor(&self) -> bool {
+                matches!(self, Self::Minor)
+            }
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn test_generate_enum_is_already_implemented() {
         check_assist_not_applicable(
             generate_enum_is_method,
@@ -277,6 +316,63 @@ impl Variant {
         matches!(self, Self::Major)
     }
 }"#,
+        );
+    }
+
+    #[test]
+    fn test_multiple_generate_enum_is_from_variant_with_indent() {
+        check_assist(
+            generate_enum_is_method,
+            r#"
+mod foo {
+    mod bar {
+        enum Variant {
+            Undefined,
+            Minor,
+            Major$0,
+        }
+
+        impl Variant {
+            /// Returns `true` if the variant is [`Minor`].
+            ///
+            /// [`Minor`]: Variant::Minor
+            #[must_use]
+            fn is_minor(&self) -> bool {
+                matches!(self, Self::Minor)
+            }
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        enum Variant {
+            Undefined,
+            Minor,
+            Major,
+        }
+
+        impl Variant {
+            /// Returns `true` if the variant is [`Minor`].
+            ///
+            /// [`Minor`]: Variant::Minor
+            #[must_use]
+            fn is_minor(&self) -> bool {
+                matches!(self, Self::Minor)
+            }
+
+            /// Returns `true` if the variant is [`Major`].
+            ///
+            /// [`Major`]: Variant::Major
+            #[must_use]
+            fn is_major(&self) -> bool {
+                matches!(self, Self::Major)
+            }
+        }
+    }
+}
+"#,
         );
     }
 
