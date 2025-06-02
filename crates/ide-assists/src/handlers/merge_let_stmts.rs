@@ -48,10 +48,7 @@ pub(crate) fn merge_let_stmts(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let range = stmts_range(&let_stmts);
 
     let pats = let_stmts.iter().map(|let_stmt| let_stmt.pat()).collect::<Option<Vec<_>>>()?;
-    let has_ty = let_stmts.iter().any(|let_stmt| let_stmt.ty().is_some());
-    let types = has_ty.then_some(
-        let_stmts.iter().map(|let_stmt| let_stmt.ty().unwrap_or(make::ty_placeholder())),
-    );
+
     let initializers =
         let_stmts.iter().map(|let_stmt| let_stmt.initializer()).collect::<Option<Vec<_>>>()?;
     let idents = pats.iter().cloned().flat_map(pat_vars).collect::<Vec<_>>();
@@ -64,6 +61,10 @@ pub(crate) fn merge_let_stmts(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         "Merge let statements",
         range,
         |builder| {
+            let has_ty = let_stmts.iter().any(|let_stmt| let_stmt.ty().is_some());
+            let types = has_ty.then_some(
+                let_stmts.iter().map(|let_stmt| let_stmt.ty().unwrap_or(make::ty_placeholder())),
+            );
             let pattern = ast::Pat::from(make::tuple_pat(pats));
             let ty = types.map(make::ty_tuple);
             let expr = ast::Expr::from(make::expr_tuple(initializers));
