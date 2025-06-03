@@ -96,7 +96,7 @@ fn foo<T>(x: &[T]) -> &[T] { x }
 fn test() {
     let x = if true {
         foo(&[1])
-         // ^^^^ adjustments: Deref(None), Borrow(Ref('?8, Not)), Pointer(Unsize)
+         // ^^^^ adjustments: Deref(None), Borrow(Ref('?7, Not)), Pointer(Unsize)
     } else {
         &[1]
     };
@@ -148,7 +148,7 @@ fn foo<T>(x: &[T]) -> &[T] { x }
 fn test(i: i32) {
     let x = match i {
         2 => foo(&[2]),
-              // ^^^^ adjustments: Deref(None), Borrow(Ref('?8, Not)), Pointer(Unsize)
+              // ^^^^ adjustments: Deref(None), Borrow(Ref('?7, Not)), Pointer(Unsize)
         1 => &[1],
         _ => &[3],
     };
@@ -953,6 +953,38 @@ fn f() {
     impl T for i32 {}
     impl T for u32 {}
     &[i32::f, u32::f] as &[fn()];
+}
+    "#,
+    );
+}
+
+#[test]
+fn coerce_array_elements() {
+    check_no_mismatches(
+        r#"
+// Check that least upper bound coercions don't resolve type variable merely based on the first
+// coercion. Check issue rust-lang/rust#136420.
+
+fn foo() {}
+fn bar() {}
+
+fn infer<T>(_: T) {}
+
+fn infer_array_element<T>(_: [T; 2]) {}
+
+fn main() {
+    infer(if false {
+        foo
+    } else {
+        bar
+    });
+
+    infer(match false {
+        true => foo,
+        false => bar,
+    });
+
+    infer_array_element([foo, bar]);
 }
     "#,
     );
