@@ -1444,8 +1444,8 @@ pub(crate) fn handle_code_action(
         frange,
     )?;
     for (index, mut assist) in assists.into_iter().enumerate() {
-        if let Some(user_choice_group) = assist.user_choice_group.take() {
-            snap.user_choice_handler.lock().add_choice_group(user_choice_group);
+        if let Some(user_choice_group) = assist.question_chain.take() {
+            snap.user_choice_handler.lock().add_question_chain(user_choice_group);
         }
         let resolve_data = if code_action_resolve_cap {
             Some((index, params.clone(), snap.file_version(file_id)))

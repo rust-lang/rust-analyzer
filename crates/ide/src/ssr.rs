@@ -46,7 +46,7 @@ pub(crate) fn ssr_assists(
             target: comment_range,
             source_change,
             command: None,
-            user_choice_group: None,
+            question_chain: None,
         };
 
         ssr_assists.push(assist);

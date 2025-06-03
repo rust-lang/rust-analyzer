@@ -11,7 +11,7 @@ use syntax::TextRange;
 
 use crate::{
     label::Label,
-    source_change::{SourceChange, UserChoiceGroup},
+    source_change::{SourceChange, QuestionChain},
 };
 
 #[derive(Debug, Clone)]
@@ -34,8 +34,8 @@ pub struct Assist {
     pub source_change: Option<SourceChange>,
     /// The command to execute after the assist is applied.
     pub command: Option<Command>,
-    /// The group of choices to show to the user when applying the assist.
-    pub user_choice_group: Option<UserChoiceGroup>,
+    /// The questions to show to the user when applying the assist.
+    pub question_chain: Option<QuestionChain>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

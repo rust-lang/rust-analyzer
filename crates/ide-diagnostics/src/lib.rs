@@ -983,7 +983,7 @@ fn unresolved_fix(id: &'static str, label: &str, target: TextRange) -> Assist {
         target,
         source_change: None,
         command: None,
-        user_choice_group: None,
+        question_chain: None,
     }
 }
 

@@ -1,7 +1,7 @@
 //! See [`AssistContext`].
 
 use hir::{EditionedFileId, FileRange, Semantics};
-use ide_db::source_change::{UserChoice, UserChoiceGroup};
+use ide_db::source_change::{MultiChoiceQuestion, QuestionChain};
 use ide_db::{FileId, RootDatabase, label::Label};
 use syntax::Edition;
 use syntax::{
@@ -203,7 +203,7 @@ impl Assists {
         self.add_impl(Some(group), id, label.into(), target, &mut |it| f.take().unwrap()(it))
     }
 
-    /// Give user multiple choices, user's choice will be passed to `f` as a list of indices.
+    /// Give user many consecutive questions, each with multiple choices, user's choice will be passed to `f` as a list of indices.
     /// The indices are the indices of the choices in the original list.
     /// TODO(discord9): remove allow(unused) once auto import all use this function
     #[allow(unused)]
@@ -229,10 +229,10 @@ impl Assists {
             target,
             source_change: None,
             command: None,
-            user_choice_group: Some(UserChoiceGroup::new(
+            question_chain: Some(QuestionChain::new(
                 choices
                     .into_iter()
-                    .map(|(title, choices)| UserChoice::new(title, choices))
+                    .map(|(title, choices)| MultiChoiceQuestion::new(title, choices))
                     .collect(),
                 f,
                 self.file,
@@ -273,7 +273,7 @@ impl Assists {
             target,
             source_change,
             command,
-            user_choice_group: None,
+            question_chain: None,
         });
         Some(())
     }

@@ -110,7 +110,7 @@ impl GlobalState {
                 return;
             }
             let mut is_done_asking = false;
-            let params = if let Some(choice_group) = handler.first_mut_choice_group() {
+            let params = if let Some(choice_group) = handler.first_mut_question_chain() {
                 if let Some((_idx, choice)) = choice_group.get_cur_question() {
                     Some(ShowMessageRequestParams {
                         typ: lsp_types::MessageType::INFO,
@@ -136,7 +136,7 @@ impl GlobalState {
             };
 
             if is_done_asking {
-                let Some(choice_group) = handler.pop_choice_group() else {
+                let Some(choice_group) = handler.pop_question_chain() else {
                     return;
                 };
                 let snap = self.snapshot();
@@ -219,7 +219,7 @@ impl GlobalState {
                 };
                 let mut do_pop = false;
                 let mut handler = state.user_choice_handler.lock();
-                match (handler.first_mut_choice_group(), choice) {
+                match (handler.first_mut_question_chain(), choice) {
                     (Some(choice_group), Some(choice)) => {
                         let Some((question_idx, user_choices)) = choice_group.get_cur_question()
                         else {
@@ -246,7 +246,7 @@ impl GlobalState {
                 }
 
                 if do_pop {
-                    let group = handler.pop_choice_group();
+                    let group = handler.pop_question_chain();
                     tracing::error!(
                         "User made no choice, dropping current choice group: {group:?}"
                     );
