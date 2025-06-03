@@ -11,7 +11,7 @@ use syntax::TextRange;
 
 use crate::{
     label::Label,
-    source_change::{SourceChange, QuestionChain},
+    source_change::{QuestionChain, SourceChange},
 };
 
 #[derive(Debug, Clone)]

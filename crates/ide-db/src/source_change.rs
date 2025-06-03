@@ -565,8 +565,8 @@ impl PlaceSnippet {
 /// which is the choice being made, each one from corresponding choice list in `Assists::add_choices`
 pub type ChoiceCallback = dyn FnOnce(&mut SourceChangeBuilder, &[usize]) + Send + 'static;
 
-/// Represents a group of consecutive questions offered to the user(Using LSP's ShowMessageRequest) 
-/// each with multiple choices, 
+/// Represents a group of consecutive questions offered to the user(Using LSP's ShowMessageRequest)
+/// each with multiple choices,
 /// along with a callback to be executed based on the user's selection.
 ///
 /// This is typically used in scenarios like "assists" or "quick fixes" where
