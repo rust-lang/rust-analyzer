@@ -412,16 +412,21 @@ fn build_source_change(
 
         // Insert it after the adt
         let strukt = builder.make_mut(assist_info.strukt.clone());
+        let indent = strukt.indent_level();
 
         ted::insert_all_raw(
             ted::Position::after(strukt.syntax()),
-            vec![make::tokens::blank_line().into(), impl_def.syntax().clone().into()],
+            vec![
+                make::tokens::whitespace(&format!("\n\n{indent}")).into(),
+                impl_def.syntax().clone().into(),
+            ],
         );
 
         impl_def
     };
 
     let assoc_item_list = impl_def.get_or_create_assoc_item_list();
+    let indent = assoc_item_list.indent_level();
 
     for (i, record_field_info) in info_of_record_fields.iter().enumerate() {
         // Make the new getter or setter fn
@@ -430,7 +435,7 @@ fn build_source_change(
             _ => generate_getter_from_info(ctx, &assist_info, record_field_info),
         }
         .clone_for_update();
-        new_fn.indent(1.into());
+        new_fn.indent(indent + 1);
 
         // Insert a tabstop only for last method we generate
         if i == record_fields_count - 1 {
@@ -488,6 +493,37 @@ struct Context {
 impl Context {
     fn $0data_mut(&mut self) -> &mut Data {
         &mut self.data
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_generate_getter_from_field_with_indent() {
+        check_assist(
+            generate_getter,
+            r#"
+mod foo {
+    mod bar {
+        struct Context {
+            dat$0a: Data,
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        struct Context {
+            data: Data,
+        }
+
+        impl Context {
+            fn $0data(&self) -> &Data {
+                &self.data
+            }
+        }
     }
 }
 "#,
@@ -645,6 +681,49 @@ impl Context {
 
     fn $0count(&self) -> &usize {
         &self.count
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_multiple_generate_getter_with_indent() {
+        check_assist(
+            generate_getter,
+            r#"
+mod foo {
+    mod bar {
+        struct Context {
+            data: Data,
+            cou$0nt: usize,
+        }
+
+        impl Context {
+            fn data(&self) -> &Data {
+                &self.data
+            }
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        struct Context {
+            data: Data,
+            count: usize,
+        }
+
+        impl Context {
+            fn data(&self) -> &Data {
+                &self.data
+            }
+
+            fn $0count(&self) -> &usize {
+                &self.count
+            }
+        }
     }
 }
 "#,

@@ -2,12 +2,13 @@ use ide_db::famous_defs::FamousDefs;
 use stdx::format_to;
 use syntax::{
     AstNode,
-    ast::{self, HasGenericParams, HasName, Impl, make},
+    ast::{self, HasGenericParams, HasName, Impl, edit::AstNodeEdit, make},
 };
 
 use crate::{
     AssistId,
     assist_context::{AssistContext, Assists},
+    utils::indent_string,
 };
 
 // Assist: generate_default_from_new
@@ -72,8 +73,10 @@ pub(crate) fn generate_default_from_new(acc: &mut Assists, ctx: &AssistContext<'
             let default_code = "    fn default() -> Self {
         Self::new()
     }";
+            let mut indent_level = fn_node.indent_level();
+            indent_level.0 = indent_level.0.saturating_sub(1);
             let code = generate_trait_impl_text_from_impl(&impl_, self_ty, "Default", default_code);
-            builder.insert(insert_location.end(), code);
+            builder.insert(insert_location.end(), indent_string(&code, indent_level));
         },
     )
 }
@@ -119,6 +122,7 @@ fn generate_trait_impl_text_from_impl(
 
     match impl_.where_clause() {
         Some(where_clause) => {
+            let where_clause = where_clause.reset_indent();
             format_to!(buf, "\n{where_clause}\n{{\n{code}\n}}");
         }
         None => {
@@ -418,6 +422,61 @@ where
     }
 
     #[test]
+    fn new_function_with_indent() {
+        check_assist(
+            generate_default_from_new,
+            r#"
+//- minicore: default
+mod foo {
+    mod bar {
+        pub struct Foo<T, B> {
+            _tars: T,
+            _bar: B,
+        }
+
+        impl<T: From<i32>, B: From<i64>> Foo<T, B>
+        where
+            Option<T>: Debug, Option<B>: Debug,
+        {
+            pub fn ne$0w() -> Self {
+                unimplemented!()
+            }
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        pub struct Foo<T, B> {
+            _tars: T,
+            _bar: B,
+        }
+
+        impl<T: From<i32>, B: From<i64>> Foo<T, B>
+        where
+            Option<T>: Debug, Option<B>: Debug,
+        {
+            pub fn new() -> Self {
+                unimplemented!()
+            }
+        }
+
+        impl<T: From<i32>, B: From<i64>> Default for Foo<T, B>
+        where
+            Option<T>: Debug, Option<B>: Debug,
+        {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn new_function_with_generics_and_where() {
         check_assist(
             generate_default_from_new,
@@ -629,11 +688,11 @@ mod test {
         }
     }
 
-impl Default for Example {
-    fn default() -> Self {
-        Self::new()
+    impl Default for Example {
+        fn default() -> Self {
+            Self::new()
+        }
     }
-}
 }
 "#,
         );
