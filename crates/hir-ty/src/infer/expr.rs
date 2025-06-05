@@ -1164,7 +1164,9 @@ impl InferenceContext<'_> {
         expected: &Expectation,
     ) -> chalk_ir::Ty<Interner> {
         let elem_ty = match expected.to_option(&mut self.table).as_ref().map(|t| t.kind(Interner)) {
-            Some(TyKind::Array(st, _) | TyKind::Slice(st)) => st.clone(),
+            // Avoid using a type variable as the coerce_to type, as it may resolve
+            // during the first coercion instead of being based on the common type.
+            Some(TyKind::Array(st, _) | TyKind::Slice(st)) if !st.is_ty_var() => st.clone(),
             _ => self.table.new_type_var(),
         };
 
