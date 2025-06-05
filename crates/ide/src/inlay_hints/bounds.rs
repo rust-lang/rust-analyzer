@@ -133,23 +133,26 @@ fn foo<T>() {}
                 [
                     (
                         7..8,
-                        [
-                            ": ",
-                            InlayHintLabelPart {
-                                text: "Sized",
-                                linked_location: Some(
-                                    Computed(
-                                        FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
-                                            ),
-                                            range: 135..140,
-                                        },
+                        InlayHintLabel {
+                            parts: [
+                                ": ",
+                                InlayHintLabelPart {
+                                    text: "Sized",
+                                    linked_location: Some(
+                                        Computed(
+                                            FileRangeWrapper {
+                                                file_id: FileId(
+                                                    1,
+                                                ),
+                                                range: 135..140,
+                                            },
+                                        ),
                                     ),
-                                ),
-                                tooltip: "",
-                            },
-                        ],
+                                    tooltip: "",
+                                },
+                            ],
+                            tooltip: None,
+                        },
                     ),
                 ]
             "#]],

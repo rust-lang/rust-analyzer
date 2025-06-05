@@ -563,6 +563,7 @@ pub(crate) fn inlay_hint(
                     part.linked_location.as_ref().is_some_and(LazyProperty::is_lazy)
                         || part.tooltip.as_ref().is_some_and(LazyProperty::is_lazy)
                 })
+                || hint.label.tooltip.as_ref().is_some_and(LazyProperty::is_lazy)
         })
     };
 
@@ -641,8 +642,20 @@ fn inlay_hint_label(
     needs_resolve: bool,
     mut label: InlayHintLabel,
 ) -> Cancellable<(lsp_types::InlayHintLabel, Option<lsp_types::InlayHintTooltip>)> {
+    let tooltip = label.tooltip.and_then(|it| match it {
+        LazyProperty::Computed(it) => {
+            Some(lsp_types::InlayHintTooltip::MarkupContent(lsp_types::MarkupContent {
+                kind: lsp_types::MarkupKind::Markdown,
+                value: format!("```rust\n{it}\n```"),
+            }))
+        }
+        LazyProperty::Lazy => {
+            *something_to_resolve |= needs_resolve && fields_to_resolve.resolve_hint_tooltip;
+            None
+        }
+    });
     let (label, tooltip) = match &*label.parts {
-        [InlayHintLabelPart { linked_location: None, .. }] => {
+        [InlayHintLabelPart { linked_location: None, .. }] if tooltip.is_none() => {
             let InlayHintLabelPart { text, tooltip, .. } = label.parts.pop().unwrap();
             let tooltip = tooltip.and_then(|it| match it {
                 LazyProperty::Computed(it) => Some(it),
@@ -709,7 +722,7 @@ fn inlay_hint_label(
                     })
                 })
                 .collect::<Cancellable<_>>()?;
-            (lsp_types::InlayHintLabel::LabelParts(parts), None)
+            (lsp_types::InlayHintLabel::LabelParts(parts), tooltip)
         }
     };
     Ok((label, tooltip))
