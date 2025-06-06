@@ -56,6 +56,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-tree.workspace = true
 project-model.workspace = true
+criterion = "0.5"
 
 # local deps
 test-utils.workspace = true
@@ -63,6 +64,10 @@ test-fixture.workspace = true
 
 [features]
 in-rust-tree = ["hir-expand/in-rust-tree"]
+
+[[bench]]
+name = "incremental"
+harness = false
 
 [lints]
 workspace = true
