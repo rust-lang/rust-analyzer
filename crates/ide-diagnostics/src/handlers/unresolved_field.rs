@@ -127,6 +127,7 @@ fn add_variant_to_union(
         target: error_range.range,
         source_change: Some(src_change_builder.finish()),
         command: None,
+        question_chain: None,
     })
 }
 
@@ -176,6 +177,7 @@ fn add_field_to_struct_fix(
                 target: error_range.range,
                 source_change: Some(src_change_builder.finish()),
                 command: None,
+                question_chain: None,
             })
         }
         None => {
@@ -213,6 +215,7 @@ fn add_field_to_struct_fix(
                 target: error_range.range,
                 source_change: Some(src_change_builder.finish()),
                 command: None,
+                question_chain: None,
             })
         }
         Some(FieldList::TupleFieldList(_tuple)) => {
@@ -275,6 +278,7 @@ fn method_fix(
             TextEdit::insert(range.end(), "()".to_owned()),
         )),
         command: None,
+        question_chain: None,
     })
 }
 #[cfg(test)]
