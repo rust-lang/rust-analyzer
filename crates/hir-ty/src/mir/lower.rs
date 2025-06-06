@@ -399,7 +399,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
         place: Place,
         prev_block: BasicBlockId,
     ) -> Result<Option<BasicBlockId>> {
-        if let Some(adjustments) = self.infer.expr_adjustments.get(&expr_id) {
+        if let adjustments @ [_, ..] = self.infer.expr_adjustments(expr_id) {
             return self.lower_expr_to_place_with_adjust(expr_id, place, prev_block, adjustments);
         }
         self.lower_expr_to_place_without_adjust(expr_id, place, prev_block)
@@ -1054,13 +1054,10 @@ impl<'ctx> MirLowerCtx<'ctx> {
                 }
                 if let hir_def::hir::BinaryOp::Assignment { op: Some(op) } = op {
                     // last adjustment is `&mut` which we don't want it.
-                    let adjusts = self
-                        .infer
-                        .expr_adjustments
-                        .get(lhs)
-                        .and_then(|it| it.split_last())
-                        .map(|it| it.1)
-                        .ok_or(MirLowerError::TypeError("adjustment of binary op was missing"))?;
+                    let adjusts =
+                        self.infer.expr_adjustments(*lhs).split_last().map(|it| it.1).ok_or(
+                            MirLowerError::TypeError("adjustment of binary op was missing"),
+                        )?;
                     let Some((lhs_place, current)) =
                         self.lower_expr_as_place_with_adjust(current, *lhs, false, adjusts)?
                     else {
@@ -1597,10 +1594,8 @@ impl<'ctx> MirLowerCtx<'ctx> {
 
     fn expr_ty_after_adjustments(&self, e: ExprId) -> Ty {
         let mut ty = None;
-        if let Some(it) = self.infer.expr_adjustments.get(&e) {
-            if let Some(it) = it.last() {
-                ty = Some(it.target.clone());
-            }
+        if let Some(it) = self.infer.expr_adjustments(e).last() {
+            ty = Some(it.target.clone());
         }
         ty.unwrap_or_else(|| self.expr_ty_without_adjust(e))
     }
@@ -1674,7 +1669,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
     }
 
     fn has_adjustments(&self, expr_id: ExprId) -> bool {
-        !self.infer.expr_adjustments.get(&expr_id).map(|it| it.is_empty()).unwrap_or(true)
+        !self.infer.expr_adjustments(expr_id).is_empty()
     }
 
     fn merge_blocks(
