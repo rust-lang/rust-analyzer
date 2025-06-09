@@ -1,5 +1,6 @@
 use hir::HasSource;
 use hir::{FileRange, HirDisplay, InFile, db::ExpandDatabase};
+use ide_db::assists::ExprFillDefaultMode;
 use ide_db::text_edit::TextEdit;
 use ide_db::{
     assists::{Assist, AssistId},
@@ -94,7 +95,11 @@ fn add_method_fix(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall) -
     };
     let end_of_last_item = source.node_file_range().file_range()?.range.end();
 
-    let text_to_insert = format!("\n  fn {}(&self) {{}}", d.name.as_str());
+    let method_body = match ctx.config.expr_fill_default {
+        ExprFillDefaultMode::Default | ExprFillDefaultMode::Todo => "todo!()",
+        ExprFillDefaultMode::Underscore => "_",
+    };
+    let text_to_insert = format!("\n  fn {}(&self) {{ {method_body} }}", d.name.as_str());
     Some(fix(
         "add-missing-method",
         "Add missing method",
@@ -341,7 +346,7 @@ struct Tiger;
 
 impl Tiger {
   fn sleep(&self) {}
-  fn roar(&self) {}
+  fn roar(&self) { todo!() }
 }
 
 fn main() {
