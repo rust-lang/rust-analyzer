@@ -12,7 +12,7 @@ use syntax::ast;
 use tt::TextRange;
 
 use crate::{
-    Adt, Callee, Const, Enum, ExternCrateDecl, Field, FieldSource, Function, Impl,
+    Adt, AssocItem, Callee, Const, Enum, ExternCrateDecl, Field, FieldSource, Function, Impl,
     InlineAsmOperand, Label, LifetimeParam, LocalSource, Macro, Module, Param, SelfParam, Static,
     Struct, Trait, TraitAlias, TypeAlias, TypeOrConstParam, Union, Variant, VariantDef,
     db::HirDatabase,
@@ -98,6 +98,17 @@ impl HasSource for Field {
             Either::Right(it) => FieldSource::Named(it),
         });
         Some(field_source)
+    }
+}
+impl HasSource for AssocItem {
+    type Ast = ast::AssocItem;
+
+    fn source(self, db: &dyn HirDatabase) -> Option<InFile<Self::Ast>> {
+        match self {
+            AssocItem::Const(c) => Some(c.source(db)?.map(ast::AssocItem::Const)),
+            AssocItem::Function(f) => Some(f.source(db)?.map(ast::AssocItem::Fn)),
+            AssocItem::TypeAlias(t) => Some(t.source(db)?.map(ast::AssocItem::TypeAlias)),
+        }
     }
 }
 impl HasSource for Adt {
