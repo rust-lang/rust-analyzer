@@ -104,8 +104,8 @@ steps might help:
 
 -   both Rust and `rustup` have to be installed using
     <https://rustup.rs>. Distro packages *will not* work.
-
--   you need to launch Code, open a terminal and run `echo $PATH`
+### For VSCode:
+  -   you need to launch Code, open a terminal and run `echo $PATH`
 
 -   using
     [Flatseal](https://flathub.org/apps/details/com.github.tchx84.Flatseal),
@@ -115,7 +115,18 @@ steps might help:
     expanded otherwise.
 
 -   while Flatseal is open, you must enable access to "All user files"
+### For VSCodium:
+-   using
+    [Flatseal](https://flathub.org/apps/details/com.github.tchx84.Flatseal),
+    you must add two environment variables: `FLATPAK_PREFER_USER_CARGO`
+    `CARGO_INSTALL_ROOT`. Where `FLATPAK_PREFER_USER_CARGO=1`
+    and `CARGO_INSTALL_ROOT=$HOME/.cargo`. (unlike in PATH's case, this environment
+    variable does expand).
+    
+-   while Flatseal is open, you must enable access to "All user files"
+    (if you worry about vscodium having too much access to your HOME folder, you can instead
+    just add ~/.cargo and ~/.rustup to "Other files")
 
+    
 A C compiler should already be available via `org.freedesktop.Sdk`. Any
 other tools or libraries you will need to acquire from Flatpak.
-
