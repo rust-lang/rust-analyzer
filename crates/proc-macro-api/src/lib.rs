@@ -8,7 +8,19 @@
 pub mod legacy_protocol {
     pub mod json;
     pub mod msg;
+    pub mod task_impl;
 }
+
+#[allow(dead_code)]
+pub mod new_protocol {
+    pub mod msg;
+    pub mod postcard;
+    pub mod task_impl;
+}
+
+#[allow(dead_code)]
+pub mod task;
+
 mod process;
 
 use paths::{AbsPath, AbsPathBuf};

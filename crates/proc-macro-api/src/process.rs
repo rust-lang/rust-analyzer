@@ -1,10 +1,10 @@
 //! Handle process life-time and message passing for proc-macro client
 
 use std::{
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{self, BufReader, Read},
     panic::AssertUnwindSafe,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Mutex, OnceLock},
 };
 
 use paths::AbsPath;
@@ -13,12 +13,13 @@ use stdx::JodChild;
 use crate::{
     ProcMacroKind, ServerError,
     legacy_protocol::{
-        json::{read_json, write_json},
         msg::{
-            CURRENT_API_VERSION, Message, RUST_ANALYZER_SPAN_SUPPORT, Request, Response,
-            ServerConfig, SpanMode,
+            CURRENT_API_VERSION, RUST_ANALYZER_SPAN_SUPPORT, Request, Response, ServerConfig,
+            SpanMode,
         },
+        task_impl::JsonTaskClient,
     },
+    task::TaskClient,
 };
 
 /// Represents a process handling proc-macro communication.
@@ -143,46 +144,36 @@ impl ProcMacroServerProcess {
 
         let state = &mut *self.state.lock().unwrap();
         let mut buf = String::new();
-        send_request(&mut state.stdin, &mut state.stdout, req, &mut buf)
-            .and_then(|res| {
-                res.ok_or_else(|| {
-                    let message = "proc-macro server did not respond with data".to_owned();
-                    ServerError {
-                        io: Some(Arc::new(io::Error::new(
-                            io::ErrorKind::BrokenPipe,
-                            message.clone(),
-                        ))),
-                        message,
-                    }
-                })
-            })
-            .map_err(|e| {
-                if e.io.as_ref().map(|it| it.kind()) == Some(io::ErrorKind::BrokenPipe) {
-                    match state.process.child.try_wait() {
-                        Ok(None) | Err(_) => e,
-                        Ok(Some(status)) => {
-                            let mut msg = String::new();
-                            if !status.success() {
-                                if let Some(stderr) = state.process.child.stderr.as_mut() {
-                                    _ = stderr.read_to_string(&mut msg);
-                                }
+        let mut client =
+            JsonTaskClient { writer: &mut state.stdin, reader: &mut state.stdout, buf: &mut buf };
+
+        client.send_task(req).map_err(|e| {
+            if e.io.as_ref().map(|it| it.kind()) == Some(io::ErrorKind::BrokenPipe) {
+                match state.process.child.try_wait() {
+                    Ok(None) | Err(_) => e,
+                    Ok(Some(status)) => {
+                        let mut msg = String::new();
+                        if !status.success() {
+                            if let Some(stderr) = state.process.child.stderr.as_mut() {
+                                _ = stderr.read_to_string(&mut msg);
                             }
-                            let server_error = ServerError {
-                                message: format!(
-                                    "proc-macro server exited with {status}{}{msg}",
-                                    if msg.is_empty() { "" } else { ": " }
-                                ),
-                                io: None,
-                            };
-                            // `AssertUnwindSafe` is fine here, we already correct initialized
-                            // server_error at this point.
-                            self.exited.get_or_init(|| AssertUnwindSafe(server_error)).0.clone()
                         }
+                        let server_error = ServerError {
+                            message: format!(
+                                "proc-macro server exited with {status}{}{msg}",
+                                if msg.is_empty() { "" } else { ": " }
+                            ),
+                            io: None,
+                        };
+                        // `AssertUnwindSafe` is fine here, we already correct initialized
+                        // server_error at this point.
+                        self.exited.get_or_init(|| AssertUnwindSafe(server_error)).0.clone()
                     }
-                } else {
-                    e
                 }
-            })
+            } else {
+                e
+            }
+        })
     }
 }
 
@@ -241,22 +232,4 @@ fn mk_child<'a>(
         cmd.env("PATH", path_var);
     }
     cmd.spawn()
-}
-
-/// Sends a request to the server and reads the response.
-fn send_request(
-    mut writer: &mut impl Write,
-    mut reader: &mut impl BufRead,
-    req: Request,
-    buf: &mut String,
-) -> Result<Option<Response>, ServerError> {
-    req.write(write_json, &mut writer).map_err(|err| ServerError {
-        message: "failed to write request".into(),
-        io: Some(Arc::new(err)),
-    })?;
-    let res = Response::read(read_json, &mut reader, buf).map_err(|err| ServerError {
-        message: "failed to read response".into(),
-        io: Some(Arc::new(err)),
-    })?;
-    Ok(res)
 }

@@ -9,6 +9,10 @@ extern crate rustc_driver as _;
 
 #[cfg(any(feature = "sysroot-abi", rust_analyzer))]
 mod main_loop;
+
+#[cfg(any(feature = "sysroot-abi", rust_analyzer))]
+mod task_executor;
+
 #[cfg(any(feature = "sysroot-abi", rust_analyzer))]
 use main_loop::run;
 
