@@ -14,7 +14,7 @@ use intern::sym;
 
 use crate::{
     Adjust, Adjustment, AutoBorrow, Interner, OverloadedDeref, TyBuilder, TyKind,
-    infer::{Expectation, InferenceContext, expr::ExprIsRead},
+    infer::{Expectation, InferenceContext, Resolution, expr::ExprIsRead},
     lower::lower_to_chalk_mutability,
 };
 
@@ -24,7 +24,7 @@ impl InferenceContext<'_> {
     }
 
     fn infer_mut_expr(&mut self, tgt_expr: ExprId, mut mutability: Mutability) {
-        if let Some(adjustments) = self.result.expr_adjustments.get_mut(&tgt_expr) {
+        if let Some(adjustments) = self.result.adjustments.get_mut(&tgt_expr.into()) {
             for adj in adjustments.iter_mut().rev() {
                 match &mut adj.kind {
                     Adjust::NeverToAny | Adjust::Deref(None) | Adjust::Pointer(_) => (),
@@ -125,7 +125,9 @@ impl InferenceContext<'_> {
             }
             &Expr::Index { base, index } => {
                 if mutability == Mutability::Mut {
-                    if let Some((f, _)) = self.result.method_resolutions.get_mut(&tgt_expr) {
+                    if let Some(Resolution::Method(f, _)) =
+                        self.result.resolution.get_mut(&tgt_expr.into())
+                    {
                         if let Some(index_trait) =
                             LangItem::IndexMut.resolve_trait(self.db, self.table.trait_env.krate)
                         {
@@ -138,8 +140,8 @@ impl InferenceContext<'_> {
                                 let mut base_ty = None;
                                 let base_adjustments = self
                                     .result
-                                    .expr_adjustments
-                                    .get_mut(&base)
+                                    .adjustments
+                                    .get_mut(&base.into())
                                     .and_then(|it| it.last_mut());
                                 if let Some(Adjustment {
                                     kind: Adjust::Borrow(AutoBorrow::Ref(_, mutability)),
@@ -179,7 +181,9 @@ impl InferenceContext<'_> {
             }
             Expr::UnaryOp { expr, op: UnaryOp::Deref } => {
                 let mut mutability = mutability;
-                if let Some((f, _)) = self.result.method_resolutions.get_mut(&tgt_expr) {
+                if let Some(Resolution::Method(f, _)) =
+                    self.result.resolution.get_mut(&tgt_expr.into())
+                {
                     if mutability == Mutability::Mut {
                         if let Some(deref_trait) =
                             LangItem::DerefMut.resolve_trait(self.db, self.table.trait_env.krate)
