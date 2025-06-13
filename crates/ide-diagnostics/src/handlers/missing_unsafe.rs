@@ -835,6 +835,41 @@ fn bar(mut v: Union2) {
     }
 
     #[test]
+    fn raw_deref_on_union_field() {
+        check_diagnostics(
+            r#"
+fn main() {
+    union U1 {
+        a: u8
+    }
+    let x = U1 { a: 3 };
+
+    let a = x.a;
+         // ^^^ 💡 error: access to union field is unsafe and requires an unsafe function or block
+
+
+    let b = &raw const x.a;
+
+    let tmp = Vec::from([1, 2, 3]);
+
+    let c = &raw const tmp[x.a];
+                        // ^^^ 💡 error: access to union field is unsafe and requires an unsafe function or block
+
+    union URef {
+        p: &'static mut i32,
+    }
+
+    fn deref_union_field(u: URef) {
+        // Not an assignment but an access to the union field!
+        *(u.p) = 13;
+       // ^^^ 💡 error: access to union field is unsafe and requires an unsafe function or block
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
     fn raw_ref_reborrow_is_safe() {
         check_diagnostics(
             r#"
