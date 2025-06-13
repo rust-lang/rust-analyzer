@@ -4,13 +4,13 @@ use hir::{ModPath, ModuleDef};
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
 use syntax::{
     AstNode, Edition, SyntaxNode,
-    ast::{self, HasName},
+    ast::{self, HasName, edit::AstNodeEdit},
 };
 
 use crate::{
     AssistId,
     assist_context::{AssistContext, Assists, SourceChangeBuilder},
-    utils::generate_trait_impl_text,
+    utils::{generate_trait_impl_text, indent_string},
 };
 
 // Assist: generate_deref
@@ -155,7 +155,7 @@ fn generate_edit(
         &trait_path.display(db, edition).to_string(),
         &impl_code,
     );
-    edit.insert(start_offset, deref_impl);
+    edit.insert(start_offset, indent_string(&deref_impl, strukt_adt.indent_level()));
 }
 
 fn existing_deref_impl(
@@ -291,6 +291,38 @@ impl core::ops::Deref for B {
         &self.1
     }
 }"#,
+        );
+    }
+
+    #[test]
+    fn test_generate_field_deref_with_indent() {
+        check_assist(
+            generate_deref,
+            r#"
+//- minicore: deref
+mod foo {
+    mod bar {
+        struct A { }
+        struct B(u8, $0A);
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        struct A { }
+        struct B(u8, A);
+
+        impl core::ops::Deref for B {
+            type Target = A;
+
+            fn deref(&self) -> &Self::Target {
+                &self.1
+            }
+        }
+    }
+}
+"#,
         );
     }
 

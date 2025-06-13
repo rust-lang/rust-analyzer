@@ -215,6 +215,43 @@ impl Value {
     }
 
     #[test]
+    fn test_generate_enum_try_into_tuple_variant_with_indent() {
+        check_assist(
+            generate_enum_try_into_method,
+            r#"
+mod foo {
+    mod bar {
+        enum Value {
+            Number(i32),
+            Text(String)$0,
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        enum Value {
+            Number(i32),
+            Text(String),
+        }
+
+        impl Value {
+            fn try_into_text(self) -> Result<String, Self> {
+                if let Self::Text(v) = self {
+                    Ok(v)
+                } else {
+                    Err(self)
+                }
+            }
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn test_generate_enum_try_into_already_implemented() {
         check_assist_not_applicable(
             generate_enum_try_into_method,
@@ -318,6 +355,43 @@ impl Value {
         }
     }
 }"#,
+        );
+    }
+
+    #[test]
+    fn test_generate_enum_as_tuple_variant_with_indent() {
+        check_assist(
+            generate_enum_as_method,
+            r#"
+mod foo {
+    mod bar {
+        enum Value {
+            Number(i32),
+            Text(String)$0,
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        enum Value {
+            Number(i32),
+            Text(String),
+        }
+
+        impl Value {
+            fn as_text(&self) -> Option<&String> {
+                if let Self::Text(v) = self {
+                    Some(v)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+"#,
         );
     }
 
