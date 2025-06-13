@@ -97,6 +97,7 @@ const _: () = {
         const LOCATION: salsa::plumbing::Location =
             salsa::plumbing::Location { file: file!(), line: line!() };
         const DEBUG_NAME: &'static str = "SyntaxContextData";
+        const REVISIONS: std::num::NonZeroUsize = std::num::NonZeroUsize::MAX;
         type Fields<'a> = SyntaxContextData;
         type Struct<'a> = SyntaxContext;
     }
@@ -326,14 +327,14 @@ impl<'db> SyntaxContext {
             None
         } else {
             // SAFETY: By our invariant, this is either a root (which we verified it's not) or a valid `salsa::Id`.
-            unsafe { Some(salsa::Id::from_u32(self.0)) }
+            unsafe { Some(salsa::Id::from_index(self.0)) }
         }
     }
 
     #[inline]
     fn from_salsa_id(id: salsa::Id) -> Self {
         // SAFETY: This comes from a Salsa ID.
-        unsafe { Self::from_u32(id.as_u32()) }
+        unsafe { Self::from_u32(id.index()) }
     }
 
     #[inline]
