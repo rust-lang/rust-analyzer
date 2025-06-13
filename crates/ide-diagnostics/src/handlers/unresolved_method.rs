@@ -1,3 +1,4 @@
+use hir::HasSource;
 use hir::{FileRange, HirDisplay, InFile, db::ExpandDatabase};
 use ide_db::text_edit::TextEdit;
 use ide_db::{
@@ -11,7 +12,7 @@ use syntax::{
     format_smolstr,
 };
 
-use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
+use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range, fix};
 
 // Diagnostic: unresolved-method
 //
@@ -67,7 +68,42 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall) -> Option<
         fixes.push(assoc_func_fix);
     }
 
+    if let Some(method_fix) = add_method_fix(ctx, d) {
+        fixes.push(method_fix);
+    }
+
     if fixes.is_empty() { None } else { Some(fixes) }
+}
+
+/// Fix to add the missing method.
+fn add_method_fix(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall) -> Option<Assist> {
+    let root = ctx.sema.db.parse_or_expand(d.expr.file_id);
+    let expr = d.expr.value.to_node(&root).left()?;
+
+    let db = ctx.sema.db;
+    let ty = d.receiver.clone();
+
+    let impl_block =
+        hir::Impl::all_for_type(db, ty).into_iter().find(|block| block.trait_(db).is_none())?;
+    let items = impl_block.items(db);
+    let last_item = items.last()?;
+    let source = last_item.source(db)?;
+    let file_id = match source.file_id {
+        hir::HirFileId::FileId(file_id) => file_id,
+        hir::HirFileId::MacroFile(_) => return None,
+    };
+    let end_of_last_item = source.node_file_range().file_range()?.range.end();
+
+    let text_to_insert = format!("\n  fn {}(&self) {{}}", d.name.as_str());
+    Some(fix(
+        "add-missing-method",
+        "Add missing method",
+        SourceChange::from_text_edit(
+            file_id.file_id(db),
+            TextEdit::insert(end_of_last_item, text_to_insert),
+        ),
+        ctx.sema.original_range(expr.syntax()).range,
+    ))
 }
 
 fn field_fix(
@@ -283,6 +319,35 @@ fn main() {
     // ^^^ error: no method `foo` on type `()`
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_fix() {
+        check_fix(
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+}
+
+fn main() {
+  let t = Tiger;
+  t.roar$0();
+}"#,
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+  fn roar(&self) {}
+}
+
+fn main() {
+  let t = Tiger;
+  t.roar();
+}"#,
         );
     }
 
