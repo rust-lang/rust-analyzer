@@ -50,6 +50,7 @@ pub struct Query {
     case_sensitive: bool,
     only_types: bool,
     libs: bool,
+    exclude_imports: bool,
 }
 
 impl Query {
@@ -63,6 +64,7 @@ impl Query {
             mode: SearchMode::Fuzzy,
             assoc_mode: AssocSearchMode::Include,
             case_sensitive: false,
+            exclude_imports: false,
         }
     }
 
@@ -93,6 +95,10 @@ impl Query {
 
     pub fn case_sensitive(&mut self) {
         self.case_sensitive = true;
+    }
+
+    pub fn exclude_imports(&mut self) {
+        self.exclude_imports = true;
     }
 }
 
@@ -360,6 +366,9 @@ impl Query {
                     // Hide symbols that start with `__` unless the query starts with `__`
                     let symbol_name = symbol.name.as_str();
                     if ignore_underscore_prefixed && symbol_name.starts_with("__") {
+                        continue;
+                    }
+                    if self.exclude_imports && symbol.is_import {
                         continue;
                     }
                     if self.mode.check(&self.query, self.case_sensitive, symbol_name) {
