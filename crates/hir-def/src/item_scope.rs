@@ -261,14 +261,12 @@ impl ItemScope {
     pub fn fully_resolve_import(&self, db: &dyn DefDatabase, mut import: ImportId) -> PerNs {
         let mut res = PerNs::none();
 
-        let mut def_map;
         let mut scope = self;
         while let Some(&m) = scope.use_imports_macros.get(&ImportOrExternCrate::Import(import)) {
             match m {
                 ImportOrDef::Import(i) => {
                     let module_id = i.use_.lookup(db).container;
-                    def_map = module_id.def_map(db);
-                    scope = &def_map[module_id].scope;
+                    scope = &module_id.def_map(db)[module_id].scope;
                     import = i;
                 }
                 ImportOrDef::Def(ModuleDefId::MacroId(def)) => {
@@ -283,8 +281,7 @@ impl ItemScope {
             match m {
                 ImportOrDef::Import(i) => {
                     let module_id = i.use_.lookup(db).container;
-                    def_map = module_id.def_map(db);
-                    scope = &def_map[module_id].scope;
+                    scope = &module_id.def_map(db)[module_id].scope;
                     import = i;
                 }
                 ImportOrDef::Def(def) => {
@@ -299,8 +296,7 @@ impl ItemScope {
             match m {
                 ImportOrDef::Import(i) => {
                     let module_id = i.use_.lookup(db).container;
-                    def_map = module_id.def_map(db);
-                    scope = &def_map[module_id].scope;
+                    scope = &module_id.def_map(db)[module_id].scope;
                     import = i;
                 }
                 ImportOrDef::Def(def) => {
@@ -912,10 +908,7 @@ impl ItemInNs {
 
     /// Returns the crate defining this item (or `None` if `self` is built-in).
     pub fn krate(&self, db: &dyn DefDatabase) -> Option<Crate> {
-        match self {
-            ItemInNs::Types(id) | ItemInNs::Values(id) => id.module(db).map(|m| m.krate(db)),
-            ItemInNs::Macros(id) => Some(id.module(db).krate(db)),
-        }
+        self.module(db).map(|module_id| module_id.krate(db))
     }
 
     pub fn module(&self, db: &dyn DefDatabase) -> Option<ModuleId> {

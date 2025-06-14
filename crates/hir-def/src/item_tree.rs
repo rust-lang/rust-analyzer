@@ -203,7 +203,7 @@ impl ItemTree {
 
     /// Returns the inner attributes of the source file.
     pub(crate) fn top_level_attrs(&self, db: &dyn DefDatabase, krate: Crate) -> Attrs {
-        Attrs::expand_cfg_attr(db, krate, self.top_attrs.clone())
+        Attrs::expand_cfg_attr(db, || krate.cfg_options(db), self.top_attrs.clone())
     }
 
     pub(crate) fn raw_attrs(&self, of: FileAstId<ast::Item>) -> &RawAttrs {
@@ -216,7 +216,7 @@ impl ItemTree {
         krate: Crate,
         of: FileAstId<ast::Item>,
     ) -> Attrs {
-        Attrs::expand_cfg_attr(db, krate, self.raw_attrs(of).clone())
+        Attrs::expand_cfg_attr(db, || krate.cfg_options(db), self.raw_attrs(of).clone())
     }
 
     /// Returns a count of a few, expensive items.

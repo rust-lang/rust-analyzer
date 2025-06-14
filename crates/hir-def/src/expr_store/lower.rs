@@ -546,9 +546,10 @@ impl ExprCollector<'_> {
     ) -> ExprCollector<'_> {
         let (def_map, local_def_map) = module.local_def_map(db);
         let expander = Expander::new(db, current_file_id, def_map);
+        let krate = module.krate(db);
         ExprCollector {
             db,
-            cfg_options: module.krate(db).cfg_options(db),
+            cfg_options: krate.cfg_options(db),
             module,
             def_map,
             local_def_map,
@@ -562,7 +563,7 @@ impl ExprCollector<'_> {
             awaitable_context: None,
             current_block_legacy_macro_defs_count: FxHashMap::default(),
             outer_impl_trait: false,
-            krate: module.krate(db),
+            krate,
         }
     }
 

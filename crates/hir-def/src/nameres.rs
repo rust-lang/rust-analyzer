@@ -420,10 +420,11 @@ pub fn block_def_map(db: &dyn DefDatabase, block_id: BlockId) -> DefMap {
     let module_data =
         ModuleData::new(ModuleOrigin::BlockExpr { block: ast_id, id: block_id }, visibility, None);
 
-    let local_def_map = crate_local_def_map(db, module.krate(db));
+    let krate = module.krate(db);
+    let local_def_map = crate_local_def_map(db, krate);
     let def_map = DefMap::empty(
         db,
-        module.krate(db),
+        krate,
         local_def_map.def_map(db).data.clone(),
         module_data,
         Some(BlockInfo { block: block_id, parent: module }),

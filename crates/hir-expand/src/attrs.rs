@@ -2,7 +2,6 @@
 use std::iter;
 use std::{borrow::Cow, fmt, ops};
 
-use base_db::Crate;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use intern::{Interned, Symbol, sym};
@@ -141,14 +140,18 @@ impl RawAttrs {
     }
 
     /// Processes `cfg_attr`s
-    pub fn expand_cfg_attr(self, db: &dyn ExpandDatabase, krate: Crate) -> RawAttrs {
+    pub fn expand_cfg_attr<'db>(
+        self,
+        db: &'db dyn ExpandDatabase,
+        cfg_options: impl FnOnce() -> &'db CfgOptions,
+    ) -> RawAttrs {
         let has_cfg_attrs =
             self.iter().any(|attr| attr.path.as_ident().is_some_and(|name| *name == sym::cfg_attr));
         if !has_cfg_attrs {
             return self;
         }
 
-        let cfg_options = krate.cfg_options(db);
+        let cfg_options = cfg_options();
         let new_attrs = self
             .iter()
             .cloned()

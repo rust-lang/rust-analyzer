@@ -2,7 +2,6 @@
 
 use std::{borrow::Cow, convert::identity, hash::Hash, ops};
 
-use base_db::Crate;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_expand::{
@@ -56,12 +55,12 @@ impl Attrs {
         (**self).iter().find(|attr| attr.id == id)
     }
 
-    pub(crate) fn expand_cfg_attr(
-        db: &dyn DefDatabase,
-        krate: Crate,
+    pub(crate) fn expand_cfg_attr<'db>(
+        db: &'db dyn DefDatabase,
+        cfg_options: impl FnOnce() -> &'db CfgOptions,
         raw_attrs: RawAttrs,
     ) -> Attrs {
-        Attrs(raw_attrs.expand_cfg_attr(db, krate))
+        Attrs(raw_attrs.expand_cfg_attr(db, cfg_options))
     }
 
     pub(crate) fn is_cfg_enabled_for(
@@ -105,27 +104,24 @@ impl Attrs {
     ) -> Arc<ArenaMap<LocalFieldId, Attrs>> {
         let _p = tracing::info_span!("fields_attrs_query").entered();
         let mut res = ArenaMap::default();
-        let (fields, file_id, krate) = match v {
+        let (fields, file_id, module) = match v {
             VariantId::EnumVariantId(it) => {
                 let loc = it.lookup(db);
-                let krate = loc.parent.lookup(db).container.krate(db);
                 let source = loc.source(db);
-                (source.value.field_list(), source.file_id, krate)
+                (source.value.field_list(), source.file_id, loc.parent.lookup(db).container)
             }
             VariantId::StructId(it) => {
                 let loc = it.lookup(db);
-                let krate = loc.container.krate(db);
                 let source = loc.source(db);
-                (source.value.field_list(), source.file_id, krate)
+                (source.value.field_list(), source.file_id, loc.container)
             }
             VariantId::UnionId(it) => {
                 let loc = it.lookup(db);
-                let krate = loc.container.krate(db);
                 let source = loc.source(db);
                 (
                     source.value.record_field_list().map(ast::FieldList::RecordFieldList),
                     source.file_id,
-                    krate,
+                    loc.container,
                 )
             }
         };
@@ -133,7 +129,7 @@ impl Attrs {
             return Arc::new(res);
         };
 
-        let cfg_options = krate.cfg_options(db);
+        let cfg_options = module.krate(db).cfg_options(db);
         let span_map = db.span_map(file_id);
 
         match fields {
@@ -544,7 +540,7 @@ impl AttrsWithOwner {
                         tree.top_level_raw_attrs().clone()
                     }
                 };
-                Attrs::expand_cfg_attr(db, module.krate(db), raw_attrs)
+                Attrs::expand_cfg_attr(db, || module.krate(db).cfg_options(db), raw_attrs)
             }
             AttrDefId::FieldId(it) => db.fields_attrs(it.parent)[it.local_id].clone(),
             AttrDefId::EnumVariantId(it) => attrs_from_ast_id_loc(db, it),

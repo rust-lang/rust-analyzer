@@ -1,5 +1,5 @@
 //! Name resolution façade.
-use std::{fmt, mem};
+use std::fmt;
 
 use base_db::Crate;
 use hir_expand::{
@@ -1282,8 +1282,7 @@ impl HasResolver for ModuleId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver<'_> {
         let (mut def_map, local_def_map) = self.local_def_map(db);
         let mut module_id = self;
-
-        if !self.is_block_module(db) {
+        if def_map.parent().is_none() || module_id != def_map.root_module_id() {
             return Resolver {
                 scopes: vec![],
                 module_scope: ModuleItemMap { def_map, local_def_map, module_id },
@@ -1292,10 +1291,10 @@ impl HasResolver for ModuleId {
 
         let mut modules: SmallVec<[_; 1]> = smallvec![];
         while let Some(parent) = def_map.parent() {
-            let block_def_map = mem::replace(&mut def_map, parent.def_map(db));
-            modules.push(block_def_map);
-            if !parent.is_block_module(db) {
-                module_id = parent;
+            modules.push(def_map);
+            def_map = parent.def_map(db);
+            module_id = parent;
+            if module_id != def_map.root_module_id() {
                 break;
             }
         }

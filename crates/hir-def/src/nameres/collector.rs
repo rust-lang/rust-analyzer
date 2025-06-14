@@ -1074,7 +1074,6 @@ impl<'db> DefCollector<'db> {
         vis: Visibility,
         import: Option<ImportOrExternCrate>,
     ) {
-        self.db.unwind_if_revision_cancelled();
         self.update_recursive(module_id, resolutions, vis, import, 0)
     }
 
@@ -1706,7 +1705,7 @@ impl ModCollector<'_, '_> {
         // Prelude module is always considered to be `#[macro_use]`.
         if let Some((prelude_module, _use)) = self.def_collector.def_map.prelude {
             // Don't insert macros from the prelude into blocks, as they can be shadowed by other macros.
-            if prelude_module.krate(self.def_collector.db) != krate && is_crate_root {
+            if is_crate_root && prelude_module.krate(self.def_collector.db) != krate {
                 cov_mark::hit!(prelude_is_macro_use);
                 self.def_collector.import_macros_from_extern_crate(
                     prelude_module.krate(self.def_collector.db),
