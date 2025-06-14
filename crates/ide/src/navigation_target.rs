@@ -102,7 +102,7 @@ impl NavigationTarget {
         db: &RootDatabase,
         module: hir::Module,
     ) -> UpmappingResult<NavigationTarget> {
-        let edition = module.krate().edition(db);
+        let edition = module.krate(db).edition(db);
         let name =
             module.name(db).map(|it| it.display_no_db(edition).to_smolstr()).unwrap_or_default();
         match module.declaration_source(db) {
@@ -118,7 +118,7 @@ impl NavigationTarget {
                         );
                         res.docs = module.docs(db);
                         res.description = Some(
-                            module.display(db, module.krate().to_display_target(db)).to_string(),
+                            module.display(db, module.krate(db).to_display_target(db)).to_string(),
                         );
                         res
                     },
@@ -185,7 +185,7 @@ impl NavigationTarget {
 impl TryToNav for FileSymbol {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<UpmappingResult<NavigationTarget>> {
         let edition =
-            self.def.module(db).map(|it| it.krate().edition(db)).unwrap_or(Edition::CURRENT);
+            self.def.module(db).map(|it| it.krate(db).edition(db)).unwrap_or(Edition::CURRENT);
         let display_target = self.def.krate(db).to_display_target(db);
         Some(
             orig_range_with_focus_r(
@@ -426,7 +426,7 @@ impl ToNav for hir::Module {
 
 impl ToNav for hir::Crate {
     fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget> {
-        self.root_module().to_nav(db)
+        self.root_module(db).to_nav(db)
     }
 }
 
@@ -461,7 +461,7 @@ impl TryToNav for hir::ExternCrateDecl {
         let focus = value
             .rename()
             .map_or_else(|| value.name_ref().map(Either::Left), |it| it.name().map(Either::Right));
-        let krate = self.module(db).krate();
+        let krate = self.module(db).krate(db);
         let edition = krate.edition(db);
 
         Some(orig_range_with_focus(db, file_id, value.syntax(), focus).map(
@@ -489,7 +489,7 @@ impl TryToNav for hir::ExternCrateDecl {
 impl TryToNav for hir::Field {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<UpmappingResult<NavigationTarget>> {
         let src = self.source(db)?;
-        let krate = self.parent_def(db).module(db).krate();
+        let krate = self.parent_def(db).module(db).krate(db);
 
         let field_source = match &src.value {
             FieldSource::Named(it) => {
@@ -578,7 +578,7 @@ impl ToNav for LocalSource {
             Either::Left(bind_pat) => (bind_pat.syntax(), bind_pat.name()),
             Either::Right(it) => (it.syntax(), it.name()),
         };
-        let edition = self.local.parent(db).module(db).krate().edition(db);
+        let edition = self.local.parent(db).module(db).krate(db).edition(db);
 
         orig_range_with_focus(db, file_id, node, name).map(
             |(FileRange { file_id, range: full_range }, focus_range)| {
@@ -637,7 +637,7 @@ impl TryToNav for hir::Label {
 impl TryToNav for hir::TypeParam {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<UpmappingResult<NavigationTarget>> {
         let InFile { file_id, value } = self.merge().source(db)?;
-        let edition = self.module(db).krate().edition(db);
+        let edition = self.module(db).krate(db).edition(db);
         let name = self.name(db).display_no_db(edition).to_smolstr();
 
         let value = match value {
@@ -702,7 +702,7 @@ impl TryToNav for hir::LifetimeParam {
 impl TryToNav for hir::ConstParam {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<UpmappingResult<NavigationTarget>> {
         let InFile { file_id, value } = self.merge().source(db)?;
-        let edition = self.module(db).krate().edition(db);
+        let edition = self.module(db).krate(db).edition(db);
         let name = self.name(db).display_no_db(edition).to_smolstr();
 
         let value = match value {
@@ -735,7 +735,7 @@ impl TryToNav for hir::InlineAsmOperand {
         let file_id = *file_id;
         Some(orig_range_with_focus(db, file_id, value.syntax(), value.name()).map(
             |(FileRange { file_id, range: full_range }, focus_range)| {
-                let edition = self.parent(db).module(db).krate().edition(db);
+                let edition = self.parent(db).module(db).krate(db).edition(db);
                 NavigationTarget {
                     file_id,
                     name: self

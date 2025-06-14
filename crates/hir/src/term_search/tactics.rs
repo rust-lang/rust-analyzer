@@ -758,7 +758,7 @@ pub(super) fn make_tuple<'a, DB: HirDatabase>(
                 .filter(|_| should_continue())
                 .map(|params| {
                     let tys: Vec<Type> = params.iter().map(|it| it.ty(db)).collect();
-                    let tuple_ty = Type::new_tuple(module.krate().into(), &tys);
+                    let tuple_ty = Type::new_tuple(module.krate(db).into(), &tys);
 
                     let expr = Expr::Tuple { ty: tuple_ty.clone(), params };
                     lookup.insert(tuple_ty, iter::once(expr.clone()));

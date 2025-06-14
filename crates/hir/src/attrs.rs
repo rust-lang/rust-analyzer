@@ -25,7 +25,7 @@ use crate::{
 pub trait HasAttrs {
     fn attrs(self, db: &dyn HirDatabase) -> AttrsWithOwner;
     #[doc(hidden)]
-    fn attr_id(self) -> AttrDefId;
+    fn attr_id(self, db: &dyn HirDatabase) -> AttrDefId;
 }
 
 macro_rules! impl_has_attrs {
@@ -35,7 +35,7 @@ macro_rules! impl_has_attrs {
                 let def = AttrDefId::$def_id(self.into());
                 AttrsWithOwner::new(db, def)
             }
-            fn attr_id(self) -> AttrDefId {
+            fn attr_id(self, _: &dyn HirDatabase) -> AttrDefId {
                 AttrDefId::$def_id(self.into())
             }
         }
@@ -65,8 +65,8 @@ macro_rules! impl_has_attrs_enum {
             fn attrs(self, db: &dyn HirDatabase) -> AttrsWithOwner {
                 $enum::$variant(self).attrs(db)
             }
-            fn attr_id(self) -> AttrDefId {
-                $enum::$variant(self).attr_id()
+            fn attr_id(self, db: &dyn HirDatabase) -> AttrDefId {
+                $enum::$variant(self).attr_id(db)
             }
         }
     )*};
@@ -83,22 +83,22 @@ impl HasAttrs for AssocItem {
             AssocItem::TypeAlias(it) => it.attrs(db),
         }
     }
-    fn attr_id(self) -> AttrDefId {
+    fn attr_id(self, db: &dyn HirDatabase) -> AttrDefId {
         match self {
-            AssocItem::Function(it) => it.attr_id(),
-            AssocItem::Const(it) => it.attr_id(),
-            AssocItem::TypeAlias(it) => it.attr_id(),
+            AssocItem::Function(it) => it.attr_id(db),
+            AssocItem::Const(it) => it.attr_id(db),
+            AssocItem::TypeAlias(it) => it.attr_id(db),
         }
     }
 }
 
 impl HasAttrs for crate::Crate {
     fn attrs(self, db: &dyn HirDatabase) -> AttrsWithOwner {
-        let def = AttrDefId::ModuleId(self.root_module().id);
+        let def = AttrDefId::ModuleId(self.root_module(db).id);
         AttrsWithOwner::new(db, def)
     }
-    fn attr_id(self) -> AttrDefId {
-        AttrDefId::ModuleId(self.root_module().id)
+    fn attr_id(self, db: &dyn HirDatabase) -> AttrDefId {
+        AttrDefId::ModuleId(self.root_module(db).id)
     }
 }
 
@@ -110,7 +110,7 @@ pub fn resolve_doc_path_on(
     ns: Option<Namespace>,
     is_inner_doc: bool,
 ) -> Option<DocLinkDef> {
-    resolve_doc_path_on_(db, link, def.attr_id(), ns, is_inner_doc)
+    resolve_doc_path_on_(db, link, def.attr_id(db), ns, is_inner_doc)
 }
 
 fn resolve_doc_path_on_(

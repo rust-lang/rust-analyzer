@@ -333,7 +333,7 @@ impl InferenceContext<'_> {
         // Search for a predicate like `<$self as FnX<Args>>::Output == Ret`
 
         let fn_traits: SmallVec<[ChalkTraitId; 3]> =
-            utils::fn_traits(self.db, self.owner.module(self.db).krate())
+            utils::fn_traits(self.db, self.owner.module(self.db).krate(self.db))
                 .map(to_chalk_trait_id)
                 .collect();
 
@@ -603,7 +603,7 @@ impl HirPlace {
                 |_, _, _| {
                     unreachable!("Closure field only happens in MIR");
                 },
-                ctx.owner.module(ctx.db).krate(),
+                ctx.owner.module(ctx.db).krate(ctx.db),
             );
         }
         ty
@@ -704,7 +704,7 @@ impl CapturedItem {
                 }
             }
         }
-        if is_raw_identifier(&result, owner.module(db).krate().data(db).edition) {
+        if is_raw_identifier(&result, owner.module(db).krate(db).data(db).edition) {
             result.insert_str(0, "r#");
         }
         result
@@ -1449,7 +1449,7 @@ impl InferenceContext<'_> {
                     |_, _, _| {
                         unreachable!("Closure field only happens in MIR");
                     },
-                    self.owner.module(self.db).krate(),
+                    self.owner.module(self.db).krate(self.db),
                 );
                 if ty.as_raw_ptr().is_some() || ty.is_union() {
                     capture.kind = CaptureKind::ByRef(BorrowKind::Shared);

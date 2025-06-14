@@ -250,7 +250,7 @@ impl TyExt for Ty {
             TyKind::OpaqueType(opaque_ty_id, subst) => {
                 match db.lookup_intern_impl_trait_id((*opaque_ty_id).into()) {
                     ImplTraitId::AsyncBlockTypeImplTrait(def, _expr) => {
-                        let krate = def.module(db).krate();
+                        let krate = def.module(db).krate(db);
                         if let Some(future_trait) = LangItem::Future.resolve_trait(db, krate) {
                             // This is only used by type walking.
                             // Parameters will be walked outside, and projection predicate is not used.
@@ -361,7 +361,7 @@ impl TyExt for Ty {
     }
 
     fn is_copy(self, db: &dyn HirDatabase, owner: DefWithBodyId) -> bool {
-        let crate_id = owner.module(db).krate();
+        let crate_id = owner.module(db).krate(db);
         let Some(copy_trait) = LangItem::Copy.resolve_trait(db, crate_id) else {
             return false;
         };

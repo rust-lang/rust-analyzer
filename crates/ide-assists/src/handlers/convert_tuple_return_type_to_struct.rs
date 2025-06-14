@@ -212,7 +212,10 @@ fn augment_references_with_imports(
                     )
                     .map(|mod_path| {
                         make::path_concat(
-                            mod_path_to_ast(&mod_path, target_module.krate().edition(ctx.db())),
+                            mod_path_to_ast(
+                                &mod_path,
+                                target_module.krate(ctx.db()).edition(ctx.db()),
+                            ),
                             make::path_from_text(struct_name),
                         )
                     });

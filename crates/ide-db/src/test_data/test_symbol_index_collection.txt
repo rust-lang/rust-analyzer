@@ -1,12 +1,8 @@
 [
     (
         Module {
-            id: ModuleId {
-                krate: Crate(
-                    Id(3000),
-                ),
-                block: None,
-                local_id: Idx::<ModuleData>(0),
+            id: ModuleIdLt {
+                [salsa id]: Id(3400),
             },
         },
         [
@@ -15,7 +11,7 @@
                 def: TypeAlias(
                     TypeAlias {
                         id: TypeAliasId(
-                            6800,
+                            6c00,
                         ),
                     },
                 ),
@@ -46,7 +42,7 @@
                 def: Const(
                     Const {
                         id: ConstId(
-                            6000,
+                            6400,
                         ),
                     },
                 ),
@@ -77,7 +73,7 @@
                 def: Const(
                     Const {
                         id: ConstId(
-                            6002,
+                            6402,
                         ),
                     },
                 ),
@@ -109,7 +105,7 @@
                     Enum(
                         Enum {
                             id: EnumId(
-                                4c00,
+                                5000,
                             ),
                         },
                     ),
@@ -142,7 +138,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                4800,
+                                4c00,
                             ),
                         ),
                     },
@@ -175,7 +171,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                4800,
+                                4c00,
                             ),
                         ),
                     },
@@ -207,7 +203,7 @@
                 def: Static(
                     Static {
                         id: StaticId(
-                            6400,
+                            6800,
                         ),
                     },
                 ),
@@ -239,7 +235,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4401,
+                                4801,
                             ),
                         },
                     ),
@@ -272,7 +268,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4400,
+                                4800,
                             ),
                         },
                     ),
@@ -280,7 +276,7 @@
                 loc: DeclarationLocation {
                     hir_file_id: MacroFile(
                         MacroCallId(
-                            Id(3800),
+                            Id(3c00),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -305,7 +301,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4405,
+                                4805,
                             ),
                         },
                     ),
@@ -340,7 +336,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4406,
+                                4806,
                             ),
                         },
                     ),
@@ -375,7 +371,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4407,
+                                4807,
                             ),
                         },
                     ),
@@ -408,7 +404,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4402,
+                                4802,
                             ),
                         },
                     ),
@@ -440,7 +436,7 @@
                 def: Trait(
                     Trait {
                         id: TraitId(
-                            5800,
+                            5c00,
                         ),
                     },
                 ),
@@ -472,7 +468,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                4800,
+                                4c00,
                             ),
                         ),
                     },
@@ -505,7 +501,7 @@
                     Union(
                         Union {
                             id: UnionId(
-                                5000,
+                                5400,
                             ),
                         },
                     ),
@@ -536,12 +532,8 @@
                 name: "a_mod",
                 def: Module(
                     Module {
-                        id: ModuleId {
-                            krate: Crate(
-                                Id(3000),
-                            ),
-                            block: None,
-                            local_id: Idx::<ModuleData>(1),
+                        id: ModuleIdLt {
+                            [salsa id]: Id(3401),
                         },
                     },
                 ),
@@ -571,12 +563,8 @@
                 name: "b_mod",
                 def: Module(
                     Module {
-                        id: ModuleId {
-                            krate: Crate(
-                                Id(3000),
-                            ),
-                            block: None,
-                            local_id: Idx::<ModuleData>(2),
+                        id: ModuleIdLt {
+                            [salsa id]: Id(3402),
                         },
                     },
                 ),
@@ -608,7 +596,7 @@
                     Macro {
                         id: MacroRulesId(
                             MacroRulesId(
-                                3401,
+                                3801,
                             ),
                         ),
                     },
@@ -640,7 +628,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            5c02,
+                            6002,
                         ),
                     },
                 ),
@@ -673,7 +661,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            5c01,
+                            6001,
                         ),
                     },
                 ),
@@ -707,7 +695,7 @@
                     Macro {
                         id: MacroRulesId(
                             MacroRulesId(
-                                3400,
+                                3800,
                             ),
                         ),
                     },
@@ -739,7 +727,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            5c00,
+                            6000,
                         ),
                     },
                 ),
@@ -771,7 +759,7 @@
                     Macro {
                         id: MacroRulesId(
                             MacroRulesId(
-                                3401,
+                                3801,
                             ),
                         ),
                     },
@@ -803,7 +791,7 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            5c03,
+                            6003,
                         ),
                     },
                 ),
@@ -835,12 +823,8 @@
     ),
     (
         Module {
-            id: ModuleId {
-                krate: Crate(
-                    Id(3000),
-                ),
-                block: None,
-                local_id: Idx::<ModuleData>(1),
+            id: ModuleIdLt {
+                [salsa id]: Id(3401),
             },
         },
         [
@@ -850,7 +834,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4403,
+                                4803,
                             ),
                         },
                     ),
@@ -881,12 +865,8 @@
     ),
     (
         Module {
-            id: ModuleId {
-                krate: Crate(
-                    Id(3000),
-                ),
-                block: None,
-                local_id: Idx::<ModuleData>(2),
+            id: ModuleIdLt {
+                [salsa id]: Id(3402),
             },
         },
         [
@@ -895,7 +875,7 @@
                 def: Trait(
                     Trait {
                         id: TraitId(
-                            5800,
+                            5c00,
                         ),
                     },
                 ),
@@ -927,7 +907,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                4800,
+                                4c00,
                             ),
                         ),
                     },
@@ -960,7 +940,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4404,
+                                4804,
                             ),
                         },
                     ),
@@ -993,7 +973,7 @@
                     Macro {
                         id: Macro2Id(
                             Macro2Id(
-                                4800,
+                                4c00,
                             ),
                         ),
                     },
@@ -1026,7 +1006,7 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                4404,
+                                4804,
                             ),
                         },
                     ),

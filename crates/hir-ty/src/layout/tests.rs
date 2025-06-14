@@ -40,7 +40,7 @@ fn eval_goal(
         .find_map(|file_id| {
             let module_id = db.module_for_file(file_id.file_id(&db));
             let def_map = module_id.def_map(&db);
-            let scope = &def_map[module_id.local_id].scope;
+            let scope = &def_map[module_id].scope;
             let adt_or_type_alias_id = scope.declarations().find_map(|x| match x {
                 hir_def::ModuleDefId::AdtId(x) => {
                     let name = match x {
@@ -105,7 +105,7 @@ fn eval_expr(
     let (db, file_id) = TestDB::with_single_file(&ra_fixture);
     let module_id = db.module_for_file(file_id.file_id(&db));
     let def_map = module_id.def_map(&db);
-    let scope = &def_map[module_id.local_id].scope;
+    let scope = &def_map[module_id].scope;
     let function_id = scope
         .declarations()
         .find_map(|x| match x {

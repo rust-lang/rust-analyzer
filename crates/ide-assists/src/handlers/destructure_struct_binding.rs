@@ -94,7 +94,8 @@ fn collect_data(ident_pat: ast::IdentPat, ctx: &AssistContext<'_>) -> Option<Str
     let struct_def_path = module.find_path(ctx.db(), struct_def, cfg)?;
 
     let is_non_exhaustive = struct_def.attrs(ctx.db())?.by_key(sym::non_exhaustive).exists();
-    let is_foreign_crate = struct_def.module(ctx.db()).is_some_and(|m| m.krate() != module.krate());
+    let is_foreign_crate =
+        struct_def.module(ctx.db()).is_some_and(|m| m.krate(ctx.db()) != module.krate(ctx.db()));
 
     let fields = struct_type.fields(ctx.db());
     let n_fields = fields.len();
@@ -143,7 +144,7 @@ fn collect_data(ident_pat: ast::IdentPat, ctx: &AssistContext<'_>) -> Option<Str
         names_in_scope,
         is_nested,
         is_ref,
-        edition: module.krate().edition(ctx.db()),
+        edition: module.krate(ctx.db()).edition(ctx.db()),
     })
 }
 

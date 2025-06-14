@@ -19,7 +19,7 @@ fn foo() -> i32 {
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let crate_def_map = module.def_map(&db);
-            visit_module(&db, crate_def_map, module.local_id, &mut |def| {
+            visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
                     db.infer(it.into());
                 }
@@ -41,7 +41,7 @@ fn foo() -> i32 {
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let crate_def_map = module.def_map(&db);
-            visit_module(&db, crate_def_map, module.local_id, &mut |def| {
+            visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
                     db.infer(it.into());
                 }
@@ -70,7 +70,7 @@ fn baz() -> i32 {
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let crate_def_map = module.def_map(&db);
-            visit_module(&db, crate_def_map, module.local_id, &mut |def| {
+            visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
                     db.infer(it.into());
                 }
@@ -97,7 +97,7 @@ fn baz() -> i32 {
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let crate_def_map = module.def_map(&db);
-            visit_module(&db, crate_def_map, module.local_id, &mut |def| {
+            visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
                     db.infer(it.into());
                 }
@@ -125,7 +125,7 @@ $0",
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
         assert!(format!("{events:?}").contains("trait_impls_in_crate_shim"))
     }
@@ -150,7 +150,7 @@ pub struct NewStruct {
         let actual = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
 
         let expected = vec![
@@ -184,7 +184,7 @@ $0",
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
         assert!(format!("{events:?}").contains("trait_impls_in_crate_shim"))
     }
@@ -210,7 +210,7 @@ pub enum SomeEnum {
         let actual = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
 
         let expected = vec![
@@ -244,7 +244,7 @@ $0",
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
         assert!(format!("{events:?}").contains("trait_impls_in_crate_shim"))
     }
@@ -267,7 +267,7 @@ fn bar() -> f32 {
         let actual = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
 
         let expected = vec![
@@ -305,7 +305,7 @@ $0",
         let events = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
         assert!(format!("{events:?}").contains("trait_impls_in_crate_shim"))
     }
@@ -336,7 +336,7 @@ impl SomeStruct {
         let actual = db.log_executed(|| {
             let module = db.module_for_file(pos.file_id.file_id(&db));
             let _crate_def_map = module.def_map(&db);
-            db.trait_impls_in_crate(module.krate());
+            db.trait_impls_in_crate(module.krate(&db));
         });
 
         let expected = vec![
@@ -385,7 +385,7 @@ fn main() {
             let module = db.module_for_file(file_id.file_id(&db));
             let crate_def_map = module.def_map(&db);
             let mut defs: Vec<DefWithBodyId> = vec![];
-            visit_module(&db, crate_def_map, module.local_id, &mut |it| {
+            visit_module(&db, crate_def_map, module, &mut |it| {
                 let def = match it {
                     ModuleDefId::FunctionId(it) => it.into(),
                     ModuleDefId::EnumVariantId(it) => it.into(),
@@ -428,7 +428,7 @@ fn main() {
             let crate_def_map = module.def_map(&db);
             let mut defs: Vec<DefWithBodyId> = vec![];
 
-            visit_module(&db, crate_def_map, module.local_id, &mut |it| {
+            visit_module(&db, crate_def_map, module, &mut |it| {
                 let def = match it {
                     ModuleDefId::FunctionId(it) => it.into(),
                     ModuleDefId::EnumVariantId(it) => it.into(),

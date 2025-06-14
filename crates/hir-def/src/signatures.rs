@@ -834,7 +834,7 @@ fn lower_fields<Field: ast::HasAttrs + ast::HasVisibility>(
     override_visibility: Option<RawVisibility>,
 ) -> (Arena<FieldData>, ExpressionStore, ExpressionStoreSourceMap) {
     let mut arena = Arena::new();
-    let cfg_options = module.krate.cfg_options(db);
+    let cfg_options = module.krate(db).cfg_options(db);
     let mut col = ExprCollector::new(db, module, fields.file_id);
     let mut idx = 0;
     for (ty, field) in fields.value {
@@ -895,7 +895,7 @@ impl EnumVariants {
         let span_map = db.span_map(source.file_id);
 
         let mut diagnostics = ThinVec::new();
-        let cfg_options = loc.container.krate.cfg_options(db);
+        let cfg_options = loc.container.krate(db).cfg_options(db);
         let mut index = 0;
         let Some(variants) = source.value.variant_list() else {
             return (Arc::new(EnumVariants { variants: Box::default() }), None);

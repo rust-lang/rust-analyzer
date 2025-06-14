@@ -261,7 +261,7 @@ impl HasDocs for hir::AssocItem {
 
 impl HasDocs for hir::ExternCrateDecl {
     fn docs(self, db: &dyn HirDatabase) -> Option<Documentation> {
-        let crate_docs = docs_from_attrs(&self.resolved_crate(db)?.root_module().attrs(db));
+        let crate_docs = docs_from_attrs(&self.resolved_crate(db)?.root_module(db).attrs(db));
         let decl_docs = docs_from_attrs(&self.attrs(db));
         match (decl_docs, crate_docs) {
             (None, None) => None,
@@ -278,7 +278,8 @@ impl HasDocs for hir::ExternCrateDecl {
     }
 
     fn docs_with_rangemap(self, db: &dyn HirDatabase) -> Option<(Documentation, DocsRangeMap)> {
-        let crate_docs = docs_with_rangemap(db, &self.resolved_crate(db)?.root_module().attrs(db));
+        let crate_docs =
+            docs_with_rangemap(db, &self.resolved_crate(db)?.root_module(db).attrs(db));
         let decl_docs = docs_with_rangemap(db, &self.attrs(db));
         match (decl_docs, crate_docs) {
             (None, None) => None,

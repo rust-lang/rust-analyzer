@@ -132,7 +132,7 @@ fn moved_out_of_ref(db: &dyn HirDatabase, body: &MirBody) -> Vec<MovedOutOfRef> 
                     ty,
                     db,
                     make_fetch_closure_field(db),
-                    body.owner.module(db).krate(),
+                    body.owner.module(db).krate(db),
                 );
             }
             if is_dereference_of_ref
@@ -223,7 +223,7 @@ fn partially_moved(db: &dyn HirDatabase, body: &MirBody) -> Vec<PartiallyMoved> 
                     ty,
                     db,
                     make_fetch_closure_field(db),
-                    body.owner.module(db).krate(),
+                    body.owner.module(db).krate(db),
                 );
             }
             if !ty.clone().is_copy(db, body.owner)
@@ -369,7 +369,12 @@ fn place_case(db: &dyn HirDatabase, body: &MirBody, lvalue: &Place) -> Projectio
             }
             ProjectionElem::OpaqueCast(_) => (),
         }
-        ty = proj.projected_ty(ty, db, make_fetch_closure_field(db), body.owner.module(db).krate());
+        ty = proj.projected_ty(
+            ty,
+            db,
+            make_fetch_closure_field(db),
+            body.owner.module(db).krate(db),
+        );
     }
     if is_part_of { ProjectionCase::DirectPart } else { ProjectionCase::Direct }
 }
