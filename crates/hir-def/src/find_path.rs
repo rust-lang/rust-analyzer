@@ -1285,7 +1285,6 @@ $0
 
     #[test]
     fn explicit_private_imports_crate() {
-        cov_mark::check!(explicit_private_imports);
         check_found_path(
             r#"
 //- /main.rs

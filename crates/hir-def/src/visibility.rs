@@ -51,6 +51,10 @@ impl Visibility {
             Visibility::PubCrate(krate) => return from_module.krate(db) == krate,
             Visibility::Public => return true,
         };
+        if from_module == to_module {
+            // if the modules are the same, visibility is trivially satisfied
+            return true;
+        }
         // if they're not in the same crate, it can't be visible
         if from_module.krate(db) != to_module.krate(db) {
             return false;
@@ -73,6 +77,10 @@ impl Visibility {
             Visibility::PubCrate(krate) => return from_module.krate(db) == krate,
             Visibility::Public => return true,
         };
+        if from_module == to_module {
+            // if the modules are the same, visibility is trivially satisfied
+            return true;
+        }
         // if they're not in the same crate, it can't be visible
         if def_map.krate() != to_module.krate(db) {
             return false;
@@ -100,9 +108,7 @@ impl Visibility {
                 // `to_module` is not a block, so there is no parent def map to use.
                 (None, _) => (),
                 // `to_module` is at `def_map`'s block, no need to move further.
-                (Some(a), Some(b)) if a == b => {
-                    cov_mark::hit!(nested_module_scoping);
-                }
+                (Some(a), Some(b)) if a == b => {}
                 _ => {
                     if let Some(parent) = to_module.def_map(db).parent() {
                         to_module = parent;
@@ -161,6 +167,21 @@ impl Visibility {
                 if mod_.krate(db) == krate { Some(Visibility::PubCrate(krate)) } else { None }
             }
             (Visibility::Module(mod_a, expl_a), Visibility::Module(mod_b, expl_b)) => {
+                if mod_a == mod_b {
+                    // Most module visibilities are `pub(self)`, and assuming no errors
+                    // this will be the common and thus fast path.
+                    return Some(Visibility::Module(
+                        mod_a,
+                        match (expl_a, expl_b) {
+                            (VisibilityExplicitness::Explicit, _)
+                            | (_, VisibilityExplicitness::Explicit) => {
+                                VisibilityExplicitness::Explicit
+                            }
+                            _ => VisibilityExplicitness::Implicit,
+                        },
+                    ));
+                }
+
                 if mod_a.krate(db) != def_map.krate() || mod_b.krate(db) != def_map.krate() {
                     return None;
                 }
@@ -212,6 +233,21 @@ impl Visibility {
                 if mod_.krate(db) == krate { Some(Visibility::Module(mod_, exp)) } else { None }
             }
             (Visibility::Module(mod_a, expl_a), Visibility::Module(mod_b, expl_b)) => {
+                if mod_a == mod_b {
+                    // Most module visibilities are `pub(self)`, and assuming no errors
+                    // this will be the common and thus fast path.
+                    return Some(Visibility::Module(
+                        mod_a,
+                        match (expl_a, expl_b) {
+                            (VisibilityExplicitness::Explicit, _)
+                            | (_, VisibilityExplicitness::Explicit) => {
+                                VisibilityExplicitness::Explicit
+                            }
+                            _ => VisibilityExplicitness::Implicit,
+                        },
+                    ));
+                }
+
                 if mod_a.krate(db) != def_map.krate() || mod_b.krate(db) != def_map.krate() {
                     return None;
                 }

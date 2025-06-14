@@ -144,6 +144,7 @@ impl<N: AstIdNode> HasModule for ItemLoc<N> {
 
 #[derive(Debug)]
 pub struct AssocItemLoc<N: AstIdNode> {
+    // FIXME: Store this as an erased `salsa::Id` to save space
     pub container: ItemContainerId,
     pub id: AstId<N>,
 }
@@ -445,6 +446,7 @@ impl HasModule for ModuleId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FieldId {
+    // FIXME: Store this as an erased `salsa::Id` to save space
     pub parent: VariantId,
     pub local_id: LocalFieldId,
 }
@@ -460,6 +462,7 @@ pub struct TupleFieldId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TypeOrConstParamId {
+    // FIXME: Store this as an erased `salsa::Id` to save space
     pub parent: GenericDefId,
     pub local_id: LocalTypeOrConstParamId,
 }
@@ -518,6 +521,7 @@ impl From<ConstParamId> for TypeOrConstParamId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LifetimeParamId {
+    // FIXME: Store this as an erased `salsa::Id` to save space
     pub parent: GenericDefId,
     pub local_id: LocalLifetimeParamId,
 }
@@ -661,7 +665,7 @@ impl DefWithBodyId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, salsa_macros::Supertype)]
 pub enum AssocItemId {
     FunctionId(FunctionId),
     ConstId(ConstId),
