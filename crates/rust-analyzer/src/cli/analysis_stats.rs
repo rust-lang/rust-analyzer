@@ -203,7 +203,7 @@ impl flags::AnalysisStats {
         let mut visited_modules = FxHashSet::default();
         let mut visit_queue = Vec::new();
         for krate in krates {
-            let module = krate.root_module();
+            let module = krate.root_module(db);
             let file_id = module.definition_source_file_id(db);
             let file_id = file_id.original_file(db);
 
@@ -726,10 +726,10 @@ impl flags::AnalysisStats {
         for &body_id in bodies {
             let name = body_id.name(db).unwrap_or_else(Name::missing);
             let module = body_id.module(db);
-            let display_target = module.krate().to_display_target(db);
+            let display_target = module.krate(db).to_display_target(db);
             let full_name = move || {
                 module
-                    .krate()
+                    .krate(db)
                     .display_name(db)
                     .map(|it| it.canonical_name().as_str().to_owned())
                     .into_iter()
@@ -1051,7 +1051,7 @@ impl flags::AnalysisStats {
             let module = body_id.module(db);
             let full_name = move || {
                 module
-                    .krate()
+                    .krate(db)
                     .display_name(db)
                     .map(|it| it.canonical_name().as_str().to_owned())
                     .into_iter()

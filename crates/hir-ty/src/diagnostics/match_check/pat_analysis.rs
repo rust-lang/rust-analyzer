@@ -112,7 +112,7 @@ impl<'db> MatchCheckCtx<'db> {
 
     /// Returns whether the given ADT is from another crate declared `#[non_exhaustive]`.
     fn is_foreign_non_exhaustive(&self, adt: hir_def::AdtId) -> bool {
-        let is_local = adt.krate(self.db) == self.module.krate();
+        let is_local = adt.krate(self.db) == self.module.krate(self.db);
         !is_local && self.db.attrs(adt.into()).by_key(sym::non_exhaustive).exists()
     }
 

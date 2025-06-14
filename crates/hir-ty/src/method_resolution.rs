@@ -399,7 +399,7 @@ pub fn def_crates(db: &dyn HirDatabase, ty: &Ty, cur_crate: Crate) -> Option<Sma
             Some(if rustc_has_incoherent_inherent_impls {
                 db.incoherent_inherent_impl_crates(cur_crate, TyFingerprint::Adt(def_id))
             } else {
-                smallvec![def_id.module(db).krate()]
+                smallvec![def_id.module(db).krate(db)]
             })
         }
         &TyKind::Foreign(id) => {
@@ -412,7 +412,7 @@ pub fn def_crates(db: &dyn HirDatabase, ty: &Ty, cur_crate: Crate) -> Option<Sma
                 {
                     db.incoherent_inherent_impl_crates(cur_crate, TyFingerprint::ForeignType(id))
                 } else {
-                    smallvec![alias.module(db).krate()]
+                    smallvec![alias.module(db).krate(db)]
                 },
             )
         }
@@ -426,7 +426,7 @@ pub fn def_crates(db: &dyn HirDatabase, ty: &Ty, cur_crate: Crate) -> Option<Sma
                 {
                     db.incoherent_inherent_impl_crates(cur_crate, TyFingerprint::Dyn(trait_id))
                 } else {
-                    smallvec![trait_id.module(db).krate()]
+                    smallvec![trait_id.module(db).krate(db)]
                 },
             )
         }
@@ -764,7 +764,7 @@ fn lookup_impl_assoc_item_for_trait_ref(
     };
 
     let def_blocks: ArrayVec<_, 2> =
-        [trait_module.containing_block(), type_module.and_then(|it| it.containing_block())]
+        [trait_module.block(db), type_module.and_then(|it| it.block(db))]
             .into_iter()
             .flatten()
             .filter_map(|block_id| db.trait_impls_in_block(block_id))
@@ -834,9 +834,9 @@ fn is_inherent_impl_coherent(
         | TyKind::Str
         | TyKind::Scalar(_) => def_map.is_rustc_coherence_is_core(),
 
-        &TyKind::Adt(AdtId(adt), _) => adt.module(db).krate() == def_map.krate(),
+        &TyKind::Adt(AdtId(adt), _) => adt.module(db).krate(db) == def_map.krate(),
         TyKind::Dyn(it) => it.principal_id().is_some_and(|trait_id| {
-            from_chalk_trait_id(trait_id).module(db).krate() == def_map.krate()
+            from_chalk_trait_id(trait_id).module(db).krate(db) == def_map.krate()
         }),
 
         _ => true,
@@ -907,12 +907,12 @@ pub fn check_orphan_rules(db: &dyn HirDatabase, impl_: ImplId) -> bool {
         return true;
     };
 
-    let local_crate = impl_.lookup(db).container.krate();
+    let local_crate = impl_.lookup(db).container.krate(db);
     let is_local = |tgt_crate| tgt_crate == local_crate;
 
     let trait_ref = impl_trait.substitute(Interner, &substs);
     let trait_id = from_chalk_trait_id(trait_ref.trait_id);
-    if is_local(trait_id.module(db).krate()) {
+    if is_local(trait_id.module(db).krate(db)) {
         // trait to be implemented is local
         return true;
     }
@@ -944,11 +944,11 @@ pub fn check_orphan_rules(db: &dyn HirDatabase, impl_: ImplId) -> bool {
     //   - No uncovered type parameters `P1..=Pn` may appear in `T0..Ti`` (excluding `Ti`)
     let is_not_orphan = trait_ref.substitution.type_parameters(Interner).any(|ty| {
         match unwrap_fundamental(ty).kind(Interner) {
-            &TyKind::Adt(AdtId(id), _) => is_local(id.module(db).krate()),
+            &TyKind::Adt(AdtId(id), _) => is_local(id.module(db).krate(db)),
             TyKind::Error => true,
-            TyKind::Dyn(it) => it
-                .principal_id()
-                .is_some_and(|trait_id| is_local(from_chalk_trait_id(trait_id).module(db).krate())),
+            TyKind::Dyn(it) => it.principal_id().is_some_and(|trait_id| {
+                is_local(from_chalk_trait_id(trait_id).module(db).krate(db))
+            }),
             _ => false,
         }
     });
@@ -1380,7 +1380,7 @@ fn iterate_inherent_methods(
     };
 
     let (module, mut block) = match visible_from_module {
-        VisibleFromModule::Filter(module) => (Some(module), module.containing_block()),
+        VisibleFromModule::Filter(module) => (Some(module), module.block(db)),
         VisibleFromModule::IncludeBlock(block) => (None, Some(block)),
         VisibleFromModule::None => (None, None),
     };
@@ -1399,7 +1399,7 @@ fn iterate_inherent_methods(
             )?;
         }
 
-        block = block_def_map(db, block_id).parent().and_then(|module| module.containing_block());
+        block = block_def_map(db, block_id).parent().and_then(|module| module.block(db));
     }
 
     for krate in def_crates {

@@ -17,7 +17,7 @@ use thin_vec::ThinVec;
 
 use crate::{
     AdtId, BuiltinType, ConstId, ExternBlockId, ExternCrateId, FxIndexMap, HasModule, ImplId,
-    LocalModuleId, Lookup, MacroId, ModuleDefId, ModuleId, TraitId, UseId,
+    Lookup, MacroId, ModuleDefId, ModuleId, TraitId, UseId,
     db::DefDatabase,
     per_ns::{Item, MacrosItem, PerNs, TypesItem, ValuesItem},
     visibility::{Visibility, VisibilityExplicitness},
@@ -25,9 +25,9 @@ use crate::{
 
 #[derive(Debug, Default)]
 pub struct PerNsGlobImports {
-    types: FxHashSet<(LocalModuleId, Name)>,
-    values: FxHashSet<(LocalModuleId, Name)>,
-    macros: FxHashSet<(LocalModuleId, Name)>,
+    types: FxHashSet<(ModuleId, Name)>,
+    values: FxHashSet<(ModuleId, Name)>,
+    macros: FxHashSet<(ModuleId, Name)>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -133,13 +133,13 @@ pub struct GlobId {
 }
 
 impl PerNsGlobImports {
-    pub(crate) fn contains_type(&self, module_id: LocalModuleId, name: Name) -> bool {
+    pub(crate) fn contains_type(&self, module_id: ModuleId, name: Name) -> bool {
         self.types.contains(&(module_id, name))
     }
-    pub(crate) fn contains_value(&self, module_id: LocalModuleId, name: Name) -> bool {
+    pub(crate) fn contains_value(&self, module_id: ModuleId, name: Name) -> bool {
         self.values.contains(&(module_id, name))
     }
-    pub(crate) fn contains_macro(&self, module_id: LocalModuleId, name: Name) -> bool {
+    pub(crate) fn contains_macro(&self, module_id: ModuleId, name: Name) -> bool {
         self.macros.contains(&(module_id, name))
     }
 }
@@ -268,7 +268,7 @@ impl ItemScope {
                 ImportOrDef::Import(i) => {
                     let module_id = i.use_.lookup(db).container;
                     def_map = module_id.def_map(db);
-                    scope = &def_map[module_id.local_id].scope;
+                    scope = &def_map[module_id].scope;
                     import = i;
                 }
                 ImportOrDef::Def(ModuleDefId::MacroId(def)) => {
@@ -284,7 +284,7 @@ impl ItemScope {
                 ImportOrDef::Import(i) => {
                     let module_id = i.use_.lookup(db).container;
                     def_map = module_id.def_map(db);
-                    scope = &def_map[module_id.local_id].scope;
+                    scope = &def_map[module_id].scope;
                     import = i;
                 }
                 ImportOrDef::Def(def) => {
@@ -300,7 +300,7 @@ impl ItemScope {
                 ImportOrDef::Import(i) => {
                     let module_id = i.use_.lookup(db).container;
                     def_map = module_id.def_map(db);
-                    scope = &def_map[module_id.local_id].scope;
+                    scope = &def_map[module_id].scope;
                     import = i;
                 }
                 ImportOrDef::Def(def) => {
@@ -579,7 +579,7 @@ impl ItemScope {
     pub(crate) fn push_res_with_import(
         &mut self,
         glob_imports: &mut PerNsGlobImports,
-        lookup: (LocalModuleId, Name),
+        lookup: (ModuleId, Name),
         def: PerNs,
         import: Option<ImportOrExternCrate>,
     ) -> bool {
@@ -913,8 +913,8 @@ impl ItemInNs {
     /// Returns the crate defining this item (or `None` if `self` is built-in).
     pub fn krate(&self, db: &dyn DefDatabase) -> Option<Crate> {
         match self {
-            ItemInNs::Types(id) | ItemInNs::Values(id) => id.module(db).map(|m| m.krate),
-            ItemInNs::Macros(id) => Some(id.module(db).krate),
+            ItemInNs::Types(id) | ItemInNs::Values(id) => id.module(db).map(|m| m.krate(db)),
+            ItemInNs::Macros(id) => Some(id.module(db).krate(db)),
         }
     }
 

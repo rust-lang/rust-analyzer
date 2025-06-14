@@ -418,7 +418,7 @@ fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
             let loc: Macro2Loc = it.lookup(db);
 
             MacroDefId {
-                krate: loc.container.krate,
+                krate: loc.container.krate(db),
                 kind: kind(loc.expander, loc.id.file_id, loc.id.value.upcast()),
                 local_inner: false,
                 allow_internal_unsafe: loc.allow_internal_unsafe,
@@ -429,7 +429,7 @@ fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
             let loc: MacroRulesLoc = it.lookup(db);
 
             MacroDefId {
-                krate: loc.container.krate,
+                krate: loc.container.krate(db),
                 kind: kind(loc.expander, loc.id.file_id, loc.id.value.upcast()),
                 local_inner: loc.flags.contains(MacroRulesLocFlags::LOCAL_INNER),
                 allow_internal_unsafe: loc
@@ -442,7 +442,7 @@ fn macro_def(db: &dyn DefDatabase, id: MacroId) -> MacroDefId {
             let loc = it.lookup(db);
 
             MacroDefId {
-                krate: loc.container.krate,
+                krate: loc.container.krate(db),
                 kind: MacroDefKind::ProcMacro(loc.id, loc.expander, loc.kind),
                 local_inner: false,
                 allow_internal_unsafe: false,

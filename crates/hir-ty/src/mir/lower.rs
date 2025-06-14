@@ -1747,7 +1747,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
     }
 
     fn resolve_lang_item(&self, item: LangItem) -> Result<LangItemTarget> {
-        let crate_id = self.owner.module(self.db).krate();
+        let crate_id = self.owner.module(self.db).krate(self.db);
         lang_item(self.db, crate_id, item).ok_or(MirLowerError::LangItemNotFound(item))
     }
 

@@ -9,8 +9,8 @@ use chalk_ir::{
 };
 use chalk_solve::rust_ir::InlineBound;
 use hir_def::{
-    AssocItemId, ConstId, CrateRootModuleId, FunctionId, GenericDefId, HasModule, TraitId,
-    TypeAliasId, lang_item::LangItem, signatures::TraitFlags,
+    AssocItemId, ConstId, FunctionId, GenericDefId, HasModule, TraitId, TypeAliasId,
+    lang_item::LangItem, nameres::crate_def_map, signatures::TraitFlags,
 };
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
@@ -123,7 +123,7 @@ pub fn dyn_compatibility_of_trait_query(
 }
 
 pub fn generics_require_sized_self(db: &dyn HirDatabase, def: GenericDefId) -> bool {
-    let krate = def.module(db).krate();
+    let krate = def.module(db).krate(db);
     let Some(sized) = LangItem::Sized.resolve_trait(db, krate) else {
         return false;
     };
@@ -343,7 +343,7 @@ where
             })
         }
         AssocItemId::TypeAliasId(it) => {
-            let def_map = CrateRootModuleId::from(trait_.krate(db)).def_map(db);
+            let def_map = crate_def_map(db, trait_.krate(db));
             if def_map.is_unstable_feature_enabled(&intern::sym::generic_associated_type_extended) {
                 ControlFlow::Continue(())
             } else {
@@ -489,7 +489,7 @@ fn receiver_is_dispatchable(
         return false;
     };
 
-    let krate = func.module(db).krate();
+    let krate = func.module(db).krate(db);
     let traits = (
         LangItem::Unsize.resolve_trait(db, krate),
         LangItem::DispatchFromDyn.resolve_trait(db, krate),

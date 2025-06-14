@@ -625,7 +625,7 @@ impl Evaluator<'_> {
         assert_placeholder_ty_is_unused: bool,
         trait_env: Option<Arc<TraitEnvironment>>,
     ) -> Result<Evaluator<'_>> {
-        let crate_id = owner.module(db).krate();
+        let crate_id = owner.module(db).krate(db);
         let target_data_layout = match db.target_data_layout(crate_id) {
             Ok(target_data_layout) => target_data_layout,
             Err(e) => return Err(MirEvalError::TargetDataLayoutNotAvailable(e)),

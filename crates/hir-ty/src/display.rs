@@ -20,7 +20,6 @@ use hir_def::{
     item_scope::ItemInNs,
     item_tree::FieldsShape,
     lang_item::LangItem,
-    nameres::DefMap,
     signatures::VariantFields,
     type_ref::{
         ConstRef, LifetimeRef, LifetimeRefId, TraitBoundModifier, TypeBound, TypeRef, TypeRefId,
@@ -315,7 +314,7 @@ pub trait HirDisplay {
             entity_limit: None,
             omit_verbose_types: false,
             closure_style: ClosureStyle::ImplFn,
-            display_target: DisplayTarget::from_crate(db, module_id.krate()),
+            display_target: DisplayTarget::from_crate(db, module_id.krate(db)),
             display_kind: DisplayKind::SourceCode { target_module_id: module_id, allow_opaque },
             show_container_bounds: false,
             display_lifetimes: DisplayLifetime::OnlyNamedOrStatic,
@@ -1392,7 +1391,7 @@ impl HirDisplay for Ty {
                     }
                     ImplTraitId::AsyncBlockTypeImplTrait(body, ..) => {
                         let future_trait =
-                            LangItem::Future.resolve_trait(db, body.module(db).krate());
+                            LangItem::Future.resolve_trait(db, body.module(db).krate(db));
                         let output = future_trait.and_then(|t| {
                             db.trait_items(t)
                                 .associated_type_by_name(&Name::new_symbol_root(sym::Output))
@@ -1506,7 +1505,7 @@ impl HirDisplay for Ty {
                                     WhereClause::LifetimeOutlives(_) => false,
                                 })
                                 .collect::<Vec<_>>();
-                            let krate = id.parent.module(db).krate();
+                            let krate = id.parent.module(db).krate(db);
                             write_bounds_like_dyn_trait_with_prefix(
                                 f,
                                 "impl",
@@ -1768,7 +1767,7 @@ impl HirDisplay for CallableSig {
 }
 
 fn fn_traits(db: &dyn DefDatabase, trait_: TraitId) -> impl Iterator<Item = TraitId> + '_ {
-    let krate = trait_.lookup(db).container.krate();
+    let krate = trait_.lookup(db).container.krate(db);
     utils::fn_traits(db, krate)
 }
 
@@ -2084,7 +2083,7 @@ pub fn write_visibility(
         Visibility::Public => write!(f, "pub "),
         Visibility::Module(vis_id, _) => {
             let def_map = module_id.def_map(f.db);
-            let root_module_id = def_map.module_id(DefMap::ROOT);
+            let root_module_id = def_map.root_module_id();
             if vis_id == module_id {
                 // pub(self) or omitted
                 Ok(())

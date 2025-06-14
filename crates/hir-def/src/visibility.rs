@@ -8,8 +8,8 @@ use syntax::ast::{self, HasVisibility};
 use triomphe::Arc;
 
 use crate::{
-    ConstId, FunctionId, HasModule, ItemContainerId, LocalFieldId, LocalModuleId, ModuleId,
-    TraitId, TypeAliasId, VariantId,
+    ConstId, FunctionId, HasModule, ItemContainerId, LocalFieldId, ModuleId, TraitId, TypeAliasId,
+    VariantId,
     db::DefDatabase,
     nameres::DefMap,
     resolver::{HasResolver, Resolver},
@@ -48,25 +48,28 @@ impl Visibility {
             Visibility::Public => return true,
         };
         // if they're not in the same crate, it can't be visible
-        if from_module.krate != to_module.krate {
+        if from_module.krate(db) != to_module.krate(db) {
             return false;
         }
         let def_map = from_module.def_map(db);
-        Self::is_visible_from_def_map_(db, def_map, to_module, from_module.local_id)
+        Self::is_visible_from_def_map_(db, def_map, to_module, from_module)
     }
 
     pub(crate) fn is_visible_from_def_map(
         self,
         db: &dyn DefDatabase,
         def_map: &DefMap,
-        from_module: LocalModuleId,
+        from_module: ModuleId,
     ) -> bool {
+        if cfg!(debug_assertions) {
+            _ = def_map.modules[from_module];
+        }
         let to_module = match self {
             Visibility::Module(m, _) => m,
             Visibility::Public => return true,
         };
         // if they're not in the same crate, it can't be visible
-        if def_map.krate() != to_module.krate {
+        if def_map.krate() != to_module.krate(db) {
             return false;
         }
         Self::is_visible_from_def_map_(db, def_map, to_module, from_module)
@@ -76,9 +79,9 @@ impl Visibility {
         db: &dyn DefDatabase,
         def_map: &DefMap,
         mut to_module: ModuleId,
-        mut from_module: LocalModuleId,
+        mut from_module: ModuleId,
     ) -> bool {
-        debug_assert_eq!(to_module.krate, def_map.krate());
+        debug_assert_eq!(to_module.krate(db), def_map.krate());
         // `to_module` might be the root module of a block expression. Those have the same
         // visibility as the containing module (even though no items are directly nameable from
         // there, getting this right is important for method resolution).
@@ -88,12 +91,12 @@ impl Visibility {
         // currently computing, so we must not call the `def_map` query for it.
         let def_map_block = def_map.block_id();
         loop {
-            match (to_module.block, def_map_block) {
+            match (to_module.block(db), def_map_block) {
                 // `to_module` is not a block, so there is no parent def map to use.
                 (None, _) => (),
                 // `to_module` is at `def_map`'s block, no need to move further.
                 (Some(a), Some(b)) if a == b => {
-                    cov_mark::hit!(is_visible_from_same_block_def_map);
+                    cov_mark::hit!(nested_module_scoping);
                 }
                 _ => {
                     if let Some(parent) = to_module.def_map(db).parent() {
@@ -109,7 +112,7 @@ impl Visibility {
         let mut def_map = def_map;
         let mut parent_arc;
         loop {
-            if def_map.module_id(from_module) == to_module {
+            if from_module == to_module {
                 return true;
             }
             match def_map[from_module].parent {
@@ -119,7 +122,7 @@ impl Visibility {
                         Some(module) => {
                             parent_arc = module.def_map(db);
                             def_map = parent_arc;
-                            from_module = module.local_id;
+                            from_module = module;
                         }
                         // Reached the root module, nothing left to check.
                         None => return false,
@@ -133,30 +136,33 @@ impl Visibility {
     ///
     /// If there is no subset relation between `self` and `other`, returns `None` (ie. they're only
     /// visible in unrelated modules).
-    pub(crate) fn max(self, other: Visibility, def_map: &DefMap) -> Option<Visibility> {
+    pub(crate) fn max(
+        self,
+        db: &dyn DefDatabase,
+        other: Visibility,
+        def_map: &DefMap,
+    ) -> Option<Visibility> {
         match (self, other) {
             (_, Visibility::Public) | (Visibility::Public, _) => Some(Visibility::Public),
             (Visibility::Module(mod_a, expl_a), Visibility::Module(mod_b, expl_b)) => {
-                if mod_a.krate != mod_b.krate {
+                if mod_a.krate(db) != mod_b.krate(db) {
                     return None;
                 }
 
                 let def_block = def_map.block_id();
-                if (mod_a.containing_block(), mod_b.containing_block()) != (def_block, def_block) {
+                if (mod_a.block(db), mod_b.block(db)) != (def_block, def_block) {
                     return None;
                 }
 
-                let mut a_ancestors =
-                    iter::successors(Some(mod_a.local_id), |&m| def_map[m].parent);
-                let mut b_ancestors =
-                    iter::successors(Some(mod_b.local_id), |&m| def_map[m].parent);
+                let mut a_ancestors = iter::successors(Some(mod_a), |&m| def_map[m].parent);
+                let mut b_ancestors = iter::successors(Some(mod_b), |&m| def_map[m].parent);
 
-                if a_ancestors.any(|m| m == mod_b.local_id) {
+                if a_ancestors.any(|m| m == mod_b) {
                     // B is above A
                     return Some(Visibility::Module(mod_b, expl_b));
                 }
 
-                if b_ancestors.any(|m| m == mod_a.local_id) {
+                if b_ancestors.any(|m| m == mod_a) {
                     // A is above B
                     return Some(Visibility::Module(mod_a, expl_a));
                 }
@@ -170,30 +176,33 @@ impl Visibility {
     ///
     /// If there is no subset relation between `self` and `other`, returns `None` (ie. they're only
     /// visible in unrelated modules).
-    pub(crate) fn min(self, other: Visibility, def_map: &DefMap) -> Option<Visibility> {
+    pub(crate) fn min(
+        self,
+        db: &dyn DefDatabase,
+        other: Visibility,
+        def_map: &DefMap,
+    ) -> Option<Visibility> {
         match (self, other) {
             (vis, Visibility::Public) | (Visibility::Public, vis) => Some(vis),
             (Visibility::Module(mod_a, expl_a), Visibility::Module(mod_b, expl_b)) => {
-                if mod_a.krate != mod_b.krate {
+                if mod_a.krate(db) != mod_b.krate(db) {
                     return None;
                 }
 
                 let def_block = def_map.block_id();
-                if (mod_a.containing_block(), mod_b.containing_block()) != (def_block, def_block) {
+                if (mod_a.block(db), mod_b.block(db)) != (def_block, def_block) {
                     return None;
                 }
 
-                let mut a_ancestors =
-                    iter::successors(Some(mod_a.local_id), |&m| def_map[m].parent);
-                let mut b_ancestors =
-                    iter::successors(Some(mod_b.local_id), |&m| def_map[m].parent);
+                let mut a_ancestors = iter::successors(Some(mod_a), |&m| def_map[m].parent);
+                let mut b_ancestors = iter::successors(Some(mod_b), |&m| def_map[m].parent);
 
-                if a_ancestors.any(|m| m == mod_b.local_id) {
+                if a_ancestors.any(|m| m == mod_b) {
                     // B is above A
                     return Some(Visibility::Module(mod_a, expl_a));
                 }
 
-                if b_ancestors.any(|m| m == mod_a.local_id) {
+                if b_ancestors.any(|m| m == mod_a) {
                     // A is above B
                     return Some(Visibility::Module(mod_b, expl_b));
                 }

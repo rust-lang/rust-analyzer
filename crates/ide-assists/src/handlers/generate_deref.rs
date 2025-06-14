@@ -57,7 +57,7 @@ fn generate_record_deref(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
     };
 
     let module = ctx.sema.to_def(&strukt)?.module(ctx.db());
-    let trait_ = deref_type_to_generate.to_trait(&ctx.sema, module.krate())?;
+    let trait_ = deref_type_to_generate.to_trait(&ctx.sema, module.krate(ctx.db()))?;
     let trait_path =
         module.find_path(ctx.db(), ModuleDef::Trait(trait_), ctx.config.import_path_config())?;
 
@@ -77,7 +77,7 @@ fn generate_record_deref(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
                 field_name.syntax(),
                 deref_type_to_generate,
                 trait_path,
-                module.krate().edition(ctx.db()),
+                module.krate(ctx.db()).edition(ctx.db()),
             )
         },
     )
@@ -99,7 +99,7 @@ fn generate_tuple_deref(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     };
 
     let module = ctx.sema.to_def(&strukt)?.module(ctx.db());
-    let trait_ = deref_type_to_generate.to_trait(&ctx.sema, module.krate())?;
+    let trait_ = deref_type_to_generate.to_trait(&ctx.sema, module.krate(ctx.db()))?;
     let trait_path =
         module.find_path(ctx.db(), ModuleDef::Trait(trait_), ctx.config.import_path_config())?;
 
@@ -118,7 +118,7 @@ fn generate_tuple_deref(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
                 field_list_index,
                 deref_type_to_generate,
                 trait_path,
-                module.krate().edition(ctx.db()),
+                module.krate(ctx.db()).edition(ctx.db()),
             )
         },
     )
@@ -163,7 +163,7 @@ fn existing_deref_impl(
     strukt: &ast::Struct,
 ) -> Option<DerefType> {
     let strukt = sema.to_def(strukt)?;
-    let krate = strukt.module(sema.db).krate();
+    let krate = strukt.module(sema.db).krate(sema.db);
 
     let deref_trait = FamousDefs(sema, krate).core_ops_Deref()?;
     let deref_mut_trait = FamousDefs(sema, krate).core_ops_DerefMut()?;

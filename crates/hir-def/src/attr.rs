@@ -108,19 +108,19 @@ impl Attrs {
         let (fields, file_id, krate) = match v {
             VariantId::EnumVariantId(it) => {
                 let loc = it.lookup(db);
-                let krate = loc.parent.lookup(db).container.krate;
+                let krate = loc.parent.lookup(db).container.krate(db);
                 let source = loc.source(db);
                 (source.value.field_list(), source.file_id, krate)
             }
             VariantId::StructId(it) => {
                 let loc = it.lookup(db);
-                let krate = loc.container.krate;
+                let krate = loc.container.krate(db);
                 let source = loc.source(db);
                 (source.value.field_list(), source.file_id, krate)
             }
             VariantId::UnionId(it) => {
                 let loc = it.lookup(db);
-                let krate = loc.container.krate;
+                let krate = loc.container.krate(db);
                 let source = loc.source(db);
                 (
                     source.value.record_field_list().map(ast::FieldList::RecordFieldList),
@@ -520,7 +520,7 @@ impl AttrsWithOwner {
         match def {
             AttrDefId::ModuleId(module) => {
                 let def_map = module.def_map(db);
-                let mod_data = &def_map[module.local_id];
+                let mod_data = &def_map[module];
 
                 let raw_attrs = match mod_data.origin {
                     ModuleOrigin::File { definition, declaration_tree_id, declaration, .. } => {
@@ -544,7 +544,7 @@ impl AttrsWithOwner {
                         tree.top_level_raw_attrs().clone()
                     }
                 };
-                Attrs::expand_cfg_attr(db, module.krate, raw_attrs)
+                Attrs::expand_cfg_attr(db, module.krate(db), raw_attrs)
             }
             AttrDefId::FieldId(it) => db.fields_attrs(it.parent)[it.local_id].clone(),
             AttrDefId::EnumVariantId(it) => attrs_from_ast_id_loc(db, it),
@@ -618,7 +618,7 @@ impl AttrsWithOwner {
                 // Modules can have 2 attribute owners (the `mod x;` item, and the module file itself).
 
                 let def_map = module.def_map(db);
-                let mod_data = &def_map[module.local_id];
+                let mod_data = &def_map[module];
                 match mod_data.declaration_source(db) {
                     Some(it) => {
                         let mut map = AttrSourceMap::new(InFile::new(it.file_id, &it.value));

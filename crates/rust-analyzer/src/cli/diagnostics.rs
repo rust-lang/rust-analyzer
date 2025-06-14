@@ -61,8 +61,12 @@ impl flags::Diagnostics {
         for module in work {
             let file_id = module.definition_source_file_id(db).original_file(db);
             if !visited_files.contains(&file_id) {
-                let crate_name =
-                    module.krate().display_name(db).as_deref().unwrap_or(&sym::unknown).to_owned();
+                let crate_name = module
+                    .krate(db)
+                    .display_name(db)
+                    .as_deref()
+                    .unwrap_or(&sym::unknown)
+                    .to_owned();
                 println!(
                     "processing crate: {crate_name}, module: {}",
                     _vfs.file_path(file_id.file_id(db))
@@ -104,7 +108,7 @@ impl flags::Diagnostics {
 
 fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
     let mut worklist: Vec<_> =
-        Crate::all(db).into_iter().map(|krate| krate.root_module()).collect();
+        Crate::all(db).into_iter().map(|krate| krate.root_module(db)).collect();
     let mut modules = Vec::new();
 
     while let Some(module) = worklist.pop() {

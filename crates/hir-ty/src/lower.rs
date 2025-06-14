@@ -1014,7 +1014,7 @@ pub(crate) fn trait_environment_for_body_query(
     def: DefWithBodyId,
 ) -> Arc<TraitEnvironment> {
     let Some(def) = def.as_generic_def_id(db) else {
-        let krate = def.module(db).krate();
+        let krate = def.module(db).krate(db);
         return TraitEnvironment::empty(krate);
     };
     db.trait_environment(def)

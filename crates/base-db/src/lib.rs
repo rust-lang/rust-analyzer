@@ -167,10 +167,17 @@ impl Files {
     }
 }
 
-#[salsa_macros::interned(no_lifetime, debug, constructor=from_span)]
+#[salsa_macros::interned(no_lifetime,  constructor=from_span)]
 #[derive(PartialOrd, Ord)]
 pub struct EditionedFileId {
     pub editioned_file_id: span::EditionedFileId,
+}
+
+impl std::fmt::Debug for EditionedFileId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        salsa::with_attached_database(|db| self.editioned_file_id(db).fmt(f))
+            .unwrap_or_else(|| f.debug_tuple("EditionedFileId").field(&self.0).finish())
+    }
 }
 
 impl EditionedFileId {

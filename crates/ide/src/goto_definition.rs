@@ -116,7 +116,7 @@ pub(crate) fn goto_definition(
                         if let Definition::ExternCrateDecl(crate_def) = def {
                             return crate_def
                                 .resolved_crate(db)
-                                .map(|it| it.root_module().to_nav(sema.db))
+                                .map(|it| it.root_module(sema.db).to_nav(sema.db))
                                 .into_iter()
                                 .flatten()
                                 .collect();
@@ -244,7 +244,7 @@ fn try_lookup_macro_def_in_macro_use(
     let extern_crate = sema.to_def(&extern_crate)?;
     let krate = extern_crate.resolved_crate(sema.db)?;
 
-    for mod_def in krate.root_module().declarations(sema.db) {
+    for mod_def in krate.root_module(sema.db).declarations(sema.db) {
         if let ModuleDef::Macro(mac) = mod_def {
             if mac.name(sema.db).as_str() == token.text() {
                 if let Some(nav) = mac.try_to_nav(sema.db) {

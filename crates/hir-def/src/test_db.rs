@@ -7,13 +7,13 @@ use base_db::{
     SourceDatabase, SourceRoot, SourceRootId, SourceRootInput,
 };
 use hir_expand::{InFile, files::FilePosition};
-use salsa::{AsDynDatabase, Durability};
+use salsa::Durability;
 use span::FileId;
 use syntax::{AstNode, algo, ast};
 use triomphe::Arc;
 
 use crate::{
-    LocalModuleId, Lookup, ModuleDefId, ModuleId,
+    Lookup, ModuleDefId, ModuleId,
     db::DefDatabase,
     nameres::{DefMap, ModuleSource, block_def_map, crate_def_map},
     src::HasSource,
@@ -137,7 +137,7 @@ impl TestDB {
             let crate_def_map = crate_def_map(self, krate);
             for (local_id, data) in crate_def_map.modules() {
                 if data.origin.file_id().map(|file_id| file_id.file_id(self)) == Some(file_id) {
-                    return crate_def_map.module_id(local_id);
+                    return local_id;
                 }
             }
         }
@@ -151,7 +151,7 @@ impl TestDB {
 
         def_map = match self.block_at_position(def_map, position) {
             Some(it) => it,
-            None => return def_map.module_id(module),
+            None => return module,
         };
         loop {
             let new_map = self.block_at_position(def_map, position);
@@ -161,16 +161,16 @@ impl TestDB {
                 }
                 _ => {
                     // FIXME: handle `mod` inside block expression
-                    return def_map.module_id(DefMap::ROOT);
+                    return def_map.root;
                 }
             }
         }
     }
 
     /// Finds the smallest/innermost module in `def_map` containing `position`.
-    fn mod_at_position(&self, def_map: &DefMap, position: FilePosition) -> LocalModuleId {
+    fn mod_at_position(&self, def_map: &DefMap, position: FilePosition) -> ModuleId {
         let mut size = None;
-        let mut res = DefMap::ROOT;
+        let mut res = def_map.root;
         for (module, data) in def_map.modules() {
             let src = data.definition_source(self);
             if src.file_id != position.file_id {
@@ -280,19 +280,19 @@ impl TestDB {
 
     pub(crate) fn log_executed(&self, f: impl FnOnce()) -> Vec<String> {
         let events = self.log(f);
-        events
-            .into_iter()
-            .filter_map(|e| match e.kind {
-                // This is pretty horrible, but `Debug` is the only way to inspect
-                // QueryDescriptor at the moment.
-                salsa::EventKind::WillExecute { database_key } => {
-                    let ingredient = self
-                        .as_dyn_database()
-                        .ingredient_debug_name(database_key.ingredient_index());
-                    Some(ingredient.to_string())
-                }
-                _ => None,
-            })
-            .collect()
+
+        salsa::plumbing::attach(self, || {
+            events
+                .into_iter()
+                .filter_map(|e| match e.kind {
+                    // This is pretty horrible, but `Debug` is the only way to inspect
+                    // QueryDescriptor at the moment.
+                    salsa::EventKind::WillExecute { database_key } => {
+                        salsa::plumbing::attach(self, || Some(format!("{database_key:?}")))
+                    }
+                    _ => None,
+                })
+                .collect()
+        })
     }
 }

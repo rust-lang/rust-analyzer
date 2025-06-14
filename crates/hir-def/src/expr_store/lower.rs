@@ -458,6 +458,7 @@ pub struct ExprCollector<'db> {
     current_binding_owner: Option<ExprId>,
 
     awaitable_context: Option<Awaitable>,
+    krate: base_db::Crate,
 }
 
 #[derive(Clone, Debug)]
@@ -547,7 +548,7 @@ impl ExprCollector<'_> {
         let expander = Expander::new(db, current_file_id, def_map);
         ExprCollector {
             db,
-            cfg_options: module.krate().cfg_options(db),
+            cfg_options: module.krate(db).cfg_options(db),
             module,
             def_map,
             local_def_map,
@@ -561,6 +562,7 @@ impl ExprCollector<'_> {
             awaitable_context: None,
             current_block_legacy_macro_defs_count: FxHashMap::default(),
             outer_impl_trait: false,
+            krate: module.krate(db),
         }
     }
 
@@ -1940,9 +1942,8 @@ impl ExprCollector<'_> {
         T: ast::AstNode,
     {
         let macro_call_ptr = self.expander.in_file(syntax_ptr);
-        let module = self.module.local_id;
 
-        let block_call = self.def_map.modules[self.module.local_id].scope.macro_invoc(
+        let block_call = self.def_map.modules[self.module].scope.macro_invoc(
             self.expander.in_file(self.expander.ast_id_map().ast_id_for_ptr(syntax_ptr)),
         );
         let res = match block_call {
@@ -1954,7 +1955,7 @@ impl ExprCollector<'_> {
                         .resolve_path(
                             self.local_def_map,
                             self.db,
-                            module,
+                            self.module,
                             path,
                             crate::item_scope::BuiltinShadowMode::Other,
                             Some(MacroSubNs::Bang),
@@ -1965,7 +1966,7 @@ impl ExprCollector<'_> {
                 self.expander.enter_expand(
                     self.db,
                     mcall,
-                    self.module.krate(),
+                    self.krate,
                     resolver,
                     &mut |ptr, call| {
                         _ = self.source_map.expansions.insert(ptr.map(|(it, _)| it), call);
@@ -2095,7 +2096,8 @@ impl ExprCollector<'_> {
                     return;
                 };
                 let name = name.as_name();
-                let macro_id = self.def_map.modules[DefMap::ROOT].scope.get(&name).take_macros();
+                let macro_id =
+                    self.def_map.modules[self.def_map.root].scope.get(&name).take_macros();
                 self.collect_macro_def(statements, macro_id);
             }
             ast::Stmt::Item(ast::Item::MacroRules(macro_)) => {
@@ -2109,7 +2111,7 @@ impl ExprCollector<'_> {
                 let name = name.as_name();
                 let macro_defs_count =
                     self.current_block_legacy_macro_defs_count.entry(name.clone()).or_insert(0);
-                let macro_id = self.def_map.modules[DefMap::ROOT]
+                let macro_id = self.def_map.modules[self.def_map.root]
                     .scope
                     .get_legacy_macro(&name)
                     .and_then(|it| it.get(*macro_defs_count))
@@ -2155,7 +2157,7 @@ impl ExprCollector<'_> {
             match block_id.map(|block_id| (block_def_map(self.db, block_id), block_id)) {
                 Some((def_map, block_id)) => {
                     self.store.block_scopes.push(block_id);
-                    (def_map.module_id(DefMap::ROOT), def_map)
+                    (def_map.root_module_id(), def_map)
                 }
                 None => (self.module, self.def_map),
             };
@@ -2238,7 +2240,7 @@ impl ExprCollector<'_> {
                     let (resolved, _) = self.def_map.resolve_path(
                         self.local_def_map,
                         self.db,
-                        self.module.local_id,
+                        self.module,
                         &name.clone().into(),
                         BuiltinShadowMode::Other,
                         None,
@@ -2865,12 +2867,12 @@ impl ExprCollector<'_> {
 
         let new_v1_formatted = LangItem::FormatArguments.ty_rel_path(
             self.db,
-            self.module.krate(),
+            self.krate,
             Name::new_symbol_root(sym::new_v1_formatted),
         );
         let unsafe_arg_new = LangItem::FormatUnsafeArg.ty_rel_path(
             self.db,
-            self.module.krate(),
+            self.krate,
             Name::new_symbol_root(sym::new),
         );
         let new_v1_formatted =
@@ -2961,7 +2963,7 @@ impl ExprCollector<'_> {
         let precision_expr = self.make_count(precision, argmap);
         let width_expr = self.make_count(width, argmap);
 
-        if self.module.krate().workspace_data(self.db).is_atleast_187() {
+        if self.krate.workspace_data(self.db).is_atleast_187() {
             // These need to match the constants in library/core/src/fmt/rt.rs.
             let align = match alignment {
                 Some(FormatAlignment::Left) => 0,
@@ -2996,7 +2998,7 @@ impl ExprCollector<'_> {
             let width =
                 RecordLitField { name: Name::new_symbol_root(sym::width), expr: width_expr };
             self.alloc_expr_desugared(Expr::RecordLit {
-                path: LangItem::FormatPlaceholder.path(self.db, self.module.krate()).map(Box::new),
+                path: LangItem::FormatPlaceholder.path(self.db, self.krate).map(Box::new),
                 fields: Box::new([position, flags, precision, width]),
                 spread: None,
             })
@@ -3004,7 +3006,7 @@ impl ExprCollector<'_> {
             let format_placeholder_new = {
                 let format_placeholder_new = LangItem::FormatPlaceholder.ty_rel_path(
                     self.db,
-                    self.module.krate(),
+                    self.krate,
                     Name::new_symbol_root(sym::new),
                 );
                 match format_placeholder_new {
@@ -3027,7 +3029,7 @@ impl ExprCollector<'_> {
             let align = {
                 let align = LangItem::FormatAlignment.ty_rel_path(
                     self.db,
-                    self.module.krate(),
+                    self.krate,
                     match alignment {
                         Some(FormatAlignment::Left) => Name::new_symbol_root(sym::Left),
                         Some(FormatAlignment::Right) => Name::new_symbol_root(sym::Right),
@@ -3080,7 +3082,7 @@ impl ExprCollector<'_> {
                 )));
                 let count_is = match LangItem::FormatCount.ty_rel_path(
                     self.db,
-                    self.module.krate(),
+                    self.krate,
                     Name::new_symbol_root(sym::Is),
                 ) {
                     Some(count_is) => self.alloc_expr_desugared(Expr::Path(count_is)),
@@ -3098,7 +3100,7 @@ impl ExprCollector<'_> {
                     )));
                     let count_param = match LangItem::FormatCount.ty_rel_path(
                         self.db,
-                        self.module.krate(),
+                        self.krate,
                         Name::new_symbol_root(sym::Param),
                     ) {
                         Some(count_param) => self.alloc_expr_desugared(Expr::Path(count_param)),
@@ -3116,7 +3118,7 @@ impl ExprCollector<'_> {
             }
             None => match LangItem::FormatCount.ty_rel_path(
                 self.db,
-                self.module.krate(),
+                self.krate,
                 Name::new_symbol_root(sym::Implied),
             ) {
                 Some(count_param) => self.alloc_expr_desugared(Expr::Path(count_param)),
@@ -3138,7 +3140,7 @@ impl ExprCollector<'_> {
 
         let new_fn = match LangItem::FormatArgument.ty_rel_path(
             self.db,
-            self.module.krate(),
+            self.krate,
             Name::new_symbol_root(match ty {
                 Format(Display) => sym::new_display,
                 Format(Debug) => sym::new_debug,
@@ -3161,7 +3163,7 @@ impl ExprCollector<'_> {
     // endregion: format
 
     fn lang_path(&self, lang: LangItem) -> Option<Path> {
-        lang.path(self.db, self.module.krate())
+        lang.path(self.db, self.krate)
     }
 }
 

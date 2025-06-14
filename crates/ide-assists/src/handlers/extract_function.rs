@@ -206,7 +206,7 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
             {
                 let scope = builder.make_import_scope_mut(scope);
                 let control_flow_enum =
-                    FamousDefs(&ctx.sema, module.krate()).core_ops_ControlFlow();
+                    FamousDefs(&ctx.sema, module.krate(ctx.db())).core_ops_ControlFlow();
 
                 if let Some(control_flow_enum) = control_flow_enum {
                     let mod_path = module.find_use_path(

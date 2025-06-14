@@ -176,6 +176,7 @@ fn outer() {
 
 #[test]
 fn nested_module_scoping() {
+    cov_mark::check!(nested_module_scoping);
     check_block_scopes_at(
         r#"
 fn f() {
@@ -189,10 +190,57 @@ fn f() {
 }
     "#,
         expect![[r#"
-            BlockIdLt { [salsa id]: Id(3c01) } in BlockRelativeModuleId { block: Some(BlockIdLt { [salsa id]: Id(3c00) }), local_id: Idx::<ModuleData>(1) }
-            BlockIdLt { [salsa id]: Id(3c00) } in BlockRelativeModuleId { block: None, local_id: Idx::<ModuleData>(0) }
-            crate scope
-        "#]],
+            ModuleIdLt {
+                [salsa id]: Id(3003),
+                krate: Crate(
+                    Id(2000),
+                ),
+                block: Some(
+                    BlockIdLt {
+                        [salsa id]: Id(4001),
+                        loc: BlockLoc {
+                            ast_id: InFileWrapper {
+                                file_id: FileId(
+                                    EditionedFileId(
+                                        0,
+                                        Edition2024,
+                                    ),
+                                ),
+                                value: FileAstId::<syntax::ast::generated::nodes::BlockExpr>(ErasedFileAstId { kind: BlockExpr, index: 0, hash: DA08 }),
+                            },
+                            module: ModuleIdLt {
+                                [salsa id]: Id(3002),
+                                krate: Crate(
+                                    Id(2000),
+                                ),
+                                block: Some(
+                                    BlockIdLt {
+                                        [salsa id]: Id(4000),
+                                        loc: BlockLoc {
+                                            ast_id: InFileWrapper {
+                                                file_id: FileId(
+                                                    EditionedFileId(
+                                                        0,
+                                                        Edition2024,
+                                                    ),
+                                                ),
+                                                value: FileAstId::<syntax::ast::generated::nodes::BlockExpr>(ErasedFileAstId { kind: BlockExpr, index: 0, hash: 2997 }),
+                                            },
+                                            module: ModuleIdLt {
+                                                [salsa id]: Id(3000),
+                                                krate: Crate(
+                                                    Id(2000),
+                                                ),
+                                                block: None,
+                                            },
+                                        },
+                                    },
+                                ),
+                            },
+                        },
+                    },
+                ),
+            }"#]],
     );
 }
 
@@ -455,9 +503,8 @@ fn foo() {
 }
 
 #[test]
-fn is_visible_from_same_def_map() {
+fn is_visible_from_same_def_map_regression_9481() {
     // Regression test for https://github.com/rust-lang/rust-analyzer/issues/9481
-    cov_mark::check!(is_visible_from_same_block_def_map);
     check_at(
         r#"
 fn outer() {
@@ -474,7 +521,6 @@ fn outer() {
             tests: t
 
             block scope::tests
-            name: _
             outer: vg
 
             crate

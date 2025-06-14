@@ -39,7 +39,7 @@ pub(crate) fn convert_into_to_from(acc: &mut Assists, ctx: &AssistContext<'_>) -
     let module = ctx.sema.scope(impl_.syntax())?.module();
 
     let trait_ = resolve_target_trait(&ctx.sema, &impl_)?;
-    if trait_ != FamousDefs(&ctx.sema, module.krate()).core_convert_Into()? {
+    if trait_ != FamousDefs(&ctx.sema, module.krate(ctx.db())).core_convert_Into()? {
         return None;
     }
 
@@ -53,7 +53,7 @@ pub(crate) fn convert_into_to_from(acc: &mut Assists, ctx: &AssistContext<'_>) -
         };
         mod_path_to_ast(
             &module.find_path(ctx.db(), src_type_def, cfg)?,
-            module.krate().edition(ctx.db()),
+            module.krate(ctx.db()).edition(ctx.db()),
         )
     };
 

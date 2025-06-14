@@ -336,7 +336,7 @@ fn augment_references_with_imports(
 
     let cfg = ctx.config.import_path_config();
 
-    let edition = target_module.krate().edition(ctx.db());
+    let edition = target_module.krate(ctx.db()).edition(ctx.db());
     references
         .into_iter()
         .filter_map(|FileReference { range, name, .. }| {

@@ -63,7 +63,7 @@ pub const BAZ: u32 = 0;
     let all_crates_before = db.all_crates();
 
     {
-        // Add a dependency a -> b.
+        // Add dependencies: c -> b, b -> a.
         let mut new_crate_graph = CrateGraphBuilder::default();
 
         let mut add_crate = |crate_name, root_file_idx: usize| {
@@ -112,7 +112,10 @@ pub const BAZ: u32 = 0;
     });
     let invalidated_def_maps =
         events.iter().filter(|event| event.contains("crate_local_def_map")).count();
-    assert_eq!(invalidated_def_maps, 1, "{events:#?}")
+
+    // `c` gets invalidated as its dependency `b` changed
+    // `b` gets invalidated due to its new dependency edge to `a`
+    assert_eq!(invalidated_def_maps, 2, "{events:#?}")
 }
 
 #[test]
@@ -344,7 +347,8 @@ m!(Z);
     {
         let events = db.log_executed(|| {
             let crate_def_map = crate_def_map(&db, krate);
-            let (_, module_data) = crate_def_map.modules.iter().last().unwrap();
+            let module_data = &crate_def_map
+                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 4);
         });
         let n_recalculated_item_trees =
@@ -366,7 +370,8 @@ m!(Z);
     {
         let events = db.log_executed(|| {
             let crate_def_map = crate_def_map(&db, krate);
-            let (_, module_data) = crate_def_map.modules.iter().last().unwrap();
+            let module_data = &crate_def_map
+                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 4);
         });
         let n_recalculated_item_trees =
@@ -417,7 +422,8 @@ pub type Ty = ();
     {
         let events = db.log_executed(|| {
             let crate_def_map = crate_def_map(&db, krate);
-            let (_, module_data) = crate_def_map.modules.iter().last().unwrap();
+            let module_data = &crate_def_map
+                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 8);
             assert_eq!(module_data.scope.impls().count(), 1);
 

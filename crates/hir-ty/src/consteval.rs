@@ -253,7 +253,7 @@ pub(crate) fn const_eval_query(
             db.monomorphized_mir_body(c.into(), subst, db.trait_environment(c.into()))?
         }
         GeneralConstId::StaticId(s) => {
-            let krate = s.module(db).krate();
+            let krate = s.module(db).krate(db);
             db.monomorphized_mir_body(s.into(), subst, TraitEnvironment::empty(krate))?
         }
     };
