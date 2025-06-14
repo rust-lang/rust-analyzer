@@ -446,7 +446,7 @@ impl<'db> DefCollector<'db> {
             // in the crate root that aren't proc macros.
             let module_id = self.def_map.root_module_id();
             let root = &mut self.def_map.modules[module_id];
-            root.scope.censor_non_proc_macros(module_id);
+            root.scope.censor_non_proc_macros(self.def_map.krate);
         }
     }
 

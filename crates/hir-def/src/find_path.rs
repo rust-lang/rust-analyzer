@@ -613,6 +613,7 @@ fn find_local_import_locations(
                         cov_mark::hit!(discount_private_imports);
                         false
                     }
+                    Visibility::PubCrate(_) => true,
                     Visibility::Public => true,
                 };
 

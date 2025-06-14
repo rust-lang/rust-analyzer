@@ -2,6 +2,7 @@
 
 use std::iter;
 
+use base_db::Crate;
 use hir_expand::{InFile, Lookup};
 use la_arena::ArenaMap;
 use syntax::ast::{self, HasVisibility};
@@ -23,6 +24,8 @@ pub use crate::item_tree::{RawVisibility, VisibilityExplicitness};
 pub enum Visibility {
     /// Visibility is restricted to a certain module.
     Module(ModuleId, VisibilityExplicitness),
+    /// Visibility is restricted to the crate.
+    PubCrate(Crate),
     /// Visibility is unrestricted.
     Public,
 }
@@ -45,6 +48,7 @@ impl Visibility {
     pub fn is_visible_from(self, db: &dyn DefDatabase, from_module: ModuleId) -> bool {
         let to_module = match self {
             Visibility::Module(m, _) => m,
+            Visibility::PubCrate(krate) => return from_module.krate(db) == krate,
             Visibility::Public => return true,
         };
         // if they're not in the same crate, it can't be visible
@@ -66,6 +70,7 @@ impl Visibility {
         }
         let to_module = match self {
             Visibility::Module(m, _) => m,
+            Visibility::PubCrate(krate) => return from_module.krate(db) == krate,
             Visibility::Public => return true,
         };
         // if they're not in the same crate, it can't be visible
@@ -144,24 +149,35 @@ impl Visibility {
     ) -> Option<Visibility> {
         match (self, other) {
             (_, Visibility::Public) | (Visibility::Public, _) => Some(Visibility::Public),
+            (Visibility::PubCrate(krate), Visibility::PubCrate(krateb)) => {
+                if krate == krateb {
+                    Some(Visibility::PubCrate(krate))
+                } else {
+                    None
+                }
+            }
+            (Visibility::Module(mod_, _), Visibility::PubCrate(krate))
+            | (Visibility::PubCrate(krate), Visibility::Module(mod_, _)) => {
+                if mod_.krate(db) == krate { Some(Visibility::PubCrate(krate)) } else { None }
+            }
             (Visibility::Module(mod_a, expl_a), Visibility::Module(mod_b, expl_b)) => {
-                if mod_a.krate(db) != mod_b.krate(db) {
+                if mod_a.krate(db) != def_map.krate() || mod_b.krate(db) != def_map.krate() {
                     return None;
                 }
 
                 let def_block = def_map.block_id();
-                if (mod_a.block(db), mod_b.block(db)) != (def_block, def_block) {
+                if mod_a.block(db) != def_block || mod_b.block(db) != def_block {
                     return None;
                 }
 
                 let mut a_ancestors = iter::successors(Some(mod_a), |&m| def_map[m].parent);
-                let mut b_ancestors = iter::successors(Some(mod_b), |&m| def_map[m].parent);
 
                 if a_ancestors.any(|m| m == mod_b) {
                     // B is above A
                     return Some(Visibility::Module(mod_b, expl_b));
                 }
 
+                let mut b_ancestors = iter::successors(Some(mod_b), |&m| def_map[m].parent);
                 if b_ancestors.any(|m| m == mod_a) {
                     // A is above B
                     return Some(Visibility::Module(mod_a, expl_a));
@@ -184,24 +200,35 @@ impl Visibility {
     ) -> Option<Visibility> {
         match (self, other) {
             (vis, Visibility::Public) | (Visibility::Public, vis) => Some(vis),
+            (Visibility::PubCrate(krate), Visibility::PubCrate(krateb)) => {
+                if krate == krateb {
+                    Some(Visibility::PubCrate(krate))
+                } else {
+                    None
+                }
+            }
+            (Visibility::Module(mod_, exp), Visibility::PubCrate(krate))
+            | (Visibility::PubCrate(krate), Visibility::Module(mod_, exp)) => {
+                if mod_.krate(db) == krate { Some(Visibility::Module(mod_, exp)) } else { None }
+            }
             (Visibility::Module(mod_a, expl_a), Visibility::Module(mod_b, expl_b)) => {
-                if mod_a.krate(db) != mod_b.krate(db) {
+                if mod_a.krate(db) != def_map.krate() || mod_b.krate(db) != def_map.krate() {
                     return None;
                 }
 
                 let def_block = def_map.block_id();
-                if (mod_a.block(db), mod_b.block(db)) != (def_block, def_block) {
+                if mod_a.block(db) != def_block || mod_b.block(db) != def_block {
                     return None;
                 }
 
                 let mut a_ancestors = iter::successors(Some(mod_a), |&m| def_map[m].parent);
-                let mut b_ancestors = iter::successors(Some(mod_b), |&m| def_map[m].parent);
 
                 if a_ancestors.any(|m| m == mod_b) {
                     // B is above A
                     return Some(Visibility::Module(mod_a, expl_a));
                 }
 
+                let mut b_ancestors = iter::successors(Some(mod_b), |&m| def_map[m].parent);
                 if b_ancestors.any(|m| m == mod_a) {
                     // A is above B
                     return Some(Visibility::Module(mod_b, expl_b));
