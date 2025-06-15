@@ -123,7 +123,7 @@ impl TestDB {
             let crate_def_map = crate_def_map(self, krate);
             for (local_id, data) in crate_def_map.modules() {
                 if data.origin.file_id().map(|file_id| file_id.file_id(self)) == Some(file_id) {
-                    return Some(crate_def_map.module_id(local_id));
+                    return Some(local_id);
                 }
             }
         }

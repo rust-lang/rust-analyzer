@@ -19,15 +19,15 @@ fn has_destructor(db: &dyn HirDatabase, adt: AdtId) -> bool {
         AdtId::StructId(id) => db.lookup_intern_struct(id).container,
         AdtId::UnionId(id) => db.lookup_intern_union(id).container,
     };
-    let Some(drop_trait) = LangItem::Drop.resolve_trait(db, module.krate()) else {
+    let Some(drop_trait) = LangItem::Drop.resolve_trait(db, module.krate(db)) else {
         return false;
     };
-    let impls = match module.containing_block() {
+    let impls = match module.block(db) {
         Some(block) => match db.trait_impls_in_block(block) {
             Some(it) => it,
             None => return false,
         },
-        None => db.trait_impls_in_crate(module.krate()),
+        None => db.trait_impls_in_crate(module.krate(db)),
     };
     impls.for_trait_and_self_ty(drop_trait, TyFingerprint::Adt(adt)).next().is_some()
 }

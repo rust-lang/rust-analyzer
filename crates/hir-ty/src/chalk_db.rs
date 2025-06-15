@@ -568,11 +568,11 @@ impl ChalkContext<'_> {
         };
 
         let mut def_blocks =
-            [trait_module.containing_block(), type_module.and_then(|it| it.containing_block())];
+            [trait_module.block(self.db), type_module.and_then(|it| it.block(self.db))];
 
         let block_impls = iter::successors(self.block, |&block_id| {
             cov_mark::hit!(block_local_impls);
-            block_id.loc(self.db).module.containing_block()
+            block_id.loc(self.db).module.block(self.db)
         })
         .inspect(|&block_id| {
             // make sure we don't search the same block twice
@@ -702,7 +702,7 @@ pub(crate) fn trait_datum_query(
     let bound_vars = generic_params.bound_vars_subst(db, DebruijnIndex::INNERMOST);
     let flags = rust_ir::TraitFlags {
         auto: trait_data.flags.contains(TraitFlags::AUTO),
-        upstream: trait_.lookup(db).container.krate() != krate,
+        upstream: trait_.lookup(db).container.krate(db) != krate,
         non_enumerable: true,
         coinductive: false, // only relevant for Chalk testing
         // FIXME: set these flags correctly
@@ -795,7 +795,7 @@ pub(crate) fn adt_datum_query(
         hir_def::AdtId::EnumId(_) => (false, false),
     };
     let flags = rust_ir::AdtFlags {
-        upstream: adt_id.module(db).krate() != krate,
+        upstream: adt_id.module(db).krate(db) != krate,
         fundamental,
         phantom_data,
     };
@@ -869,7 +869,7 @@ fn impl_def_datum(db: &dyn HirDatabase, krate: Crate, impl_id: hir_def::ImplId) 
     let generic_params = generics(db, impl_id.into());
     let bound_vars = generic_params.bound_vars_subst(db, DebruijnIndex::INNERMOST);
     let trait_ = trait_ref.hir_trait_id();
-    let impl_type = if impl_id.lookup(db).container.krate() == krate {
+    let impl_type = if impl_id.lookup(db).container.krate(db) == krate {
         rust_ir::ImplType::Local
     } else {
         rust_ir::ImplType::External

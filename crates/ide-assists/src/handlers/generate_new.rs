@@ -64,7 +64,7 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
                     ctx.config.import_path_config(),
                 )?;
 
-                let edition = current_module.krate().edition(ctx.db());
+                let edition = current_module.krate(ctx.db()).edition(ctx.db());
 
                 let expr = use_trivial_constructor(
                     ctx.sema.db,

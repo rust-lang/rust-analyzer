@@ -463,7 +463,7 @@ pub(super) fn path(
     item_name: Option<String>,
     edition: Edition,
 ) -> String {
-    let crate_name = module.krate().display_name(db).as_ref().map(|it| it.to_string());
+    let crate_name = module.krate(db).display_name(db).as_ref().map(|it| it.to_string());
     let module_path = module
         .path_to_root(db)
         .into_iter()
@@ -1166,7 +1166,7 @@ fn find_std_module(
 ) -> Option<hir::Module> {
     let db = famous_defs.0.db;
     let std_crate = famous_defs.std()?;
-    let std_root_module = std_crate.root_module();
+    let std_root_module = std_crate.root_module(db);
     std_root_module.children(db).find(|module| {
         module.name(db).is_some_and(|module| module.display(db, edition).to_string() == name)
     })

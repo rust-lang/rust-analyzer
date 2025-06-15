@@ -82,7 +82,7 @@ fn existing_from_impl(
 ) -> Option<()> {
     let variant = sema.to_def(variant)?;
     let enum_ = variant.parent_enum(sema.db);
-    let krate = enum_.module(sema.db).krate();
+    let krate = enum_.module(sema.db).krate(sema.db);
 
     let from_trait = FamousDefs(sema, krate).core_convert_From()?;
 
