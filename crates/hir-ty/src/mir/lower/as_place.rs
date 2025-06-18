@@ -115,9 +115,11 @@ impl MirLowerCtx<'_> {
         expr_id: ExprId,
         upgrade_rvalue: bool,
     ) -> Result<Option<(Place, BasicBlockId)>> {
-        match self.infer.expr_adjustments.get(&expr_id) {
-            Some(a) => self.lower_expr_as_place_with_adjust(current, expr_id, upgrade_rvalue, a),
-            None => self.lower_expr_as_place_without_adjust(current, expr_id, upgrade_rvalue),
+        match self.infer.expr_adjustments(expr_id) {
+            a @ [_, ..] => {
+                self.lower_expr_as_place_with_adjust(current, expr_id, upgrade_rvalue, a)
+            }
+            [] => self.lower_expr_as_place_without_adjust(current, expr_id, upgrade_rvalue),
         }
     }
 
@@ -254,13 +256,8 @@ impl MirLowerCtx<'_> {
                         index_fn,
                     );
                 }
-                let adjusts = self
-                    .infer
-                    .expr_adjustments
-                    .get(base)
-                    .and_then(|it| it.split_last())
-                    .map(|it| it.1)
-                    .unwrap_or(&[]);
+                let adjusts =
+                    self.infer.expr_adjustments(*base).split_last().map(|it| it.1).unwrap_or(&[]);
                 let Some((mut p_base, current)) =
                     self.lower_expr_as_place_with_adjust(current, *base, true, adjusts)?
                 else {
