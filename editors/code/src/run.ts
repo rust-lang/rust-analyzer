@@ -165,7 +165,7 @@ export function createCargoArgs(runnableArgs: ra.CargoRunnableArgs): string[] {
     return args;
 }
 
-async function getRunnables(
+export async function getRunnables(
     client: LanguageClient,
     editor: RustEditor,
     prevRunnable?: RunnableQuickPick,

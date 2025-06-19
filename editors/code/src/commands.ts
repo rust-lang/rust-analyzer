@@ -1136,7 +1136,7 @@ export function runAtCursor(ctx: CtxInit): Cmd {
         if (!editor) return;
 
         const runnableQuickPicks = await getRunnables(ctx.client, editor, prevRunnable, false);
-        const runnables = runnableQuickPicks.map((runnableQuickPick) => runnableQuickPick.runnable);
+        const runnables = runnableQuickPicks.map((runnableQuickPick): ra.Runnable => runnableQuickPick.runnable);
         let runnableAtCursor = null;
         let runnableAtCursorRange = null;
         const cursorPosition = ctx.client.code2ProtocolConverter.asPosition(editor.selection.active);
