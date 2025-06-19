@@ -1136,15 +1136,22 @@ export function runAtCursor(ctx: CtxInit): Cmd {
         if (!editor) return;
 
         const runnableQuickPicks = await getRunnables(ctx.client, editor, prevRunnable, false);
-        const runnables = runnableQuickPicks.map((runnableQuickPick): ra.Runnable => runnableQuickPick.runnable);
+        const runnables = runnableQuickPicks.map(
+            (runnableQuickPick): ra.Runnable => runnableQuickPick.runnable,
+        );
         let runnableAtCursor = null;
         let runnableAtCursorRange = null;
-        const cursorPosition = ctx.client.code2ProtocolConverter.asPosition(editor.selection.active);
+        const cursorPosition = ctx.client.code2ProtocolConverter.asPosition(
+            editor.selection.active,
+        );
         for (const runnable of runnables) {
             if (!runnable.location?.targetRange) {
                 continue;
             }
-            if (runnableAtCursorRange != null && rangeContainsOtherRange(runnable.location.targetRange, runnableAtCursorRange)) {
+            if (
+                runnableAtCursorRange != null &&
+                rangeContainsOtherRange(runnable.location.targetRange, runnableAtCursorRange)
+            ) {
                 continue;
             }
             if (rangeContainsPosition(runnable.location.targetRange, cursorPosition)) {
@@ -1162,21 +1169,21 @@ export function runAtCursor(ctx: CtxInit): Cmd {
 
 function rangeContainsPosition(range: lc.Range, position: lc.Position): boolean {
     return (
-        position.line > range.start.line ||
-        (position.line === range.start.line && position.character >= range.start.character)
-    ) && (
-        position.line < range.end.line ||
-        (position.line === range.end.line && position.character <= range.end.character)
+        (position.line > range.start.line ||
+            (position.line === range.start.line && position.character >= range.start.character)) &&
+        (position.line < range.end.line ||
+            (position.line === range.end.line && position.character <= range.end.character))
     );
 }
 
 function rangeContainsOtherRange(range: lc.Range, otherRange: lc.Range) {
     return (
-        range.start.line < otherRange.start.line ||
-        (range.start.line === otherRange.start.line && range.start.character <= otherRange.start.character)
-    ) && (
-        range.end.line > otherRange.end.line ||
-        (range.end.line === otherRange.end.line && range.end.character >= otherRange.end.character)
+        (range.start.line < otherRange.start.line ||
+            (range.start.line === otherRange.start.line &&
+                range.start.character <= otherRange.start.character)) &&
+        (range.end.line > otherRange.end.line ||
+            (range.end.line === otherRange.end.line &&
+                range.end.character >= otherRange.end.character))
     );
 }
 
