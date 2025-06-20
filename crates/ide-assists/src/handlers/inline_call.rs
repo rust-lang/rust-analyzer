@@ -19,7 +19,7 @@ use ide_db::{
 };
 use itertools::{Itertools, izip};
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind, SyntaxToken,
+    AstNode,
     ast::{
         self, HasArgList, HasGenericArgs, Pat, PathExpr, edit::IndentLevel, edit_in_place::Indent,
     },
@@ -311,80 +311,6 @@ fn get_fn_params(
     Some(params)
 }
 
-fn is_self_in_expression_context(self_token: &SyntaxToken) -> bool {
-    let mut current = self_token.parent();
-    while let Some(node) = current {
-        // Check for function call expressions: Self::method() or Self(...)
-        if let Some(call_expr) = ast::CallExpr::cast(node.clone()) {
-            if let Some(expr) = call_expr.expr() {
-                if expr.syntax().text_range().contains_range(self_token.text_range()) {
-                    return true;
-                }
-            }
-        }
-
-        if let Some(method_call) = ast::MethodCallExpr::cast(node.clone()) {
-            if let Some(receiver) = method_call.receiver() {
-                if receiver.syntax().text_range().contains_range(self_token.text_range()) {
-                    return true;
-                }
-            }
-        }
-
-        if let Some(_path_expr) = ast::PathExpr::cast(node.clone()) {
-            return true;
-        }
-
-        // Check for record expressions (struct construction)
-        if let Some(record_expr) = ast::RecordExpr::cast(node.clone()) {
-            if let Some(path) = record_expr.path() {
-                if path.syntax().text_range().contains_range(self_token.text_range()) {
-                    return true;
-                }
-            }
-        }
-
-        // Stop at certain boundaries (type/pattern contexts)
-        if ast::Type::cast(node.clone()).is_some()
-            || ast::Pat::cast(node.clone()).is_some()
-            || ast::RetType::cast(node.clone()).is_some()
-        {
-            return false;
-        }
-
-        current = node.parent();
-    }
-    false
-}
-
-fn get_qualified_type_for_turbofish(ty: &ast::Type) -> String {
-    match ty {
-        ast::Type::PathType(path_type) => {
-            if let Some(path) = path_type.path() {
-                // For turbofish, we need the full path but potentially without generic args
-                // depending on context. For now, use the bare name.
-                if let Some(segment) = path.segments().last() {
-                    if let Some(name) = segment.name_ref() {
-                        return name.text().to_string();
-                    }
-                }
-            }
-        }
-        _ => {}
-    }
-    ty.syntax().text().to_string()
-}
-
-fn have_same_self_type(source_impl: &ast::Impl, target_impl: &ast::Impl) -> bool {
-    match (source_impl.self_ty(), target_impl.self_ty()) {
-        (Some(source_ty), Some(target_ty)) => {
-            // Compare the textual representation of the types
-            source_ty.syntax().text() == target_ty.syntax().text()
-        }
-        _ => false,
-    }
-}
-
 fn inline(
     sema: &Semantics<'_, RootDatabase>,
     function_def_file_id: EditionedFileId,
@@ -460,51 +386,6 @@ fn inline(
                     ted::replace(usage, this());
                 });
         }
-    }
-
-    // We should place the following code after last usage of `usages_for_locals`
-    // because `ted::replace` will change the offset in syntax tree, which makes
-    // `FileReference` incorrect
-    if let Some(source_impl) =
-        sema.ancestors_with_macros(fn_body.syntax().clone()).find_map(ast::Impl::cast)
-    {
-        // Check if the target (call site) is also in an impl block
-        let target_impl = node.syntax().ancestors().find_map(ast::Impl::cast);
-
-        let should_replace_self = match target_impl {
-            Some(target_impl) => {
-                // Both source and target are in impl blocks
-                // Only replace Self if they have different Self types
-                !have_same_self_type(&source_impl, &target_impl)
-            }
-            None => {
-                // Target is not in an impl block, so we must replace Self
-                true
-            }
-        };
-
-        if should_replace_self {
-            if let Some(self_ty) = source_impl.self_ty() {
-                let self_tokens: Vec<_> = body
-                    .syntax()
-                    .descendants_with_tokens()
-                    .filter_map(NodeOrToken::into_token)
-                    .filter(|tok| tok.kind() == SyntaxKind::SELF_TYPE_KW)
-                    .collect();
-
-                // Replace each Self token based on its context
-                for self_tok in self_tokens {
-                    let replacement = if is_self_in_expression_context(&self_tok) {
-                        let qualified_name = get_qualified_type_for_turbofish(&self_ty);
-                        make::name_ref(&qualified_name).syntax().clone_for_update()
-                    } else {
-                        self_ty.clone_subtree().syntax().clone_for_update()
-                    };
-                    ted::replace(self_tok, replacement);
-                }
-            }
-        }
-        // If same Self type context, leave Self as-is (it remains valid)
     }
 
     let mut func_let_vars: BTreeSet<String> = BTreeSet::new();
@@ -632,11 +513,17 @@ fn inline(
         }
     }
 
-    if let Some(generic_arg_list) = generic_arg_list.clone() {
-        if let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
-        {
-            PathTransform::function_call(target, source, function, generic_arg_list)
-                .apply(body.syntax());
+    // Apply PathTransform for path transformations when needed
+    if let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax())) {
+        let needs_transformation = generic_arg_list.is_some() || !target.has_same_self_type(source);
+
+        if needs_transformation {
+            let path_transform = if let Some(generic_arg_list) = generic_arg_list.clone() {
+                PathTransform::function_call(target, source, function, generic_arg_list)
+            } else {
+                PathTransform::generic_transformation(target, source)
+            };
+            path_transform.apply(body.syntax());
         }
     }
 

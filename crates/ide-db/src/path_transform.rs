@@ -248,6 +248,47 @@ fn preorder_rev(item: &SyntaxNode) -> impl Iterator<Item = SyntaxNode> {
     x.into_iter().rev()
 }
 
+fn is_path_in_expression_context(path: &ast::Path) -> bool {
+    let mut current = path.syntax().parent();
+    while let Some(node) = current {
+        // Expression contexts where we need bare type names
+        if let Some(call_expr) = ast::CallExpr::cast(node.clone()) {
+            if let Some(expr) = call_expr.expr() {
+                if expr.syntax().text_range().contains_range(path.syntax().text_range()) {
+                    return true;
+                }
+            }
+        }
+        if ast::PathExpr::cast(node.clone()).is_some() {
+            return true;
+        }
+        if let Some(record_expr) = ast::RecordExpr::cast(node.clone()) {
+            if let Some(record_path) = record_expr.path() {
+                if record_path.syntax().text_range().contains_range(path.syntax().text_range()) {
+                    return true;
+                }
+            }
+        }
+        // Stop at type/pattern boundaries
+        if ast::Type::cast(node.clone()).is_some()
+            || ast::Pat::cast(node.clone()).is_some()
+            || ast::RetType::cast(node.clone()).is_some()
+        {
+            return false;
+        }
+        current = node.parent();
+    }
+    false
+}
+
+fn get_bare_type_name(ty_str: &str) -> String {
+    if let Some(angle_pos) = ty_str.find('<') {
+        ty_str[..angle_pos].to_owned()
+    } else {
+        ty_str.to_owned()
+    }
+}
+
 impl Ctx<'_> {
     fn apply(&self, item: &SyntaxNode) {
         // `transform_path` may update a node's parent and that would break the
@@ -413,10 +454,17 @@ impl Ctx<'_> {
                         true,
                     )
                     .ok()?;
-                let ast_ty = make::ty(ty_str).clone_for_update();
+
+                // Context-aware replacement
+                let replacement = if is_path_in_expression_context(&path) {
+                    let bare_name = get_bare_type_name(ty_str);
+                    make::ty(&bare_name).clone_for_update()
+                } else {
+                    make::ty(ty_str).clone_for_update()
+                };
 
                 if let Some(adt) = ty.as_adt() {
-                    if let ast::Type::PathType(path_ty) = &ast_ty {
+                    if let ast::Type::PathType(path_ty) = &replacement {
                         let cfg = ImportPathConfig {
                             prefer_no_std: false,
                             prefer_prelude: true,
@@ -439,7 +487,7 @@ impl Ctx<'_> {
                     }
                 }
 
-                ted::replace(path.syntax(), ast_ty.syntax());
+                ted::replace(path.syntax(), replacement.syntax());
             }
             hir::PathResolution::Local(_)
             | hir::PathResolution::Def(_)
