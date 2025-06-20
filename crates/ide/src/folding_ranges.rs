@@ -26,6 +26,8 @@ pub enum FoldKind {
     WhereClause,
     ReturnType,
     MatchArm,
+    Stmt,
+    TailExpr,
 }
 
 #[derive(Debug)]
@@ -124,6 +126,11 @@ pub(crate) fn folding_ranges(file: &SourceFile) -> Vec<Fold> {
                                 res.push(Fold {range, kind: FoldKind::MatchArm})
                             }
                         },
+                        ast::Expr(expr) => {
+                            if let Some(range) = fold_range_for_multiline_tail_expr(expr) {
+                                res.push(Fold {range, kind: FoldKind::TailExpr})
+                            }
+                        },
                         _ => (),
                     }
                 }
@@ -151,6 +158,7 @@ fn fold_kind(kind: SyntaxKind) -> Option<FoldKind> {
         | MATCH_ARM_LIST
         | VARIANT_LIST
         | TOKEN_TREE => Some(FoldKind::Block),
+        EXPR_STMT | LET_STMT => Some(FoldKind::Stmt),
         _ => None,
     }
 }
@@ -281,6 +289,18 @@ fn fold_range_for_multiline_match_arm(match_arm: ast::MatchArm) -> Option<TextRa
     }
 }
 
+fn fold_range_for_multiline_tail_expr(expr: ast::Expr) -> Option<TextRange> {
+    let stmt_list = ast::StmtList::cast(expr.syntax().parent()?)?;
+    let tail_expr = stmt_list.tail_expr()?;
+
+    // Only fold if the tail expression spans multiple lines
+    if tail_expr.syntax().text().contains_char('\n') {
+        Some(tail_expr.syntax().text_range())
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use test_utils::extract_tags;
@@ -317,6 +337,8 @@ mod tests {
                 FoldKind::WhereClause => "whereclause",
                 FoldKind::ReturnType => "returntype",
                 FoldKind::MatchArm => "matcharm",
+                FoldKind::Stmt => "stmt",
+                FoldKind::TailExpr => "tailexpr",
             };
             assert_eq!(kind, &attr.unwrap());
         }
@@ -465,10 +487,10 @@ macro_rules! foo <fold block>{
         check(
             r#"
 fn main() <fold block>{
-    match 0 <fold block>{
+    <fold tailexpr>match 0 <fold block>{
         0 => 0,
         _ => 1,
-    }</fold>
+    }</fold></fold>
 }</fold>
 "#,
         );
@@ -479,7 +501,7 @@ fn main() <fold block>{
         check(
             r#"
             fn main() <fold block>{
-                match foo <fold block>{
+                <fold tailexpr>match foo <fold block>{
                     block => <fold block>{
                     }</fold>,
                     matcharm => <fold matcharm>some.
@@ -498,7 +520,7 @@ fn main() <fold block>{
                     structS => <fold matcharm>StructS <fold block>{
                         a: 31,
                     }</fold></fold>,
-                }</fold>
+                }</fold></fold>
             }</fold>
             "#,
         )
@@ -509,11 +531,11 @@ fn main() <fold block>{
         check(
             r#"
 fn main() <fold block>{
-    frobnicate<fold arglist>(
+    <fold tailexpr>frobnicate<fold arglist>(
         1,
         2,
         3,
-    )</fold>
+    )</fold></fold>
 }</fold>
 "#,
         )
@@ -621,6 +643,37 @@ fn foo()<fold returntype>-> (
 )</fold> { (true, true) }
 
 fn bar() -> (bool, bool) { (true, true) }
+"#,
+        )
+    }
+
+    #[test]
+    fn test_fold_tail_expr() {
+        check(
+            r#"
+fn f() <fold block>{
+    let x = 1;
+
+    <fold tailexpr>some_function()
+        .chain()
+        .method()</fold>
+}</fold>
+"#,
+        )
+    }
+
+    #[test]
+    fn test_fold_let_stmt_with_chained_methods() {
+        check(
+            r#"
+fn main() <fold block>{
+    <fold stmt>let result = some_value
+        .method1()
+        .method2()
+        .method3();</fold>
+
+    println!("{}", result);
+}</fold>
 "#,
         )
     }
