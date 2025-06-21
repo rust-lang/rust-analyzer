@@ -168,6 +168,7 @@ function createCommands(): Record<string, CommandFactory> {
         viewFullCrateGraph: { enabled: commands.viewFullCrateGraph },
         expandMacro: { enabled: commands.expandMacro },
         run: { enabled: commands.run },
+        runAtCursor: { enabled: commands.runAtCursor },
         copyRunCommandLine: { enabled: commands.copyRunCommandLine },
         debug: { enabled: commands.debug },
         newDebugConfig: { enabled: commands.newDebugConfig },
