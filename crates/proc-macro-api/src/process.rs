@@ -143,11 +143,35 @@ impl ProcMacroServerProcess {
         }
 
         let state = &mut *self.state.lock().unwrap();
-        let mut buf = String::new();
-        let mut client =
-            JsonTaskClient { writer: &mut state.stdin, reader: &mut state.stdout, buf: &mut buf };
+        // Check environment variable to determine which protocol to use
+        let protocol = std::env::var("RUST_ANALYZER_PROC_MACRO_PROTOCOL")
+            .unwrap_or_else(|_| "json".to_owned());
 
-        client.send_task(req).map_err(|e| {
+        let result = match protocol.as_str() {
+            "postcard" => {
+                tracing::warn!("Postcard protocol requested but not fully implemented, using JSON");
+
+                let mut buf = String::new();
+                let mut client = JsonTaskClient {
+                    writer: &mut state.stdin,
+                    reader: &mut state.stdout,
+                    buf: &mut buf,
+                };
+                client.send_task(req)
+            }
+            _ => {
+                // Default to JSON protocol
+                let mut buf = String::new();
+                let mut client = JsonTaskClient {
+                    writer: &mut state.stdin,
+                    reader: &mut state.stdout,
+                    buf: &mut buf,
+                };
+                client.send_task(req)
+            }
+        };
+
+        result.map_err(|e| {
             if e.io.as_ref().map(|it| it.kind()) == Some(io::ErrorKind::BrokenPipe) {
                 match state.process.child.try_wait() {
                     Ok(None) | Err(_) => e,
@@ -214,6 +238,26 @@ fn mk_child<'a>(
 ) -> io::Result<Child> {
     #[allow(clippy::disallowed_methods)]
     let mut cmd = Command::new(path);
+
+    // Check for protocol selection environment variable
+    if let Ok(protocol) = std::env::var("RUST_ANALYZER_PROC_MACRO_PROTOCOL") {
+        match protocol.as_str() {
+            "postcard" => {
+                cmd.args(["--format", "postcard"]);
+            }
+            "json" => {
+                cmd.args(["--format", "json"]);
+            }
+            _ => {
+                tracing::warn!("Unknown protocol '{}', defaulting to json", protocol);
+                cmd.args(["--format", "json"]);
+            }
+        }
+    } else {
+        // Default to JSON protocol for backward compatibility
+        cmd.args(["--format", "json"]);
+    }
+
     for env in extra_env {
         match env {
             (key, Some(val)) => cmd.env(key, val),
