@@ -105,11 +105,13 @@ async function getDebugConfiguration(
         const commandCodeLLDB: string = createCommandLink("vadimcn.vscode-lldb");
         const commandNativeDebug: string = createCommandLink("webfreak.debug");
         const commandLLDBDap: string = createCommandLink("llvm-vs-code-extensions.lldb-dap");
+        const commandProbeRS: string = createCommandLink("probe-rs.probe-rs-debugger");
 
         await vscode.window.showErrorMessage(
             `Install [CodeLLDB](command:${commandCodeLLDB} "Open CodeLLDB")` +
                 `, [lldb-dap](command:${commandLLDBDap} "Open lldb-dap")` +
                 `, [C/C++](command:${commandCCpp} "Open C/C++") ` +
+                `, [probe-rs](command:${commandProbeRS} "Open probe-rs") ` +
                 `or [Native Debug](command:${commandNativeDebug} "Open Native Debug") for debugging.`,
         );
         return;
