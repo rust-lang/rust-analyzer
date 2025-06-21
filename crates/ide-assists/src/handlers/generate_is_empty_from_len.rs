@@ -1,12 +1,13 @@
 use hir::{HasSource, Name, sym};
 use syntax::{
     AstNode,
-    ast::{self, HasName},
+    ast::{self, HasName, edit_in_place::Indent},
 };
 
 use crate::{
     AssistId,
     assist_context::{AssistContext, Assists},
+    utils::indent_string,
 };
 
 // Assist: generate_is_empty_from_len
@@ -75,12 +76,11 @@ pub(crate) fn generate_is_empty_from_len(acc: &mut Assists, ctx: &AssistContext<
         |builder| {
             let code = r#"
 
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }"#
-            .to_owned();
-            builder.insert(range.end(), code)
+#[must_use]
+pub fn is_empty(&self) -> bool {
+    self.len() == 0
+}"#;
+            builder.insert(range.end(), indent_string(code, fn_node.indent_level()))
         },
     )
 }
@@ -206,6 +206,46 @@ impl MyStruct {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn generate_is_empty_with_indent() {
+        check_assist(
+            generate_is_empty_from_len,
+            r#"
+mod foo {
+    mod bar {
+        struct MyStruct { data: Vec<String> }
+
+        impl MyStruct {
+            #[must_use]
+            p$0ub fn len(&self) -> usize {
+                self.data.len()
+            }
+        }
+    }
+}
+"#,
+            r#"
+mod foo {
+    mod bar {
+        struct MyStruct { data: Vec<String> }
+
+        impl MyStruct {
+            #[must_use]
+            pub fn len(&self) -> usize {
+                self.data.len()
+            }
+
+            #[must_use]
+            pub fn is_empty(&self) -> bool {
+                self.len() == 0
+            }
+        }
     }
 }
 "#,
