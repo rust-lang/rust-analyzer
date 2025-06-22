@@ -420,7 +420,6 @@ impl Tiger {
     }
 
     #[test]
-    #[cfg(false)]
     fn test_add_method_with_args() {
         check_fix(
             r#"
