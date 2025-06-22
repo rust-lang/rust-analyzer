@@ -77,7 +77,10 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall<'_>) -> Opt
 }
 
 /// Fix to add the missing method.
-fn add_method_fix(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall) -> Option<Assist> {
+fn add_method_fix(
+    ctx: &DiagnosticsContext<'_>,
+    d: &hir::UnresolvedMethodCall<'_>,
+) -> Option<Assist> {
     let root = ctx.sema.db.parse_or_expand(d.expr.file_id);
     let expr = d.expr.value.to_node(&root).left()?;
 
@@ -352,6 +355,60 @@ impl Tiger {
 fn main() {
   let t = Tiger;
   t.roar();
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_from_same_impl_block() {
+        check_fix(
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+  fn do_stuff(self) {
+    self.sleep();
+    self.roar$0();
+    self.sleep();
+  }
+}"#,
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+  fn do_stuff(self) {
+    self.sleep();
+    self.roar();
+    self.sleep();
+  }
+  fn roar(&self) { todo!() }
+}"#,
+        );
+    }
+
+    #[test]
+    #[cfg(false)]
+    fn test_add_method_with_args() {
+        check_fix(
+            r#"
+struct Speaker;
+
+impl Speaker {
+  fn greet(&self) {
+    self.say("hello");$0
+  }
+}"#,
+            r#"
+struct Speaker;
+
+impl Speaker {
+  fn greet(&self) {
+    self.say("hello");
+  }
+
+  fn say(&self, arg1: &str) {}
 }"#,
         );
     }
