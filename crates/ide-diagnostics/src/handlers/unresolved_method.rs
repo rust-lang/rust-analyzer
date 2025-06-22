@@ -331,7 +331,35 @@ fn main() {
     }
 
     #[test]
-    fn test_add_method_fix() {
+    fn test_add_method_fix_ref_self() {
+        check_fix(
+            r#"
+struct Dolphin;
+
+impl Dolphin {
+  fn do_trick(&self) {}
+}
+
+#[allow(unused)]
+fn say_hi_to(dolphin: &Dolphin) {
+  println!("hello, {}", dolphin.name$0());
+}"#,
+            r#"
+struct Dolphin;
+
+impl Dolphin {
+  fn do_trick(&self) {}
+  fn name(&self) { todo!() }
+}
+
+fn say_hi_to(dolphin: &Dolphin) {
+  println!("hello, {}", dolphin.name());
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_fix_self() {
         check_fix(
             r#"
 struct Tiger;
