@@ -14,7 +14,6 @@ import {
     selectRunnable,
     createTaskFromRunnable,
     createCargoArgs,
-    getRunnables,
 } from "./run";
 import {
     isRustDocument,
@@ -1115,11 +1114,11 @@ export function applySnippetWorkspaceEditCommand(_ctx: CtxInit): Cmd {
     };
 }
 
-export function run(ctx: CtxInit): Cmd {
+export function run(ctx: CtxInit, mode?: "cursor"): Cmd {
     let prevRunnable: RunnableQuickPick | undefined;
 
     return async () => {
-        const item = await selectRunnable(ctx, prevRunnable);
+        const item = await selectRunnable(ctx, prevRunnable, false, true, mode);
         if (!item) return;
 
         item.detail = "rerun";
@@ -1127,64 +1126,6 @@ export function run(ctx: CtxInit): Cmd {
         const task = await createTaskFromRunnable(item.runnable, ctx.config);
         return await vscode.tasks.executeTask(task);
     };
-}
-
-export function runAtCursor(ctx: CtxInit): Cmd {
-    let prevRunnable: RunnableQuickPick | undefined;
-    return async () => {
-        const editor = ctx.activeRustEditor ?? ctx.activeCargoTomlEditor;
-        if (!editor) return;
-
-        const runnableQuickPicks = await getRunnables(ctx.client, editor, prevRunnable, false);
-        const runnables = runnableQuickPicks.map(
-            (runnableQuickPick): ra.Runnable => runnableQuickPick.runnable,
-        );
-        let runnableAtCursor = null;
-        let runnableAtCursorRange = null;
-        const cursorPosition = ctx.client.code2ProtocolConverter.asPosition(
-            editor.selection.active,
-        );
-        for (const runnable of runnables) {
-            if (!runnable.location?.targetRange) {
-                continue;
-            }
-            if (
-                runnableAtCursorRange != null &&
-                rangeContainsOtherRange(runnable.location.targetRange, runnableAtCursorRange)
-            ) {
-                continue;
-            }
-            if (rangeContainsPosition(runnable.location.targetRange, cursorPosition)) {
-                runnableAtCursor = runnable;
-                runnableAtCursorRange = runnable.location.targetRange;
-            }
-        }
-        if (runnableAtCursor == null) {
-            return;
-        }
-        const task = await createTaskFromRunnable(runnableAtCursor, ctx.config);
-        return await vscode.tasks.executeTask(task);
-    };
-}
-
-function rangeContainsPosition(range: lc.Range, position: lc.Position): boolean {
-    return (
-        (position.line > range.start.line ||
-            (position.line === range.start.line && position.character >= range.start.character)) &&
-        (position.line < range.end.line ||
-            (position.line === range.end.line && position.character <= range.end.character))
-    );
-}
-
-function rangeContainsOtherRange(range: lc.Range, otherRange: lc.Range) {
-    return (
-        (range.start.line < otherRange.start.line ||
-            (range.start.line === otherRange.start.line &&
-                range.start.character <= otherRange.start.character)) &&
-        (range.end.line > otherRange.end.line ||
-            (range.end.line === otherRange.end.line &&
-                range.end.character >= otherRange.end.character))
-    );
 }
 
 export function peekTests(ctx: CtxInit): Cmd {

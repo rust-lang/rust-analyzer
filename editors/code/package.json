@@ -186,11 +186,6 @@
                 "category": "rust-analyzer"
             },
             {
-                "command": "rust-analyzer.runAtCursor",
-                "title": "Run test(s) or bin at cursor",
-                "category": "rust-analyzer"
-            },
-            {
                 "command": "rust-analyzer.copyRunCommandLine",
                 "title": "Copy Run Command Line",
                 "category": "rust-analyzer"
