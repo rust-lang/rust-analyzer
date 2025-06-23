@@ -23,10 +23,10 @@ mod pat;
 mod path;
 pub(crate) mod unify;
 
-use std::{cell::OnceCell, convert::identity, iter, ops::Index};
+use std::{cell::OnceCell, convert::identity, iter, ops::Index, sync::LazyLock};
 
 use chalk_ir::{
-    DebruijnIndex, Mutability, Safety, Scalar, TyKind, TypeFlags, Variance,
+    DebruijnIndex, Mutability, Safety, TyKind, TypeFlags, Variance,
     cast::Cast,
     fold::TypeFoldable,
     interner::HasInterner,
@@ -200,6 +200,10 @@ pub enum InferenceTyDiagnosticSource {
     Signature,
 }
 
+pub(crate) static ERROR_TY: LazyLock<Ty> = LazyLock::new(|| TyKind::Error.intern(Interner));
+pub(crate) static UNIT_TY: LazyLock<Ty> =
+    LazyLock::new(|| TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner));
+
 #[derive(Debug)]
 pub(crate) struct TypeError;
 pub(crate) type InferResult<T> = Result<InferOk<T>, TypeError>;
@@ -304,24 +308,6 @@ pub struct TypeMismatch {
     pub actual: Ty,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-struct InternedStandardTypes {
-    unknown: Ty,
-    bool_: Ty,
-    unit: Ty,
-    never: Ty,
-}
-
-impl Default for InternedStandardTypes {
-    fn default() -> Self {
-        InternedStandardTypes {
-            unknown: TyKind::Error.intern(Interner),
-            bool_: TyKind::Scalar(Scalar::Bool).intern(Interner),
-            unit: TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner),
-            never: TyKind::Never.intern(Interner),
-        }
-    }
-}
 /// Represents coercing a value to a different type of value.
 ///
 /// We transform values by following a number of `Adjust` steps in order.
@@ -442,6 +428,17 @@ pub enum PointerCast {
     Unsize,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum Resolution {
+    Method(FunctionId, Substitution),
+    Function(FunctionId, Substitution),
+    Const(ConstId, Substitution),
+    TypeAlias(TypeAliasId, Substitution),
+    Field(FieldId),
+    TupleField(TupleFieldId),
+    Variant(VariantId),
+}
+
 /// The result of type inference: A mapping from expressions and patterns to types.
 ///
 /// When you add a field that stores types (including `Substitution` and the like), don't forget
@@ -449,20 +446,22 @@ pub enum PointerCast {
 /// not appear in the final inference result.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct InferenceResult {
-    /// For each method call expr, records the function it resolves to.
-    method_resolutions: FxHashMap<ExprId, (FunctionId, Substitution)>,
-    /// For each field access expr, records the field it resolves to.
-    field_resolutions: FxHashMap<ExprId, Either<FieldId, TupleFieldId>>,
-    /// For each struct literal or pattern, records the variant it resolves to.
-    variant_resolutions: FxHashMap<ExprOrPatId, VariantId>,
-    /// For each associated item record what it resolves to
-    assoc_resolutions: FxHashMap<ExprOrPatId, (AssocItemId, Substitution)>,
+    resolution: FxHashMap<ExprOrPatId, Resolution>,
+    // /// For each method call expr, records the function it resolves to.
+    // method_resolutions: FxHashMap<ExprId, (FunctionId, Substitution)>,
+    // /// For each field access expr, records the field it resolves to.
+    // field_resolutions: FxHashMap<ExprId, Either<FieldId, TupleFieldId>>,
+    // /// For each struct literal or pattern, records the variant it resolves to.
+    // variant_resolutions: FxHashMap<ExprOrPatId, VariantId>,
+    // /// For each associated item record what it resolves to
+    // assoc_resolutions: FxHashMap<ExprOrPatId, (AssocItemId, Substitution)>,
     /// Whenever a tuple field expression access a tuple field, we allocate a tuple id in
     /// [`InferenceContext`] and store the tuples substitution there. This map is the reverse of
     /// that which allows us to resolve a [`TupleFieldId`]s type.
     pub tuple_field_access_types: FxHashMap<TupleId, Substitution>,
+
     /// During inference this field is empty and [`InferenceContext::diagnostics`] is filled instead.
-    pub diagnostics: Vec<InferenceDiagnostic>,
+    pub diagnostics: Box<[InferenceDiagnostic]>,
     pub type_of_expr: ArenaMap<ExprId, Ty>,
     /// For each pattern record the type it resolves to.
     ///
@@ -471,19 +470,13 @@ pub struct InferenceResult {
     pub type_of_pat: ArenaMap<PatId, Ty>,
     pub type_of_binding: ArenaMap<BindingId, Ty>,
     pub type_of_rpit: ArenaMap<ImplTraitIdx, Ty>,
-    /// Type of the result of `.into_iter()` on the for. `ExprId` is the one of the whole for loop.
-    pub type_of_for_iterator: FxHashMap<ExprId, Ty>,
+    // FIXME: Option<Box<>> this
     type_mismatches: FxHashMap<ExprOrPatId, TypeMismatch>,
     /// Whether there are any type-mismatching errors in the result.
     // FIXME: This isn't as useful as initially thought due to us falling back placeholders to
     // `TyKind::Error`.
     // Which will then mark this field.
     pub(crate) has_errors: bool,
-    /// Interned common types to return references to.
-    // FIXME: Move this into `InferenceContext`
-    standard_types: InternedStandardTypes,
-    /// Stores the types which were implicitly dereferenced in pattern binding modes.
-    pub pat_adjustments: FxHashMap<PatId, Vec<Ty>>,
     /// Stores the binding mode (`ref` in `let ref x = 2`) of bindings.
     ///
     /// This one is tied to the `PatId` instead of `BindingId`, because in some rare cases, a binding in an
@@ -498,7 +491,8 @@ pub struct InferenceResult {
     /// ```
     /// the first `rest` has implicit `ref` binding mode, but the second `rest` binding mode is `move`.
     pub binding_modes: ArenaMap<PatId, BindingMode>,
-    pub expr_adjustments: FxHashMap<ExprId, Box<[Adjustment]>>,
+    /// For patterns, this stores the types which were implicitly dereferenced in pattern binding modes.
+    adjustments: FxHashMap<ExprOrPatId, Box<[Adjustment]>>,
     pub(crate) closure_info: FxHashMap<ClosureId, (Vec<CapturedItem>, FnTrait)>,
     // FIXME: remove this field
     pub mutated_bindings_in_closure: FxHashSet<BindingId>,
@@ -507,16 +501,35 @@ pub struct InferenceResult {
 
 impl InferenceResult {
     pub fn method_resolution(&self, expr: ExprId) -> Option<(FunctionId, Substitution)> {
-        self.method_resolutions.get(&expr).cloned()
+        self.resolution.get(&expr.into()).and_then(|res| match res {
+            Resolution::Method(id, sub) => Some((*id, sub.clone())),
+            _ => None,
+        })
+    }
+    pub fn pat_adjustments(&self, pat: PatId) -> &[Adjustment] {
+        self.adjustments.get(&ExprOrPatId::PatId(pat)).map_or(&[], |v| v.as_ref())
+    }
+    pub fn expr_adjustments(&self, expr: ExprId) -> &[Adjustment] {
+        self.adjustments.get(&ExprOrPatId::ExprId(expr)).map_or(&[], |v| v.as_ref())
     }
     pub fn field_resolution(&self, expr: ExprId) -> Option<Either<FieldId, TupleFieldId>> {
-        self.field_resolutions.get(&expr).copied()
+        self.resolution.get(&expr.into()).and_then(|res| match res {
+            Resolution::Field(id) => Some(Either::Left(*id)),
+            Resolution::TupleField(id) => Some(Either::Right(*id)),
+            _ => None,
+        })
     }
     pub fn variant_resolution_for_expr(&self, id: ExprId) -> Option<VariantId> {
-        self.variant_resolutions.get(&id.into()).copied()
+        self.resolution.get(&id.into()).and_then(|res| match res {
+            Resolution::Variant(id) => Some(*id),
+            _ => None,
+        })
     }
     pub fn variant_resolution_for_pat(&self, id: PatId) -> Option<VariantId> {
-        self.variant_resolutions.get(&id.into()).copied()
+        self.resolution.get(&id.into()).and_then(|res| match res {
+            Resolution::Variant(id) => Some(*id),
+            _ => None,
+        })
     }
     pub fn variant_resolution_for_expr_or_pat(&self, id: ExprOrPatId) -> Option<VariantId> {
         match id {
@@ -525,10 +538,20 @@ impl InferenceResult {
         }
     }
     pub fn assoc_resolutions_for_expr(&self, id: ExprId) -> Option<(AssocItemId, Substitution)> {
-        self.assoc_resolutions.get(&id.into()).cloned()
+        self.resolution.get(&id.into()).and_then(|res| match *res {
+            Resolution::TypeAlias(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Const(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Function(id, ref sub) => Some((id.into(), sub.clone())),
+            _ => None,
+        })
     }
     pub fn assoc_resolutions_for_pat(&self, id: PatId) -> Option<(AssocItemId, Substitution)> {
-        self.assoc_resolutions.get(&id.into()).cloned()
+        self.resolution.get(&id.into()).and_then(|res| match *res {
+            Resolution::TypeAlias(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Const(id, ref sub) => Some((id.into(), sub.clone())),
+            Resolution::Function(id, ref sub) => Some((id.into(), sub.clone())),
+            _ => None,
+        })
     }
     pub fn assoc_resolutions_for_expr_or_pat(
         &self,
@@ -572,7 +595,7 @@ impl Index<ExprId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, expr: ExprId) -> &Ty {
-        self.type_of_expr.get(expr).unwrap_or(&self.standard_types.unknown)
+        self.type_of_expr.get(expr).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -580,7 +603,7 @@ impl Index<PatId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, pat: PatId) -> &Ty {
-        self.type_of_pat.get(pat).unwrap_or(&self.standard_types.unknown)
+        self.type_of_pat.get(pat).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -588,7 +611,7 @@ impl Index<ExprOrPatId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, id: ExprOrPatId) -> &Ty {
-        self.type_of_expr_or_pat(id).unwrap_or(&self.standard_types.unknown)
+        self.type_of_expr_or_pat(id).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -596,7 +619,7 @@ impl Index<BindingId> for InferenceResult {
     type Output = Ty;
 
     fn index(&self, b: BindingId) -> &Ty {
-        self.type_of_binding.get(b).unwrap_or(&self.standard_types.unknown)
+        self.type_of_binding.get(b).unwrap_or_else(|| &ERROR_TY)
     }
 }
 
@@ -764,21 +787,15 @@ impl<'db> InferenceContext<'db> {
         // Destructure every single field so whenever new fields are added to `InferenceResult` we
         // don't forget to handle them here.
         let InferenceResult {
-            method_resolutions,
-            field_resolutions: _,
-            variant_resolutions: _,
-            assoc_resolutions,
+            resolution,
             type_of_expr,
             type_of_pat,
             type_of_binding,
             type_of_rpit,
-            type_of_for_iterator,
             type_mismatches,
             has_errors,
-            standard_types: _,
-            pat_adjustments,
             binding_modes: _,
-            expr_adjustments,
+            adjustments,
             // Types in `closure_info` have already been `resolve_completely()`'d during
             // `InferenceContext::infer_closures()` (in `HirPlace::ty()` specifically), so no need
             // to resolve them here.
@@ -794,7 +811,7 @@ impl<'db> InferenceContext<'db> {
         // Even though coercion casts provide type hints, we check casts after fallback for
         // backwards compatibility. This makes fallback a stronger type hint than a cast coercion.
         let mut apply_adjustments = |expr, adj: Vec<_>| {
-            expr_adjustments.insert(expr, adj.into_boxed_slice());
+            adjustments.insert(ExprOrPatId::ExprId(expr), adj.into_boxed_slice());
         };
         let mut set_coercion_cast = |expr| {
             coercion_casts.insert(expr);
@@ -832,11 +849,6 @@ impl<'db> InferenceContext<'db> {
             *has_errors = *has_errors || ty.contains_unknown();
         }
         type_of_rpit.shrink_to_fit();
-        for ty in type_of_for_iterator.values_mut() {
-            *ty = table.resolve_completely(ty.clone());
-            *has_errors = *has_errors || ty.contains_unknown();
-        }
-        type_of_for_iterator.shrink_to_fit();
 
         *has_errors |= !type_mismatches.is_empty();
 
@@ -881,28 +893,25 @@ impl<'db> InferenceContext<'db> {
             true
         });
         diagnostics.shrink_to_fit();
-        for (_, subst) in method_resolutions.values_mut() {
-            *subst = table.resolve_completely(subst.clone());
-            *has_errors =
-                *has_errors || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
+        for it in resolution.values_mut() {
+            match it {
+                Resolution::Method(_, subst)
+                | Resolution::Function(_, subst)
+                | Resolution::Const(_, subst)
+                | Resolution::TypeAlias(_, subst) => {
+                    *subst = table.resolve_completely(subst.clone());
+                    *has_errors = *has_errors
+                        || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
+                }
+                Resolution::Variant(_) | Resolution::Field(_) | Resolution::TupleField(_) => (),
+            }
         }
-        method_resolutions.shrink_to_fit();
-        for (_, subst) in assoc_resolutions.values_mut() {
-            *subst = table.resolve_completely(subst.clone());
-            *has_errors =
-                *has_errors || subst.type_parameters(Interner).any(|ty| ty.contains_unknown());
-        }
-        assoc_resolutions.shrink_to_fit();
-        for adjustment in expr_adjustments.values_mut().flatten() {
+        resolution.shrink_to_fit();
+        for adjustment in adjustments.values_mut().flatten() {
             adjustment.target = table.resolve_completely(adjustment.target.clone());
             *has_errors = *has_errors || adjustment.target.contains_unknown();
         }
-        expr_adjustments.shrink_to_fit();
-        for adjustment in pat_adjustments.values_mut().flatten() {
-            *adjustment = table.resolve_completely(adjustment.clone());
-            *has_errors = *has_errors || adjustment.contains_unknown();
-        }
-        pat_adjustments.shrink_to_fit();
+        adjustments.shrink_to_fit();
         result.tuple_field_access_types = tuple_field_accesses_rev
             .into_iter()
             .enumerate()
@@ -914,7 +923,7 @@ impl<'db> InferenceContext<'db> {
             .collect();
         result.tuple_field_access_types.shrink_to_fit();
 
-        result.diagnostics = diagnostics;
+        result.diagnostics = diagnostics.into_boxed_slice();
 
         result
     }
@@ -1030,7 +1039,7 @@ impl<'db> InferenceContext<'db> {
                     return_ty
                 }
             }
-            None => self.result.standard_types.unit.clone(),
+            None => UNIT_TY.clone(),
         };
 
         self.return_ty = self.normalize_associated_types_in(return_ty);
@@ -1285,7 +1294,7 @@ impl<'db> InferenceContext<'db> {
         if adjustments.is_empty() {
             return;
         }
-        match self.result.expr_adjustments.entry(expr) {
+        match self.result.adjustments.entry(expr.into()) {
             std::collections::hash_map::Entry::Occupied(mut entry) => {
                 match (&mut entry.get_mut()[..], &adjustments[..]) {
                     (
@@ -1308,15 +1317,25 @@ impl<'db> InferenceContext<'db> {
     }
 
     fn write_method_resolution(&mut self, expr: ExprId, func: FunctionId, subst: Substitution) {
-        self.result.method_resolutions.insert(expr, (func, subst));
+        self.result.resolution.insert(expr.into(), Resolution::Method(func, subst));
     }
 
     fn write_variant_resolution(&mut self, id: ExprOrPatId, variant: VariantId) {
-        self.result.variant_resolutions.insert(id, variant);
+        self.result.resolution.insert(id, Resolution::Variant(variant));
     }
 
     fn write_assoc_resolution(&mut self, id: ExprOrPatId, item: AssocItemId, subs: Substitution) {
-        self.result.assoc_resolutions.insert(id, (item, subs));
+        match item {
+            AssocItemId::FunctionId(function_id) => {
+                self.result.resolution.insert(id, Resolution::Function(function_id, subs))
+            }
+            AssocItemId::ConstId(const_id) => {
+                self.result.resolution.insert(id, Resolution::Const(const_id, subs))
+            }
+            AssocItemId::TypeAliasId(type_alias_id) => {
+                self.result.resolution.insert(id, Resolution::TypeAlias(type_alias_id, subs))
+            }
+        };
     }
 
     fn write_pat_ty(&mut self, pat: PatId, ty: Ty) {
@@ -1408,7 +1427,7 @@ impl<'db> InferenceContext<'db> {
     }
 
     fn err_ty(&self) -> Ty {
-        self.result.standard_types.unknown.clone()
+        TyKind::Error.intern(Interner)
     }
 
     fn make_body_lifetime(&mut self, lifetime_ref: LifetimeRefId) -> Lifetime {

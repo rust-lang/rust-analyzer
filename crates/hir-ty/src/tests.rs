@@ -201,10 +201,7 @@ fn check_impl(
                 assert_eq!(actual, expected, "type annotation differs at {:#?}", range.range);
             }
             if let Some(expected) = adjustments.remove(&range) {
-                let adjustments = inference_result
-                    .expr_adjustments
-                    .get(&expr)
-                    .map_or_else(Default::default, |it| &**it);
+                let adjustments = inference_result.expr_adjustments(expr);
                 assert_eq!(
                     expected,
                     adjustments
