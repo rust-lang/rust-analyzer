@@ -2610,6 +2610,8 @@ dependencies = [
  "nohash-hasher",
  "paths",
  "rustc-hash 2.1.1",
+ "salsa",
+ "salsa-macros",
  "stdx",
  "tracing",
 ]

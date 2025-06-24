@@ -52,7 +52,7 @@ fn benchmark_expand_macro_rules() {
         invocations
             .into_iter()
             .map(|(id, tt)| {
-                let res = rules[&id].expand(&tt, |_| (), DUMMY, Edition::CURRENT);
+                let res = rules[&id].expand(&tt, |_| (), *DUMMY, Edition::CURRENT);
                 assert!(res.err.is_none());
                 res.value.0.0.len()
             })
@@ -82,7 +82,7 @@ fn macro_rules_fixtures_tt() -> FxHashMap<String, tt::TopSubtree<Span>> {
             let def_tt = syntax_node_to_token_tree(
                 rule.token_tree().unwrap().syntax(),
                 DummyTestSpanMap,
-                DUMMY,
+                *DUMMY,
                 DocCommentDesugarMode::Mbe,
             );
             (id, def_tt)
@@ -114,8 +114,8 @@ fn invocation_fixtures(
                 let mut try_cnt = 0;
                 loop {
                     let mut builder = tt::TopSubtreeBuilder::new(tt::Delimiter {
-                        open: DUMMY,
-                        close: DUMMY,
+                        open: *DUMMY,
+                        close: *DUMMY,
                         kind: tt::DelimiterKind::Invisible,
                     });
                     for op in rule.lhs.iter() {
@@ -123,7 +123,7 @@ fn invocation_fixtures(
                     }
                     let subtree = builder.build();
 
-                    if it.expand(&subtree, |_| (), DUMMY, Edition::CURRENT).err.is_none() {
+                    if it.expand(&subtree, |_| (), *DUMMY, Edition::CURRENT).err.is_none() {
                         res.push((name.clone(), subtree));
                         break;
                     }
@@ -227,25 +227,25 @@ fn invocation_fixtures(
         }
         fn make_ident(ident: &str) -> tt::Leaf<Span> {
             tt::Leaf::Ident(tt::Ident {
-                span: DUMMY,
+                span: *DUMMY,
                 sym: Symbol::intern(ident),
                 is_raw: tt::IdentIsRaw::No,
             })
         }
         fn make_punct(char: char) -> tt::Leaf<Span> {
-            tt::Leaf::Punct(tt::Punct { span: DUMMY, char, spacing: tt::Spacing::Alone })
+            tt::Leaf::Punct(tt::Punct { span: *DUMMY, char, spacing: tt::Spacing::Alone })
         }
         fn make_literal(lit: &str) -> tt::Leaf<Span> {
             tt::Leaf::Literal(tt::Literal {
-                span: DUMMY,
+                span: *DUMMY,
                 symbol: Symbol::intern(lit),
                 kind: tt::LitKind::Str,
                 suffix: None,
             })
         }
         fn make_subtree(kind: tt::DelimiterKind, builder: &mut tt::TopSubtreeBuilder<Span>) {
-            builder.open(kind, DUMMY);
-            builder.close(DUMMY);
+            builder.open(kind, *DUMMY);
+            builder.close(*DUMMY);
         }
     }
 }
