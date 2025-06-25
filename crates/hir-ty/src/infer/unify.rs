@@ -23,7 +23,7 @@ use crate::{
     Lifetime, OpaqueTyId, ParamKind, ProjectionTy, ProjectionTyExt, Scalar, Solution, Substitution,
     TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind, VariableKind, WhereClause,
     consteval::unknown_const, db::HirDatabase, fold_generic_args, fold_tys_and_consts,
-    to_chalk_trait_id, traits::FnTrait,
+    infer::SizedTraitKind, to_chalk_trait_id, traits::FnTrait,
 };
 
 impl InferenceContext<'_> {
@@ -975,8 +975,8 @@ impl<'a> InferenceTable<'a> {
     }
 
     /// Check if given type is `Sized` or not
-    pub(crate) fn is_sized(&mut self, ty: &Ty) -> bool {
-        fn short_circuit_trivial_tys(ty: &Ty) -> Option<bool> {
+    pub(crate) fn has_trivial_sizedness(&mut self, ty: &Ty, sizedness: SizedTraitKind) -> bool {
+        fn short_circuit_trivial_tys(ty: &Ty, sizedness: SizedTraitKind) -> Option<bool> {
             match ty.kind(Interner) {
                 TyKind::Scalar(..)
                 | TyKind::Ref(..)
@@ -985,14 +985,20 @@ impl<'a> InferenceTable<'a> {
                 | TyKind::FnDef(..)
                 | TyKind::Array(..)
                 | TyKind::Function(..) => Some(true),
-                TyKind::Slice(..) | TyKind::Str | TyKind::Dyn(..) => Some(false),
+                TyKind::Slice(..) | TyKind::Str | TyKind::Dyn(..) => Some(match sizedness {
+                    SizedTraitKind::Sized => false,
+                    SizedTraitKind::MetaSized => true,
+                }),
+                TyKind::Foreign(_) => Some(match sizedness {
+                    SizedTraitKind::Sized | SizedTraitKind::MetaSized => false,
+                }),
                 _ => None,
             }
         }
 
         let mut ty = ty.clone();
         ty = self.eagerly_normalize_and_resolve_shallow_in(ty);
-        if let Some(sized) = short_circuit_trivial_tys(&ty) {
+        if let Some(sized) = short_circuit_trivial_tys(&ty, sizedness) {
             return sized;
         }
 
@@ -1015,7 +1021,7 @@ impl<'a> InferenceTable<'a> {
                     // as unsized by the chalk, so we do this manually.
                     ty = last_field_ty;
                     ty = self.eagerly_normalize_and_resolve_shallow_in(ty);
-                    if let Some(sized) = short_circuit_trivial_tys(&ty) {
+                    if let Some(sized) = short_circuit_trivial_tys(&ty, sizedness) {
                         return sized;
                     }
                 } else {
@@ -1024,6 +1030,7 @@ impl<'a> InferenceTable<'a> {
             }
         }
 
+        // FIXME(sized-hierarchy):
         let Some(sized) = LangItem::Sized.resolve_trait(self.db, self.trait_env.krate) else {
             return false;
         };

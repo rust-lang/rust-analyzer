@@ -86,6 +86,12 @@ pub use unify::{could_unify, could_unify_deeply};
 use cast::{CastCheck, CastError};
 pub(crate) use closure::{CaptureKind, CapturedItem, CapturedItemWithoutTy};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum SizedTraitKind {
+    Sized,
+    MetaSized,
+}
+
 /// The entry point of type inference.
 pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<InferenceResult> {
     let _p = tracing::info_span!("infer_query").entered();

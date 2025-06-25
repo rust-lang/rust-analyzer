@@ -42,7 +42,7 @@ use hir_def::{
 use hir_expand::name::Name;
 use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashSet;
-use stdx::{impl_from, never};
+use stdx::{TupleExt, impl_from, never};
 use triomphe::{Arc, ThinArc};
 
 use crate::{
@@ -588,16 +588,28 @@ impl<'a> TyLoweringContext<'a> {
                     clause = Some(crate::wrap_empty_binders(WhereClause::Implemented(trait_ref)));
                 }
             }
+            // FIXME(sized-hierarchy)
             &TypeBound::Path(path, TraitBoundModifier::Maybe) => {
                 let sized_trait = LangItem::Sized.resolve_trait(self.db, self.resolver.krate());
                 // Don't lower associated type bindings as the only possible relaxed trait bound
                 // `?Sized` has no of them.
                 // If we got another trait here ignore the bound completely.
-                let trait_id = self
-                    .lower_trait_ref_from_path(path, self_ty.clone())
-                    .map(|(trait_ref, _)| trait_ref.hir_trait_id());
-                if trait_id == sized_trait {
+                let trait_id =
+                    self.lower_trait_ref_from_path(path, self_ty.clone()).map(TupleExt::head);
+                if trait_id.as_ref().map(|trait_ref| trait_ref.hir_trait_id()) == sized_trait {
                     self.unsized_types.insert(self_ty);
+                    clause = trait_id
+                        .and_then(|it| {
+                            Some(TraitRef {
+                                trait_id: to_chalk_trait_id(
+                                    LangItem::MetaSized
+                                        .resolve_trait(self.db, self.resolver.krate())?,
+                                ),
+                                substitution: it.substitution,
+                            })
+                        })
+                        .map(WhereClause::Implemented)
+                        .map(crate::wrap_empty_binders)
                 }
             }
             &TypeBound::Lifetime(l) => {
@@ -910,6 +922,7 @@ pub(crate) fn field_types_with_diagnostics_query(
     (Arc::new(res), create_diagnostics(ctx.diagnostics))
 }
 
+// FIXME(sized-hierarchy)
 /// This query exists only to be used when resolving short-hand associated types
 /// like `T::Item`.
 ///
@@ -1130,6 +1143,7 @@ pub(crate) fn generic_predicates_without_parent_with_diagnostics_query(
     generic_predicates_filtered_by(db, def, |_, d| d == def)
 }
 
+// FIXME(sized-hierarchy)
 /// Resolve the where clause(s) of an item with generics,
 /// except the ones inherited from the parent
 fn generic_predicates_filtered_by<F>(
@@ -1163,7 +1177,6 @@ where
         for pred in maybe_parent_generics.where_predicates() {
             if filter(pred, maybe_parent_generics.def()) {
                 // We deliberately use `generics` and not `maybe_parent_generics` here. This is not a mistake!
-                // If we use the parent generics
                 predicates.extend(
                     ctx.lower_where_predicate(pred, false).map(|p| make_binders(db, &generics, p)),
                 );
@@ -1190,6 +1203,7 @@ where
     )
 }
 
+// FIXME(sized-hierarchy)
 /// Generate implicit `: Sized` predicates for all generics that has no `?Sized` bound.
 /// Exception is Self of a trait def.
 fn implicitly_sized_clauses<'db, 'a, 'subst: 'a>(

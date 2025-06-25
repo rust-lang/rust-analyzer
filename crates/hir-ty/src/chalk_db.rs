@@ -688,6 +688,7 @@ pub(crate) fn associated_ty_data_query(
     Arc::new(datum)
 }
 
+// FIXME(sized-hierarchy)
 pub(crate) fn trait_datum_query(
     db: &dyn HirDatabase,
     krate: Crate,

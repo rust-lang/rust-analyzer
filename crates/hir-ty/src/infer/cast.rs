@@ -109,7 +109,7 @@ impl CastCheck {
         }
 
         if !self.cast_ty.data(Interner).flags.contains(TypeFlags::HAS_TY_INFER)
-            && !table.is_sized(&self.cast_ty)
+            && !table.has_trivial_sizedness(&self.cast_ty, super::SizedTraitKind::Sized)
         {
             return Err(InferenceDiagnostic::CastToUnsized {
                 expr: self.expr,
@@ -175,7 +175,7 @@ impl CastCheck {
                             // array-ptr-cast
                             CastTy::Ptr(t, m) => {
                                 let t = table.eagerly_normalize_and_resolve_shallow_in(t);
-                                if !table.is_sized(&t) {
+                                if !table.has_trivial_sizedness(&t, super::SizedTraitKind::Sized) {
                                     return Err(CastError::IllegalCast);
                                 }
                                 self.check_ref_cast(
@@ -369,7 +369,7 @@ enum PointerKind {
 fn pointer_kind(ty: &Ty, table: &mut InferenceTable<'_>) -> Result<Option<PointerKind>, ()> {
     let ty = table.eagerly_normalize_and_resolve_shallow_in(ty.clone());
 
-    if table.is_sized(&ty) {
+    if table.has_trivial_sizedness(&ty, super::SizedTraitKind::Sized) {
         return Ok(Some(PointerKind::Thin));
     }
 

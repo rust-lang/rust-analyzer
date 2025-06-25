@@ -80,24 +80,18 @@ pub mod marker {
     #[lang = "pointee_sized"]
     #[fundamental]
     #[rustc_specialization_trait]
-    #[rustc_deny_explicit_impl]
-    #[rustc_do_not_implement_via_object]
     #[rustc_coinductive]
     pub trait PointeeSized {}
 
     #[lang = "meta_sized"]
     #[fundamental]
     #[rustc_specialization_trait]
-    #[rustc_deny_explicit_impl]
-    #[rustc_do_not_implement_via_object]
     #[rustc_coinductive]
     pub trait MetaSized: PointeeSized {}
 
     #[lang = "sized"]
     #[fundamental]
     #[rustc_specialization_trait]
-    #[rustc_deny_explicit_impl]
-    #[rustc_do_not_implement_via_object]
     #[rustc_coinductive]
     pub trait Sized: MetaSized {}
     // endregion:sized
