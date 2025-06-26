@@ -1,4 +1,5 @@
 use either::Either;
+use hir::HirDisplay;
 use ide_db::syntax_helpers::node_ext::walk_ty;
 use syntax::{
     ast::{self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel, make},
@@ -39,6 +40,15 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     );
     let target = ty.syntax().text_range();
 
+    let module = ctx.sema.scope(ty.syntax())?.module();
+    let resolved_ty = ctx.sema.resolve_type(&ty)?;
+    let resolved_ty = if !resolved_ty.contains_unknown() {
+        let resolved_ty = resolved_ty.display_source_code(ctx.db(), module.into(), false).ok()?;
+        make::ty(&resolved_ty)
+    } else {
+        ty.clone()
+    };
+
     acc.add(
         AssistId::refactor_extract("extract_type_alias"),
         "Extract type as type alias",
@@ -69,8 +79,9 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
             edit.replace(ty.syntax(), new_ty.syntax());
 
             // Insert new alias
-            let ty_alias = make::ty_alias("Type", generic_params, None, None, Some((ty, None)))
-                .clone_for_update();
+            let ty_alias =
+                make::ty_alias("Type", generic_params, None, None, Some((resolved_ty, None)))
+                    .clone_for_update();
 
             if let Some(cap) = ctx.config.snippet_cap {
                 if let Some(name) = ty_alias.name() {
@@ -389,5 +400,49 @@ where
 }
             "#,
         );
+    }
+
+    #[test]
+    fn inferred_generic_type_parameter() {
+        check_assist(
+            extract_type_alias,
+            r#"
+struct Wrap<T>(T);
+
+fn main() {
+    let wrap: $0Wrap<_>$0 = Wrap::<_>(3i32);
+}
+            "#,
+            r#"
+struct Wrap<T>(T);
+
+type $0Type = Wrap<i32>;
+
+fn main() {
+    let wrap: Type = Wrap::<_>(3i32);
+}
+            "#,
+        )
+    }
+
+    #[test]
+    fn inferred_generic_const_parameter() {
+        check_assist(
+            extract_type_alias,
+            r#"
+fn main() {
+    let array: $0[i32; _]$0 = [3];
+    dbg!(array);
+}
+            "#,
+            r#"
+type $0Type = [i32; 1];
+
+fn main() {
+    let array: Type = [3];
+    dbg!(array);
+}
+            "#,
+        )
     }
 }
