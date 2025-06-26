@@ -29,7 +29,7 @@ use hir_def::{
     lang_item::LangItem,
     nameres::MacroSubNs,
     resolver::{HasResolver, Resolver, TypeNs, ValueNs, resolver_for_scope},
-    type_ref::{Mutability, TypeRefId},
+    type_ref::{Mutability, TypeRef, TypeRefId},
 };
 use hir_expand::{
     HirFileId, InFile,
@@ -37,7 +37,7 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use hir_ty::{
-    Adjustment, AliasTy, InferenceResult, Interner, LifetimeElisionKind, ProjectionTy,
+    Adjustment, AliasTy, DebruijnIndex, InferenceResult, Interner, LifetimeElisionKind, ProjectionTy,
     Substitution, ToChalk, TraitEnvironment, Ty, TyExt, TyKind, TyLoweringContext,
     diagnostics::{
         InsideUnsafeBlock, record_literal_missing_fields, record_pattern_missing_fields,
@@ -260,17 +260,43 @@ impl<'db> SourceAnalyzer<'db> {
         ty: &ast::Type,
     ) -> Option<Type<'db>> {
         let type_ref = self.type_id(ty)?;
+
         let ty = TyLoweringContext::new(
-            db,
-            &self.resolver,
-            self.store()?,
-            self.resolver.generic_def()?,
-            // FIXME: Is this correct here? Anyway that should impact mostly diagnostics, which we don't emit here
-            // (this can impact the lifetimes generated, e.g. in `const` they won't be `'static`, but this seems like a
-            // small problem).
-            LifetimeElisionKind::Infer,
-        )
-        .lower_ty(type_ref);
+                        db,
+                        &self.resolver,
+                        self.store()?,
+                        self.resolver.generic_def()?,
+                        // FIXME: Is this correct here? Anyway that should impact mostly diagnostics, which we don't emit here
+                        // (this can impact the lifetimes generated, e.g. in `const` they won't be `'static`, but this seems like a
+                        // small problem).
+                        LifetimeElisionKind::Infer,
+                    )
+                    .lower_ty(type_ref);
+
+        let infer = self.infer();
+        let mut infered_types = vec![];
+        let ty = if let Some(infer) = infer && let Some(store) = self.store() {
+            TypeRef::walk(type_ref, store, &mut |type_ref_id, type_ref| {
+                if matches!(type_ref, TypeRef::Placeholder) {
+                    infered_types.push(infer.type_of_type_placeholder(type_ref_id).clone());
+                }
+            });
+
+            let mut infered_types = infered_types.into_iter();
+
+            hir_ty::fold_tys(
+                ty,
+                |ty, _| if ty.is_ty_var() {
+                    infered_types.next().unwrap()
+                } else {
+                    ty
+                },
+                DebruijnIndex::INNERMOST,
+            )
+        } else {
+            ty
+        };
+
         Some(Type::new_with_resolver(db, &self.resolver, ty))
     }
 
