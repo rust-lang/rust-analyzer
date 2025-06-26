@@ -1075,6 +1075,48 @@ where
     collector.placeholders.into_iter().collect()
 }
 
+struct TypeInferenceVarCollector {
+    type_inference_vars: Vec<Ty>,
+}
+
+impl TypeVisitor<Interner> for TypeInferenceVarCollector {
+    type BreakTy = ();
+
+    fn as_dyn(&mut self) -> &mut dyn TypeVisitor<Interner, BreakTy = Self::BreakTy> {
+        self
+    }
+
+    fn interner(&self) -> Interner {
+        Interner
+    }
+
+    fn visit_ty(
+        &mut self,
+        ty: &Ty,
+        outer_binder: DebruijnIndex,
+    ) -> std::ops::ControlFlow<Self::BreakTy> {
+        if ty.is_ty_var() {
+            self.type_inference_vars.push(ty.clone());
+        } else if ty.data(Interner).flags.intersects(TypeFlags::HAS_TY_INFER) {
+            return ty.super_visit_with(self, outer_binder);
+        } else {
+            // Fast path: don't visit inner types (e.g. generic arguments) when `flags` indicate
+            // that there are no placeholders.
+        }
+
+        std::ops::ControlFlow::Continue(())
+    }
+}
+
+pub fn collect_type_inference_vars<T>(value: &T) -> Vec<Ty>
+where
+    T: ?Sized + TypeVisitable<Interner>,
+{
+    let mut collector = TypeInferenceVarCollector { type_inference_vars: vec![] };
+    _ = value.visit_with(&mut collector, DebruijnIndex::INNERMOST);
+    collector.type_inference_vars
+}
+
 pub fn known_const_to_ast(
     konst: &Const,
     db: &dyn HirDatabase,
