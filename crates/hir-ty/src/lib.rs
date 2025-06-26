@@ -723,7 +723,7 @@ pub(crate) fn fold_free_vars<T: HasInterner<Interner = Interner> + TypeFoldable<
     t.fold_with(&mut FreeVarFolder(for_ty, for_const), DebruijnIndex::INNERMOST)
 }
 
-pub(crate) fn fold_tys<T: HasInterner<Interner = Interner> + TypeFoldable<Interner>>(
+pub fn fold_tys<T: HasInterner<Interner = Interner> + TypeFoldable<Interner>>(
     t: T,
     mut for_ty: impl FnMut(Ty, DebruijnIndex) -> Ty,
     binders: DebruijnIndex,

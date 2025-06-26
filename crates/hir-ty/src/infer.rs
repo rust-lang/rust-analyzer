@@ -560,6 +560,10 @@ impl InferenceResult {
         self.type_of_type_placeholder.iter()
     }
 
+    pub fn type_of_type_placeholder(&self, type_ref: TypeRefId) -> &Ty {
+        self.type_of_type_placeholder.get(type_ref).unwrap_or(&self.standard_types.unknown)
+    }
+
     pub fn closure_info(&self, closure: &ClosureId) -> &(Vec<CapturedItem>, FnTrait) {
         self.closure_info.get(closure).unwrap()
     }
