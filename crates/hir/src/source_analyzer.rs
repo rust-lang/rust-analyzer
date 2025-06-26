@@ -286,7 +286,7 @@ impl<'db> SourceAnalyzer<'db> {
 
             hir_ty::fold_tys(
                 ty,
-                |ty, _| if ty.is_ty_var() {
+                |ty, _| if ty.is_unknown() {
                     infered_types.next().unwrap()
                 } else {
                     ty
