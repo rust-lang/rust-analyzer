@@ -881,6 +881,41 @@ fn main() {
     }
 
     #[test]
+    fn union_fields_chain_is_allowed() {
+        check_diagnostics(
+            r#"
+union Inner {
+    a: u8,
+}
+
+union MoreInner {
+    moreinner: ManuallyDrop<Inner>,
+}
+
+union LessOuter {
+    lessouter: ManuallyDrop<MoreInner>,
+}
+
+union Outer {
+    outer: ManuallyDrop<LessOuter>,
+}
+
+fn main() {
+    let super_outer = Outer {
+        outer: ManuallyDrop::new(LessOuter {
+            lessouter: ManuallyDrop::new(MoreInner {
+                moreinner: ManuallyDrop::new(Inner { a: 42 }),
+            }),
+        }),
+    };
+
+    let ptr = &raw const super_outer.outer.lessouter.moreinner.a;
+}
+"#,
+        );
+    }
+
+    #[test]
     fn raw_ref_reborrow_is_safe() {
         check_diagnostics(
             r#"

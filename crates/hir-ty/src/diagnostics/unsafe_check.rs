@@ -297,25 +297,9 @@ impl<'db> UnsafeVisitor<'db> {
                         return;
                     }
                     Expr::Field { .. } => {
-                        if matches!(
-                            self.infer.field_resolution(*expr),
-                            Some(Either::Left(FieldId { parent: VariantId::UnionId(_), .. }))
-                        ) {
-                            match &self.body.exprs[*expr] {
-                                Expr::Field { expr, .. } => {
-                                    // Visit the base expression (e.g., `self` in `self.field`) for safety,
-                                    // but don't trigger the union field access error since we're just
-                                    // creating a raw pointer, not actually reading the field
-                                    self.walk_expr(*expr);
-                                }
-                                _ => {
-                                    self.body.walk_child_exprs_without_pats(*expr, |child| {
-                                        // If it's not a field access for some reason, fall back to normal walking
-                                        // This shouldn't happen based on how this function is called
-                                        self.walk_expr(child)
-                                    });
-                                }
-                            }
+                        if self.contains_union_field_access(*expr) {
+                            // Walk the entire field access chain without triggering union field errors
+                            self.walk_field_chain_for_raw_ptr(*expr);
                             return;
                         }
                     }
@@ -421,6 +405,45 @@ impl<'db> UnsafeVisitor<'db> {
                 && !static_data.flags.contains(StaticFlags::EXPLICIT_SAFE)
             {
                 self.on_unsafe_op(node, UnsafetyReason::ExternStatic);
+            }
+        }
+    }
+
+    fn contains_union_field_access(&mut self, expr: ExprId) -> bool {
+        match &self.body.exprs[expr] {
+            Expr::Field { expr: base_expr, .. } => {
+                // Check if this field access is from a union
+                if matches!(
+                    self.infer.field_resolution(expr),
+                    Some(Either::Left(FieldId { parent: VariantId::UnionId(_), .. }))
+                ) {
+                    true
+                } else {
+                    // Recursively check the base expression
+                    self.contains_union_field_access(*base_expr)
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Walks a field access chain for raw pointer creation, avoiding union field access errors
+    fn walk_field_chain_for_raw_ptr(&mut self, expr: ExprId) {
+        match &self.body.exprs[expr] {
+            Expr::Field { expr: base_expr, .. } => {
+                // First, recursively handle the base expression
+                self.walk_field_chain_for_raw_ptr(*base_expr);
+
+                // Then handle any non-field child expressions of this field access
+                self.body.walk_child_exprs_without_pats(expr, |child| {
+                    if child != *base_expr {
+                        self.walk_expr(child);
+                    }
+                });
+            }
+            _ => {
+                // We've reached the base expression (not a field access), walk it normally
+                self.walk_expr(expr);
             }
         }
     }
