@@ -21,6 +21,8 @@ If you want to **use** rust-analyzer's language server with your editor of
 choice, check [the manual](https://rust-analyzer.github.io/book/).
 It also contains some tips & tricks to help you be more productive when using rust-analyzer.
 
+Otherwise you can install from git with `cargo xtask install --server`
+
 ## Security and Privacy
 
 See the [security](https://rust-analyzer.github.io/book/security.html) and
