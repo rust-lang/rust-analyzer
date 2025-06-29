@@ -1,7 +1,7 @@
-use syntax::ast::edit_in_place::Indent;
-use syntax::ast::make;
-use syntax::ast::{self, AstNode, HasName};
-use syntax::ted;
+use syntax::{
+    ast::{self, AstNode, HasName, edit_in_place::Indent, make},
+    syntax_editor::Position,
+};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -68,7 +68,7 @@ pub(crate) fn generate_asref_impl_from_borrow(
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
     let ty = ctx.find_node_at_offset::<ast::Type>()?;
-    let impl_ = ast::Impl::cast(ty.syntax().parent()?)?.clone_for_update();
+    let impl_ = ast::Impl::cast(ty.syntax().parent()?)?;
     let path = ast::PathType::cast(impl_.trait_()?.syntax().clone())?;
     let indent = impl_.indent_level();
 
@@ -91,16 +91,29 @@ pub(crate) fn generate_asref_impl_from_borrow(
         format!("Generate `{target_name}` implement from `{name}`"),
         target,
         |edit| {
-            ted::replace(name.syntax(), make::name_ref(target_name).syntax().clone_for_update());
+            let mut editor = edit.make_editor(impl_.syntax());
+            editor.replace(name.syntax(), make::name_ref(target_name).syntax().clone_for_update());
 
             if let Some(name) = method.name() {
-                ted::replace(
+                editor.replace(
                     name.syntax(),
                     make::name(target_method_name).syntax().clone_for_update(),
                 );
             }
 
-            edit.insert(target.start(), format!("$0{impl_}\n\n{indent}"));
+            editor.insert_all(
+                Position::after(impl_.syntax()),
+                vec![
+                    make::tokens::whitespace(&format!("\n\n{indent}")).into(),
+                    impl_.syntax().clone_for_update().into(),
+                ],
+            );
+
+            if let Some(cap) = ctx.config.snippet_cap {
+                edit.add_tabstop_before(cap, impl_);
+            }
+
+            edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
