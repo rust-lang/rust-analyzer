@@ -39,6 +39,7 @@ mod implicit_static;
 mod implied_dyn_trait;
 mod lifetime;
 mod param_name;
+mod placeholders;
 mod range_exclusive;
 
 // Feature: Inlay Hints
@@ -286,6 +287,10 @@ fn hints(
                 },
                 ast::Type::DynTraitType(dyn_) => {
                     implied_dyn_trait::hints(hints, famous_defs, config, Either::Right(dyn_));
+                    Some(())
+                },
+                ast::Type::InferType(placeholder) => {
+                    placeholders::type_hints(hints, famous_defs, config, display_target, placeholder);
                     Some(())
                 },
                 _ => Some(()),
