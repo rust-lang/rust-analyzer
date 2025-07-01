@@ -64,6 +64,14 @@ use crate::{
 pub trait HirWrite: fmt::Write {
     fn start_location_link(&mut self, _location: ModuleDefId) {}
     fn end_location_link(&mut self) {}
+    /// Returns whether a new truncated part is created during this call. If so,
+    /// the caller should call `end_truncated` at the end. Otherwise, the caller
+    /// should not call `end_truncated`. This ensures that the truncated part is
+    /// not nested.
+    fn start_truncated(&mut self) -> bool {
+        false
+    }
+    fn end_truncated(&mut self) {}
 }
 
 // String will ignore link metadata
@@ -392,6 +400,7 @@ impl HirFormatter<'_> {
         sep: &str,
     ) -> Result<(), HirDisplayError> {
         let mut first = true;
+        let mut in_truncated = false;
         for e in iter {
             if !first {
                 write!(self, "{sep}")?;
@@ -399,12 +408,15 @@ impl HirFormatter<'_> {
             first = false;
 
             // Abbreviate multiple omitted types with a single ellipsis.
-            if self.should_truncate() {
-                return write!(self, "{TYPE_HINT_TRUNCATION}");
-            }
+            in_truncated = !in_truncated && self.should_truncate() && self.fmt.start_truncated();
 
             e.hir_fmt(self)?;
         }
+
+        if in_truncated {
+            self.fmt.end_truncated();
+        }
+
         Ok(())
     }
 
@@ -599,9 +611,8 @@ impl<T: HirDisplay + Internable> HirDisplay for Interned<T> {
 
 impl HirDisplay for ProjectionTy {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
-        if f.should_truncate() {
-            return write!(f, "{TYPE_HINT_TRUNCATION}");
-        }
+        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
+
         let trait_ref = self.trait_ref(f.db);
         let self_ty = trait_ref.self_type_parameter(Interner);
 
@@ -664,19 +675,30 @@ impl HirDisplay for ProjectionTy {
                 .name
                 .display(f.db, f.edition())
         )?;
+
         let proj_params =
             &self.substitution.as_slice(Interner)[trait_ref.substitution.len(Interner)..];
-        hir_fmt_generics(f, proj_params, None, None)
+        hir_fmt_generics(f, proj_params, None, None)?;
+
+        if in_truncated {
+            f.fmt.end_truncated();
+        }
+
+        Ok(())
     }
 }
 
 impl HirDisplay for OpaqueTy {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
-        if f.should_truncate() {
-            return write!(f, "{TYPE_HINT_TRUNCATION}");
+        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
+
+        self.substitution.at(Interner, 0).hir_fmt(f)?;
+
+        if in_truncated {
+            f.fmt.end_truncated();
         }
 
-        self.substitution.at(Interner, 0).hir_fmt(f)
+        Ok(())
     }
 }
 
@@ -1047,9 +1069,7 @@ impl HirDisplay for Ty {
         &self,
         f @ &mut HirFormatter { db, .. }: &mut HirFormatter<'_>,
     ) -> Result<(), HirDisplayError> {
-        if f.should_truncate() {
-            return write!(f, "{TYPE_HINT_TRUNCATION}");
-        }
+        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
 
         match self.kind(Interner) {
             TyKind::Never => write!(f, "!")?,
@@ -1459,11 +1479,15 @@ impl HirDisplay for Ty {
                         _ => unreachable!(),
                     }
                     if sig.params().is_empty() {
-                    } else if f.should_truncate() {
-                        write!(f, "{TYPE_HINT_TRUNCATION}")?;
                     } else {
+                        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
+
                         f.write_joined(sig.params(), ", ")?;
-                    };
+
+                        if in_truncated {
+                            f.fmt.end_truncated();
+                        }
+                    }
                     match f.closure_style {
                         ClosureStyle::ImplFn => write!(f, ")")?,
                         ClosureStyle::RANotation => write!(f, "|")?,
@@ -1640,6 +1664,11 @@ impl HirDisplay for Ty {
             }
             TyKind::CoroutineWitness(..) => write!(f, "{{coroutine witness}}")?,
         }
+
+        if in_truncated {
+            f.fmt.end_truncated();
+        }
+
         Ok(())
     }
 }
@@ -1991,9 +2020,7 @@ impl HirDisplay for TraitRef {
 
 impl HirDisplay for WhereClause {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
-        if f.should_truncate() {
-            return write!(f, "{TYPE_HINT_TRUNCATION}");
-        }
+        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
 
         match self {
             WhereClause::Implemented(trait_ref) => {
@@ -2025,6 +2052,11 @@ impl HirDisplay for WhereClause {
             WhereClause::TypeOutlives(..) => {}
             WhereClause::LifetimeOutlives(..) => {}
         }
+
+        if in_truncated {
+            f.fmt.end_truncated();
+        }
+
         Ok(())
     }
 }
