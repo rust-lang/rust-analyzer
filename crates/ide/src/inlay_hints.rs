@@ -726,11 +726,12 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
     fn end_truncated(&mut self) {
         always!(self.in_truncated_part, "truncated is not started");
 
+        const HINT_TRUNCATION: &str = "…";
         if self.resolve {
-            self.last_part = "…".to_owned();
+            self.last_part = HINT_TRUNCATION.to_owned();
             self.tooltip = Some(LazyProperty::Lazy);
         } else {
-            let mut tooltip = mem::replace(&mut self.last_part, "…".to_owned());
+            let mut tooltip = mem::replace(&mut self.last_part, HINT_TRUNCATION.to_owned());
             tooltip.push_str("\n```");
             self.tooltip = Some(LazyProperty::Computed(InlayTooltip::Markdown(tooltip)));
         }
@@ -942,6 +943,15 @@ mod tests {
         closure_return_type_hints: ClosureReturnTypeHints::WithBlock,
         binding_mode_hints: true,
         lifetime_elision_hints: LifetimeElisionHints::Always,
+        ..DISABLED_CONFIG
+    };
+    pub(super) const TEST_CONFIG_WITH_TRUNCATION: InlayHintsConfig = InlayHintsConfig {
+        type_hints: true,
+        parameter_hints: true,
+        chaining_hints: true,
+        closure_return_type_hints: ClosureReturnTypeHints::WithBlock,
+        binding_mode_hints: true,
+        max_length: Some(10),
         ..DISABLED_CONFIG
     };
 
