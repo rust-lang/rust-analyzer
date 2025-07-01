@@ -556,8 +556,6 @@ pub enum ClosureStyle {
     Hide,
 }
 
-const TYPE_HINT_TRUNCATION: &str = "…";
-
 impl<T: HirDisplay> HirDisplayWrapper<'_, T> {
     pub fn write_to<F: HirWrite>(&self, f: &mut F) -> Result<(), HirDisplayError> {
         self.t.hir_fmt(&mut HirFormatter {
@@ -605,6 +603,8 @@ where
         }
     }
 }
+
+const TYPE_HINT_TRUNCATION: &str = "…";
 
 impl<T: HirDisplay> HirDisplay for &T {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
@@ -693,15 +693,7 @@ impl HirDisplay for ProjectionTy {
 
 impl HirDisplay for OpaqueTy {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
-        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
-
-        self.substitution.at(Interner, 0).hir_fmt(f)?;
-
-        if in_truncated {
-            f.fmt.end_truncated();
-        }
-
-        Ok(())
+        f.maybe_truncated(|f| self.substitution.at(Interner, 0).hir_fmt(f))
     }
 }
 
@@ -1387,123 +1379,122 @@ impl HirDisplay for Ty {
                             substitution: parameters.clone(),
                         };
 
-                    projection_ty.hir_fmt(f)
-                }?;
-            }
-            TyKind::Foreign(type_alias) => {
-                let alias = from_foreign_def_id(*type_alias);
-                let type_alias = db.type_alias_signature(alias);
-                f.start_location_link(alias.into());
-                write!(f, "{}", type_alias.name.display(f.db, f.edition()))?;
-                f.end_location_link();
-            }
-            TyKind::OpaqueType(opaque_ty_id, parameters) => {
-                if !f.display_kind.allows_opaque() {
-                    return Err(HirDisplayError::DisplaySourceCodeError(
-                        DisplaySourceCodeError::OpaqueType,
-                    ));
+                        projection_ty.hir_fmt(f)
+                    }?;
                 }
-                let impl_trait_id = db.lookup_intern_impl_trait_id((*opaque_ty_id).into());
-                match impl_trait_id {
-                    ImplTraitId::ReturnTypeImplTrait(func, idx) => {
-                        let datas =
-                            db.return_type_impl_traits(func).expect("impl trait id without data");
-                        let data =
-                            (*datas).as_ref().map(|rpit| rpit.impl_traits[idx].bounds.clone());
-                        let bounds = data.substitute(Interner, &parameters);
-                        let krate = func.krate(db);
-                        write_bounds_like_dyn_trait_with_prefix(
-                            f,
-                            "impl",
-                            Either::Left(self),
-                            bounds.skip_binders(),
-                            SizedByDefault::Sized { anchor: krate },
-                        )?;
-                        // FIXME: it would maybe be good to distinguish this from the alias type (when debug printing), and to show the substitution
-                    }
-                    ImplTraitId::TypeAliasImplTrait(alias, idx) => {
-                        let datas =
-                            db.type_alias_impl_traits(alias).expect("impl trait id without data");
-                        let data = (*datas).as_ref().map(|it| it.impl_traits[idx].bounds.clone());
-                        let bounds = data.substitute(Interner, &parameters);
-                        let krate = alias.krate(db);
-                        write_bounds_like_dyn_trait_with_prefix(
-                            f,
-                            "impl",
-                            Either::Left(self),
-                            bounds.skip_binders(),
-                            SizedByDefault::Sized { anchor: krate },
-                        )?;
-                    }
-                    ImplTraitId::AsyncBlockTypeImplTrait(body, ..) => {
-                        let future_trait =
-                            LangItem::Future.resolve_trait(db, body.module(db).krate());
-                        let output = future_trait.and_then(|t| {
-                            t.trait_items(db)
-                                .associated_type_by_name(&Name::new_symbol_root(sym::Output))
-                        });
-                        write!(f, "impl ")?;
-                        if let Some(t) = future_trait {
-                            f.start_location_link(t.into());
-                        }
-                        write!(f, "Future")?;
-                        if future_trait.is_some() {
-                            f.end_location_link();
-                        }
-                        write!(f, "<")?;
-                        if let Some(t) = output {
-                            f.start_location_link(t.into());
-                        }
-                        write!(f, "Output")?;
-                        if output.is_some() {
-                            f.end_location_link();
-                        }
-                        write!(f, " = ")?;
-                        parameters.at(Interner, 0).hir_fmt(f)?;
-                        write!(f, ">")?;
-                    }
+                TyKind::Foreign(type_alias) => {
+                    let alias = from_foreign_def_id(*type_alias);
+                    let type_alias = db.type_alias_signature(alias);
+                    f.start_location_link(alias.into());
+                    write!(f, "{}", type_alias.name.display(f.db, f.edition()))?;
+                    f.end_location_link();
                 }
-            }
-            TyKind::Closure(id, substs) => {
-                if f.display_kind.is_source_code() {
+                TyKind::OpaqueType(opaque_ty_id, parameters) => {
                     if !f.display_kind.allows_opaque() {
                         return Err(HirDisplayError::DisplaySourceCodeError(
                             DisplaySourceCodeError::OpaqueType,
                         ));
-                    } else if f.closure_style != ClosureStyle::ImplFn {
-                        never!("Only `impl Fn` is valid for displaying closures in source code");
                     }
-                }
-                match f.closure_style {
-                    ClosureStyle::Hide => return write!(f, "{TYPE_HINT_TRUNCATION}"),
-                    ClosureStyle::ClosureWithId => {
-                        return write!(f, "{{closure#{:?}}}", id.0.index());
-                    }
-                    ClosureStyle::ClosureWithSubst => {
-                        write!(f, "{{closure#{:?}}}", id.0.index())?;
-                        return hir_fmt_generics(f, substs.as_slice(Interner), None, None);
-                    }
-                    _ => (),
-                }
-                let sig = ClosureSubst(substs).sig_ty().callable_sig(db);
-                if let Some(sig) = sig {
-                    let InternedClosure(def, _) = db.lookup_intern_closure((*id).into());
-                    let infer = db.infer(def);
-                    let (_, kind) = infer.closure_info(id);
-                    match f.closure_style {
-                        ClosureStyle::ImplFn => write!(f, "impl {kind:?}(")?,
-                        ClosureStyle::RANotation => write!(f, "|")?,
-                        _ => unreachable!(),
-                    }
-                    if sig.params().is_empty() {
-                    } else {
-                        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
-
-                            f.write_joined(sig.params(), ", ")?;
-
-                            if in_truncated {
-                                f.fmt.end_truncated();
+                    let impl_trait_id = db.lookup_intern_impl_trait_id((*opaque_ty_id).into());
+                    match impl_trait_id {
+                        ImplTraitId::ReturnTypeImplTrait(func, idx) => {
+                            let datas = db
+                                .return_type_impl_traits(func)
+                                .expect("impl trait id without data");
+                            let data =
+                                (*datas).as_ref().map(|rpit| rpit.impl_traits[idx].bounds.clone());
+                            let bounds = data.substitute(Interner, &parameters);
+                            let krate = func.krate(db);
+                            write_bounds_like_dyn_trait_with_prefix(
+                                f,
+                                "impl",
+                                Either::Left(self),
+                                bounds.skip_binders(),
+                                SizedByDefault::Sized { anchor: krate },
+                            )?;
+                            // FIXME: it would maybe be good to distinguish this from the alias type (when debug printing), and to show the substitution
+                        }
+                        ImplTraitId::TypeAliasImplTrait(alias, idx) => {
+                            let datas = db
+                                .type_alias_impl_traits(alias)
+                                .expect("impl trait id without data");
+                            let data =
+                                (*datas).as_ref().map(|it| it.impl_traits[idx].bounds.clone());
+                            let bounds = data.substitute(Interner, &parameters);
+                            let krate = alias.krate(db);
+                            write_bounds_like_dyn_trait_with_prefix(
+                                f,
+                                "impl",
+                                Either::Left(self),
+                                bounds.skip_binders(),
+                                SizedByDefault::Sized { anchor: krate },
+                            )?;
+                        }
+                        ImplTraitId::AsyncBlockTypeImplTrait(body, ..) => {
+                            let future_trait =
+                                LangItem::Future.resolve_trait(db, body.module(db).krate());
+                            let output = future_trait.and_then(|t| {
+                                t.trait_items(db)
+                                    .associated_type_by_name(&Name::new_symbol_root(sym::Output))
+                            });
+                            write!(f, "impl ")?;
+                            if let Some(t) = future_trait {
+                                f.start_location_link(t.into());
                             }
+                            write!(f, "Future")?;
+                            if future_trait.is_some() {
+                                f.end_location_link();
+                            }
+                            write!(f, "<")?;
+                            if let Some(t) = output {
+                                f.start_location_link(t.into());
+                            }
+                            write!(f, "Output")?;
+                            if output.is_some() {
+                                f.end_location_link();
+                            }
+                            write!(f, " = ")?;
+                            parameters.at(Interner, 0).hir_fmt(f)?;
+                            write!(f, ">")?;
+                        }
+                    }
+                }
+                TyKind::Closure(id, substs) => {
+                    if f.display_kind.is_source_code() {
+                        if !f.display_kind.allows_opaque() {
+                            return Err(HirDisplayError::DisplaySourceCodeError(
+                                DisplaySourceCodeError::OpaqueType,
+                            ));
+                        } else if f.closure_style != ClosureStyle::ImplFn {
+                            never!(
+                                "Only `impl Fn` is valid for displaying closures in source code"
+                            );
+                        }
+                    }
+                    match f.closure_style {
+                        ClosureStyle::Hide => return write!(f, "{TYPE_HINT_TRUNCATION}"),
+                        ClosureStyle::ClosureWithId => {
+                            return write!(f, "{{closure#{:?}}}", id.0.index());
+                        }
+                        ClosureStyle::ClosureWithSubst => {
+                            write!(f, "{{closure#{:?}}}", id.0.index())?;
+                            return hir_fmt_generics(f, substs.as_slice(Interner), None, None);
+                        }
+                        _ => (),
+                    }
+                    let sig = ClosureSubst(substs).sig_ty().callable_sig(db);
+                    if let Some(sig) = sig {
+                        let InternedClosure(def, _) = db.lookup_intern_closure((*id).into());
+                        let infer = db.infer(def);
+                        let (_, kind) = infer.closure_info(id);
+                        match f.closure_style {
+                            ClosureStyle::ImplFn => write!(f, "impl {kind:?}(")?,
+                            ClosureStyle::RANotation => write!(f, "|")?,
+                            _ => unreachable!(),
+                        }
+                        if sig.params().is_empty() {
+                        } else {
+                            f.maybe_truncated(|f| f.write_joined(sig.params(), ", "))?;
                         }
                         match f.closure_style {
                             ClosureStyle::ImplFn => write!(f, ")")?,
