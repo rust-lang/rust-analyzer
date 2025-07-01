@@ -556,6 +556,8 @@ pub enum ClosureStyle {
     Hide,
 }
 
+const TYPE_HINT_TRUNCATION: &str = "…";
+
 impl<T: HirDisplay> HirDisplayWrapper<'_, T> {
     pub fn write_to<F: HirWrite>(&self, f: &mut F) -> Result<(), HirDisplayError> {
         self.t.hir_fmt(&mut HirFormatter {
@@ -603,8 +605,6 @@ where
         }
     }
 }
-
-const TYPE_HINT_TRUNCATION: &str = "…";
 
 impl<T: HirDisplay> HirDisplay for &T {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
