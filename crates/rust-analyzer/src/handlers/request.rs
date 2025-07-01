@@ -1713,6 +1713,21 @@ pub(crate) fn handle_ssr(
     to_proto::workspace_edit(&snap, source_change).map_err(Into::into)
 }
 
+pub(crate) fn handle_document_color(
+    _snap: GlobalStateSnapshot,
+    _params: lsp_types::DocumentColorParams,
+) -> anyhow::Result<Vec<lsp_types::ColorInformation>> {
+    let _p = tracing::info_span!("handle_document_color").entered();
+
+    Ok(vec![lsp_types::ColorInformation {
+        range: Range {
+            start: Position { line: 1, character: 1 },
+            end: Position { line: 1, character: 4 },
+        },
+        color: lsp_types::Color { red: 1.0, green: 1.0, blue: 1.0, alpha: 0.5 },
+    }])
+}
+
 pub(crate) fn handle_inlay_hints(
     snap: GlobalStateSnapshot,
     params: InlayHintParams,

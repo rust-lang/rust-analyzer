@@ -91,7 +91,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
         })),
         linked_editing_range_provider: None,
         document_link_provider: None,
-        color_provider: None,
+        color_provider: Some(lsp_types::ColorProviderCapability::Simple(true)),
         execute_command_provider: None,
         workspace: Some(WorkspaceServerCapabilities {
             workspace_folders: Some(WorkspaceFoldersServerCapabilities {

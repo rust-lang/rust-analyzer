@@ -1160,6 +1160,7 @@ impl GlobalState {
             .on::<NO_RETRY, lsp_request::GotoImplementation>(handlers::handle_goto_implementation)
             .on::<NO_RETRY, lsp_request::GotoTypeDefinition>(handlers::handle_goto_type_definition)
             .on::<NO_RETRY, lsp_request::InlayHintRequest>(handlers::handle_inlay_hints)
+            .on::<NO_RETRY, lsp_request::DocumentColor>(handlers::handle_document_color)
             .on_identity::<NO_RETRY, lsp_request::InlayHintResolveRequest, _>(handlers::handle_inlay_hints_resolve)
             .on::<NO_RETRY, lsp_request::CodeLensRequest>(handlers::handle_code_lens)
             .on_identity::<NO_RETRY, lsp_request::CodeLensResolve, _>(handlers::handle_code_lens_resolve)
