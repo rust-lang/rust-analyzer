@@ -556,8 +556,6 @@ pub enum ClosureStyle {
     Hide,
 }
 
-const TYPE_HINT_TRUNCATION: &str = "…";
-
 impl<T: HirDisplay> HirDisplayWrapper<'_, T> {
     pub fn write_to<F: HirWrite>(&self, f: &mut F) -> Result<(), HirDisplayError> {
         self.t.hir_fmt(&mut HirFormatter {
@@ -605,6 +603,8 @@ where
         }
     }
 }
+
+const TYPE_HINT_TRUNCATION: &str = "…";
 
 impl<T: HirDisplay> HirDisplay for &T {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
@@ -693,15 +693,7 @@ impl HirDisplay for ProjectionTy {
 
 impl HirDisplay for OpaqueTy {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
-        let in_truncated = f.should_truncate() && f.fmt.start_truncated();
-
-        self.substitution.at(Interner, 0).hir_fmt(f)?;
-
-        if in_truncated {
-            f.fmt.end_truncated();
-        }
-
-        Ok(())
+        f.maybe_truncated(|f| self.substitution.at(Interner, 0).hir_fmt(f))
     }
 }
 
@@ -1494,13 +1486,7 @@ impl HirDisplay for Ty {
                         }
                         if sig.params().is_empty() {
                         } else {
-                            let in_truncated = f.should_truncate() && f.fmt.start_truncated();
-
-                            f.write_joined(sig.params(), ", ")?;
-
-                            if in_truncated {
-                                f.fmt.end_truncated();
-                            }
+                            f.maybe_truncated(|f| f.write_joined(sig.params(), ", "))?;
                         }
                         match f.closure_style {
                             ClosureStyle::ImplFn => write!(f, ")")?,
