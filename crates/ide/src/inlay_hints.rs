@@ -12,7 +12,7 @@ use ide_db::{FileRange, RootDatabase, famous_defs::FamousDefs, text_edit::TextEd
 use ide_db::{FxHashSet, text_edit::TextEdit};
 use itertools::Itertools;
 use smallvec::{SmallVec, smallvec};
-use stdx::never;
+use stdx::{always, never};
 use syntax::{
     SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
     ast::{self, AstNode, HasGenericParams},
@@ -672,6 +672,8 @@ struct InlayHintLabelBuilder<'a> {
     last_part: String,
     resolve: bool,
     location: Option<LazyProperty<FileRange>>,
+    tooltip: Option<LazyProperty<InlayTooltip>>,
+    in_truncated_part: bool,
 }
 
 impl fmt::Write for InlayHintLabelBuilder<'_> {
@@ -682,6 +684,10 @@ impl fmt::Write for InlayHintLabelBuilder<'_> {
 
 impl HirWrite for InlayHintLabelBuilder<'_> {
     fn start_location_link(&mut self, def: ModuleDefId) {
+        // If the label is truncated, we do not need to add the location link.
+        if self.in_truncated_part {
+            return;
+        }
         never!(self.location.is_some(), "location link is already started");
         self.make_new_part();
 
@@ -697,7 +703,41 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
     }
 
     fn end_location_link(&mut self) {
+        if self.in_truncated_part {
+            return;
+        }
         self.make_new_part();
+    }
+
+    fn start_truncated(&mut self) -> bool {
+        never!(self.location.is_some(), "location link is already started");
+        // If currently in the truncated part, do not create a new part and continue writing into
+        // the `last_part`.
+        if self.in_truncated_part {
+            return false;
+        }
+
+        self.make_new_part();
+        self.last_part.push_str("```rust\n");
+        self.in_truncated_part = true;
+        true
+    }
+
+    fn end_truncated(&mut self) {
+        always!(self.in_truncated_part, "truncated is not started");
+
+        const HINT_TRUNCATION: &str = "…";
+        if self.resolve {
+            self.last_part = HINT_TRUNCATION.to_owned();
+            self.tooltip = Some(LazyProperty::Lazy);
+        } else {
+            let mut tooltip = mem::replace(&mut self.last_part, HINT_TRUNCATION.to_owned());
+            tooltip.push_str("\n```");
+            self.tooltip = Some(LazyProperty::Computed(InlayTooltip::Markdown(tooltip)));
+        }
+
+        self.make_new_part();
+        self.in_truncated_part = false;
     }
 }
 
@@ -708,7 +748,7 @@ impl InlayHintLabelBuilder<'_> {
             self.result.parts.push(InlayHintLabelPart {
                 text,
                 linked_location: self.location.take(),
-                tooltip: None,
+                tooltip: self.tooltip.take(),
             });
         }
     }
@@ -778,6 +818,8 @@ fn label_of_ty(
         db: sema.db,
         last_part: String::new(),
         location: None,
+        tooltip: None,
+        in_truncated_part: false,
         result: InlayHintLabel::default(),
         resolve: config.fields_to_resolve.resolve_label_location,
     };
@@ -901,6 +943,15 @@ mod tests {
         closure_return_type_hints: ClosureReturnTypeHints::WithBlock,
         binding_mode_hints: true,
         lifetime_elision_hints: LifetimeElisionHints::Always,
+        ..DISABLED_CONFIG
+    };
+    pub(super) const TEST_CONFIG_WITH_TRUNCATION: InlayHintsConfig = InlayHintsConfig {
+        type_hints: true,
+        parameter_hints: true,
+        chaining_hints: true,
+        closure_return_type_hints: ClosureReturnTypeHints::WithBlock,
+        binding_mode_hints: true,
+        max_length: Some(10),
         ..DISABLED_CONFIG
     };
 
