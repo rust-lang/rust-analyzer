@@ -177,6 +177,7 @@ mod handlers {
     mod generate_new;
     mod generate_single_field_struct_from;
     mod generate_trait_from_impl;
+    mod inline_as_closure;
     mod inline_call;
     mod inline_const_as_literal;
     mod inline_local_variable;
@@ -323,6 +324,7 @@ mod handlers {
             inline_macro::inline_macro,
             inline_type_alias::inline_type_alias_uses,
             inline_type_alias::inline_type_alias,
+            inline_as_closure::inline_as_closure,
             into_to_qualified_from::into_to_qualified_from,
             introduce_named_lifetime::introduce_named_lifetime,
             introduce_named_type_parameter::introduce_named_type_parameter,

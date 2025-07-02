@@ -2284,6 +2284,25 @@ impl<T: Clone> ${1:_} for Ctx<T> {$0}
 }
 
 #[test]
+fn doctest_inline_as_closure() {
+    check_doc_test(
+        "inline_as_closure",
+        r#####"
+fn foo() { println!("Hello, World!"); }
+fn main() {
+    let _ = foo$0;
+}
+"#####,
+        r#####"
+fn foo() { println!("Hello, World!"); }
+fn main() {
+    let _ = || { println!("Hello, World!"); };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_inline_call() {
     check_doc_test(
         "inline_call",
