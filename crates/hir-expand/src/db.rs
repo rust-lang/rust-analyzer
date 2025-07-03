@@ -298,7 +298,7 @@ pub fn expand_speculative(
             pseudo_derive_attr_expansion(&tt, attr_arg.as_ref()?, span)
         }
         MacroDefKind::Declarative(it) => {
-            db.decl_macro_expander(loc.krate, it).expand_unhygienic(tt, span, loc.def.edition)
+            db.decl_macro_expander(loc.krate, it).expand_unhygienic(db, tt, span)
         }
         MacroDefKind::BuiltIn(_, it) => {
             it.expand(db, actual_macro_call, &tt, span).map_err(Into::into)
