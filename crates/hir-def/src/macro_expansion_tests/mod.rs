@@ -373,7 +373,6 @@ impl ProcMacroExpander for IdentityWhenValidProcMacroExpander {
             subtree,
             syntax_bridge::TopEntryPoint::MacroItems,
             &mut |_| span::Edition::CURRENT,
-            span::Edition::CURRENT,
         );
         if parse.errors().is_empty() {
             Ok(subtree.clone())
