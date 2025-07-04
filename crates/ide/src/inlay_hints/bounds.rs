@@ -141,7 +141,7 @@ fn foo<T>() {}
                                         FileRangeWrapper {
                                             file_id: FileId(
                                                 EditionedFileId(
-                                                    Id(2001),
+                                                    Id(1801),
                                                 ),
                                             ),
                                             range: 446..451,

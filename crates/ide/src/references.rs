@@ -443,10 +443,10 @@ fn test() {
 }
 "#,
             expect![[r#"
-                test_func Function FileId(EditionedFileId(Id(2000))) 0..17 3..12
+                test_func Function FileId(EditionedFileId(Id(1800))) 0..17 3..12
 
-                FileId(EditionedFileId(Id(2000))) 35..44
-                FileId(EditionedFileId(Id(2000))) 75..84 test
+                FileId(EditionedFileId(Id(1800))) 35..44
+                FileId(EditionedFileId(Id(1800))) 75..84 test
             "#]],
         );
 
@@ -464,10 +464,10 @@ fn test() {
 }
 "#,
             expect![[r#"
-                test_func Function FileId(EditionedFileId(Id(2000))) 0..17 3..12
+                test_func Function FileId(EditionedFileId(Id(1800))) 0..17 3..12
 
-                FileId(EditionedFileId(Id(2000))) 35..44
-                FileId(EditionedFileId(Id(2000))) 96..105 test
+                FileId(EditionedFileId(Id(1800))) 35..44
+                FileId(EditionedFileId(Id(1800))) 96..105 test
             "#]],
         );
     }
@@ -485,10 +485,10 @@ fn test() {
 }
 "#,
             expect![[r#"
-                f Field FileId(EditionedFileId(Id(2000))) 11..17 11..12
+                f Field FileId(EditionedFileId(Id(1800))) 11..17 11..12
 
-                FileId(EditionedFileId(Id(2000))) 61..62 read test
-                FileId(EditionedFileId(Id(2000))) 76..77 write test
+                FileId(EditionedFileId(Id(1800))) 61..62 read test
+                FileId(EditionedFileId(Id(1800))) 76..77 write test
             "#]],
         );
     }
@@ -509,9 +509,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2000))) 0..26 7..10
+                Foo Struct FileId(EditionedFileId(Id(1800))) 0..26 7..10
 
-                FileId(EditionedFileId(Id(2000))) 101..104
+                FileId(EditionedFileId(Id(1800))) 101..104
             "#]],
         );
     }
@@ -527,10 +527,10 @@ struct Foo$0 {}
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2000))) 0..13 7..10
+                Foo Struct FileId(EditionedFileId(Id(1800))) 0..13 7..10
 
-                FileId(EditionedFileId(Id(2000))) 41..44
-                FileId(EditionedFileId(Id(2000))) 54..57
+                FileId(EditionedFileId(Id(1800))) 41..44
+                FileId(EditionedFileId(Id(1800))) 54..57
             "#]],
         );
     }
@@ -546,9 +546,9 @@ struct Foo<T> $0{}
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2000))) 0..16 7..10
+                Foo Struct FileId(EditionedFileId(Id(1800))) 0..16 7..10
 
-                FileId(EditionedFileId(Id(2000))) 64..67
+                FileId(EditionedFileId(Id(1800))) 64..67
             "#]],
         );
     }
@@ -565,9 +565,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2000))) 0..16 7..10
+                Foo Struct FileId(EditionedFileId(Id(1800))) 0..16 7..10
 
-                FileId(EditionedFileId(Id(2000))) 54..57
+                FileId(EditionedFileId(Id(1800))) 54..57
             "#]],
         );
     }
@@ -586,9 +586,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Union FileId(EditionedFileId(Id(2000))) 0..24 6..9
+                Foo Union FileId(EditionedFileId(Id(1800))) 0..24 6..9
 
-                FileId(EditionedFileId(Id(2000))) 62..65
+                FileId(EditionedFileId(Id(1800))) 62..65
             "#]],
         );
     }
@@ -610,11 +610,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(EditionedFileId(Id(2000))) 0..37 5..8
+                Foo Enum FileId(EditionedFileId(Id(1800))) 0..37 5..8
 
-                FileId(EditionedFileId(Id(2000))) 74..77
-                FileId(EditionedFileId(Id(2000))) 90..93
-                FileId(EditionedFileId(Id(2000))) 108..111
+                FileId(EditionedFileId(Id(1800))) 74..77
+                FileId(EditionedFileId(Id(1800))) 90..93
+                FileId(EditionedFileId(Id(1800))) 108..111
             "#]],
         );
     }
@@ -634,9 +634,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                A Variant FileId(EditionedFileId(Id(2000))) 15..27 15..16
+                A Variant FileId(EditionedFileId(Id(1800))) 15..27 15..16
 
-                FileId(EditionedFileId(Id(2000))) 95..96
+                FileId(EditionedFileId(Id(1800))) 95..96
             "#]],
         );
     }
@@ -656,9 +656,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                A Variant FileId(EditionedFileId(Id(2000))) 15..21 15..16
+                A Variant FileId(EditionedFileId(Id(1800))) 15..21 15..16
 
-                FileId(EditionedFileId(Id(2000))) 89..90
+                FileId(EditionedFileId(Id(1800))) 89..90
             "#]],
         );
     }
@@ -677,10 +677,10 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(EditionedFileId(Id(2000))) 0..26 5..8
+                Foo Enum FileId(EditionedFileId(Id(1800))) 0..26 5..8
 
-                FileId(EditionedFileId(Id(2000))) 50..53
-                FileId(EditionedFileId(Id(2000))) 63..66
+                FileId(EditionedFileId(Id(1800))) 50..53
+                FileId(EditionedFileId(Id(1800))) 63..66
             "#]],
         );
     }
@@ -699,9 +699,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(EditionedFileId(Id(2000))) 0..32 5..8
+                Foo Enum FileId(EditionedFileId(Id(1800))) 0..32 5..8
 
-                FileId(EditionedFileId(Id(2000))) 73..76
+                FileId(EditionedFileId(Id(1800))) 73..76
             "#]],
         );
     }
@@ -720,9 +720,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(EditionedFileId(Id(2000))) 0..33 5..8
+                Foo Enum FileId(EditionedFileId(Id(1800))) 0..33 5..8
 
-                FileId(EditionedFileId(Id(2000))) 70..73
+                FileId(EditionedFileId(Id(1800))) 70..73
             "#]],
         );
     }
@@ -743,12 +743,12 @@ fn main() {
     i = 5;
 }"#,
             expect![[r#"
-                i Local FileId(EditionedFileId(Id(2000))) 20..25 24..25 write
+                i Local FileId(EditionedFileId(Id(1800))) 20..25 24..25 write
 
-                FileId(EditionedFileId(Id(2000))) 50..51 write
-                FileId(EditionedFileId(Id(2000))) 54..55 read
-                FileId(EditionedFileId(Id(2000))) 76..77 write
-                FileId(EditionedFileId(Id(2000))) 94..95 write
+                FileId(EditionedFileId(Id(1800))) 50..51 write
+                FileId(EditionedFileId(Id(1800))) 54..55 read
+                FileId(EditionedFileId(Id(1800))) 76..77 write
+                FileId(EditionedFileId(Id(1800))) 94..95 write
             "#]],
         );
     }
@@ -767,10 +767,10 @@ fn bar() {
 }
 "#,
             expect![[r#"
-                spam Local FileId(EditionedFileId(Id(2000))) 19..23 19..23
+                spam Local FileId(EditionedFileId(Id(1800))) 19..23 19..23
 
-                FileId(EditionedFileId(Id(2000))) 34..38 read
-                FileId(EditionedFileId(Id(2000))) 41..45 read
+                FileId(EditionedFileId(Id(1800))) 34..38 read
+                FileId(EditionedFileId(Id(1800))) 41..45 read
             "#]],
         );
     }
@@ -782,9 +782,9 @@ fn bar() {
 fn foo(i : u32) -> u32 { i$0 }
 "#,
             expect![[r#"
-                i ValueParam FileId(EditionedFileId(Id(2000))) 7..8 7..8
+                i ValueParam FileId(EditionedFileId(Id(1800))) 7..8 7..8
 
-                FileId(EditionedFileId(Id(2000))) 25..26 read
+                FileId(EditionedFileId(Id(1800))) 25..26 read
             "#]],
         );
     }
@@ -796,9 +796,9 @@ fn foo(i : u32) -> u32 { i$0 }
 fn foo(i$0 : u32) -> u32 { i }
 "#,
             expect![[r#"
-                i ValueParam FileId(EditionedFileId(Id(2000))) 7..8 7..8
+                i ValueParam FileId(EditionedFileId(Id(1800))) 7..8 7..8
 
-                FileId(EditionedFileId(Id(2000))) 25..26 read
+                FileId(EditionedFileId(Id(1800))) 25..26 read
             "#]],
         );
     }
@@ -817,9 +817,9 @@ fn main(s: Foo) {
 }
 "#,
             expect![[r#"
-                spam Field FileId(EditionedFileId(Id(2000))) 17..30 21..25
+                spam Field FileId(EditionedFileId(Id(1800))) 17..30 21..25
 
-                FileId(EditionedFileId(Id(2000))) 67..71 read
+                FileId(EditionedFileId(Id(1800))) 67..71 read
             "#]],
         );
     }
@@ -834,7 +834,7 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                f Function FileId(EditionedFileId(Id(2000))) 27..43 30..31
+                f Function FileId(EditionedFileId(Id(1800))) 27..43 30..31
 
                 (no references)
             "#]],
@@ -852,7 +852,7 @@ enum Foo {
 }
 "#,
             expect![[r#"
-                B Variant FileId(EditionedFileId(Id(2000))) 22..23 22..23
+                B Variant FileId(EditionedFileId(Id(1800))) 22..23 22..23
 
                 (no references)
             "#]],
@@ -870,7 +870,7 @@ enum Foo {
 }
 "#,
             expect![[r#"
-                field Field FileId(EditionedFileId(Id(2000))) 26..35 26..31
+                field Field FileId(EditionedFileId(Id(1800))) 26..35 26..31
 
                 (no references)
             "#]],
@@ -894,11 +894,11 @@ impl<T> S<T> {
 }
 "#,
             expect![[r#"
-                S Struct FileId(EditionedFileId(Id(2000))) 0..38 7..8
+                S Struct FileId(EditionedFileId(Id(1800))) 0..38 7..8
 
-                FileId(EditionedFileId(Id(2000))) 48..49
-                FileId(EditionedFileId(Id(2000))) 71..75
-                FileId(EditionedFileId(Id(2000))) 86..90
+                FileId(EditionedFileId(Id(1800))) 48..49
+                FileId(EditionedFileId(Id(1800))) 71..75
+                FileId(EditionedFileId(Id(1800))) 86..90
             "#]],
         )
     }
@@ -920,9 +920,9 @@ impl TestTrait for () {
 }
 "#,
             expect![[r#"
-                Assoc TypeAlias FileId(EditionedFileId(Id(2000))) 92..108 97..102
+                Assoc TypeAlias FileId(EditionedFileId(Id(1800))) 92..108 97..102
 
-                FileId(EditionedFileId(Id(2000))) 31..36
+                FileId(EditionedFileId(Id(1800))) 31..36
             "#]],
         )
     }
@@ -962,10 +962,10 @@ fn f() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2001))) 17..51 28..31 foo
+                Foo Struct FileId(EditionedFileId(Id(1801))) 17..51 28..31 foo
 
-                FileId(EditionedFileId(Id(2000))) 53..56
-                FileId(EditionedFileId(Id(2002))) 79..82
+                FileId(EditionedFileId(Id(1800))) 53..56
+                FileId(EditionedFileId(Id(1802))) 79..82
             "#]],
         );
     }
@@ -989,9 +989,9 @@ pub struct Foo {
 }
 "#,
             expect![[r#"
-                foo Module FileId(EditionedFileId(Id(2000))) 0..8 4..7
+                foo Module FileId(EditionedFileId(Id(1800))) 0..8 4..7
 
-                FileId(EditionedFileId(Id(2000))) 14..17 import
+                FileId(EditionedFileId(Id(1800))) 14..17 import
             "#]],
         );
     }
@@ -1007,9 +1007,9 @@ mod foo;
 use self$0;
 "#,
             expect![[r#"
-                foo Module FileId(EditionedFileId(Id(2000))) 0..8 4..7
+                foo Module FileId(EditionedFileId(Id(1800))) 0..8 4..7
 
-                FileId(EditionedFileId(Id(2001))) 4..8 import
+                FileId(EditionedFileId(Id(1801))) 4..8 import
             "#]],
         );
     }
@@ -1022,9 +1022,9 @@ use self$0;
 use self$0;
 "#,
             expect![[r#"
-                Module FileId(EditionedFileId(Id(2000))) 0..10
+                Module FileId(EditionedFileId(Id(1800))) 0..10
 
-                FileId(EditionedFileId(Id(2000))) 4..8 import
+                FileId(EditionedFileId(Id(1800))) 4..8 import
             "#]],
         );
     }
@@ -1050,10 +1050,10 @@ pub(super) struct Foo$0 {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2002))) 0..41 18..21 some
+                Foo Struct FileId(EditionedFileId(Id(1802))) 0..41 18..21 some
 
-                FileId(EditionedFileId(Id(2001))) 20..23 import
-                FileId(EditionedFileId(Id(2001))) 47..50
+                FileId(EditionedFileId(Id(1801))) 20..23 import
+                FileId(EditionedFileId(Id(1801))) 47..50
             "#]],
         );
     }
@@ -1078,10 +1078,10 @@ pub(super) struct Foo$0 {
             code,
             None,
             expect![[r#"
-                quux Function FileId(EditionedFileId(Id(2000))) 19..35 26..30
+                quux Function FileId(EditionedFileId(Id(1800))) 19..35 26..30
 
-                FileId(EditionedFileId(Id(2001))) 16..20
-                FileId(EditionedFileId(Id(2002))) 16..20
+                FileId(EditionedFileId(Id(1801))) 16..20
+                FileId(EditionedFileId(Id(1802))) 16..20
             "#]],
         );
 
@@ -1091,9 +1091,9 @@ pub(super) struct Foo$0 {
                 SearchScope::single_file(EditionedFileId::current_edition(db, FileId::from_raw(2)))
             }),
             expect![[r#"
-                quux Function FileId(EditionedFileId(Id(2000))) 19..35 26..30
+                quux Function FileId(EditionedFileId(Id(1800))) 19..35 26..30
 
-                FileId(EditionedFileId(Id(2002))) 16..20
+                FileId(EditionedFileId(Id(1802))) 16..20
             "#]],
         );
     }
@@ -1111,10 +1111,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                m1 Macro FileId(EditionedFileId(Id(2000))) 0..46 29..31
+                m1 Macro FileId(EditionedFileId(Id(1800))) 0..46 29..31
 
-                FileId(EditionedFileId(Id(2000))) 63..65
-                FileId(EditionedFileId(Id(2000))) 73..75
+                FileId(EditionedFileId(Id(1800))) 63..65
+                FileId(EditionedFileId(Id(1800))) 73..75
             "#]],
         );
     }
@@ -1129,10 +1129,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                i Local FileId(EditionedFileId(Id(2000))) 19..24 23..24 write
+                i Local FileId(EditionedFileId(Id(1800))) 19..24 23..24 write
 
-                FileId(EditionedFileId(Id(2000))) 34..35 write
-                FileId(EditionedFileId(Id(2000))) 38..39 read
+                FileId(EditionedFileId(Id(1800))) 34..35 write
+                FileId(EditionedFileId(Id(1800))) 38..39 read
             "#]],
         );
     }
@@ -1151,10 +1151,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                f Field FileId(EditionedFileId(Id(2000))) 15..21 15..16
+                f Field FileId(EditionedFileId(Id(1800))) 15..21 15..16
 
-                FileId(EditionedFileId(Id(2000))) 55..56 read
-                FileId(EditionedFileId(Id(2000))) 68..69 write
+                FileId(EditionedFileId(Id(1800))) 55..56 read
+                FileId(EditionedFileId(Id(1800))) 68..69 write
             "#]],
         );
     }
@@ -1169,9 +1169,9 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                i Local FileId(EditionedFileId(Id(2000))) 19..20 19..20
+                i Local FileId(EditionedFileId(Id(1800))) 19..20 19..20
 
-                FileId(EditionedFileId(Id(2000))) 26..27 write
+                FileId(EditionedFileId(Id(1800))) 26..27 write
             "#]],
         );
     }
@@ -1193,9 +1193,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 54..81 61..64
+                new Function FileId(EditionedFileId(Id(1800))) 54..81 61..64
 
-                FileId(EditionedFileId(Id(2000))) 126..129
+                FileId(EditionedFileId(Id(1800))) 126..129
             "#]],
         );
     }
@@ -1215,10 +1215,10 @@ use crate::f;
 fn g() { f(); }
 "#,
             expect![[r#"
-                f Function FileId(EditionedFileId(Id(2000))) 22..31 25..26
+                f Function FileId(EditionedFileId(Id(1800))) 22..31 25..26
 
-                FileId(EditionedFileId(Id(2001))) 11..12 import
-                FileId(EditionedFileId(Id(2001))) 24..25
+                FileId(EditionedFileId(Id(1801))) 11..12 import
+                FileId(EditionedFileId(Id(1801))) 24..25
             "#]],
         );
     }
@@ -1238,9 +1238,9 @@ fn f(s: S) {
 }
 "#,
             expect![[r#"
-                field Field FileId(EditionedFileId(Id(2000))) 15..24 15..20
+                field Field FileId(EditionedFileId(Id(1800))) 15..24 15..20
 
-                FileId(EditionedFileId(Id(2000))) 68..73 read
+                FileId(EditionedFileId(Id(1800))) 68..73 read
             "#]],
         );
     }
@@ -1262,9 +1262,9 @@ fn f(e: En) {
 }
 "#,
             expect![[r#"
-                field Field FileId(EditionedFileId(Id(2000))) 32..41 32..37
+                field Field FileId(EditionedFileId(Id(1800))) 32..41 32..37
 
-                FileId(EditionedFileId(Id(2000))) 102..107 read
+                FileId(EditionedFileId(Id(1800))) 102..107 read
             "#]],
         );
     }
@@ -1286,9 +1286,9 @@ fn f() -> m::En {
 }
 "#,
             expect![[r#"
-                field Field FileId(EditionedFileId(Id(2000))) 56..65 56..61
+                field Field FileId(EditionedFileId(Id(1800))) 56..65 56..61
 
-                FileId(EditionedFileId(Id(2000))) 125..130 read
+                FileId(EditionedFileId(Id(1800))) 125..130 read
             "#]],
         );
     }
@@ -1311,10 +1311,10 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                self SelfParam FileId(EditionedFileId(Id(2000))) 47..51 47..51
+                self SelfParam FileId(EditionedFileId(Id(1800))) 47..51 47..51
 
-                FileId(EditionedFileId(Id(2000))) 71..75 read
-                FileId(EditionedFileId(Id(2000))) 152..156 read
+                FileId(EditionedFileId(Id(1800))) 71..75 read
+                FileId(EditionedFileId(Id(1800))) 152..156 read
             "#]],
         );
     }
@@ -1332,9 +1332,9 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                self SelfParam FileId(EditionedFileId(Id(2000))) 47..51 47..51
+                self SelfParam FileId(EditionedFileId(Id(1800))) 47..51 47..51
 
-                FileId(EditionedFileId(Id(2000))) 63..67 read
+                FileId(EditionedFileId(Id(1800))) 63..67 read
             "#]],
         );
     }
@@ -1356,11 +1356,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 24..26
-                FileId(EditionedFileId(Id(2000))) 42..43
-                FileId(EditionedFileId(Id(2000))) 55..57
-                FileId(EditionedFileId(Id(2000))) 74..75
-                FileId(EditionedFileId(Id(2000))) 97..98
+                FileId(EditionedFileId(Id(1800))) 24..26
+                FileId(EditionedFileId(Id(1800))) 42..43
+                FileId(EditionedFileId(Id(1800))) 55..57
+                FileId(EditionedFileId(Id(1800))) 74..75
+                FileId(EditionedFileId(Id(1800))) 97..98
             "#]],
         );
     }
@@ -1379,11 +1379,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..21
-                FileId(EditionedFileId(Id(2000))) 61..81
-                FileId(EditionedFileId(Id(2000))) 102..118
-                FileId(EditionedFileId(Id(2000))) 139..159
-                FileId(EditionedFileId(Id(2000))) 177..193
+                FileId(EditionedFileId(Id(1800))) 16..21
+                FileId(EditionedFileId(Id(1800))) 61..81
+                FileId(EditionedFileId(Id(1800))) 102..118
+                FileId(EditionedFileId(Id(1800))) 139..159
+                FileId(EditionedFileId(Id(1800))) 177..193
             "#]],
         );
     }
@@ -1402,8 +1402,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 58..60
-                FileId(EditionedFileId(Id(2000))) 61..81
+                FileId(EditionedFileId(Id(1800))) 58..60
+                FileId(EditionedFileId(Id(1800))) 61..81
             "#]],
         );
     }
@@ -1430,11 +1430,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 24..26
-                FileId(EditionedFileId(Id(2000))) 65..66
-                FileId(EditionedFileId(Id(2000))) 140..141
-                FileId(EditionedFileId(Id(2000))) 167..168
-                FileId(EditionedFileId(Id(2000))) 215..216
+                FileId(EditionedFileId(Id(1800))) 24..26
+                FileId(EditionedFileId(Id(1800))) 65..66
+                FileId(EditionedFileId(Id(1800))) 140..141
+                FileId(EditionedFileId(Id(1800))) 167..168
+                FileId(EditionedFileId(Id(1800))) 215..216
             "#]],
         );
     }
@@ -1455,11 +1455,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 24..29
-                FileId(EditionedFileId(Id(2000))) 80..81
-                FileId(EditionedFileId(Id(2000))) 124..125
-                FileId(EditionedFileId(Id(2000))) 155..156
-                FileId(EditionedFileId(Id(2000))) 171..172
+                FileId(EditionedFileId(Id(1800))) 24..29
+                FileId(EditionedFileId(Id(1800))) 80..81
+                FileId(EditionedFileId(Id(1800))) 124..125
+                FileId(EditionedFileId(Id(1800))) 155..156
+                FileId(EditionedFileId(Id(1800))) 171..172
             "#]],
         );
     }
@@ -1482,12 +1482,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 24..26
-                FileId(EditionedFileId(Id(2000))) 60..61
-                FileId(EditionedFileId(Id(2000))) 73..75
-                FileId(EditionedFileId(Id(2000))) 102..103
-                FileId(EditionedFileId(Id(2000))) 153..154
-                FileId(EditionedFileId(Id(2000))) 173..174
+                FileId(EditionedFileId(Id(1800))) 24..26
+                FileId(EditionedFileId(Id(1800))) 60..61
+                FileId(EditionedFileId(Id(1800))) 73..75
+                FileId(EditionedFileId(Id(1800))) 102..103
+                FileId(EditionedFileId(Id(1800))) 153..154
+                FileId(EditionedFileId(Id(1800))) 173..174
             "#]],
         );
     }
@@ -1549,13 +1549,13 @@ fn foo<'a, 'b: 'a>(x: &'a$0 ()) -> &'a () where &'a (): Foo<'a> {
 }
 "#,
             expect![[r#"
-                'a LifetimeParam FileId(EditionedFileId(Id(2000))) 55..57 55..57
+                'a LifetimeParam FileId(EditionedFileId(Id(1800))) 55..57 55..57
 
-                FileId(EditionedFileId(Id(2000))) 63..65
-                FileId(EditionedFileId(Id(2000))) 71..73
-                FileId(EditionedFileId(Id(2000))) 82..84
-                FileId(EditionedFileId(Id(2000))) 95..97
-                FileId(EditionedFileId(Id(2000))) 106..108
+                FileId(EditionedFileId(Id(1800))) 63..65
+                FileId(EditionedFileId(Id(1800))) 71..73
+                FileId(EditionedFileId(Id(1800))) 82..84
+                FileId(EditionedFileId(Id(1800))) 95..97
+                FileId(EditionedFileId(Id(1800))) 106..108
             "#]],
         );
     }
@@ -1567,10 +1567,10 @@ fn foo<'a, 'b: 'a>(x: &'a$0 ()) -> &'a () where &'a (): Foo<'a> {
 type Foo<'a, T> where T: 'a$0 = &'a T;
 "#,
             expect![[r#"
-                'a LifetimeParam FileId(EditionedFileId(Id(2000))) 9..11 9..11
+                'a LifetimeParam FileId(EditionedFileId(Id(1800))) 9..11 9..11
 
-                FileId(EditionedFileId(Id(2000))) 25..27
-                FileId(EditionedFileId(Id(2000))) 31..33
+                FileId(EditionedFileId(Id(1800))) 25..27
+                FileId(EditionedFileId(Id(1800))) 31..33
             "#]],
         );
     }
@@ -1589,11 +1589,11 @@ impl<'a> Foo<'a> for &'a () {
 }
 "#,
             expect![[r#"
-                'a LifetimeParam FileId(EditionedFileId(Id(2000))) 47..49 47..49
+                'a LifetimeParam FileId(EditionedFileId(Id(1800))) 47..49 47..49
 
-                FileId(EditionedFileId(Id(2000))) 55..57
-                FileId(EditionedFileId(Id(2000))) 64..66
-                FileId(EditionedFileId(Id(2000))) 89..91
+                FileId(EditionedFileId(Id(1800))) 55..57
+                FileId(EditionedFileId(Id(1800))) 64..66
+                FileId(EditionedFileId(Id(1800))) 89..91
             "#]],
         );
     }
@@ -1609,9 +1609,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                a Local FileId(EditionedFileId(Id(2000))) 59..60 59..60
+                a Local FileId(EditionedFileId(Id(1800))) 59..60 59..60
 
-                MacroFile(MacroCallId(Id(4c00))) 0..1 read
+                MacroFile(MacroCallId(Id(4400))) 0..1 read
             "#]],
         );
     }
@@ -1627,9 +1627,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                a Local FileId(EditionedFileId(Id(2000))) 59..60 59..60
+                a Local FileId(EditionedFileId(Id(1800))) 59..60 59..60
 
-                MacroFile(MacroCallId(Id(4c00))) 0..1 read
+                MacroFile(MacroCallId(Id(4400))) 0..1 read
             "#]],
         );
     }
@@ -1648,10 +1648,10 @@ fn foo<'a>() -> &'a () {
 }
 "#,
             expect![[r#"
-                'a Label FileId(EditionedFileId(Id(2000))) 29..32 29..31
+                'a Label FileId(EditionedFileId(Id(1800))) 29..32 29..31
 
-                FileId(EditionedFileId(Id(2000))) 80..82
-                FileId(EditionedFileId(Id(2000))) 108..110
+                FileId(EditionedFileId(Id(1800))) 80..82
+                FileId(EditionedFileId(Id(1800))) 108..110
             "#]],
         );
     }
@@ -1665,9 +1665,9 @@ fn foo<const FOO$0: usize>() -> usize {
 }
 "#,
             expect![[r#"
-                FOO ConstParam FileId(EditionedFileId(Id(2000))) 7..23 13..16
+                FOO ConstParam FileId(EditionedFileId(Id(1800))) 7..23 13..16
 
-                FileId(EditionedFileId(Id(2000))) 42..45
+                FileId(EditionedFileId(Id(1800))) 42..45
             "#]],
         );
     }
@@ -1681,9 +1681,9 @@ trait Foo$0 where Self: {}
 impl Foo for () {}
 "#,
             expect![[r#"
-                Foo Trait FileId(EditionedFileId(Id(2000))) 0..24 6..9
+                Foo Trait FileId(EditionedFileId(Id(1800))) 0..24 6..9
 
-                FileId(EditionedFileId(Id(2000))) 31..34
+                FileId(EditionedFileId(Id(1800))) 31..34
             "#]],
         );
     }
@@ -1699,10 +1699,10 @@ trait Foo where Self$0 {
 impl Foo for () {}
 "#,
             expect![[r#"
-                Self TypeParam FileId(EditionedFileId(Id(2000))) 0..44 6..9
+                Self TypeParam FileId(EditionedFileId(Id(1800))) 0..44 6..9
 
-                FileId(EditionedFileId(Id(2000))) 16..20
-                FileId(EditionedFileId(Id(2000))) 37..41
+                FileId(EditionedFileId(Id(1800))) 16..20
+                FileId(EditionedFileId(Id(1800))) 37..41
             "#]],
         );
     }
@@ -1718,11 +1718,11 @@ impl Foo for () {}
         }
         "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2000))) 0..11 7..10
+                Foo Struct FileId(EditionedFileId(Id(1800))) 0..11 7..10
 
-                FileId(EditionedFileId(Id(2000))) 18..21
-                FileId(EditionedFileId(Id(2000))) 28..32
-                FileId(EditionedFileId(Id(2000))) 50..54
+                FileId(EditionedFileId(Id(1800))) 18..21
+                FileId(EditionedFileId(Id(1800))) 28..32
+                FileId(EditionedFileId(Id(1800))) 50..54
             "#]],
         );
         check(
@@ -1734,11 +1734,11 @@ impl Foo where Self: {
 }
 "#,
             expect![[r#"
-                impl Impl FileId(EditionedFileId(Id(2000))) 13..57 18..21
+                impl Impl FileId(EditionedFileId(Id(1800))) 13..57 18..21
 
-                FileId(EditionedFileId(Id(2000))) 18..21
-                FileId(EditionedFileId(Id(2000))) 28..32
-                FileId(EditionedFileId(Id(2000))) 50..54
+                FileId(EditionedFileId(Id(1800))) 18..21
+                FileId(EditionedFileId(Id(1800))) 28..32
+                FileId(EditionedFileId(Id(1800))) 50..54
             "#]],
         );
     }
@@ -1758,9 +1758,9 @@ impl Foo {
 
 "#,
             expect![[r#"
-                Bar Variant FileId(EditionedFileId(Id(2000))) 11..16 11..14
+                Bar Variant FileId(EditionedFileId(Id(1800))) 11..16 11..14
 
-                FileId(EditionedFileId(Id(2000))) 89..92
+                FileId(EditionedFileId(Id(1800))) 89..92
             "#]],
         );
     }
@@ -1774,11 +1774,11 @@ trait Bar$0 = Foo where Self: ;
 fn foo<T: Bar>(_: impl Bar, _: &dyn Bar) {}
 "#,
             expect![[r#"
-                Bar TraitAlias FileId(EditionedFileId(Id(2000))) 13..42 19..22
+                Bar TraitAlias FileId(EditionedFileId(Id(1800))) 13..42 19..22
 
-                FileId(EditionedFileId(Id(2000))) 53..56
-                FileId(EditionedFileId(Id(2000))) 66..69
-                FileId(EditionedFileId(Id(2000))) 79..82
+                FileId(EditionedFileId(Id(1800))) 53..56
+                FileId(EditionedFileId(Id(1800))) 66..69
+                FileId(EditionedFileId(Id(1800))) 79..82
             "#]],
         );
     }
@@ -1790,9 +1790,9 @@ fn foo<T: Bar>(_: impl Bar, _: &dyn Bar) {}
 trait Foo = where Self$0: ;
 "#,
             expect![[r#"
-                Self TypeParam FileId(EditionedFileId(Id(2000))) 0..25 6..9
+                Self TypeParam FileId(EditionedFileId(Id(1800))) 0..25 6..9
 
-                FileId(EditionedFileId(Id(2000))) 18..22
+                FileId(EditionedFileId(Id(1800))) 18..22
             "#]],
         );
     }
@@ -1807,9 +1807,9 @@ fn test$0() {
 }
 "#,
             expect![[r#"
-                test Function FileId(EditionedFileId(Id(2000))) 0..33 11..15
+                test Function FileId(EditionedFileId(Id(1800))) 0..33 11..15
 
-                FileId(EditionedFileId(Id(2000))) 24..28 test
+                FileId(EditionedFileId(Id(1800))) 24..28 test
             "#]],
         );
     }
@@ -1829,12 +1829,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                A Const FileId(EditionedFileId(Id(2000))) 0..18 6..7
+                A Const FileId(EditionedFileId(Id(1800))) 0..18 6..7
 
-                FileId(EditionedFileId(Id(2000))) 42..43
-                FileId(EditionedFileId(Id(2000))) 54..55
-                FileId(EditionedFileId(Id(2000))) 97..98
-                FileId(EditionedFileId(Id(2000))) 101..102
+                FileId(EditionedFileId(Id(1800))) 42..43
+                FileId(EditionedFileId(Id(1800))) 54..55
+                FileId(EditionedFileId(Id(1800))) 97..98
+                FileId(EditionedFileId(Id(1800))) 101..102
             "#]],
         );
     }
@@ -1846,8 +1846,8 @@ fn main() {
 fn foo(_: bool) -> bo$0ol { true }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 10..14
-                FileId(EditionedFileId(Id(2000))) 19..23
+                FileId(EditionedFileId(Id(1800))) 10..14
+                FileId(EditionedFileId(Id(1800))) 19..23
             "#]],
         );
     }
@@ -1866,11 +1866,11 @@ pub use level2::Foo;
 pub use level1::Foo;
 "#,
             expect![[r#"
-                Foo Struct FileId(EditionedFileId(Id(2000))) 0..15 11..14
+                Foo Struct FileId(EditionedFileId(Id(1800))) 0..15 11..14
 
-                FileId(EditionedFileId(Id(2002))) 16..19 import
-                FileId(EditionedFileId(Id(2001))) 16..19 import
-                FileId(EditionedFileId(Id(2003))) 16..19 import
+                FileId(EditionedFileId(Id(1801))) 16..19 import
+                FileId(EditionedFileId(Id(1802))) 16..19 import
+                FileId(EditionedFileId(Id(1803))) 16..19 import
             "#]],
         );
     }
@@ -1896,11 +1896,11 @@ foo!();
 lib::foo!();
 "#,
             expect![[r#"
-                foo Macro FileId(EditionedFileId(Id(2001))) 0..61 29..32
+                foo Macro FileId(EditionedFileId(Id(1801))) 0..61 29..32
 
-                FileId(EditionedFileId(Id(2000))) 46..49 import
-                FileId(EditionedFileId(Id(2002))) 0..3
-                FileId(EditionedFileId(Id(2003))) 5..8
+                FileId(EditionedFileId(Id(1800))) 46..49 import
+                FileId(EditionedFileId(Id(1802))) 0..3
+                FileId(EditionedFileId(Id(1803))) 5..8
             "#]],
         );
     }
@@ -1918,9 +1918,9 @@ m$0!();
 
 "#,
             expect![[r#"
-                m Macro FileId(EditionedFileId(Id(2000))) 0..32 13..14
+                m Macro FileId(EditionedFileId(Id(1800))) 0..32 13..14
 
-                FileId(EditionedFileId(Id(2000))) 64..65
+                FileId(EditionedFileId(Id(1800))) 64..65
             "#]],
         );
     }
@@ -1947,14 +1947,14 @@ fn f() {
 }
             "#,
             expect![[r#"
-                func Function MacroFile(MacroCallId(Id(3c00))) 10..23 15..19 module
+                func Function MacroFile(MacroCallId(Id(3400))) 10..23 15..19 module
 
-                FileId(EditionedFileId(Id(2000))) 181..185
+                FileId(EditionedFileId(Id(1800))) 181..185
 
 
-                func Function MacroFile(MacroCallId(Id(3c00))) 24..37 29..33
+                func Function MacroFile(MacroCallId(Id(3400))) 24..37 29..33
 
-                FileId(EditionedFileId(Id(2000))) 161..165
+                FileId(EditionedFileId(Id(1800))) 161..165
             "#]],
         )
     }
@@ -1970,9 +1970,9 @@ fn func$0() {
 }
 "#,
             expect![[r#"
-                func Function MacroFile(MacroCallId(Id(4400))) 0..17 2..6
+                func Function MacroFile(MacroCallId(Id(3c00))) 0..17 2..6
 
-                MacroFile(MacroCallId(Id(4400))) 9..13
+                MacroFile(MacroCallId(Id(3c00))) 9..13
             "#]],
         )
     }
@@ -1991,9 +1991,9 @@ trait Trait {
 }
 "#,
             expect![[r#"
-                func Function MacroFile(MacroCallId(Id(4800))) 0..23 2..6 Trait
+                func Function MacroFile(MacroCallId(Id(4000))) 0..23 2..6 Trait
 
-                MacroFile(MacroCallId(Id(4800))) 15..19
+                MacroFile(MacroCallId(Id(4000))) 15..19
             "#]],
         )
     }
@@ -2010,9 +2010,9 @@ use proc_macros::identity;
 fn func() {}
 "#,
             expect![[r#"
-                identity Attribute FileId(EditionedFileId(Id(2001))) 1..107 32..40
+                identity Attribute FileId(EditionedFileId(Id(1801))) 1..107 32..40
 
-                FileId(EditionedFileId(Id(2000))) 43..51
+                FileId(EditionedFileId(Id(1800))) 43..51
             "#]],
         );
         check(
@@ -2022,7 +2022,7 @@ fn func() {}
 fn func$0() {}
 "#,
             expect![[r#"
-                func Attribute FileId(EditionedFileId(Id(2000))) 28..64 55..59
+                func Attribute FileId(EditionedFileId(Id(1800))) 28..64 55..59
 
                 (no references)
             "#]],
@@ -2040,9 +2040,9 @@ use proc_macros::mirror;
 mirror$0! {}
 "#,
             expect![[r#"
-                mirror ProcMacro FileId(EditionedFileId(Id(2001))) 1..77 22..28
+                mirror ProcMacro FileId(EditionedFileId(Id(1801))) 1..77 22..28
 
-                FileId(EditionedFileId(Id(2000))) 26..32
+                FileId(EditionedFileId(Id(1800))) 26..32
             "#]],
         )
     }
@@ -2059,10 +2059,10 @@ use proc_macros::DeriveIdentity;
 struct Foo;
 "#,
             expect![[r#"
-                derive_identity Derive FileId(EditionedFileId(Id(2002))) 1..107 45..60
+                derive_identity Derive FileId(EditionedFileId(Id(1802))) 1..107 45..60
 
-                FileId(EditionedFileId(Id(2000))) 17..31 import
-                MacroFile(MacroCallId(Id(4c00))) 17..31
+                FileId(EditionedFileId(Id(1800))) 17..31 import
+                MacroFile(MacroCallId(Id(4400))) 17..31
             "#]],
         );
         check(
@@ -2072,7 +2072,7 @@ struct Foo;
 pub fn deri$0ve(_stream: TokenStream) -> TokenStream {}
 "#,
             expect![[r#"
-                derive Derive FileId(EditionedFileId(Id(2000))) 28..125 79..85
+                derive Derive FileId(EditionedFileId(Id(1800))) 28..125 79..85
 
                 (no references)
             "#]],
@@ -2102,12 +2102,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                CONST Const FileId(EditionedFileId(Id(2000))) 18..37 24..29 Trait
+                CONST Const FileId(EditionedFileId(Id(1800))) 18..37 24..29 Trait
 
-                FileId(EditionedFileId(Id(2000))) 71..76
-                FileId(EditionedFileId(Id(2000))) 125..130
-                FileId(EditionedFileId(Id(2000))) 183..188
-                FileId(EditionedFileId(Id(2000))) 206..211
+                FileId(EditionedFileId(Id(1800))) 71..76
+                FileId(EditionedFileId(Id(1800))) 125..130
+                FileId(EditionedFileId(Id(1800))) 183..188
+                FileId(EditionedFileId(Id(1800))) 206..211
             "#]],
         );
         check(
@@ -2131,12 +2131,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                TypeAlias TypeAlias FileId(EditionedFileId(Id(2000))) 18..33 23..32 Trait
+                TypeAlias TypeAlias FileId(EditionedFileId(Id(1800))) 18..33 23..32 Trait
 
-                FileId(EditionedFileId(Id(2000))) 66..75
-                FileId(EditionedFileId(Id(2000))) 117..126
-                FileId(EditionedFileId(Id(2000))) 181..190
-                FileId(EditionedFileId(Id(2000))) 207..216
+                FileId(EditionedFileId(Id(1800))) 66..75
+                FileId(EditionedFileId(Id(1800))) 117..126
+                FileId(EditionedFileId(Id(1800))) 181..190
+                FileId(EditionedFileId(Id(1800))) 207..216
             "#]],
         );
         check(
@@ -2160,12 +2160,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                function Function FileId(EditionedFileId(Id(2000))) 18..34 21..29 Trait
+                function Function FileId(EditionedFileId(Id(1800))) 18..34 21..29 Trait
 
-                FileId(EditionedFileId(Id(2000))) 65..73
-                FileId(EditionedFileId(Id(2000))) 112..120
-                FileId(EditionedFileId(Id(2000))) 166..174
-                FileId(EditionedFileId(Id(2000))) 192..200
+                FileId(EditionedFileId(Id(1800))) 65..73
+                FileId(EditionedFileId(Id(1800))) 112..120
+                FileId(EditionedFileId(Id(1800))) 166..174
+                FileId(EditionedFileId(Id(1800))) 192..200
             "#]],
         );
     }
@@ -2193,9 +2193,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                CONST Const FileId(EditionedFileId(Id(2000))) 65..88 71..76
+                CONST Const FileId(EditionedFileId(Id(1800))) 65..88 71..76
 
-                FileId(EditionedFileId(Id(2000))) 183..188
+                FileId(EditionedFileId(Id(1800))) 183..188
             "#]],
         );
         check(
@@ -2219,12 +2219,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                TypeAlias TypeAlias FileId(EditionedFileId(Id(2000))) 61..81 66..75
+                TypeAlias TypeAlias FileId(EditionedFileId(Id(1800))) 61..81 66..75
 
-                FileId(EditionedFileId(Id(2000))) 23..32
-                FileId(EditionedFileId(Id(2000))) 117..126
-                FileId(EditionedFileId(Id(2000))) 181..190
-                FileId(EditionedFileId(Id(2000))) 207..216
+                FileId(EditionedFileId(Id(1800))) 23..32
+                FileId(EditionedFileId(Id(1800))) 117..126
+                FileId(EditionedFileId(Id(1800))) 181..190
+                FileId(EditionedFileId(Id(1800))) 207..216
             "#]],
         );
         check(
@@ -2248,9 +2248,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                function Function FileId(EditionedFileId(Id(2000))) 62..78 65..73
+                function Function FileId(EditionedFileId(Id(1800))) 62..78 65..73
 
-                FileId(EditionedFileId(Id(2000))) 166..174
+                FileId(EditionedFileId(Id(1800))) 166..174
             "#]],
         );
     }
@@ -2278,9 +2278,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                CONST Const FileId(EditionedFileId(Id(2000))) 65..88 71..76
+                CONST Const FileId(EditionedFileId(Id(1800))) 65..88 71..76
 
-                FileId(EditionedFileId(Id(2000))) 183..188
+                FileId(EditionedFileId(Id(1800))) 183..188
             "#]],
         );
         check(
@@ -2304,12 +2304,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                TypeAlias TypeAlias FileId(EditionedFileId(Id(2000))) 18..33 23..32 Trait
+                TypeAlias TypeAlias FileId(EditionedFileId(Id(1800))) 18..33 23..32 Trait
 
-                FileId(EditionedFileId(Id(2000))) 66..75
-                FileId(EditionedFileId(Id(2000))) 117..126
-                FileId(EditionedFileId(Id(2000))) 181..190
-                FileId(EditionedFileId(Id(2000))) 207..216
+                FileId(EditionedFileId(Id(1800))) 66..75
+                FileId(EditionedFileId(Id(1800))) 117..126
+                FileId(EditionedFileId(Id(1800))) 181..190
+                FileId(EditionedFileId(Id(1800))) 207..216
             "#]],
         );
         check(
@@ -2333,9 +2333,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                function Function FileId(EditionedFileId(Id(2000))) 62..78 65..73
+                function Function FileId(EditionedFileId(Id(1800))) 62..78 65..73
 
-                FileId(EditionedFileId(Id(2000))) 166..174
+                FileId(EditionedFileId(Id(1800))) 166..174
             "#]],
         );
     }
@@ -2360,9 +2360,9 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Function FileId(EditionedFileId(Id(2000))) 16..39 19..25 Foo
+                method Function FileId(EditionedFileId(Id(1800))) 16..39 19..25 Foo
 
-                FileId(EditionedFileId(Id(2000))) 101..107
+                FileId(EditionedFileId(Id(1800))) 101..107
             "#]],
         );
         check(
@@ -2383,9 +2383,9 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Field FileId(EditionedFileId(Id(2000))) 60..70 60..66
+                method Field FileId(EditionedFileId(Id(1800))) 60..70 60..66
 
-                FileId(EditionedFileId(Id(2000))) 136..142 read
+                FileId(EditionedFileId(Id(1800))) 136..142 read
             "#]],
         );
         check(
@@ -2406,7 +2406,7 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Function FileId(EditionedFileId(Id(2000))) 98..148 101..107
+                method Function FileId(EditionedFileId(Id(1800))) 98..148 101..107
 
                 (no references)
             "#]],
@@ -2429,9 +2429,9 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Field FileId(EditionedFileId(Id(2000))) 60..70 60..66
+                method Field FileId(EditionedFileId(Id(1800))) 60..70 60..66
 
-                FileId(EditionedFileId(Id(2000))) 136..142 read
+                FileId(EditionedFileId(Id(1800))) 136..142 read
             "#]],
         );
         check(
@@ -2452,7 +2452,7 @@ impl Foo for Bar {
 fn method$0() {}
 "#,
             expect![[r#"
-                method Function FileId(EditionedFileId(Id(2000))) 151..165 154..160
+                method Function FileId(EditionedFileId(Id(1800))) 151..165 154..160
 
                 (no references)
             "#]],
@@ -2467,9 +2467,9 @@ fn r#fn$0() {}
 fn main() { r#fn(); }
 "#,
             expect![[r#"
-                r#fn Function FileId(EditionedFileId(Id(2000))) 0..12 3..7
+                r#fn Function FileId(EditionedFileId(Id(1800))) 0..12 3..7
 
-                FileId(EditionedFileId(Id(2000))) 25..29
+                FileId(EditionedFileId(Id(1800))) 25..29
             "#]],
         );
     }
@@ -2488,11 +2488,11 @@ fn test() {
 }
 "#,
             expect![[r#"
-                a Local FileId(EditionedFileId(Id(2000))) 20..21 20..21
+                a Local FileId(EditionedFileId(Id(1800))) 20..21 20..21
 
-                MacroFile(MacroCallId(Id(4807))) 28..29 read
-                MacroFile(MacroCallId(Id(4807))) 32..33 read
-                MacroFile(MacroCallId(Id(4807))) 39..40 read
+                MacroFile(MacroCallId(Id(4007))) 28..29 read
+                MacroFile(MacroCallId(Id(4007))) 32..33 read
+                MacroFile(MacroCallId(Id(4007))) 39..40 read
             "#]],
         );
     }
@@ -2527,9 +2527,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 136..138
-                FileId(EditionedFileId(Id(2000))) 207..213
-                FileId(EditionedFileId(Id(2000))) 264..270
+                FileId(EditionedFileId(Id(1800))) 136..138
+                FileId(EditionedFileId(Id(1800))) 207..213
+                FileId(EditionedFileId(Id(1800))) 264..270
             "#]],
         )
     }
@@ -2548,10 +2548,10 @@ fn$0 foo() -> u32 {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 0..2
-                FileId(EditionedFileId(Id(2000))) 40..46
-                FileId(EditionedFileId(Id(2000))) 62..63
-                FileId(EditionedFileId(Id(2000))) 69..80
+                FileId(EditionedFileId(Id(1800))) 0..2
+                FileId(EditionedFileId(Id(1800))) 40..46
+                FileId(EditionedFileId(Id(1800))) 62..63
+                FileId(EditionedFileId(Id(1800))) 69..80
             "#]],
         );
     }
@@ -2569,10 +2569,10 @@ pub async$0 fn foo() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 4..9
-                FileId(EditionedFileId(Id(2000))) 48..53
-                FileId(EditionedFileId(Id(2000))) 63..68
-                FileId(EditionedFileId(Id(2000))) 114..119
+                FileId(EditionedFileId(Id(1800))) 4..9
+                FileId(EditionedFileId(Id(1800))) 48..53
+                FileId(EditionedFileId(Id(1800))) 63..68
+                FileId(EditionedFileId(Id(1800))) 114..119
             "#]],
         );
     }
@@ -2589,9 +2589,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..19
-                FileId(EditionedFileId(Id(2000))) 40..45
-                FileId(EditionedFileId(Id(2000))) 55..63
+                FileId(EditionedFileId(Id(1800))) 16..19
+                FileId(EditionedFileId(Id(1800))) 40..45
+                FileId(EditionedFileId(Id(1800))) 55..63
             "#]],
         )
     }
@@ -2608,8 +2608,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..19
-                FileId(EditionedFileId(Id(2000))) 40..45
+                FileId(EditionedFileId(Id(1800))) 16..19
+                FileId(EditionedFileId(Id(1800))) 40..45
             "#]],
         )
     }
@@ -2625,8 +2625,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..19
-                FileId(EditionedFileId(Id(2000))) 29..37
+                FileId(EditionedFileId(Id(1800))) 16..19
+                FileId(EditionedFileId(Id(1800))) 29..37
             "#]],
         )
     }
@@ -2649,10 +2649,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 15..27
-                FileId(EditionedFileId(Id(2000))) 39..44
-                FileId(EditionedFileId(Id(2000))) 127..139
-                FileId(EditionedFileId(Id(2000))) 178..183
+                FileId(EditionedFileId(Id(1800))) 15..27
+                FileId(EditionedFileId(Id(1800))) 39..44
+                FileId(EditionedFileId(Id(1800))) 127..139
+                FileId(EditionedFileId(Id(1800))) 178..183
             "#]],
         );
     }
@@ -2673,9 +2673,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..18
-                FileId(EditionedFileId(Id(2000))) 51..57
-                FileId(EditionedFileId(Id(2000))) 78..84
+                FileId(EditionedFileId(Id(1800))) 16..18
+                FileId(EditionedFileId(Id(1800))) 51..57
+                FileId(EditionedFileId(Id(1800))) 78..84
             "#]],
         )
     }
@@ -2693,8 +2693,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..19
-                FileId(EditionedFileId(Id(2000))) 84..89
+                FileId(EditionedFileId(Id(1800))) 16..19
+                FileId(EditionedFileId(Id(1800))) 84..89
             "#]],
         )
     }
@@ -2710,8 +2710,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 16..21
-                FileId(EditionedFileId(Id(2000))) 32..38
+                FileId(EditionedFileId(Id(1800))) 16..21
+                FileId(EditionedFileId(Id(1800))) 32..38
             "#]],
         )
     }
@@ -2747,12 +2747,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 46..48
-                FileId(EditionedFileId(Id(2000))) 106..108
-                FileId(EditionedFileId(Id(2000))) 122..149
-                FileId(EditionedFileId(Id(2000))) 135..141
-                FileId(EditionedFileId(Id(2000))) 165..181
-                FileId(EditionedFileId(Id(2001))) 6..12
+                FileId(EditionedFileId(Id(1800))) 46..48
+                FileId(EditionedFileId(Id(1800))) 106..108
+                FileId(EditionedFileId(Id(1800))) 122..149
+                FileId(EditionedFileId(Id(1800))) 135..141
+                FileId(EditionedFileId(Id(1800))) 165..181
+                FileId(EditionedFileId(Id(1801))) 6..12
             "#]],
         )
     }
@@ -2778,10 +2778,10 @@ fn baz() {
 }
         "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 27..38 30..33
+                new Function FileId(EditionedFileId(Id(1800))) 27..38 30..33
 
-                FileId(EditionedFileId(Id(2000))) 62..65
-                FileId(EditionedFileId(Id(2000))) 91..94
+                FileId(EditionedFileId(Id(1800))) 62..65
+                FileId(EditionedFileId(Id(1800))) 91..94
             "#]],
         );
     }
@@ -2828,11 +2828,11 @@ type Itself<T> = T;
 pub(in super::super) type Baz = Itself<crate::Foo>;
         "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 42..53 45..48
+                new Function FileId(EditionedFileId(Id(1800))) 42..53 45..48
 
-                FileId(EditionedFileId(Id(2000))) 83..86
-                FileId(EditionedFileId(Id(2001))) 40..43
-                FileId(EditionedFileId(Id(2001))) 106..109
+                FileId(EditionedFileId(Id(1800))) 83..86
+                FileId(EditionedFileId(Id(1801))) 40..43
+                FileId(EditionedFileId(Id(1801))) 106..109
             "#]],
         );
     }
@@ -2867,12 +2867,12 @@ impl super::Foo {
 fn foo() { <super::Foo as super::Trait>::Assoc::new(); }
                 "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 40..51 43..46
+                new Function FileId(EditionedFileId(Id(1800))) 40..51 43..46
 
-                FileId(EditionedFileId(Id(2000))) 73..76
-                FileId(EditionedFileId(Id(2000))) 195..198
-                FileId(EditionedFileId(Id(2001))) 40..43
-                FileId(EditionedFileId(Id(2001))) 99..102
+                FileId(EditionedFileId(Id(1800))) 73..76
+                FileId(EditionedFileId(Id(1800))) 195..198
+                FileId(EditionedFileId(Id(1801))) 40..43
+                FileId(EditionedFileId(Id(1801))) 99..102
             "#]],
         );
     }
@@ -2893,10 +2893,10 @@ impl Foo {
 }
             "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 27..38 30..33
+                new Function FileId(EditionedFileId(Id(1800))) 27..38 30..33
 
-                FileId(EditionedFileId(Id(2000))) 68..71
-                FileId(EditionedFileId(Id(2000))) 123..126
+                FileId(EditionedFileId(Id(1800))) 68..71
+                FileId(EditionedFileId(Id(1800))) 123..126
             "#]],
         );
     }
@@ -2924,10 +2924,10 @@ impl Foo {
 }
             "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 27..38 30..33
+                new Function FileId(EditionedFileId(Id(1800))) 27..38 30..33
 
-                FileId(EditionedFileId(Id(2000))) 188..191
-                FileId(EditionedFileId(Id(2000))) 233..236
+                FileId(EditionedFileId(Id(1800))) 188..191
+                FileId(EditionedFileId(Id(1800))) 233..236
             "#]],
         );
     }
@@ -2964,7 +2964,7 @@ fn bar() {
 }
                 "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 27..38 30..33
+                new Function FileId(EditionedFileId(Id(1800))) 27..38 30..33
 
                 (no references)
             "#]],
@@ -2990,9 +2990,9 @@ impl Foo {
 }
                 "#,
             expect![[r#"
-                new Function FileId(EditionedFileId(Id(2000))) 27..38 30..33
+                new Function FileId(EditionedFileId(Id(1800))) 27..38 30..33
 
-                FileId(EditionedFileId(Id(2000))) 131..134
+                FileId(EditionedFileId(Id(1800))) 131..134
             "#]],
         );
     }
@@ -3011,9 +3011,9 @@ fn howdy() {
 const FOO$0: i32 = 0;
 "#,
             expect![[r#"
-                FOO Const MacroFile(MacroCallId(Id(4401))) 0..15 5..8
+                FOO Const MacroFile(MacroCallId(Id(3c01))) 0..15 5..8
 
-                FileId(EditionedFileId(Id(2000))) 45..48
+                FileId(EditionedFileId(Id(1800))) 45..48
             "#]],
         );
     }
@@ -3040,12 +3040,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 92..94
-                FileId(EditionedFileId(Id(2000))) 128..129
-                FileId(EditionedFileId(Id(2000))) 141..143
-                FileId(EditionedFileId(Id(2000))) 177..178
-                FileId(EditionedFileId(Id(2000))) 237..238
-                FileId(EditionedFileId(Id(2000))) 257..258
+                FileId(EditionedFileId(Id(1800))) 92..94
+                FileId(EditionedFileId(Id(1800))) 128..129
+                FileId(EditionedFileId(Id(1800))) 141..143
+                FileId(EditionedFileId(Id(1800))) 177..178
+                FileId(EditionedFileId(Id(1800))) 237..238
+                FileId(EditionedFileId(Id(1800))) 257..258
             "#]],
         );
     }
@@ -3071,11 +3071,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(EditionedFileId(Id(2000))) 108..113
-                FileId(EditionedFileId(Id(2000))) 185..205
-                FileId(EditionedFileId(Id(2000))) 243..279
-                FileId(EditionedFileId(Id(2000))) 308..341
-                FileId(EditionedFileId(Id(2000))) 374..394
+                FileId(EditionedFileId(Id(1800))) 108..113
+                FileId(EditionedFileId(Id(1800))) 185..205
+                FileId(EditionedFileId(Id(1800))) 243..279
+                FileId(EditionedFileId(Id(1800))) 308..341
+                FileId(EditionedFileId(Id(1800))) 374..394
             "#]],
         );
     }
