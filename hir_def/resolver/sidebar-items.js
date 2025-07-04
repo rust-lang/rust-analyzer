@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LifetimeNs","ResolveValueResult","ScopeDef","TypeNs","ValueNs"],"fn":["resolver_for_expr","resolver_for_scope"],"struct":["Resolver","UpdateGuard"],"trait":["HasResolver"]};
