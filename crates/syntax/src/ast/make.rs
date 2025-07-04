@@ -986,6 +986,10 @@ pub fn unnamed_param(ty: ast::Type) -> ast::Param {
     ast_from_text(&format!("fn f({ty}) {{ }}"))
 }
 
+pub fn untyped_param(pat: ast::Pat) -> ast::Param {
+    ast_from_text(&format!("fn f({pat}) {{ }}"))
+}
+
 pub fn param(pat: ast::Pat, ty: ast::Type) -> ast::Param {
     ast_from_text(&format!("fn f({pat}: {ty}) {{ }}"))
 }
