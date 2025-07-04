@@ -15,7 +15,7 @@ mod tests;
 use std::ops::ControlFlow;
 
 use either::Either;
-use hir::{DefWithBody, EditionedFileId, InFile, InRealFile, MacroKind, Name, Semantics};
+use hir::{DefWithBody, HirFileId, InFile, MacroKind, Name, Semantics};
 use ide_db::{FxHashMap, FxHashSet, Ranker, RootDatabase, SymbolKind};
 use syntax::{
     AstNode, AstToken, NodeOrToken,
@@ -25,7 +25,7 @@ use syntax::{
 };
 
 use crate::{
-    FileId, HlMod, HlOperator, HlPunct, HlTag,
+    HlMod, HlOperator, HlPunct, HlTag,
     syntax_highlighting::{
         escape::{highlight_escape_byte, highlight_escape_char, highlight_escape_string},
         format::highlight_format_string,
@@ -189,19 +189,16 @@ pub struct HighlightConfig {
 pub(crate) fn highlight(
     db: &RootDatabase,
     config: HighlightConfig,
-    file_id: FileId,
+    file_id: HirFileId,
     range_to_highlight: Option<TextRange>,
 ) -> Vec<HlRange> {
     let _p = tracing::info_span!("highlight").entered();
     let sema = Semantics::new(db);
-    let file_id = sema
-        .attach_first_edition(file_id)
-        .unwrap_or_else(|| EditionedFileId::current_edition(db, file_id));
 
     // Determine the root based on the given range.
     let (root, range_to_highlight) = {
-        let file = sema.parse(file_id);
-        let source_file = file.syntax();
+        let file_id = sema.adjust_edition(file_id);
+        let source_file = sema.parse_or_expand(file_id);
         match range_to_highlight {
             Some(range) => {
                 let node = match source_file.covering_element(range) {
@@ -216,7 +213,7 @@ pub(crate) fn highlight(
 
     let mut hl = highlights::Highlights::new(root.text_range());
     let krate = sema.scope(&root).map(|it| it.krate());
-    traverse(&mut hl, &sema, config, InRealFile::new(file_id, &root), krate, range_to_highlight);
+    traverse(&mut hl, &sema, config, InFile::new(file_id, &root), krate, range_to_highlight);
     hl.to_vec()
 }
 
@@ -224,11 +221,12 @@ fn traverse(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
     config: HighlightConfig,
-    InRealFile { file_id, value: root }: InRealFile<&SyntaxNode>,
+    InFile { file_id, value: root }: InFile<&SyntaxNode>,
     krate: Option<hir::Crate>,
     range_to_highlight: TextRange,
 ) {
-    let is_unlinked = sema.file_to_module_def(file_id.file_id(sema.db)).is_none();
+    let is_unlinked =
+        file_id.file_id().is_some_and(|file_id| sema.file_to_module_def(file_id).is_none());
 
     enum AttrOrDerive {
         Attr(ast::Item),
@@ -305,7 +303,7 @@ fn traverse(
                             }
 
                             if attr_or_derive_item.is_none() {
-                                if sema.is_attr_macro_call(InFile::new(file_id.into(), &item)) {
+                                if sema.is_attr_macro_call(InFile::new(file_id, &item)) {
                                     attr_or_derive_item = Some(AttrOrDerive::Attr(item));
                                 } else {
                                     let adt = match item {
@@ -317,8 +315,7 @@ fn traverse(
                                     match adt {
                                         Some(adt)
                                             if sema.is_derive_annotated(InFile::new(
-                                                file_id.into(),
-                                                &adt,
+                                                file_id, &adt,
                                             )) =>
                                         {
                                             attr_or_derive_item =
@@ -389,7 +386,7 @@ fn traverse(
         let (descended_element, current_body) = match element {
             // Attempt to descend tokens into macro-calls.
             NodeOrToken::Token(token) if in_macro => {
-                let descended = descend_token(sema, InRealFile::new(file_id, token));
+                let descended = descend_token(sema, InFile::new(file_id, token));
                 let body = match &descended.value {
                     NodeOrToken::Node(n) => {
                         sema.body_for(InFile::new(descended.file_id, n.syntax()))
@@ -400,7 +397,7 @@ fn traverse(
                 };
                 (descended, body)
             }
-            n => (InFile::new(file_id.into(), n), body_stack.last().copied().flatten()),
+            n => (InFile::new(file_id, n), body_stack.last().copied().flatten()),
         };
         // string highlight injections
         if let (Some(original_token), Some(descended_token)) =
@@ -487,7 +484,7 @@ fn string_injections(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
     config: HighlightConfig,
-    file_id: EditionedFileId,
+    file_id: HirFileId,
     krate: Option<hir::Crate>,
     token: SyntaxToken,
     descended_token: &SyntaxToken,
@@ -533,16 +530,16 @@ fn string_injections(
 
 fn descend_token(
     sema: &Semantics<'_, RootDatabase>,
-    token: InRealFile<SyntaxToken>,
+    token: InFile<SyntaxToken>,
 ) -> InFile<NodeOrToken<ast::NameLike, SyntaxToken>> {
     if token.value.kind() == COMMENT {
-        return token.map(NodeOrToken::Token).into();
+        return token.map(NodeOrToken::Token);
     }
     let ranker = Ranker::from_token(&token.value);
 
     let mut t = None;
     let mut r = 0;
-    sema.descend_into_macros_breakable(token.clone().into(), |tok, _ctx| {
+    sema.descend_into_macros_breakable(token.clone(), |tok, _ctx| {
         // FIXME: Consider checking ctx transparency for being opaque?
         let my_rank = ranker.rank_token(&tok.value);
 
@@ -569,7 +566,7 @@ fn descend_token(
         ControlFlow::Continue(())
     });
 
-    let token = t.unwrap_or_else(|| token.into());
+    let token = t.unwrap_or(token);
     token.map(|token| match token.parent().and_then(ast::NameLike::cast) {
         // Remap the token into the wrapping single token nodes
         Some(parent) => match (token.kind(), parent.syntax().kind()) {

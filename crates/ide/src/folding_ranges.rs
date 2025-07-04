@@ -1,6 +1,6 @@
 use ide_db::{FxHashSet, syntax_helpers::node_ext::vis_eq};
 use syntax::{
-    Direction, NodeOrToken, SourceFile,
+    Direction, NodeOrToken,
     SyntaxKind::{self, *},
     SyntaxNode, TextRange, TextSize,
     ast::{self, AstNode, AstToken},
@@ -43,7 +43,7 @@ pub struct Fold {
 //
 // Defines folding regions for curly braced blocks, runs of consecutive use, mod, const or static
 // items, and `region` / `endregion` comment markers.
-pub(crate) fn folding_ranges(file: &SourceFile) -> Vec<Fold> {
+pub(crate) fn folding_ranges(file: &SyntaxNode) -> Vec<Fold> {
     let mut res = vec![];
     let mut visited_comments = FxHashSet::default();
     let mut visited_nodes = FxHashSet::default();
@@ -51,7 +51,7 @@ pub(crate) fn folding_ranges(file: &SourceFile) -> Vec<Fold> {
     // regions can be nested, here is a LIFO buffer
     let mut region_starts: Vec<TextSize> = vec![];
 
-    for element in file.syntax().descendants_with_tokens() {
+    for element in file.descendants_with_tokens() {
         // Fold items that span multiple lines
         if let Some(kind) = fold_kind(element.kind()) {
             let is_multiline = match &element {
@@ -287,6 +287,7 @@ fn fold_range_for_multiline_match_arm(match_arm: ast::MatchArm) -> Option<TextRa
 
 #[cfg(test)]
 mod tests {
+    use syntax::SourceFile;
     use test_utils::extract_tags;
 
     use super::*;
@@ -295,7 +296,7 @@ mod tests {
         let (ranges, text) = extract_tags(ra_fixture, "fold");
 
         let parse = SourceFile::parse(&text, span::Edition::CURRENT);
-        let mut folds = folding_ranges(&parse.tree());
+        let mut folds = folding_ranges(parse.tree().syntax());
         folds.sort_by_key(|fold| (fold.range.start(), fold.range.end()));
 
         assert_eq!(

@@ -184,8 +184,11 @@ mod tests {
         direction: Direction,
     ) {
         let (analysis, range) = fixture::range(ra_fixture);
-        let edit = analysis.move_item(range, direction).unwrap().unwrap_or_default();
-        let mut file = analysis.file_text(range.file_id).unwrap().to_string();
+        let edit = analysis
+            .move_item(range.into_file_id(&analysis.db), direction)
+            .unwrap()
+            .unwrap_or_default();
+        let mut file = analysis.file_text(range.file_id.file_id(&analysis.db)).unwrap().to_string();
         edit.apply(&mut file);
         expect.assert_eq(&file);
     }

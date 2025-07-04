@@ -1,7 +1,8 @@
 //! Implementation of trait bound hints.
 //!
 //! Currently this renders the implied `Sized` bound.
-use ide_db::{FileRange, famous_defs::FamousDefs};
+use hir::HirFileRange;
+use ide_db::famous_defs::FamousDefs;
 
 use syntax::ast::{self, AstNode, HasTypeBounds};
 
@@ -44,12 +45,10 @@ pub(super) fn hints(
                             text: "Sized".to_owned(),
                             linked_location: sized_trait.and_then(|it| {
                                 config.lazy_location_opt(|| {
-                                    it.try_to_nav(sema.db).map(|it| {
-                                        let n = it.call_site();
-                                        FileRange {
-                                            file_id: n.file_id,
-                                            range: n.focus_or_full_range(),
-                                        }
+                                    // FIXME: Replace with a range fetch only
+                                    it.try_to_nav_hir(sema.db).map(|it| HirFileRange {
+                                        file_id: it.file_id,
+                                        range: it.focus_or_full_range(),
                                     })
                                 })
                             }),
@@ -141,7 +140,9 @@ fn foo<T>() {}
                                     Computed(
                                         FileRangeWrapper {
                                             file_id: FileId(
-                                                1,
+                                                EditionedFileId(
+                                                    Id(1801),
+                                                ),
                                             ),
                                             range: 446..451,
                                         },

@@ -208,7 +208,7 @@ fn replace_usages(
     target_module: &hir::Module,
     delayed_mutations: &mut Vec<(ImportScope, ast::Path)>,
 ) {
-    for (file_id, references) in usages {
+    for (file_id, references) in usages.map_out_of_macros(&ctx.sema) {
         edit.edit_file(file_id.file_id(ctx.db()));
 
         let refs_with_imports = augment_references_with_imports(ctx, references, target_module);
