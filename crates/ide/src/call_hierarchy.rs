@@ -213,9 +213,9 @@ fn caller() {
     call$0ee();
 }
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2000))) 0..14 3..9"],
+            expect!["callee Function FileId(EditionedFileId(Id(1800))) 0..14 3..9"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 15..44 18..24 : FileId(EditionedFileId(Id(2000))):33..39"
+                "caller Function FileId(EditionedFileId(Id(1800))) 15..44 18..24 : FileId(EditionedFileId(Id(1800))):33..39"
             ],
             expect![],
         );
@@ -232,9 +232,9 @@ fn caller() {
     callee();
 }
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2000))) 0..14 3..9"],
+            expect!["callee Function FileId(EditionedFileId(Id(1800))) 0..14 3..9"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 15..44 18..24 : FileId(EditionedFileId(Id(2000))):33..39"
+                "caller Function FileId(EditionedFileId(Id(1800))) 15..44 18..24 : FileId(EditionedFileId(Id(1800))):33..39"
             ],
             expect![],
         );
@@ -252,9 +252,9 @@ fn caller() {
     callee();
 }
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2000))) 0..14 3..9"],
+            expect!["callee Function FileId(EditionedFileId(Id(1800))) 0..14 3..9"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 15..58 18..24 : FileId(EditionedFileId(Id(2000))):33..39, FileId(EditionedFileId(Id(2000))):47..53"
+                "caller Function FileId(EditionedFileId(Id(1800))) 15..58 18..24 : FileId(EditionedFileId(Id(1800))):33..39, FileId(EditionedFileId(Id(1800))):47..53"
             ],
             expect![],
         );
@@ -275,10 +275,10 @@ fn caller2() {
     callee();
 }
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2000))) 0..14 3..9"],
+            expect!["callee Function FileId(EditionedFileId(Id(1800))) 0..14 3..9"],
             expect![[r#"
-                caller1 Function FileId(EditionedFileId(Id(2000))) 15..45 18..25 : FileId(EditionedFileId(Id(2000))):34..40
-                caller2 Function FileId(EditionedFileId(Id(2000))) 47..77 50..57 : FileId(EditionedFileId(Id(2000))):66..72"#]],
+                caller1 Function FileId(EditionedFileId(Id(1800))) 15..45 18..25 : FileId(EditionedFileId(Id(1800))):34..40
+                caller2 Function FileId(EditionedFileId(Id(1800))) 47..77 50..57 : FileId(EditionedFileId(Id(1800))):66..72"#]],
             expect![],
         );
     }
@@ -304,10 +304,10 @@ mod tests {
     }
 }
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2000))) 0..14 3..9"],
+            expect!["callee Function FileId(EditionedFileId(Id(1800))) 0..14 3..9"],
             expect![[r#"
-                caller1 Function FileId(EditionedFileId(Id(2000))) 15..45 18..25 : FileId(EditionedFileId(Id(2000))):34..40
-                test_caller Function FileId(EditionedFileId(Id(2000))) 95..149 110..121 tests : FileId(EditionedFileId(Id(2000))):134..140"#]],
+                caller1 Function FileId(EditionedFileId(Id(1800))) 15..45 18..25 : FileId(EditionedFileId(Id(1800))):34..40
+                test_caller Function FileId(EditionedFileId(Id(1800))) 95..149 110..121 tests : FileId(EditionedFileId(Id(1800))):134..140"#]],
             expect![],
         );
     }
@@ -328,9 +328,9 @@ fn caller() {
 //- /foo/mod.rs
 pub fn callee() {}
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2001))) 0..18 7..13 foo"],
+            expect!["callee Function FileId(EditionedFileId(Id(1801))) 0..18 7..13 foo"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 27..56 30..36 : FileId(EditionedFileId(Id(2000))):45..51"
+                "caller Function FileId(EditionedFileId(Id(1800))) 27..56 30..36 : FileId(EditionedFileId(Id(1800))):45..51"
             ],
             expect![],
         );
@@ -348,10 +348,10 @@ fn call$0er() {
     callee();
 }
 "#,
-            expect!["caller Function FileId(EditionedFileId(Id(2000))) 15..58 18..24"],
+            expect!["caller Function FileId(EditionedFileId(Id(1800))) 15..58 18..24"],
             expect![],
             expect![
-                "callee Function FileId(EditionedFileId(Id(2000))) 0..14 3..9 : FileId(EditionedFileId(Id(2000))):33..39, FileId(EditionedFileId(Id(2000))):47..53"
+                "callee Function FileId(EditionedFileId(Id(1800))) 0..14 3..9 : FileId(EditionedFileId(Id(1800))):33..39, FileId(EditionedFileId(Id(1800))):47..53"
             ],
         );
     }
@@ -372,11 +372,9 @@ fn call$0er() {
 //- /foo/mod.rs
 pub fn callee() {}
 "#,
-            expect!["caller Function FileId(EditionedFileId(Id(2000))) 27..56 30..36"],
+            expect!["caller Function FileId(EditionedFileId(Id(1800))) 27..56 30..36"],
             expect![],
-            expect![
-                "callee Function FileId(EditionedFileId(Id(2001))) 0..18 7..13 foo : FileId(EditionedFileId(Id(2000))):45..51"
-            ],
+            expect!["callee Function FileId(EditionedFileId(Id(1801))) 0..18 7..13 foo : FileId(EditionedFileId(Id(1800))):45..51"],
         );
     }
 
@@ -398,12 +396,12 @@ fn caller3() {
 
 }
 "#,
-            expect!["caller2 Function FileId(EditionedFileId(Id(2000))) 33..64 36..43"],
+            expect!["caller2 Function FileId(EditionedFileId(Id(1800))) 33..64 36..43"],
             expect![
-                "caller1 Function FileId(EditionedFileId(Id(2000))) 0..31 3..10 : FileId(EditionedFileId(Id(2000))):19..26"
+                "caller1 Function FileId(EditionedFileId(Id(1800))) 0..31 3..10 : FileId(EditionedFileId(Id(1800))):19..26"
             ],
             expect![
-                "caller3 Function FileId(EditionedFileId(Id(2000))) 66..83 69..76 : FileId(EditionedFileId(Id(2000))):52..59"
+                "caller3 Function FileId(EditionedFileId(Id(1800))) 66..83 69..76 : FileId(EditionedFileId(Id(1800))):52..59"
             ],
         );
     }
@@ -423,12 +421,12 @@ fn main() {
     a$0()
 }
 "#,
-            expect!["a Function FileId(EditionedFileId(Id(2000))) 0..18 3..4"],
+            expect!["a Function FileId(EditionedFileId(Id(1800))) 0..18 3..4"],
             expect![
-                "main Function FileId(EditionedFileId(Id(2000))) 31..52 34..38 : FileId(EditionedFileId(Id(2000))):47..48"
+                "main Function FileId(EditionedFileId(Id(1800))) 31..52 34..38 : FileId(EditionedFileId(Id(1800))):47..48"
             ],
             expect![
-                "b Function FileId(EditionedFileId(Id(2000))) 20..29 23..24 : FileId(EditionedFileId(Id(2000))):13..14"
+                "b Function FileId(EditionedFileId(Id(1800))) 20..29 23..24 : FileId(EditionedFileId(Id(1800))):13..14"
             ],
         );
 
@@ -445,9 +443,9 @@ fn main() {
     a()
 }
 "#,
-            expect!["b Function FileId(EditionedFileId(Id(2000))) 20..29 23..24"],
+            expect!["b Function FileId(EditionedFileId(Id(1800))) 20..29 23..24"],
             expect![
-                "a Function FileId(EditionedFileId(Id(2000))) 0..18 3..4 : FileId(EditionedFileId(Id(2000))):13..14"
+                "a Function FileId(EditionedFileId(Id(1800))) 0..18 3..4 : FileId(EditionedFileId(Id(1800))):13..14"
             ],
             expect![],
         );
@@ -473,9 +471,9 @@ fn caller() {
     call!(call$0ee);
 }
 "#,
-            expect!["callee Function MacroFile(MacroCallId(Id(3c00))) 0..10 2..8"],
+            expect!["callee Function MacroFile(MacroCallId(Id(3400))) 0..10 2..8"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 160..194 163..169 : MacroFile(MacroCallId(Id(3c01))):0..6"
+                "caller Function FileId(EditionedFileId(Id(1800))) 160..194 163..169 : MacroFile(MacroCallId(Id(3401))):0..6"
             ],
             expect![],
         );
@@ -497,9 +495,9 @@ fn caller() {
     call!(callee);
 }
 "#,
-            expect!["callee Function MacroFile(MacroCallId(Id(3c00))) 0..10 2..8"],
+            expect!["callee Function MacroFile(MacroCallId(Id(3400))) 0..10 2..8"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 160..194 163..169 : MacroFile(MacroCallId(Id(3c01))):0..6"
+                "caller Function FileId(EditionedFileId(Id(1800))) 160..194 163..169 : MacroFile(MacroCallId(Id(3401))):0..6"
             ],
             expect![],
         );
@@ -525,7 +523,7 @@ fn caller$0() {
     call!(callee);
 }
 "#,
-            expect!["caller Function FileId(EditionedFileId(Id(2000))) 160..194 163..169"],
+            expect!["caller Function FileId(EditionedFileId(Id(1800))) 160..194 163..169"],
             expect![],
             // FIXME
             expect![],
@@ -556,9 +554,9 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["callee Function MacroFile(MacroCallId(Id(3c00))) 0..10 2..8"],
+            expect!["callee Function MacroFile(MacroCallId(Id(3400))) 0..10 2..8"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 38..72 41..47 : MacroFile(MacroCallId(Id(3c01))):0..6"
+                "caller Function FileId(EditionedFileId(Id(1800))) 38..72 41..47 : MacroFile(MacroCallId(Id(3401))):0..6"
             ],
             expect![],
         );
@@ -584,9 +582,9 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["callee Function MacroFile(MacroCallId(Id(3c00))) 0..10 2..8"],
+            expect!["callee Function MacroFile(MacroCallId(Id(3400))) 0..10 2..8"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 38..72 41..47 : MacroFile(MacroCallId(Id(3c01))):0..6"
+                "caller Function FileId(EditionedFileId(Id(1800))) 38..72 41..47 : MacroFile(MacroCallId(Id(3401))):0..6"
             ],
             expect![],
         );
@@ -615,10 +613,10 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["callee Function MacroFile(MacroCallId(Id(3c00))) 0..10 2..8"],
+            expect!["callee Function MacroFile(MacroCallId(Id(3400))) 0..10 2..8"],
             expect![[r#"
-                caller Function MacroFile(MacroCallId(Id(3c01))) 0..20 2..8 : MacroFile(MacroCallId(Id(3c01))):11..17
-                callee Function MacroFile(MacroCallId(Id(3c01))) 20..40 22..28 : MacroFile(MacroCallId(Id(3c01))):31..37"#]],
+                caller Function MacroFile(MacroCallId(Id(3401))) 0..20 2..8 : MacroFile(MacroCallId(Id(3401))):11..17
+                callee Function MacroFile(MacroCallId(Id(3401))) 20..40 22..28 : MacroFile(MacroCallId(Id(3401))):31..37"#]],
             expect![],
         );
     }
@@ -648,7 +646,7 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["caller Function FileId(EditionedFileId(Id(2000))) 38..72 41..47"],
+            expect!["caller Function FileId(EditionedFileId(Id(1800))) 38..72 41..47"],
             expect![],
             // FIXME
             expect![],
@@ -676,7 +674,7 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["caller Function FileId(EditionedFileId(Id(2000))) 38..72 41..47"],
+            expect!["caller Function FileId(EditionedFileId(Id(1800))) 38..72 41..47"],
             expect![],
             // FIXME
             expect![],
@@ -702,9 +700,9 @@ fn caller() {
     S1::callee();
 }
 "#,
-            expect!["callee Function FileId(EditionedFileId(Id(2000))) 15..27 18..24 T1"],
+            expect!["callee Function FileId(EditionedFileId(Id(1800))) 15..27 18..24 T1"],
             expect![
-                "caller Function FileId(EditionedFileId(Id(2000))) 82..115 85..91 : FileId(EditionedFileId(Id(2000))):104..110"
+                "caller Function FileId(EditionedFileId(Id(1800))) 82..115 85..91 : FileId(EditionedFileId(Id(1800))):104..110"
             ],
             expect![],
         );
@@ -732,17 +730,17 @@ fn f3() {
     f1(); f2();
 }
 "#,
-            expect!["f1 Function FileId(EditionedFileId(Id(2000))) 25..52 28..30"],
+            expect!["f1 Function FileId(EditionedFileId(Id(1800))) 25..52 28..30"],
             expect![
                 r#"
-                main Function FileId(EditionedFileId(Id(2000))) 0..23 3..7 : FileId(EditionedFileId(Id(2000))):16..18
-                f2 Function FileId(EditionedFileId(Id(2000))) 54..81 57..59 : FileId(EditionedFileId(Id(2000))):68..70
-                f3 Function FileId(EditionedFileId(Id(2000))) 83..118 94..96 : FileId(EditionedFileId(Id(2000))):105..107"#
+                main Function FileId(EditionedFileId(Id(1800))) 0..23 3..7 : FileId(EditionedFileId(Id(1800))):16..18
+                f2 Function FileId(EditionedFileId(Id(1800))) 54..81 57..59 : FileId(EditionedFileId(Id(1800))):68..70
+                f3 Function FileId(EditionedFileId(Id(1800))) 83..118 94..96 : FileId(EditionedFileId(Id(1800))):105..107"#
             ],
             expect![
                 r#"
-                f2 Function FileId(EditionedFileId(Id(2000))) 54..81 57..59 : FileId(EditionedFileId(Id(2000))):39..41
-                f3 Function FileId(EditionedFileId(Id(2000))) 83..118 94..96 : FileId(EditionedFileId(Id(2000))):45..47"#
+                f2 Function FileId(EditionedFileId(Id(1800))) 54..81 57..59 : FileId(EditionedFileId(Id(1800))):39..41
+                f3 Function FileId(EditionedFileId(Id(1800))) 83..118 94..96 : FileId(EditionedFileId(Id(1800))):45..47"#
             ],
         );
 
@@ -766,12 +764,12 @@ fn f3() {
     f1(); f2();
 }
 "#,
-            expect!["f1 Function FileId(EditionedFileId(Id(2000))) 25..52 28..30"],
+            expect!["f1 Function FileId(EditionedFileId(Id(1800))) 25..52 28..30"],
             expect![[r#"
-                main Function FileId(EditionedFileId(Id(2000))) 0..23 3..7 : FileId(EditionedFileId(Id(2000))):16..18
-                f2 Function FileId(EditionedFileId(Id(2000))) 54..81 57..59 : FileId(EditionedFileId(Id(2000))):68..70"#]],
+                main Function FileId(EditionedFileId(Id(1800))) 0..23 3..7 : FileId(EditionedFileId(Id(1800))):16..18
+                f2 Function FileId(EditionedFileId(Id(1800))) 54..81 57..59 : FileId(EditionedFileId(Id(1800))):68..70"#]],
             expect![
-                "f2 Function FileId(EditionedFileId(Id(2000))) 54..81 57..59 : FileId(EditionedFileId(Id(2000))):39..41"
+                "f2 Function FileId(EditionedFileId(Id(1800))) 54..81 57..59 : FileId(EditionedFileId(Id(1800))):39..41"
             ],
         );
     }

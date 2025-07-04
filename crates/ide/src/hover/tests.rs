@@ -519,7 +519,7 @@ fn main() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 10..20,
@@ -534,7 +534,7 @@ fn main() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..9,
@@ -549,7 +549,7 @@ fn main() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2001),
+                                        Id(1801),
                                     ),
                                 ),
                                 full_range: 4294967295..4294967295,
@@ -2402,7 +2402,7 @@ fn foo(Foo { b$0ar }: &Foo) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..11,
@@ -2440,7 +2440,7 @@ fn test() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 3,
@@ -2453,7 +2453,7 @@ fn test() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 20..29,
@@ -2490,7 +2490,7 @@ fn test() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 15,
@@ -2503,7 +2503,7 @@ fn test() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..11,
@@ -2539,7 +2539,7 @@ fn test() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 16,
@@ -2552,7 +2552,7 @@ fn test() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -2758,7 +2758,7 @@ fn test_hover_trait_show_qualifiers() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 13,
@@ -3451,7 +3451,7 @@ fn test_hover_trait_has_impl_action() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 6,
@@ -3472,7 +3472,7 @@ fn test_hover_struct_has_impl_action() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 7,
@@ -3493,7 +3493,7 @@ fn test_hover_union_has_impl_action() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 6,
@@ -3514,7 +3514,7 @@ fn test_hover_enum_has_impl_action() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 5,
@@ -3535,7 +3535,7 @@ fn test_hover_self_has_impl_action() {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 7,
@@ -3559,7 +3559,7 @@ fn foo_$0test() {}
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 11,
@@ -3571,7 +3571,7 @@ fn foo_$0test() {}
                         nav: NavigationTarget {
                             file_id: FileId(
                                 EditionedFileId(
-                                    Id(2000),
+                                    Id(1800),
                                 ),
                             ),
                             full_range: 0..24,
@@ -3617,7 +3617,7 @@ mod tests$0 {
                         nav: NavigationTarget {
                             file_id: FileId(
                                 EditionedFileId(
-                                    Id(2000),
+                                    Id(1800),
                                 ),
                             ),
                             full_range: 0..46,
@@ -3659,7 +3659,7 @@ fn main() { let s$0t = S{ f1:0 }; }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..19,
@@ -3694,7 +3694,7 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..16,
@@ -3709,7 +3709,7 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 17..37,
@@ -3757,7 +3757,7 @@ fn main() { let s$0t = S{ f1: S{ f1: Arg(0) } }; }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..16,
@@ -3772,7 +3772,7 @@ fn main() { let s$0t = S{ f1: S{ f1: Arg(0) } }; }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 17..37,
@@ -3810,7 +3810,7 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..14,
@@ -3825,7 +3825,7 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 15..29,
@@ -3840,7 +3840,7 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 42..60,
@@ -3876,7 +3876,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -3912,7 +3912,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..15,
@@ -3927,7 +3927,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 16..25,
@@ -3963,7 +3963,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 13..25,
@@ -3978,7 +3978,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -4017,7 +4017,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 16..31,
@@ -4032,7 +4032,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..15,
@@ -4047,7 +4047,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 32..44,
@@ -4062,7 +4062,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 45..57,
@@ -4095,7 +4095,7 @@ fn foo(ar$0g: &impl Foo) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -4131,7 +4131,7 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 13..28,
@@ -4146,7 +4146,7 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -4161,7 +4161,7 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 29..39,
@@ -4204,7 +4204,7 @@ pub mod future {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2001),
+                                        Id(1801),
                                     ),
                                 ),
                                 full_range: 4294967295..4294967295,
@@ -4220,7 +4220,7 @@ pub mod future {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..110,
@@ -4254,7 +4254,7 @@ fn foo(ar$0g: &impl Foo<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..15,
@@ -4269,7 +4269,7 @@ fn foo(ar$0g: &impl Foo<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 16..27,
@@ -4308,7 +4308,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 48..61,
@@ -4323,7 +4323,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..15,
@@ -4338,7 +4338,7 @@ fn main() { let s$0t = foo(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 16..25,
@@ -4371,7 +4371,7 @@ fn foo(ar$0g: &dyn Foo) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -4405,7 +4405,7 @@ fn foo(ar$0g: &dyn Foo<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..15,
@@ -4420,7 +4420,7 @@ fn foo(ar$0g: &dyn Foo<S>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 16..27,
@@ -4457,7 +4457,7 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 43..57,
@@ -4472,7 +4472,7 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 22..42,
@@ -4487,7 +4487,7 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..21,
@@ -4502,7 +4502,7 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 58..69,
@@ -4546,7 +4546,7 @@ fn main() { let s$0t = test().get(); }
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..62,
@@ -4581,7 +4581,7 @@ impl<const BAR: Bar> Foo<BAR$0> {}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..11,
@@ -4615,7 +4615,7 @@ fn foo<T: Foo>(t: T$0){}
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..12,
@@ -4650,7 +4650,7 @@ impl Foo {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..11,
@@ -7389,7 +7389,7 @@ fn foo() {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 0..11,
@@ -9360,7 +9360,7 @@ impl Iterator for S {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 7,
@@ -9373,7 +9373,7 @@ impl Iterator for S {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2001),
+                                        Id(1801),
                                     ),
                                 ),
                                 full_range: 4294967295..4294967295,
@@ -9389,7 +9389,7 @@ impl Iterator for S {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2001),
+                                        Id(1801),
                                     ),
                                 ),
                                 full_range: 4294967295..4294967295,
@@ -9405,7 +9405,7 @@ impl Iterator for S {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 21..59,
@@ -9420,7 +9420,7 @@ impl Iterator for S {
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 full_range: 10..20,
@@ -10685,7 +10685,7 @@ macro_rules! str {
                     FilePositionWrapper {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         offset: 92,
@@ -10697,7 +10697,7 @@ macro_rules! str {
                         nav: NavigationTarget {
                             file_id: FileId(
                                 EditionedFileId(
-                                    Id(2000),
+                                    Id(1800),
                                 ),
                             ),
                             full_range: 81..301,

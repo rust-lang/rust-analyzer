@@ -136,7 +136,10 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: HirFileId) -> Vec<Runnable> 
     // In case an expansion creates multiple runnables we want to name them to avoid emitting a bunch of equally named runnables.
     let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable>>::default();
     let mut add_opt = |runnable: Option<Runnable>, def| {
-        if let Some(runnable) = runnable.filter(|runnable| runnable.nav.file_id == file_id) {
+        if let Some(runnable) = runnable.and_then(|mut runnable| {
+            runnable.nav = runnable.nav.upmap_to(db, file_id)?.remove(0);
+            Some(runnable)
+        }) {
             if let Some(def) = def {
                 let file_id = match def {
                     Definition::Module(it) => {
@@ -819,14 +822,14 @@ mod not_a_root {
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 0..331, name: \"\", kind: Module })",
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 15..76, focus_range: 42..71, name: \"__cortex_m_rt_main_trampoline\", kind: Function })",
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 78..154, focus_range: 113..149, name: \"__cortex_m_rt_main_trampoline_unsafe\", kind: Function })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 156..180, focus_range: 167..175, name: \"test_foo\", kind: Function })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 182..233, focus_range: 214..228, name: \"test_full_path\", kind: Function })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 235..269, focus_range: 256..264, name: \"test_foo\", kind: Function })",
-                    "(Bench, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 271..293, focus_range: 283..288, name: \"bench\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 0..331, name: \"\", kind: Module })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 15..76, focus_range: 42..71, name: \"__cortex_m_rt_main_trampoline\", kind: Function })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 78..154, focus_range: 113..149, name: \"__cortex_m_rt_main_trampoline_unsafe\", kind: Function })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 156..180, focus_range: 167..175, name: \"test_foo\", kind: Function })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 182..233, focus_range: 214..228, name: \"test_full_path\", kind: Function })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 235..269, focus_range: 256..264, name: \"test_foo\", kind: Function })",
+                    "(Bench, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 271..293, focus_range: 283..288, name: \"bench\", kind: Function })",
                 ]
             "#]],
         );
@@ -930,15 +933,15 @@ impl Test for StructWithRunnable {}
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 15..74, name: \"should_have_runnable\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 76..148, name: \"should_have_runnable_1\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 150..254, name: \"should_have_runnable_2\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 256..320, name: \"should_have_no_runnable_3\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 322..398, name: \"should_have_no_runnable_4\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 900..965, name: \"StructWithRunnable\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 967..1024, focus_range: 1003..1021, name: \"impl\", kind: Impl })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1088..1154, focus_range: 1133..1151, name: \"impl\", kind: Impl })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 15..74, name: \"should_have_runnable\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 76..148, name: \"should_have_runnable_1\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 150..254, name: \"should_have_runnable_2\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 256..320, name: \"should_have_no_runnable_3\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 322..398, name: \"should_have_no_runnable_4\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 900..965, name: \"StructWithRunnable\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 967..1024, focus_range: 1003..1021, name: \"impl\", kind: Impl })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1088..1154, focus_range: 1133..1151, name: \"impl\", kind: Impl })",
                 ]
             "#]],
         );
@@ -962,8 +965,8 @@ impl Data {
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 44..98, name: \"foo\" })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 44..98, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -987,8 +990,8 @@ impl Data<'a> {
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 52..106, name: \"foo\" })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 52..106, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1012,8 +1015,8 @@ impl<T, U> Data<'a, T, U> {
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 70..124, name: \"foo\" })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 70..124, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1037,8 +1040,8 @@ impl<const N: usize> Data<N> {
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 79..133, name: \"foo\" })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 79..133, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1062,8 +1065,8 @@ impl<'a, T, const N: usize> Data<'a, T, N> {
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 100..154, name: \"foo\" })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 100..154, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1081,8 +1084,8 @@ mod test_mod {
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..51, focus_range: 5..13, name: \"test_mod\", kind: Module, description: \"mod test_mod\" })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 20..49, focus_range: 35..44, name: \"test_foo1\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..51, focus_range: 5..13, name: \"test_mod\", kind: Module, description: \"mod test_mod\" })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 20..49, focus_range: 35..44, name: \"test_foo1\", kind: Function })",
                 ]
             "#]],
         );
@@ -1117,12 +1120,12 @@ mod root_tests {
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 22..323, focus_range: 26..40, name: \"nested_tests_0\", kind: Module, description: \"mod nested_tests_0\" })",
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 51..192, focus_range: 55..69, name: \"nested_tests_1\", kind: Module, description: \"mod nested_tests_1\" })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 84..126, focus_range: 107..121, name: \"nested_test_11\", kind: Function })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 140..182, focus_range: 163..177, name: \"nested_test_12\", kind: Function })",
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 202..286, focus_range: 206..220, name: \"nested_tests_2\", kind: Module, description: \"mod nested_tests_2\" })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 235..276, focus_range: 258..271, name: \"nested_test_2\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 22..323, focus_range: 26..40, name: \"nested_tests_0\", kind: Module, description: \"mod nested_tests_0\" })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 51..192, focus_range: 55..69, name: \"nested_tests_1\", kind: Module, description: \"mod nested_tests_1\" })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 84..126, focus_range: 107..121, name: \"nested_test_11\", kind: Function })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 140..182, focus_range: 163..177, name: \"nested_test_12\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 202..286, focus_range: 206..220, name: \"nested_tests_2\", kind: Module, description: \"mod nested_tests_2\" })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 235..276, focus_range: 258..271, name: \"nested_test_2\", kind: Function })",
                 ]
             "#]],
         );
@@ -1140,8 +1143,8 @@ fn test_foo1() {}
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 0..51, name: \"\", kind: Module })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..50, focus_range: 36..45, name: \"test_foo1\", kind: Function }, Atom(KeyValue { key: \"feature\", value: \"foo\" }))",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 0..51, name: \"\", kind: Module })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..50, focus_range: 36..45, name: \"test_foo1\", kind: Function }, Atom(KeyValue { key: \"feature\", value: \"foo\" }))",
                 ]
             "#]],
         );
@@ -1159,8 +1162,8 @@ fn test_foo1() {}
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 0..73, name: \"\", kind: Module })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..72, focus_range: 58..67, name: \"test_foo1\", kind: Function }, All([Atom(KeyValue { key: \"feature\", value: \"foo\" }), Atom(KeyValue { key: \"feature\", value: \"bar\" })]))",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 0..73, name: \"\", kind: Module })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..72, focus_range: 58..67, name: \"test_foo1\", kind: Function }, All([Atom(KeyValue { key: \"feature\", value: \"foo\" }), Atom(KeyValue { key: \"feature\", value: \"bar\" })]))",
                 ]
             "#]],
         );
@@ -1199,7 +1202,7 @@ impl Foo {
         "#,
             expect![[r#"
                 [
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2001))), full_range: 27..81, name: \"foo\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1801))), full_range: 27..81, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1238,8 +1241,12 @@ generate_main!();
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 0..345, name: \"\", kind: Module })",
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 282..312, focus_range: 286..291, name: \"tests\", kind: Module, description: \"mod tests\" })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 0..345, name: \"\", kind: Module })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 282..312, focus_range: 286..291, name: \"tests\", kind: Module, description: \"mod tests\" })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 298..307, name: \"foo_test\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 313..323, name: \"tests2\", kind: Module, description: \"mod tests2\" }, true)",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 313..323, name: \"foo_test2\", kind: Function }, true)",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 327..341, name: \"main\", kind: Function })",
                 ]
             "#]],
         );
@@ -1266,7 +1273,12 @@ macro_rules! foo {
 foo!();
 "#,
             expect![[r#"
-                []
+                [
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 210..214, name: \"foo_tests\", kind: Module, description: \"mod foo_tests\" }, true)",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 210..214, name: \"foo0\", kind: Function }, true)",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 210..214, name: \"foo1\", kind: Function }, true)",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 210..214, name: \"foo2\", kind: Function }, true)",
+                ]
             "#]],
         );
     }
@@ -1305,7 +1317,7 @@ fn t1() {}
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..7, focus_range: 5..6, name: \"m\", kind: Module, description: \"mod m\" })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..7, focus_range: 5..6, name: \"m\", kind: Module, description: \"mod m\" })",
                 ]
             "#]],
         );
@@ -1326,9 +1338,9 @@ fn t1() {}
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2001))), full_range: 0..39, name: \"m\", kind: Module })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2001))), full_range: 1..19, focus_range: 12..14, name: \"t0\", kind: Function })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2001))), full_range: 20..38, focus_range: 31..33, name: \"t1\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1801))), full_range: 0..39, name: \"m\", kind: Module })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1801))), full_range: 1..19, focus_range: 12..14, name: \"t0\", kind: Function })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1801))), full_range: 20..38, focus_range: 31..33, name: \"t1\", kind: Function })",
                 ]
             "#]],
         );
@@ -1350,7 +1362,11 @@ mod module {
 }
 "#,
             expect![[r#"
-                []
+                [
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 26..94, focus_range: 30..36, name: \"module\", kind: Module, description: \"mod module\" }, true)",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 43..65, focus_range: 58..60, name: \"t0\", kind: Function }, true)",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 70..92, focus_range: 85..87, name: \"t1\", kind: Function }, true)",
+                ]
             "#]],
         );
     }
@@ -1387,7 +1403,7 @@ mod tests {
                     NavigationTarget {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         full_range: 31..85,
@@ -1422,7 +1438,7 @@ mod tests {
                     NavigationTarget {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         full_range: 71..122,
@@ -1464,7 +1480,7 @@ mod tests {
                     NavigationTarget {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         full_range: 133..183,
@@ -1506,7 +1522,7 @@ mod tests {
                     NavigationTarget {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         full_range: 52..115,
@@ -1517,7 +1533,7 @@ mod tests {
                     NavigationTarget {
                         file_id: FileId(
                             EditionedFileId(
-                                Id(2000),
+                                Id(1800),
                             ),
                         ),
                         full_range: 121..185,
@@ -1547,8 +1563,8 @@ impl<A, C, const D: u32> Data<'a, A, 12, C, D> {
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 121..156, name: \"foo\" })",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 121..156, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1580,10 +1596,10 @@ impl Foo<Foo<(), ()>, ()> {
 "#,
             expect![[r#"
                 [
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 20..103, focus_range: 47..56, name: \"impl\", kind: Impl })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 63..101, name: \"t\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 105..188, focus_range: 126..146, name: \"impl\", kind: Impl })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 153..186, name: \"t\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 20..103, focus_range: 47..56, name: \"impl\", kind: Impl })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 63..101, name: \"t\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 105..188, focus_range: 126..146, name: \"impl\", kind: Impl })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 153..186, name: \"t\" })",
                 ]
             "#]],
         );
@@ -1630,7 +1646,7 @@ macro_rules! foo {
 "#,
             expect![[r#"
                 [
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..94, name: \"foo\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..94, name: \"foo\" })",
                 ]
             "#]],
         );
@@ -1678,14 +1694,14 @@ mod r#mod {
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 1..461, focus_range: 5..10, name: \"r#mod\", kind: Module, description: \"mod r#mod\" })",
-                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 17..41, focus_range: 32..36, name: \"r#fn\", kind: Function })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 47..84, name: \"r#for\", container_name: \"r#mod\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 90..146, name: \"r#struct\", container_name: \"r#mod\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 152..266, focus_range: 189..205, name: \"impl\", kind: Impl })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 216..260, name: \"r#fn\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 323..367, name: \"r#fn\" })",
-                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 401..459, focus_range: 445..456, name: \"impl\", kind: Impl })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 1..461, focus_range: 5..10, name: \"r#mod\", kind: Module, description: \"mod r#mod\" })",
+                    "(Test, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 17..41, focus_range: 32..36, name: \"r#fn\", kind: Function })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 47..84, name: \"r#for\", container_name: \"r#mod\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 90..146, name: \"r#struct\", container_name: \"r#mod\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 152..266, focus_range: 189..205, name: \"impl\", kind: Impl })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 216..260, name: \"r#fn\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 323..367, name: \"r#fn\" })",
+                    "(DocTest, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 401..459, focus_range: 445..456, name: \"impl\", kind: Impl })",
                 ]
             "#]],
         )
@@ -1718,9 +1734,9 @@ fn exp_main() {}
 "#,
             expect![[r#"
                 [
-                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 36..80, focus_range: 67..75, name: \"exp_main\", kind: Function })",
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 83..168, focus_range: 100..115, name: \"test_mod_inline\", kind: Module, description: \"mod test_mod_inline\" }, Atom(Flag(\"test\")))",
-                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(2000))), full_range: 192..218, focus_range: 209..217, name: \"test_mod\", kind: Module, description: \"mod test_mod\" }, Atom(Flag(\"test\")))",
+                    "(Bin, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 36..80, focus_range: 67..75, name: \"exp_main\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 83..168, focus_range: 100..115, name: \"test_mod_inline\", kind: Module, description: \"mod test_mod_inline\" }, Atom(Flag(\"test\")))",
+                    "(TestMod, NavigationTarget { file_id: FileId(EditionedFileId(Id(1800))), full_range: 192..218, focus_range: 209..217, name: \"test_mod\", kind: Module, description: \"mod test_mod\" }, Atom(Flag(\"test\")))",
                 ]
             "#]],
         )

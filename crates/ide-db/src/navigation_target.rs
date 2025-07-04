@@ -915,6 +915,7 @@ fn orig_range_with_focus(
     }
 }
 
+// FIXME: Return type should mark each item as being call site, defe site, etc
 pub(crate) fn orig_ranges_with_focus_in(
     db: &RootDatabase,
     hir_file: HirFileId,
@@ -957,14 +958,13 @@ pub(crate) fn orig_ranges_with_focus_in(
             let arg_map = db.expansion_span_map(parent);
             let arg_node = current.call_node(db);
             let arg_range = arg_node.text_range();
-            break Some(
-                arg_map
-                    .ranges_with_span_exact(span)
-                    .filter(|(range, _)| range.intersect(arg_range).is_some())
-                    .map(TupleExt::head)
-                    .zip(iter::repeat(None))
-                    .collect(),
-            );
+            let res = arg_map
+                .ranges_with_span_exact(span)
+                .filter(|(range, _)| range.intersect(arg_range).is_some())
+                .map(TupleExt::head)
+                .zip(iter::repeat(None))
+                .collect::<Vec<_>>();
+            break res.is_empty().then_some(res);
         }
         current = parent;
     }

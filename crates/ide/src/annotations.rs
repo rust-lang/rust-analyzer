@@ -262,7 +262,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 6,
@@ -272,7 +272,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 78..82,
@@ -287,7 +287,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 30,
@@ -303,7 +303,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 53,
@@ -321,7 +321,7 @@ fn main() {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 50..85,
@@ -362,7 +362,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 7,
@@ -378,7 +378,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 7,
@@ -388,7 +388,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 41..45,
@@ -403,7 +403,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 17,
@@ -421,7 +421,7 @@ fn main() {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 14..48,
@@ -466,7 +466,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 7,
@@ -476,7 +476,7 @@ fn main() {
                                     NavigationTarget {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         full_range: 36..64,
@@ -494,7 +494,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 7,
@@ -504,7 +504,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 57..61,
@@ -512,7 +512,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 93..97,
@@ -527,7 +527,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 20,
@@ -537,7 +537,7 @@ fn main() {
                                     NavigationTarget {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         full_range: 36..64,
@@ -555,7 +555,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 20,
@@ -565,7 +565,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 41..52,
@@ -580,7 +580,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 69,
@@ -598,7 +598,7 @@ fn main() {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 66..100,
@@ -635,7 +635,7 @@ fn main() {}
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 3,
@@ -653,7 +653,7 @@ fn main() {}
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 0..12,
@@ -698,7 +698,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 7,
@@ -708,7 +708,7 @@ fn main() {
                                     NavigationTarget {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         full_range: 14..56,
@@ -726,7 +726,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 7,
@@ -736,7 +736,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 19..23,
@@ -744,7 +744,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 74..78,
@@ -759,7 +759,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 33,
@@ -769,7 +769,7 @@ fn main() {
                                     FileRangeWrapper {
                                         file_id: FileId(
                                             EditionedFileId(
-                                                Id(2000),
+                                                Id(1800),
                                             ),
                                         ),
                                         range: 79..90,
@@ -784,7 +784,7 @@ fn main() {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 61,
@@ -802,7 +802,7 @@ fn main() {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 58..95,
@@ -844,7 +844,7 @@ mod tests {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 3,
@@ -862,7 +862,7 @@ mod tests {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 0..12,
@@ -888,7 +888,7 @@ mod tests {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 14..64,
@@ -917,7 +917,7 @@ mod tests {
                                 nav: NavigationTarget {
                                     file_id: FileId(
                                         EditionedFileId(
-                                            Id(2000),
+                                            Id(1800),
                                         ),
                                     ),
                                     full_range: 30..62,
@@ -1018,7 +1018,7 @@ struct Foo;
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 67,
@@ -1034,7 +1034,7 @@ struct Foo;
                             pos: FilePositionWrapper {
                                 file_id: FileId(
                                     EditionedFileId(
-                                        Id(2000),
+                                        Id(1800),
                                     ),
                                 ),
                                 offset: 67,
