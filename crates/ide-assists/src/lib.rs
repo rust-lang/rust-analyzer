@@ -153,6 +153,7 @@ mod handlers {
     mod flip_comma;
     mod flip_or_pattern;
     mod flip_trait_bound;
+    mod generate_blanket_trait_impl;
     mod generate_constant;
     mod generate_default_from_enum_variant;
     mod generate_default_from_new;
@@ -305,6 +306,7 @@ mod handlers {
             generate_mut_trait_impl::generate_mut_trait_impl,
             generate_new::generate_new,
             generate_trait_from_impl::generate_trait_from_impl,
+            generate_blanket_trait_impl::generate_blanket_trait_impl,
             inline_call::inline_call,
             inline_call::inline_into_callers,
             inline_const_as_literal::inline_const_as_literal,
