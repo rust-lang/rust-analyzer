@@ -222,6 +222,8 @@ impl_to_to_tokentrees! {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use crate::tt;
     use ::tt::IdentIsRaw;
     use expect_test::expect;
@@ -231,7 +233,7 @@ mod tests {
 
     use super::quote;
 
-    const DUMMY: tt::Span = tt::Span {
+    static DUMMY: LazyLock<tt::Span> = LazyLock::new(|| tt::Span {
         range: TextRange::empty(TextSize::new(0)),
         anchor: SpanAnchor {
             file_id: span::EditionedFileId::new(
@@ -241,39 +243,43 @@ mod tests {
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: SyntaxContext::root(Edition::CURRENT),
-    };
+    });
 
     #[test]
     fn test_quote_delimiters() {
-        assert_eq!(quote!(DUMMY =>{}).to_string(), "{}");
-        assert_eq!(quote!(DUMMY =>()).to_string(), "()");
-        assert_eq!(quote!(DUMMY =>[]).to_string(), "[]");
+        let dummy = *DUMMY;
+        assert_eq!(quote!(dummy =>{}).to_string(), "{}");
+        assert_eq!(quote!(dummy =>()).to_string(), "()");
+        assert_eq!(quote!(dummy =>[]).to_string(), "[]");
     }
 
     #[test]
     fn test_quote_idents() {
-        assert_eq!(quote!(DUMMY =>32).to_string(), "32");
-        assert_eq!(quote!(DUMMY =>struct).to_string(), "struct");
+        let dummy = *DUMMY;
+        assert_eq!(quote!(dummy =>32).to_string(), "32");
+        assert_eq!(quote!(dummy =>struct).to_string(), "struct");
     }
 
     #[test]
     fn test_quote_hash_simple_literal() {
         let a = 20;
-        assert_eq!(quote!(DUMMY =>#a).to_string(), "20");
+        let dummy = *DUMMY;
+        assert_eq!(quote!(dummy =>#a).to_string(), "20");
         let s: String = "hello".into();
-        assert_eq!(quote!(DUMMY =>#s).to_string(), "\"hello\"");
+        assert_eq!(quote!(dummy =>#s).to_string(), "\"hello\"");
     }
 
     fn mk_ident(name: &str) -> crate::tt::Ident {
         let (is_raw, s) = IdentIsRaw::split_from_symbol(name);
-        crate::tt::Ident { sym: Symbol::intern(s), span: DUMMY, is_raw }
+        crate::tt::Ident { sym: Symbol::intern(s), span: *DUMMY, is_raw }
     }
 
     #[test]
     fn test_quote_hash_token_tree() {
         let a = mk_ident("hello");
+        let dummy = *DUMMY;
 
-        let quoted = quote!(DUMMY =>#a);
+        let quoted = quote!(dummy =>#a);
         assert_eq!(quoted.to_string(), "hello");
         let t = format!("{quoted:#?}");
         expect![[r#"
@@ -286,7 +292,8 @@ mod tests {
     fn test_quote_simple_derive_copy() {
         let name = mk_ident("Foo");
 
-        let quoted = quote! {DUMMY =>
+        let dummy = *DUMMY;
+        let quoted = quote! {dummy =>
             impl Clone for #name {
                 fn clone(&self) -> Self {
                     Self {}
@@ -304,19 +311,20 @@ mod tests {
         //  name: String,
         //  id: u32,
         // }
+        let dummy = *DUMMY;
         let struct_name = mk_ident("Foo");
         let fields = [mk_ident("name"), mk_ident("id")];
-        let fields = fields.iter().map(|it| quote!(DUMMY =>#it: self.#it.clone(), ));
+        let fields = fields.iter().map(|it| quote!(dummy =>#it: self.#it.clone(), ));
 
         let mut builder = tt::TopSubtreeBuilder::new(crate::tt::Delimiter {
             kind: crate::tt::DelimiterKind::Brace,
-            open: DUMMY,
-            close: DUMMY,
+            open: dummy,
+            close: dummy,
         });
         fields.for_each(|field| builder.extend_with_tt(field.view().as_token_trees()));
         let list = builder.build();
 
-        let quoted = quote! {DUMMY =>
+        let quoted = quote! {dummy =>
             impl Clone for #struct_name {
                 fn clone(&self) -> Self {
                     Self #list
