@@ -25,6 +25,7 @@ use hir_def::{
     item_scope::ItemScope,
     nameres::DefMap,
     src::HasSource,
+    type_ref::TypeRefId,
 };
 use hir_expand::{FileRange, InFile, db::ExpandDatabase};
 use itertools::Itertools;
@@ -233,6 +234,22 @@ fn check_impl(
                 None => format_to!(unexpected_type_mismatches, "{:?}: {}\n", range.range, actual),
             }
         }
+
+        for (pat, ty) in inference_result.type_of_type.iter() {
+            let node = match type_node(&body_source_map, pat, &db) {
+                Some(value) => value,
+                None => continue,
+            };
+            let range = node.as_ref().original_file_range_rooted(&db);
+            if let Some(expected) = types.remove(&range) {
+                let actual = if display_source {
+                    ty.display_source_code(&db, def.module(&db), true).unwrap()
+                } else {
+                    ty.display_test(&db, display_target).to_string()
+                };
+                assert_eq!(actual, expected, "type annotation differs at {:#?}", range.range);
+            }
+        }
     }
 
     let mut buf = String::new();
@@ -280,6 +297,20 @@ fn pat_node(
     db: &TestDB,
 ) -> Option<InFile<SyntaxNode>> {
     Some(match body_source_map.pat_syntax(pat) {
+        Ok(sp) => {
+            let root = db.parse_or_expand(sp.file_id);
+            sp.map(|ptr| ptr.to_node(&root).syntax().clone())
+        }
+        Err(SyntheticSyntax) => return None,
+    })
+}
+
+fn type_node(
+    body_source_map: &BodySourceMap,
+    type_ref: TypeRefId,
+    db: &TestDB,
+) -> Option<InFile<SyntaxNode>> {
+    Some(match body_source_map.type_syntax(type_ref) {
         Ok(sp) => {
             let root = db.parse_or_expand(sp.file_id);
             sp.map(|ptr| ptr.to_node(&root).syntax().clone())
