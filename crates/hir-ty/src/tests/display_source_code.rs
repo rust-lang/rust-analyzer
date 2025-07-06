@@ -246,3 +246,18 @@ fn test() {
 "#,
     );
 }
+
+#[test]
+fn type_ref_type() {
+    check_types_source_code(
+        r#"
+struct S<T>(T);
+fn test() {
+    let f: S<_> = S(3);
+         //^^^^ S<i32>
+    let f: [_; _] = [4, 5, 6];
+         //^^^^^^ [i32; 3]
+}
+"#,
+    );
+}

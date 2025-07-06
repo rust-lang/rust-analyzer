@@ -470,6 +470,7 @@ pub struct InferenceResult {
     /// unresolved or missing subpatterns or subpatterns of mismatched types.
     pub type_of_pat: ArenaMap<PatId, Ty>,
     pub type_of_binding: ArenaMap<BindingId, Ty>,
+    pub type_of_type: ArenaMap<TypeRefId, Ty>,
     pub type_of_rpit: ArenaMap<ImplTraitIdx, Ty>,
     /// Type of the result of `.into_iter()` on the for. `ExprId` is the one of the whole for loop.
     pub type_of_for_iterator: FxHashMap<ExprId, Ty>,
@@ -771,6 +772,7 @@ impl<'db> InferenceContext<'db> {
             type_of_expr,
             type_of_pat,
             type_of_binding,
+            type_of_type,
             type_of_rpit,
             type_of_for_iterator,
             type_mismatches,
@@ -837,6 +839,11 @@ impl<'db> InferenceContext<'db> {
             *has_errors = *has_errors || ty.contains_unknown();
         }
         type_of_for_iterator.shrink_to_fit();
+        for ty in type_of_type.values_mut() {
+            *ty = table.resolve_completely(ty.clone());
+            *has_errors = *has_errors || ty.contains_unknown();
+        }
+        type_of_type.shrink_to_fit();
 
         *has_errors |= !type_mismatches.is_empty();
 
@@ -1323,6 +1330,10 @@ impl<'db> InferenceContext<'db> {
         self.result.type_of_pat.insert(pat, ty);
     }
 
+    fn write_type_ty(&mut self, pat: TypeRefId, ty: Ty) {
+        self.result.type_of_type.insert(pat, ty);
+    }
+
     fn write_binding_ty(&mut self, id: BindingId, ty: Ty) {
         self.result.type_of_binding.insert(id, ty);
     }
@@ -1369,7 +1380,9 @@ impl<'db> InferenceContext<'db> {
         let ty = self
             .with_ty_lowering(store, type_source, lifetime_elision, |ctx| ctx.lower_ty(type_ref));
         let ty = self.insert_type_vars(ty);
-        self.normalize_associated_types_in(ty)
+        let ty = self.normalize_associated_types_in(ty);
+        self.write_type_ty(type_ref, ty.clone());
+        ty
     }
 
     fn make_body_ty(&mut self, type_ref: TypeRefId) -> Ty {
