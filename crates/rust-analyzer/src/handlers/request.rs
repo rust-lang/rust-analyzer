@@ -9,7 +9,8 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use ide::{
     AnnotationConfig, AssistKind, AssistResolveStrategy, Cancellable, CompletionFieldsToResolve,
     FilePosition, FileRange, HoverAction, HoverGotoTypeData, InlayFieldsToResolve, Query,
-    RangeInfo, ReferenceCategory, Runnable, RunnableKind, SingleResolve, SourceChange, TextEdit,
+    RangeInfo, ReferenceCategory, ResolveAnnotationConfig, Runnable, RunnableKind, SingleResolve,
+    SourceChange, TextEdit,
 };
 use ide_db::{FxHashMap, SymbolKind};
 use itertools::Itertools;
@@ -838,10 +839,11 @@ pub(crate) fn handle_goto_implementation(
     let _p = tracing::info_span!("handle_goto_implementation").entered();
     let position =
         try_default!(from_proto::file_position(&snap, params.text_document_position_params)?);
-    let nav_info = match snap.analysis.goto_implementation(position)? {
-        None => return Ok(None),
-        Some(it) => it,
-    };
+    let nav_info =
+        match snap.analysis.goto_implementation(&snap.config.goto_implementation(), position)? {
+            None => return Ok(None),
+            Some(it) => it,
+        };
     let src = FileRange { file_id: position.file_id, range: nav_info.range };
     let res = to_proto::goto_definition_response(&snap, Some(src), nav_info.info)?;
     Ok(Some(res))
@@ -1624,6 +1626,8 @@ pub(crate) fn handle_code_lens(
             annotate_method_references: lens_config.method_refs,
             annotate_enum_variant_references: lens_config.enum_variant_refs,
             location: lens_config.location.into(),
+            filter_adjacent_derive_implementations: lens_config
+                .filter_adjacent_derive_implementations,
         },
         file_id,
     )?;
@@ -1647,7 +1651,14 @@ pub(crate) fn handle_code_lens_resolve(
     let Some(annotation) = from_proto::annotation(&snap, code_lens.range, resolve)? else {
         return Ok(code_lens);
     };
-    let annotation = snap.analysis.resolve_annotation(annotation)?;
+    let lens_config = snap.config.lens();
+    let annotation = snap.analysis.resolve_annotation(
+        &ResolveAnnotationConfig {
+            filter_adjacent_derive_implementations: lens_config
+                .filter_adjacent_derive_implementations,
+        },
+        annotation,
+    )?;
 
     let mut acc = Vec::new();
     to_proto::code_lens(&mut acc, &snap, annotation)?;
@@ -2123,7 +2134,11 @@ fn show_impl_command_link(
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
     if snap.config.hover_actions().implementations && snap.config.client_commands().show_reference {
-        if let Some(nav_data) = snap.analysis.goto_implementation(*position).unwrap_or(None) {
+        if let Some(nav_data) = snap
+            .analysis
+            .goto_implementation(&snap.config.goto_implementation(), *position)
+            .unwrap_or(None)
+        {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
             let position = to_proto::position(&line_index, position.offset);
