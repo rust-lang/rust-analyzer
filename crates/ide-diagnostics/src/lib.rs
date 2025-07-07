@@ -96,6 +96,7 @@ use ide_db::{
     generated::lints::{CLIPPY_LINT_GROUPS, DEFAULT_LINT_GROUPS, DEFAULT_LINTS, Lint, LintGroup},
     imports::insert_use::InsertUseConfig,
     label::Label,
+    rename::RenameConfig,
     source_change::SourceChange,
     syntax_helpers::node_ext::parse_tt_as_comma_sep_paths,
 };
@@ -236,6 +237,7 @@ pub struct DiagnosticsConfig {
     pub prefer_absolute: bool,
     pub term_search_fuel: u64,
     pub term_search_borrowck: bool,
+    pub rename_config: RenameConfig,
 }
 
 impl DiagnosticsConfig {
@@ -264,6 +266,7 @@ impl DiagnosticsConfig {
             prefer_absolute: false,
             term_search_fuel: 400,
             term_search_borrowck: true,
+            rename_config: RenameConfig { show_conflicts: true },
         }
     }
 }

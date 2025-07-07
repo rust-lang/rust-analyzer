@@ -7,6 +7,7 @@ use ide_db::{
     assists::ExprFillDefaultMode,
     base_db::{SourceDatabase, salsa},
     imports::insert_use::{ImportGranularity, InsertUseConfig},
+    rename::RenameConfig,
     source_change::FileSystemEdit,
 };
 use stdx::{format_to, trim_indent};
@@ -38,6 +39,7 @@ pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
     code_action_grouping: true,
     expr_fill_default: ExprFillDefaultMode::Todo,
     prefer_self_ty: false,
+    rename_config: RenameConfig { show_conflicts: true },
 };
 
 pub(crate) const TEST_CONFIG_NO_GROUPING: AssistConfig = AssistConfig {
@@ -59,6 +61,7 @@ pub(crate) const TEST_CONFIG_NO_GROUPING: AssistConfig = AssistConfig {
     code_action_grouping: false,
     expr_fill_default: ExprFillDefaultMode::Todo,
     prefer_self_ty: false,
+    rename_config: RenameConfig { show_conflicts: true },
 };
 
 pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
@@ -80,6 +83,7 @@ pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
     code_action_grouping: true,
     expr_fill_default: ExprFillDefaultMode::Todo,
     prefer_self_ty: false,
+    rename_config: RenameConfig { show_conflicts: true },
 };
 
 pub(crate) const TEST_CONFIG_IMPORT_ONE: AssistConfig = AssistConfig {
@@ -101,6 +105,7 @@ pub(crate) const TEST_CONFIG_IMPORT_ONE: AssistConfig = AssistConfig {
     code_action_grouping: true,
     expr_fill_default: ExprFillDefaultMode::Todo,
     prefer_self_ty: false,
+    rename_config: RenameConfig { show_conflicts: true },
 };
 
 pub(crate) fn with_single_file(text: &str) -> (RootDatabase, EditionedFileId) {
