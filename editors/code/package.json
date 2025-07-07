@@ -2651,6 +2651,16 @@
                 }
             },
             {
+                "title": "rename",
+                "properties": {
+                    "rust-analyzer.rename.showConflicts": {
+                        "markdownDescription": "Whether to warn when a rename will cause conflicts (change the meaning of the code).",
+                        "default": true,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
                 "title": "runnables",
                 "properties": {
                     "rust-analyzer.runnables.command": {
