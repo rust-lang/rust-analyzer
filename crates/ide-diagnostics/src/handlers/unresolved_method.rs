@@ -7,6 +7,7 @@ use ide_db::{
     label::Label,
     source_change::SourceChange,
 };
+use itertools::Itertools;
 use syntax::{
     AstNode, SmolStr, TextRange, ToSmolStr,
     ast::{self, HasArgList, make},
@@ -87,8 +88,11 @@ fn add_method_fix(
     let db = ctx.sema.db;
     let ty = d.receiver.clone();
 
-    let impl_block =
-        hir::Impl::all_for_type(db, ty).into_iter().find(|block| block.trait_(db).is_none())?;
+    let mut all_impl_blocks = hir::Impl::all_for_type(db, ty.clone())
+        .into_iter()
+        .chain(hir::Impl::all_for_type(db, ty.strip_reference()));
+    let impl_block = all_impl_blocks.find(|block| block.trait_(db).is_none())?;
+
     let items = impl_block.items(db);
     let last_item = items.last()?;
     let source = last_item.source(db)?;
@@ -96,13 +100,32 @@ fn add_method_fix(
         hir::HirFileId::FileId(file_id) => file_id,
         hir::HirFileId::MacroFile(_) => return None,
     };
+    let module_id = last_item.module(db);
     let end_of_last_item = source.node_file_range().file_range()?.range.end();
 
     let method_body = match ctx.config.expr_fill_default {
         ExprFillDefaultMode::Default | ExprFillDefaultMode::Todo => "todo!()",
         ExprFillDefaultMode::Underscore => "_",
     };
-    let text_to_insert = format!("\n  fn {}(&self) {{ {method_body} }}", d.name.as_str());
+
+    let method_name = d.name.as_str();
+    let params: Vec<String> = d
+        .arg_types
+        .iter()
+        .enumerate()
+        .map(|(i, ty)| {
+            let name = format!("arg{}", i + 1);
+            let ty = ty.display_source_code(db, module_id.into(), true).unwrap();
+            format!("{name}: {ty}")
+        })
+        .collect();
+    let param_list = if params.is_empty() {
+        "&self".to_owned()
+    } else {
+        format!("&self, {}", params.into_iter().join(","))
+    };
+
+    let text_to_insert = format!("\n  fn {method_name}({param_list}) {{ {method_body} }}");
     Some(fix(
         "add-missing-method",
         "Add missing method",
@@ -424,7 +447,7 @@ struct Speaker;
 
 impl Speaker {
   fn greet(&self) {
-    self.say("hello");$0
+    self.say("hello")$0;
   }
 }"#,
             r#"
@@ -434,8 +457,7 @@ impl Speaker {
   fn greet(&self) {
     self.say("hello");
   }
-
-  fn say(&self, arg1: &str) {}
+  fn say(&self, arg1: &'static str) { todo!() }
 }"#,
         );
     }

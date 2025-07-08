@@ -260,6 +260,7 @@ pub struct UnresolvedMethodCall<'db> {
     pub expr: InFile<ExprOrPatPtr>,
     pub receiver: Type<'db>,
     pub name: Name,
+    pub arg_types: Vec<Type<'db>>,
     pub field_with_same_name: Option<Type<'db>>,
     pub assoc_func_with_same_name: Option<Function>,
 }
@@ -688,6 +689,7 @@ impl<'db> AnyDiagnostic<'db> {
                 expr,
                 receiver,
                 name,
+                arg_types,
                 field_with_same_name,
                 assoc_func_with_same_name,
             } => {
@@ -695,6 +697,7 @@ impl<'db> AnyDiagnostic<'db> {
                 UnresolvedMethodCall {
                     expr,
                     name: name.clone(),
+                    arg_types: arg_types.iter().map(|ty| Type::new(db, def, ty.clone())).collect(),
                     receiver: Type::new(db, def, receiver.clone()),
                     field_with_same_name: field_with_same_name
                         .clone()
