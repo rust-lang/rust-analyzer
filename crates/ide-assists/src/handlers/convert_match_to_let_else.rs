@@ -44,27 +44,29 @@ pub(crate) fn convert_match_to_let_else(acc: &mut Assists, ctx: &AssistContext<'
         cov_mark::hit!(extracting_arm_has_guard);
         return None;
     }
-
+    let make = SyntaxFactory::with_mappings();
     let diverging_arm_expr = match diverging_arm.expr()? {
         ast::Expr::BlockExpr(block) if block.modifier().is_none() && block.label().is_none() => {
-            block.to_string()
+            block
         }
-        other => format!("{{ {other} }}"),
+        other => make.block_expr(None, Some(other)),
     };
     let extracting_arm_pat = extracting_arm.pat()?;
     let extracted_variable_positions = find_extracted_variable(ctx, &extracting_arm)?;
-
+    let extracting_arm_pat =
+        rename_variable(&extracting_arm_pat, &extracted_variable_positions, pat);
+    let extracting_arm_pat = ast::Pat::cast(extracting_arm_pat)?;
+    let let_else =
+        make.let_else_stmt(extracting_arm_pat, None, initializer_expr, diverging_arm_expr);
     acc.add(
         AssistId::refactor_rewrite("convert_match_to_let_else"),
         "Convert match to let-else",
         let_stmt.syntax().text_range(),
         |builder| {
-            let extracting_arm_pat =
-                rename_variable(&extracting_arm_pat, &extracted_variable_positions, pat);
-            builder.replace(
-                let_stmt.syntax().text_range(),
-                format!("let {extracting_arm_pat} = {initializer_expr} else {diverging_arm_expr};"),
-            )
+            let mut editor = builder.make_editor(let_stmt.syntax());
+            editor.replace(let_stmt.syntax(), let_else.syntax());
+            editor.add_mappings(make.finish_with_mappings());
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
@@ -203,7 +205,9 @@ enum Foo {
 }
 
 fn foo(opt: Option<Foo>) -> Result<u32, ()> {
-    let Some(Foo::A(value) | Foo::B(value)) = opt else { return Err(()) };
+    let Some(Foo::A(value) | Foo::B(value)) = opt else {
+    return Err(())
+};
 }
     "#,
         );
@@ -274,7 +278,9 @@ fn foo(opt: Option<()>) {
     "#,
             r#"
 fn foo(opt: Option<()>) {
-    let Some(val) = opt else { return };
+    let Some(val) = opt else {
+    return
+};
 }
     "#,
         );
@@ -295,7 +301,9 @@ fn foo(opt: Option<()>) {
     "#,
             r#"
 fn foo(opt: Option<()>) {
-    let Some(ref mut val) = opt else { return };
+    let Some(ref mut val) = opt else {
+    return
+};
 }
     "#,
         );
@@ -316,7 +324,9 @@ fn foo(opt: Option<Result<()>>) {
     "#,
             r#"
 fn foo(opt: Option<Result<()>>) {
-    let Some(Ok(val)) = opt else { return };
+    let Some(Ok(val)) = opt else {
+    return
+};
 }
     "#,
         );
@@ -340,7 +350,9 @@ fn foo(opt: Option<()>) {
             r#"
 fn foo(opt: Option<()>) {
     loop {
-        let Some(val) = opt else { break };
+        let Some(val) = opt else {
+    break
+};
     }
 }
     "#,
@@ -362,7 +374,9 @@ fn foo(opt: Option<()>) {
             r#"
 fn foo(opt: Option<()>) {
     loop {
-        let Some(val) = opt else { continue };
+        let Some(val) = opt else {
+    continue
+};
     }
 }
     "#,
@@ -388,7 +402,9 @@ fn panic() -> ! {}
 
 fn foo(opt: Option<()>) {
     loop {
-        let Some(val) = opt else { panic() };
+        let Some(val) = opt else {
+    panic()
+};
     }
 }
     "#,
@@ -420,7 +436,9 @@ struct Point {
 }
 
 fn foo(opt: Option<Point>) {
-    let Some(Point { x: 0, y: val }) = opt else { return };
+    let Some(Point { x: 0, y: val }) = opt else {
+    return
+};
 }
     "#,
         );
@@ -442,7 +460,9 @@ fn foo(opt: Option<i32>) -> Option<i32> {
     "#,
             r#"
 fn foo(opt: Option<i32>) -> Option<i32> {
-    let val @ Some(42) = opt else { return None };
+    let val @ Some(42) = opt else {
+    return None
+};
     val
 }
     "#,
@@ -464,7 +484,9 @@ fn f() {
 "#,
             r#"
 fn f() {
-    let Some((x, y)) = Some((0, 1)) else { return };
+    let Some((x, y)) = Some((0, 1)) else {
+    return
+};
 }
 "#,
         );
