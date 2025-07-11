@@ -296,6 +296,13 @@ impl<'db> UnsafeVisitor<'db> {
 
                         return;
                     }
+                    Expr::Field { .. } => {
+                        if self.contains_union_field_access(*expr) {
+                            // Walk the entire field access chain without triggering union field errors
+                            self.walk_field_chain_for_raw_ptr(*expr);
+                            return;
+                        }
+                    }
                     _ => (),
                 }
             }
@@ -403,6 +410,45 @@ impl<'db> UnsafeVisitor<'db> {
                 && !static_data.flags.contains(StaticFlags::EXPLICIT_SAFE)
             {
                 self.on_unsafe_op(node, UnsafetyReason::ExternStatic);
+            }
+        }
+    }
+
+    fn contains_union_field_access(&mut self, expr: ExprId) -> bool {
+        match &self.body.exprs[expr] {
+            Expr::Field { expr: base_expr, .. } => {
+                // Check if this field access is from a union
+                if matches!(
+                    self.infer.field_resolution(expr),
+                    Some(Either::Left(FieldId { parent: VariantId::UnionId(_), .. }))
+                ) {
+                    true
+                } else {
+                    // Recursively check the base expression
+                    self.contains_union_field_access(*base_expr)
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Walks a field access chain for raw pointer creation, avoiding union field access errors
+    fn walk_field_chain_for_raw_ptr(&mut self, expr: ExprId) {
+        match &self.body.exprs[expr] {
+            Expr::Field { expr: base_expr, .. } => {
+                // First, recursively handle the base expression
+                self.walk_field_chain_for_raw_ptr(*base_expr);
+
+                // Then handle any non-field child expressions of this field access
+                self.body.walk_child_exprs_without_pats(expr, |child| {
+                    if child != *base_expr {
+                        self.walk_expr(child);
+                    }
+                });
+            }
+            _ => {
+                // We've reached the base expression (not a field access), walk it normally
+                self.walk_expr(expr);
             }
         }
     }
