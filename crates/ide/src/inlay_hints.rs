@@ -670,7 +670,8 @@ struct InlayHintLabelBuilder<'a> {
     db: &'a RootDatabase,
     result: InlayHintLabel,
     last_part: String,
-    resolve: bool,
+    resolve_location: bool,
+    resolve_tooltip: bool,
     location: Option<LazyProperty<FileRange>>,
     tooltip: Option<LazyProperty<InlayTooltip>>,
     in_truncated_part: bool,
@@ -691,7 +692,7 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
         never!(self.location.is_some(), "location link is already started");
         self.make_new_part();
 
-        self.location = Some(if self.resolve {
+        self.location = Some(if self.resolve_location {
             LazyProperty::Lazy
         } else {
             LazyProperty::Computed({
@@ -709,6 +710,8 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
         self.make_new_part();
     }
 
+    /// Returns whether a new truncated part is created during this call. If not, it indicates that
+    /// the last part is a truncated part.
     fn start_truncated(&mut self) -> bool {
         never!(self.location.is_some(), "location link is already started");
         // If currently in the truncated part, do not create a new part and continue writing into
@@ -727,7 +730,7 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
         always!(self.in_truncated_part, "truncated is not started");
 
         const HINT_TRUNCATION: &str = "…";
-        if self.resolve {
+        if self.resolve_tooltip {
             self.last_part = HINT_TRUNCATION.to_owned();
             self.tooltip = Some(LazyProperty::Lazy);
         } else {
@@ -821,7 +824,8 @@ fn label_of_ty(
         tooltip: None,
         in_truncated_part: false,
         result: InlayHintLabel::default(),
-        resolve: config.fields_to_resolve.resolve_label_location,
+        resolve_location: config.fields_to_resolve.resolve_label_location,
+        resolve_tooltip: config.fields_to_resolve.resolve_label_tooltip,
     };
     let _ =
         rec(sema, famous_defs, config.max_length, ty, &mut label_builder, config, display_target);
@@ -945,15 +949,8 @@ mod tests {
         lifetime_elision_hints: LifetimeElisionHints::Always,
         ..DISABLED_CONFIG
     };
-    pub(super) const TEST_CONFIG_WITH_TRUNCATION: InlayHintsConfig = InlayHintsConfig {
-        type_hints: true,
-        parameter_hints: true,
-        chaining_hints: true,
-        closure_return_type_hints: ClosureReturnTypeHints::WithBlock,
-        binding_mode_hints: true,
-        max_length: Some(10),
-        ..DISABLED_CONFIG
-    };
+    pub(super) const TEST_CONFIG_WITH_TRUNCATION: InlayHintsConfig =
+        InlayHintsConfig { max_length: Some(10), ..TEST_CONFIG };
 
     #[track_caller]
     pub(super) fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {

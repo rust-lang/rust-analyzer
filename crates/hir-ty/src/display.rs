@@ -64,10 +64,9 @@ use crate::{
 pub trait HirWrite: fmt::Write {
     fn start_location_link(&mut self, _location: ModuleDefId) {}
     fn end_location_link(&mut self) {}
-    /// Returns whether a new truncated part is created during this call. If so,
-    /// the caller should call `end_truncated` at the end. Otherwise, the caller
-    /// should not call `end_truncated`. This ensures that the truncated part is
-    /// not nested.
+    /// Returns whether a new truncated part is created during this call. If so, the caller should
+    /// call `end_truncated` at the end. This ensures that the truncated part is not nested, i.e.
+    /// we should not use [`TYPE_HINT_TRUNCATION`] inside a tooltip (a truncated part).
     fn start_truncated(&mut self) -> bool {
         false
     }
@@ -155,10 +154,13 @@ impl HirFormatter<'_> {
         self.fmt.end_location_link();
     }
 
-    fn maybe_truncated<T, F: FnOnce(&mut Self) -> T>(&mut self, f: F) -> T {
-        let truncated = self.should_truncate() && self.fmt.start_truncated();
-        let res = f(self);
-        if truncated {
+    fn maybe_truncated<F: FnOnce(&mut Self) -> Result<(), HirDisplayError>>(
+        &mut self,
+        render_content_to: F,
+    ) -> Result<(), HirDisplayError> {
+        let start_truncated_part = self.should_truncate() && self.fmt.start_truncated();
+        let res = render_content_to(self);
+        if start_truncated_part {
             self.fmt.end_truncated();
         }
         res
