@@ -1,4 +1,4 @@
-use hir::{AsAssocItem, Semantics};
+use hir::{AsAssocItem, HirFilePosition, Semantics};
 use ide_db::{
     RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
@@ -6,8 +6,9 @@ use ide_db::{
 use syntax::{AstNode, SyntaxKind::*, T, ast, match_ast};
 
 use crate::{
-    FilePosition, NavigationTarget, RangeInfo, goto_definition::goto_definition,
-    navigation_target::TryToNav,
+    RangeInfo,
+    goto_definition::goto_definition,
+    navigation_target::{HirNavigationTarget, TryToNav},
 };
 
 // Feature: Go to Declaration
@@ -20,15 +21,16 @@ use crate::{
 // - fields in patterns will navigate to the field declaration of the struct, union or variant
 pub(crate) fn goto_declaration(
     db: &RootDatabase,
-    position @ FilePosition { file_id, offset }: FilePosition,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+    position @ HirFilePosition { file_id, offset }: HirFilePosition,
+) -> Option<RangeInfo<Vec<HirNavigationTarget>>> {
     let sema = Semantics::new(db);
-    let file = sema.parse_guess_edition(file_id).syntax().clone();
+    let file_id = sema.adjust_edition(file_id);
+    let file = sema.parse_or_expand(sema.adjust_edition(file_id));
     let original_token = file
         .token_at_offset(offset)
         .find(|it| matches!(it.kind(), IDENT | T![self] | T![super] | T![crate] | T![Self]))?;
     let range = original_token.text_range();
-    let info: Vec<NavigationTarget> = sema
+    let info: Vec<HirNavigationTarget> = sema
         .descend_into_macros_no_opaque(original_token, false)
         .iter()
         .filter_map(|token| {
@@ -38,35 +40,34 @@ pub(crate) fn goto_declaration(
                     ast::NameRef(name_ref) => match NameRefClass::classify(&sema, &name_ref)? {
                         NameRefClass::Definition(it, _) => Some(it),
                         NameRefClass::FieldShorthand { field_ref, .. } =>
-                            return field_ref.try_to_nav(db),
+                            return field_ref.try_to_nav_hir(db),
                         NameRefClass::ExternCrateShorthand { decl, .. } =>
-                            return decl.try_to_nav(db),
+                            return decl.try_to_nav_hir(db),
                     },
                     ast::Name(name) => match NameClass::classify(&sema, &name)? {
                         NameClass::Definition(it) | NameClass::ConstReference(it) => Some(it),
                         NameClass::PatFieldShorthand { field_ref, .. } =>
-                            return field_ref.try_to_nav(db),
+                            return field_ref.try_to_nav_hir(db),
                     },
                     _ => None
                 }
             };
             let assoc = match def? {
                 Definition::Module(module) => {
-                    return Some(NavigationTarget::from_module_to_decl(db, module));
+                    return Some(HirNavigationTarget::from_module_to_decl(db, module));
                 }
                 Definition::Const(c) => c.as_assoc_item(db),
                 Definition::TypeAlias(ta) => ta.as_assoc_item(db),
                 Definition::Function(f) => f.as_assoc_item(db),
-                Definition::ExternCrateDecl(it) => return it.try_to_nav(db),
+                Definition::ExternCrateDecl(it) => return it.try_to_nav_hir(db),
                 _ => None,
             }?;
 
             let trait_ = assoc.implemented_trait(db)?;
             let name = Some(assoc.name(db)?);
             let item = trait_.items(db).into_iter().find(|it| it.name(db) == name)?;
-            item.try_to_nav(db)
+            item.try_to_nav_hir(db)
         })
-        .flatten()
         .collect();
 
     if info.is_empty() { goto_definition(db, position) } else { Some(RangeInfo::new(range, info)) }
@@ -74,7 +75,7 @@ pub(crate) fn goto_declaration(
 
 #[cfg(test)]
 mod tests {
-    use ide_db::FileRange;
+    use hir::HirFileRange;
     use itertools::Itertools;
 
     use crate::fixture;
@@ -82,7 +83,7 @@ mod tests {
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
         let navs = analysis
-            .goto_declaration(position)
+            .goto_declaration(position.into())
             .unwrap()
             .expect("no declaration or definition found")
             .info;
@@ -90,17 +91,14 @@ mod tests {
             panic!("unresolved reference")
         }
 
-        let cmp = |&FileRange { file_id, range }: &_| (file_id, range.start());
+        let cmp = |&HirFileRange { file_id, range }: &_| (file_id, range.start());
         let navs = navs
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
-        let expected = expected
-            .into_iter()
-            .map(|(FileRange { file_id, range }, _)| FileRange { file_id, range })
-            .sorted_by_key(cmp)
-            .collect::<Vec<_>>();
+        let expected =
+            expected.into_iter().map(|(r, _)| r.into()).sorted_by_key(cmp).collect::<Vec<_>>();
         assert_eq!(expected, navs);
     }
 

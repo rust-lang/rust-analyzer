@@ -1,9 +1,10 @@
 //! Implementation of "closure captures" inlay hints.
 //!
 //! Tests live in [`bind_pat`][super::bind_pat] module.
+use hir::{HirFileId, HirFileRange};
 use ide_db::famous_defs::FamousDefs;
 use ide_db::text_edit::{TextRange, TextSize};
-use stdx::{TupleExt, never};
+use stdx::never;
 use syntax::ast::{self, AstNode};
 
 use crate::{
@@ -14,6 +15,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
+    _file_id: HirFileId,
     closure: ast::ClosureExpr,
 ) -> Option<()> {
     if !config.closure_capture_hints {
@@ -72,13 +74,9 @@ pub(super) fn hints(
 
                 // force cache the source file, otherwise sema lookup will potentially panic
                 _ = sema.parse_or_expand(source.file());
-                source.name().and_then(|name| {
-                    name.syntax().original_file_range_opt(sema.db).map(TupleExt::head).map(
-                        |frange| ide_db::FileRange {
-                            file_id: frange.file_id.file_id(sema.db),
-                            range: frange.range,
-                        },
-                    )
+                Some(HirFileRange {
+                    file_id: source.file(),
+                    range: source.name()?.syntax().text_range(),
                 })
             }),
             tooltip: None,

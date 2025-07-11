@@ -331,7 +331,7 @@ impl Module {
         let out_of_sel = |node: &SyntaxNode| !self.text_range.contains_range(node.text_range());
         let mut use_stmts_set = FxHashSet::default();
 
-        for (file_id, refs) in node_def.usages(&ctx.sema).all() {
+        for (file_id, refs) in node_def.usages(&ctx.sema).all().map_out_of_macros(&ctx.sema) {
             let source_file = ctx.sema.parse(file_id);
             let usages = refs.into_iter().filter_map(|FileReference { range, .. }| {
                 // handle normal usages

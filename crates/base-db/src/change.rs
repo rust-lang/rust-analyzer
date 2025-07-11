@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+use rustc_hash::FxHashSet;
 use salsa::Durability;
 use triomphe::Arc;
 use vfs::FileId;
@@ -49,8 +50,16 @@ impl FileChange {
     pub fn apply(self, db: &mut dyn RootQueryDb) -> Option<CratesIdMap> {
         let _p = tracing::info_span!("FileChange::apply").entered();
         if let Some(roots) = self.roots {
+            let mut local_roots = FxHashSet::default();
+            let mut library_roots = FxHashSet::default();
             for (idx, root) in roots.into_iter().enumerate() {
                 let root_id = SourceRootId(idx as u32);
+                if root.is_library {
+                    library_roots.insert(root_id);
+                } else {
+                    local_roots.insert(root_id);
+                }
+
                 let durability = source_root_durability(&root);
                 for file_id in root.iter() {
                     db.set_file_source_root_with_durability(file_id, root_id, durability);
@@ -58,6 +67,8 @@ impl FileChange {
 
                 db.set_source_root_with_durability(root_id, Arc::new(root), durability);
             }
+            db.set_local_roots_with_durability(Arc::new(local_roots), Durability::MEDIUM);
+            db.set_library_roots_with_durability(Arc::new(library_roots), Durability::MEDIUM);
         }
 
         for (file_id, text) in self.files_changed {

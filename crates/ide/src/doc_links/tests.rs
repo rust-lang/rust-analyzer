@@ -24,7 +24,8 @@ fn check_external_docs(
     sysroot: Option<&str>,
 ) {
     let (analysis, position) = fixture::position(ra_fixture);
-    let links = analysis.external_docs(position, target_dir, sysroot).unwrap();
+    let links =
+        analysis.external_docs(position.into_file_id(&analysis.db), target_dir, sysroot).unwrap();
 
     let web_url = links.web_url;
     let local_url = links.local_url;
@@ -45,7 +46,7 @@ fn check_external_docs(
 fn check_rewrite(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let sema = &Semantics::new(&analysis.db);
-    let (cursor_def, docs, range) = def_under_cursor(sema, &position);
+    let (cursor_def, docs, range) = def_under_cursor(sema, position.into_file_id(&analysis.db));
     let res = rewrite_links(sema.db, docs.as_str(), cursor_def, Some(range));
     expect.assert_eq(&res)
 }
@@ -53,10 +54,14 @@ fn check_rewrite(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect
 fn check_doc_links(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let key_fn = |&(FileRange { file_id, range }, _): &_| (file_id, range.start());
 
-    let (analysis, position, mut expected) = fixture::annotations(ra_fixture);
+    let (analysis, position, expected) = fixture::annotations(ra_fixture);
+    let mut expected = expected
+        .into_iter()
+        .map(|(range, s)| (range.into_file_id(&analysis.db), s))
+        .collect::<Vec<_>>();
     expected.sort_by_key(key_fn);
     let sema = &Semantics::new(&analysis.db);
-    let (cursor_def, docs, range) = def_under_cursor(sema, &position);
+    let (cursor_def, docs, range) = def_under_cursor(sema, position.into_file_id(&analysis.db));
     let defs = extract_definitions_from_docs(&docs);
     let actual: Vec<_> = defs
         .into_iter()
@@ -79,7 +84,7 @@ fn check_doc_links(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
 
 fn def_under_cursor(
     sema: &Semantics<'_, RootDatabase>,
-    position: &FilePosition,
+    position: FilePosition,
 ) -> (Definition, Documentation, DocsRangeMap) {
     let (docs, def) = sema
         .parse_guess_edition(position.file_id)

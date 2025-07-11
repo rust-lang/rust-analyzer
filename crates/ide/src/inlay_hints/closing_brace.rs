@@ -3,8 +3,8 @@
 //! fn g() {
 //! } /* fn g */
 //! ```
-use hir::{DisplayTarget, HirDisplay, InRealFile, Semantics};
-use ide_db::{FileRange, RootDatabase};
+use hir::{DisplayTarget, HirDisplay, HirFileRange, InFile, Semantics};
+use ide_db::RootDatabase;
 use syntax::{
     SyntaxKind, SyntaxNode, T,
     ast::{self, AstNode, HasLoopBody, HasName},
@@ -21,7 +21,7 @@ pub(super) fn hints(
     sema: &Semantics<'_, RootDatabase>,
     config: &InlayHintsConfig,
     display_target: DisplayTarget,
-    InRealFile { file_id, value: node }: InRealFile<SyntaxNode>,
+    InFile { file_id, value: node }: InFile<SyntaxNode>,
 ) -> Option<()> {
     let min_lines = config.closing_brace_hints_min_lines?;
 
@@ -138,8 +138,7 @@ pub(super) fn hints(
         return None;
     }
 
-    let linked_location =
-        name_range.map(|range| FileRange { file_id: file_id.file_id(sema.db), range });
+    let linked_location = name_range.map(|range| HirFileRange { file_id, range });
     acc.push(InlayHint {
         range: closing_token.text_range(),
         kind: InlayKind::ClosingBrace,

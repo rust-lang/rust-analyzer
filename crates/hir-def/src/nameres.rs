@@ -519,6 +519,23 @@ impl DefMap {
             .map(|(id, _data)| id)
     }
 
+    pub fn inline_modules_for_macro_file(
+        &self,
+        file_id: MacroCallId,
+    ) -> impl Iterator<Item = LocalModuleId> + '_ {
+        self.modules
+            .iter()
+            .filter(move |(_id, data)| {
+                (match data.origin {
+                    ModuleOrigin::Inline { definition_tree_id, .. } => {
+                        definition_tree_id.file_id().macro_file()
+                    }
+                    _ => None,
+                }) == Some(file_id)
+            })
+            .map(|(id, _data)| id)
+    }
+
     pub fn modules(&self) -> impl Iterator<Item = (LocalModuleId, &ModuleData)> + '_ {
         self.modules.iter()
     }

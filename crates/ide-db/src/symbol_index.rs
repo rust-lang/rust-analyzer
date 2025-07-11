@@ -36,7 +36,6 @@ use hir::{
     symbols::{FileSymbol, SymbolCollector},
 };
 use rayon::prelude::*;
-use rustc_hash::FxHashSet;
 use triomphe::Arc;
 
 use crate::RootDatabase;
@@ -118,16 +117,6 @@ pub trait SymbolsDatabase: HirDatabase + SourceDatabase {
     #[salsa::transparent]
     /// The symbol indices of modules that make up a given crate.
     fn crate_symbols(&self, krate: Crate) -> Box<[Arc<SymbolIndex>]>;
-
-    /// The set of "local" (that is, from the current workspace) roots.
-    /// Files in local roots are assumed to change frequently.
-    #[salsa::input]
-    fn local_roots(&self) -> Arc<FxHashSet<SourceRootId>>;
-
-    /// The set of roots for crates.io libraries.
-    /// Files in libraries are assumed to never change.
-    #[salsa::input]
-    fn library_roots(&self) -> Arc<FxHashSet<SourceRootId>>;
 }
 
 fn library_symbols(db: &dyn SymbolsDatabase, source_root_id: SourceRootId) -> Arc<SymbolIndex> {
@@ -394,6 +383,7 @@ impl Query {
 mod tests {
 
     use expect_test::expect_file;
+    use rustc_hash::FxHashSet;
     use salsa::Durability;
     use test_fixture::{WORKSPACE, WithFixture};
 

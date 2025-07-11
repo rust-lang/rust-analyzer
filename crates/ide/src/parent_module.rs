@@ -1,6 +1,6 @@
-use hir::{Semantics, crate_def_map};
+use hir::{HirFilePosition, Semantics, crate_def_map};
 use ide_db::{
-    FileId, FilePosition, RootDatabase,
+    FileId, RootDatabase,
     base_db::{Crate, RootQueryDb},
 };
 use itertools::Itertools;
@@ -9,7 +9,7 @@ use syntax::{
     ast::{self, AstNode},
 };
 
-use crate::NavigationTarget;
+use crate::navigation_target::HirNavigationTarget;
 
 // Feature: Parent Module
 //
@@ -22,11 +22,15 @@ use crate::NavigationTarget;
 // ![Parent Module](https://user-images.githubusercontent.com/48062697/113065580-04c21800-91b1-11eb-9a32-00086161c0bd.gif)
 
 /// This returns `Vec` because a module may be included from several places.
-pub(crate) fn parent_module(db: &RootDatabase, position: FilePosition) -> Vec<NavigationTarget> {
+pub(crate) fn parent_module(
+    db: &RootDatabase,
+    mut position: HirFilePosition,
+) -> Vec<HirNavigationTarget> {
     let sema = Semantics::new(db);
-    let source_file = sema.parse_guess_edition(position.file_id);
+    position.file_id = sema.adjust_edition(position.file_id);
+    let syntax = sema.parse_or_expand(position.file_id);
 
-    let mut module = find_node_at_offset::<ast::Module>(source_file.syntax(), position.offset);
+    let mut module = find_node_at_offset::<ast::Module>(&syntax, position.offset);
 
     // If cursor is literally on `mod foo`, go to the grandpa.
     if let Some(m) = &module {
@@ -43,11 +47,11 @@ pub(crate) fn parent_module(db: &RootDatabase, position: FilePosition) -> Vec<Na
         Some(module) => sema
             .to_def(&module)
             .into_iter()
-            .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
+            .map(|module| HirNavigationTarget::from_module_to_decl(db, module))
             .collect(),
         None => sema
-            .file_to_module_defs(position.file_id)
-            .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
+            .hir_file_to_module_defs(position.file_id)
+            .map(|module| HirNavigationTarget::from_module_to_decl(db, module))
             .collect(),
     }
 }
@@ -66,18 +70,21 @@ pub(crate) fn crates_for(db: &RootDatabase, file_id: FileId) -> Vec<Crate> {
 
 #[cfg(test)]
 mod tests {
-    use ide_db::FileRange;
+    use hir::HirFileRange;
 
     use crate::fixture;
 
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        let navs = analysis.parent_module(position).unwrap();
+        let navs = analysis.parent_module(position.into()).unwrap();
         let navs = navs
             .iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
             .collect::<Vec<_>>();
-        assert_eq!(expected.into_iter().map(|(fr, _)| fr).collect::<Vec<_>>(), navs);
+        assert_eq!(
+            expected.into_iter().map(|(r, _)| r.into()).collect::<Vec<HirFileRange>>(),
+            navs
+        );
     }
 
     #[test]
@@ -151,7 +158,7 @@ $0
 mod foo;
 "#,
         );
-        assert_eq!(analysis.crates_for(file_id).unwrap().len(), 1);
+        assert_eq!(analysis.crates_for(file_id.file_id(&analysis.db)).unwrap().len(), 1);
     }
 
     #[test]
@@ -166,6 +173,6 @@ mod baz;
 mod baz;
 "#,
         );
-        assert_eq!(analysis.crates_for(file_id).unwrap().len(), 2);
+        assert_eq!(analysis.crates_for(file_id.file_id(&analysis.db)).unwrap().len(), 2);
     }
 }

@@ -10,10 +10,10 @@
 //! in release mode in VS Code. There's however "rust-analyzer: Copy Run Command Line"
 //! which you can use to paste the command in terminal and add `--release` manually.
 
-use hir::ChangeWithProcMacros;
+use hir::{ChangeWithProcMacros, EditionedFileId};
 use ide::{
     AnalysisHost, CallableSnippets, CompletionConfig, CompletionFieldsToResolve, DiagnosticsConfig,
-    FilePosition, TextSize,
+    Edition, FilePosition, TextSize,
 };
 use ide_db::{
     SnippetCap,
@@ -76,7 +76,12 @@ fn integrated_highlighting_benchmark() {
     {
         let _it = stdx::timeit("initial");
         let analysis = host.analysis();
-        analysis.highlight_as_html(file_id, false).unwrap();
+        analysis
+            .highlight_as_html(
+                EditionedFileId::new(analysis.db(), file_id, Edition::CURRENT).into(),
+                false,
+            )
+            .unwrap();
     }
 
     {
@@ -97,7 +102,12 @@ fn integrated_highlighting_benchmark() {
         let _it = stdx::timeit("after change");
         let _span = profile::cpu_span();
         let analysis = host.analysis();
-        analysis.highlight_as_html(file_id, false).unwrap();
+        analysis
+            .highlight_as_html(
+                EditionedFileId::new(analysis.db(), file_id, Edition::CURRENT).into(),
+                false,
+            )
+            .unwrap();
     }
 }
 

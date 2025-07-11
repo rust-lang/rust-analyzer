@@ -263,6 +263,16 @@ pub trait RootQueryDb: SourceDatabase + salsa::Database {
     #[salsa::invoke(input::transitive_rev_deps)]
     #[salsa::transparent]
     fn transitive_rev_deps(&self, of: Crate) -> FxHashSet<Crate>;
+
+    /// The set of "local" (that is, from the current workspace) roots.
+    /// Files in local roots are assumed to change frequently.
+    #[salsa::input]
+    fn local_roots(&self) -> Arc<FxHashSet<SourceRootId>>;
+
+    /// The set of roots for crates.io libraries.
+    /// Files in libraries are assumed to never change.
+    #[salsa::input]
+    fn library_roots(&self) -> Arc<FxHashSet<SourceRootId>>;
 }
 
 pub fn transitive_deps(db: &dyn SourceDatabase, crate_id: Crate) -> FxHashSet<Crate> {

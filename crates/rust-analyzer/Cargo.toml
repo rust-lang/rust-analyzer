@@ -67,7 +67,9 @@ load-cargo.workspace = true
 proc-macro-api.workspace = true
 profile.workspace = true
 project-model.workspace = true
+span = { workspace = true , features = ["salsa"]}
 stdx.workspace = true
+syntax-bridge.workspace = true
 syntax.workspace = true
 parser.workspace = true
 toolchain.workspace = true
@@ -90,7 +92,6 @@ xshell.workspace = true
 
 test-utils.workspace = true
 test-fixture.workspace = true
-syntax-bridge.workspace = true
 
 [features]
 jemalloc = ["jemallocator", "profile/jemalloc"]
