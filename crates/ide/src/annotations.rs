@@ -9,7 +9,7 @@ use syntax::{AstNode, TextRange, ast::HasName};
 use crate::{
     NavigationTarget, RunnableKind,
     annotations::fn_references::find_all_methods,
-    goto_implementation::goto_implementation,
+    goto_implementation::{GotoImplementationConfig, goto_implementation},
     navigation_target,
     references::find_all_refs,
     runnables::{Runnable, runnables},
@@ -44,6 +44,11 @@ pub struct AnnotationConfig {
     pub annotate_method_references: bool,
     pub annotate_enum_variant_references: bool,
     pub location: AnnotationLocation,
+    pub filter_adjacent_derive_implementations: bool,
+}
+
+pub struct ResolveAnnotationConfig {
+    pub filter_adjacent_derive_implementations: bool,
 }
 
 pub enum AnnotationLocation {
@@ -196,10 +201,19 @@ pub(crate) fn annotations(
         .collect()
 }
 
-pub(crate) fn resolve_annotation(db: &RootDatabase, mut annotation: Annotation) -> Annotation {
+pub(crate) fn resolve_annotation(
+    db: &RootDatabase,
+    config: &ResolveAnnotationConfig,
+    mut annotation: Annotation,
+) -> Annotation {
     match annotation.kind {
         AnnotationKind::HasImpls { pos, ref mut data } => {
-            *data = goto_implementation(db, pos).map(|range| range.info);
+            let goto_implementation_config = GotoImplementationConfig {
+                filter_adjacent_derive_implementations: config
+                    .filter_adjacent_derive_implementations,
+            };
+            *data =
+                goto_implementation(db, &goto_implementation_config, pos).map(|range| range.info);
         }
         AnnotationKind::HasReferences { pos, ref mut data } => {
             *data = find_all_refs(&Semantics::new(db), pos, None).map(|result| {
@@ -229,7 +243,7 @@ fn should_skip_runnable(kind: &RunnableKind, binary_target: bool) -> bool {
 mod tests {
     use expect_test::{Expect, expect};
 
-    use crate::{Annotation, AnnotationConfig, fixture};
+    use crate::{Annotation, AnnotationConfig, ResolveAnnotationConfig, fixture};
 
     use super::AnnotationLocation;
 
@@ -241,7 +255,11 @@ mod tests {
         annotate_method_references: true,
         annotate_enum_variant_references: true,
         location: AnnotationLocation::AboveName,
+        filter_adjacent_derive_implementations: false,
     };
+
+    const DEFAULT_RESOLVE_CONFIG: ResolveAnnotationConfig =
+        ResolveAnnotationConfig { filter_adjacent_derive_implementations: false };
 
     fn check_with_config(
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
@@ -254,7 +272,9 @@ mod tests {
             .annotations(config, file_id)
             .unwrap()
             .into_iter()
-            .map(|annotation| analysis.resolve_annotation(annotation).unwrap())
+            .map(|annotation| {
+                analysis.resolve_annotation(&DEFAULT_RESOLVE_CONFIG, annotation).unwrap()
+            })
             .collect();
 
         expect.assert_debug_eq(&annotations);
