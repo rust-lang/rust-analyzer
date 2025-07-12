@@ -16,6 +16,7 @@ crossbeam-channel.workspace = true
 [dev-dependencies]
 lsp-types = "=0.95"
 ctrlc = "3.4.7"
+anyhow = "1.0.98"
 
 [lints]
 workspace = true
