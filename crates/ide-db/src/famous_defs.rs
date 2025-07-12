@@ -70,6 +70,10 @@ impl FamousDefs<'_, '_> {
         self.find_trait("core:ops:Index")
     }
 
+    pub fn core_borrow_Borrow(&self) -> Option<Trait> {
+        self.find_trait("core:borrow:Borrow")
+    }
+
     pub fn core_option_Option(&self) -> Option<Enum> {
         self.find_enum("core:option:Option")
     }
