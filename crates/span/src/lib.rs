@@ -158,11 +158,11 @@ impl EditionedFileId {
         self.0
     }
 
-    pub const fn file_id(self) -> FileId {
+    pub fn file_id(self) -> FileId {
         FileId::from_raw(self.0 & Self::FILE_ID_MASK)
     }
 
-    pub const fn unpack(self) -> (FileId, Edition) {
+    pub fn unpack(self) -> (FileId, Edition) {
         (self.file_id(), self.edition())
     }
 

@@ -46,11 +46,13 @@ impl<S: Copy, SM: SpanMapper<S>> SpanMapper<S> for &SM {
 /// Dummy things for testing where spans don't matter.
 pub mod dummy_test_span_utils {
 
+    use std::sync::LazyLock;
+
     use span::{Span, SyntaxContext};
 
     use super::*;
 
-    pub const DUMMY: Span = Span {
+    pub static DUMMY: LazyLock<Span> = LazyLock::new(|| Span {
         range: TextRange::empty(TextSize::new(0)),
         anchor: span::SpanAnchor {
             file_id: span::EditionedFileId::new(
@@ -60,7 +62,7 @@ pub mod dummy_test_span_utils {
             ast_id: span::ROOT_ERASED_FILE_AST_ID,
         },
         ctx: SyntaxContext::root(Edition::CURRENT),
-    };
+    });
 
     pub struct DummyTestSpanMap;
 
