@@ -365,7 +365,7 @@ impl Dolphin {
 
 #[allow(unused)]
 fn say_hi_to(dolphin: &Dolphin) {
-  println!("hello, {}", dolphin.name$0());
+  "hello " + dolphin.name$0();
 }"#,
             r#"
 struct Dolphin;
@@ -375,8 +375,9 @@ impl Dolphin {
   fn name(&self) { todo!() }
 }
 
+#[allow(unused)]
 fn say_hi_to(dolphin: &Dolphin) {
-  println!("hello, {}", dolphin.name());
+  "hello " + dolphin.name();
 }"#,
         );
     }
