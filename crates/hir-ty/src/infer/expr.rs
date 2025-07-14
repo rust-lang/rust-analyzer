@@ -1887,7 +1887,7 @@ impl InferenceContext<'_> {
                 );
 
                 let arg_types = args
-                    .into_iter()
+                    .iter()
                     .map(|&arg| self.infer_expr_inner(arg, &Expectation::none(), ExprIsRead::Yes))
                     .collect();
                 self.push_diagnostic(InferenceDiagnostic::UnresolvedMethodCall {
