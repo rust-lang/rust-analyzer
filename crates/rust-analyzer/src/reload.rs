@@ -945,6 +945,19 @@ pub(crate) fn should_refresh_for_change(
         None => return false,
     };
 
+    // We ignore `rust-analyzer/metadata/copied_lockfiles/**/Cargo.lock` files
+    // because they're watched by the VFS, and these copied lockfiles could
+    // otherwise trigger infinite metadata fetch loops.
+    // See: https://github.com/rust-lang/rust-analyzer/issues/20189
+    if file_name == "Cargo.lock"
+        && path.components().tuple_windows().any(|(c1, c2, c3)| {
+            (c1.as_str(), c2.as_str(), c3.as_str())
+                == ("rust-analyzer", "metadata", "lockfile_copies")
+        })
+    {
+        return false;
+    }
+
     if let "Cargo.toml" | "Cargo.lock" = file_name {
         return true;
     }

@@ -8,7 +8,7 @@ use base_db::Env;
 use cargo_metadata::{CargoOpt, MetadataCommand};
 use la_arena::{Arena, Idx};
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use serde_derive::Deserialize;
 use serde_json::from_value;
 use span::Edition;
@@ -552,6 +552,7 @@ impl CargoWorkspace {
 
 pub(crate) struct FetchMetadata {
     command: cargo_metadata::MetadataCommand,
+    manifest_path: ManifestPath,
     lockfile_path: Option<Utf8PathBuf>,
     kind: &'static str,
     no_deps: bool,
@@ -655,7 +656,15 @@ impl FetchMetadata {
         }
         .with_context(|| format!("Failed to run `{cargo_command:?}`"));
 
-        Self { command, lockfile_path, kind: config.kind, no_deps, no_deps_result, other_options }
+        Self {
+            manifest_path: cargo_toml.clone(),
+            command,
+            lockfile_path,
+            kind: config.kind,
+            no_deps,
+            no_deps_result,
+            other_options,
+        }
     }
 
     pub(crate) fn no_deps_metadata(&self) -> Option<&cargo_metadata::Metadata> {
@@ -672,8 +681,15 @@ impl FetchMetadata {
         locked: bool,
         progress: &dyn Fn(String),
     ) -> anyhow::Result<(cargo_metadata::Metadata, Option<anyhow::Error>)> {
-        let Self { mut command, lockfile_path, kind, no_deps, no_deps_result, mut other_options } =
-            self;
+        let Self {
+            manifest_path,
+            mut command,
+            lockfile_path,
+            kind,
+            no_deps,
+            no_deps_result,
+            mut other_options,
+        } = self;
 
         if no_deps {
             return no_deps_result.map(|m| (m, None));
@@ -682,8 +698,25 @@ impl FetchMetadata {
         let mut using_lockfile_copy = false;
         // The manifest is a rust file, so this means its a script manifest
         if let Some(lockfile) = lockfile_path {
-            let target_lockfile =
-                target_dir.join("rust-analyzer").join("metadata").join(kind).join("Cargo.lock");
+            // When multiple workspaces share the same target dir, they might overwrite into a
+            // single lockfile path.
+            // See https://github.com/rust-lang/rust-analyzer/issues/20189#issuecomment-3073520255
+            let manifest_path_hash = std::hash::BuildHasher::hash_one(
+                &std::hash::BuildHasherDefault::<FxHasher>::default(),
+                &manifest_path,
+            );
+            let disambiguator = format!(
+                "{}_{manifest_path_hash}",
+                manifest_path.components().nth_back(1).map_or("", |c| c.as_str())
+            );
+
+            let target_lockfile = target_dir
+                .join("rust-analyzer")
+                .join("metadata")
+                .join("lockfile_copies")
+                .join(kind)
+                .join(disambiguator)
+                .join("Cargo.lock");
             match std::fs::copy(&lockfile, &target_lockfile) {
                 Ok(_) => {
                     using_lockfile_copy = true;
