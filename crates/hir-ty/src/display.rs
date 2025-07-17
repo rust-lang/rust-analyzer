@@ -70,7 +70,7 @@ pub trait HirWrite: fmt::Write {
     fn start_truncated(&mut self) -> bool {
         false
     }
-    fn end_truncated(&mut self) {}
+    fn end_truncated(&mut self, _placeholder: &str) {}
 }
 
 // String will ignore link metadata
@@ -161,7 +161,7 @@ impl HirFormatter<'_> {
         let start_truncated_part = self.should_truncate() && self.fmt.start_truncated();
         let res = render_content_to(self);
         if start_truncated_part {
-            self.fmt.end_truncated();
+            self.fmt.end_truncated(TYPE_HINT_TRUNCATION);
         }
         res
     }
@@ -427,7 +427,7 @@ impl HirFormatter<'_> {
         }
 
         if in_truncated {
-            self.fmt.end_truncated();
+            self.fmt.end_truncated(TYPE_HINT_TRUNCATION);
         }
 
         Ok(())

@@ -726,15 +726,14 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
         true
     }
 
-    fn end_truncated(&mut self) {
+    fn end_truncated(&mut self, placeholder: &str) {
         always!(self.in_truncated_part, "truncated is not started");
 
-        const HINT_TRUNCATION: &str = "…";
         if self.resolve_tooltip {
-            self.last_part = HINT_TRUNCATION.to_owned();
+            self.last_part = placeholder.to_owned();
             self.tooltip = Some(LazyProperty::Lazy);
         } else {
-            let mut tooltip = mem::replace(&mut self.last_part, HINT_TRUNCATION.to_owned());
+            let mut tooltip = mem::replace(&mut self.last_part, placeholder.to_owned());
             tooltip.push_str("\n```");
             self.tooltip = Some(LazyProperty::Computed(InlayTooltip::Markdown(tooltip)));
         }
