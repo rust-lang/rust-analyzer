@@ -139,6 +139,7 @@ mod handlers {
     mod destructure_struct_binding;
     mod destructure_tuple_binding;
     mod desugar_doc_comment;
+    mod desugar_self_param;
     mod desugar_try_expr;
     mod expand_glob_import;
     mod expand_rest_pattern;
@@ -273,6 +274,7 @@ mod handlers {
             destructure_struct_binding::destructure_struct_binding,
             destructure_tuple_binding::destructure_tuple_binding,
             desugar_doc_comment::desugar_doc_comment,
+            desugar_self_param::desugar_self_param,
             desugar_try_expr::desugar_try_expr,
             expand_glob_import::expand_glob_import,
             expand_glob_import::expand_glob_reexport,

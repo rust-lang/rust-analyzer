@@ -930,6 +930,25 @@ comment"]
 }
 
 #[test]
+fn doctest_desugar_self_param() {
+    check_doc_test(
+        "desugar_self_param",
+        r#####"
+struct Foo;
+impl Foo {
+    fn foo(&$0self) {}
+}
+"#####,
+        r#####"
+struct Foo;
+impl Foo {
+    fn foo(self: &Self) {}
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_desugar_try_expr_let_else() {
     check_doc_test(
         "desugar_try_expr_let_else",
