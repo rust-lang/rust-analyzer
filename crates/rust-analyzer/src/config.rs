@@ -18,6 +18,7 @@ use ide_db::{
     SnippetCap,
     assists::ExprFillDefaultMode,
     imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind},
+    rename::RenameConfig,
 };
 use itertools::{Either, Itertools};
 use paths::{Utf8Path, Utf8PathBuf};
@@ -553,6 +554,9 @@ config_data! {
         imports_prefix: ImportPrefixDef               = ImportPrefixDef::ByCrate,
         /// Whether to prefix external (including std, core) crate imports with `::`. e.g. "use ::std::io::Read;".
         imports_prefixExternPrelude: bool = false,
+
+        /// Whether to warn when a rename will cause conflicts (change the meaning of the code).
+        rename_showConflicts: bool = true,
     }
 }
 
@@ -1496,6 +1500,10 @@ impl Config {
 }
 
 impl Config {
+    pub fn rename(&self, source_root: Option<SourceRootId>) -> RenameConfig {
+        RenameConfig { show_conflicts: *self.rename_showConflicts(source_root) }
+    }
+
     pub fn assist(&self, source_root: Option<SourceRootId>) -> AssistConfig {
         AssistConfig {
             snippet_cap: self.snippet_cap(),
@@ -1514,6 +1522,7 @@ impl Config {
                 ExprFillDefaultDef::Underscore => ExprFillDefaultMode::Underscore,
             },
             prefer_self_ty: *self.assist_preferSelf(source_root),
+            rename_config: self.rename(source_root),
         }
     }
 
@@ -1608,6 +1617,7 @@ impl Config {
             style_lints: self.diagnostics_styleLints_enable(source_root).to_owned(),
             term_search_fuel: self.assist_termSearch_fuel(source_root).to_owned() as u64,
             term_search_borrowck: self.assist_termSearch_borrowcheck(source_root).to_owned(),
+            rename_config: self.rename(source_root),
         }
     }
 

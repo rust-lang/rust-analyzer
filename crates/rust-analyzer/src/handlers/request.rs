@@ -780,7 +780,11 @@ pub(crate) fn handle_will_rename_files(
             }
         })
         .filter_map(|(file_id, new_name)| {
-            snap.analysis.will_rename_file(file_id?, &new_name).ok()?
+            let file_id = file_id?;
+            let source_root = snap.analysis.source_root_id(file_id).ok();
+            snap.analysis
+                .will_rename_file(&snap.config.rename(source_root), file_id, &new_name)
+                .ok()?
         })
         .collect();
 
@@ -1316,8 +1320,11 @@ pub(crate) fn handle_rename(
     let _p = tracing::info_span!("handle_rename").entered();
     let position = try_default!(from_proto::file_position(&snap, params.text_document_position)?);
 
-    let mut change =
-        snap.analysis.rename(position, &params.new_name)?.map_err(to_proto::rename_error)?;
+    let source_root = snap.analysis.source_root_id(position.file_id).ok();
+    let mut change = snap
+        .analysis
+        .rename(&snap.config.rename(source_root), position, &params.new_name)?
+        .map_err(to_proto::rename_error)?;
 
     // this is kind of a hack to prevent double edits from happening when moving files
     // When a module gets renamed by renaming the mod declaration this causes the file to move
