@@ -93,7 +93,8 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                     file_id: ctx.file_id(),
                     range: parent_fn.syntax().text_range(),
                 }))
-                .all();
+                .all()
+                .map_out_of_macros(&ctx.sema);
 
             let range_to_delete = match const_.syntax().next_sibling_or_token() {
                 Some(s) if matches!(s.kind(), SyntaxKind::WHITESPACE) => {

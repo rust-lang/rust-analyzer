@@ -1,11 +1,11 @@
 //! Discovers tests
 
-use hir::{Crate, Module, ModuleDef, Semantics};
+use hir::{Crate, EditionedFileId, Module, ModuleDef, Semantics};
 use ide_db::base_db;
 use ide_db::{FileId, RootDatabase, base_db::RootQueryDb};
 use syntax::TextRange;
 
-use crate::{NavigationTarget, Runnable, TryToNav, runnables::runnable_fn};
+use crate::{Runnable, TryToNav, navigation_target::HirNavigationTarget, runnables::runnable_fn};
 
 #[derive(Debug)]
 pub enum TestItemKind {
@@ -72,7 +72,7 @@ fn discover_tests_in_module(
         let module_id = format!("{prefix_id}::{module_name}");
         let module_children = discover_tests_in_module(db, c, module_id.clone(), only_in_this_file);
         if !module_children.is_empty() {
-            let nav = NavigationTarget::from_module_to_decl(sema.db, c).call_site;
+            let nav = HirNavigationTarget::from_module_to_decl(sema.db, c).upmap(sema.db).call_site;
             r.push(TestItem {
                 id: module_id,
                 kind: TestItemKind::Module,
@@ -94,15 +94,15 @@ fn discover_tests_in_module(
         if !f.is_test(db) {
             continue;
         }
-        let nav = f.try_to_nav(db).map(|r| r.call_site);
+        let nav = f.try_to_nav(db);
         let fn_name = f.name(db).as_str().to_owned();
         r.push(TestItem {
             id: format!("{prefix_id}::{fn_name}"),
             kind: TestItemKind::Function,
             label: fn_name,
             parent: Some(prefix_id.clone()),
-            file: nav.as_ref().map(|n| n.file_id),
-            text_range: nav.as_ref().map(|n| n.focus_or_full_range()),
+            file: nav.as_ref().map(|n| n.call_site.file_id),
+            text_range: nav.as_ref().map(|n| n.call_site.focus_or_full_range()),
             runnable: runnable_fn(&sema, f),
         });
     }
@@ -122,7 +122,10 @@ pub(crate) fn discover_tests_in_crate_by_test_id(
 pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: FileId) -> Vec<TestItem> {
     let sema = Semantics::new(db);
 
-    let Some(module) = sema.file_to_module_def(file_id) else { return vec![] };
+    let Some(module) = sema.file_to_module_def(EditionedFileId::current_edition(db, file_id))
+    else {
+        return vec![];
+    };
     let Some((mut tests, id)) = find_module_id_and_test_parents(&sema, module) else {
         return vec![];
     };
@@ -155,7 +158,7 @@ fn find_module_id_and_test_parents(
     let module_name = &module.name(sema.db);
     let module_name = module_name.as_ref().map(|n| n.as_str()).unwrap_or("[mod without name]");
     id += module_name;
-    let nav = NavigationTarget::from_module_to_decl(sema.db, module).call_site;
+    let nav = HirNavigationTarget::from_module_to_decl(sema.db, module).upmap(sema.db).call_site;
     r.push(TestItem {
         id: id.clone(),
         kind: TestItemKind::Module,

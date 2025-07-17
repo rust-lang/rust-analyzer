@@ -7,8 +7,9 @@ use crate::{
 use hir::FileRange;
 use ide_db::{
     EditionedFileId, FileId, FxHashSet,
+    base_db::RootQueryDb,
     defs::Definition,
-    search::{SearchScope, UsageSearchResult},
+    search::{RealFileUsageSearchResult, SearchScope},
 };
 use syntax::{AstNode, SyntaxKind, SyntaxNode, ast};
 
@@ -18,7 +19,7 @@ use syntax::{AstNode, SyntaxKind, SyntaxNode, ast};
 /// them more than once.
 #[derive(Default)]
 pub(crate) struct UsageCache {
-    usages: Vec<(Definition, UsageSearchResult)>,
+    usages: Vec<(Definition, RealFileUsageSearchResult)>,
 }
 
 impl<'db> MatchFinder<'db> {
@@ -114,14 +115,14 @@ impl<'db> MatchFinder<'db> {
         &self,
         usage_cache: &'a mut UsageCache,
         definition: Definition,
-    ) -> &'a UsageSearchResult {
+    ) -> &'a RealFileUsageSearchResult {
         // Logically if a lookup succeeds we should just return it. Unfortunately returning it would
         // extend the lifetime of the borrow, then we wouldn't be able to do the insertion on a
         // cache miss. This is a limitation of NLL and is fixed with Polonius. For now we do two
         // lookups in the case of a cache hit.
         if usage_cache.find(&definition).is_none() {
             let usages = definition.usages(&self.sema).in_scope(&self.search_scope()).all();
-            usage_cache.usages.push((definition, usages));
+            usage_cache.usages.push((definition, usages.map_out_of_macros(&self.sema)));
             return &usage_cache.usages.last().unwrap().1;
         }
         usage_cache.find(&definition).unwrap()
@@ -156,7 +157,6 @@ impl<'db> MatchFinder<'db> {
         if self.restrict_ranges.is_empty() {
             // Unrestricted search.
             use ide_db::base_db::SourceDatabase;
-            use ide_db::symbol_index::SymbolsDatabase;
             for &root in self.sema.db.local_roots().iter() {
                 let sr = self.sema.db.source_root(root).source_root(self.sema.db);
                 for file_id in sr.iter() {
@@ -259,7 +259,7 @@ fn is_search_permitted(node: &SyntaxNode) -> bool {
 }
 
 impl UsageCache {
-    fn find(&mut self, definition: &Definition) -> Option<&UsageSearchResult> {
+    fn find(&mut self, definition: &Definition) -> Option<&RealFileUsageSearchResult> {
         // We expect a very small number of cache entries (generally 1), so a linear scan should be
         // fast enough and avoids the need to implement Hash for Definition.
         for (d, refs) in &self.usages {

@@ -2,7 +2,7 @@ use hir::{PathResolution, Semantics};
 use ide_db::{
     EditionedFileId, RootDatabase,
     defs::Definition,
-    search::{FileReference, FileReferenceNode, UsageSearchResult},
+    search::{FileReference, FileReferenceNode, RealFileUsageSearchResult},
 };
 use syntax::{
     SyntaxElement, TextRange,
@@ -142,7 +142,8 @@ fn inline_let(
     }
 
     let local = sema.to_def(&bind_pat)?;
-    let UsageSearchResult { mut references } = Definition::Local(local).usages(sema).all();
+    let RealFileUsageSearchResult { mut references } =
+        Definition::Local(local).usages(sema).all().map_out_of_macros(sema);
     match references.remove(&file_id) {
         Some(references) => Some(InlineData {
             let_stmt,
@@ -189,7 +190,8 @@ fn inline_usage(
 
     let let_stmt = ast::LetStmt::cast(bind_pat.syntax().parent()?)?;
 
-    let UsageSearchResult { mut references } = Definition::Local(local).usages(sema).all();
+    let RealFileUsageSearchResult { mut references } =
+        Definition::Local(local).usages(sema).all().map_out_of_macros(sema);
     let mut references = references.remove(&file_id)?;
     let delete_let = references.len() == 1;
     references.retain(|fref| fref.name.as_name_ref() == Some(&name));

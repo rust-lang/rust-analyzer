@@ -1924,6 +1924,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "span",
  "stdx",
  "syntax",
  "syntax-bridge",

@@ -12,6 +12,7 @@ pub mod famous_defs;
 pub mod helpers;
 pub mod items_locator;
 pub mod label;
+pub mod navigation_target;
 pub mod path_transform;
 pub mod prime_caches;
 pub mod rename;
@@ -60,7 +61,7 @@ use hir::{
 };
 use triomphe::Arc;
 
-use crate::{line_index::LineIndex, symbol_index::SymbolsDatabase};
+use crate::line_index::LineIndex;
 pub use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 pub use ::line_index;

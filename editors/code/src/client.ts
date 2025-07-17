@@ -268,7 +268,7 @@ export async function createClient(
         },
     };
     const clientOptions: lc.LanguageClientOptions = {
-        documentSelector: [{ scheme: "file", language: "rust" }],
+        documentSelector: [{ scheme: "file", language: "rust" }, { scheme: "rust-macro-file" }],
         initializationOptions,
         diagnosticCollectionName: "rustc",
         traceOutputChannel,
@@ -314,6 +314,7 @@ class ExperimentalFeatures implements lc.StaticFeature {
             openServerLogs: true,
             localDocs: true,
             testExplorer: this.testExplorer,
+            virtualMacroFiles: true,
             commands: {
                 commands: [
                     "rust-analyzer.runSingle",

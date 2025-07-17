@@ -1,8 +1,8 @@
-use hir::GenericParam;
+use hir::{GenericParam, HirFilePosition};
 use ide_db::{RootDatabase, defs::Definition, helpers::pick_best_token};
 use syntax::{AstNode, SyntaxKind::*, SyntaxToken, T, ast, match_ast};
 
-use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
+use crate::{RangeInfo, TryToNav, navigation_target::HirNavigationTarget};
 
 // Feature: Go to Type Definition
 //
@@ -15,26 +15,25 @@ use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
 // ![Go to Type Definition](https://user-images.githubusercontent.com/48062697/113020657-b560f500-917a-11eb-9007-0f809733a338.gif)
 pub(crate) fn goto_type_definition(
     db: &RootDatabase,
-    FilePosition { file_id, offset }: FilePosition,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+    HirFilePosition { file_id, offset }: HirFilePosition,
+) -> Option<RangeInfo<Vec<HirNavigationTarget>>> {
     let sema = hir::Semantics::new(db);
 
-    let file: ast::SourceFile = sema.parse_guess_edition(file_id);
-    let token: SyntaxToken =
-        pick_best_token(file.syntax().token_at_offset(offset), |kind| match kind {
-            IDENT | INT_NUMBER | T![self] => 3,
-            kind if kind.is_trivia() => 0,
-            T![;] => 1,
-            _ => 2,
-        })?;
+    let file_id = sema.adjust_edition(file_id);
+    let syntax = sema.parse_or_expand(sema.adjust_edition(file_id));
+
+    let token: SyntaxToken = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
+        IDENT | INT_NUMBER | T![self] => 3,
+        kind if kind.is_trivia() => 0,
+        T![;] => 1,
+        _ => 2,
+    })?;
 
     let mut res = Vec::new();
     let mut push = |def: Definition| {
-        if let Some(navs) = def.try_to_nav(db) {
-            for nav in navs {
-                if !res.contains(&nav) {
-                    res.push(nav);
-                }
+        if let Some(nav) = def.try_to_nav_hir(db) {
+            if !res.contains(&nav) {
+                res.push(nav);
             }
         }
     };
@@ -118,18 +117,19 @@ mod tests {
 
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        let navs = analysis.goto_type_definition(position).unwrap().unwrap().info;
+        let navs = analysis.goto_type_definition(position.into()).unwrap().unwrap().info;
         assert!(!navs.is_empty(), "navigation is empty");
 
         let cmp = |&FileRange { file_id, range }: &_| (file_id, range.start());
         let navs = navs
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .flat_map(|nav| nav.upmap(&analysis.db))
+            .map(|nav| nav.focus_or_full_file_range())
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
         let expected = expected
             .into_iter()
-            .map(|(file_range, _)| file_range)
+            .map(|(r, _)| r.into_file_id(&analysis.db))
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
         assert_eq!(expected, navs);

@@ -125,6 +125,7 @@ impl LsifManager<'_, '_> {
             index: line_index,
             encoding: PositionEncoding::Wide(WideEncoding::Utf16),
             endings: LineEndings::Unix,
+            transform: Default::default(),
         };
         let range_id = self.add_vertex(lsif::Vertex::Range {
             range: to_proto::range(&line_index, id.range),
@@ -246,6 +247,7 @@ impl LsifManager<'_, '_> {
             index: line_index,
             encoding: PositionEncoding::Wide(WideEncoding::Utf16),
             endings: LineEndings::Unix,
+            transform: Default::default(),
         };
         let result = folds
             .into_iter()
