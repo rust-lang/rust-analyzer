@@ -1877,9 +1877,9 @@ pub use level1::Foo;
             expect![[r#"
                 Foo Struct FileId(0) 0..15 11..14
 
+                FileId(3) 16..19 import
                 FileId(1) 16..19 import
                 FileId(2) 16..19 import
-                FileId(3) 16..19 import
             "#]],
         );
     }
@@ -1907,9 +1907,9 @@ lib::foo!();
             expect![[r#"
                 foo Macro FileId(1) 0..61 29..32
 
+                FileId(3) 5..8
                 FileId(0) 46..49 import
                 FileId(2) 0..3
-                FileId(3) 5..8
             "#]],
         );
     }
