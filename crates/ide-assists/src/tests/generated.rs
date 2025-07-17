@@ -1480,6 +1480,8 @@ fn doctest_generate_asref_impl_from_borrow() {
     check_doc_test(
         "generate_asref_impl_from_borrow",
         r#####"
+//- minicore: borrow, as_ref
+use core::borrow::Borrow;
 struct Foo<T>(T);
 
 impl<T> $0Borrow<T> for Foo<T> {
@@ -1489,6 +1491,7 @@ impl<T> $0Borrow<T> for Foo<T> {
 }
 "#####,
         r#####"
+use core::borrow::Borrow;
 struct Foo<T>(T);
 
 $0impl<T> AsRef<T> for Foo<T> {
@@ -1511,6 +1514,8 @@ fn doctest_generate_asref_impl_from_borrow_1() {
     check_doc_test(
         "generate_asref_impl_from_borrow",
         r#####"
+//- minicore: borrow_mut, as_mut
+use core::borrow::BorrowMut;
 struct Foo<T>(T);
 
 impl<T> $0BorrowMut<T> for Foo<T> {
@@ -1520,6 +1525,7 @@ impl<T> $0BorrowMut<T> for Foo<T> {
 }
 "#####,
         r#####"
+use core::borrow::BorrowMut;
 struct Foo<T>(T);
 
 $0impl<T> AsMut<T> for Foo<T> {

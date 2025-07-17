@@ -1,3 +1,4 @@
+use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
 use syntax::{
     ast::{self, AstNode, HasName, edit_in_place::Indent, make},
     syntax_editor::Position,
@@ -10,6 +11,8 @@ use crate::{AssistContext, AssistId, Assists};
 // Generate `AsRef` implement from `Borrow`.
 //
 // ```
+// //- minicore: borrow, as_ref
+// use core::borrow::Borrow;
 // struct Foo<T>(T);
 //
 // impl<T> $0Borrow<T> for Foo<T> {
@@ -20,6 +23,7 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 // ->
 // ```
+// use core::borrow::Borrow;
 // struct Foo<T>(T);
 //
 // $0impl<T> AsRef<T> for Foo<T> {
@@ -39,6 +43,8 @@ use crate::{AssistContext, AssistId, Assists};
 // Generate `AsMut` implement from `BorrowMut`.
 //
 // ```
+// //- minicore: borrow_mut, as_mut
+// use core::borrow::BorrowMut;
 // struct Foo<T>(T);
 //
 // impl<T> $0BorrowMut<T> for Foo<T> {
@@ -49,6 +55,7 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 // ->
 // ```
+// use core::borrow::BorrowMut;
 // struct Foo<T>(T);
 //
 // $0impl<T> AsMut<T> for Foo<T> {
@@ -73,12 +80,11 @@ pub(crate) fn generate_asref_impl_from_borrow(
     let indent = impl_.indent_level();
 
     let name = path.path()?.segment()?.name_ref()?;
+    let scope = ctx.sema.scope(path.syntax())?;
+    let famous = FamousDefs(&ctx.sema, scope.krate());
+    let trait_ = resolve_target_trait(&ctx.sema, &impl_)?;
 
-    let (target_name, target_method_name) = match &*name.text() {
-        "Borrow" => ("AsRef", "as_ref"),
-        "BorrowMut" => ("AsMut", "as_mut"),
-        _ => return None,
-    };
+    let (target_name, target_method_name) = out_trait(famous, trait_)?;
 
     let method = impl_.assoc_item_list()?.assoc_items().find_map(|it| match it {
         ast::AssocItem::Fn(f) => Some(f),
@@ -118,6 +124,19 @@ pub(crate) fn generate_asref_impl_from_borrow(
     )
 }
 
+fn out_trait(
+    famous: FamousDefs<'_, '_>,
+    trait_: hir::Trait,
+) -> Option<(&'static str, &'static str)> {
+    if trait_ == famous.core_borrow_Borrow()? {
+        Some(("AsRef", "as_ref"))
+    } else if trait_ == famous.core_borrow_BorrowMut()? {
+        Some(("AsMut", "as_mut"))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tests::check_assist;
@@ -129,6 +148,8 @@ mod tests {
         check_assist(
             generate_asref_impl_from_borrow,
             r#"
+//- minicore: borrow, as_ref
+use core::borrow::Borrow;
 struct Foo<T>(T);
 
 impl<T> $0Borrow<T> for Foo<T> {
@@ -138,6 +159,7 @@ impl<T> $0Borrow<T> for Foo<T> {
 }
             "#,
             r#"
+use core::borrow::Borrow;
 struct Foo<T>(T);
 
 $0impl<T> AsRef<T> for Foo<T> {
@@ -160,6 +182,8 @@ impl<T> Borrow<T> for Foo<T> {
         check_assist(
             generate_asref_impl_from_borrow,
             r#"
+//- minicore: borrow_mut, as_mut
+use core::borrow::BorrowMut;
 struct Foo<T>(T);
 
 impl<T> $0BorrowMut<T> for Foo<T> {
@@ -169,6 +193,7 @@ impl<T> $0BorrowMut<T> for Foo<T> {
 }
             "#,
             r#"
+use core::borrow::BorrowMut;
 struct Foo<T>(T);
 
 $0impl<T> AsMut<T> for Foo<T> {
@@ -191,6 +216,8 @@ impl<T> BorrowMut<T> for Foo<T> {
         check_assist(
             generate_asref_impl_from_borrow,
             r#"
+//- minicore: borrow, as_ref
+use core::borrow::Borrow;
 struct Foo<T>(T);
 
 #[cfg(feature = "foo")]
@@ -202,6 +229,7 @@ impl<T> $0Borrow<T> for Foo<T> {
 }
             "#,
             r#"
+use core::borrow::Borrow;
 struct Foo<T>(T);
 
 $0#[cfg(feature = "foo")]
@@ -228,8 +256,10 @@ impl<T> Borrow<T> for Foo<T> {
         check_assist(
             generate_asref_impl_from_borrow,
             r#"
+//- minicore: borrow, as_ref
 mod foo {
     mod bar {
+        use core::borrow::Borrow;
         struct Foo<T>(T);
 
         impl<T> $0Borrow<T> for Foo<T> {
@@ -243,6 +273,7 @@ mod foo {
             r#"
 mod foo {
     mod bar {
+        use core::borrow::Borrow;
         struct Foo<T>(T);
 
         $0impl<T> AsRef<T> for Foo<T> {
