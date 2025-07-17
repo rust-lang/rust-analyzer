@@ -419,7 +419,9 @@ impl HirFormatter<'_> {
             first = false;
 
             // Abbreviate multiple omitted types with a single ellipsis.
-            in_truncated = !in_truncated && self.should_truncate() && self.fmt.start_truncated();
+            if !in_truncated && self.should_truncate() && self.fmt.start_truncated() {
+                in_truncated = true;
+            }
 
             e.hir_fmt(self)?;
         }
