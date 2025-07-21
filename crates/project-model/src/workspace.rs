@@ -269,8 +269,7 @@ impl ProjectWorkspace {
         tracing::info!(workspace = %cargo_toml, src_root = ?sysroot.rust_lib_src_root(), root = ?sysroot.root(), "Using sysroot");
         progress("querying project metadata".to_owned());
         let config_file = cargo_config_file::read(cargo_toml, extra_env, &sysroot);
-        let config_file_ = config_file.clone();
-        let toolchain_config = QueryConfig::Cargo(&sysroot, cargo_toml, &config_file_);
+        let toolchain_config = QueryConfig::Cargo(&sysroot, cargo_toml, &config_file.clone());
         let targets =
             target_tuple::get(toolchain_config, target.as_deref(), extra_env).unwrap_or_default();
         let toolchain = version::get(toolchain_config, extra_env)
