@@ -1102,8 +1102,25 @@ pub fn type_param(name: ast::Name, bounds: Option<ast::TypeBoundList>) -> ast::T
     ast_from_text(&format!("fn f<{name}{bounds}>() {{ }}"))
 }
 
+pub fn type_default_param(
+    name: ast::Name,
+    bounds: Option<ast::TypeBoundList>,
+    default: ast::Type,
+) -> ast::TypeParam {
+    let bounds = bounds.map_or_else(String::new, |it| format!(": {it}"));
+    ast_from_text(&format!("fn f<{name}{bounds} = {default}>() {{ }}"))
+}
+
 pub fn const_param(name: ast::Name, ty: ast::Type) -> ast::ConstParam {
     ast_from_text(&format!("fn f<const {name}: {ty}>() {{ }}"))
+}
+
+pub fn const_default_param(
+    name: ast::Name,
+    ty: ast::Type,
+    default: ast::ConstArg,
+) -> ast::ConstParam {
+    ast_from_text(&format!("fn f<const {name}: {ty} = {default}>() {{ }}"))
 }
 
 pub fn lifetime_param(lifetime: ast::Lifetime) -> ast::LifetimeParam {

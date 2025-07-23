@@ -146,6 +146,7 @@ mod handlers {
     mod extract_function;
     mod extract_module;
     mod extract_struct_from_enum_variant;
+    mod extract_to_default_generic;
     mod extract_type_alias;
     mod extract_variable;
     mod fix_visibility;
@@ -281,6 +282,7 @@ mod handlers {
             extract_expressions_from_format_string::extract_expressions_from_format_string,
             extract_struct_from_enum_variant::extract_struct_from_enum_variant,
             extract_type_alias::extract_type_alias,
+            extract_to_default_generic::extract_to_default_generic,
             fix_visibility::fix_visibility,
             flip_binexpr::flip_binexpr,
             flip_comma::flip_comma,
