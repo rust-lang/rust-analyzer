@@ -526,6 +526,7 @@ impl GlobalState {
         }
 
         self.update_status_or_notify();
+        self.ask_for_choice();
 
         let loop_duration = loop_start.elapsed();
         if loop_duration > Duration::from_millis(100) && was_quiescent {
