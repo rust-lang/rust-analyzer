@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["InternedClosure","InternedClosureId","InternedConstParamId","InternedCoroutine","InternedCoroutineId","InternedLifetimeParamId","InternedOpaqueTyId","InternedTypeOrConstParamId"],"trait":["HirDatabase"]};
