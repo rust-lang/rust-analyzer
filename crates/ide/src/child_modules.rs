@@ -1,11 +1,8 @@
-use hir::Semantics;
-use ide_db::{FilePosition, RootDatabase};
-use syntax::{
-    algo::find_node_at_offset,
-    ast::{self, AstNode},
-};
+use hir::{HirFilePosition, Semantics};
+use ide_db::RootDatabase;
+use syntax::{algo::find_node_at_offset, ast};
 
-use crate::NavigationTarget;
+use crate::{HirNavigationTarget, NavigationTarget};
 
 // Feature: Child Modules
 //
@@ -16,11 +13,15 @@ use crate::NavigationTarget;
 // | VS Code | **rust-analyzer: Locate child modules** |
 
 /// This returns `Vec` because a module may be included from several places.
-pub(crate) fn child_modules(db: &RootDatabase, position: FilePosition) -> Vec<NavigationTarget> {
+pub(crate) fn child_modules(
+    db: &RootDatabase,
+    position: HirFilePosition,
+) -> Vec<HirNavigationTarget> {
     let sema = Semantics::new(db);
-    let source_file = sema.parse_guess_edition(position.file_id);
+    let file_id = sema.adjust_edition(position.file_id);
+    let source_file = sema.parse_or_expand(file_id);
     // First go to the parent module which contains the cursor
-    let module = find_node_at_offset::<ast::Module>(source_file.syntax(), position.offset);
+    let module = find_node_at_offset::<ast::Module>(&source_file, position.offset);
 
     match module {
         Some(module) => {
@@ -28,14 +29,14 @@ pub(crate) fn child_modules(db: &RootDatabase, position: FilePosition) -> Vec<Na
             sema.to_def(&module)
                 .into_iter()
                 .flat_map(|module| module.children(db))
-                .map(|module| NavigationTarget::from_module_to_decl(db, module).call_site())
+                .map(|module| NavigationTarget::from_module_to_decl(db, module))
                 .collect()
         }
         None => {
             // Return all the child modules inside the source file
-            sema.file_to_module_defs(position.file_id)
+            sema.hir_file_to_module_defs(file_id)
                 .flat_map(|module| module.children(db))
-                .map(|module| NavigationTarget::from_module_to_decl(db, module).call_site())
+                .map(|module| NavigationTarget::from_module_to_decl(db, module))
                 .collect()
         }
     }
@@ -43,18 +44,21 @@ pub(crate) fn child_modules(db: &RootDatabase, position: FilePosition) -> Vec<Na
 
 #[cfg(test)]
 mod tests {
-    use ide_db::FileRange;
+    use hir::HirFileRange;
 
     use crate::fixture;
 
     fn check_child_module(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
-        let navs = analysis.child_modules(position).unwrap();
+        let navs = analysis.child_modules(position.into()).unwrap();
         let navs = navs
             .iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .map(|nav| HirFileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
             .collect::<Vec<_>>();
-        assert_eq!(expected.into_iter().map(|(fr, _)| fr).collect::<Vec<_>>(), navs);
+        assert_eq!(
+            expected.into_iter().map(|(r, _)| r.into()).collect::<Vec<HirFileRange>>(),
+            navs
+        );
     }
 
     #[test]

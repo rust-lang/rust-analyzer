@@ -59,8 +59,8 @@ mod tests {
     use expect_test::expect;
     use ide_assists::{Assist, AssistResolveStrategy};
     use ide_db::{
-        FileRange, FxHashSet, RootDatabase, base_db::salsa::Durability,
-        symbol_index::SymbolsDatabase,
+        FileRange, FxHashSet, RootDatabase,
+        base_db::{RootQueryDb, salsa::Durability},
     };
     use test_fixture::WithFixture;
     use triomphe::Arc;

@@ -1,7 +1,10 @@
 //! Applies structured search replace rules from the command line.
 
 use anyhow::Context;
-use ide_db::{EditionedFileId, base_db::SourceDatabase};
+use ide_db::{
+    EditionedFileId,
+    base_db::{RootQueryDb, SourceDatabase},
+};
 use ide_ssr::MatchFinder;
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use project_model::{CargoConfig, RustLibSource};
@@ -50,7 +53,6 @@ impl flags::Search {
     /// for much else.
     pub fn run(self) -> anyhow::Result<()> {
         use ide_db::base_db::SourceDatabase;
-        use ide_db::symbol_index::SymbolsDatabase;
         let cargo_config =
             CargoConfig { all_targets: true, set_test: true, ..CargoConfig::default() };
         let load_cargo_config = LoadCargoConfig {

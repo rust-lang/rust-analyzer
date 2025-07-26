@@ -103,14 +103,14 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
         "Inline into all callers",
         name.syntax().text_range(),
         |builder| {
-            let mut usages = usages.all();
+            let mut usages = usages.all().map_out_of_macros(&ctx.sema);
             let current_file_usage = usages.references.remove(&def_file);
 
             let mut remove_def = true;
             let mut inline_refs_for_file = |file_id: EditionedFileId, refs: Vec<FileReference>| {
+                let call_krate = ctx.sema.file_to_module_def(file_id).map(|it| it.krate());
                 let file_id = file_id.file_id(ctx.db());
                 builder.edit_file(file_id);
-                let call_krate = ctx.sema.file_to_module_def(file_id).map(|it| it.krate());
                 let count = refs.len();
                 // The collects are required as we are otherwise iterating while mutating 🙅‍♀️🙅‍♂️
                 let (name_refs, name_refs_use) = split_refs_and_uses(builder, refs, Some);
@@ -140,7 +140,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     remove_def = false;
                 }
             };
-            for (file_id, refs) in usages.into_iter() {
+            for (file_id, refs) in usages {
                 inline_refs_for_file(file_id, refs);
             }
             match current_file_usage {
@@ -196,7 +196,7 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     let name_ref: ast::NameRef = ctx.find_node_at_offset()?;
     let call_info = CallInfo::from_name_ref(
         name_ref.clone(),
-        ctx.sema.file_to_module_def(ctx.vfs_file_id())?.krate().into(),
+        ctx.sema.file_to_module_def(ctx.file_id())?.krate().into(),
     )?;
     let (function, label) = match &call_info.node {
         ast::CallableExpr::Call(call) => {
@@ -337,6 +337,7 @@ fn inline(
         Definition::Local(local)
             .usages(sema)
             .all()
+            .map_out_of_macros(sema)
             .references
             .remove(&function_def_file_id)
             .unwrap_or_default()

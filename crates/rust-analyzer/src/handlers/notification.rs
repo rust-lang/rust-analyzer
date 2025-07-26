@@ -18,7 +18,10 @@ use crate::{
     config::{Config, ConfigChange},
     flycheck::Target,
     global_state::{FetchWorkspaceRequest, GlobalState},
-    lsp::{from_proto, utils::apply_document_changes},
+    lsp::{
+        from_proto::{self, VfsOrMacroPath},
+        utils::apply_document_changes,
+    },
     lsp_ext::{self, RunFlycheckParams},
     mem_docs::DocumentData,
     reload,
@@ -61,7 +64,7 @@ pub(crate) fn handle_did_open_text_document(
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_did_open_text_document").entered();
 
-    if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
+    if let Ok(VfsOrMacroPath::Vfs(path)) = from_proto::url_to_vfs_path(&params.text_document.uri) {
         let already_exists = state
             .mem_docs
             .insert(
@@ -103,7 +106,7 @@ pub(crate) fn handle_did_change_text_document(
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_did_change_text_document").entered();
 
-    if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
+    if let Ok(VfsOrMacroPath::Vfs(path)) = from_proto::url_to_vfs_path(&params.text_document.uri) {
         let Some(DocumentData { version, data }) = state.mem_docs.get_mut(&path) else {
             tracing::error!(?path, "unexpected DidChangeTextDocument");
             return Ok(());
@@ -132,7 +135,7 @@ pub(crate) fn handle_did_close_text_document(
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_did_close_text_document").entered();
 
-    if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
+    if let Ok(VfsOrMacroPath::Vfs(path)) = from_proto::url_to_vfs_path(&params.text_document.uri) {
         if state.mem_docs.remove(&path).is_err() {
             tracing::error!("orphan DidCloseTextDocument: {}", path);
         }
@@ -155,9 +158,9 @@ pub(crate) fn handle_did_save_text_document(
     state: &mut GlobalState,
     params: DidSaveTextDocumentParams,
 ) -> anyhow::Result<()> {
-    if let Ok(vfs_path) = from_proto::vfs_path(&params.text_document.uri) {
+    if let Ok(VfsOrMacroPath::Vfs(path)) = from_proto::url_to_vfs_path(&params.text_document.uri) {
         let snap = state.snapshot();
-        let file_id = try_default!(snap.vfs_path_to_file_id(&vfs_path)?);
+        let file_id = try_default!(snap.vfs_path_to_file_id(&path)?);
         let sr = snap.analysis.source_root_id(file_id)?;
 
         if state.config.script_rebuild_on_save(Some(sr)) && state.build_deps_changed {
@@ -168,7 +171,7 @@ pub(crate) fn handle_did_save_text_document(
         }
 
         // Re-fetch workspaces if a workspace related file has changed
-        if let Some(path) = vfs_path.as_path() {
+        if let Some(path) = path.as_path() {
             let additional_files = &state
                 .config
                 .discover_workspace_config()
@@ -196,7 +199,7 @@ pub(crate) fn handle_did_save_text_document(
             }
         }
 
-        if !state.config.check_on_save(Some(sr)) || run_flycheck(state, vfs_path) {
+        if !state.config.check_on_save(Some(sr)) || run_flycheck(state, path) {
             return Ok(());
         }
     } else if state.config.check_on_save(None) && state.config.flycheck_workspace(None) {
@@ -290,8 +293,10 @@ pub(crate) fn handle_did_change_watched_files(
     params: DidChangeWatchedFilesParams,
 ) -> anyhow::Result<()> {
     for change in params.changes.iter().unique_by(|&it| &it.uri) {
-        if let Ok(path) = from_proto::abs_path(&change.uri) {
-            state.loader.handle.invalidate(path);
+        if let Ok(VfsOrMacroPath::Vfs(path)) = from_proto::url_to_vfs_path(&change.uri) {
+            if let Some(path) = path.into_abs_path() {
+                state.loader.handle.invalidate(path);
+            }
         }
     }
     Ok(())
@@ -450,7 +455,7 @@ pub(crate) fn handle_run_flycheck(
 ) -> anyhow::Result<()> {
     let _p = tracing::info_span!("handle_run_flycheck").entered();
     if let Some(text_document) = params.text_document {
-        if let Ok(vfs_path) = from_proto::vfs_path(&text_document.uri) {
+        if let Ok(VfsOrMacroPath::Vfs(vfs_path)) = from_proto::url_to_vfs_path(&text_document.uri) {
             if run_flycheck(state, vfs_path) {
                 return Ok(());
             }

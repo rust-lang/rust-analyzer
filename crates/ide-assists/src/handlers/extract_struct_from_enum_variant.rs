@@ -69,7 +69,7 @@ pub(crate) fn extract_struct_from_enum_variant(
             visited_modules_set.insert(current_module);
             // record file references of the file the def resides in, we only want to swap to the edited file in the builder once
             let mut def_file_references = None;
-            for (file_id, references) in usages {
+            for (file_id, references) in usages.map_out_of_macros(&ctx.sema) {
                 if file_id == ctx.file_id() {
                     def_file_references = Some(references);
                     continue;

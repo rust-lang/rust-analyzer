@@ -416,6 +416,10 @@ impl ClientCapabilities {
             == Some(true)
     }
 
+    pub fn virtual_macro_files(&self) -> bool {
+        self.experimental_bool("virtualMacroFiles")
+    }
+
     pub fn code_action_group(&self) -> bool {
         self.experimental_bool("codeActionGroup")
     }

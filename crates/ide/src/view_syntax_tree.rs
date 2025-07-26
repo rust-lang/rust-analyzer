@@ -179,7 +179,7 @@ mod tests {
 
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: expect_test::Expect) {
         let (analysis, file_id) = fixture::file(ra_fixture);
-        let syn = analysis.view_syntax_tree(file_id).unwrap();
+        let syn = analysis.view_syntax_tree(file_id.file_id(&analysis.db)).unwrap();
         expect.assert_eq(&syn)
     }
 
