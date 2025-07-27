@@ -10,11 +10,11 @@ use chalk_ir::{UniverseIndex, WithKind, cast::Cast};
 use hir_def::{
     AssocItemId, BlockId, ConstId, FunctionId, HasModule, ImplId, ItemContainerId, Lookup,
     ModuleId, TraitId,
+    attrs::AttrFlags,
     nameres::{DefMap, assoc::ImplItems, block_def_map, crate_def_map},
     signatures::{ConstFlags, EnumFlags, FnFlags, StructFlags, TraitFlags, TypeAliasFlags},
 };
 use hir_expand::name::Name;
-use intern::sym;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{SmallVec, smallvec};
 use stdx::never;
@@ -197,7 +197,8 @@ impl TraitImpls {
                 // FIXME: Reservation impls should be considered during coherence checks. If we are
                 // (ever) to implement coherence checks, this filtering should be done by the trait
                 // solver.
-                if db.attrs(impl_id.into()).by_key(sym::rustc_reservation_impl).exists() {
+                if AttrFlags::query(db, impl_id.into()).contains(AttrFlags::RUSTC_RESERVATION_IMPL)
+                {
                     continue;
                 }
                 let target_trait = match db.impl_trait(impl_id) {

@@ -15,6 +15,7 @@ use base_db::Crate;
 use hir_def::{
     AssocItemId, BlockId, CallableDefId, GenericDefId, HasModule, ItemContainerId, Lookup,
     TypeAliasId, VariantId,
+    attrs::AttrFlags,
     hir::Movability,
     lang_item::LangItem,
     signatures::{ImplFlags, StructFlags, TraitFlags},
@@ -85,8 +86,7 @@ impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
     fn discriminant_type(&self, ty: chalk_ir::Ty<Interner>) -> chalk_ir::Ty<Interner> {
         if let chalk_ir::TyKind::Adt(id, _) = ty.kind(Interner) {
             if let hir_def::AdtId::EnumId(e) = id.0 {
-                let enum_data = self.db.enum_signature(e);
-                let ty = enum_data.repr.unwrap_or_default().discr_type();
+                let ty = AttrFlags::repr(self.db, e.into()).unwrap_or_default().discr_type();
                 return chalk_ir::TyKind::Scalar(match ty {
                     hir_def::layout::IntegerType::Pointer(is_signed) => match is_signed {
                         true => chalk_ir::Scalar::Int(chalk_ir::IntTy::Isize),
