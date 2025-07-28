@@ -19,7 +19,7 @@ use ide_db::{
 };
 use itertools::{Itertools, izip};
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind,
+    AstNode,
     ast::{
         self, HasArgList, HasGenericArgs, Pat, PathExpr, edit::IndentLevel, edit_in_place::Indent,
     },
@@ -388,27 +388,6 @@ fn inline(
         }
     }
 
-    // We should place the following code after last usage of `usages_for_locals`
-    // because `ted::replace` will change the offset in syntax tree, which makes
-    // `FileReference` incorrect
-    if let Some(imp) =
-        sema.ancestors_with_macros(fn_body.syntax().clone()).find_map(ast::Impl::cast)
-    {
-        if !node.syntax().ancestors().any(|anc| &anc == imp.syntax()) {
-            if let Some(t) = imp.self_ty() {
-                while let Some(self_tok) = body
-                    .syntax()
-                    .descendants_with_tokens()
-                    .filter_map(NodeOrToken::into_token)
-                    .find(|tok| tok.kind() == SyntaxKind::SELF_TYPE_KW)
-                {
-                    let replace_with = t.clone_subtree().syntax().clone_for_update();
-                    ted::replace(self_tok, replace_with);
-                }
-            }
-        }
-    }
-
     let mut func_let_vars: BTreeSet<String> = BTreeSet::new();
 
     // grab all of the local variable declarations in the function
@@ -534,11 +513,17 @@ fn inline(
         }
     }
 
-    if let Some(generic_arg_list) = generic_arg_list.clone() {
-        if let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
-        {
-            PathTransform::function_call(target, source, function, generic_arg_list)
-                .apply(body.syntax());
+    // Apply PathTransform for path transformations when needed
+    if let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax())) {
+        let needs_transformation = generic_arg_list.is_some() || !target.has_same_self_type(source);
+
+        if needs_transformation {
+            let path_transform = if let Some(generic_arg_list) = generic_arg_list.clone() {
+                PathTransform::function_call(target, source, function, generic_arg_list)
+            } else {
+                PathTransform::generic_transformation(target, source)
+            };
+            path_transform.apply(body.syntax());
         }
     }
 
@@ -1831,5 +1816,73 @@ fn f() {
 }
 "#,
         );
+    }
+
+    #[test]
+    fn inline_call_generic_self_constructor() {
+        check_assist(
+            inline_call,
+            r#"
+struct Generic<T>(T);
+
+impl<T> Generic<T> {
+    fn new(value: T) -> Self {
+        Self(value)
+    }
+}
+
+fn main() {
+    let x = Generic::<i32>::new$0(42);
+}
+"#,
+            r#"
+struct Generic<T>(T);
+
+impl<T> Generic<T> {
+    fn new(value: T) -> Self {
+        Self(value)
+    }
+}
+
+fn main() {
+    let x = Generic(42);
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn inline_call_generic_self_type_position() {
+        check_assist(
+            inline_call,
+            r#"
+struct Generic<T>(T);
+
+impl<T> Generic<T> {
+    fn identity(self) -> Self {
+        self
+    }
+}
+
+fn main() {
+    let x = Generic(42);
+    let y = x.identity$0();
+}
+"#,
+            r#"
+struct Generic<T>(T);
+
+impl<T> Generic<T> {
+    fn identity(self) -> Self {
+        self
+    }
+}
+
+fn main() {
+    let x = Generic(42);
+    let y = x;
+}
+"#,
+        )
     }
 }
