@@ -94,9 +94,9 @@ fn find_all_references(
     ctx: &AssistContext<'_>,
     def: &Definition,
 ) -> impl Iterator<Item = (EditionedFileId, FileReference)> {
-    def.usages(&ctx.sema).all().into_iter().flat_map(|(file_id, references)| {
-        references.into_iter().map(move |reference| (file_id, reference))
-    })
+    def.usages(&ctx.sema).all().map_out_of_macros(&ctx.sema).into_iter().flat_map(
+        |(file_id, references)| references.into_iter().map(move |reference| (file_id, reference)),
+    )
 }
 
 /// Finds the await expression for the given `NameRef`.

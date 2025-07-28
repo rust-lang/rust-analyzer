@@ -6,11 +6,11 @@
 //! }
 //! ```
 use hir::{
-    ChalkTyInterner, DefWithBody,
+    ChalkTyInterner, DefWithBody, HirFileRange,
     db::{DefDatabase as _, HirDatabase as _},
     mir::{MirSpan, TerminatorKind},
 };
-use ide_db::{FileRange, famous_defs::FamousDefs};
+use ide_db::famous_defs::FamousDefs;
 
 use syntax::{
     ToSmolStr,
@@ -105,12 +105,7 @@ pub(super) fn hints(
                         .patterns_for_binding(binding_idx)
                         .first()
                         .and_then(|d| source_map.pat_syntax(*d).ok())
-                        .and_then(|d| {
-                            Some(FileRange {
-                                file_id: d.file_id.file_id()?.file_id(sema.db),
-                                range: d.value.text_range(),
-                            })
-                        })
+                        .map(|d| HirFileRange { file_id: d.file_id, range: d.value.text_range() })
                 }),
             );
             label.prepend_str("drop(");

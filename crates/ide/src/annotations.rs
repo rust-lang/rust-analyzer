@@ -1,16 +1,13 @@
-use hir::{HasSource, InFile, InRealFile, Semantics};
-use ide_db::{
-    FileId, FilePosition, FileRange, FxIndexSet, RootDatabase, defs::Definition,
-    helpers::visit_file_defs,
-};
+use hir::{HasSource, HirFileId, HirFilePosition, HirFileRange, InFile, Semantics};
+use ide_db::{FxIndexSet, RootDatabase, defs::Definition, helpers::visit_file_defs};
 use itertools::Itertools;
 use syntax::{AstNode, TextRange, ast::HasName};
 
 use crate::{
-    NavigationTarget, RunnableKind,
+    RunnableKind,
     annotations::fn_references::find_all_methods,
     goto_implementation::goto_implementation,
-    navigation_target,
+    navigation_target::HirNavigationTarget,
     references::find_all_refs,
     runnables::{Runnable, runnables},
 };
@@ -32,8 +29,8 @@ pub struct Annotation {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum AnnotationKind {
     Runnable(Runnable),
-    HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget>> },
-    HasReferences { pos: FilePosition, data: Option<Vec<FileRange>> },
+    HasImpls { pos: HirFilePosition, data: Option<Vec<HirNavigationTarget>> },
+    HasReferences { pos: HirFilePosition, data: Option<Vec<HirFileRange>> },
 }
 
 pub struct AnnotationConfig {
@@ -54,7 +51,7 @@ pub enum AnnotationLocation {
 pub(crate) fn annotations(
     db: &RootDatabase,
     config: &AnnotationConfig,
-    file_id: FileId,
+    file_id: HirFileId,
 ) -> Vec<Annotation> {
     let mut annotations = FxIndexSet::default();
 
@@ -76,17 +73,17 @@ pub(crate) fn annotations(
             AnnotationLocation::AboveName => cmd_target,
             AnnotationLocation::AboveWholeItem => range,
         };
-        let target_pos = FilePosition { file_id, offset: cmd_target.start() };
+        let target_pos = HirFilePosition { file_id, offset: cmd_target.start() };
         (annotation_range, target_pos)
     };
 
     visit_file_defs(&Semantics::new(db), file_id, &mut |def| {
         let range = match def {
             Definition::Const(konst) if config.annotate_references => {
-                konst.source(db).and_then(|node| name_range(db, node, file_id))
+                konst.source(db).and_then(|node| name_range(node, file_id))
             }
             Definition::Trait(trait_) if config.annotate_references || config.annotate_impls => {
-                trait_.source(db).and_then(|node| name_range(db, node, file_id))
+                trait_.source(db).and_then(|node| name_range(node, file_id))
             }
             Definition::Adt(adt) => match adt {
                 hir::Adt::Enum(enum_) => {
@@ -95,7 +92,7 @@ pub(crate) fn annotations(
                             .variants(db)
                             .into_iter()
                             .filter_map(|variant| {
-                                variant.source(db).and_then(|node| name_range(db, node, file_id))
+                                variant.source(db).and_then(|node| name_range(node, file_id))
                             })
                             .for_each(|range| {
                                 let (annotation_range, target_position) = mk_ranges(range);
@@ -109,14 +106,14 @@ pub(crate) fn annotations(
                             })
                     }
                     if config.annotate_references || config.annotate_impls {
-                        enum_.source(db).and_then(|node| name_range(db, node, file_id))
+                        enum_.source(db).and_then(|node| name_range(node, file_id))
                     } else {
                         None
                     }
                 }
                 _ => {
                     if config.annotate_references || config.annotate_impls {
-                        adt.source(db).and_then(|node| name_range(db, node, file_id))
+                        adt.source(db).and_then(|node| name_range(node, file_id))
                     } else {
                         None
                     }
@@ -145,32 +142,13 @@ pub(crate) fn annotations(
         }
 
         fn name_range<T: HasName>(
-            db: &RootDatabase,
             node: InFile<T>,
-            source_file_id: FileId,
+            source_file_id: HirFileId,
         ) -> Option<(TextRange, Option<TextRange>)> {
-            if let Some(name) = node.value.name().map(|name| name.syntax().text_range()) {
-                // if we have a name, try mapping that out of the macro expansion as we can put the
-                // annotation on that name token
-                // See `test_no_annotations_macro_struct_def` vs `test_annotations_macro_struct_def_call_site`
-                let res = navigation_target::orig_range_with_focus_r(
-                    db,
-                    node.file_id,
-                    node.value.syntax().text_range(),
-                    Some(name),
-                );
-                if res.call_site.0.file_id == source_file_id {
-                    if let Some(name_range) = res.call_site.1 {
-                        return Some((res.call_site.0.range, Some(name_range)));
-                    }
-                }
-            };
-            // otherwise try upmapping the entire node out of attributes
-            let InRealFile { file_id, value } = node.original_ast_node_rooted(db)?;
-            if file_id.file_id(db) == source_file_id {
+            if node.file_id == source_file_id {
                 Some((
-                    value.syntax().text_range(),
-                    value.name().map(|name| name.syntax().text_range()),
+                    node.value.syntax().text_range(),
+                    node.value.name().map(|name| name.syntax().text_range()),
                 ))
             } else {
                 None
@@ -207,7 +185,7 @@ pub(crate) fn resolve_annotation(db: &RootDatabase, mut annotation: Annotation) 
                     .into_iter()
                     .flat_map(|res| res.references)
                     .flat_map(|(file_id, access)| {
-                        access.into_iter().map(move |(range, _)| FileRange { file_id, range })
+                        access.into_iter().map(move |(range, _)| HirFileRange { file_id, range })
                     })
                     .collect()
             });
@@ -251,7 +229,7 @@ mod tests {
         let (analysis, file_id) = fixture::file(ra_fixture);
 
         let annotations: Vec<Annotation> = analysis
-            .annotations(config, file_id)
+            .annotations(config, file_id.into())
             .unwrap()
             .into_iter()
             .map(|annotation| analysis.resolve_annotation(annotation).unwrap())
@@ -283,7 +261,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 6,
                             },
@@ -291,7 +271,9 @@ fn main() {
                                 [
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 78..82,
                                     },
@@ -304,7 +286,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 30,
                             },
@@ -318,7 +302,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 53,
                             },
@@ -334,7 +320,9 @@ fn main() {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 50..85,
                                     focus_range: 53..57,
@@ -373,7 +361,9 @@ fn main() {
                         kind: HasImpls {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 7,
                             },
@@ -387,7 +377,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 7,
                             },
@@ -395,7 +387,9 @@ fn main() {
                                 [
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 41..45,
                                     },
@@ -408,7 +402,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 17,
                             },
@@ -424,7 +420,9 @@ fn main() {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 14..48,
                                     focus_range: 17..21,
@@ -467,7 +465,9 @@ fn main() {
                         kind: HasImpls {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 7,
                             },
@@ -475,7 +475,9 @@ fn main() {
                                 [
                                     NavigationTarget {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         full_range: 36..64,
                                         focus_range: 57..61,
@@ -491,7 +493,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 7,
                             },
@@ -499,13 +503,17 @@ fn main() {
                                 [
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 57..61,
                                     },
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 93..97,
                                     },
@@ -518,7 +526,9 @@ fn main() {
                         kind: HasImpls {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 20,
                             },
@@ -526,7 +536,9 @@ fn main() {
                                 [
                                     NavigationTarget {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         full_range: 36..64,
                                         focus_range: 57..61,
@@ -542,7 +554,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 20,
                             },
@@ -550,7 +564,9 @@ fn main() {
                                 [
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 41..52,
                                     },
@@ -563,7 +579,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 69,
                             },
@@ -579,7 +597,9 @@ fn main() {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 66..100,
                                     focus_range: 69..73,
@@ -614,7 +634,9 @@ fn main() {}
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 3,
                             },
@@ -630,7 +652,9 @@ fn main() {}
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 0..12,
                                     focus_range: 3..7,
@@ -673,7 +697,9 @@ fn main() {
                         kind: HasImpls {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 7,
                             },
@@ -681,7 +707,9 @@ fn main() {
                                 [
                                     NavigationTarget {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         full_range: 14..56,
                                         focus_range: 19..23,
@@ -697,7 +725,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 7,
                             },
@@ -705,13 +735,17 @@ fn main() {
                                 [
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 19..23,
                                     },
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 74..78,
                                     },
@@ -724,7 +758,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 33,
                             },
@@ -732,7 +768,9 @@ fn main() {
                                 [
                                     FileRangeWrapper {
                                         file_id: FileId(
-                                            0,
+                                            EditionedFileId(
+                                                Id(1800),
+                                            ),
                                         ),
                                         range: 79..90,
                                     },
@@ -745,7 +783,9 @@ fn main() {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 61,
                             },
@@ -761,7 +801,9 @@ fn main() {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 58..95,
                                     focus_range: 61..65,
@@ -801,7 +843,9 @@ mod tests {
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 3,
                             },
@@ -817,7 +861,9 @@ mod tests {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 0..12,
                                     focus_range: 3..7,
@@ -841,7 +887,9 @@ mod tests {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 14..64,
                                     focus_range: 18..23,
@@ -868,7 +916,9 @@ mod tests {
                                 use_name_in_title: false,
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        0,
+                                        EditionedFileId(
+                                            Id(1800),
+                                        ),
                                     ),
                                     full_range: 30..62,
                                     focus_range: 45..57,
@@ -947,36 +997,7 @@ m! {
 };
 "#,
             expect![[r#"
-                [
-                    Annotation {
-                        range: 83..87,
-                        kind: HasImpls {
-                            pos: FilePositionWrapper {
-                                file_id: FileId(
-                                    0,
-                                ),
-                                offset: 83,
-                            },
-                            data: Some(
-                                [],
-                            ),
-                        },
-                    },
-                    Annotation {
-                        range: 83..87,
-                        kind: HasReferences {
-                            pos: FilePositionWrapper {
-                                file_id: FileId(
-                                    0,
-                                ),
-                                offset: 83,
-                            },
-                            data: Some(
-                                [],
-                            ),
-                        },
-                    },
-                ]
+                []
             "#]],
         );
     }
@@ -996,7 +1017,9 @@ struct Foo;
                         kind: HasImpls {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 67,
                             },
@@ -1010,7 +1033,9 @@ struct Foo;
                         kind: HasReferences {
                             pos: FilePositionWrapper {
                                 file_id: FileId(
-                                    0,
+                                    EditionedFileId(
+                                        Id(1800),
+                                    ),
                                 ),
                                 offset: 67,
                             },

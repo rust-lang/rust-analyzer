@@ -1150,7 +1150,7 @@ impl flags::AnalysisStats {
                     fields_to_resolve: InlayFieldsToResolve::empty(),
                     range_exclusive_hints: true,
                 },
-                analysis.editioned_file_id_to_vfs(file_id),
+                file_id.into(),
                 None,
             );
         }
@@ -1166,7 +1166,7 @@ impl flags::AnalysisStats {
                         annotate_enum_variant_references: false,
                         location: ide::AnnotationLocation::AboveName,
                     },
-                    analysis.editioned_file_id_to_vfs(file_id),
+                    file_id.into(),
                 )
                 .unwrap()
                 .into_iter()

@@ -342,6 +342,7 @@ fn get_line_index(db: &RootDatabase, file_id: FileId) -> LineIndex {
         index: db.line_index(file_id),
         encoding: PositionEncoding::Utf8,
         endings: LineEndings::Unix,
+        transform: Default::default(),
     }
 }
 

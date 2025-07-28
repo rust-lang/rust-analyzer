@@ -1,6 +1,6 @@
 use ide_db::SymbolKind;
 use syntax::{
-    AstNode, AstToken, NodeOrToken, SourceFile, SyntaxNode, SyntaxToken, TextRange, WalkEvent,
+    AstNode, AstToken, NodeOrToken, SyntaxNode, SyntaxToken, TextRange, WalkEvent,
     ast::{self, HasAttrs, HasGenericParams, HasName},
     match_ast,
 };
@@ -36,11 +36,11 @@ pub enum StructureNodeKind {
 // | VS Code | <kbd>Ctrl+Shift+O</kbd> |
 //
 // ![File Structure](https://user-images.githubusercontent.com/48062697/113020654-b42fc800-917a-11eb-8388-e7dc4d92b02e.gif)
-pub(crate) fn file_structure(file: &SourceFile) -> Vec<StructureNode> {
+pub(crate) fn file_structure(file: &SyntaxNode) -> Vec<StructureNode> {
     let mut res = Vec::new();
     let mut stack = Vec::new();
 
-    for event in file.syntax().preorder_with_tokens() {
+    for event in file.preorder_with_tokens() {
         match event {
             WalkEvent::Enter(NodeOrToken::Node(node)) => {
                 if let Some(mut symbol) = structure_node(&node) {
@@ -251,12 +251,13 @@ fn structure_token(token: SyntaxToken) -> Option<StructureNode> {
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
+    use syntax::SourceFile;
 
     use super::*;
 
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         let file = SourceFile::parse(ra_fixture, span::Edition::CURRENT).ok().unwrap();
-        let structure = file_structure(&file);
+        let structure = file_structure(file.syntax());
         expect.assert_debug_eq(&structure)
     }
 

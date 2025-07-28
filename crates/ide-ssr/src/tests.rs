@@ -2,7 +2,7 @@ use expect_test::{Expect, expect};
 use hir::{FilePosition, FileRange};
 use ide_db::{
     EditionedFileId, FxHashSet,
-    base_db::{SourceDatabase, salsa::Durability},
+    base_db::{RootQueryDb, SourceDatabase, salsa::Durability},
 };
 use test_utils::RangeOrOffset;
 use triomphe::Arc;
@@ -66,7 +66,6 @@ fn parser_undefined_placeholder_in_replacement() {
 /// `code` may optionally contain a cursor marker `$0`. If it doesn't, then the position will be
 /// the start of the file. If there's a second cursor marker, then we'll return a single range.
 pub(crate) fn single_file(code: &str) -> (ide_db::RootDatabase, FilePosition, Vec<FileRange>) {
-    use ide_db::symbol_index::SymbolsDatabase;
     use test_fixture::{WORKSPACE, WithFixture};
     let (mut db, file_id, range_or_offset) = if code.contains(test_utils::CURSOR_MARKER) {
         ide_db::RootDatabase::with_range_or_offset(code)

@@ -1,4 +1,4 @@
-use hir::{AsAssocItem, Impl, Semantics};
+use hir::{AsAssocItem, HirFilePosition, Impl, Semantics};
 use ide_db::{
     RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
@@ -6,7 +6,7 @@ use ide_db::{
 };
 use syntax::{AstNode, SyntaxKind::*, T, ast};
 
-use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
+use crate::{RangeInfo, TryToNav, navigation_target::HirNavigationTarget};
 
 // Feature: Go to Implementation
 //
@@ -19,11 +19,11 @@ use crate::{FilePosition, NavigationTarget, RangeInfo, TryToNav};
 // ![Go to Implementation](https://user-images.githubusercontent.com/48062697/113065566-02f85480-91b1-11eb-9288-aaad8abd8841.gif)
 pub(crate) fn goto_implementation(
     db: &RootDatabase,
-    FilePosition { file_id, offset }: FilePosition,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+    HirFilePosition { file_id, offset }: HirFilePosition,
+) -> Option<RangeInfo<Vec<HirNavigationTarget>>> {
     let sema = Semantics::new(db);
-    let source_file = sema.parse_guess_edition(file_id);
-    let syntax = source_file.syntax().clone();
+    let file_id = sema.adjust_edition(file_id);
+    let syntax = sema.parse_or_expand(sema.adjust_edition(file_id));
 
     let original_token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
         IDENT | T![self] | INT_NUMBER => 1,
@@ -83,22 +83,20 @@ pub(crate) fn goto_implementation(
     Some(RangeInfo { range, info: navs })
 }
 
-fn impls_for_ty(sema: &Semantics<'_, RootDatabase>, ty: hir::Type<'_>) -> Vec<NavigationTarget> {
+fn impls_for_ty(sema: &Semantics<'_, RootDatabase>, ty: hir::Type<'_>) -> Vec<HirNavigationTarget> {
     Impl::all_for_type(sema.db, ty)
         .into_iter()
-        .filter_map(|imp| imp.try_to_nav(sema.db))
-        .flatten()
+        .filter_map(|imp| imp.try_to_nav_hir(sema.db))
         .collect()
 }
 
 fn impls_for_trait(
     sema: &Semantics<'_, RootDatabase>,
     trait_: hir::Trait,
-) -> Vec<NavigationTarget> {
+) -> Vec<HirNavigationTarget> {
     Impl::all_for_trait(sema.db, trait_)
         .into_iter()
-        .filter_map(|imp| imp.try_to_nav(sema.db))
-        .flatten()
+        .filter_map(|imp| imp.try_to_nav_hir(sema.db))
         .collect()
 }
 
@@ -106,7 +104,7 @@ fn impls_for_trait_item(
     sema: &Semantics<'_, RootDatabase>,
     trait_: hir::Trait,
     fun_name: hir::Name,
-) -> Vec<NavigationTarget> {
+) -> Vec<HirNavigationTarget> {
     Impl::all_for_trait(sema.db, trait_)
         .into_iter()
         .filter_map(|imp| {
@@ -114,9 +112,8 @@ fn impls_for_trait_item(
                 let itm_name = itm.name(sema.db)?;
                 (itm_name == fun_name).then_some(*itm)
             })?;
-            item.try_to_nav(sema.db)
+            item.try_to_nav_hir(sema.db)
         })
-        .flatten()
         .collect()
 }
 
@@ -130,17 +127,21 @@ mod tests {
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
 
-        let navs = analysis.goto_implementation(position).unwrap().unwrap().info;
+        let navs = analysis.goto_implementation(position.into()).unwrap().unwrap().info;
 
-        let cmp = |frange: &FileRange| (frange.file_id, frange.range.start());
+        let cmp = |&FileRange { file_id, range }: &_| (file_id, range.start());
 
         let actual = navs
             .into_iter()
-            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .flat_map(|nav| nav.upmap(&analysis.db))
+            .map(|nav| nav.focus_or_full_file_range())
             .sorted_by_key(cmp)
             .collect::<Vec<_>>();
-        let expected =
-            expected.into_iter().map(|(range, _)| range).sorted_by_key(cmp).collect::<Vec<_>>();
+        let expected = expected
+            .into_iter()
+            .map(|(r, _)| r.into_file_id(&analysis.db))
+            .sorted_by_key(cmp)
+            .collect::<Vec<_>>();
         assert_eq!(expected, actual);
     }
 

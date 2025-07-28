@@ -3,7 +3,8 @@
 use std::mem;
 
 use cfg::{CfgAtom, CfgExpr};
-use hir::sym;
+use hir::db::ExpandDatabase;
+use hir::{HirFileId, sym};
 use ide::{Cancellable, Crate, FileId, RunnableKind, TestId};
 use project_model::project_json::Runnable;
 use project_model::{CargoFeatures, ManifestPath, TargetKind};
@@ -30,6 +31,28 @@ impl TargetSpec {
         let crate_id = match &*global_state_snapshot.analysis.crates_for(file_id)? {
             &[crate_id, ..] => crate_id,
             _ => return Ok(None),
+        };
+
+        Ok(global_state_snapshot.target_spec_for_crate(crate_id))
+    }
+
+    pub(crate) fn for_hir_file(
+        global_state_snapshot: &GlobalStateSnapshot,
+        file_id: HirFileId,
+    ) -> Cancellable<Option<Self>> {
+        let crate_id = match file_id {
+            HirFileId::FileId(editioned_file_id) => {
+                match &*global_state_snapshot
+                    .analysis
+                    .crates_for(editioned_file_id.file_id(global_state_snapshot.analysis.db()))?
+                {
+                    &[crate_id, ..] => crate_id,
+                    _ => return Ok(None),
+                }
+            }
+            HirFileId::MacroFile(macro_file_id) => global_state_snapshot
+                .analysis
+                .with_db(|db| db.lookup_intern_macro_call(macro_file_id).krate)?,
         };
 
         Ok(global_state_snapshot.target_spec_for_crate(crate_id))

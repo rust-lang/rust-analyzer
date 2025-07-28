@@ -75,6 +75,7 @@ impl Position {
         };
         Position { repr }
     }
+
     pub fn offset(&self) -> TextSize {
         match &self.repr {
             PositionRepr::FirstChild(node) => node.text_range().start(),

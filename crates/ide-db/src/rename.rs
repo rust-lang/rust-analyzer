@@ -320,7 +320,7 @@ fn rename_mod(
     }
 
     let def = Definition::Module(module);
-    let usages = def.usages(sema).all();
+    let usages = def.usages(sema).all().map_out_of_macros(sema);
     let ref_edits = usages.iter().map(|(file_id, references)| {
         let edition = file_id.edition(sema.db);
         (
@@ -380,7 +380,7 @@ fn rename_reference(
     }
 
     let def = convert_to_def_in_trait(sema.db, def);
-    let usages = def.usages(sema).all();
+    let usages = def.usages(sema).all().map_out_of_macros(sema);
 
     if !usages.is_empty() && ident_kind == IdentifierKind::Underscore {
         cov_mark::hit!(rename_underscore_multiple);

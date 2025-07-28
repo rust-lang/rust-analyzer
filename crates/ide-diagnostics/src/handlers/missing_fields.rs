@@ -220,7 +220,7 @@ fn get_default_constructor(
 
     let krate = ctx
         .sema
-        .file_to_module_def(d.file.original_file(ctx.sema.db).file_id(ctx.sema.db))?
+        .file_to_module_def2(d.file.original_file(ctx.sema.db).file_id(ctx.sema.db))?
         .krate();
     let module = krate.root_module();
 

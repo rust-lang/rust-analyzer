@@ -27,6 +27,9 @@ export type CommandLinkGroup = {
 
 // rust-analyzer extensions
 
+export const macroFile = new lc.RequestType<lc.TextDocumentIdentifier, string, void>(
+    "rust-analyzer/macroFileContent",
+);
 export const analyzerStatus = new lc.RequestType<AnalyzerStatusParams, string, void>(
     "rust-analyzer/analyzerStatus",
 );

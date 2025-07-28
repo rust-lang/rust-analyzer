@@ -30,7 +30,8 @@ use crate::{
         request::empty_diagnostic_report,
     },
     lsp::{
-        from_proto, to_proto,
+        from_proto::{self, VfsOrMacroPath},
+        to_proto,
         utils::{Progress, notification_is},
     },
     lsp_ext,
@@ -491,9 +492,11 @@ impl GlobalState {
         if let Some(diagnostic_changes) = self.diagnostics.take_changes() {
             for file_id in diagnostic_changes {
                 let uri = file_id_to_url(&self.vfs.read().0, file_id);
-                let version = from_proto::vfs_path(&uri)
-                    .ok()
-                    .and_then(|path| self.mem_docs.get(&path).map(|it| it.version));
+                let version = from_proto::url_to_vfs_path(&uri).ok().and_then(|path| match path {
+                    VfsOrMacroPath::Vfs(path) => self.mem_docs.get(&path).map(|it| it.version),
+                    // FIXME MACRO DIAGNOSTICS SHOULD WORK!
+                    VfsOrMacroPath::Macro(..) => None,
+                });
 
                 let diagnostics =
                     self.diagnostics.diagnostics_for(file_id).cloned().collect::<Vec<_>>();
@@ -909,17 +912,20 @@ impl GlobalState {
                 self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, move |sender| {
                     let _p = tracing::info_span!("GlobalState::check_if_indexed").entered();
                     tracing::debug!(?uri, "handling uri");
-                    let Some(id) = from_proto::file_id(&snap, &uri).expect("unable to get FileId")
-                    else {
+                    let Some(id) = snap.url_to_file_id(&uri).expect("unable to get FileId") else {
                         return;
                     };
                     if let Ok(crates) = &snap.analysis.crates_for(id) {
                         if crates.is_empty() {
                             if snap.config.discover_workspace_config().is_some() {
-                                let path =
-                                    from_proto::abs_path(&uri).expect("Unable to get AbsPath");
-                                let arg = DiscoverProjectParam::Path(path);
-                                sender.send(Task::DiscoverLinkedProjects(arg)).unwrap();
+                                if let VfsOrMacroPath::Vfs(path) = from_proto::url_to_vfs_path(&uri)
+                                    .expect("Unable to get AbsPath")
+                                {
+                                    if let Some(path) = path.into_abs_path() {
+                                        let arg = DiscoverProjectParam::Path(path);
+                                        sender.send(Task::DiscoverLinkedProjects(arg)).unwrap();
+                                    }
+                                }
                             }
                         } else {
                             tracing::debug!(?uri, "is indexed");
@@ -1200,6 +1206,7 @@ impl GlobalState {
             .on::<NO_RETRY, lsp_ext::ExternalDocs>(handlers::handle_open_docs)
             .on::<NO_RETRY, lsp_ext::OpenCargoToml>(handlers::handle_open_cargo_toml)
             .on::<NO_RETRY, lsp_ext::MoveItem>(handlers::handle_move_item)
+            .on::<NO_RETRY, lsp_ext::MacroFileContent>(handlers::macro_file_content)
             //
             .on::<NO_RETRY, lsp_ext::InternalTestingFetchConfig>(handlers::internal_testing_fetch_config)
             .finish();

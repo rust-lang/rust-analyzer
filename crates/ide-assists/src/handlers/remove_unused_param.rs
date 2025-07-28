@@ -85,7 +85,8 @@ pub(crate) fn remove_unused_param(acc: &mut Assists, ctx: &AssistContext<'_>) ->
             for element in elements {
                 editor.delete(element);
             }
-            for (file_id, references) in fn_def.usages(&ctx.sema).all() {
+            for (file_id, references) in fn_def.usages(&ctx.sema).all().map_out_of_macros(&ctx.sema)
+            {
                 process_usages(ctx, builder, file_id, references, param_position, is_self_present);
             }
             builder.add_file_edits(ctx.vfs_file_id(), editor);

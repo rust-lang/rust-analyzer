@@ -20,6 +20,7 @@ pub fn prettify_macro_expansion(
     let span_offset = syn.text_range().start();
     let target_crate = target_crate_id.data(db);
     let mut syntax_ctx_id_to_dollar_crate_replacement = FxHashMap::default();
+
     syntax_bridge::prettify_macro_expansion::prettify_macro_expansion(
         syn,
         &mut |dollar_crate| {
