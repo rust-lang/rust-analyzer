@@ -26,6 +26,7 @@ use ide::{
 use ide_db::{
     EditionedFileId, LineIndexDatabase, SnippetCap,
     base_db::{SourceDatabase, salsa::Database},
+    rename::RenameConfig,
 };
 use itertools::Itertools;
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace};
@@ -1113,6 +1114,7 @@ impl flags::AnalysisStats {
                     style_lints: false,
                     term_search_fuel: 400,
                     term_search_borrowck: true,
+                    rename_config: RenameConfig { show_conflicts: true },
                 },
                 ide::AssistResolveStrategy::All,
                 analysis.editioned_file_id_to_vfs(file_id),
