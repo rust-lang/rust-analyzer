@@ -1995,6 +1995,29 @@ impl<T: Clone> Ctx<T> {
 }
 
 #[test]
+fn doctest_generate_ref_impl() {
+    check_doc_test(
+        "generate_ref_impl",
+        r#####"
+trait $0Foo {
+    fn foo(&mut self, n: i32) -> i32;
+}
+"#####,
+        r#####"
+trait Foo {
+    fn foo(&mut self, n: i32) -> i32;
+}
+
+impl<T: Foo + ?Sized> Foo for &mut T {
+    fn foo(&mut self, n: i32) -> i32 {
+        (**self).foo(n)
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_setter() {
     check_doc_test(
         "generate_setter",
