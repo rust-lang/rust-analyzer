@@ -1,10 +1,15 @@
-use hir::{Function, ModuleDef, Visibility};
+use hir::{Function, ModuleDef};
 use ide_db::{RootDatabase, assists::AssistId, path_transform::PathTransform};
 use itertools::Itertools;
+use stdx::to_camel_case;
 use syntax::{
+    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T,
     ast::{
-        self, edit::{AstNodeEdit, IndentLevel}, make, HasAttrs, HasGenericParams, HasName, HasVisibility
-    }, match_ast, ted, AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T
+        self, HasAttrs, HasGenericParams, HasName, HasVisibility,
+        edit::{AstNodeEdit, IndentLevel},
+        make,
+    },
+    match_ast, ted,
 };
 
 use crate::{AssistContext, Assists};
@@ -50,10 +55,16 @@ pub(crate) fn extract_struct_from_function_signature(
         fn_ast
             .param_list()?
             .params()
-            .map(|param| Some(make::record_field(None, make::name("todo"), param.ty()?)))
-            .collect::<Option<Vec<_>>>()?
-            .into_iter(),
+            .map(|param| {
+                Some(make::record_field(
+                    fn_ast.visibility(),
+                    param.pat().and_then(pat_to_name)?,
+                    param.ty()?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?,
     );
+    let name = make::name(&format!("{}Struct", to_camel_case(fn_name.text_non_mutable())));
     acc.add(
         AssistId::refactor_rewrite("extract_struct_from_function_signature"),
         "Extract struct from signature of a function",
@@ -84,8 +95,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 field_list.clone_for_update()
             };
 
-            let def =
-                create_struct_def(fn_name.clone(), &fn_ast, &field_list, generics);
+            let def = create_struct_def(name.clone(), &fn_ast, &field_list, generics);
 
             let indent = fn_ast.indent_level();
             let def = def.indent(indent);
@@ -100,13 +110,20 @@ pub(crate) fn extract_struct_from_function_signature(
         },
     )
 }
+
+fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
+    match pat {
+        ast::Pat::IdentPat(ident_pat) => ident_pat.name(),
+        _ => None,
+    }
+}
 fn create_struct_def(
     name: ast::Name,
     fn_ast: &ast::Fn,
     field_list: &ast::RecordFieldList,
     generics: Option<ast::GenericParamList>,
 ) -> ast::Struct {
-    let enum_vis = fn_ast.visibility();
+    let fn_vis = fn_ast.visibility();
 
     let insert_vis = |node: &'_ SyntaxNode, vis: &'_ SyntaxNode| {
         let vis = vis.clone_for_update();
@@ -115,7 +132,7 @@ fn create_struct_def(
 
     // for fields without any existing visibility, use visibility of enum
     let field_list: ast::FieldList = {
-        if let Some(vis) = &enum_vis {
+        if let Some(vis) = &fn_vis {
             field_list
                 .fields()
                 .filter(|field| field.visibility().is_none())
@@ -127,7 +144,7 @@ fn create_struct_def(
     };
     let field_list = field_list.indent(IndentLevel::single());
 
-    let strukt = make::struct_(enum_vis, name, generics, field_list).clone_for_update();
+    let strukt = make::struct_(fn_vis, name, generics, field_list).clone_for_update();
 
     // take comments from variant
     ted::insert_all(
