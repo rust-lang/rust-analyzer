@@ -61,6 +61,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 Some(make::record_field(
                     fn_ast.visibility(),
                     param.pat().and_then(pat_to_name)?,
+                    // TODO: how are we going to handle references without explicit lifetimes
                     param.ty()?,
                 ))
             })
@@ -72,23 +73,27 @@ pub(crate) fn extract_struct_from_function_signature(
         "Extract struct from signature of a function",
         target,
         |builder| {
+            // TODO: update calls to the function
             let fn_ast = builder.make_mut(fn_ast);
+            let params = builder.make_mut(params);
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
             tracing::info!("extract_struct_from_function_signature: editing main file");
 
             let generic_params = fn_ast
                 .generic_param_list()
-            .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
+                .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
             tracing::info!("extract_struct_from_function_signature: collecting generics");
             let generics = generic_params.as_ref().map(|generics| generics.clone_for_update());
 
             // resolve GenericArg in field_list to actual type
-            // we are getting a query error from salsa, I think it is because the field list is
-            // constructed in new generation, so maybe do the resolving while its still param list
-            // and then convert it into record list after
+            // we would get a query error from salsa, if we would use the field_list
+            // I think it is because the field list is
+            // constructed in new generation.
+            // So I do the resolving while its still param list
+            // and then apply it into record list after
             let field_list = if let Some((target_scope, source_scope)) =
-                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(field_list.syntax()))
+                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(params.syntax()))
             {
                 let field_list = field_list.reset_indent();
                 let field_list =
@@ -118,8 +123,42 @@ pub(crate) fn extract_struct_from_function_signature(
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
+            update_function(name, &fn_ast, generic_params.map(|g| g.clone_for_update()));
         },
     )
+}
+
+fn update_function(
+    name: ast::Name,
+    fn_ast: &ast::Fn,
+    generics: Option<ast::GenericParamList>,
+) -> Option<()> {
+    let generic_args = generics
+        .filter(|generics| generics.generic_params().count() > 0)
+        .map(|generics| generics.to_generic_args());
+    // FIXME: replace with a `ast::make` constructor
+    let ty = match generic_args {
+        Some(generic_args) => make::ty(&format!("{name}{generic_args}")),
+        None => make::ty(&name.text()),
+    };
+
+    let param = make::param(
+        // TODO: do we want to destructure the struct
+        ast::Pat::IdentPat(make::ident_pat(
+            false,
+            fn_ast.param_list()?.params().any(|p| {
+                p.pat()
+                    .is_some_and(|p| matches!(p, ast::Pat::IdentPat(p) if p.mut_token().is_some()))
+            }),
+            name,
+        )),
+        ty,
+    );
+    // TODO: will eventually need to handle self to
+    let param_list = make::param_list(None, std::iter::once(param)).clone_for_update();
+    ted::replace(fn_ast.param_list()?.syntax(), param_list.syntax());
+    // TODO: update uses of parameters in function, if we do not destructure
+    Some(())
 }
 
 fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
