@@ -22,7 +22,7 @@ use crate::{
     ConstId, EnumId, EnumVariantId, EnumVariantLoc, ExternBlockId, FunctionId, HasModule, ImplId,
     ItemContainerId, ModuleId, StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, UnionId,
     VariantId,
-    attr::Attrs,
+    attrs::AttrFlags,
     db::DefDatabase,
     expr_store::{
         ExpressionStore, ExpressionStoreSourceMap,
@@ -50,7 +50,6 @@ pub struct StructSignature {
     pub store: Arc<ExpressionStore>,
     pub flags: StructFlags,
     pub shape: FieldsShape,
-    pub repr: Option<ReprOptions>,
 }
 
 bitflags! {
@@ -77,16 +76,16 @@ impl StructSignature {
     pub fn query(db: &dyn DefDatabase, id: StructId) -> (Arc<Self>, Arc<ExpressionStoreSourceMap>) {
         let loc = id.lookup(db);
         let InFile { file_id, value: source } = loc.source(db);
-        let attrs = db.attrs(id.into());
+        let attrs = AttrFlags::query(db, id.into());
 
         let mut flags = StructFlags::empty();
-        if attrs.by_key(sym::rustc_has_incoherent_inherent_impls).exists() {
+        if attrs.contains(AttrFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS) {
             flags |= StructFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS;
         }
-        if attrs.by_key(sym::fundamental).exists() {
+        if attrs.contains(AttrFlags::FUNDAMENTAL) {
             flags |= StructFlags::FUNDAMENTAL;
         }
-        if let Some(lang) = attrs.lang_item() {
+        if let Some(lang) = attrs.lang_item_with_attrs(db, id.into()) {
             match lang {
                 LangItem::PhantomData => flags |= StructFlags::IS_PHANTOM_DATA,
                 LangItem::OwnedBox => flags |= StructFlags::IS_BOX,
@@ -96,7 +95,6 @@ impl StructSignature {
                 _ => (),
             }
         }
-        let repr = attrs.repr();
         let shape = adt_shape(source.kind());
 
         let (store, generic_params, source_map) = lower_generic_params(
@@ -114,7 +112,6 @@ impl StructSignature {
                 flags,
                 shape,
                 name: as_name_opt(source.name()),
-                repr,
             }),
             Arc::new(source_map),
         )
@@ -136,22 +133,19 @@ pub struct UnionSignature {
     pub generic_params: Arc<GenericParams>,
     pub store: Arc<ExpressionStore>,
     pub flags: StructFlags,
-    pub repr: Option<ReprOptions>,
 }
 
 impl UnionSignature {
     pub fn query(db: &dyn DefDatabase, id: UnionId) -> (Arc<Self>, Arc<ExpressionStoreSourceMap>) {
         let loc = id.lookup(db);
-        let attrs = db.attrs(id.into());
+        let attrs = AttrFlags::query(db, id.into());
         let mut flags = StructFlags::empty();
-        if attrs.by_key(sym::rustc_has_incoherent_inherent_impls).exists() {
+        if attrs.contains(AttrFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS) {
             flags |= StructFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS;
         }
-        if attrs.by_key(sym::fundamental).exists() {
+        if attrs.contains(AttrFlags::FUNDAMENTAL) {
             flags |= StructFlags::FUNDAMENTAL;
         }
-
-        let repr = attrs.repr();
 
         let InFile { file_id, value: source } = loc.source(db);
         let (store, generic_params, source_map) = lower_generic_params(
@@ -167,7 +161,6 @@ impl UnionSignature {
                 generic_params,
                 store,
                 flags,
-                repr,
                 name: as_name_opt(source.name()),
             }),
             Arc::new(source_map),
@@ -188,19 +181,16 @@ pub struct EnumSignature {
     pub generic_params: Arc<GenericParams>,
     pub store: Arc<ExpressionStore>,
     pub flags: EnumFlags,
-    pub repr: Option<ReprOptions>,
 }
 
 impl EnumSignature {
     pub fn query(db: &dyn DefDatabase, id: EnumId) -> (Arc<Self>, Arc<ExpressionStoreSourceMap>) {
         let loc = id.lookup(db);
-        let attrs = db.attrs(id.into());
+        let attrs = AttrFlags::query(db, id.into());
         let mut flags = EnumFlags::empty();
-        if attrs.by_key(sym::rustc_has_incoherent_inherent_impls).exists() {
+        if attrs.contains(AttrFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS) {
             flags |= EnumFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS;
         }
-
-        let repr = attrs.repr();
 
         let InFile { file_id, value: source } = loc.source(db);
         let (store, generic_params, source_map) = lower_generic_params(
@@ -217,15 +207,14 @@ impl EnumSignature {
                 generic_params,
                 store,
                 flags,
-                repr,
                 name: as_name_opt(source.name()),
             }),
             Arc::new(source_map),
         )
     }
 
-    pub fn variant_body_type(&self) -> IntegerType {
-        match self.repr {
+    pub fn variant_body_type(db: &dyn DefDatabase, id: EnumId) -> IntegerType {
+        match AttrFlags::repr(db, id.into()) {
             Some(ReprOptions { int: Some(builtin), .. }) => builtin,
             _ => IntegerType::Pointer(true),
         }
@@ -253,9 +242,9 @@ impl ConstSignature {
         let loc = id.lookup(db);
 
         let module = loc.container.module(db);
-        let attrs = db.attrs(id.into());
+        let attrs = AttrFlags::query(db, id.into());
         let mut flags = ConstFlags::empty();
-        if attrs.by_key(sym::rustc_allow_incoherent_impl).exists() {
+        if attrs.contains(AttrFlags::RUSTC_ALLOW_INCOHERENT_IMPL) {
             flags |= ConstFlags::RUSTC_ALLOW_INCOHERENT_IMPL;
         }
         let source = loc.source(db);
@@ -308,9 +297,9 @@ impl StaticSignature {
         let loc = id.lookup(db);
 
         let module = loc.container.module(db);
-        let attrs = db.attrs(id.into());
+        let attrs = AttrFlags::query(db, id.into());
         let mut flags = StaticFlags::empty();
-        if attrs.by_key(sym::rustc_allow_incoherent_impl).exists() {
+        if attrs.contains(AttrFlags::RUSTC_ALLOW_INCOHERENT_IMPL) {
             flags |= StaticFlags::RUSTC_ALLOW_INCOHERENT_IMPL;
         }
 
@@ -419,7 +408,7 @@ impl TraitSignature {
         let loc = id.lookup(db);
 
         let mut flags = TraitFlags::empty();
-        let attrs = db.attrs(id.into());
+        let attrs = AttrFlags::query(db, id.into());
         let source = loc.source(db);
         if source.value.auto_token().is_some() {
             flags.insert(TraitFlags::AUTO);
@@ -427,31 +416,20 @@ impl TraitSignature {
         if source.value.unsafe_token().is_some() {
             flags.insert(TraitFlags::UNSAFE);
         }
-        if attrs.by_key(sym::fundamental).exists() {
+        if attrs.contains(AttrFlags::FUNDAMENTAL) {
             flags |= TraitFlags::FUNDAMENTAL;
         }
-        if attrs.by_key(sym::rustc_has_incoherent_inherent_impls).exists() {
+        if attrs.contains(AttrFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS) {
             flags |= TraitFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS;
         }
-        if attrs.by_key(sym::rustc_paren_sugar).exists() {
+        if attrs.contains(AttrFlags::RUSTC_PAREN_SUGAR) {
             flags |= TraitFlags::RUSTC_PAREN_SUGAR;
         }
-        let mut skip_array_during_method_dispatch =
-            attrs.by_key(sym::rustc_skip_array_during_method_dispatch).exists();
-        let mut skip_boxed_slice_during_method_dispatch = false;
-        for tt in attrs.by_key(sym::rustc_skip_during_method_dispatch).tt_values() {
-            for tt in tt.iter() {
-                if let tt::iter::TtElement::Leaf(tt::Leaf::Ident(ident)) = tt {
-                    skip_array_during_method_dispatch |= ident.sym == sym::array;
-                    skip_boxed_slice_during_method_dispatch |= ident.sym == sym::boxed_slice;
-                }
-            }
-        }
 
-        if skip_array_during_method_dispatch {
+        if attrs.contains(AttrFlags::RUSTC_SKIP_ARRAY_DURING_METHOD_DISPATCH) {
             flags |= TraitFlags::SKIP_ARRAY_DURING_METHOD_DISPATCH;
         }
-        if skip_boxed_slice_during_method_dispatch {
+        if attrs.contains(AttrFlags::RUSTC_SKIP_BOXED_SLICE_DURING_METHOD_DISPATCH) {
             flags |= TraitFlags::SKIP_BOXED_SLICE_DURING_METHOD_DISPATCH;
         }
 
@@ -508,6 +486,7 @@ bitflags! {
         const HAS_TARGET_FEATURE = 1 << 9;
         const DEPRECATED_SAFE_2024 = 1 << 10;
         const EXPLICIT_SAFE = 1 << 11;
+        const HAS_LEGACY_CONST_GENERICS = 1 << 12;
     }
 }
 
@@ -520,8 +499,6 @@ pub struct FunctionSignature {
     pub ret_type: Option<TypeRefId>,
     pub abi: Option<Symbol>,
     pub flags: FnFlags,
-    // FIXME: we should put this behind a fn flags + query to avoid bloating the struct
-    pub legacy_const_generics_indices: Option<Box<Box<[u32]>>>,
 }
 
 impl FunctionSignature {
@@ -533,20 +510,23 @@ impl FunctionSignature {
         let module = loc.container.module(db);
 
         let mut flags = FnFlags::empty();
-        let attrs = db.attrs(id.into());
-        if attrs.by_key(sym::rustc_allow_incoherent_impl).exists() {
+        let attrs = AttrFlags::query(db, id.into());
+        if attrs.contains(AttrFlags::RUSTC_ALLOW_INCOHERENT_IMPL) {
             flags.insert(FnFlags::RUSTC_ALLOW_INCOHERENT_IMPL);
         }
 
-        if attrs.by_key(sym::target_feature).exists() {
+        if attrs.contains(AttrFlags::HAS_TARGET_FEATURE) {
             flags.insert(FnFlags::HAS_TARGET_FEATURE);
         }
-        let legacy_const_generics_indices = attrs.rustc_legacy_const_generics();
+
+        if attrs.contains(AttrFlags::HAS_LEGACY_CONST_GENERICS) {
+            flags.insert(FnFlags::HAS_LEGACY_CONST_GENERICS);
+        }
 
         let source = loc.source(db);
 
         if source.value.unsafe_token().is_some() {
-            if attrs.by_key(sym::rustc_deprecated_safe_2024).exists() {
+            if attrs.contains(AttrFlags::RUSTC_DEPRECATED_SAFE_2024) {
                 flags.insert(FnFlags::DEPRECATED_SAFE_2024);
             } else {
                 flags.insert(FnFlags::UNSAFE);
@@ -588,7 +568,6 @@ impl FunctionSignature {
                 ret_type,
                 abi,
                 flags,
-                legacy_const_generics_indices,
                 name,
             }),
             Arc::new(source_map),
@@ -636,6 +615,19 @@ impl FunctionSignature {
     pub fn has_target_feature(&self) -> bool {
         self.flags.contains(FnFlags::HAS_TARGET_FEATURE)
     }
+
+    #[inline]
+    pub fn legacy_const_generics_indices<'db>(
+        &self,
+        db: &'db dyn DefDatabase,
+        id: FunctionId,
+    ) -> Option<&'db [u32]> {
+        if !self.flags.contains(FnFlags::HAS_LEGACY_CONST_GENERICS) {
+            return None;
+        }
+
+        AttrFlags::legacy_const_generic_indices(db, id).as_deref()
+    }
 }
 
 bitflags! {
@@ -665,11 +657,11 @@ impl TypeAliasSignature {
         let loc = id.lookup(db);
 
         let mut flags = TypeAliasFlags::empty();
-        let attrs = db.attrs(id.into());
-        if attrs.by_key(sym::rustc_has_incoherent_inherent_impls).exists() {
+        let attrs = AttrFlags::query(db, id.into());
+        if attrs.contains(AttrFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS) {
             flags.insert(TypeAliasFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPL);
         }
-        if attrs.by_key(sym::rustc_allow_incoherent_impl).exists() {
+        if attrs.contains(AttrFlags::RUSTC_ALLOW_INCOHERENT_IMPL) {
             flags.insert(TypeAliasFlags::RUSTC_ALLOW_INCOHERENT_IMPL);
         }
         if matches!(loc.container, ItemContainerId::ExternBlockId(_)) {
@@ -852,7 +844,7 @@ fn lower_fields<Field: ast::HasAttrs + ast::HasVisibility>(
     let mut has_fields = false;
     for (ty, field) in fields.value {
         has_fields = true;
-        match Attrs::is_cfg_enabled_for(db, &field, col.span_map(), cfg_options) {
+        match AttrFlags::is_cfg_enabled_for(&field, cfg_options) {
             Ok(()) => {
                 let type_ref =
                     col.lower_type_ref_opt(ty, &mut ExprCollector::impl_trait_error_allocator);
@@ -914,7 +906,6 @@ impl EnumVariants {
         let loc = e.lookup(db);
         let source = loc.source(db);
         let ast_id_map = db.ast_id_map(source.file_id);
-        let span_map = db.span_map(source.file_id);
 
         let mut diagnostics = ThinVec::new();
         let cfg_options = loc.container.krate.cfg_options(db);
@@ -926,7 +917,7 @@ impl EnumVariants {
             .variants()
             .filter_map(|variant| {
                 let ast_id = ast_id_map.ast_id(&variant);
-                match Attrs::is_cfg_enabled_for(db, &variant, span_map.as_ref(), cfg_options) {
+                match AttrFlags::is_cfg_enabled_for(&variant, cfg_options) {
                     Ok(()) => {
                         let enum_variant =
                             EnumVariantLoc { id: source.with_value(ast_id), parent: e, index }

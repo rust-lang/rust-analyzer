@@ -5,6 +5,7 @@ use std::fmt;
 use chalk_ir::{AdtId, FloatTy, IntTy, TyKind, UintTy};
 use hir_def::{
     LocalFieldId, StructId,
+    attrs::AttrFlags,
     layout::{
         Float, Integer, LayoutCalculator, LayoutCalculatorError, LayoutData, Primitive,
         ReprOptions, Scalar, StructKind, TargetDataLayout, WrappingRange,
@@ -165,8 +166,7 @@ pub fn layout_of_ty_query(
     let result = match kind {
         TyKind::Adt(AdtId(def), subst) => {
             if let hir_def::AdtId::StructId(s) = def {
-                let data = db.struct_signature(*s);
-                let repr = data.repr.unwrap_or_default();
+                let repr = AttrFlags::repr(db, (*s).into()).unwrap_or_default();
                 if repr.simd() {
                     return layout_of_simd_ty(db, *s, repr.packed(), subst, trait_env, &target);
                 }

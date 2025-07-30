@@ -51,7 +51,8 @@ pub struct NavigationTarget {
     // FIXME: Symbol
     pub container_name: Option<SmolStr>,
     pub description: Option<String>,
-    pub docs: Option<Documentation>,
+    // FIXME: Use the database lifetime here.
+    pub docs: Option<Documentation<'static>>,
     /// In addition to a `name` field, a `NavigationTarget` may also be aliased
     /// In such cases we want a `NavigationTarget` to be accessible by its alias
     // FIXME: Symbol
@@ -116,7 +117,7 @@ impl NavigationTarget {
                             full_range,
                             SymbolKind::Module,
                         );
-                        res.docs = module.docs(db);
+                        res.docs = module.docs(db).map(Documentation::into_owned);
                         res.description = Some(
                             module.display(db, module.krate().to_display_target(db)).to_string(),
                         );
@@ -387,7 +388,7 @@ where
                 D::KIND,
             )
             .map(|mut res| {
-                res.docs = self.docs(db);
+                res.docs = self.docs(db).map(Documentation::into_owned);
                 res.description =
                     Some(self.display(db, self.krate(db).to_display_target(db)).to_string());
                 res.container_name = self.container_name(db);
@@ -477,7 +478,7 @@ impl TryToNav for hir::ExternCrateDecl {
                     SymbolKind::Module,
                 );
 
-                res.docs = self.docs(db);
+                res.docs = self.docs(db).map(Documentation::into_owned);
                 res.description = Some(self.display(db, krate.to_display_target(db)).to_string());
                 res.container_name = container_name(db, *self, edition);
                 res
@@ -495,7 +496,7 @@ impl TryToNav for hir::Field {
             FieldSource::Named(it) => {
                 NavigationTarget::from_named(db, src.with_value(it), SymbolKind::Field).map(
                     |mut res| {
-                        res.docs = self.docs(db);
+                        res.docs = self.docs(db).map(Documentation::into_owned);
                         res.description =
                             Some(self.display(db, krate.to_display_target(db)).to_string());
                         res
@@ -532,7 +533,7 @@ impl TryToNav for hir::Macro {
                 self.kind(db).into(),
             )
             .map(|mut res| {
-                res.docs = self.docs(db);
+                res.docs = self.docs(db).map(Documentation::into_owned);
                 res
             }),
         )
@@ -817,7 +818,7 @@ pub(crate) fn orig_range_with_focus_r(
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
     let Some(name) = focus_range else { return orig_range_r(db, hir_file, value) };
 
-    let call_kind = || db.lookup_intern_macro_call(hir_file.macro_file().unwrap()).kind;
+    let call = || db.lookup_intern_macro_call(hir_file.macro_file().unwrap());
 
     let def_range =
         || db.lookup_intern_macro_call(hir_file.macro_file().unwrap()).def.definition_range(db);
@@ -843,7 +844,8 @@ pub(crate) fn orig_range_with_focus_r(
                             // name lies outside the node, so instead point to the macro call which
                             // *should* contain the name
                             _ => {
-                                let kind = call_kind();
+                                let call = call();
+                                let kind = call.kind;
                                 let range = kind.clone().original_call_range_with_input(db);
                                 //If the focus range is in the attribute/derive body, we
                                 // need to point the call site to the entire body, if not, fall back
@@ -855,7 +857,7 @@ pub(crate) fn orig_range_with_focus_r(
                                 {
                                     range
                                 } else {
-                                    kind.original_call_range(db)
+                                    kind.original_call_range(db, call.krate)
                                 }
                             }
                         },
@@ -884,11 +886,14 @@ pub(crate) fn orig_range_with_focus_r(
                         },
                     ),
                     // node is in macro def, just show the focus
-                    _ => (
-                        // show the macro call
-                        (call_kind().original_call_range(db), None),
-                        Some((focus_range, Some(focus_range))),
-                    ),
+                    _ => {
+                        let call = call();
+                        (
+                            // show the macro call
+                            (call.kind.original_call_range(db, call.krate), None),
+                            Some((focus_range, Some(focus_range))),
+                        )
+                    }
                 }
             }
             // lost name? can't happen for single tokens

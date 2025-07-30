@@ -143,7 +143,8 @@ impl flags::AnalysisStats {
                             let length = db.file_text(file_id).text(db).lines().count();
                             let item_stats = db
                                 .file_item_tree(
-                                    EditionedFileId::current_edition(db, file_id).into(),
+                                    EditionedFileId::current_edition_guess_origin(db, file_id)
+                                        .into(),
                                 )
                                 .item_tree_stats()
                                 .into();
@@ -155,7 +156,8 @@ impl flags::AnalysisStats {
                             let length = db.file_text(file_id).text(db).lines().count();
                             let item_stats = db
                                 .file_item_tree(
-                                    EditionedFileId::current_edition(db, file_id).into(),
+                                    EditionedFileId::current_edition_guess_origin(db, file_id)
+                                        .into(),
                                 )
                                 .item_tree_stats()
                                 .into();
