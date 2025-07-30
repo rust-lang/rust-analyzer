@@ -51,6 +51,8 @@ pub(crate) fn extract_struct_from_function_signature(
     // TODO: special handiling for self?
     // TODO: special handling for destrutered types (or maybe just don't suppurt code action on
     // destructed types yet
+    let params = fn_ast.param_list()?;
+
     let field_list = make::record_field_list(
         fn_ast
             .param_list()?
@@ -70,14 +72,21 @@ pub(crate) fn extract_struct_from_function_signature(
         "Extract struct from signature of a function",
         target,
         |builder| {
+            let fn_ast = builder.make_mut(fn_ast);
+            tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
+            tracing::info!("extract_struct_from_function_signature: editing main file");
 
             let generic_params = fn_ast
                 .generic_param_list()
-                .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
+            .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
+            tracing::info!("extract_struct_from_function_signature: collecting generics");
             let generics = generic_params.as_ref().map(|generics| generics.clone_for_update());
 
             // resolve GenericArg in field_list to actual type
+            // we are getting a query error from salsa, I think it is because the field list is
+            // constructed in new generation, so maybe do the resolving while its still param list
+            // and then convert it into record list after
             let field_list = if let Some((target_scope, source_scope)) =
                 ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(field_list.syntax()))
             {
@@ -94,8 +103,9 @@ pub(crate) fn extract_struct_from_function_signature(
             } else {
                 field_list.clone_for_update()
             };
-
-            let def = create_struct_def(name.clone(), &fn_ast, &field_list, generics);
+            tracing::info!("extract_struct_from_function_signature: collecting fields");
+            let def = create_struct_def(name.clone(), &fn_ast, &params, &field_list, generics);
+            tracing::info!("extract_struct_from_function_signature: creating struct");
 
             let indent = fn_ast.indent_level();
             let def = def.indent(indent);
@@ -107,6 +117,7 @@ pub(crate) fn extract_struct_from_function_signature(
                     make::tokens::whitespace(&format!("\n\n{indent}")).into(),
                 ],
             );
+            tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
         },
     )
 }
@@ -120,6 +131,7 @@ fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
 fn create_struct_def(
     name: ast::Name,
     fn_ast: &ast::Fn,
+    param_ast: &ast::ParamList,
     field_list: &ast::RecordFieldList,
     generics: Option<ast::GenericParamList>,
 ) -> ast::Struct {
@@ -146,17 +158,19 @@ fn create_struct_def(
 
     let strukt = make::struct_(fn_vis, name, generics, field_list).clone_for_update();
 
-    // take comments from variant
+    // take comments from only inside signature
     ted::insert_all(
         ted::Position::first_child_of(strukt.syntax()),
-        take_all_comments(fn_ast.syntax()),
+        take_all_comments(param_ast.syntax()),
     );
 
-    // copy attributes from enum
+    // TODO: this may not be correct as we shouldn't put all the attributes at the top
+    // copy attributes from each parameter
     ted::insert_all(
         ted::Position::first_child_of(strukt.syntax()),
-        fn_ast
-            .attrs()
+        param_ast
+            .params()
+            .flat_map(|p| p.attrs())
             .flat_map(|it| {
                 vec![it.syntax().clone_for_update().into(), make::tokens::single_newline().into()]
             })
