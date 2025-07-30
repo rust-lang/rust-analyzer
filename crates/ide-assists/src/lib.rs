@@ -236,6 +236,7 @@ mod handlers {
     mod unwrap_type_to_generic_arg;
     mod wrap_return_type;
     mod wrap_unwrap_cfg_attr;
+    mod extract_struct_from_function_signature;
 
     pub(crate) fn all() -> &'static [Handler] {
         &[
@@ -284,6 +285,7 @@ mod handlers {
             expand_rest_pattern::expand_rest_pattern,
             extract_expressions_from_format_string::extract_expressions_from_format_string,
             extract_struct_from_enum_variant::extract_struct_from_enum_variant,
+            extract_struct_from_function_signature::extract_struct_from_function_signature,
             extract_type_alias::extract_type_alias,
             fix_visibility::fix_visibility,
             flip_binexpr::flip_binexpr,
