@@ -1,7 +1,7 @@
 use hir::{Function, ModuleDef};
 use ide_db::{RootDatabase, assists::AssistId, path_transform::PathTransform};
 use itertools::Itertools;
-use stdx::to_camel_case;
+use stdx::{to_camel_case, to_lower_snake_case};
 use syntax::{
     AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T,
     ast::{
@@ -18,16 +18,13 @@ use crate::{AssistContext, Assists};
 // Extracts a struct (part) of the signature of a function.
 //
 // ```
-// fn foo(bar: u32, baz: u32) { ... }
+// fn foo($0bar: u32, baz: u32) { ... }
 // ```
 // ->
 // ```
-// struct FooStruct {
-//      bar: u32,
-//      baz: u32,
-// }
+// struct FooStruct{ bar: u32, baz: u32 }
 //
-// fn foo(FooStruct) { ... }
+// fn foo(foo_struct: FooStruct) { ... }
 // ```
 
 pub(crate) fn extract_struct_from_function_signature(
@@ -42,9 +39,10 @@ pub(crate) fn extract_struct_from_function_signature(
     // go through the fn, the text_range is the whole function.
     let params_list = ctx.find_node_at_offset::<ast::ParamList>()?;
     let fn_name = fn_ast.name()?;
+    let name = make::name(&format!("{}Struct", to_camel_case(fn_name.text_non_mutable())));
 
     let fn_hir = ctx.sema.to_def(&fn_ast)?;
-    if existing_definition(ctx.db(), &fn_name, &fn_hir) {
+    if existing_definition(ctx.db(), &name, &fn_hir) {
         cov_mark::hit!(test_extract_function_signature_not_applicable_if_struct_exists);
         return None;
     }
@@ -69,16 +67,16 @@ pub(crate) fn extract_struct_from_function_signature(
             })
             .collect::<Option<Vec<_>>>()?,
     );
-    let name = make::name(&format!("{}Struct", to_camel_case(fn_name.text_non_mutable())));
     acc.add(
         AssistId::refactor_rewrite("extract_struct_from_function_signature"),
         "Extract struct from signature of a function",
         target,
         |builder| {
             // TODO: update calls to the function
-            let fn_ast = builder.make_mut(fn_ast);
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
+            // this has to be after the edit_file (order matters)
+            let fn_ast = builder.make_mut(fn_ast);
             tracing::info!("extract_struct_from_function_signature: editing main file");
 
             let generic_params = fn_ast
@@ -154,7 +152,8 @@ fn update_function(
                 p.pat()
                     .is_some_and(|p| matches!(p, ast::Pat::IdentPat(p) if p.mut_token().is_some()))
             }),
-            name,
+            // TODO: maybe make a method that maps over a name's text
+            make::name(&to_lower_snake_case(name.text_non_mutable())),
         )),
         ty,
     );
@@ -326,4 +325,22 @@ fn existing_definition(db: &RootDatabase, variant_name: &ast::Name, variant: &Fu
             _ => false,
         })
         .any(|(name, _)| name.as_str() == variant_name.text().trim_start_matches("r#"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::check_assist_not_applicable;
+
+    #[test]
+    fn test_extract_function_signature_not_applicable_if_struct_exists() {
+        cov_mark::check!(test_extract_function_signature_not_applicable_if_struct_exists);
+        check_assist_not_applicable(
+            extract_struct_from_function_signature,
+            r#"
+struct OneStruct;
+fn one($0x: u8, y: u32) {}
+"#,
+        );
+    }
 }
