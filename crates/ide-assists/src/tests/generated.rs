@@ -1222,6 +1222,21 @@ enum A { One(One) }
 }
 
 #[test]
+fn doctest_extract_struct_from_function_signature() {
+    check_doc_test(
+        "extract_struct_from_function_signature",
+        r#####"
+fn foo($0bar: u32, baz: u32) { ... }
+"#####,
+        r#####"
+struct FooStruct{ bar: u32, baz: u32 }
+
+fn foo(foo_struct: FooStruct) { ... }
+"#####,
+    )
+}
+
+#[test]
 fn doctest_extract_type_alias() {
     check_doc_test(
         "extract_type_alias",
