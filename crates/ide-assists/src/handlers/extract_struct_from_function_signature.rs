@@ -32,7 +32,7 @@ pub(crate) fn extract_struct_from_function_signature(
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
     // TODO: get more specific than param list
-    // how to get function name and param list/part of param list the is selected seperatly
+    // how to get function name and param list/part of param list the is selected separately
     // or maybe just auto generate random name not based on function name?
     let fn_ast = ctx.find_node_at_offset::<ast::Fn>()?;
     // we independently get the param list without going through fn (fn_ast.param_list()), because for some reason when we
@@ -50,7 +50,7 @@ pub(crate) fn extract_struct_from_function_signature(
     // TODO: does this capture parenthesis
     let target = params_list.syntax().text_range();
     // TODO: special handiling for self?
-    // TODO: special handling for destrutered types (or maybe just don't suppurt code action on
+    // TODO: special handling for destrutered types (or maybe just don't support code action on
     // destructed types yet
 
     let field_list = make::record_field_list(
