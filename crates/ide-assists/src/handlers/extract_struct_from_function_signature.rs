@@ -38,6 +38,9 @@ pub(crate) fn extract_struct_from_function_signature(
     // how to get function name and param list/part of param list the is selected seperatly
     // or maybe just auto generate random name not based on function name?
     let fn_ast = ctx.find_node_at_offset::<ast::Fn>()?;
+    // we independently get the param list without going through fn (fn_ast.param_list()), because for some reason when we
+    // go through the fn, the text_range is the whole function.
+    let params_list = ctx.find_node_at_offset::<ast::ParamList>()?;
     let fn_name = fn_ast.name()?;
 
     let fn_hir = ctx.sema.to_def(&fn_ast)?;
@@ -47,11 +50,10 @@ pub(crate) fn extract_struct_from_function_signature(
     }
 
     // TODO: does this capture parenthesis
-    let target = fn_ast.param_list()?.syntax().text_range();
+    let target = params_list.syntax().text_range();
     // TODO: special handiling for self?
     // TODO: special handling for destrutered types (or maybe just don't suppurt code action on
     // destructed types yet
-    let params = fn_ast.param_list()?;
 
     let field_list = make::record_field_list(
         fn_ast
@@ -75,7 +77,6 @@ pub(crate) fn extract_struct_from_function_signature(
         |builder| {
             // TODO: update calls to the function
             let fn_ast = builder.make_mut(fn_ast);
-            let params = builder.make_mut(params);
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
             tracing::info!("extract_struct_from_function_signature: editing main file");
@@ -93,7 +94,7 @@ pub(crate) fn extract_struct_from_function_signature(
             // So I do the resolving while its still param list
             // and then apply it into record list after
             let field_list = if let Some((target_scope, source_scope)) =
-                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(params.syntax()))
+                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(params_list.syntax()))
             {
                 let field_list = field_list.reset_indent();
                 let field_list =
@@ -109,7 +110,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 field_list.clone_for_update()
             };
             tracing::info!("extract_struct_from_function_signature: collecting fields");
-            let def = create_struct_def(name.clone(), &fn_ast, &params, &field_list, generics);
+            let def = create_struct_def(name.clone(), &fn_ast, &params_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
 
             let indent = fn_ast.indent_level();
@@ -123,7 +124,8 @@ pub(crate) fn extract_struct_from_function_signature(
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
-            update_function(name, &fn_ast, generic_params.map(|g| g.clone_for_update()));
+            update_function(name, &fn_ast, generic_params.map(|g| g.clone_for_update())).unwrap();
+            tracing::info!("extract_struct_from_function_signature: updating function signature and parameter uses");
         },
     )
 }
@@ -144,6 +146,8 @@ fn update_function(
 
     let param = make::param(
         // TODO: do we want to destructure the struct
+        // would make it easier in that we would not have to update all the uses of the variables in
+        // the function
         ast::Pat::IdentPat(make::ident_pat(
             false,
             fn_ast.param_list()?.params().any(|p| {
@@ -154,9 +158,9 @@ fn update_function(
         )),
         ty,
     );
-    // TODO: will eventually need to handle self to
-    let param_list = make::param_list(None, std::iter::once(param)).clone_for_update();
-    ted::replace(fn_ast.param_list()?.syntax(), param_list.syntax());
+    // TODO: will eventually need to handle self too
+    let params_list = make::param_list(None, std::iter::once(param)).clone_for_update();
+    ted::replace(fn_ast.param_list()?.syntax(), params_list.syntax());
     // TODO: update uses of parameters in function, if we do not destructure
     Some(())
 }
