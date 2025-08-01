@@ -1231,7 +1231,7 @@ fn foo($0bar: u32, baz: u32$0) { ... }
         r#####"
 struct FooStruct{ bar: u32, baz: u32 }
 
-fn foo(foo_struct: FooStruct) { ... }
+fn foo(FooStruct { bar, baz, .. }: FooStruct) { ... }
 "#####,
     )
 }
