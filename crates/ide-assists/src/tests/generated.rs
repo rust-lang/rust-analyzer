@@ -1541,6 +1541,22 @@ struct Point {
 }
 
 #[test]
+fn doctest_generate_doc_cfg() {
+    check_doc_test(
+        "generate_doc_cfg",
+        r#####"
+#[$0cfg(unix)]
+pub struct Foo;
+"#####,
+        r#####"
+#[cfg(unix)]
+#[cfg_attr(docsrs, doc(cfg(unix)))]
+pub struct Foo;
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_doc_example() {
     check_doc_test(
         "generate_doc_example",
