@@ -330,7 +330,40 @@ impl ast::GenericParamList {
         make::generic_arg_list(args)
     }
 }
+impl ast::GenericArgList {
+    pub fn add_generic_arg(&self, generic_arg: ast::GenericArg) {
+        match self.generic_args().last() {
+            Some(last_param) => {
+                let position = Position::after(last_param.syntax());
+                let elements = vec![
+                    make::token(T![,]).into(),
+                    make::tokens::single_space().into(),
+                    generic_arg.syntax().clone().into(),
+                ];
+                ted::insert_all(position, elements);
+            }
+            None => {
+                let after_l_angle = Position::after(self.l_angle_token().unwrap());
+                ted::insert(after_l_angle, generic_arg.syntax());
+            }
+        }
+    }
 
+    /// Removes the existing generic param
+    pub fn remove_generic_arg(&self, generic_arg: ast::GenericArg) {
+        if let Some(previous) = generic_arg.syntax().prev_sibling() {
+            if let Some(next_token) = previous.next_sibling_or_token() {
+                ted::remove_all(next_token..=generic_arg.syntax().clone().into());
+            }
+        } else if let Some(next) = generic_arg.syntax().next_sibling() {
+            if let Some(next_token) = next.prev_sibling_or_token() {
+                ted::remove_all(generic_arg.syntax().clone().into()..=next_token);
+            }
+        } else {
+            ted::remove(generic_arg.syntax());
+        }
+    }
+}
 impl ast::WhereClause {
     pub fn add_predicate(&self, predicate: ast::WherePred) {
         if let Some(pred) = self.predicates().last()

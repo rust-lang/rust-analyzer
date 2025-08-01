@@ -89,6 +89,7 @@ pub(crate) fn extract_struct_from_function_signature(
         "Extract struct from signature of a function",
         target,
         |builder| {
+            let  new_lifetime_count = field_list.fields().filter_map(|f|f.ty()).map(|t|new_life_time_count(&t)).sum();
             let edition = fn_hir.krate(ctx.db()).edition(ctx.db());
             let enum_module_def = ModuleDef::from(fn_hir);
 
@@ -115,7 +116,10 @@ pub(crate) fn extract_struct_from_function_signature(
                     name.clone()
                 );
                 processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list);
+                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list,
+                        name.clone(),
+                        new_lifetime_count
+                    );
                 });
             }
 
@@ -138,7 +142,10 @@ pub(crate) fn extract_struct_from_function_signature(
                     name.clone()
                 );
                 processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list);
+                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list,
+                        name.clone(),
+                        new_lifetime_count
+                    );
                 });
             }
 
@@ -147,7 +154,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 .generic_param_list()
                 .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
             tracing::info!("extract_struct_from_function_signature: collecting generics");
-            let generics = generic_params.as_ref().map(|generics| generics.clone_for_update());
+            let mut generics = generic_params.as_ref().map(|generics| generics.clone_for_update());
 
             // resolve GenericArg in field_list to actual type
             // we would get a query error from salsa, if we would use the field_list
@@ -171,6 +178,7 @@ pub(crate) fn extract_struct_from_function_signature(
             } else {
                 field_list.clone_for_update()
             };
+            field_list.fields().filter_map(|f|f.ty()).try_for_each(|t|generate_new_lifetimes(&t, &mut generics));
             tracing::info!("extract_struct_from_function_signature: collecting fields");
             let def = create_struct_def(name.clone(), &fn_ast_mut, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
@@ -187,7 +195,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
-            update_function(name,  generic_params.map(|g| g.clone_for_update()), &used_param_list).unwrap();
+            update_function(name,  generic_params.map(|g| g.clone_for_update()), &used_param_list, new_lifetime_count).unwrap();
             tracing::info!("extract_struct_from_function_signature: updating function signature and parameter uses");
         },
     )
@@ -197,10 +205,19 @@ fn update_function(
     name: ast::Name,
     generics: Option<ast::GenericParamList>,
     used_param_list: &[ast::Param],
+    new_lifetime_count: usize,
 ) -> Option<()> {
-    let generic_args = generics
-        .filter(|generics| generics.generic_params().count() > 0)
-        .map(|generics| generics.to_generic_args());
+    // TODO: add new generics if needed
+    let generic_args =
+        generics.filter(|generics| generics.generic_params().count() > 0).map(|generics| {
+            let args = generics.to_generic_args().clone_for_update();
+            (0..new_lifetime_count).for_each(|_| {
+                args.add_generic_arg(
+                    make::lifetime_arg(make::lifetime("'_")).clone_for_update().into(),
+                )
+            });
+            args
+        });
     // FIXME: replace with a `ast::make` constructor
     let ty = match generic_args {
         Some(generic_args) => make::ty(&format!("{name}{generic_args}")),
@@ -212,6 +229,7 @@ fn update_function(
         // makes it easier in that we would not have to update all the uses of the variables in
         // the function
         ast::Pat::RecordPat(make::record_pat(
+            // TODO: need to have no turbofish kept lifetimes/generics if
             make::path_from_text(name.text_non_mutable()),
             used_param_list
                 .iter()
@@ -328,6 +346,44 @@ fn extract_generic_params(
     let generics = generics.into_iter().filter_map(|(param, tag)| tag.then_some(param));
     tagged_one.then(|| make::generic_param_list(generics))
 }
+fn generate_unique_lifetime_param_name(
+    existing_type_param_list: &Option<ast::GenericParamList>,
+) -> Option<ast::Lifetime> {
+    match existing_type_param_list {
+        Some(type_params) => {
+            let used_lifetime_params: FxHashSet<_> =
+                type_params.lifetime_params().map(|p| p.syntax().text().to_string()).collect();
+            ('a'..='z').map(|it| format!("'{it}")).find(|it| !used_lifetime_params.contains(it))
+        }
+        None => Some("'a".to_owned()),
+    }
+    .map(|it| make::lifetime(&it))
+}
+fn new_life_time_count(ty: &ast::Type) -> usize {
+    ty.syntax()
+        .descendants()
+        .filter_map(ast::Lifetime::cast)
+        .filter(|lifetime| lifetime.text() == "'_")
+        .count()
+}
+fn generate_new_lifetimes(
+    ty: &ast::Type,
+    existing_type_param_list: &mut Option<ast::GenericParamList>,
+) -> Option<()> {
+    for token in ty.syntax().descendants() {
+        if let Some(lt) = ast::Lifetime::cast(token.clone())
+            && lt.text() == "'_"
+        {
+            let new_lt = generate_unique_lifetime_param_name(existing_type_param_list)?;
+            existing_type_param_list
+                .get_or_insert(make::generic_param_list(std::iter::empty()).clone_for_update())
+                .add_generic_param(make::lifetime_param(new_lt.clone()).clone_for_update().into());
+
+            ted::replace(lt.syntax(), new_lt.clone_for_update().syntax());
+        }
+    }
+    Some(())
+}
 fn tag_generics_in_function_signature(
     ty: &ast::Type,
     generics: &mut [(ast::GenericParam, bool)],
@@ -409,8 +465,7 @@ fn process_references(
     let name = make::name_ref(name.text_non_mutable());
     refs.into_iter()
         .flat_map(|reference| {
-            let (segment, scope_node, module) =
-                reference_to_node(&ctx.sema, reference, name.clone())?;
+            let (segment, scope_node, module) = reference_to_node(&ctx.sema, reference)?;
             let scope_node = builder.make_syntax_mut(scope_node);
             if !visited_modules.contains(&module) {
                 let mod_path = module.find_use_path(
@@ -434,7 +489,6 @@ fn process_references(
 fn reference_to_node(
     sema: &hir::Semantics<'_, RootDatabase>,
     reference: FileReference,
-    name: ast::NameRef,
 ) -> Option<(ast::PathSegment, SyntaxNode, hir::Module)> {
     // filter out the reference in macro
     let segment =
@@ -456,8 +510,8 @@ fn reference_to_node(
         }
     };
     let module = sema.scope(&expr_or_pat)?.module();
-    let segment = make::path_segment(name);
-    Some((segment, expr_or_pat, module))
+
+    Some((segment.clone_for_update(), expr_or_pat, module))
 }
 
 fn apply_references(
@@ -468,12 +522,28 @@ fn apply_references(
     edition: Edition,
     used_params_range: Range<usize>,
     field_list: &ast::RecordFieldList,
+    name: ast::Name,
+    new_lifetime_count: usize,
 ) -> Option<()> {
     if let Some((scope, path)) = import {
         insert_use(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg);
     }
+    // TODO: figure out lifetimes in referecnecs
+    // becauuse we have to convert from segment being non turbofish, also only need
+    // generics/lifetimes that are used in struct possibly not all the no ones for the original call
+    // if no specified lifetimes/generics we just give empty one
+    // if new_lifetime_count > 0 {
+    //     (0..new_lifetime_count).for_each(|_| {
+    //         segment
+    //             .get_or_create_generic_arg_list()
+    //             .add_generic_arg(make::lifetime_arg(make::lifetime("'_")).clone_for_update().into())
+    //     });
+    // }
+
+    ted::replace(segment.name_ref()?.syntax(), name.clone_for_update().syntax());
     // deep clone to prevent cycle
     let path = make::path_from_segments(std::iter::once(segment.clone_subtree()), false);
+    // TODO: do I need to to method call to
     let call = CallExpr::cast(node)?;
     let fields = make::record_expr_field_list(
         call.arg_list()?
@@ -489,6 +559,7 @@ fn apply_references(
             .collect::<Option<Vec<_>>>()?,
     );
     let record_expr = make::record_expr(path, fields).clone_for_update();
+
     call.arg_list()?
         .syntax()
         .splice_children(used_params_range, vec![record_expr.syntax().syntax_element()]);
@@ -561,7 +632,7 @@ fn main() {
         );
     }
     #[test]
-    fn test_extract_function_signature_single_parameter_with_reference_seperate_and_inself() {
+    fn test_extract_function_signature_single_parameter_with_reference_separate_and_in_self() {
         check_assist(
             extract_struct_from_function_signature,
             r#"
@@ -618,6 +689,88 @@ mod b {
         foo(FooStruct { bar: 1 }, 2)
     }
     "#,
+        );
+    }
+
+    #[test]
+    fn test_extract_function_signature_single_parameter_generic() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo<'a, A>($0bar: &'a A$0, baz: i32) {}
+"#,
+            r#"
+struct FooStruct<'a, A>{ bar: &'a A }
+
+fn foo<'a, A>(FooStruct { bar, .. }: FooStruct<'a, A>, baz: i32) {}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_single_parameter_generic_with_reference_in_self() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo<'a, A>($0bar: &'a A$0, baz: i32) {
+    foo(1, 2)
+}
+"#,
+            r#"
+struct FooStruct<'a, A>{ bar: &'a A }
+
+fn foo<'a, A>(FooStruct { bar, .. }: FooStruct<'a, A>, baz: i32) {
+    foo(FooStruct { bar: 1 }, 2)
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_extract_function_signature_single_parameter_anonymous_lifetime() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo($0bar: &'_ i32$0, baz: i32) {}
+"#,
+            r#"
+struct FooStruct<'a>{ bar: &'a i32 }
+
+fn foo(FooStruct { bar, .. }: FooStruct, baz: i32) {}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_single_parameter_anonymous_and_normal_lifetime() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo<'a>($0bar: &'_ &'a i32$0, baz: i32) {}
+"#,
+            r#"
+struct FooStruct<'a, 'b>{ bar: &'b &'a i32 }
+
+fn foo<'a>(FooStruct { bar, .. }: FooStruct<'a, '_>, baz: i32) {}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_extract_function_signature_single_parameter_anonymous_and_normal_lifetime_with_reference_in_self()
+     {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo<'a>($0bar: &'_ &'a i32$0, baz: i32) {
+    foo(bar, baz)
+}
+"#,
+            r#"
+struct FooStruct<'a, 'b>{ bar: &'b &'a i32 }
+
+fn foo<'a>(FooStruct { bar, .. }: FooStruct<'a, '_>, baz: i32) {
+    foo(FooStruct { bar: bar }, baz)
+}
+"#,
         );
     }
 }
