@@ -15,8 +15,8 @@ use itertools::Itertools;
 use syntax::{
     AstNode, Edition, SyntaxElement, SyntaxKind, SyntaxNode, T,
     ast::{
-        self, CallExpr, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility,
-        RecordExprField,
+        self, CallExpr, HasArgList, HasAttrs, HasGenericArgs, HasGenericParams, HasName,
+        HasVisibility, RecordExprField,
         edit::{AstNodeEdit, IndentLevel},
         make,
     },
@@ -66,6 +66,7 @@ pub(crate) fn extract_struct_from_function_signature(
     // TODO: special handling for destrutered types (or maybe just don't support code action on
     // destructed types yet
 
+    // TODO: don't allow if there is impl traits
     let field_list = make::record_field_list(
         used_param_list
             .iter()
@@ -118,12 +119,11 @@ pub(crate) fn extract_struct_from_function_signature(
                 processed.into_iter().for_each(|(path, node, import)| {
                     apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list,
                         name.clone(),
-                        new_lifetime_count
+                        // new_lifetime_count
                     );
                 });
             }
 
-            // TODO: update calls to the function
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
             let fn_ast_mut = builder.make_mut(fn_ast.clone());
@@ -144,7 +144,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 processed.into_iter().for_each(|(path, node, import)| {
                     apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list,
                         name.clone(),
-                        new_lifetime_count
+                        // new_lifetime_count
                     );
                 });
             }
@@ -207,9 +207,10 @@ fn update_function(
     used_param_list: &[ast::Param],
     new_lifetime_count: usize,
 ) -> Option<()> {
-    // TODO: add new generics if needed
-    let generic_args =
-        generics.filter(|generics| generics.generic_params().count() > 0).map(|generics| {
+    let generic_args = generics
+        .filter(|generics| generics.generic_params().count() > 0)
+        .or((new_lifetime_count > 0).then_some(make::generic_param_list(std::iter::empty())))
+        .map(|generics| {
             let args = generics.to_generic_args().clone_for_update();
             (0..new_lifetime_count).for_each(|_| {
                 args.add_generic_arg(
@@ -490,14 +491,14 @@ fn reference_to_node(
     sema: &hir::Semantics<'_, RootDatabase>,
     reference: FileReference,
 ) -> Option<(ast::PathSegment, SyntaxNode, hir::Module)> {
-    // filter out the reference in macro
+    // filter out the reference in macro (seems to be probalamtic with lifetimes/generics arguments)
     let segment =
         reference.name.as_name_ref()?.syntax().parent().and_then(ast::PathSegment::cast)?;
 
-    let segment_range = segment.syntax().text_range();
-    if segment_range != reference.range {
-        return None;
-    }
+    // let segment_range = segment.syntax().text_range();
+    // if segment_range != reference.range {
+    //     return None;
+    // }
 
     let parent = segment.parent_path().syntax().parent()?;
     let expr_or_pat = match_ast! {
@@ -523,7 +524,7 @@ fn apply_references(
     used_params_range: Range<usize>,
     field_list: &ast::RecordFieldList,
     name: ast::Name,
-    new_lifetime_count: usize,
+    // new_lifetime_count: usize,
 ) -> Option<()> {
     if let Some((scope, path)) = import {
         insert_use(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg);
@@ -540,6 +541,10 @@ fn apply_references(
     //     });
     // }
 
+    // current idea: the lifetimes can be inferred from the call
+    if let Some(generics) = segment.generic_arg_list() {
+        ted::remove(generics.syntax());
+    }
     ted::replace(segment.name_ref()?.syntax(), name.clone_for_update().syntax());
     // deep clone to prevent cycle
     let path = make::path_from_segments(std::iter::once(segment.clone_subtree()), false);
@@ -735,7 +740,7 @@ fn foo($0bar: &'_ i32$0, baz: i32) {}
             r#"
 struct FooStruct<'a>{ bar: &'a i32 }
 
-fn foo(FooStruct { bar, .. }: FooStruct, baz: i32) {}
+fn foo(FooStruct { bar, .. }: FooStruct<'_>, baz: i32) {}
 "#,
         );
     }
