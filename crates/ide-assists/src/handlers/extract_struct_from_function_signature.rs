@@ -1,7 +1,6 @@
 use hir::{Function, ModuleDef};
 use ide_db::{RootDatabase, assists::AssistId, path_transform::PathTransform};
 use itertools::Itertools;
-use stdx::{to_camel_case, to_lower_snake_case};
 use syntax::{
     AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T,
     ast::{
@@ -9,7 +8,8 @@ use syntax::{
         edit::{AstNodeEdit, IndentLevel},
         make,
     },
-    match_ast, ted,
+    match_ast,
+    ted::{self, Element},
 };
 
 use crate::{AssistContext, Assists};
@@ -18,7 +18,7 @@ use crate::{AssistContext, Assists};
 // Extracts a struct (part) of the signature of a function.
 //
 // ```
-// fn foo($0bar: u32, baz: u32) { ... }
+// fn foo($0bar: u32, baz: u32$0) { ... }
 // ```
 // ->
 // ```
@@ -31,15 +31,18 @@ pub(crate) fn extract_struct_from_function_signature(
     acc: &mut Assists,
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
-    // TODO: get more specific than param list
-    // how to get function name and param list/part of param list the is selected separately
-    // or maybe just auto generate random name not based on function name?
     let fn_ast = ctx.find_node_at_offset::<ast::Fn>()?;
-    // we independently get the param list without going through fn (fn_ast.param_list()), because for some reason when we
-    // go through the fn, the text_range is the whole function.
-    let params_list = ctx.find_node_at_offset::<ast::ParamList>()?;
+    let param_list = fn_ast.param_list()?;
+    let used_param_list = param_list
+        .params()
+        // filter to only parameters in selection
+        .filter(|p| p.syntax().text_range().intersect(ctx.selection_trimmed()).is_some())
+        .collect_vec();
+    // TODO: make sure at least one thing there
+    let target =
+        used_param_list.iter().map(|p| p.syntax().text_range()).reduce(|t, t2| t.cover(t2))?;
     let fn_name = fn_ast.name()?;
-    let name = make::name(&format!("{}Struct", to_camel_case(fn_name.text_non_mutable())));
+    let name = make::name(&format!("{}Struct", stdx::to_camel_case(fn_name.text_non_mutable())));
 
     let fn_hir = ctx.sema.to_def(&fn_ast)?;
     if existing_definition(ctx.db(), &name, &fn_hir) {
@@ -47,19 +50,17 @@ pub(crate) fn extract_struct_from_function_signature(
         return None;
     }
 
-    // TODO: does this capture parenthesis
-    let target = params_list.syntax().text_range();
     // TODO: special handiling for self?
     // TODO: special handling for destrutered types (or maybe just don't support code action on
     // destructed types yet
 
     let field_list = make::record_field_list(
-        fn_ast
-            .param_list()?
-            .params()
+        used_param_list
+            .iter()
             .map(|param| {
                 Some(make::record_field(
                     fn_ast.visibility(),
+                    // only works if its an ident pattern
                     param.pat().and_then(pat_to_name)?,
                     // TODO: how are we going to handle references without explicit lifetimes
                     param.ty()?,
@@ -76,7 +77,10 @@ pub(crate) fn extract_struct_from_function_signature(
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
             // this has to be after the edit_file (order matters)
+            // fn_ast and param_list must be "mut" for the effect to work on used_param_lsit
             let fn_ast = builder.make_mut(fn_ast);
+            let param_list = builder.make_mut(param_list);
+            let used_param_list = used_param_list.into_iter().map(|p| builder.make_mut(p)).collect_vec();
             tracing::info!("extract_struct_from_function_signature: editing main file");
 
             let generic_params = fn_ast
@@ -92,7 +96,7 @@ pub(crate) fn extract_struct_from_function_signature(
             // So I do the resolving while its still param list
             // and then apply it into record list after
             let field_list = if let Some((target_scope, source_scope)) =
-                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(params_list.syntax()))
+                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(param_list.syntax()))
             {
                 let field_list = field_list.reset_indent();
                 let field_list =
@@ -108,11 +112,12 @@ pub(crate) fn extract_struct_from_function_signature(
                 field_list.clone_for_update()
             };
             tracing::info!("extract_struct_from_function_signature: collecting fields");
-            let def = create_struct_def(name.clone(), &fn_ast, &params_list, &field_list, generics);
+            let def = create_struct_def(name.clone(), &fn_ast, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
 
             let indent = fn_ast.indent_level();
             let def = def.indent(indent);
+
 
             ted::insert_all(
                 ted::Position::before(fn_ast.syntax()),
@@ -122,7 +127,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
-            update_function(name, &fn_ast, generic_params.map(|g| g.clone_for_update())).unwrap();
+            update_function(name,  generic_params.map(|g| g.clone_for_update()), &used_param_list).unwrap();
             tracing::info!("extract_struct_from_function_signature: updating function signature and parameter uses");
         },
     )
@@ -130,8 +135,8 @@ pub(crate) fn extract_struct_from_function_signature(
 
 fn update_function(
     name: ast::Name,
-    fn_ast: &ast::Fn,
     generics: Option<ast::GenericParamList>,
+    used_param_list: &[ast::Param],
 ) -> Option<()> {
     let generic_args = generics
         .filter(|generics| generics.generic_params().count() > 0)
@@ -143,24 +148,26 @@ fn update_function(
     };
 
     let param = make::param(
-        // TODO: do we want to destructure the struct
-        // would make it easier in that we would not have to update all the uses of the variables in
+        // do we want to destructure the struct
+        // makes it easier in that we would not have to update all the uses of the variables in
         // the function
-        ast::Pat::IdentPat(make::ident_pat(
-            false,
-            fn_ast.param_list()?.params().any(|p| {
-                p.pat()
-                    .is_some_and(|p| matches!(p, ast::Pat::IdentPat(p) if p.mut_token().is_some()))
-            }),
-            // TODO: maybe make a method that maps over a name's text
-            make::name(&to_lower_snake_case(name.text_non_mutable())),
+        ast::Pat::RecordPat(make::record_pat(
+            make::path_from_text(name.text_non_mutable()),
+            used_param_list
+                .iter()
+                .map(|p| p.pat())
+                .chain(std::iter::once(Some(ast::Pat::RestPat(make::rest_pat()))))
+                .collect::<Option<Vec<_>>>()?,
         )),
         ty,
-    );
+    )
+    .clone_for_update();
     // TODO: will eventually need to handle self too
-    let params_list = make::param_list(None, std::iter::once(param)).clone_for_update();
-    ted::replace(fn_ast.param_list()?.syntax(), params_list.syntax());
-    // TODO: update uses of parameters in function, if we do not destructure
+
+    let range = used_param_list.first()?.syntax().syntax_element()
+        ..=used_param_list.last()?.syntax().syntax_element();
+    ted::replace_all(range, vec![param.syntax().syntax_element()]);
+    // no need update uses of parameters in function, because we destructure the struct
     Some(())
 }
 
@@ -173,7 +180,7 @@ fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
 fn create_struct_def(
     name: ast::Name,
     fn_ast: &ast::Fn,
-    param_ast: &ast::ParamList,
+    param_ast: &[ast::Param],
     field_list: &ast::RecordFieldList,
     generics: Option<ast::GenericParamList>,
 ) -> ast::Struct {
@@ -203,7 +210,7 @@ fn create_struct_def(
     // take comments from only inside signature
     ted::insert_all(
         ted::Position::first_child_of(strukt.syntax()),
-        take_all_comments(param_ast.syntax()),
+        take_all_comments(param_ast.iter()),
     );
 
     // TODO: this may not be correct as we shouldn't put all the attributes at the top
@@ -211,7 +218,7 @@ fn create_struct_def(
     ted::insert_all(
         ted::Position::first_child_of(strukt.syntax()),
         param_ast
-            .params()
+            .iter()
             .flat_map(|p| p.attrs())
             .flat_map(|it| {
                 vec![it.syntax().clone_for_update().into(), make::tokens::single_newline().into()]
@@ -224,9 +231,9 @@ fn create_struct_def(
 // Note: this also detaches whitespace after comments,
 // since `SyntaxNode::splice_children` (and by extension `ted::insert_all_raw`)
 // detaches nodes. If we only took the comments, we'd leave behind the old whitespace.
-fn take_all_comments(node: &SyntaxNode) -> Vec<SyntaxElement> {
+fn take_all_comments<'a>(node: impl Iterator<Item = &'a ast::Param>) -> Vec<SyntaxElement> {
     let mut remove_next_ws = false;
-    node.children_with_tokens()
+    node.flat_map(|p| p.syntax().children_with_tokens())
         .filter_map(move |child| match child.kind() {
             SyntaxKind::COMMENT => {
                 remove_next_ws = true;
@@ -330,7 +337,7 @@ fn existing_definition(db: &RootDatabase, variant_name: &ast::Name, variant: &Fu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::check_assist_not_applicable;
+    use crate::tests::{check_assist, check_assist_not_applicable};
 
     #[test]
     fn test_extract_function_signature_not_applicable_if_struct_exists() {
@@ -340,6 +347,34 @@ mod tests {
             r#"
 struct OneStruct;
 fn one($0x: u8, y: u32) {}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_single_parameters() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo($0bar: i32$0, baz: i32) {}
+"#,
+            r#"
+struct FooStruct{ bar: i32 }
+
+fn foo(FooStruct { bar, .. }: FooStruct, baz: i32) {}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_all_parameters() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo($0bar: i32, baz: i32$0) {}
+"#,
+            r#"
+struct FooStruct{ bar: i32, baz: i32 }
+
+fn foo(FooStruct { bar, baz, .. }: FooStruct) {}
 "#,
         );
     }
