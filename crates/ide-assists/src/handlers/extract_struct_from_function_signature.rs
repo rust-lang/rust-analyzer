@@ -1,10 +1,22 @@
-use hir::{Function, ModuleDef};
-use ide_db::{RootDatabase, assists::AssistId, path_transform::PathTransform};
+use std::ops::Range;
+
+use hir::{Function, HasCrate, Module, ModuleDef};
+use ide_db::{
+    FxHashSet, RootDatabase,
+    assists::AssistId,
+    defs::Definition,
+    helpers::mod_path_to_ast,
+    imports::insert_use::{ImportScope, InsertUseConfig, insert_use},
+    path_transform::PathTransform,
+    search::FileReference,
+    source_change::SourceChangeBuilder,
+};
 use itertools::Itertools;
 use syntax::{
-    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T,
+    AstNode, Edition, SyntaxElement, SyntaxKind, SyntaxNode, T,
     ast::{
-        self, HasAttrs, HasGenericParams, HasName, HasVisibility,
+        self, CallExpr, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility,
+        RecordExprField,
         edit::{AstNodeEdit, IndentLevel},
         make,
     },
@@ -24,7 +36,7 @@ use crate::{AssistContext, Assists};
 // ```
 // struct FooStruct{ bar: u32, baz: u32 }
 //
-// fn foo(foo_struct: FooStruct) { ... }
+// fn foo(FooStruct { bar, baz, .. }: FooStruct) { ... }
 // ```
 
 pub(crate) fn extract_struct_from_function_signature(
@@ -50,7 +62,7 @@ pub(crate) fn extract_struct_from_function_signature(
         return None;
     }
 
-    // TODO: special handiling for self?
+    // TODO: special handling for self?
     // TODO: special handling for destrutered types (or maybe just don't support code action on
     // destructed types yet
 
@@ -68,20 +80,68 @@ pub(crate) fn extract_struct_from_function_signature(
             })
             .collect::<Option<Vec<_>>>()?,
     );
+
+    let start_index = used_param_list.first()?.syntax().index();
+    let end_index = used_param_list.last()?.syntax().index();
+    let used_params_range = start_index..end_index + 1;
     acc.add(
         AssistId::refactor_rewrite("extract_struct_from_function_signature"),
         "Extract struct from signature of a function",
         target,
         |builder| {
+            let edition = fn_hir.krate(ctx.db()).edition(ctx.db());
+            let enum_module_def = ModuleDef::from(fn_hir);
+
+            let usages = Definition::Function(fn_hir).usages(&ctx.sema).all();
+            let mut visited_modules_set = FxHashSet::default();
+            let current_module = fn_hir.module(ctx.db());
+            visited_modules_set.insert(current_module);
+            // record file references of the file the def resides in, we only want to swap to the edited file in the builder once
+
+            let mut def_file_references = None;
+
+            for (file_id, references) in usages {
+                if file_id == ctx.file_id() {
+                    def_file_references = Some(references);
+                    continue;
+                }
+                builder.edit_file(file_id.file_id(ctx.db()));
+                let processed = process_references(
+                    ctx,
+                    builder,
+                    &mut visited_modules_set,
+                    &enum_module_def,
+                    references,
+                    name.clone()
+                );
+                processed.into_iter().for_each(|(path, node, import)| {
+                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list);
+                });
+            }
+
             // TODO: update calls to the function
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
-            // this has to be after the edit_file (order matters)
-            // fn_ast and param_list must be "mut" for the effect to work on used_param_lsit
-            let fn_ast = builder.make_mut(fn_ast);
-            let param_list = builder.make_mut(param_list);
+            let fn_ast_mut = builder.make_mut(fn_ast.clone());
+             builder.make_mut(param_list.clone());
             let used_param_list = used_param_list.into_iter().map(|p| builder.make_mut(p)).collect_vec();
             tracing::info!("extract_struct_from_function_signature: editing main file");
+            // this has to be after the edit_file (order matters)
+            // fn_ast and param_list must be "mut" for the effect to work on used_param_list
+            if let Some(references) = def_file_references {
+                let processed = process_references(
+                    ctx,
+                    builder,
+                    &mut visited_modules_set,
+                    &enum_module_def,
+                    references,
+                    name.clone()
+                );
+                processed.into_iter().for_each(|(path, node, import)| {
+                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list);
+                });
+            }
+
 
             let generic_params = fn_ast
                 .generic_param_list()
@@ -112,15 +172,15 @@ pub(crate) fn extract_struct_from_function_signature(
                 field_list.clone_for_update()
             };
             tracing::info!("extract_struct_from_function_signature: collecting fields");
-            let def = create_struct_def(name.clone(), &fn_ast, &used_param_list, &field_list, generics);
+            let def = create_struct_def(name.clone(), &fn_ast_mut, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
 
-            let indent = fn_ast.indent_level();
+            let indent = fn_ast_mut.indent_level();
             let def = def.indent(indent);
 
 
             ted::insert_all(
-                ted::Position::before(fn_ast.syntax()),
+                ted::Position::before(fn_ast_mut.syntax()),
                 vec![
                     def.syntax().clone().into(),
                     make::tokens::whitespace(&format!("\n\n{indent}")).into(),
@@ -164,9 +224,11 @@ fn update_function(
     .clone_for_update();
     // TODO: will eventually need to handle self too
 
-    let range = used_param_list.first()?.syntax().syntax_element()
-        ..=used_param_list.last()?.syntax().syntax_element();
-    ted::replace_all(range, vec![param.syntax().syntax_element()]);
+    let start_index = used_param_list.first().unwrap().syntax().index();
+    let end_index = used_param_list.last().unwrap().syntax().index();
+    let used_params_range = start_index..end_index + 1;
+    let new = vec![param.syntax().syntax_element()];
+    used_param_list.first()?.syntax().parent()?.splice_children(used_params_range, new);
     // no need update uses of parameters in function, because we destructure the struct
     Some(())
 }
@@ -334,6 +396,104 @@ fn existing_definition(db: &RootDatabase, variant_name: &ast::Name, variant: &Fu
         .any(|(name, _)| name.as_str() == variant_name.text().trim_start_matches("r#"))
 }
 
+fn process_references(
+    ctx: &AssistContext<'_>,
+    builder: &mut SourceChangeBuilder,
+    visited_modules: &mut FxHashSet<Module>,
+    function_module_def: &ModuleDef,
+    refs: Vec<FileReference>,
+    name: ast::Name,
+) -> Vec<(ast::PathSegment, SyntaxNode, Option<(ImportScope, hir::ModPath)>)> {
+    // we have to recollect here eagerly as we are about to edit the tree we need to calculate the changes
+    // and corresponding nodes up front
+    let name = make::name_ref(name.text_non_mutable());
+    refs.into_iter()
+        .flat_map(|reference| {
+            let (segment, scope_node, module) =
+                reference_to_node(&ctx.sema, reference, name.clone())?;
+            let scope_node = builder.make_syntax_mut(scope_node);
+            if !visited_modules.contains(&module) {
+                let mod_path = module.find_use_path(
+                    ctx.sema.db,
+                    *function_module_def,
+                    ctx.config.insert_use.prefix_kind,
+                    ctx.config.import_path_config(),
+                );
+                if let Some(mut mod_path) = mod_path {
+                    mod_path.pop_segment();
+                    mod_path.push_segment(hir::Name::new_root(name.text_non_mutable()).clone());
+                    let scope = ImportScope::find_insert_use_container(&scope_node, &ctx.sema)?;
+                    visited_modules.insert(module);
+                    return Some((segment, scope_node, Some((scope, mod_path))));
+                }
+            }
+            Some((segment, scope_node, None))
+        })
+        .collect()
+}
+fn reference_to_node(
+    sema: &hir::Semantics<'_, RootDatabase>,
+    reference: FileReference,
+    name: ast::NameRef,
+) -> Option<(ast::PathSegment, SyntaxNode, hir::Module)> {
+    // filter out the reference in macro
+    let segment =
+        reference.name.as_name_ref()?.syntax().parent().and_then(ast::PathSegment::cast)?;
+
+    let segment_range = segment.syntax().text_range();
+    if segment_range != reference.range {
+        return None;
+    }
+
+    let parent = segment.parent_path().syntax().parent()?;
+    let expr_or_pat = match_ast! {
+        match parent {
+            ast::PathExpr(_it) => parent.parent()?,
+            ast::RecordExpr(_it) => parent,
+            ast::TupleStructPat(_it) => parent,
+            ast::RecordPat(_it) => parent,
+            _ => return None,
+        }
+    };
+    let module = sema.scope(&expr_or_pat)?.module();
+    let segment = make::path_segment(name);
+    Some((segment, expr_or_pat, module))
+}
+
+fn apply_references(
+    insert_use_cfg: InsertUseConfig,
+    segment: ast::PathSegment,
+    node: SyntaxNode,
+    import: Option<(ImportScope, hir::ModPath)>,
+    edition: Edition,
+    used_params_range: Range<usize>,
+    field_list: &ast::RecordFieldList,
+) -> Option<()> {
+    if let Some((scope, path)) = import {
+        insert_use(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg);
+    }
+    // deep clone to prevent cycle
+    let path = make::path_from_segments(std::iter::once(segment.clone_subtree()), false);
+    let call = CallExpr::cast(node)?;
+    let fields = make::record_expr_field_list(
+        call.arg_list()?
+            .args()
+            .skip(used_params_range.start - 1)
+            .take(used_params_range.end - used_params_range.start)
+            .zip(field_list.fields())
+            .map(|e| {
+                e.1.name().map(|name| -> RecordExprField {
+                    make::record_expr_field(make::name_ref(name.text_non_mutable()), Some(e.0))
+                })
+            })
+            .collect::<Option<Vec<_>>>()?,
+    );
+    let record_expr = make::record_expr(path, fields).clone_for_update();
+    call.arg_list()?
+        .syntax()
+        .splice_children(used_params_range, vec![record_expr.syntax().syntax_element()]);
+    Some(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,7 +511,7 @@ fn one($0x: u8, y: u32) {}
         );
     }
     #[test]
-    fn test_extract_function_signature_single_parameters() {
+    fn test_extract_function_signature_single_parameter() {
         check_assist(
             extract_struct_from_function_signature,
             r#"
@@ -376,6 +536,88 @@ struct FooStruct{ bar: i32, baz: i32 }
 
 fn foo(FooStruct { bar, baz, .. }: FooStruct) {}
 "#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_all_parameters_with_reference() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo($0bar: i32, baz: i32$0) {}
+
+fn main() {
+    foo(1, 2)
+}
+"#,
+            r#"
+struct FooStruct{ bar: i32, baz: i32 }
+
+fn foo(FooStruct { bar, baz, .. }: FooStruct) {}
+
+fn main() {
+    foo(FooStruct { bar: 1, baz: 2 })
+}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_single_parameter_with_reference_seperate_and_inself() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+mod a {
+    pub fn foo($0bar: i32$0, baz: i32) {
+        foo(1, 2)
+    }
+}
+
+mod b {
+    use crate::a::foo;
+
+    fn main() {
+        foo(1, 2)
+    }
+}
+"#,
+            r#"
+mod a {
+    pub struct FooStruct{ pub bar: i32 }
+
+    pub fn foo(FooStruct { bar, .. }: FooStruct, baz: i32) {
+        foo(FooStruct { bar: 1 }, 2)
+    }
+}
+
+mod b {
+    use crate::a::{foo, FooStruct};
+
+    fn main() {
+        foo(FooStruct { bar: 1 }, 2)
+    }
+}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_single_parameter_with_reference() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+    fn foo($0bar: i32$0, baz: i32) {}
+
+    fn main() {
+        foo(1, 2)
+    }
+    "#,
+            r#"
+    struct FooStruct{ bar: i32 }
+
+    fn foo(FooStruct { bar, .. }: FooStruct, baz: i32) {}
+
+    fn main() {
+        foo(FooStruct { bar: 1 }, 2)
+    }
+    "#,
         );
     }
 }
