@@ -112,6 +112,19 @@ fn compute_dbg_replacement(
                 }
             }
         }
+        // dbg!(2, 'x', ...);
+        exprs
+            if ast::ExprStmt::can_cast(parent.kind())
+                && exprs.iter().all(|expr| ast::Literal::can_cast(expr.syntax().kind())) =>
+        {
+            let mut replace = vec![parent.clone().into()];
+            if let Some(prev_sibling) = parent.prev_sibling_or_token()
+                && prev_sibling.kind() == syntax::SyntaxKind::WHITESPACE
+            {
+                replace.push(prev_sibling);
+            }
+            (replace, None)
+        }
         // dbg!(expr0)
         [expr] => {
             // dbg!(expr, &parent);
@@ -229,6 +242,28 @@ mod tests {
         check("dbg!(1 $0+ 1)", "1 + 1");
         check("dbg![$01 + 1]", "1 + 1");
         check("dbg!{$01 + 1}", "1 + 1");
+    }
+
+    #[test]
+    fn test_remove_simple_dbg_statement() {
+        check_assist(
+            remove_dbg,
+            r#"
+fn foo() {
+    $0dbg!(3);
+    dbg!(2.6);
+    dbg!(1, 2.5);
+    dbg!('x');
+    // needless comment
+    dbg!("foo");$0
+}
+"#,
+            r#"
+fn foo() {
+    // needless comment
+}
+"#,
+        );
     }
 
     #[test]
