@@ -94,6 +94,9 @@ ra-ap-rustc_parse_format = { version = "0.121", default-features = false }
 ra-ap-rustc_index = { version = "0.123", default-features = false }
 ra-ap-rustc_abi = { version = "0.123", default-features = false }
 ra-ap-rustc_pattern_analysis = { version = "0.123", default-features = false }
+ra-ap-rustc_ast_ir = { version = "0.123", default-features = false }
+ra-ap-rustc_type_ir = { version = "0.123", default-features = false }
+ra-ap-rustc_next_trait_solver = { version = "0.123", default-features = false }
 
 # local crates that aren't published to crates.io. These should not have versions.
 

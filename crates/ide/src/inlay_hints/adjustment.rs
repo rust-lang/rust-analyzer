@@ -413,8 +413,6 @@ fn main() {
          // ^^^^&
     let closure: dyn Fn = || ();
     closure();
-  //^^^^^^^(&
-  //^^^^^^^)
     Struct[0];
   //^^^^^^(&
   //^^^^^^)
@@ -509,7 +507,6 @@ fn main() {
          // ^^^^.&
     let closure: dyn Fn = || ();
     closure();
-  //^^^^^^^.&
     Struct[0];
   //^^^^^^.&
     &mut Struct[0];

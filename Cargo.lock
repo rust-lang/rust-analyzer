@@ -446,6 +446,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-where"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "510c292c8cf384b1a340b816a9a6cf2599eb8f566a44949024af88418000c50b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "derive_arbitrary"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -696,6 +707,7 @@ dependencies = [
  "indexmap",
  "intern",
  "itertools 0.14.0",
+ "ra-ap-rustc_type_ir",
  "rustc-hash 2.1.1",
  "smallvec",
  "span",
@@ -705,6 +717,8 @@ dependencies = [
  "test-fixture",
  "test-utils",
  "tracing",
+ "tracing-subscriber",
+ "tracing-tree",
  "triomphe",
  "tt",
 ]
@@ -801,8 +815,11 @@ dependencies = [
  "project-model",
  "query-group-macro",
  "ra-ap-rustc_abi",
+ "ra-ap-rustc_ast_ir",
  "ra-ap-rustc_index",
+ "ra-ap-rustc_next_trait_solver",
  "ra-ap-rustc_pattern_analysis",
+ "ra-ap-rustc_type_ir",
  "rustc-hash 2.1.1",
  "rustc_apfloat",
  "salsa",
@@ -1857,6 +1874,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ra-ap-rustc_ast_ir"
+version = "0.123.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87cc17e8ce797f2a8d03b838fbf166749b876164432ce81e37d283bf69e3cf80"
+
+[[package]]
 name = "ra-ap-rustc_hashes"
 version = "0.123.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1909,6 +1932,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ra-ap-rustc_next_trait_solver"
+version = "0.123.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14f7dfbdf1d045ff4e385e1efdfc3799379895e9c3f3b9b379a0bef4cb238441"
+dependencies = [
+ "derive-where",
+ "ra-ap-rustc_index",
+ "ra-ap-rustc_type_ir",
+ "ra-ap-rustc_type_ir_macros",
+ "tracing",
+]
+
+[[package]]
 name = "ra-ap-rustc_parse_format"
 version = "0.121.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1929,6 +1965,37 @@ dependencies = [
  "rustc_apfloat",
  "smallvec",
  "tracing",
+]
+
+[[package]]
+name = "ra-ap-rustc_type_ir"
+version = "0.123.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bc59fb10a922c38a24cb8a1494f799b0af30bd041acbea689378d3bf330534b"
+dependencies = [
+ "bitflags 2.9.1",
+ "derive-where",
+ "ena",
+ "indexmap",
+ "ra-ap-rustc_ast_ir",
+ "ra-ap-rustc_index",
+ "ra-ap-rustc_type_ir_macros",
+ "rustc-hash 2.1.1",
+ "smallvec",
+ "thin-vec",
+ "tracing",
+]
+
+[[package]]
+name = "ra-ap-rustc_type_ir_macros"
+version = "0.123.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58878914b6dac7499baeecc8dbb4b9d9dda88030e4ab90cd3b4e87523fbedafe"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]

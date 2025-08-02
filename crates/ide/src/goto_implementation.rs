@@ -246,7 +246,6 @@ impl Foo {}
 impl T for Foo {}
          //^^^
 impl T for &Foo {}
-         //^^^^
 "#,
         );
     }

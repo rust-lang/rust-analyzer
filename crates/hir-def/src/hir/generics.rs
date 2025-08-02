@@ -188,6 +188,19 @@ impl GenericParams {
     pub(crate) const SELF_PARAM_ID_IN_SELF: la_arena::Idx<TypeOrConstParamData> =
         LocalTypeOrConstParamId::from_raw(RawIdx::from_u32(0));
 
+    pub fn empty() -> Arc<GenericParams> {
+        EMPTY.clone()
+    }
+
+    pub fn new_with(
+        type_or_consts: Arena<TypeOrConstParamData>,
+        lifetimes: Arena<LifetimeParamData>,
+        where_predicates: Box<[WherePredicate]>,
+    ) -> Arc<GenericParams> {
+        // FIXME(next-solver): there might be a better way to do this since the refactor
+        Arc::new(GenericParams { type_or_consts, lifetimes, where_predicates })
+    }
+
     pub fn new(db: &dyn DefDatabase, def: GenericDefId) -> Arc<GenericParams> {
         match def {
             GenericDefId::AdtId(AdtId::EnumId(it)) => db.enum_signature(it).generic_params.clone(),
