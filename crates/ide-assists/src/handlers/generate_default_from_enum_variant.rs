@@ -1,7 +1,10 @@
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
-use syntax::ast::{self, AstNode, HasName};
+use syntax::{
+    ast::{self, AstNode, HasName, edit_in_place::Indent, make},
+    syntax_editor::Position,
+};
 
-use crate::{AssistContext, AssistId, Assists};
+use crate::{AssistContext, AssistId, Assists, utils};
 
 // Assist: generate_default_from_enum_variant
 //
@@ -34,7 +37,7 @@ pub(crate) fn generate_default_from_enum_variant(
 ) -> Option<()> {
     let variant = ctx.find_node_at_offset::<ast::Variant>()?;
     let variant_name = variant.name()?;
-    let enum_name = variant.parent_enum().name()?;
+    let adt = ast::Adt::Enum(variant.parent_enum());
     if !matches!(variant.kind(), ast::StructKind::Unit) {
         cov_mark::hit!(test_gen_default_on_non_unit_variant_not_implemented);
         return None;
@@ -51,19 +54,46 @@ pub(crate) fn generate_default_from_enum_variant(
         "Generate `Default` impl from this enum variant",
         target,
         |edit| {
-            let start_offset = variant.parent_enum().syntax().text_range().end();
-            let buf = format!(
-                r#"
+            let mut editor = edit.make_editor(adt.syntax());
+            let indent = adt.indent_level();
+            let impl_ = utils::generate_trait_impl_intransitive(&adt, make::ty("Default"));
+            let fn_ = default_fn(&variant_name.text());
 
-impl Default for {enum_name} {{
-    fn default() -> Self {{
-        Self::{variant_name}
-    }}
-}}"#,
+            impl_.get_or_create_assoc_item_list().add_item(ast::AssocItem::Fn(fn_));
+            impl_.indent(indent);
+
+            editor.insert_all(
+                Position::after(adt.syntax()),
+                vec![
+                    make::tokens::whitespace(&format!("\n\n{indent}")).into(),
+                    impl_.syntax().clone().into(),
+                ],
             );
-            edit.insert(start_offset, buf);
+            edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
+}
+
+fn default_fn(variant_name: &str) -> ast::Fn {
+    let path = make::ext::path_from_idents(["Self", variant_name]).unwrap();
+    let body = make::block_expr(None, Some(make::expr_path(path)));
+    let fn_ = make::fn_(
+        None,
+        None,
+        make::name("default"),
+        None,
+        None,
+        make::param_list(None, None),
+        body,
+        Some(make::ret_type(make::ty("Self"))),
+        false,
+        false,
+        false,
+        false,
+    )
+    .clone_for_update();
+    fn_.indent(1.into());
+    fn_
 }
 
 fn existing_default_impl(
@@ -164,6 +194,32 @@ enum Variant { Undefi$0ned }
 enum Variant { Undefined }
 
 impl Default for Variant {
+    fn default() -> Self {
+        Self::Undefined
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_generate_default_from_variant_with_generics() {
+        check_assist(
+            generate_default_from_enum_variant,
+            r#"
+//- minicore: default
+enum Variant<T> {
+    Defined(T),
+    Undefi$0ned,
+}
+"#,
+            r#"
+enum Variant<T> {
+    Defined(T),
+    Undefined,
+}
+
+impl<T> Default for Variant<T> {
     fn default() -> Self {
         Self::Undefined
     }
