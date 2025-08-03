@@ -14,9 +14,10 @@ use ide_db::{
 use itertools::Itertools;
 use syntax::{
     AstNode, Edition, SyntaxElement, SyntaxKind, SyntaxNode, T,
+    algo::find_node_at_range,
     ast::{
-        self, CallExpr, HasArgList, HasAttrs, HasGenericArgs, HasGenericParams, HasName,
-        HasVisibility, RecordExprField,
+        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility, MethodCallExpr,
+        RecordExprField,
         edit::{AstNodeEdit, IndentLevel},
         make,
     },
@@ -111,10 +112,9 @@ pub(crate) fn extract_struct_from_function_signature(
                     references,
                     name.clone()
                 );
-                processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list,
+                processed.into_iter().for_each(|(path,  import)| {
+                    apply_references(ctx.config.insert_use, path ,import, edition, used_params_range.clone(), &field_list,
                         name.clone(),
-                        // new_lifetime_count
                     );
                 });
             }
@@ -136,10 +136,9 @@ pub(crate) fn extract_struct_from_function_signature(
                     references,
                     name.clone()
                 );
-                processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition, used_params_range.clone(), &field_list,
+                processed.into_iter().for_each(|(path, import)| {
+                    apply_references(ctx.config.insert_use, path, import, edition, used_params_range.clone(), &field_list,
                         name.clone(),
-                        // new_lifetime_count
                     );
                 });
             }
@@ -178,12 +177,13 @@ pub(crate) fn extract_struct_from_function_signature(
             let def = create_struct_def(name.clone(), &fn_ast_mut, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
 
-            let indent = fn_ast_mut.indent_level();
+            // if in impl block then put struct before the impl block
+            let (indent, syntax) = param_list.self_param().and_then(|_|ctx.find_node_at_range::<ast::Impl>() ).map(|impl_|builder.make_mut(impl_)).map(|impl_|( impl_.indent_level(), impl_.syntax().clone())).unwrap_or((fn_ast.indent_level(), fn_ast_mut.syntax().clone()));
             let def = def.indent(indent);
 
 
             ted::insert_all(
-                ted::Position::before(fn_ast_mut.syntax()),
+                ted::Position::before(syntax),
                 vec![
                     def.syntax().clone().into(),
                     make::tokens::whitespace(&format!("\n\n{indent}")).into(),
@@ -477,14 +477,15 @@ fn process_references(
     function_module_def: &ModuleDef,
     refs: Vec<FileReference>,
     name: ast::Name,
-) -> Vec<(ast::PathSegment, SyntaxNode, Option<(ImportScope, hir::ModPath)>)> {
+) -> Vec<(CallExpr, Option<(ImportScope, hir::ModPath)>)> {
     // we have to recollect here eagerly as we are about to edit the tree we need to calculate the changes
     // and corresponding nodes up front
     let name = make::name_ref(name.text_non_mutable());
     refs.into_iter()
         .flat_map(|reference| {
-            let (segment, scope_node, module) = reference_to_node(&ctx.sema, reference)?;
+            let (call, scope_node, module) = reference_to_node(&ctx.sema, reference)?;
             let scope_node = builder.make_syntax_mut(scope_node);
+            let call = builder.make_mut(call);
             if !visited_modules.contains(&module) {
                 let mod_path = module.find_use_path(
                     ctx.sema.db,
@@ -497,81 +498,57 @@ fn process_references(
                     mod_path.push_segment(hir::Name::new_root(name.text_non_mutable()).clone());
                     let scope = ImportScope::find_insert_use_container(&scope_node, &ctx.sema)?;
                     visited_modules.insert(module);
-                    return Some((segment, scope_node, Some((scope, mod_path))));
+                    return Some((call, Some((scope, mod_path))));
                 }
             }
-            Some((segment, scope_node, None))
+            Some((call, None))
         })
         .collect()
 }
 fn reference_to_node(
     sema: &hir::Semantics<'_, RootDatabase>,
     reference: FileReference,
-) -> Option<(ast::PathSegment, SyntaxNode, hir::Module)> {
-    // filter out the reference in macro (seems to be probalamtic with lifetimes/generics arguments)
-    let segment =
-        reference.name.as_name_ref()?.syntax().parent().and_then(ast::PathSegment::cast)?;
+) -> Option<(CallExpr, SyntaxNode, hir::Module)> {
+    // find neareat method call/call to the reference because different amount of parents between
+    // name and full call depending on if its method call or normal call
+    let node =
+        find_node_at_range::<CallExpr>(reference.name.as_name_ref()?.syntax(), reference.range)?;
 
     // let segment_range = segment.syntax().text_range();
     // if segment_range != reference.range {
     //     return None;
     // }
 
-    let parent = segment.parent_path().syntax().parent()?;
-    let expr_or_pat = match_ast! {
-        match parent {
-            ast::PathExpr(_it) => parent.parent()?,
-            ast::RecordExpr(_it) => parent,
-            ast::TupleStructPat(_it) => parent,
-            ast::RecordPat(_it) => parent,
-            _ => return None,
-        }
-    };
-    let module = sema.scope(&expr_or_pat)?.module();
+    let module = sema.scope(&node.syntax())?.module();
 
-    Some((segment.clone_for_update(), expr_or_pat, module))
+    Some((node.clone(), node.syntax().clone(), module))
 }
 
 fn apply_references(
     insert_use_cfg: InsertUseConfig,
-    segment: ast::PathSegment,
-    node: SyntaxNode,
+    call: CallExpr,
     import: Option<(ImportScope, hir::ModPath)>,
     edition: Edition,
     used_params_range: Range<usize>,
     field_list: &ast::RecordFieldList,
     name: ast::Name,
-    // new_lifetime_count: usize,
 ) -> Option<()> {
     if let Some((scope, path)) = import {
         insert_use(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg);
     }
-    // TODO: figure out lifetimes in referecnecs
-    // becauuse we have to convert from segment being non turbofish, also only need
-    // generics/lifetimes that are used in struct possibly not all the no ones for the original call
-    // if no specified lifetimes/generics we just give empty one
-    // if new_lifetime_count > 0 {
-    //     (0..new_lifetime_count).for_each(|_| {
-    //         segment
-    //             .get_or_create_generic_arg_list()
-    //             .add_generic_arg(make::lifetime_arg(make::lifetime("'_")).clone_for_update().into())
-    //     });
-    // }
 
     // current idea: the lifetimes can be inferred from the call
-    if let Some(generics) = segment.generic_arg_list() {
-        ted::remove(generics.syntax());
-    }
-    ted::replace(segment.name_ref()?.syntax(), name.clone_for_update().syntax());
-    // deep clone to prevent cycle
-    let path = make::path_from_segments(std::iter::once(segment.clone_subtree()), false);
-    // TODO: do I need to to method call to
-    let call = CallExpr::cast(node)?;
+    let path = make::path_from_text(name.text_non_mutable());
     let fields = make::record_expr_field_list(
         call.arg_list()?
             .args()
-            .skip(used_params_range.start - 1)
-            .take(used_params_range.end - used_params_range.start)
+            .skip(match call {
+                // for some reason the indices for parameters of method go in increments of 3s (but
+                // start at 4 to accommodate the self parameter)
+                CallExpr::Method(_) => used_params_range.start / 3 - 1,
+                CallExpr::Normal(_) => used_params_range.start - 1,
+            })
+            // the zip implicitly makes that it will only take the amount of parameters required
             .zip(field_list.fields())
             .map(|e| {
                 e.1.name().map(|name| -> RecordExprField {
@@ -582,11 +559,57 @@ fn apply_references(
     );
     let record_expr = make::record_expr(path, fields).clone_for_update();
 
-    call.arg_list()?
-        .syntax()
-        .splice_children(used_params_range, vec![record_expr.syntax().syntax_element()]);
+    // range for method definition used parames seems to be off
+    call.arg_list()?.syntax().splice_children(
+        match call {
+            // but at call sites methods don't include the self argument as part of the "arg list" so
+            // we have to decduct one parameters (for some reason length 3) from range
+            CallExpr::Method(_) => (used_params_range.start - 3)..(used_params_range.end - 3),
+            CallExpr::Normal(_) => used_params_range,
+        },
+        vec![record_expr.syntax().syntax_element()],
+    );
     Some(())
 }
+
+#[derive(Debug, Clone)]
+enum CallExpr {
+    Normal(ast::CallExpr),
+    Method(ast::MethodCallExpr),
+}
+impl AstNode for CallExpr {
+    fn can_cast(kind: SyntaxKind) -> bool
+    where
+        Self: Sized,
+    {
+        kind == ast::MethodCallExpr::kind() && kind == ast::CallExpr::kind()
+    }
+
+    fn cast(syntax: SyntaxNode) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        ast::CallExpr::cast(syntax.clone())
+            .map(CallExpr::Normal)
+            .or(MethodCallExpr::cast(syntax).map(CallExpr::Method))
+    }
+
+    fn syntax(&self) -> &SyntaxNode {
+        match self {
+            CallExpr::Normal(call_expr) => call_expr.syntax(),
+            CallExpr::Method(method_call_expr) => method_call_expr.syntax(),
+        }
+    }
+}
+impl HasArgList for CallExpr {
+    fn arg_list(&self) -> Option<ast::ArgList> {
+        match self {
+            CallExpr::Normal(call_expr) => call_expr.arg_list(),
+            CallExpr::Method(method_call_expr) => method_call_expr.arg_list(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -800,6 +823,34 @@ fn foo<'a>(FooStruct { bar, .. }: FooStruct<'a, '_>, baz: i32) {
         check_assist_not_applicable(
             extract_struct_from_function_signature,
             r"fn foo($0i: impl ToString) {  }",
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_in_method() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+struct Foo
+impl Foo {
+    fn foo(&self, $0j: i32, i: i32$0, z:i32) {  }
+}
+
+fn bar() {
+    Foo.foo(1, 2, 3)
+}
+"#,
+            r#"
+struct Foo
+struct FooStruct{ j: i32, i: i32 }
+
+impl Foo {
+    fn foo(&self, FooStruct { j, i, .. }: FooStruct, z:i32) {  }
+}
+
+fn bar() {
+    Foo.foo(FooStruct { j: 1, i: 2 }, 3)
+}
+"#,
         );
     }
 }
