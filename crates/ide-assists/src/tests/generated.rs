@@ -2643,6 +2643,26 @@ fn t() {}
 }
 
 #[test]
+fn doctest_move_use_to_top_level() {
+    check_doc_test(
+        "move_use_to_top_level",
+        r#####"
+fn main() {
+    use std::collections::HashMap$0;
+    let map = HashMap::new();
+}
+"#####,
+        r#####"
+use std::collections::HashMap;
+
+fn main() {
+    let map = HashMap::new();
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_normalize_import() {
     check_doc_test(
         "normalize_import",
