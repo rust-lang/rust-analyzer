@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use hir::{Function, HasCrate, Module, ModuleDef};
+use hir::{HasCrate, Module, ModuleDef};
 use ide_db::{
     FxHashSet, RootDatabase,
     assists::AssistId,
@@ -16,8 +16,7 @@ use syntax::{
     AstNode, Edition, SyntaxElement, SyntaxKind, SyntaxNode, T,
     algo::find_node_at_range,
     ast::{
-        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility, MethodCallExpr,
-        RecordExprField,
+        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility,
         edit::{AstNodeEdit, IndentLevel},
         make,
     },
@@ -45,8 +44,8 @@ pub(crate) fn extract_struct_from_function_signature(
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
     let find_node_at_offset = ctx.find_node_at_offset::<ast::Fn>()?;
-    let fn_ast = find_node_at_offset;
-    let param_list = fn_ast.param_list()?;
+    let func = find_node_at_offset;
+    let param_list = func.param_list()?;
     let used_param_list = param_list
         .params()
         // filter to only parameters in selection
@@ -54,10 +53,10 @@ pub(crate) fn extract_struct_from_function_signature(
         .collect_vec();
     let target =
         used_param_list.iter().map(|p| p.syntax().text_range()).reduce(|t, t2| t.cover(t2))?;
-    let fn_name = fn_ast.name()?;
+    let fn_name = func.name()?;
     let name = make::name(&format!("{}Struct", stdx::to_camel_case(fn_name.text_non_mutable())));
 
-    let fn_hir = ctx.sema.to_def(&fn_ast)?;
+    let fn_hir = ctx.sema.to_def(&func)?;
     if existing_definition(ctx.db(), &name, &fn_hir) {
         cov_mark::hit!(test_extract_function_signature_not_applicable_if_struct_exists);
         return None;
@@ -76,17 +75,17 @@ pub(crate) fn extract_struct_from_function_signature(
     // TODO: (future)special handling for destrutered types (or maybe just don't support code action on
     // destructed types yet
 
-    let field_list = extract_field_list(&fn_ast, &used_param_list)?;
+    let field_list = extract_field_list(&func, &used_param_list)?;
 
-    let start_index = used_param_list.first()?.syntax().index();
-    let end_index = used_param_list.last()?.syntax().index();
-    let used_params_range = start_index..end_index + 1;
+    let start_idx = used_param_list.first()?.syntax().index();
+    let end_idx = used_param_list.last()?.syntax().index();
+    let used_params_range = start_idx..end_idx + 1;
     acc.add(
         AssistId::refactor_rewrite("extract_struct_from_function_signature"),
         "Extract struct from signature of a function",
         target,
         |builder| {
-            let  new_lifetime_count = field_list.fields().filter_map(|f|f.ty()).map(|t|new_life_time_count(&t)).sum();
+            let  n_new_lifetimes = field_list.fields().filter_map(|f|f.ty()).map(|t|new_life_time_count(&t)).sum();
             let edition = fn_hir.krate(ctx.db()).edition(ctx.db());
             let enum_module_def = ModuleDef::from(fn_hir);
 
@@ -121,12 +120,12 @@ pub(crate) fn extract_struct_from_function_signature(
 
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
-            let fn_ast_mut = builder.make_mut(fn_ast.clone());
+            let func_mut = builder.make_mut(func.clone());
              builder.make_mut(param_list.clone());
             let used_param_list = used_param_list.into_iter().map(|p| builder.make_mut(p)).collect_vec();
             tracing::info!("extract_struct_from_function_signature: editing main file");
             // this has to be after the edit_file (order matters)
-            // fn_ast and param_list must be "mut" for the effect to work on used_param_list
+            // func and param_list must be "mut" for the effect to work on used_param_list
             if let Some(references) = def_file_references {
                 let processed = process_references(
                     ctx,
@@ -144,7 +143,7 @@ pub(crate) fn extract_struct_from_function_signature(
             }
 
 
-            let generic_params = fn_ast
+            let generic_params = func
                 .generic_param_list()
                 .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
             tracing::info!("extract_struct_from_function_signature: collecting generics");
@@ -157,7 +156,7 @@ pub(crate) fn extract_struct_from_function_signature(
             // So I do the resolving while its still param list
             // and then apply it into record list after
             let field_list = if let Some((target_scope, source_scope)) =
-                ctx.sema.scope(fn_ast.syntax()).zip(ctx.sema.scope(param_list.syntax()))
+                ctx.sema.scope(func.syntax()).zip(ctx.sema.scope(param_list.syntax()))
             {
                 let field_list = field_list.reset_indent();
                 let field_list =
@@ -174,11 +173,11 @@ pub(crate) fn extract_struct_from_function_signature(
             };
             field_list.fields().filter_map(|f|f.ty()).try_for_each(|t|generate_new_lifetimes(&t, &mut generics));
             tracing::info!("extract_struct_from_function_signature: collecting fields");
-            let def = create_struct_def(name.clone(), &fn_ast_mut, &used_param_list, &field_list, generics);
+            let def = create_struct_def(name.clone(), &func_mut, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
 
             // if in impl block then put struct before the impl block
-            let (indent, syntax) = param_list.self_param().and_then(|_|ctx.find_node_at_range::<ast::Impl>() ).map(|impl_|builder.make_mut(impl_)).map(|impl_|( impl_.indent_level(), impl_.syntax().clone())).unwrap_or((fn_ast.indent_level(), fn_ast_mut.syntax().clone()));
+            let (indent, syntax) = param_list.self_param().and_then(|_|ctx.find_node_at_range::<ast::Impl>() ).map(|imp|builder.make_mut(imp)).map(|imp|( imp.indent_level(), imp.syntax().clone())).unwrap_or((func.indent_level(), func_mut.syntax().clone()));
             let def = def.indent(indent);
 
 
@@ -190,14 +189,14 @@ pub(crate) fn extract_struct_from_function_signature(
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
-            update_function(name,  generic_params.map(|g| g.clone_for_update()), &used_param_list, new_lifetime_count).unwrap();
+            update_function(name,  generic_params.map(|g| g.clone_for_update()), &used_param_list, n_new_lifetimes).unwrap();
             tracing::info!("extract_struct_from_function_signature: updating function signature and parameter uses");
         },
     )
 }
 
 fn extract_field_list(
-    fn_ast: &ast::Fn,
+    func: &ast::Fn,
     used_param_list: &[ast::Param],
 ) -> Option<ast::RecordFieldList> {
     let field_list = make::record_field_list(
@@ -205,7 +204,7 @@ fn extract_field_list(
             .iter()
             .map(|param| {
                 Some(make::record_field(
-                    fn_ast.visibility(),
+                    func.visibility(),
                     // only works if its an ident pattern
                     param.pat().and_then(pat_to_name)?,
                     param.ty().filter(|ty| !contains_impl_trait(ty))?,
@@ -220,14 +219,14 @@ fn update_function(
     name: ast::Name,
     generics: Option<ast::GenericParamList>,
     used_param_list: &[ast::Param],
-    new_lifetime_count: usize,
+    n_new_lifetimes: usize,
 ) -> Option<()> {
     let generic_args = generics
         .filter(|generics| generics.generic_params().count() > 0)
-        .or((new_lifetime_count > 0).then_some(make::generic_param_list(std::iter::empty())))
+        .or((n_new_lifetimes > 0).then_some(make::generic_param_list(std::iter::empty())))
         .map(|generics| {
             let args = generics.to_generic_args().clone_for_update();
-            (0..new_lifetime_count).for_each(|_| {
+            (0..n_new_lifetimes).for_each(|_| {
                 args.add_generic_arg(
                     make::lifetime_arg(make::lifetime("'_")).clone_for_update().into(),
                 )
@@ -258,9 +257,9 @@ fn update_function(
 
     // it is fine to unwrap() to because there is at least one parameter (if there is no parameters
     // the code action will not show)
-    let start_index = used_param_list.first().unwrap().syntax().index();
-    let end_index = used_param_list.last().unwrap().syntax().index();
-    let used_params_range = start_index..end_index + 1;
+    let start_idx = used_param_list.first().unwrap().syntax().index();
+    let end_idx = used_param_list.last().unwrap().syntax().index();
+    let used_params_range = start_idx..end_idx + 1;
     let new = vec![param.syntax().syntax_element()];
     used_param_list.first().unwrap().syntax().parent()?.splice_children(used_params_range, new);
     // no need update uses of parameters in function, because we destructure the struct
@@ -274,12 +273,12 @@ fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
 }
 fn create_struct_def(
     name: ast::Name,
-    fn_ast: &ast::Fn,
+    func: &ast::Fn,
     param_ast: &[ast::Param],
     field_list: &ast::RecordFieldList,
     generics: Option<ast::GenericParamList>,
 ) -> ast::Struct {
-    let fn_vis = fn_ast.visibility();
+    let fn_vis = func.visibility();
 
     let insert_vis = |node: &'_ SyntaxNode, vis: &'_ SyntaxNode| {
         let vis = vis.clone_for_update();
@@ -449,7 +448,11 @@ fn tag_generics_in_function_signature(
 
     tagged_one
 }
-fn existing_definition(db: &RootDatabase, variant_name: &ast::Name, variant: &Function) -> bool {
+fn existing_definition(
+    db: &RootDatabase,
+    variant_name: &ast::Name,
+    variant: &hir::Function,
+) -> bool {
     variant
         .module(db)
         .scope(db, None)
@@ -519,7 +522,7 @@ fn reference_to_node(
     //     return None;
     // }
 
-    let module = sema.scope(&node.syntax())?.module();
+    let module = sema.scope(node.syntax())?.module();
 
     Some((node.clone(), node.syntax().clone(), module))
 }
@@ -551,7 +554,7 @@ fn apply_references(
             // the zip implicitly makes that it will only take the amount of parameters required
             .zip(field_list.fields())
             .map(|e| {
-                e.1.name().map(|name| -> RecordExprField {
+                e.1.name().map(|name| -> ast::RecordExprField {
                     make::record_expr_field(make::name_ref(name.text_non_mutable()), Some(e.0))
                 })
             })
@@ -591,7 +594,7 @@ impl AstNode for CallExpr {
     {
         ast::CallExpr::cast(syntax.clone())
             .map(CallExpr::Normal)
-            .or(MethodCallExpr::cast(syntax).map(CallExpr::Method))
+            .or(ast::MethodCallExpr::cast(syntax).map(CallExpr::Method))
     }
 
     fn syntax(&self) -> &SyntaxNode {
