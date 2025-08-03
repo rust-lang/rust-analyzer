@@ -43,14 +43,14 @@ pub(crate) fn extract_struct_from_function_signature(
     acc: &mut Assists,
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
-    let fn_ast = ctx.find_node_at_offset::<ast::Fn>()?;
+    let find_node_at_offset = ctx.find_node_at_offset::<ast::Fn>()?;
+    let fn_ast = find_node_at_offset;
     let param_list = fn_ast.param_list()?;
     let used_param_list = param_list
         .params()
         // filter to only parameters in selection
         .filter(|p| p.syntax().text_range().intersect(ctx.selection_trimmed()).is_some())
         .collect_vec();
-    // TODO: make sure at least one thing there
     let target =
         used_param_list.iter().map(|p| p.syntax().text_range()).reduce(|t, t2| t.cover(t2))?;
     let fn_name = fn_ast.name()?;
@@ -62,25 +62,20 @@ pub(crate) fn extract_struct_from_function_signature(
         return None;
     }
 
-    // TODO: special handling for self?
-    // TODO: special handling for destrutered types (or maybe just don't support code action on
+    // TODO: (future)special handling for self
+    // since it puts struct above function it invalid needs to go outside the the impl block
+    // if uses self parameter and that is selected:
+    // do we still keep in it in the impl block/does it matter what type of impl block it is (if its
+    // a trait then probably not)
+    // what should the name for self parameter be in the struct
+    // also you would need to grab out any generics from that impl block itself and any where
+    // clauses
+    // we also need special handling for method calls
+
+    // TODO: (future)special handling for destrutered types (or maybe just don't support code action on
     // destructed types yet
 
-    // TODO: don't allow if there is impl traits
-    let field_list = make::record_field_list(
-        used_param_list
-            .iter()
-            .map(|param| {
-                Some(make::record_field(
-                    fn_ast.visibility(),
-                    // only works if its an ident pattern
-                    param.pat().and_then(pat_to_name)?,
-                    // TODO: how are we going to handle references without explicit lifetimes
-                    param.ty()?,
-                ))
-            })
-            .collect::<Option<Vec<_>>>()?,
-    );
+    let field_list = extract_field_list(&fn_ast, &used_param_list)?;
 
     let start_index = used_param_list.first()?.syntax().index();
     let end_index = used_param_list.last()?.syntax().index();
@@ -201,6 +196,26 @@ pub(crate) fn extract_struct_from_function_signature(
     )
 }
 
+fn extract_field_list(
+    fn_ast: &ast::Fn,
+    used_param_list: &[ast::Param],
+) -> Option<ast::RecordFieldList> {
+    let field_list = make::record_field_list(
+        used_param_list
+            .iter()
+            .map(|param| {
+                Some(make::record_field(
+                    fn_ast.visibility(),
+                    // only works if its an ident pattern
+                    param.pat().and_then(pat_to_name)?,
+                    param.ty().filter(|ty| !contains_impl_trait(ty))?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?,
+    );
+    Some(field_list)
+}
+
 fn update_function(
     name: ast::Name,
     generics: Option<ast::GenericParamList>,
@@ -226,11 +241,10 @@ fn update_function(
     };
 
     let param = make::param(
-        // do we want to destructure the struct
+        // we destructure the struct
         // makes it easier in that we would not have to update all the uses of the variables in
         // the function
         ast::Pat::RecordPat(make::record_pat(
-            // TODO: need to have no turbofish kept lifetimes/generics if
             make::path_from_text(name.text_non_mutable()),
             used_param_list
                 .iter()
@@ -241,17 +255,17 @@ fn update_function(
         ty,
     )
     .clone_for_update();
-    // TODO: will eventually need to handle self too
 
+    // it is fine to unwrap() to because there is at least one parameter (if there is no parameters
+    // the code action will not show)
     let start_index = used_param_list.first().unwrap().syntax().index();
     let end_index = used_param_list.last().unwrap().syntax().index();
     let used_params_range = start_index..end_index + 1;
     let new = vec![param.syntax().syntax_element()];
-    used_param_list.first()?.syntax().parent()?.splice_children(used_params_range, new);
+    used_param_list.first().unwrap().syntax().parent()?.splice_children(used_params_range, new);
     // no need update uses of parameters in function, because we destructure the struct
     Some(())
 }
-
 fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
     match pat {
         ast::Pat::IdentPat(ident_pat) => ident_pat.name(),
@@ -366,6 +380,9 @@ fn new_life_time_count(ty: &ast::Type) -> usize {
         .filter_map(ast::Lifetime::cast)
         .filter(|lifetime| lifetime.text() == "'_")
         .count()
+}
+fn contains_impl_trait(ty: &ast::Type) -> bool {
+    ty.syntax().descendants().any(|ty| ty.kind() == ast::ImplTraitType::kind())
 }
 fn generate_new_lifetimes(
     ty: &ast::Type,
@@ -776,6 +793,13 @@ fn foo<'a>(FooStruct { bar, .. }: FooStruct<'a, '_>, baz: i32) {
     foo(FooStruct { bar: bar }, baz)
 }
 "#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_not_applicable_with_impl_trait() {
+        check_assist_not_applicable(
+            extract_struct_from_function_signature,
+            r"fn foo($0i: impl ToString) {  }",
         );
     }
 }
