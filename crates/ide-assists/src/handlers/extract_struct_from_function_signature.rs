@@ -311,8 +311,6 @@ fn create_struct_def(
     });
     let field_list = field_list.indent(IndentLevel::single());
 
-
-
     make::struct_(fn_vis, name, generics, field_list.into()).clone_for_update()
 }
 // Note: this also detaches whitespace after comments,
