@@ -72,7 +72,7 @@ pub(crate) fn extract_struct_from_function_signature(
     // clauses
     // we also need special handling for method calls
 
-    // TODO: (future)special handling for destrutered types (or maybe just don't support code action on
+    // TODO: (future)special handling for destrutered types (right now we don't support code action on
     // destructed types yet
 
     let field_list = extract_field_list(&func, &used_param_list)?;
@@ -285,7 +285,7 @@ fn create_struct_def(
     };
 
     // for fields without any existing visibility, use visibility of enum
-    let field_list: ast::FieldList = {
+    let field_list = {
         if let Some(vis) = &fn_vis {
             field_list
                 .fields()
@@ -294,39 +294,34 @@ fn create_struct_def(
                 .for_each(|it| insert_vis(it.syntax(), vis.syntax()));
         }
 
-        field_list.clone().into()
+        field_list
     };
+    // if we do not expleictly copy over comments/attribures they just get lost
+    // TODO: what about comments/attributes in between parameters
+    param_ast.iter().zip(field_list.fields()).for_each(|(param, field)| {
+        let elements = take_all_comments(param.clone());
+        ted::insert_all(ted::Position::first_child_of(field.syntax()), elements);
+        ted::insert_all(
+            ted::Position::first_child_of(field.syntax()),
+            param
+                .attrs()
+                .flat_map(|it| [it.syntax().clone().into(), make::tokens::single_newline().into()])
+                .collect(),
+        );
+    });
     let field_list = field_list.indent(IndentLevel::single());
 
-    let strukt = make::struct_(fn_vis, name, generics, field_list).clone_for_update();
 
-    // take comments from only inside signature
-    ted::insert_all(
-        ted::Position::first_child_of(strukt.syntax()),
-        take_all_comments(param_ast.iter()),
-    );
 
-    // TODO: this may not be correct as we shouldn't put all the attributes at the top
-    // copy attributes from each parameter
-    ted::insert_all(
-        ted::Position::first_child_of(strukt.syntax()),
-        param_ast
-            .iter()
-            .flat_map(|p| p.attrs())
-            .flat_map(|it| {
-                vec![it.syntax().clone_for_update().into(), make::tokens::single_newline().into()]
-            })
-            .collect(),
-    );
-
-    strukt
+    make::struct_(fn_vis, name, generics, field_list.into()).clone_for_update()
 }
 // Note: this also detaches whitespace after comments,
 // since `SyntaxNode::splice_children` (and by extension `ted::insert_all_raw`)
 // detaches nodes. If we only took the comments, we'd leave behind the old whitespace.
-fn take_all_comments<'a>(node: impl Iterator<Item = &'a ast::Param>) -> Vec<SyntaxElement> {
+fn take_all_comments(node: impl ast::AstNode) -> Vec<SyntaxElement> {
     let mut remove_next_ws = false;
-    node.flat_map(|p| p.syntax().children_with_tokens())
+    node.syntax()
+        .children_with_tokens()
         .filter_map(move |child| match child.kind() {
             SyntaxKind::COMMENT => {
                 remove_next_ws = true;
@@ -375,8 +370,13 @@ fn generate_unique_lifetime_param_name(
 fn new_life_time_count(ty: &ast::Type) -> usize {
     ty.syntax()
         .descendants()
-        .filter_map(ast::Lifetime::cast)
-        .filter(|lifetime| lifetime.text() == "'_")
+        .filter(|t| {
+            match_ast! { match t {
+                ast::Lifetime(lt) => lt.text() == "'_",
+                ast::RefType(r) => r.lifetime().is_none(),
+                _ => false
+            }}
+        })
         .count()
 }
 fn contains_impl_trait(ty: &ast::Type) -> bool {
@@ -387,6 +387,8 @@ fn generate_new_lifetimes(
     existing_type_param_list: &mut Option<ast::GenericParamList>,
 ) -> Option<()> {
     for token in ty.syntax().descendants() {
+        // we do not have to worry about for<'a> because we are only looking at '_ or &Type
+        // if you have an unbound lifetime thats on you
         if let Some(lt) = ast::Lifetime::cast(token.clone())
             && lt.text() == "'_"
         {
@@ -396,7 +398,18 @@ fn generate_new_lifetimes(
                 .add_generic_param(make::lifetime_param(new_lt.clone()).clone_for_update().into());
 
             ted::replace(lt.syntax(), new_lt.clone_for_update().syntax());
+        } else if let Some(r) = ast::RefType::cast(token.clone())
+            && r.lifetime().is_none()
+        {
+            let new_lt = generate_unique_lifetime_param_name(existing_type_param_list)?;
+            existing_type_param_list
+                .get_or_insert(make::generic_param_list(std::iter::empty()).clone_for_update())
+                .add_generic_param(make::lifetime_param(new_lt.clone()).clone_for_update().into());
+            ted::insert(ted::Position::after(r.amp_token()?), new_lt.clone_for_update().syntax());
         }
+        // TODO: nominal types that have only lifetimes
+        // struct Bar<'a, 'b> { f: &'a &'b i32 }
+        // fn foo(f: Bar) {}
     }
     Some(())
 }
@@ -786,6 +799,21 @@ fn foo(FooStruct { bar, .. }: FooStruct<'_>, baz: i32) {}
 "#,
         );
     }
+
+    #[test]
+    fn test_extract_function_signature_single_parameter_with_plain_reference_type() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo($0bar: &i32$0, baz: i32) {}
+"#,
+            r#"
+struct FooStruct<'a>{ bar: &'a i32 }
+
+fn foo(FooStruct { bar, .. }: FooStruct<'_>, baz: i32) {}
+"#,
+        );
+    }
     #[test]
     fn test_extract_function_signature_single_parameter_anonymous_and_normal_lifetime() {
         check_assist(
@@ -888,5 +916,27 @@ fn bar() {
 }
 "#,
         );
+    }
+    #[test]
+    fn test_extract_function_signature_in_method_comments_and_attributes() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+fn foo(
+    #[foo]
+    // gag
+    $0f: i32,
+) { }
+"#,
+            r#"
+struct FooStruct{ #[foo]
+// gag
+f: i32 }
+
+fn foo(
+    FooStruct { f, .. }: FooStruct,
+) { }
+"#,
+        )
     }
 }
