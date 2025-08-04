@@ -120,7 +120,11 @@ pub(crate) fn extract_struct_from_function_signature(
 
             tracing::info!("extract_struct_from_function_signature: starting edit");
             builder.edit_file(ctx.vfs_file_id());
+            // atl the make muts should generally before any edits happen
             let func_mut = builder.make_mut(func.clone());
+            // if in impl block then put struct before the impl block
+            let (indent, syntax) = param_list.self_param().and_then(|_|ctx.find_node_at_range::<ast::Impl>() )
+                .map(|imp|( imp.indent_level(), builder.make_syntax_mut(imp.syntax().clone()))).unwrap_or((func.indent_level(), func_mut.syntax().clone()));
              builder.make_mut(param_list.clone());
             let used_param_list = used_param_list.into_iter().map(|p| builder.make_mut(p)).collect_vec();
             tracing::info!("extract_struct_from_function_signature: editing main file");
@@ -175,12 +179,7 @@ pub(crate) fn extract_struct_from_function_signature(
             tracing::info!("extract_struct_from_function_signature: collecting fields");
             let def = create_struct_def(name.clone(), &func_mut, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
-
-            // if in impl block then put struct before the impl block
-            let (indent, syntax) = param_list.self_param().and_then(|_|ctx.find_node_at_range::<ast::Impl>() ).map(|imp|builder.make_mut(imp)).map(|imp|( imp.indent_level(), imp.syntax().clone())).unwrap_or((func.indent_level(), func_mut.syntax().clone()));
             let def = def.indent(indent);
-
-
             ted::insert_all(
                 ted::Position::before(syntax),
                 vec![
@@ -848,6 +847,40 @@ struct FooStruct{ j: i32, i: i32 }
 
 impl Foo {
     fn foo(&self, FooStruct { j, i, .. }: FooStruct, z:i32) {  }
+}
+
+fn bar() {
+    Foo.foo(FooStruct { j: 1, i: 2 }, 3)
+}
+"#,
+        );
+    }
+    #[test]
+    fn test_extract_function_signature_in_method_with_reference_in_impl() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+struct Foo
+impl Foo {
+    fn foo(&self, $0j: i32, i: i32$0, z:i32) {  }
+    fn baz(&self) {
+        self.foo(4, 5, 6)
+    }
+}
+
+fn bar() {
+    Foo.foo(1, 2, 3)
+}
+"#,
+            r#"
+struct Foo
+struct FooStruct{ j: i32, i: i32 }
+
+impl Foo {
+    fn foo(&self, FooStruct { j, i, .. }: FooStruct, z:i32) {  }
+    fn baz(&self) {
+        self.foo(FooStruct { j: 4, i: 5 }, 6)
+    }
 }
 
 fn bar() {
