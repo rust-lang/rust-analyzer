@@ -46,8 +46,8 @@ pub enum TestId {
 impl AsRef<str> for TestId {
     fn as_ref(&self) -> &str {
         match self {
-            Self::Name(n) => &n,
-            Self::Path(p) => &p,
+            Self::Name(n) => n,
+            Self::Path(p) => p,
         }
     }
 }
