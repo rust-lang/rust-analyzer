@@ -70,34 +70,32 @@ pub(crate) struct ProjectJsonTargetSpec {
 impl ProjectJsonTargetSpec {
     pub(crate) fn runnable_args(&self, kind: &RunnableKind) -> Option<Runnable> {
         match kind {
-            RunnableKind::Bin => {
-                for runnable in &self.shell_runnables {
-                    if matches!(runnable.kind, project_model::project_json::RunnableKind::Run) {
-                        return Some(runnable.clone());
-                    }
-                }
+            RunnableKind::Bin => self
+                .shell_runnables
+                .iter()
+                .find(|r| matches!(r.kind, project_model::project_json::RunnableKind::Run))
+                .cloned()
+                .map(|mut runnable| {
+                    runnable.args.iter_mut().for_each(|arg| {
+                        *arg = arg.replace("{label}", &self.label);
+                    });
 
-                None
-            }
-            RunnableKind::Test { test_id, .. } => {
-                for runnable in &self.shell_runnables {
-                    if matches!(runnable.kind, project_model::project_json::RunnableKind::TestOne) {
-                        let mut runnable = runnable.clone();
+                    runnable
+                }),
+            RunnableKind::Test { test_id, .. } => self
+                .shell_runnables
+                .iter()
+                .find(|r| matches!(r.kind, project_model::project_json::RunnableKind::TestOne))
+                .cloned()
+                .map(|mut runnable| {
+                    runnable.args.iter_mut().for_each(|arg| {
+                        *arg = arg
+                            .replace("{label}", &self.label)
+                            .replace("{test_id}", test_id.as_ref());
+                    });
 
-                        let replaced_args: Vec<_> = runnable
-                            .args
-                            .iter()
-                            .map(|arg| arg.replace("{test_id}", &test_id.to_string()))
-                            .map(|arg| arg.replace("{label}", &self.label))
-                            .collect();
-                        runnable.args = replaced_args;
-
-                        return Some(runnable);
-                    }
-                }
-
-                None
-            }
+                    runnable
+                }),
             RunnableKind::TestMod { .. } => None,
             RunnableKind::Bench { .. } => None,
             RunnableKind::DocTest { .. } => None,
