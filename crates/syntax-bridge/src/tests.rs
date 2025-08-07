@@ -15,7 +15,7 @@ fn check_punct_spacing(fixture: &str) {
     let subtree = syntax_node_to_token_tree(
         source_file.syntax(),
         DummyTestSpanMap,
-        DUMMY,
+        *DUMMY,
         DocCommentDesugarMode::Mbe,
     );
     let mut annotations: FxHashMap<_, _> = extract_annotations(fixture)
