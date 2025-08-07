@@ -10,6 +10,7 @@ use chalk_ir::{
 };
 use hir_def::{
     EnumId, EnumVariantId, FunctionId, Lookup, TraitId, TypeAliasId, TypeOrConstParamId,
+    attrs::AttrFlags,
     db::DefDatabase,
     hir::generics::WherePredicate,
     lang_item::LangItem,
@@ -266,7 +267,7 @@ pub enum Unsafety {
 pub fn is_fn_unsafe_to_call(
     db: &dyn HirDatabase,
     func: FunctionId,
-    caller_target_features: &TargetFeatures,
+    caller_target_features: &TargetFeatures<'_>,
     call_edition: Edition,
 ) -> Unsafety {
     let data = db.function_signature(func);
@@ -276,8 +277,7 @@ pub fn is_fn_unsafe_to_call(
 
     if data.has_target_feature() {
         // RFC 2396 <https://rust-lang.github.io/rfcs/2396-target-feature-1.1.html>.
-        let callee_target_features =
-            TargetFeatures::from_attrs_no_implications(&db.attrs(func.into()));
+        let callee_target_features = TargetFeatures::from_fn_no_implications(db, func);
         if !caller_target_features.enabled.is_superset(&callee_target_features.enabled) {
             return Unsafety::Unsafe;
         }
@@ -298,7 +298,7 @@ pub fn is_fn_unsafe_to_call(
             if is_intrinsic_block {
                 // legacy intrinsics
                 // extern "rust-intrinsic" intrinsics are unsafe unless they have the rustc_safe_intrinsic attribute
-                if db.attrs(func.into()).by_key(sym::rustc_safe_intrinsic).exists() {
+                if AttrFlags::query(db, func.into()).contains(AttrFlags::RUSTC_SAFE_INTRINSIC) {
                     Unsafety::Safe
                 } else {
                     Unsafety::Unsafe
