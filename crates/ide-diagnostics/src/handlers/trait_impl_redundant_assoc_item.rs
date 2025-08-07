@@ -109,6 +109,7 @@ fn quickfix_for_redundant_assoc_item(
         target: range,
         source_change: Some(source_change_builder.finish()),
         command: None,
+        question_chain: None,
     }])
 }
 
