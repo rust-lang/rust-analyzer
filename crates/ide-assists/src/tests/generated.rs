@@ -1564,6 +1564,32 @@ pub fn add(a: i32, b: i32) -> i32 { a + b }
 }
 
 #[test]
+fn doctest_generate_documentation_from_trait() {
+    check_doc_test(
+        "generate_documentation_from_trait",
+        r#####"
+trait Foo {
+    /// some docs
+    fn foo(&self);
+}
+impl Foo for () {
+    fn $0foo(&self) {}
+}
+"#####,
+        r#####"
+trait Foo {
+    /// some docs
+    fn foo(&self);
+}
+impl Foo for () {
+    /// some docs
+    fn foo(&self) {}
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_documentation_template() {
     check_doc_test(
         "generate_documentation_template",
