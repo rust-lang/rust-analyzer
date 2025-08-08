@@ -91,7 +91,7 @@ impl ProjectJsonTargetSpec {
                     runnable.args.iter_mut().for_each(|arg| {
                         *arg = arg
                             .replace("{label}", &self.label)
-                            .replace("{test_id}", test_id.as_ref());
+                            .replace("{test_id}", test_id.as_str());
                     });
 
                     runnable

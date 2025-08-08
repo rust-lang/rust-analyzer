@@ -43,8 +43,8 @@ pub enum TestId {
     Path(String),
 }
 
-impl AsRef<str> for TestId {
-    fn as_ref(&self) -> &str {
+impl TestId {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Name(n) => n,
             Self::Path(p) => p,
@@ -54,7 +54,7 @@ impl AsRef<str> for TestId {
 
 impl fmt::Display for TestId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_ref())
+        f.write_str(self.as_str())
     }
 }
 
