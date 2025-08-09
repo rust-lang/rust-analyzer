@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FIXUP_ERASED_FILE_AST_ID_MARKER","ROOT_ERASED_FILE_AST_ID"],"enum":["Edition","Transparency"],"struct":["AstIdMap","EditionedFileId","ErasedFileAstId","FileAstId","FileId","HirFileId","MacroCallId","RealSpanMap","SpanAnchor","SpanData","SpanMap","SyntaxContext","TextRange","TextSize"],"trait":["AstIdNode"],"type":["Span"]};
