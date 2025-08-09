@@ -1779,7 +1779,6 @@ impl<'db> InferenceContext<'db> {
             TypeNs::AdtId(AdtId::EnumId(_))
             | TypeNs::BuiltinType(_)
             | TypeNs::TraitId(_)
-            | TypeNs::TraitAliasId(_)
             | TypeNs::ModuleId(_) => {
                 // FIXME diagnostic
                 (self.err_ty(), None)

@@ -258,7 +258,7 @@ impl Generics {
 
 pub(crate) fn trait_self_param_idx(db: &dyn DefDatabase, def: GenericDefId) -> Option<usize> {
     match def {
-        GenericDefId::TraitId(_) | GenericDefId::TraitAliasId(_) => {
+        GenericDefId::TraitId(_) => {
             let params = db.generic_params(def);
             params.trait_self_param().map(|idx| idx.into_raw().into_u32() as usize)
         }
@@ -280,8 +280,7 @@ fn parent_generic_def(db: &dyn DefDatabase, def: GenericDefId) -> Option<Generic
         GenericDefId::StaticId(_)
         | GenericDefId::AdtId(_)
         | GenericDefId::TraitId(_)
-        | GenericDefId::ImplId(_)
-        | GenericDefId::TraitAliasId(_) => return None,
+        | GenericDefId::ImplId(_) => return None,
     };
 
     match container {
