@@ -101,20 +101,23 @@ fn respects_cfg_attr_multiple_layers() {
     check(
         r"bar::Bar",
         r#"
-#[cfg(test)]
+#[cfg(test1)]
 impl () {
     #[cfg(test2)]
+    #[cfg(test3)]
     fn f($0) {}
 }
 "#,
         r#"
-#[cfg(test)]
+#[cfg(test1)]
 #[cfg(test2)]
+#[cfg(test3)]
 use bar::Bar;
 
-#[cfg(test)]
+#[cfg(test1)]
 impl () {
     #[cfg(test2)]
+    #[cfg(test3)]
     fn f() {}
 }
 "#,

@@ -81,7 +81,7 @@ impl ImportScope {
     ) -> Option<Self> {
         // The closest block expression ancestor
         let mut block = None;
-        let mut required_cfgs = Vec::new();
+        let mut required_cfgs: Vec<ast::Attr> = Vec::new();
         // Walk up the ancestor tree searching for a suitable node to do insertions on
         // with special handling on cfg-gated items, in which case we want to insert imports locally
         // or FIXME: annotate inserted imports with the same cfg
@@ -113,9 +113,14 @@ impl ImportScope {
                             required_cfgs,
                         });
                     }
-                    required_cfgs.extend(has_attrs.attrs().filter(|attr| {
-                        attr.as_simple_call().is_some_and(|(ident, _)| ident == "cfg")
-                    }));
+                    let mut attrs: Vec<ast::Attr> = has_attrs
+                        .attrs()
+                        .filter(|attr| {
+                            attr.as_simple_call().is_some_and(|(ident, _)| ident == "cfg")
+                        })
+                        .collect();
+                    attrs.append(&mut required_cfgs);
+                    required_cfgs = attrs;
                 }
             }
         }
@@ -194,12 +199,8 @@ fn insert_use_with_alias_option(
         use_tree = use_tree.clone_for_update();
         use_tree.wrap_in_tree_list();
     }
-    let use_item = make::use_(None, None, use_tree).clone_for_update();
-    for attr in
-        scope.required_cfgs.iter().map(|attr| attr.syntax().clone_subtree().clone_for_update())
-    {
-        ted::insert(ted::Position::first_child_of(use_item.syntax()), attr);
-    }
+
+    let use_item = make::use_(scope.required_cfgs.clone(), None, use_tree).clone_for_update();
 
     // merge into existing imports if possible
     if let Some(mb) = mb {
