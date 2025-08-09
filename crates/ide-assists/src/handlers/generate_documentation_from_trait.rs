@@ -1,9 +1,7 @@
 use hir::{AsAssocItem, HasSource};
 use ide_db::assists::AssistId;
 use syntax::{
-    AstNode,
-    NodeOrToken::Token,
-    SyntaxElement,
+    AstNode, NodeOrToken, SyntaxElement,
     ast::{
         self, AnyHasName, HasDocComments, HasName,
         edit::{AstNodeEdit, IndentLevel},
@@ -89,11 +87,11 @@ fn generate_docs(doc: &str, indent: IndentLevel, origin_indent: IndentLevel) -> 
             let trimmed_doc = line_doc(&trim_indent, doc);
             [make::tokens::doc_comment(&trimmed_doc), make::tokens::whitespace(&ws)]
         })
-        .map(|it| Token(it).into())
+        .map(NodeOrToken::Token)
         .collect()
 }
 
-fn line_doc<'a>(trim_indent: &str, line: &'a str) -> String {
+fn line_doc(trim_indent: &str, line: &str) -> String {
     let text = line.strip_prefix(trim_indent).unwrap_or(line.trim()).trim_end();
     if text.is_empty() { "///".to_owned() } else { format!("/// {text}") }
 }
