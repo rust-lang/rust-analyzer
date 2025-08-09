@@ -356,6 +356,28 @@ fn doctest_comment_to_doc() {
 }
 
 #[test]
+fn doctest_convert_attr_cfg_to_if() {
+    check_doc_test(
+        "convert_attr_cfg_to_if",
+        r#####"
+fn foo() {
+    $0#[cfg(feature = "foo")]
+    {
+        let _x = 2;
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    if cfg!(feature = "foo") {
+        let _x = 2;
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_bool_then_to_if() {
     check_doc_test(
         "convert_bool_then_to_if",
