@@ -1,13 +1,12 @@
 use either::Either::{self, Left, Right};
 use ide_db::assists::AssistId;
 use itertools::Itertools;
-use syntax::NodeOrToken::{Node, Token};
-use syntax::SyntaxNode;
-use syntax::ast::edit_in_place::Indent;
-use syntax::syntax_editor::SyntaxEditor;
 use syntax::{
-    AstNode, SyntaxKind,
-    ast::{self, make},
+    AstNode,
+    NodeOrToken::{self, Node, Token},
+    SyntaxKind, SyntaxNode, SyntaxToken, T,
+    ast::{self, HasAttrs, edit_in_place::Indent, make},
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::assist_context::{AssistContext, Assists};
@@ -58,6 +57,91 @@ pub(crate) fn convert_attr_cfg_to_if(acc: &mut Assists, ctx: &AssistContext<'_>)
             if_expr.indent(origin.indent_level());
             edit.replace(origin.syntax(), if_expr.syntax());
 
+            builder.add_file_edits(ctx.vfs_file_id(), edit);
+        },
+    )
+}
+
+// Assist: convert_if_cfg_to_attr
+//
+// Convert `if cfg!(...) {}` to `#[cfg(...)] {}`.
+//
+// ```
+// fn foo() {
+//     if $0cfg!(feature = "foo") {
+//         let _x = 2;
+//     }
+// }
+// ```
+// ->
+// ```
+// fn foo() {
+//     #[cfg(feature = "foo")]
+//     {
+//         let _x = 2;
+//     }
+// }
+// ```
+pub(crate) fn convert_if_cfg_to_attr(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let if_ = ctx.find_node_at_offset::<ast::IfExpr>()?;
+    let ast::Expr::MacroExpr(cfg) = if_.condition()? else {
+        return None;
+    };
+    let macro_call = cfg.macro_call()?;
+
+    let block_expr = if_.then_branch()?;
+    let else_block = match if_.else_branch() {
+        Some(ast::ElseBranch::Block(block)) => Some(block),
+        None => None,
+        Some(ast::ElseBranch::IfExpr(_)) => return None,
+    };
+    if macro_call.path()?.segment()?.name_ref()?.text() != "cfg"
+        || ctx.offset() > block_expr.stmt_list()?.l_curly_token()?.text_range().end()
+    {
+        return None;
+    }
+    let cfg_cond = macro_call.token_tree()?;
+
+    acc.add(
+        AssistId::refactor_rewrite("convert_if_cfg_to_attr"),
+        "Convert `if cfg!()` to `#[cfg()]`",
+        macro_call.syntax().text_range(),
+        |builder| {
+            let mut edit = builder.make_editor(if_.syntax());
+
+            let indent = format!("\n{}", if_.indent_level());
+            if let Some(else_block) = else_block {
+                let attr_cfg_not = make_cfg(make::token_tree(
+                    T!['('],
+                    [Token(make::tokens::ident("not")), Node(cfg_cond.clone())],
+                ));
+                edit.insert_all(
+                    Position::before(if_.syntax()),
+                    vec![
+                        make::tokens::whitespace(&indent).into(),
+                        attr_cfg_not.syntax().clone_for_update().into(),
+                        make::tokens::whitespace(&indent).into(),
+                        else_block.syntax().clone_for_update().into(),
+                    ],
+                );
+                edit.insert_all(
+                    Position::before(if_.syntax()),
+                    indent_attributes(&if_, &indent, false).clone(),
+                );
+            }
+
+            let attr_cfg = make_cfg(cfg_cond);
+            edit.insert_all(
+                Position::before(if_.syntax()),
+                vec![
+                    attr_cfg.syntax().clone_for_update().into(),
+                    make::tokens::whitespace(&indent).into(),
+                    block_expr.syntax().clone_for_update().into(),
+                ],
+            );
+            edit.insert_all(Position::before(if_.syntax()), indent_attributes(&if_, &indent, true));
+
+            edit.delete(if_.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), edit);
         },
     )
@@ -189,9 +273,31 @@ fn is_cfg(attr: &ast::Attr) -> bool {
     attr.path().and_then(|p| p.as_single_name_ref()).is_some_and(|name| name.text() == "cfg")
 }
 
+fn make_cfg(tt: ast::TokenTree) -> ast::Attr {
+    let cfg_path = make::ext::ident_path("cfg");
+    make::attr_outer(make::meta_token_tree(cfg_path, tt))
+}
+
+fn indent_attributes(
+    if_: &ast::IfExpr,
+    indent: &str,
+    before: bool,
+) -> Vec<NodeOrToken<SyntaxNode, SyntaxToken>> {
+    if_.attrs()
+        .flat_map(|attr| {
+            let mut tts =
+                [Token(make::tokens::whitespace(indent)), Node(attr.syntax().clone_for_update())];
+            if before {
+                tts.reverse();
+            }
+            tts
+        })
+        .collect_vec()
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::tests::check_assist;
+    use crate::tests::{check_assist, check_assist_not_applicable};
 
     use super::*;
 
@@ -560,6 +666,177 @@ mod a {
                 },
             };
         }
+    }
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_convert_if_cfg_to_attr_else_block() {
+        check_assist(
+            convert_if_cfg_to_attr,
+            r#"
+fn foo() {
+    $0if cfg!(feature = "foo") {
+        let x = 2;
+        let _ = x+1;
+    } else {
+        let _ = 3;
+    }
+    // needless comment
+}
+            "#,
+            r#"
+fn foo() {
+    #[cfg(feature = "foo")]
+    {
+        let x = 2;
+        let _ = x+1;
+    }
+    #[cfg(not(feature = "foo"))]
+    {
+        let _ = 3;
+    }
+    // needless comment
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_convert_if_cfg_to_attr_not_applicable_after_curly() {
+        check_assist_not_applicable(
+            convert_if_cfg_to_attr,
+            r#"
+fn foo() {
+    if cfg!(feature = "foo") {
+        $0let x = 2;
+        let _ = x+1;
+    } else {
+        let _ = 3;
+    }
+    // needless comment
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_convert_if_cfg_to_attr_indent() {
+        check_assist(
+            convert_if_cfg_to_attr,
+            r#"
+mod a {
+    fn foo() {
+        $0if cfg!(feature = "foo") {
+            #[allow(unused)]
+            match () {
+                () => {
+                    todo!()
+                },
+            }
+        }
+    }
+}
+            "#,
+            r#"
+mod a {
+    fn foo() {
+        #[cfg(feature = "foo")]
+        {
+            #[allow(unused)]
+            match () {
+                () => {
+                    todo!()
+                },
+            }
+        }
+    }
+}
+            "#,
+        );
+
+        check_assist(
+            convert_if_cfg_to_attr,
+            r#"
+mod a {
+    fn foo() {
+        $0if cfg!(feature = "foo") {
+            #[allow(unused)]
+            match () {
+                () => {
+                    todo!()
+                },
+            }
+        } else {
+            #[allow(unused)]
+            match () {
+                () => {
+                    todo!("")
+                },
+            }
+        }
+    }
+}
+            "#,
+            r#"
+mod a {
+    fn foo() {
+        #[cfg(feature = "foo")]
+        {
+            #[allow(unused)]
+            match () {
+                () => {
+                    todo!()
+                },
+            }
+        }
+        #[cfg(not(feature = "foo"))]
+        {
+            #[allow(unused)]
+            match () {
+                () => {
+                    todo!("")
+                },
+            }
+        }
+    }
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_convert_if_cfg_to_attr_attributes() {
+        check_assist(
+            convert_if_cfg_to_attr,
+            r#"
+fn foo() {
+    #[foo]
+    #[allow(unused)]
+    $0if cfg!(feature = "foo") {
+        let x = 2;
+        let _ = x+1;
+    } else {
+        let _ = 3;
+    }
+}
+            "#,
+            r#"
+fn foo() {
+    #[foo]
+    #[allow(unused)]
+    #[cfg(feature = "foo")]
+    {
+        let x = 2;
+        let _ = x+1;
+    }
+    #[foo]
+    #[allow(unused)]
+    #[cfg(not(feature = "foo"))]
+    {
+        let _ = 3;
     }
 }
             "#,

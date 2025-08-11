@@ -539,6 +539,28 @@ impl TryFrom<usize> for Thing {
 }
 
 #[test]
+fn doctest_convert_if_cfg_to_attr() {
+    check_doc_test(
+        "convert_if_cfg_to_attr",
+        r#####"
+fn foo() {
+    if $0cfg!(feature = "foo") {
+        let _x = 2;
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    #[cfg(feature = "foo")]
+    {
+        let _x = 2;
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_if_to_bool_then() {
     check_doc_test(
         "convert_if_to_bool_then",
