@@ -33,7 +33,9 @@ use crate::assist_context::{AssistContext, Assists};
 // }
 // ```
 pub(crate) fn convert_attr_cfg_to_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let (origin, cfg, stmt) = find_stmt(ctx.find_node_at_offset::<ast::Attr>()?)?;
+    let cfg = ctx.find_node_at_offset::<ast::Attr>()?;
+    let target = cfg.syntax().text_range();
+    let (origin, cfg, stmt) = find_stmt(cfg)?;
 
     if !is_cfg(&cfg) {
         return None;
@@ -45,7 +47,7 @@ pub(crate) fn convert_attr_cfg_to_if(acc: &mut Assists, ctx: &AssistContext<'_>)
     acc.add(
         AssistId::refactor_rewrite("convert_attr_cfg_to_if"),
         "Convert `#[cfg()]` to `if cfg!()`",
-        cfg.syntax().text_range(),
+        target,
         |builder| {
             let mut edit = builder.make_editor(origin.syntax());
 
