@@ -3529,6 +3529,52 @@ enum Animal {
 }
 
 #[test]
+fn doctest_split_if() {
+    check_doc_test(
+        "split_if",
+        r#####"
+fn foo() {
+    if a $0&& b && c {
+        todo!()
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    if a {
+        if b && c {
+            todo!()
+        }
+    }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_split_if_1() {
+    check_doc_test(
+        "split_if",
+        r#####"
+fn foo() {
+    if a $0|| b || c {
+        todo!()
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    if a {
+        todo!()
+    } else if b || c {
+        todo!()
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_split_import() {
     check_doc_test(
         "split_import",
