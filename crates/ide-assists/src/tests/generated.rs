@@ -1904,6 +1904,41 @@ impl Foo for ${1:_} {
 }
 
 #[test]
+fn doctest_generate_inverse_ops_impl() {
+    check_doc_test(
+        "generate_inverse_ops_impl",
+        r#####"
+struct Foo(i32);
+impl core::ops::Add<i32> $0for Foo {
+    type Output = i32;
+
+    fn add(self, rhs: i32) -> Self::Output {
+        self.0 + rhs
+    }
+}
+"#####,
+        r#####"
+struct Foo(i32);
+impl core::ops::Add<Foo> for i32 {
+    type Output = i32;
+
+    fn add(self, rhs: Foo) -> Self::Output {
+        rhs.0 + self
+    }
+}
+
+impl core::ops::Add<i32> for Foo {
+    type Output = i32;
+
+    fn add(self, rhs: i32) -> Self::Output {
+        self.0 + rhs
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_is_empty_from_len() {
     check_doc_test(
         "generate_is_empty_from_len",
