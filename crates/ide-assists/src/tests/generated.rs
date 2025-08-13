@@ -517,6 +517,30 @@ impl TryFrom<usize> for Thing {
 }
 
 #[test]
+fn doctest_convert_if_let_to_let_else() {
+    check_doc_test(
+        "convert_if_let_to_let_else",
+        r#####"
+//- minicore: option
+fn foo(opt: Option<()>) {
+    let val$0 = if let Some(it) = opt {
+        it
+    } else {
+        return
+    };
+}
+"#####,
+        r#####"
+fn foo(opt: Option<()>) {
+    let Some(val) = opt else {
+        return
+    };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_if_to_bool_then() {
     check_doc_test(
         "convert_if_to_bool_then",

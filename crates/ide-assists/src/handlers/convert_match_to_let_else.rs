@@ -52,11 +52,80 @@ pub(crate) fn convert_match_to_let_else(acc: &mut Assists, ctx: &AssistContext<'
         other => format!("{{ {other} }}"),
     };
     let extracting_arm_pat = extracting_arm.pat()?;
-    let extracted_variable_positions = find_extracted_variable(ctx, &extracting_arm)?;
+    let extracted_variable_positions = find_extracted_variable(ctx, &extracting_arm.expr()?)?;
 
     acc.add(
         AssistId::refactor_rewrite("convert_match_to_let_else"),
         "Convert match to let-else",
+        let_stmt.syntax().text_range(),
+        |builder| {
+            let extracting_arm_pat =
+                rename_variable(&extracting_arm_pat, &extracted_variable_positions, pat);
+            builder.replace(
+                let_stmt.syntax().text_range(),
+                format!("let {extracting_arm_pat} = {initializer_expr} else {diverging_arm_expr};"),
+            )
+        },
+    )
+}
+
+// Assist: convert_if_let_to_let_else
+//
+// Converts let statement with if-let initializer to let-else statement.
+//
+// ```
+// # //- minicore: option
+// fn foo(opt: Option<()>) {
+//     let val$0 = if let Some(it) = opt {
+//         it
+//     } else {
+//         return
+//     };
+// }
+// ```
+// ->
+// ```
+// fn foo(opt: Option<()>) {
+//     let Some(val) = opt else {
+//         return
+//     };
+// }
+// ```
+pub(crate) fn convert_if_let_to_let_else(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let let_stmt: ast::LetStmt = ctx.find_node_at_offset()?;
+    let pat = let_stmt.pat()?;
+    if ctx.offset() > pat.syntax().text_range().end() {
+        return None;
+    }
+
+    let ast::Expr::IfExpr(initializer) = let_stmt.initializer()? else { return None };
+    let ast::Expr::LetExpr(initializer_let_expr) = initializer.condition()? else { return None };
+    let initializer_expr = initializer_let_expr.expr()?;
+    let extracting_arm_pat = initializer_let_expr.pat()?;
+    let extracting_arm_expr = if let Some(block) = initializer.then_branch()
+        && block.modifier().is_none()
+        && block.label().is_none()
+        && block.stmt_list()?.statements().next().is_none()
+    {
+        block.tail_expr()?
+    } else {
+        return None;
+    };
+    let diverging_arm_expr = if let ast::ElseBranch::Block(block) = initializer.else_branch()? {
+        ast::Expr::BlockExpr(block)
+    } else {
+        return None;
+    };
+    if !ctx.sema.type_of_expr(&diverging_arm_expr)?.original().is_never() {
+        cov_mark::hit!(non_diverging_if_let);
+        return None;
+    }
+
+    let extracted_variable_positions = find_extracted_variable(ctx, &extracting_arm_expr)?;
+
+    acc.add(
+        AssistId::refactor_rewrite("convert_if_let_to_let_else"),
+        "Convert if-let to let-else",
         let_stmt.syntax().text_range(),
         |builder| {
             let extracting_arm_pat =
@@ -99,8 +168,8 @@ fn find_arms(
 }
 
 // Given an extracting arm, find the extracted variable.
-fn find_extracted_variable(ctx: &AssistContext<'_>, arm: &ast::MatchArm) -> Option<Vec<Name>> {
-    match arm.expr()? {
+fn find_extracted_variable(ctx: &AssistContext<'_>, expr: &ast::Expr) -> Option<Vec<Name>> {
+    match expr {
         ast::Expr::PathExpr(path) => {
             let name_ref = path.syntax().descendants().find_map(ast::NameRef::cast)?;
             match NameRefClass::classify(&ctx.sema, &name_ref)? {
@@ -170,6 +239,21 @@ fn foo(opt: Option<()>) {
     let val$0 = match opt {
         Some(it) => it,
         None => (),
+    };
+}
+"#,
+        );
+
+        cov_mark::check!(non_diverging_if_let);
+        check_assist_not_applicable(
+            convert_if_let_to_let_else,
+            r#"
+//- minicore: option
+fn foo(opt: Option<()>) {
+    let val$0 = if let Some(it) = opt {
+        it
+    } else {
+        ()
     };
 }
 "#,
@@ -465,6 +549,27 @@ fn f() {
             r#"
 fn f() {
     let Some((x, y)) = Some((0, 1)) else { return };
+}
+"#,
+        );
+
+        check_assist(
+            convert_if_let_to_let_else,
+            r#"
+//- minicore: option
+fn f() {
+    let (x, y)$0 = if let Some(it) = Some((0, 1)) {
+        it
+    } else {
+        return
+    };
+}
+"#,
+            r#"
+fn f() {
+    let Some((x, y)) = Some((0, 1)) else {
+        return
+    };
 }
 "#,
         );
