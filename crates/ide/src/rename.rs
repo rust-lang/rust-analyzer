@@ -8,7 +8,10 @@ use hir::{AsAssocItem, InFile, Name, Semantics, sym};
 use ide_db::{
     FileId, FileRange, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
-    rename::{IdentifierKind, RenameDefinition, bail, format_err, source_edit_from_references},
+    rename::{
+        IdentifierKind, RenameConfig, RenameDefinition, bail, format_err,
+        source_edit_from_references,
+    },
     source_change::SourceChangeBuilder,
 };
 use itertools::Itertools;
@@ -98,6 +101,7 @@ pub(crate) fn prepare_rename(
 // ![Rename](https://user-images.githubusercontent.com/48062697/113065582-055aae80-91b1-11eb-8ade-2b58e6d81883.gif)
 pub(crate) fn rename(
     db: &RootDatabase,
+    config: &RenameConfig,
     position: FilePosition,
     new_name: &str,
 ) -> RenameResult<SourceChange> {
@@ -165,7 +169,7 @@ pub(crate) fn rename(
                     return rename_to_self(&sema, local);
                 }
             }
-            def.rename(&sema, new_name.as_str(), rename_def)
+            def.rename(&sema, config, new_name.as_str(), rename_def)
         })),
     };
 
@@ -178,13 +182,14 @@ pub(crate) fn rename(
 /// Called by the client when it is about to rename a file.
 pub(crate) fn will_rename_file(
     db: &RootDatabase,
+    config: &RenameConfig,
     file_id: FileId,
     new_name_stem: &str,
 ) -> Option<SourceChange> {
     let sema = Semantics::new(db);
     let module = sema.file_to_module_def(file_id)?;
     let def = Definition::Module(module);
-    let mut change = def.rename(&sema, new_name_stem, RenameDefinition::Yes).ok()?;
+    let mut change = def.rename(&sema, config, new_name_stem, RenameDefinition::Yes).ok()?;
     change.file_system_edits.clear();
     Some(change)
 }
@@ -579,6 +584,7 @@ fn text_edit_from_self_param(self_param: &ast::SelfParam, new_name: String) -> O
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
+    use ide_db::rename::RenameConfig;
     use ide_db::source_change::SourceChange;
     use ide_db::text_edit::TextEdit;
     use itertools::Itertools;
@@ -588,6 +594,8 @@ mod tests {
     use crate::fixture;
 
     use super::{RangeInfo, RenameError};
+
+    const TEST_CONFIG: RenameConfig = RenameConfig { show_conflicts: true };
 
     #[track_caller]
     fn check(
@@ -603,7 +611,7 @@ mod tests {
             panic!("Prepare rename to '{new_name}' was failed: {err}")
         }
         let rename_result = analysis
-            .rename(position, new_name)
+            .rename(&TEST_CONFIG, position, new_name)
             .unwrap_or_else(|err| panic!("Rename to '{new_name}' was cancelled: {err}"));
         match rename_result {
             Ok(source_change) => {
@@ -635,7 +643,7 @@ mod tests {
     #[track_caller]
     fn check_conflicts(new_name: &str, #[rust_analyzer::rust_fixture] ra_fixture: &str) {
         let (analysis, position, conflicts) = fixture::annotations(ra_fixture);
-        let source_change = analysis.rename(position, new_name).unwrap().unwrap();
+        let source_change = analysis.rename(&TEST_CONFIG, position, new_name).unwrap().unwrap();
         let expected_conflicts = conflicts
             .into_iter()
             .map(|(file_range, _)| (file_range.file_id, file_range.range))
@@ -662,8 +670,10 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let source_change =
-            analysis.rename(position, new_name).unwrap().expect("Expect returned a RenameError");
+        let source_change = analysis
+            .rename(&TEST_CONFIG, position, new_name)
+            .unwrap()
+            .expect("Expect returned a RenameError");
         expect.assert_eq(&filter_expect(source_change))
     }
 
@@ -674,7 +684,7 @@ mod tests {
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
         let source_change = analysis
-            .will_rename_file(position.file_id, new_name)
+            .will_rename_file(&TEST_CONFIG, position.file_id, new_name)
             .unwrap()
             .expect("Expect returned a RenameError");
         expect.assert_eq(&filter_expect(source_change))

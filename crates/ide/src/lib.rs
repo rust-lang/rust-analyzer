@@ -69,7 +69,9 @@ use ide_db::{
         CrateOrigin, CrateWorkspaceData, Env, FileSet, RootQueryDb, SourceDatabase, VfsPath,
         salsa::Cancelled,
     },
-    prime_caches, symbol_index,
+    prime_caches,
+    rename::RenameConfig,
+    symbol_index,
 };
 use syntax::SourceFile;
 use triomphe::Arc;
@@ -781,10 +783,11 @@ impl Analysis {
     /// name.
     pub fn rename(
         &self,
+        config: &RenameConfig,
         position: FilePosition,
         new_name: &str,
     ) -> Cancellable<Result<SourceChange, RenameError>> {
-        self.with_db(|db| rename::rename(db, position, new_name))
+        self.with_db(|db| rename::rename(db, config, position, new_name))
     }
 
     pub fn prepare_rename(
@@ -796,10 +799,11 @@ impl Analysis {
 
     pub fn will_rename_file(
         &self,
+        config: &RenameConfig,
         file_id: FileId,
         new_name_stem: &str,
     ) -> Cancellable<Option<SourceChange>> {
-        self.with_db(|db| rename::will_rename_file(db, file_id, new_name_stem))
+        self.with_db(|db| rename::will_rename_file(db, config, file_id, new_name_stem))
     }
 
     pub fn structural_search_replace(
