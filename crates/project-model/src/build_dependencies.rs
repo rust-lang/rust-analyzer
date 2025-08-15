@@ -319,7 +319,7 @@ impl WorkspaceBuildScripts {
     }
 
     fn run_command(
-        cmd: Command,
+        mut cmd: Command,
         // ideally this would be something like:
         // with_output_for: impl FnMut(&str, dyn FnOnce(&mut BuildScriptOutput)),
         // but owned trait objects aren't a thing
@@ -335,7 +335,7 @@ impl WorkspaceBuildScripts {
 
         tracing::info!("Running build scripts: {:?}", cmd);
         let output = stdx::process::spawn_with_streaming_output(
-            cmd,
+            &mut cmd,
             &mut |line| {
                 // Copy-pasted from existing cargo_metadata. It seems like we
                 // should be using serde_stacker here?
@@ -418,7 +418,7 @@ impl WorkspaceBuildScripts {
 
         let errors = if !output.status.success() {
             let errors = errors.into_inner();
-            Some(if errors.is_empty() { "cargo check failed".to_owned() } else { errors })
+            Some(if errors.is_empty() { format!("`{cmd:?}` failed") } else { errors })
         } else {
             None
         };

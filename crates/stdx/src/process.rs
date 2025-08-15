@@ -58,7 +58,7 @@ pub fn streaming_output(
 ///
 /// Panics if `cmd` is not configured to have `stdout` and `stderr` as `piped`.
 pub fn spawn_with_streaming_output(
-    mut cmd: Command,
+    cmd: &mut Command,
     on_stdout_line: &mut dyn FnMut(&str),
     on_stderr_line: &mut dyn FnMut(&str),
 ) -> io::Result<Output> {
