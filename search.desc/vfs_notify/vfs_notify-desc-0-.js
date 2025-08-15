@@ -1,0 +1,1 @@
+searchState.loadedDescShard("vfs_notify", 0, "An implementation of <code>loader::Handle</code>, based on <code>walkdir</code> and …\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.")
