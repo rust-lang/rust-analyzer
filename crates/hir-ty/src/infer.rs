@@ -43,7 +43,7 @@ use hir_def::{
     lang_item::{LangItem, LangItemTarget, lang_item},
     layout::Integer,
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
-    signatures::{ConstSignature, StaticSignature},
+    signatures::{ConstSignature, EnumSignature, StaticSignature},
     type_ref::{ConstRef, LifetimeRefId, TypeRefId},
 };
 use hir_expand::{mod_path::ModPath, name::Name};
@@ -102,7 +102,7 @@ pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<Infer
             DefWithBodyId::StaticId(s) => ctx.collect_static(&db.static_signature(s)),
             DefWithBodyId::VariantId(v) => {
                 ctx.return_ty = TyBuilder::builtin(
-                    match db.enum_signature(v.lookup(db).parent).variant_body_type() {
+                    match EnumSignature::variant_body_type(db, v.lookup(db).parent) {
                         hir_def::layout::IntegerType::Pointer(signed) => match signed {
                             true => BuiltinType::Int(BuiltinInt::Isize),
                             false => BuiltinType::Uint(BuiltinUint::Usize),
