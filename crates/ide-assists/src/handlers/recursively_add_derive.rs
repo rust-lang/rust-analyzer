@@ -1,17 +1,17 @@
 use crate::{AssistContext, Assists};
 use hir::{HasAttrs as _, HasCrate, HirFileId, ItemInNs};
 use ide_db::{
-    assists::{AssistId, AssistKind},
-    helpers::mod_path_to_ast,
-    imports::import_assets::NameToImport,
-    items_locator, FxHashMap,
+    FxHashMap, assists::AssistId, helpers::mod_path_to_ast, imports::import_assets::NameToImport,
+    items_locator,
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
 use syntax::{
-    ast::{self, edit_in_place::AttrsOwnerEdit, make, HasAttrs},
-    syntax_editor::Position,
-    AstNode, T,
+    AstNode,
+    SyntaxKind::{ATTR, COMMENT, WHITESPACE},
+    T,
+    ast::{self, HasAttrs, edit::IndentLevel, make},
+    syntax_editor::{Element, Position},
 };
 
 // Assist: recursively_add_derive
@@ -64,7 +64,7 @@ pub(crate) fn recursively_add_derive(acc: &mut Assists, ctx: &AssistContext<'_>)
         // The cursor is on the derive keyword, use all derive items the ADT has.
         let items: SmallVec<_> = adt
             .attrs(ctx.db())
-            .by_key(&hir::sym::derive)
+            .by_key(hir::sym::derive)
             .attrs()
             .filter_map(|attr| attr.parse_path_comma_token_tree(ctx.db()))
             .flatten()
@@ -104,7 +104,7 @@ pub(crate) fn recursively_add_derive(acc: &mut Assists, ctx: &AssistContext<'_>)
         })
         .to_string();
     acc.add(
-        AssistId("recursively_add_derive", AssistKind::Generate),
+        AssistId::generate("recursively_add_derive"),
         format!("Recursively add `#[derive({formatted_items})]` to each field type"),
         adt_src.syntax().text_range(),
         |edit| {
@@ -138,11 +138,7 @@ pub(crate) fn recursively_add_derive(acc: &mut Assists, ctx: &AssistContext<'_>)
                     });
 
                 let maybe_derive_attr = adt_src.attrs().find_map(|attr| {
-                    if attr.path()?.syntax().text() == "derive" {
-                        attr.token_tree()
-                    } else {
-                        None
-                    }
+                    if attr.path()?.syntax().text() == "derive" { attr.token_tree() } else { None }
                 });
 
                 if let Some(derive_attr) = maybe_derive_attr {
@@ -171,19 +167,29 @@ pub(crate) fn recursively_add_derive(acc: &mut Assists, ctx: &AssistContext<'_>)
                     let tt = derive_paths
                         .filter_map(|item| item.into_token())
                         .map(syntax::NodeOrToken::Token)
-                        .collect();
+                        .collect::<Vec<_>>();
                     let derive = make::attr_outer(make::meta_token_tree(
                         make::ext::ident_path("derive"),
                         make::token_tree(T!['('], tt).clone_for_update(),
                     ))
                     .clone_for_update();
 
-                    // TODO: Switch to the `SyntaxEditor` equivalent of `add_attr()` once that's available.
-                    let new_adt = adt_src.clone_for_update();
-                    new_adt.add_attr(derive);
-                    editor.replace(adt_src.syntax(), new_adt.syntax());
+                    let indent = IndentLevel::from_node(adt_src.syntax());
+                    let after_attrs_and_comments = adt_src
+                        .syntax()
+                        .children_with_tokens()
+                        .find(|it| !matches!(it.kind(), WHITESPACE | COMMENT | ATTR))
+                        .map_or(Position::first_child_of(adt_src.syntax()), Position::before);
+
+                    editor.insert_all(
+                        after_attrs_and_comments,
+                        vec![
+                            derive.syntax().syntax_element(),
+                            make::tokens::whitespace(&format!("\n{indent}")).syntax_element(),
+                        ],
+                    );
                 }
-                edit.add_file_edits(file_id, editor);
+                edit.add_file_edits(file_id.file_id(ctx.db()), editor);
             }
         },
     )
@@ -200,23 +206,24 @@ struct DeriveItem {
 impl DeriveItem {
     fn from_path(
         ctx: &AssistContext<'_>,
-        ty: &hir::Type,
+        ty: &hir::Type<'_>,
         current_crate: hir::Crate,
         derive_macro: hir::Macro,
         name: String,
     ) -> Option<Self> {
-        if derive_macro.kind(ctx.db()) != hir::MacroKind::Derive {
-            return None;
+        match derive_macro.kind(ctx.db()) {
+            hir::MacroKind::Derive | hir::MacroKind::DeriveBuiltIn => {}
+            _ => return None,
         }
 
         // Try to find a trait with the same name as the derive macro, which the type implements.
         let maybe_trait = items_locator::items_with_name(
-            &ctx.sema,
+            ctx.db(),
             current_crate,
             NameToImport::exact_case_sensitive(name),
             items_locator::AssocSearchMode::Exclude,
         )
-        .find_map(|item| item.as_module_def()?.as_trait())
+        .find_map(|(item, _)| item.into_module_def().as_trait())
         .filter(|trait_| ty.impls_trait(ctx.db(), *trait_, &[]));
         Some(DeriveItem { derive_macro, maybe_trait })
     }
@@ -224,7 +231,7 @@ impl DeriveItem {
     fn implemented_by(&self, ctx: &AssistContext<'_>, adt: &hir::Adt, src: &ast::Adt) -> bool {
         // Check if the type already has the derive attribute.
         adt.attrs(ctx.db())
-            .by_key(&hir::sym::derive)
+            .by_key(hir::sym::derive)
             .attrs()
             .filter_map(|attr| attr.parse_path_comma_token_tree(ctx.db()))
             .flatten()
@@ -280,11 +287,7 @@ fn derive_targets(
         .cloned()
         .collect();
 
-    if derives.is_empty() {
-        None
-    } else {
-        Some((src, derives))
-    }
+    if derives.is_empty() { None } else { Some((src, derives)) }
 }
 
 fn field_types_to_derive(
