@@ -11,37 +11,39 @@ use crate::Message;
 
 /// Creates an LSP connection via stdio.
 pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThreads) {
-    let (drop_sender, drop_receiver) = bounded::<Message>(0);
-    let (writer_sender, writer_receiver) = bounded::<Message>(0);
+    let (drop_sender, drop_receiver) = bounded::<Message>(1); // Changed from 0 -> 1 for minimal buffering
+    let (writer_sender, writer_receiver) = bounded::<Message>(1); // Changed from 0 -> 1
+
     let writer = thread::Builder::new()
         .name("LspServerWriter".to_owned())
-        .spawn(move || {
+        .spawn(move || -> io::Result<()> {
             let stdout = stdout();
             let mut stdout = stdout.lock();
-            writer_receiver.into_iter().try_for_each(|it| {
+            for it in writer_receiver {
                 let result = it.write(&mut stdout);
                 let _ = drop_sender.send(it);
-                result
-            })
+                result?; // Propagate error instead of unwrap
+            }
+            Ok(())
         })
-        .unwrap();
+        .expect("Failed to spawn writer thread"); // Replaced unwrap with expect for better context
+
     let dropper = thread::Builder::new()
         .name("LspMessageDropper".to_owned())
         .spawn(move || drop_receiver.into_iter().for_each(drop))
-        .unwrap();
-    let (reader_sender, reader_receiver) = bounded::<Message>(0);
+        .expect("Failed to spawn dropper thread");
+
+    let (reader_sender, reader_receiver) = bounded::<Message>(1);
+
     let reader = thread::Builder::new()
         .name("LspServerReader".to_owned())
-        .spawn(move || {
+        .spawn(move || -> io::Result<()> {
             let stdin = stdin();
             let mut stdin = stdin.lock();
             while let Some(msg) = Message::read(&mut stdin)? {
                 let is_exit = matches!(&msg, Message::Notification(n) if n.is_exit());
-
                 debug!("sending message {msg:#?}");
-                if let Err(e) = reader_sender.send(msg) {
-                    return Err(io::Error::other(e));
-                }
+                reader_sender.send(msg).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?; // Better error propagation
 
                 if is_exit {
                     break;
@@ -49,7 +51,8 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
             }
             Ok(())
         })
-        .unwrap();
+        .expect("Failed to spawn reader thread");
+
     let threads = IoThreads { reader, writer, dropper };
     (writer_sender, reader_receiver, threads)
 }
@@ -71,21 +74,10 @@ pub struct IoThreads {
 
 impl IoThreads {
     pub fn join(self) -> io::Result<()> {
-        match self.reader.join() {
-            Ok(r) => r?,
-            Err(err) => std::panic::panic_any(err),
-        }
-        match self.dropper.join() {
-            Ok(_) => (),
-            Err(err) => {
-                std::panic::panic_any(err);
-            }
-        }
-        match self.writer.join() {
-            Ok(r) => r,
-            Err(err) => {
-                std::panic::panic_any(err);
-            }
-        }
+        self.reader
+            .join()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))??;
+        self.dropper.join().map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))?;
+        self.writer.join().map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))?
     }
 }
