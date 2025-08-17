@@ -201,6 +201,16 @@ impl<'a> TryFrom<&'a Utf8Path> for &'a AbsPath {
 }
 
 impl AbsPath {
+    /// Creates a new [`AbsPath`] from `path`, assuming that it is absolute.
+    pub fn new_unchecked(path: &Utf8Path) -> &AbsPath {
+        // SAFETY: This is safe because `path` is a valid reference.
+        unsafe { &*(path as *const Utf8Path as *const AbsPath) }
+    }
+
+    pub fn as_utf8_path(&self) -> &Utf8Path {
+        self.as_ref()
+    }
+
     /// Wrap the given absolute path in `AbsPath`
     ///
     /// # Panics
@@ -242,7 +252,7 @@ impl AbsPath {
         AbsPathBuf(normalize_path(&self.0))
     }
 
-    /// Equivalent of [`Utf8Path::to_path_buf`] for `AbsPath`.
+    /// Converts an [`AbsPath`] to an owned [`AbsPathBuf`].
     pub fn to_path_buf(&self) -> AbsPathBuf {
         AbsPathBuf::try_from(self.0.to_path_buf()).unwrap()
     }
