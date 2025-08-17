@@ -151,7 +151,10 @@ fn render(
         .detail(detail)
         .lookup_by(name.as_str().to_smolstr());
 
-    if let Some((cap, (self_param, params))) = complete_call_parens {
+    if let Some((cap, (self_param, params))) = complete_call_parens
+        && let Some(expected_type) = &ctx.completion.expected_type
+        && !expected_type.impls_fnonce(db)
+    {
         add_call_parens(
             &mut item,
             completion,
@@ -483,6 +486,32 @@ impl S {
     fn foo(&self, x: i32) {
         self.foo(${1:x});$0
     }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn does_not_insert_parens_for_function_calls_in_fn_pointer_expected_type() {
+        cov_mark::check!(inserts_parens_for_function_calls);
+        check_edit(
+            "fn_to_use",
+            r#"
+fn takes_fn<T: Fn() -> ()>(function: T) {}
+
+fn fn_to_use() {}
+
+fn try_fn() {
+    takes_fn(fn_to_$0);
+}
+"#,
+            r#"
+fn takes_fn<T: Fn() -> ()>(function: T) {}
+
+fn fn_to_use() {}
+
+fn try_fn() {
+    takes_fn(fn_to_use$0);
 }
 "#,
         );
