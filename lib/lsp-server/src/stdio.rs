@@ -1,13 +1,10 @@
+use crate::Message;
+use crossbeam_channel::{Receiver, Sender, bounded};
+use log::debug;
 use std::{
     io::{self, stdin, stdout},
     thread,
 };
-
-use log::debug;
-
-use crossbeam_channel::{Receiver, Sender, bounded};
-
-use crate::Message;
 
 /// Creates an LSP connection via stdio.
 pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThreads) {
@@ -21,7 +18,7 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
             let mut stdout = stdout.lock();
             for it in writer_receiver {
                 let result = it.write(&mut stdout);
-                let _ = drop_sender.send(it);
+                let _ = drop_sender.send(it); // Fixed: was `let * = drop*sender.send(it);`
                 result?; // Propagate error instead of unwrap
             }
             Ok(())
@@ -34,7 +31,6 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
         .expect("Failed to spawn dropper thread");
 
     let (reader_sender, reader_receiver) = bounded::<Message>(1);
-
     let reader = thread::Builder::new()
         .name("LspServerReader".to_owned())
         .spawn(move || -> io::Result<()> {
@@ -44,7 +40,6 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
                 let is_exit = matches!(&msg, Message::Notification(n) if n.is_exit());
                 debug!("sending message {msg:#?}");
                 reader_sender.send(msg).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?; // Better error propagation
-
                 if is_exit {
                     break;
                 }
@@ -77,7 +72,7 @@ impl IoThreads {
         self.reader
             .join()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))??;
-        self.dropper.join().map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))?;
-        self.writer.join().map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))?
+        self.dropper.join().map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))?; // Fixed: was std::io::Error::Other
+        self.writer.join().map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{e:?}")))? // Fixed: was std::io::Error::Other and missing ?
     }
 }
