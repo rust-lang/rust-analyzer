@@ -159,6 +159,7 @@ function createCommands(): Record<string, CommandFactory> {
         joinLines: { enabled: commands.joinLines },
         parentModule: { enabled: commands.parentModule },
         childModules: { enabled: commands.childModules },
+        gotoAssignments: { enabled: commands.gotoAssignments },
         viewHir: { enabled: commands.viewHir },
         viewMir: { enabled: commands.viewMir },
         interpretFunction: { enabled: commands.interpretFunction },

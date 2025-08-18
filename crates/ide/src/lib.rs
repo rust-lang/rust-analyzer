@@ -27,6 +27,7 @@ mod extend_selection;
 mod fetch_crates;
 mod file_structure;
 mod folding_ranges;
+mod goto_assignments;
 mod goto_declaration;
 mod goto_definition;
 mod goto_implementation;
@@ -516,6 +517,14 @@ impl Analysis {
         position: FilePosition,
     ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
         self.with_db(|db| goto_type_definition::goto_type_definition(db, position))
+    }
+
+    /// Returns the type definitions for the symbol at `position`.
+    pub fn goto_assignments(
+        &self,
+        position: FilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+        self.with_db(|db| goto_assignments::goto_assignments(db, position))
     }
 
     pub fn find_all_refs(

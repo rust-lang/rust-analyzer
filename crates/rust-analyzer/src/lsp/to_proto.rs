@@ -23,6 +23,7 @@ use semver::VersionReq;
 use serde_json::to_value;
 use vfs::AbsPath;
 
+use crate::lsp::ext::GotoAssignmentsResponse;
 use crate::{
     config::{CallInfoConfig, Config},
     global_state::GlobalStateSnapshot,
@@ -1062,6 +1063,29 @@ pub(crate) fn goto_definition_response(
     src: Option<FileRange>,
     targets: Vec<NavigationTarget>,
 ) -> Cancellable<lsp_types::GotoDefinitionResponse> {
+    if snap.config.location_link() {
+        let links = targets
+            .into_iter()
+            .unique_by(|nav| (nav.file_id, nav.full_range, nav.focus_range))
+            .map(|nav| location_link(snap, src, nav))
+            .collect::<Cancellable<Vec<_>>>()?;
+        Ok(links.into())
+    } else {
+        let locations = targets
+            .into_iter()
+            .map(|nav| FileRange { file_id: nav.file_id, range: nav.focus_or_full_range() })
+            .unique()
+            .map(|range| location(snap, range))
+            .collect::<Cancellable<Vec<_>>>()?;
+        Ok(locations.into())
+    }
+}
+
+pub(crate) fn goto_assignments_response(
+    snap: &GlobalStateSnapshot,
+    src: Option<FileRange>,
+    targets: Vec<NavigationTarget>,
+) -> Cancellable<GotoAssignmentsResponse> {
     if snap.config.location_link() {
         let links = targets
             .into_iter()

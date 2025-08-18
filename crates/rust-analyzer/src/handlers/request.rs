@@ -32,6 +32,7 @@ use syntax::{TextRange, TextSize};
 use triomphe::Arc;
 use vfs::{AbsPath, AbsPathBuf, FileId, VfsPath};
 
+use crate::lsp::ext::GotoAssignmentsResponse;
 use crate::{
     config::{Config, RustfmtConfig, WorkspaceSymbolConfig},
     diagnostics::convert_diagnostic,
@@ -867,6 +868,21 @@ pub(crate) fn handle_goto_type_definition(
     };
     let src = FileRange { file_id: position.file_id, range: nav_info.range };
     let res = to_proto::goto_definition_response(&snap, Some(src), nav_info.info)?;
+    Ok(Some(res))
+}
+
+pub(crate) fn handle_goto_assignments(
+    snap: GlobalStateSnapshot,
+    params: lsp_types::TextDocumentPositionParams,
+) -> anyhow::Result<Option<GotoAssignmentsResponse>> {
+    let _p = tracing::info_span!("handle_goto_assignments").entered();
+    let position = try_default!(from_proto::file_position(&snap, params)?);
+    let nav_info = match snap.analysis.goto_assignments(position)? {
+        None => return Ok(None),
+        Some(it) => it,
+    };
+    let src = FileRange { file_id: position.file_id, range: nav_info.range };
+    let res = to_proto::goto_assignments_response(&snap, Some(src), nav_info.info)?;
     Ok(Some(res))
 }
 
