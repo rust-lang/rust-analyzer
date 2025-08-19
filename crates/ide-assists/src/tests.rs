@@ -585,6 +585,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_variable_assist);
@@ -606,6 +607,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_constant_assist);
@@ -627,6 +629,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_static_assist);
@@ -648,6 +651,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_function_assist);
@@ -684,6 +688,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_variable_assist);
@@ -705,6 +710,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_constant_assist);
@@ -726,6 +732,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_static_assist);
@@ -747,6 +754,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_function_assist);
@@ -829,6 +837,7 @@ pub fn test_some_range(a: int) -> bool {
                 command: Some(
                     Rename,
                 ),
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_variable_assist);
@@ -850,6 +859,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_constant_assist);
@@ -871,6 +881,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_static_assist);
@@ -892,6 +903,7 @@ pub fn test_some_range(a: int) -> bool {
                 target: 59..60,
                 source_change: None,
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_function_assist);
@@ -970,6 +982,7 @@ pub fn test_some_range(a: int) -> bool {
                 command: Some(
                     Rename,
                 ),
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_variable_assist);
@@ -1041,6 +1054,7 @@ pub fn test_some_range(a: int) -> bool {
                 command: Some(
                     Rename,
                 ),
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_constant_assist);
@@ -1112,6 +1126,7 @@ pub fn test_some_range(a: int) -> bool {
                 command: Some(
                     Rename,
                 ),
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_static_assist);
@@ -1169,6 +1184,7 @@ pub fn test_some_range(a: int) -> bool {
                     },
                 ),
                 command: None,
+                question_chain: None,
             }
         "#]]
         .assert_debug_eq(&extract_into_function_assist);
