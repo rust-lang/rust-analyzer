@@ -389,6 +389,7 @@ pub(crate) fn complete_expr_path(
                     if after_if_expr {
                         add_keyword("else", "else {\n    $0\n}");
                         add_keyword("else if", "else if $1 {\n    $0\n}");
+                        add_keyword("else if let", "else if let $1 = $2 {\n    $0\n}");
                     }
 
                     if wants_raw_token {
