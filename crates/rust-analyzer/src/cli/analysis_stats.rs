@@ -10,7 +10,7 @@ use std::{
 
 use cfg::{CfgAtom, CfgDiff};
 use hir::{
-    Adt, AssocItem, Crate, DefWithBody, HasSource, HirDisplay, ImportPathConfig, ModuleDef, Name,
+    Adt, AssocItem, Crate, DefWithBody, FindPathConfig, HasSource, HirDisplay, ModuleDef, Name,
     db::{DefDatabase, ExpandDatabase, HirDatabase},
 };
 use hir_def::{
@@ -535,7 +535,7 @@ impl flags::AnalysisStats {
                         .gen_source_code(
                             &scope,
                             &mut formatter,
-                            ImportPathConfig {
+                            FindPathConfig {
                                 prefer_no_std: false,
                                 prefer_prelude: true,
                                 prefer_absolute: false,

@@ -3,7 +3,7 @@
 use crate::helpers::mod_path_to_ast;
 use either::Either;
 use hir::{
-    AsAssocItem, HirDisplay, HirFileId, ImportPathConfig, ModuleDef, SemanticsScope,
+    AsAssocItem, FindPathConfig, HirDisplay, HirFileId, ModuleDef, SemanticsScope,
     prettify_macro_expansion,
 };
 use itertools::Itertools;
@@ -375,7 +375,7 @@ impl Ctx<'_> {
                             parent.segment()?.name_ref()?,
                         )
                         .and_then(|trait_ref| {
-                            let cfg = ImportPathConfig {
+                            let cfg = FindPathConfig {
                                 prefer_no_std: false,
                                 prefer_prelude: true,
                                 prefer_absolute: false,
@@ -435,7 +435,7 @@ impl Ctx<'_> {
                     return None;
                 }
 
-                let cfg = ImportPathConfig {
+                let cfg = FindPathConfig {
                     prefer_no_std: false,
                     prefer_prelude: true,
                     prefer_absolute: false,
@@ -484,7 +484,7 @@ impl Ctx<'_> {
                 if let Some(adt) = ty.as_adt()
                     && let ast::Type::PathType(path_ty) = &ast_ty
                 {
-                    let cfg = ImportPathConfig {
+                    let cfg = FindPathConfig {
                         prefer_no_std: false,
                         prefer_prelude: true,
                         prefer_absolute: false,
