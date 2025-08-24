@@ -366,6 +366,7 @@ fn main() {
                        //^^^^^^^^^^^^^^^^^^^^^)
                        //^^^^^^^^^&raw mut *
     let _: &mut [_]    = &mut [0; 0];
+               //^ = i32
                        //^^^^^^^^^^^<unsize>&mut *
 
     Struct.consume();

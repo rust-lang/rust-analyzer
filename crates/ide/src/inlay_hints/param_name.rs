@@ -568,6 +568,7 @@ fn main() {
     let param = 0;
     foo(param);
     foo(param as _);
+               //^ = u32
     let param_end = 0;
     foo(param_end);
     let start_param = 0;
