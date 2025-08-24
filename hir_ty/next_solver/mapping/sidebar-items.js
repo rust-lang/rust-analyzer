@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["bound_var_to_lifetime_idx","bound_var_to_type_or_const_param_idx","convert_args_for_result","convert_binder_to_early_binder","convert_canonical_args_for_result","convert_const_for_result","convert_region_for_result","to_placeholder_idx"],"trait":["ChalkToNextSolver"]};
