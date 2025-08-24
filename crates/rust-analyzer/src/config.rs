@@ -346,6 +346,13 @@ config_data! {
         /// will be treated as standalone files) or JSON objects in `rust-project.json` format.
         linkedProjects: Vec<ManifestOrProjectJson> = vec![],
 
+
+        /// If set to true, Rust Analyzer will run `cargo check` with lower CPU priority.
+        /// On Unix, this uses `nice -n 10`; on Windows, it sets BELOW_NORMAL_PRIORITY_CLASS.
+        /// Defaults to false. Useful for large projects to avoid slowing down your PC.
+        #[serde(default)]
+        pub low_priority: bool,
+
         /// Number of syntax trees rust-analyzer keeps in memory. Defaults to 128.
         lru_capacity: Option<u16> = None,
 
