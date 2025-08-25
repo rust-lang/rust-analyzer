@@ -626,6 +626,30 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_match_to_let() {
+    check_doc_test(
+        "convert_match_to_let",
+        r#####"
+struct Example { v: i32 }
+
+fn foo(e: Example) {
+    match e {
+        $0Example { v } => undefined(v),
+    }
+}
+"#####,
+        r#####"
+struct Example { v: i32 }
+
+fn foo(e: Example) {
+    let Example { v } = e;
+    undefined(v)
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_match_to_let_else() {
     check_doc_test(
         "convert_match_to_let_else",
