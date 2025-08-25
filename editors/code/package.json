@@ -176,6 +176,11 @@
                 "category": "rust-analyzer"
             },
             {
+                "command": "rust-analyzer.gotoAssignments",
+                "title": "Go to Assignments",
+                "category": "rust-analyzer"
+            },
+            {
                 "command": "rust-analyzer.joinLines",
                 "title": "Join lines",
                 "category": "rust-analyzer"
@@ -3627,6 +3632,11 @@
                     "command": "rust-analyzer.openDocs",
                     "when": "inRustProject && editorTextFocus && editorLangId == rust",
                     "group": "navigation@1001"
+                },
+                {
+                    "command": "rust-analyzer.gotoAssignments",
+                    "when": "inRustProject && editorTextFocus && editorLangId == rust",
+                    "group": "navigation@1002"
                 }
             ],
             "view/title": [
