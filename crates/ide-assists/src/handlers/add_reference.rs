@@ -1,14 +1,15 @@
 use std::ops::ControlFlow;
 
+use either::Either;
 use ide_db::{defs::Definition, syntax_helpers::node_ext::walk_pat};
 use syntax::{
-    AstNode, SourceFile, SyntaxKind, T, TextRange,
+    AstNode, SyntaxKind, SyntaxNode, T, TextRange,
     algo::find_node_at_range,
     ast::{self, HasArgList, prec::ExprPrecedence, syntax_factory::SyntaxFactory},
     syntax_editor::{Element, Position, SyntaxEditor},
 };
 
-use crate::{AssistContext, AssistId, Assists, assist_context::SourceChangeBuilder};
+use crate::{AssistContext, AssistId, Assists};
 
 // Assist: add_reference
 //
@@ -49,7 +50,11 @@ pub(crate) fn add_reference(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
     let ty = param.ty()?;
     let param_list = ast::ParamList::cast(param.syntax().parent()?)?;
     let fn_ = ast::Fn::cast(param_list.syntax().parent()?)?;
-    let param_nth = param_list.params().position(|it| it == param)?;
+
+    let mut param_nth = param_list.params().position(|it| it == param)?;
+    if param_list.self_param().is_some() {
+        param_nth += 1;
+    }
 
     let ControlFlow::Break(name) = walk_pat(&pat, &mut |pat| {
         if let ast::Pat::IdentPat(it) = pat {
@@ -90,17 +95,17 @@ pub(crate) fn add_reference(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
                 let source_file = sema.parse(file_id);
                 let file_id = file_id.file_id(sema.db);
                 builder.edit_file(file_id);
+                let mut edit = builder.make_editor(source_file.syntax());
+                let make = SyntaxFactory::with_mappings();
 
                 for reference in refs {
-                    let _ = process_usage(
-                        &source_file,
-                        param_nth,
-                        mutable,
-                        file_id,
-                        reference.range,
-                        builder,
-                    );
+                    if let Some(arg) = find_arg(source_file.syntax(), reference.range, param_nth) {
+                        let _ = process_usage(&mut edit, &make, arg, mutable);
+                    }
                 }
+
+                edit.add_mappings(make.finish_with_mappings());
+                builder.add_file_edits(file_id, edit);
             }
 
             edit.add_mappings(make.finish_with_mappings());
@@ -109,32 +114,32 @@ pub(crate) fn add_reference(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
     )
 }
 
+fn find_arg(node: &SyntaxNode, reference_range: TextRange, param_nth: usize) -> Option<ast::Expr> {
+    let call: Either<ast::CallExpr, ast::MethodCallExpr> =
+        find_node_at_range(node, reference_range)?;
+
+    match call {
+        Either::Left(call_expr) => call_expr.arg_list()?.args().nth(param_nth),
+        Either::Right(method_call_expr) => {
+            method_call_expr.arg_list()?.args().nth(param_nth.checked_sub(1)?)
+        }
+    }
+}
+
 fn process_usage(
-    source_file: &SourceFile,
-    param_nth: usize,
+    edit: &mut SyntaxEditor,
+    make: &SyntaxFactory,
+    arg: ast::Expr,
     mutable: bool,
-    file_id: ide_db::FileId,
-    reference_range: TextRange,
-    builder: &mut SourceChangeBuilder,
 ) -> Option<()> {
-    let call_expr = find_node_at_range::<ast::CallExpr>(source_file.syntax(), reference_range)?;
-    let mut edit = builder.make_editor(call_expr.syntax());
-    let make = SyntaxFactory::with_mappings();
-
-    let arg = call_expr.arg_list()?.args().nth(param_nth)?;
-
     if mutable {
-        insert_mut(&arg, &mut edit, &make);
+        insert_mut(&arg, edit, make);
     }
     edit.insert(Position::before(arg.syntax()), make.token(T![&]));
     if arg.precedence().needs_parentheses_in(ExprPrecedence::Prefix) {
         let paren_expr = make.expr_paren(arg.clone());
         edit.replace(arg.syntax(), paren_expr.syntax());
     }
-
-    edit.add_mappings(make.finish_with_mappings());
-    builder.add_file_edits(file_id, edit);
-
     Some(())
 }
 
@@ -214,6 +219,33 @@ fn bar() {
 fn foo(arg0: i32, arg1: &mut &[i32; 32]) {}
 fn bar() {
     foo(5, &mut &[8; 32])
+}
+            ",
+        );
+    }
+
+    #[test]
+    fn test_add_reference_with_self_param() {
+        check_assist(
+            add_reference,
+            "
+struct Foo;
+impl Foo {
+    fn foo(self, arg0: i32, $0arg1: [i32; 32]) {}
+}
+fn bar() {
+    Foo.foo(5, [8; 32]);
+    Foo::foo(Foo, 5, [8; 32]);
+}
+            ",
+            "
+struct Foo;
+impl Foo {
+    fn foo(self, arg0: i32, arg1: &[i32; 32]) {}
+}
+fn bar() {
+    Foo.foo(5, &[8; 32]);
+    Foo::foo(Foo, 5, &[8; 32]);
 }
             ",
         );
