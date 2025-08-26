@@ -2841,6 +2841,31 @@ fn main() {
 }
 
 #[test]
+fn doctest_remove_reference() {
+    check_doc_test(
+        "remove_reference",
+        r#####"
+fn foo($0state: &bool) {
+    if *state {}
+}
+fn bar() {
+    let state = true;
+    foo(&state);
+}
+"#####,
+        r#####"
+fn foo(state: bool) {
+    if state {}
+}
+fn bar() {
+    let state = true;
+    foo(state);
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_remove_underscore_from_used_variables() {
     check_doc_test(
         "remove_underscore_from_used_variables",
