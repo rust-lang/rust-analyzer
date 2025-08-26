@@ -252,6 +252,33 @@ fn bar() {
     }
 
     #[test]
+    fn test_add_reference_add_paren() {
+        check_assist(
+            add_reference,
+            "
+struct Foo;
+impl Foo {
+    fn foo(self, arg0: i32, $0arg1: i32) {}
+}
+fn bar() {
+    Foo.foo(5, 8+2);
+    Foo::foo(Foo, 5, 8*3);
+}
+            ",
+            "
+struct Foo;
+impl Foo {
+    fn foo(self, arg0: i32, arg1: &i32) {}
+}
+fn bar() {
+    Foo.foo(5, &(8+2));
+    Foo::foo(Foo, 5, &(8*3));
+}
+            ",
+        );
+    }
+
+    #[test]
     fn test_add_reference_not_applicable_ref_type() {
         check_assist_not_applicable(
             add_reference,
