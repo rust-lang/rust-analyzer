@@ -1,15 +1,10 @@
 use std::iter::successors;
 
-use either::Either;
-use ide_db::{
-    RootDatabase,
-    defs::NameClass,
-    syntax_helpers::node_ext::{is_pattern_cond, single_let},
-    ty_filter::TryEnum,
-};
+use ide_db::{RootDatabase, defs::NameClass, ty_filter::TryEnum};
 use syntax::{
-    AstNode, Edition, T, TextRange,
+    AstNode, Edition, SyntaxKind, T, TextRange,
     ast::{self, HasName, edit::IndentLevel, edit_in_place::Indent, syntax_factory::SyntaxFactory},
+    syntax_editor::SyntaxEditor,
 };
 
 use crate::{
@@ -62,34 +57,30 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
         }
     });
     let scrutinee_to_be_expr = if_expr.condition()?;
-    let scrutinee_to_be_expr = match single_let(scrutinee_to_be_expr.clone()) {
-        Some(cond) => cond.expr()?,
-        None => scrutinee_to_be_expr,
+    let scrutinee_to_be_expr = match let_and_guard(&scrutinee_to_be_expr) {
+        (Some(let_expr), _) => let_expr.expr()?,
+        (None, cond) => cond?,
     };
 
     let mut pat_seen = false;
     let mut cond_bodies = Vec::new();
     for if_expr in if_exprs {
         let cond = if_expr.condition()?;
-        let cond = match single_let(cond.clone()) {
-            Some(let_) => {
+        let (cond, guard) = match let_and_guard(&cond) {
+            (None, guard) => (None, Some(guard?)),
+            (Some(let_), guard) => {
                 let pat = let_.pat()?;
                 let expr = let_.expr()?;
-                // FIXME: If one `let` is wrapped in parentheses and the second is not,
-                // we'll exit here.
                 if scrutinee_to_be_expr.syntax().text() != expr.syntax().text() {
                     // Only if all condition expressions are equal we can merge them into a match
                     return None;
                 }
                 pat_seen = true;
-                Either::Left(pat)
+                (Some(pat), guard)
             }
-            // Multiple `let`, unsupported.
-            None if is_pattern_cond(cond.clone()) => return None,
-            None => Either::Right(cond),
         };
         let body = if_expr.then_branch()?;
-        cond_bodies.push((cond, body));
+        cond_bodies.push((cond, guard, body));
     }
 
     if !pat_seen && cond_bodies.len() != 1 {
@@ -108,22 +99,21 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
             let make = SyntaxFactory::with_mappings();
             let match_expr = {
                 let else_arm = make_else_arm(ctx, &make, else_block, &cond_bodies);
-                let make_match_arm = |(pat, body): (_, ast::BlockExpr)| {
-                    let body = make.block_expr(body.statements(), body.tail_expr());
-                    body.indent(IndentLevel::from(1));
-                    let body = unwrap_trivial_block(body);
-                    match pat {
-                        Either::Left(pat) => make.match_arm(pat, None, body),
-                        Either::Right(_) if !pat_seen => {
-                            make.match_arm(make.literal_pat("true").into(), None, body)
+                let make_match_arm =
+                    |(pat, guard, body): (_, Option<ast::Expr>, ast::BlockExpr)| {
+                        let body = make.block_expr(body.statements(), body.tail_expr());
+                        body.indent(IndentLevel::from(1));
+                        let body = unwrap_trivial_block(body);
+                        match (pat, guard.map(|it| make.match_guard(it))) {
+                            (Some(pat), guard) => make.match_arm(pat, guard, body),
+                            (None, _) if !pat_seen => {
+                                make.match_arm(make.literal_pat("true").into(), None, body)
+                            }
+                            (None, guard) => {
+                                make.match_arm(make.wildcard_pat().into(), guard, body)
+                            }
                         }
-                        Either::Right(expr) => make.match_arm(
-                            make.wildcard_pat().into(),
-                            Some(make.match_guard(expr)),
-                            body,
-                        ),
-                    }
-                };
+                    };
                 let arms = cond_bodies.into_iter().map(make_match_arm).chain([else_arm]);
                 let match_expr = make.expr_match(scrutinee_to_be_expr, make.match_arm_list(arms));
                 match_expr.indent(IndentLevel::from_node(if_expr.syntax()));
@@ -151,12 +141,12 @@ fn make_else_arm(
     ctx: &AssistContext<'_>,
     make: &SyntaxFactory,
     else_block: Option<ast::BlockExpr>,
-    conditionals: &[(Either<ast::Pat, ast::Expr>, ast::BlockExpr)],
+    conditionals: &[(Option<ast::Pat>, Option<ast::Expr>, ast::BlockExpr)],
 ) -> ast::MatchArm {
     let (pattern, expr) = if let Some(else_block) = else_block {
         let pattern = match conditionals {
-            [(Either::Right(_), _)] => make.literal_pat("false").into(),
-            [(Either::Left(pat), _)] => match ctx
+            [(None, Some(_), _)] => make.literal_pat("false").into(),
+            [(Some(pat), _, _)] => match ctx
                 .sema
                 .type_of_pat(pat)
                 .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted()))
@@ -177,7 +167,7 @@ fn make_else_arm(
         (pattern, unwrap_trivial_block(else_block))
     } else {
         let pattern = match conditionals {
-            [(Either::Right(_), _)] => make.literal_pat("false").into(),
+            [(None, Some(_), _)] => make.literal_pat("false").into(),
             _ => make.wildcard_pat().into(),
         };
         (pattern, make.expr_unit())
@@ -375,6 +365,48 @@ fn is_sad_pat(sema: &hir::Semantics<'_, RootDatabase>, pat: &ast::Pat) -> bool {
         .is_some_and(|it| does_pat_match_variant(pat, &it.sad_pattern()))
 }
 
+fn let_and_guard(cond: &ast::Expr) -> (Option<ast::LetExpr>, Option<ast::Expr>) {
+    if let ast::Expr::ParenExpr(expr) = cond
+        && let Some(sub_expr) = expr.expr()
+    {
+        let_and_guard(&sub_expr)
+    } else if let ast::Expr::LetExpr(let_expr) = cond {
+        (Some(let_expr.clone()), None)
+    } else if let ast::Expr::BinExpr(bin_expr) = cond
+        && let Some(ast::Expr::LetExpr(let_expr)) = and_bin_expr_left(bin_expr).lhs()
+    {
+        let new_expr = bin_expr.clone_subtree();
+        let mut edit = SyntaxEditor::new(new_expr.syntax().clone());
+
+        let left_bin = and_bin_expr_left(&new_expr);
+        if let Some(rhs) = left_bin.rhs() {
+            edit.replace(left_bin.syntax(), rhs.syntax());
+        } else {
+            if let Some(next) = left_bin.syntax().next_sibling_or_token()
+                && next.kind() == SyntaxKind::WHITESPACE
+            {
+                edit.delete(next);
+            }
+            edit.delete(left_bin.syntax());
+        }
+
+        let new_expr = edit.finish().new_root().clone();
+        (Some(let_expr), ast::Expr::cast(new_expr))
+    } else {
+        (None, Some(cond.clone()))
+    }
+}
+
+fn and_bin_expr_left(expr: &ast::BinExpr) -> ast::BinExpr {
+    if expr.op_kind() == Some(ast::BinaryOp::LogicOp(ast::LogicOp::And))
+        && let Some(ast::Expr::BinExpr(left)) = expr.lhs()
+    {
+        and_bin_expr_left(&left)
+    } else {
+        expr.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -507,14 +539,131 @@ impl VariantData {
 
     #[test]
     fn test_if_let_with_match_let_chain() {
-        check_assist_not_applicable(
+        check_assist(
             replace_if_let_with_match,
             r#"
+#![feature(if_let_guard)]
+fn main() {
+    if $0let true = true && let Some(1) = None {} else { other() }
+}
+"#,
+            r#"
+#![feature(if_let_guard)]
+fn main() {
+    match true {
+        true if let Some(1) = None => {
+        }
+        _ => other(),
+    }
+}
+"#,
+        );
+
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+#![feature(if_let_guard)]
+fn main() {
+    $0if let ParenExpr(expr) = cond
+        && let Some(sub_expr) = expr.expr()
+    {
+        branch1()
+    } else if let LetExpr(let_expr) = cond {
+        branch2()
+    } else if let BinExpr(bin_expr) = cond
+        && let Some(kind) = bin_expr.op_kind()
+        && let Some(LetExpr(let_expr)) = foo(bin_expr)
+    {
+        branch3()
+    } else {
+        branch4()
+    }
+}
+"#,
+            r#"
+#![feature(if_let_guard)]
+fn main() {
+    match cond {
+        ParenExpr(expr) if let Some(sub_expr) = expr.expr() => branch1(),
+        LetExpr(let_expr) => branch2(),
+        BinExpr(bin_expr) if let Some(kind) = bin_expr.op_kind()
+            && let Some(LetExpr(let_expr)) = foo(bin_expr) => branch3(),
+        _ => branch4(),
+    }
+}
+"#,
+        );
+
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+fn main() {
+    if $0let true = true
+        && true
+        && false
+    {
+        code()
+    } else {
+        other()
+    }
+}
+"#,
+            r#"
+fn main() {
+    match true {
+        true if true
+            && false => code(),
+        _ => other(),
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_if_let_with_match_let_chain_no_else() {
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+#![feature(if_let_guard)]
 fn main() {
     if $0let true = true && let Some(1) = None {}
 }
 "#,
-        )
+            r#"
+#![feature(if_let_guard)]
+fn main() {
+    match true {
+        true if let Some(1) = None => {
+        }
+        _ => (),
+    }
+}
+"#,
+        );
+
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+fn main() {
+    if $0let true = true
+        && true
+        && false
+    {
+        code()
+    }
+}
+"#,
+            r#"
+fn main() {
+    match true {
+        true if true
+            && false => code(),
+        _ => (),
+    }
+}
+"#,
+        );
     }
 
     #[test]
