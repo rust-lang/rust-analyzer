@@ -327,6 +327,7 @@ mod handlers {
             invert_if::invert_if,
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
+            merge_match_arms::merge_other_match_arms,
             merge_nested_if::merge_nested_if,
             move_bounds::move_bounds_to_where_clause,
             move_const_to_impl::move_const_to_impl,

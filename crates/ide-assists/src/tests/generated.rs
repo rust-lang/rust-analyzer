@@ -2644,6 +2644,37 @@ fn main() {
 }
 
 #[test]
+fn doctest_merge_other_match_arms() {
+    check_doc_test(
+        "merge_other_match_arms",
+        r#####"
+enum Action { A, B, C, D, E }
+
+fn handle(action: Action) {
+    match action {
+        A => todo!(),
+        $0B => foo(),
+        C$0 => bar(),
+        D => todo!(),
+        E => todo!(),
+    }
+}
+"#####,
+        r#####"
+enum Action { A, B, C, D, E }
+
+fn handle(action: Action) {
+    match action {
+        B => foo(),
+        C => bar(),
+        _ => todo!(),
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_move_arm_cond_to_match_guard() {
     check_doc_test(
         "move_arm_cond_to_match_guard",
