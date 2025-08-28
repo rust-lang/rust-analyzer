@@ -32,7 +32,6 @@ impl DeclarativeMacroExpander {
         call_id: MacroCallId,
         span: Span,
     ) -> ExpandResult<(tt::TopSubtree, Option<u32>)> {
-        let loc = db.lookup_intern_macro_call(call_id);
         match self.mac.err() {
             Some(_) => ExpandResult::new(
                 (tt::TopSubtree::empty(tt::DelimSpan { open: span, close: span }), None),
@@ -41,13 +40,13 @@ impl DeclarativeMacroExpander {
             None => self
                 .mac
                 .expand(
+                    db,
                     &tt,
                     |s| {
                         s.ctx =
                             apply_mark(db, s.ctx, call_id.into(), self.transparency, self.edition)
                     },
                     span,
-                    loc.def.edition,
                 )
                 .map_err(Into::into),
         }
@@ -55,20 +54,18 @@ impl DeclarativeMacroExpander {
 
     pub fn expand_unhygienic(
         &self,
+        db: &dyn ExpandDatabase,
         tt: tt::TopSubtree,
         call_site: Span,
-        def_site_edition: Edition,
     ) -> ExpandResult<tt::TopSubtree> {
         match self.mac.err() {
             Some(_) => ExpandResult::new(
                 tt::TopSubtree::empty(tt::DelimSpan { open: call_site, close: call_site }),
                 ExpandError::new(call_site, ExpandErrorKind::MacroDefinition),
             ),
-            None => self
-                .mac
-                .expand(&tt, |_| (), call_site, def_site_edition)
-                .map(TupleExt::head)
-                .map_err(Into::into),
+            None => {
+                self.mac.expand(db, &tt, |_| (), call_site).map(TupleExt::head).map_err(Into::into)
+            }
         }
     }
 
