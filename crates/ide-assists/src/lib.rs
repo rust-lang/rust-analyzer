@@ -222,6 +222,7 @@ mod handlers {
     mod term_search;
     mod toggle_async_sugar;
     mod toggle_ignore;
+    mod toggle_lint_attr;
     mod toggle_macro_delimiter;
     mod unmerge_imports;
     mod unmerge_match_arm;
@@ -365,6 +366,7 @@ mod handlers {
             toggle_async_sugar::desugar_async_into_impl_future,
             toggle_async_sugar::sugar_impl_future_into_async,
             toggle_ignore::toggle_ignore,
+            toggle_lint_attr::toggle_lint_attr,
             toggle_macro_delimiter::toggle_macro_delimiter,
             unmerge_match_arm::unmerge_match_arm,
             unmerge_imports::unmerge_imports,
