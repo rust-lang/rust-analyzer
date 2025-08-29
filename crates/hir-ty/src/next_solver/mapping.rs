@@ -627,9 +627,7 @@ impl<'db> ChalkToNextSolver<'db, Ty<'db>> for chalk_ir::Ty<Interner> {
                                 let trait_ref = TraitRef::new(
                                     interner,
                                     trait_ref.def_id,
-                                    [self_ty.clone().into()]
-                                        .into_iter()
-                                        .chain(trait_ref.args.iter()),
+                                    [self_ty.into()].into_iter().chain(trait_ref.args.iter()),
                                 );
                                 let trait_id = match trait_ref.def_id {
                                     SolverDefId::TraitId(id) => to_chalk_trait_id(id),
@@ -656,11 +654,11 @@ impl<'db> ChalkToNextSolver<'db, Ty<'db>> for chalk_ir::Ty<Interner> {
                                     projection_term: AliasTerm::new(
                                         interner,
                                         existential_projection.def_id,
-                                        [self_ty.clone().into()]
+                                        [self_ty.into()]
                                             .iter()
-                                            .chain(existential_projection.args.clone().iter()),
+                                            .chain(existential_projection.args.iter()),
                                     ),
-                                    term: existential_projection.term.clone(),
+                                    term: existential_projection.term,
                                 };
                                 let associated_ty_id = match projection.projection_term.def_id {
                                     SolverDefId::TypeAliasId(id) => to_assoc_type_id(id),
@@ -762,7 +760,10 @@ impl<'db> ChalkToNextSolver<'db, Ty<'db>> for chalk_ir::Ty<Interner> {
                 TyKind::CoroutineWitness(id.into(), subst)
             }
 
-            rustc_type_ir::TyKind::Param(_) => todo!(),
+            rustc_type_ir::TyKind::Param(ParamTy { id, index }) => {
+                let idx = to_placeholder_idx(interner.db, id.into(), index);
+                chalk_ir::TyKind::Placeholder(idx)
+            }
             rustc_type_ir::TyKind::UnsafeBinder(_) => todo!(),
         }
         .intern(Interner)
@@ -804,7 +805,10 @@ impl<'db> ChalkToNextSolver<'db, Region<'db>> for chalk_ir::Lifetime<Interner> {
 
     fn from_nextsolver(out: Region<'db>, interner: DbInterner<'db>) -> Self {
         match out.kind() {
-            rustc_type_ir::RegionKind::ReEarlyParam(early) => todo!(),
+            rustc_type_ir::RegionKind::ReEarlyParam(EarlyParamRegion { id, index }) => {
+                let idx = lt_to_placeholder_idx(interner.db, id, index);
+                chalk_ir::Lifetime::new(Interner, chalk_ir::LifetimeData::Placeholder(idx))
+            }
             rustc_type_ir::RegionKind::ReBound(db, bound) => chalk_ir::Lifetime::new(
                 Interner,
                 chalk_ir::LifetimeData::BoundVar(chalk_ir::BoundVar::new(
@@ -882,7 +886,10 @@ impl<'db> ChalkToNextSolver<'db, Const<'db>> for chalk_ir::Const<Interner> {
 
     fn from_nextsolver(out: Const<'db>, interner: DbInterner<'db>) -> Self {
         let value: chalk_ir::ConstValue<Interner> = match out.kind() {
-            rustc_type_ir::ConstKind::Param(_) => unimplemented!(),
+            rustc_type_ir::ConstKind::Param(ParamConst { id, index }) => {
+                let idx = to_placeholder_idx(interner.db, id.into(), index);
+                chalk_ir::ConstValue::Placeholder(idx)
+            }
             rustc_type_ir::ConstKind::Infer(rustc_type_ir::InferConst::Var(var)) => {
                 chalk_ir::ConstValue::InferenceVar(chalk_ir::InferenceVar::from(var.as_u32()))
             }
@@ -1033,7 +1040,7 @@ impl<'db> ChalkToNextSolver<'db, GenericArgs<'db>> for chalk_ir::Substitution<In
     fn from_nextsolver(out: GenericArgs<'db>, interner: DbInterner<'db>) -> Self {
         let mut substs = Vec::with_capacity(out.len());
         for arg in out.iter() {
-            match arg.clone().kind() {
+            match arg.kind() {
                 rustc_type_ir::GenericArgKind::Type(ty) => {
                     let ty = ChalkToNextSolver::from_nextsolver(ty, interner);
                     substs.push(chalk_ir::GenericArgData::Ty(ty).intern(Interner));
@@ -1081,7 +1088,7 @@ impl<'db> ChalkToNextSolver<'db, rustc_type_ir::DebruijnIndex> for chalk_ir::Deb
     }
 
     fn from_nextsolver(out: rustc_type_ir::DebruijnIndex, interner: DbInterner<'db>) -> Self {
-        todo!()
+        chalk_ir::DebruijnIndex::new(out.index() as u32)
     }
 }
 
@@ -1091,7 +1098,7 @@ impl<'db> ChalkToNextSolver<'db, rustc_type_ir::UniverseIndex> for chalk_ir::Uni
     }
 
     fn from_nextsolver(out: rustc_type_ir::UniverseIndex, interner: DbInterner<'db>) -> Self {
-        todo!()
+        chalk_ir::UniverseIndex { counter: out.index() }
     }
 }
 
@@ -1411,9 +1418,28 @@ impl<'db> ChalkToNextSolver<'db, Predicate<'db>> for chalk_ir::Goal<Interner> {
                                         chalk_ir::WhereClause::AliasEq(alias_eq),
                                     ))
                                 }
+                                rustc_type_ir::AliasTyKind::Opaque => {
+                                    let SolverDefId::InternedOpaqueTyId(opaque_ty_id) =
+                                        alias.def_id
+                                    else {
+                                        unreachable!()
+                                    };
+                                    let substitution =
+                                        ChalkToNextSolver::from_nextsolver(alias.args, interner);
+                                    let proj_ty = chalk_ir::OpaqueTy {
+                                        opaque_ty_id: opaque_ty_id.into(),
+                                        substitution,
+                                    };
+                                    let alias = chalk_ir::AliasTy::Opaque(proj_ty);
+                                    let alias_eq = chalk_ir::AliasEq { alias, ty };
+                                    chalk_ir::GoalData::DomainGoal(chalk_ir::DomainGoal::Holds(
+                                        chalk_ir::WhereClause::AliasEq(alias_eq),
+                                    ))
+                                }
                                 _ => todo!(),
                             },
-                            rustc_type_ir::TyKind::Infer(var) => {
+                            // rustc_type_ir::TyKind::Infer(var) => {
+                            _ => {
                                 assert!(matches!(
                                     alias_relation_direction,
                                     rustc_type_ir::AliasRelationDirection::Equate
@@ -1610,7 +1636,7 @@ impl<'db> ChalkToNextSolver<'db, PredicateKind<'db>> for chalk_ir::DomainGoal<In
     }
 
     fn from_nextsolver(out: PredicateKind<'db>, interner: DbInterner<'db>) -> Self {
-        let domain_goal = match out {
+        match out {
             rustc_type_ir::PredicateKind::Clause(rustc_type_ir::ClauseKind::Trait(trait_pred)) => {
                 let trait_ref = ChalkToNextSolver::from_nextsolver(trait_pred.trait_ref, interner);
                 let where_clause = chalk_ir::WhereClause::Implemented(trait_ref);
@@ -1697,8 +1723,7 @@ impl<'db> ChalkToNextSolver<'db, PredicateKind<'db>> for chalk_ir::DomainGoal<In
                 let alias_eq = chalk_ir::AliasEq { alias, ty };
                 chalk_ir::DomainGoal::Holds(chalk_ir::WhereClause::AliasEq(alias_eq))
             }
-        };
-        domain_goal
+        }
     }
 }
 
@@ -2051,7 +2076,7 @@ pub(crate) fn convert_ty_for_result<'db>(interner: DbInterner<'db>, ty: Ty<'db>)
                             let trait_ref = TraitRef::new(
                                 interner,
                                 trait_ref.def_id,
-                                [self_ty.clone().into()].into_iter().chain(trait_ref.args.iter()),
+                                [self_ty.into()].into_iter().chain(trait_ref.args.iter()),
                             );
                             let trait_id = match trait_ref.def_id {
                                 SolverDefId::TraitId(id) => to_chalk_trait_id(id),
@@ -2079,11 +2104,11 @@ pub(crate) fn convert_ty_for_result<'db>(interner: DbInterner<'db>, ty: Ty<'db>)
                                 projection_term: AliasTerm::new(
                                     interner,
                                     existential_projection.def_id,
-                                    [self_ty.clone().into()]
+                                    [self_ty.into()]
                                         .iter()
-                                        .chain(existential_projection.args.clone().iter()),
+                                        .chain(existential_projection.args.iter()),
                                 ),
-                                term: existential_projection.term.clone(),
+                                term: existential_projection.term,
                             };
                             let associated_ty_id = match projection.projection_term.def_id {
                                 SolverDefId::TypeAliasId(id) => to_assoc_type_id(id),

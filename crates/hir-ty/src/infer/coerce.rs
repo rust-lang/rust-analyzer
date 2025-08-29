@@ -8,19 +8,21 @@
 use std::iter;
 
 use chalk_ir::{BoundVar, Mutability, TyKind, TyVariableKind, cast::Cast};
-use hir_def::{
-    hir::ExprId,
-    lang_item::LangItem,
-};
+use hir_def::{hir::ExprId, lang_item::LangItem};
 use rustc_type_ir::solve::Certainty;
 use stdx::always;
 use triomphe::Arc;
 
 use crate::{
-    autoderef::{Autoderef, AutoderefKind}, db::HirDatabase, infer::{
+    Canonical, FnAbi, FnPointer, FnSig, Goal, InEnvironment, Interner, Lifetime, Substitution,
+    TraitEnvironment, Ty, TyBuilder, TyExt,
+    autoderef::{Autoderef, AutoderefKind},
+    db::HirDatabase,
+    infer::{
         Adjust, Adjustment, AutoBorrow, InferOk, InferenceContext, OverloadedDeref, PointerCast,
         TypeError, TypeMismatch,
-    }, utils::ClosureSubst, Canonical, FnAbi, FnPointer, FnSig, Goal, InEnvironment, Interner, Lifetime, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt
+    },
+    utils::ClosureSubst,
 };
 
 use super::unify::InferenceTable;
@@ -37,11 +39,7 @@ fn simple(kind: Adjust) -> impl FnOnce(Ty) -> Vec<Adjustment> {
 }
 
 /// This always returns `Ok(...)`.
-fn success(
-    adj: Vec<Adjustment>,
-    target: Ty,
-    goals: Vec<InEnvironment<Goal>>,
-) -> CoerceResult {
+fn success(adj: Vec<Adjustment>, target: Ty, goals: Vec<InEnvironment<Goal>>) -> CoerceResult {
     Ok(InferOk { goals, value: (adj, target) })
 }
 
@@ -302,7 +300,7 @@ impl InferenceTable<'_> {
     fn coerce_inner(&mut self, from_ty: Ty, to_ty: &Ty, coerce_never: CoerceNever) -> CoerceResult {
         if from_ty.is_never() {
             if let TyKind::InferenceVar(tv, TyVariableKind::General) = to_ty.kind(Interner) {
-                self.set_diverging(*tv, TyVariableKind::General, true);
+                self.set_diverging(*tv, TyVariableKind::General);
             }
             if coerce_never == CoerceNever::Yes {
                 // Subtle: If we are coercing from `!` to `?T`, where `?T` is an unbound
@@ -707,12 +705,9 @@ impl InferenceTable<'_> {
 
         let goal: Goal = coerce_unsized_tref.cast(Interner);
 
-        self.commit_if_ok(|table| {
-            match table.solve_obligation(goal) {
-                Ok(Certainty::Yes) => Ok(()),
-                Ok(Certainty::Maybe(_)) => Ok(()),
-                Err(_) => Err(TypeError),
-            }
+        self.commit_if_ok(|table| match table.solve_obligation(goal) {
+            Ok(Certainty::Yes) => Ok(()),
+            _ => Err(TypeError),
         })?;
 
         let unsize =

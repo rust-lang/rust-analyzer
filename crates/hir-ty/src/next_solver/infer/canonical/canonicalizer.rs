@@ -240,7 +240,7 @@ impl CanonicalizeMode for CanonicalizeUserTypeAnnotation {
             RegionKind::ReVar(_) => canonicalizer.canonical_var_for_region_in_root_universe(r),
             RegionKind::RePlaceholder(..) | RegionKind::ReBound(..) => {
                 // We only expect region names that the user can type.
-                panic!("unexpected region in query response: `{:?}`", r)
+                panic!("unexpected region in query response: `{r:?}`")
             }
         }
     }
@@ -382,7 +382,7 @@ impl<'cx, 'db> TypeFolder<DbInterner<'db>> for Canonicalizer<'cx, 'db> {
             TyKind::Infer(IntVar(vid)) => {
                 let nt = self.infcx.unwrap().opportunistic_resolve_int_var(vid);
                 if nt != t {
-                    return self.fold_ty(nt);
+                    self.fold_ty(nt)
                 } else {
                     self.canonicalize_ty_var(
                         CanonicalVarKind::Ty(CanonicalTyVarKind::Int),
@@ -393,7 +393,7 @@ impl<'cx, 'db> TypeFolder<DbInterner<'db>> for Canonicalizer<'cx, 'db> {
             TyKind::Infer(FloatVar(vid)) => {
                 let nt = self.infcx.unwrap().opportunistic_resolve_float_var(vid);
                 if nt != t {
-                    return self.fold_ty(nt);
+                    self.fold_ty(nt)
                 } else {
                     self.canonicalize_ty_var(
                         CanonicalVarKind::Ty(CanonicalTyVarKind::Float),
@@ -691,7 +691,7 @@ impl<'cx, 'db> Canonicalizer<'cx, 'db> {
             .iter()
             .map(|v| match *v {
                 CanonicalVarKind::Ty(CanonicalTyVarKind::Int | CanonicalTyVarKind::Float) => {
-                    return *v;
+                    *v
                 }
                 CanonicalVarKind::Ty(CanonicalTyVarKind::General(u)) => {
                     CanonicalVarKind::Ty(CanonicalTyVarKind::General(reverse_universe_map[&u]))

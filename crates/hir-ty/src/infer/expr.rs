@@ -23,9 +23,29 @@ use stdx::always;
 use syntax::ast::RangeOp;
 
 use crate::{
-    autoderef::{builtin_deref, deref_by_trait, Autoderef}, consteval, generics::generics, infer::{
-        coerce::{CoerceMany, CoerceNever, CoercionCause}, find_continuable, pat::contains_explicit_ref_binding, BreakableKind
-    }, lang_items::lang_items_for_bin_op, lower::{lower_to_chalk_mutability, path::{substs_from_args_and_bindings, GenericArgsLowerer, TypeLikeConst}, ParamLoweringMode}, mapping::{from_chalk, ToChalk}, method_resolution::{self, VisibleFromModule}, next_solver::mapping::ChalkToNextSolver, primitive::{self, UintTy}, static_lifetime, to_chalk_trait_id, traits::FnTrait, Adjust, Adjustment, AdtId, AutoBorrow, Binders, CallableDefId, CallableSig, DeclContext, DeclOrigin, IncorrectGenericsLenKind, Interner, LifetimeElisionKind, Rawness, Scalar, Substitution, TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind
+    Adjust, Adjustment, AdtId, AutoBorrow, Binders, CallableDefId, CallableSig, DeclContext,
+    DeclOrigin, IncorrectGenericsLenKind, Interner, LifetimeElisionKind, Rawness, Scalar,
+    Substitution, TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind,
+    autoderef::{Autoderef, builtin_deref, deref_by_trait},
+    consteval,
+    generics::generics,
+    infer::{
+        BreakableKind,
+        coerce::{CoerceMany, CoerceNever, CoercionCause},
+        find_continuable,
+        pat::contains_explicit_ref_binding,
+    },
+    lang_items::lang_items_for_bin_op,
+    lower::{
+        ParamLoweringMode, lower_to_chalk_mutability,
+        path::{GenericArgsLowerer, TypeLikeConst, substs_from_args_and_bindings},
+    },
+    mapping::{ToChalk, from_chalk},
+    method_resolution::{self, VisibleFromModule},
+    next_solver::mapping::ChalkToNextSolver,
+    primitive::{self, UintTy},
+    static_lifetime, to_chalk_trait_id,
+    traits::FnTrait,
 };
 
 use super::{
@@ -807,10 +827,10 @@ impl InferenceContext<'_> {
                 let index_ty = self.infer_expr(*index, &Expectation::none(), ExprIsRead::Yes);
 
                 if let Some(index_trait) = self.resolve_lang_trait(LangItem::Index) {
-                    let canonicalized = ChalkToNextSolver::from_nextsolver(self.canonicalize(base_ty.clone().to_nextsolver(self.table.interner)), self.table.interner);
+                    let canonicalized =
+                        self.canonicalize(base_ty.clone().to_nextsolver(self.table.interner));
                     let receiver_adjustments = method_resolution::resolve_indexing_op(
-                        self.db,
-                        self.table.trait_env.clone(),
+                        &mut self.table,
                         canonicalized,
                         index_trait,
                     );
@@ -1660,7 +1680,8 @@ impl InferenceContext<'_> {
             None => {
                 // no field found, lets attempt to resolve it like a function so that IDE things
                 // work out while people are typing
-                let canonicalized_receiver = self.canonicalize(receiver_ty.clone().to_nextsolver(self.table.interner));
+                let canonicalized_receiver =
+                    self.canonicalize(receiver_ty.clone().to_nextsolver(self.table.interner));
                 let resolved = method_resolution::lookup_method(
                     self.db,
                     &canonicalized_receiver,
@@ -1806,7 +1827,8 @@ impl InferenceContext<'_> {
         expected: &Expectation,
     ) -> Ty {
         let receiver_ty = self.infer_expr_inner(receiver, &Expectation::none(), ExprIsRead::Yes);
-        let canonicalized_receiver = self.canonicalize(receiver_ty.clone().to_nextsolver(self.table.interner));
+        let canonicalized_receiver =
+            self.canonicalize(receiver_ty.clone().to_nextsolver(self.table.interner));
 
         let resolved = method_resolution::lookup_method(
             self.db,
