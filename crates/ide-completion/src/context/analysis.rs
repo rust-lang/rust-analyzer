@@ -736,6 +736,14 @@ fn expected_type_and_name<'db>(
                     });
                     (ty, None)
                 },
+                ast::BreakExpr(it) => {
+                    let ty = match find_breakvalueable(&node, it.lifetime(), sema) {
+                        Some(Either::Left(block_expr)) => sema.type_of_expr(&block_expr.into()),
+                        Some(Either::Right(loop_expr)) => sema.type_of_expr(&loop_expr.into()),
+                        None => None,
+                    };
+                    (ty.map(TypeInfo::original), None)
+                },
                 ast::ClosureExpr(it) => {
                     let ty = sema.type_of_expr(&it.into());
                     ty.and_then(|ty| ty.original.as_callable(sema.db))
@@ -1855,6 +1863,35 @@ fn is_in_breakable(node: &SyntaxNode) -> BreakableKind {
         .unwrap_or(BreakableKind::None)
 }
 
+fn find_breakvalueable(
+    node: &SyntaxNode,
+    label: Option<ast::Lifetime>,
+    sema: &Semantics<'_, RootDatabase>,
+) -> Option<Either<ast::BlockExpr, ast::LoopExpr>> {
+    let label_eq = |value: Option<ast::Label>| match (&label, &value) {
+        (None, _) => true,
+        (Some(_), None) => false,
+        (Some(label), Some(found)) => {
+            found.lifetime().is_some_and(|found| label.syntax().text() == found.syntax().text())
+        }
+    };
+    sema.ancestors_with_macros(node.clone())
+        .take_while(|it| it.kind() != SyntaxKind::FN && it.kind() != SyntaxKind::CLOSURE_EXPR)
+        .find_map(|it| {
+            match_ast! {
+                match it {
+                    ast::ForExpr(it)   => label_eq(it.label()).then_some(None),
+                    ast::WhileExpr(it) => label_eq(it.label()).then_some(None),
+                    ast::LoopExpr(it)  => label_eq(it.label()).then_some(Some(Either::Right(it))),
+                    ast::BlockExpr(it) => it.label().and_then(|label| {
+                        label_eq(Some(label)).then_some(Some(Either::Left(it)))
+                    }),
+                    _ => None,
+                }
+            }
+        })?
+}
+
 fn is_in_block(node: &SyntaxNode) -> bool {
     node.parent()
         .map(|node| ast::ExprStmt::can_cast(node.kind()) || ast::StmtList::can_cast(node.kind()))
@@ -1905,7 +1942,8 @@ fn prev_special_biased_token_at_trivia(mut token: SyntaxToken) -> SyntaxToken {
         | T![^=]
         | T![return]
         | T![break]
-        | T![continue] = prev.kind()
+        | T![continue]
+        | T![lifetime_ident] = prev.kind()
     {
         token = prev
     }
