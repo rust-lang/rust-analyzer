@@ -5,6 +5,7 @@
 //! assists if we are allowed to.
 
 use hir::ImportPathConfig;
+use ide_db::rename::RenameConfig;
 use ide_db::{SnippetCap, assists::ExprFillDefaultMode, imports::insert_use::InsertUseConfig};
 
 use crate::AssistKind;
@@ -23,6 +24,7 @@ pub struct AssistConfig {
     pub code_action_grouping: bool,
     pub expr_fill_default: ExprFillDefaultMode,
     pub prefer_self_ty: bool,
+    pub rename_config: RenameConfig,
 }
 
 impl AssistConfig {
