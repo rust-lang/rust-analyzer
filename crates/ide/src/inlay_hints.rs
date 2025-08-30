@@ -288,6 +288,25 @@ fn hints(
                     implied_dyn_trait::hints(hints, famous_defs, config, Either::Right(dyn_));
                     Some(())
                 },
+                ast::Type::InferType(ref infer) => {
+                    (|| {
+                        let module= sema.scope(infer.syntax())?.module();
+                        let ty = sema.resolve_type(&ty)?;
+                        let label = ty.display_source_code(sema.db, module.into(), false).ok()?;
+                        hints.push(InlayHint {
+                            range: infer.syntax().text_range(),
+                            kind: InlayKind::Type,
+                            label: format!("= {label}").into(),
+                            text_edit: None,
+                            position: InlayHintPosition::After,
+                            pad_left: true,
+                            pad_right: false,
+                            resolve_parent: None,
+                        });
+                        Some(())
+                    })();
+                    Some(())
+                },
                 _ => Some(()),
             },
             ast::GenericParamList(it) => bounds::hints(hints, famous_defs, config,  it),
@@ -1101,6 +1120,23 @@ where
             // ^ impl ToString
 }
         "#,
+        );
+    }
+
+    #[test]
+    fn inferred_types() {
+        check(
+            r#"
+struct S<T>(T);
+
+fn foo() {
+    let t: (_, _, [_; _]) = (1_u32, S(2), [false] as _);
+          //^ = u32
+             //^ = S<i32>
+                 //^ = bool
+                                                   //^ = [bool; 1]
+}
+"#,
         );
     }
 }
