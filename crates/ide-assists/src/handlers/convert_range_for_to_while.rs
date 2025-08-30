@@ -118,7 +118,7 @@ fn extract_range(iterable: &ast::Expr) -> Option<(ast::Expr, Option<ast::Expr>, 
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::check_assist;
+    use crate::tests::{check_assist, check_assist_not_applicable};
 
     use super::*;
 
@@ -137,6 +137,29 @@ fn foo() {
 fn foo() {
     let mut i = 3;
     while i < 7 {
+        foo(i);
+        i += 1;
+    }
+}
+            ",
+        );
+    }
+
+    #[test]
+    fn test_convert_range_for_to_while_no_end_bound() {
+        check_assist(
+            convert_range_for_to_while,
+            "
+fn foo() {
+    $0for i in 3.. {
+        foo(i);
+    }
+}
+            ",
+            "
+fn foo() {
+    let mut i = 3;
+    loop {
         foo(i);
         i += 1;
     }
@@ -208,6 +231,21 @@ fn foo() {
     while i < 7 {
         foo(i);
         i += 2;
+    }
+}
+            ",
+        );
+    }
+
+    #[test]
+    fn test_convert_range_for_to_while_not_applicable_non_range() {
+        check_assist_not_applicable(
+            convert_range_for_to_while,
+            "
+fn foo() {
+    let ident = 3..7;
+    $0for mut i in ident {
+        foo(i);
     }
 }
             ",
