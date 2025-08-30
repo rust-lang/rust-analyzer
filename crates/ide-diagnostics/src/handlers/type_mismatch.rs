@@ -45,10 +45,10 @@ pub(crate) fn type_mismatch(ctx: &DiagnosticsContext<'_>, d: &hir::TypeMismatch<
             "expected {}, found {}",
             d.expected
                 .display(ctx.sema.db, ctx.display_target)
-                .with_closure_style(ClosureStyle::ClosureWithId),
+                .with_closure_style(ClosureStyle::ImplFn),
             d.actual
                 .display(ctx.sema.db, ctx.display_target)
-                .with_closure_style(ClosureStyle::ClosureWithId),
+                .with_closure_style(ClosureStyle::ImplFn),
         ),
         display_range,
     )
@@ -1249,6 +1249,17 @@ fn main() {
     enum E { V() }
     let E::V() = &S {};
      // ^^^^^^ error: expected S, found E
+}
+"#,
+        );
+    }
+    #[test]
+    fn shows_closure_signatures_in_mismatch() {
+        check_diagnostics(
+            r#"//- minicore: fn
+fn main() {
+    let _: bool = || { 0u8 };
+     //           ^^^^^^^^^^ error: expected bool, found impl Fn() -> u8
 }
 "#,
         );
