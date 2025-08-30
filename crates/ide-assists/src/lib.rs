@@ -128,6 +128,7 @@ mod handlers {
     mod convert_into_to_from;
     mod convert_iter_for_each_to_for;
     mod convert_let_else_to_match;
+    mod convert_match_to_let;
     mod convert_match_to_let_else;
     mod convert_named_struct_to_tuple_struct;
     mod convert_nested_function_to_closure;
@@ -263,6 +264,7 @@ mod handlers {
             convert_iter_for_each_to_for::convert_for_loop_with_for_each,
             convert_iter_for_each_to_for::convert_iter_for_each_to_for,
             convert_let_else_to_match::convert_let_else_to_match,
+            convert_match_to_let::convert_match_to_let,
             convert_match_to_let_else::convert_match_to_let_else,
             convert_named_struct_to_tuple_struct::convert_named_struct_to_tuple_struct,
             convert_nested_function_to_closure::convert_nested_function_to_closure,
