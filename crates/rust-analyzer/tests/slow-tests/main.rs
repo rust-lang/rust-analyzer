@@ -757,7 +757,7 @@ fn main() {}
         },
         json!([
             {
-                "title": "Create module at `bar.rs`",
+                "title": "Create module at `bar.rs` (recommended)",
                 "kind": "quickfix",
                 "edit": {
                 "documentChanges": [
@@ -769,7 +769,7 @@ fn main() {}
                 }
             },
             {
-                "title": "Create module at `bar/mod.rs`",
+                "title": "Create module at `bar/mod.rs` (old style)",
                 "kind": "quickfix",
                 "edit": {
                 "documentChanges": [
@@ -840,7 +840,7 @@ fn main() {{}}
         },
         json!([
             {
-                "title": "Create module at `bar.rs`",
+                "title": "Create module at `bar.rs` (recommended)",
                 "kind": "quickfix",
                 "edit": {
                 "documentChanges": [
@@ -852,7 +852,7 @@ fn main() {{}}
                 }
             },
             {
-                "title": "Create module at `bar/mod.rs`",
+                "title": "Create module at `bar/mod.rs` (old style)",
                 "kind": "quickfix",
                 "edit": {
                 "documentChanges": [

@@ -41,7 +41,10 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedModule) -> Option<Vec<
             .map(|candidate| {
                 fix(
                     "create_module",
-                    &format!("Create module at `{candidate}`"),
+                    &format!(
+                        "Create module at `{candidate}` {}",
+                        if candidate.ends_with("mod.rs") { "(old style)" } else { "(recommended)" }
+                    ),
                     FileSystemEdit::CreateFile {
                         dst: AnchoredPathBuf {
                             anchor: d.decl.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
