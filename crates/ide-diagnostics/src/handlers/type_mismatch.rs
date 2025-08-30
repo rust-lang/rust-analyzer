@@ -1,5 +1,5 @@
 use either::Either;
-use hir::{CallableKind, ClosureStyle, HirDisplay, InFile, db::ExpandDatabase};
+use hir::{CallableKind, HirDisplay, InFile, db::ExpandDatabase};
 use ide_db::{
     famous_defs::FamousDefs,
     source_change::{SourceChange, SourceChangeBuilder},
@@ -45,10 +45,10 @@ pub(crate) fn type_mismatch(ctx: &DiagnosticsContext<'_>, d: &hir::TypeMismatch<
             "expected {}, found {}",
             d.expected
                 .display(ctx.sema.db, ctx.display_target)
-                .with_closure_style(ClosureStyle::ImplFn),
+                .with_closure_style(ctx.config.closure_style),
             d.actual
                 .display(ctx.sema.db, ctx.display_target)
-                .with_closure_style(ClosureStyle::ImplFn),
+                .with_closure_style(ctx.config.closure_style),
         ),
         display_range,
     )
@@ -1255,11 +1255,31 @@ fn main() {
     }
     #[test]
     fn shows_closure_signatures_in_mismatch() {
-        check_diagnostics(
+        let mut config = crate::DiagnosticsConfig::test_sample();
+        config.closure_style = hir::ClosureStyle::ImplFn;
+
+        crate::tests::check_diagnostics_with_config(
+            config,
             r#"//- minicore: fn
 fn main() {
     let _: bool = || { 0u8 };
      //           ^^^^^^^^^^ error: expected bool, found impl Fn() -> u8
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn closure_style_with_id_in_mismatch() {
+        let mut config = crate::DiagnosticsConfig::test_sample();
+        config.closure_style = hir::ClosureStyle::ClosureWithId;
+
+        crate::tests::check_diagnostics_with_config(
+            config,
+            r#"//- minicore: fn
+fn main() {
+    let _: bool = || { 0u8 };
+     //           ^^^^^^^^^^ error: expected bool, found {closure#20480}
 }
 "#,
         );

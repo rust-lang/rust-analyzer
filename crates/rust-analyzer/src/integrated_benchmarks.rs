@@ -360,6 +360,7 @@ fn integrated_diagnostics_benchmark() {
         prefer_absolute: false,
         term_search_fuel: 400,
         term_search_borrowck: true,
+        closure_style: hir::ClosureStyle::ClosureWithId,
     };
     host.analysis()
         .full_diagnostics(&diagnostics_config, ide::AssistResolveStrategy::None, file_id)

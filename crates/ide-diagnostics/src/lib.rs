@@ -87,7 +87,8 @@ use std::{iter, sync::LazyLock};
 
 use either::Either;
 use hir::{
-    Crate, DisplayTarget, InFile, Semantics, db::ExpandDatabase, diagnostics::AnyDiagnostic,
+    ClosureStyle, Crate, DisplayTarget, InFile, Semantics, db::ExpandDatabase,
+    diagnostics::AnyDiagnostic,
 };
 use ide_db::{
     EditionedFileId, FileId, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, SnippetCap,
@@ -228,6 +229,8 @@ pub struct DiagnosticsConfig {
     pub disabled: FxHashSet<String>,
     pub expr_fill_default: ExprFillDefaultMode,
     pub style_lints: bool,
+    /// How closures should be displayed in type mismatch diagnostics.
+    pub closure_style: ClosureStyle,
     // FIXME: We may want to include a whole `AssistConfig` here
     pub snippet_cap: Option<SnippetCap>,
     pub insert_use: InsertUseConfig,
@@ -251,6 +254,7 @@ impl DiagnosticsConfig {
             disabled: Default::default(),
             expr_fill_default: Default::default(),
             style_lints: true,
+            closure_style: ClosureStyle::ClosureWithId,
             snippet_cap: SnippetCap::new(true),
             insert_use: InsertUseConfig {
                 granularity: ImportGranularity::Preserve,
