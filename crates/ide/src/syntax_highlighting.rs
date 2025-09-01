@@ -598,10 +598,8 @@ fn filter_by_config(highlight: &mut Highlight, config: HighlightConfig) -> bool 
                 if !config.doc_comments {
                     return false;
                 }
-            } else {
-                if !config.comments {
-                    return false;
-                }
+            } else if !config.comments {
+                return false;
             }
         }
         // If punctuation is disabled, make the macro bang part of the macro call again.
