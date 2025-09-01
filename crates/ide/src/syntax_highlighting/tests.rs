@@ -1617,7 +1617,7 @@ fn test_config_integration() {
     let (analysis, file_id) = fixture::file(
         r#"
 // This is a regular comment
-/// This is a doc comment  
+/// This is a doc comment
 fn main() {
     // Another comment
     println!("Hello, world!");
