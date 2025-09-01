@@ -1601,8 +1601,8 @@ fn main() {
 "#,
         HighlightConfig {
             strings: true,
-            comments: true, // Enable regular comment highlighting
-            doc_comments: false, // Disable doc comment highlighting
+            comments: false, // Disable regular comment highlighting
+            doc_comments: true, // Enable doc comment highlighting
             punctuation: true,
             specialize_punctuation: true,
             specialize_operator: true,
