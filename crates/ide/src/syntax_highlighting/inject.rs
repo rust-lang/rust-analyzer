@@ -81,6 +81,7 @@ pub(super) fn ra_fixture(
             HighlightConfig {
                 syntactic_name_ref_highlighting: false,
                 comments: true,
+                doc_comments: true,
                 punctuation: true,
                 operator: true,
                 strings: true,
@@ -252,6 +253,7 @@ pub(super) fn doc_comment(
             HighlightConfig {
                 syntactic_name_ref_highlighting: true,
                 comments: true,
+                doc_comments: true,
                 punctuation: true,
                 operator: true,
                 strings: true,

@@ -1378,6 +1378,28 @@ Enables the use of rustfmt's unstable range formatting command for the
 available on a nightly build.
 
 
+## rust-analyzer.semanticHighlighting.comments.doc.enable {#semanticHighlighting.comments.doc.enable}
+
+Default: `true`
+
+Use semantic tokens for doc comments.
+
+In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
+By disabling semantic tokens for doc comments, other grammars can be used to highlight
+their contents.
+
+
+## rust-analyzer.semanticHighlighting.comments.enable {#semanticHighlighting.comments.enable}
+
+Default: `true`
+
+Use semantic tokens for comments.
+
+In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
+By disabling semantic tokens for comments, other grammars can be used to highlight
+their contents.
+
+
 ## rust-analyzer.semanticHighlighting.doc.comment.inject.enable {#semanticHighlighting.doc.comment.inject.enable}
 
 Default: `true`

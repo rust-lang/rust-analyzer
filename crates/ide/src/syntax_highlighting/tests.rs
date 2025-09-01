@@ -10,6 +10,7 @@ use crate::{FileRange, HighlightConfig, HlTag, TextRange, fixture};
 const HL_CONFIG: HighlightConfig = HighlightConfig {
     strings: true,
     comments: true,
+    doc_comments: true,
     punctuation: true,
     specialize_punctuation: true,
     specialize_operator: true,
@@ -1544,6 +1545,7 @@ fn main() {
         HighlightConfig {
             strings: true,
             comments: false, // Disable comment highlighting
+            doc_comments: false, // Also disable doc comment highlighting
             punctuation: true,
             specialize_punctuation: true,
             specialize_operator: true,
@@ -1572,6 +1574,7 @@ fn main() {
         HighlightConfig {
             strings: true,
             comments: true, // Enable comment highlighting (default)
+            doc_comments: true,
             punctuation: true,
             specialize_punctuation: true,
             specialize_operator: true,
@@ -1581,6 +1584,34 @@ fn main() {
             syntactic_name_ref_highlighting: false,
         },
         expect_file!["./test_data/highlight_comments_enabled.html"],
+        false,
+    );
+}
+
+#[test]
+fn test_doc_comment_highlighting_disabled() {
+    check_highlighting_with_config(
+        r#"
+// This is a regular comment
+/// This is a doc comment
+fn main() {
+    // Another comment
+    println!("Hello, world!");
+}
+"#,
+        HighlightConfig {
+            strings: true,
+            comments: true, // Enable regular comment highlighting
+            doc_comments: false, // Disable doc comment highlighting
+            punctuation: true,
+            specialize_punctuation: true,
+            specialize_operator: true,
+            operator: true,
+            inject_doc_comment: true,
+            macro_bang: true,
+            syntactic_name_ref_highlighting: false,
+        },
+        expect_file!["./test_data/highlight_doc_comments_disabled.html"],
         false,
     );
 }
@@ -1605,6 +1636,7 @@ fn main() {
             HighlightConfig {
                 strings: true,
                 comments: true, // Enable comments
+                doc_comments: true,
                 punctuation: true,
                 specialize_punctuation: true,
                 specialize_operator: true,
@@ -1625,6 +1657,7 @@ fn main() {
             HighlightConfig {
                 strings: true,
                 comments: false, // Disable comments
+                doc_comments: false, // Also disable doc comments
                 punctuation: true,
                 specialize_punctuation: true,
                 specialize_operator: true,
