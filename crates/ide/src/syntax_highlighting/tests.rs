@@ -1317,7 +1317,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
             buf
         })
         .unwrap();
-    expect.assert_eq(&actual_html)
+    expect.assert_eq(actual_html)
 }
 
 #[test]
