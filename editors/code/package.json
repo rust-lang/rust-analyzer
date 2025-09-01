@@ -2927,6 +2927,11 @@
                         "markdownDescription": "Use semantic tokens for strings.\n\nIn some editors (e.g. vscode) semantic tokens override other highlighting grammars.\nBy disabling semantic tokens for strings, other grammars can be used to highlight\ntheir contents.",
                         "default": true,
                         "type": "boolean"
+                    },
+                    "rust-analyzer.semanticHighlighting.comments.enable": {
+                        "markdownDescription": "Use semantic tokens for comments.\n\nIn some editors (e.g. vscode) semantic tokens override other highlighting grammars.\nBy disabling semantic tokens for comments, other grammars can be used to highlight\ntheir contents.",
+                        "default": true,
+                        "type": "boolean"
                     }
                 }
             },

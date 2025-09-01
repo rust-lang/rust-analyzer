@@ -9,6 +9,7 @@ use crate::{FileRange, HighlightConfig, HlTag, TextRange, fixture};
 
 const HL_CONFIG: HighlightConfig = HighlightConfig {
     strings: true,
+    comments: true,
     punctuation: true,
     specialize_punctuation: true,
     specialize_operator: true,
@@ -1230,6 +1231,98 @@ fn check_highlighting(
     expect.assert_eq(actual_html)
 }
 
+fn check_highlighting_with_config(
+    #[rust_analyzer::rust_fixture] ra_fixture: &str,
+    config: HighlightConfig,
+    expect: ExpectFile,
+    _rainbow: bool,
+) {
+    let (analysis, file_id) = fixture::file(ra_fixture.trim());
+    let actual_html = &analysis.with_db(|db| {
+        use crate::syntax_highlighting::highlight;
+        use hir::{Semantics, EditionedFileId};
+        use syntax::AstNode;
+        
+        let sema = Semantics::new(db);
+        let file_id = sema
+            .attach_first_edition(file_id)
+            .unwrap_or_else(|| EditionedFileId::current_edition(db, file_id));
+        let file = sema.parse(file_id);
+        let file = file.syntax();
+        
+        let hl_ranges = highlight(
+            db,
+            config,
+            file_id.file_id(db),
+            None,
+        );
+        
+        // Manually build the HTML like in highlight_as_html but with our config
+        let text = file.to_string();
+        let mut buf = String::new();
+        // Add the CSS style from the html module
+        buf.push_str(r#"
+<style>
+body                { margin: 0; }
+pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padding: 0.4em; }
+
+.lifetime           { color: #DFAF8F; font-style: italic; }
+.label              { color: #DFAF8F; font-style: italic; }
+.comment            { color: #7F9F7F; }
+.documentation      { color: #629755; }
+.intra_doc_link     { font-style: italic; }
+.injected           { opacity: 0.65 ; }
+.struct, .enum      { color: #7CB8BB; }
+.enum_variant       { color: #BDE0F3; }
+.string_literal     { color: #CC9393; }
+.field              { color: #94BFF3; }
+.function           { color: #93E0E3; }
+.parameter          { color: #94BFF3; }
+.text               { color: #DCDCCC; }
+.type               { color: #7CB8BB; }
+.builtin_type       { color: #8CD0D3; }
+.type_param         { color: #DFAF8F; }
+.attribute          { color: #94BFF3; }
+.numeric_literal    { color: #BFEBBF; }
+.bool_literal       { color: #BFE6EB; }
+.macro              { color: #94BFF3; }
+.derive             { color: #94BFF3; }
+.module             { color: #AFD8AF; }
+.value_param        { color: #DCDCCC; }
+.variable           { color: #DCDCCC; }
+.format_specifier   { color: #CC696B; }
+.mutable            { text-decoration: underline; }
+.escape_sequence    { color: #94BFF3; }
+.keyword            { color: #F0DFAF; font-weight: bold; }
+.control            { font-style: italic; }
+.reference          { font-style: italic; font-weight: bold; }
+
+.unresolved_reference { color: #FC5555; text-decoration: wavy underline; }
+</style>
+"#);
+        buf.push_str("<pre><code>");
+        for r in &hl_ranges {
+            let chunk = &text[r.range];
+            // Simple HTML escaping
+            let escaped = chunk
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;");
+                
+            if r.highlight.is_empty() {
+                buf.push_str(&escaped);
+                continue;
+            }
+
+            let class = r.highlight.to_string().replace('.', " ");
+            buf.push_str(&format!("<span class=\"{}\">{}</span>", class, escaped));
+        }
+        buf.push_str("</code></pre>");
+        buf
+    }).unwrap();
+    expect.assert_eq(&actual_html)
+}
+
 #[test]
 fn benchmark_syntax_highlighting_long_struct() {
     if skip_slow_tests() {
@@ -1434,4 +1527,133 @@ fn main() {
         expect_file!["./test_data/highlight_issue_19357.html"],
         false,
     );
+}
+
+#[test]
+fn test_comment_highlighting_disabled() {
+    // Test that comments are not highlighted when disabled
+    check_highlighting_with_config(
+        r#"
+// This is a regular comment
+/// This is a doc comment
+fn main() {
+    // Another comment
+    println!("Hello, world!");
+}
+"#,
+        HighlightConfig {
+            strings: true,
+            comments: false, // Disable comment highlighting
+            punctuation: true,
+            specialize_punctuation: true,
+            specialize_operator: true,
+            operator: true,
+            inject_doc_comment: true,
+            macro_bang: true,
+            syntactic_name_ref_highlighting: false,
+        },
+        expect_file!["./test_data/highlight_comments_disabled.html"],
+        false,
+    );
+}
+
+#[test]
+fn test_comment_highlighting_enabled() {
+    // Test that comments are highlighted when enabled (default behavior)
+    check_highlighting_with_config(
+        r#"
+// This is a regular comment
+/// This is a doc comment
+fn main() {
+    // Another comment
+    println!("Hello, world!");
+}
+"#,
+        HighlightConfig {
+            strings: true,
+            comments: true, // Enable comment highlighting (default)
+            punctuation: true,
+            specialize_punctuation: true,
+            specialize_operator: true,
+            operator: true,
+            inject_doc_comment: true,
+            macro_bang: true,
+            syntactic_name_ref_highlighting: false,
+        },
+        expect_file!["./test_data/highlight_comments_enabled.html"],
+        false,
+    );
+}
+
+#[test]
+fn test_config_integration() {
+    let (analysis, file_id) = fixture::file(
+        r#"
+// This is a regular comment
+/// This is a doc comment  
+fn main() {
+    // Another comment
+    println!("Hello, world!");
+}
+"#.trim(),
+    );
+
+    // Test with comments enabled
+    let hl_ranges_enabled = analysis.with_db(|db| {
+        crate::syntax_highlighting::highlight(
+            db,
+            HighlightConfig {
+                strings: true,
+                comments: true, // Enable comments
+                punctuation: true,
+                specialize_punctuation: true,
+                specialize_operator: true,
+                operator: true,
+                inject_doc_comment: true,
+                macro_bang: true,
+                syntactic_name_ref_highlighting: false,
+            },
+            file_id,
+            None,
+        )
+    }).unwrap();
+
+    // Test with comments disabled
+    let hl_ranges_disabled = analysis.with_db(|db| {
+        crate::syntax_highlighting::highlight(
+            db,
+            HighlightConfig {
+                strings: true,
+                comments: false, // Disable comments
+                punctuation: true,
+                specialize_punctuation: true,
+                specialize_operator: true,
+                operator: true,
+                inject_doc_comment: true,
+                macro_bang: true,
+                syntactic_name_ref_highlighting: false,
+            },
+            file_id,
+            None,
+        )
+    }).unwrap();
+
+    // Count comment tokens in each case
+    let comment_count_enabled = hl_ranges_enabled.iter()
+        .filter(|r| r.highlight.tag.to_string().contains("comment"))
+        .count();
+    
+    let comment_count_disabled = hl_ranges_disabled.iter()
+        .filter(|r| r.highlight.tag.to_string().contains("comment"))
+        .count();
+
+    // When comments are enabled, we should see comment tokens
+    assert!(comment_count_enabled > 0, "Expected comment tokens when comments are enabled");
+    
+    // When comments are disabled, we should see no comment tokens
+    assert_eq!(comment_count_disabled, 0, "Expected no comment tokens when comments are disabled");
+    
+    // The disabled version should have fewer highlighted ranges overall
+    assert!(hl_ranges_disabled.len() < hl_ranges_enabled.len(), 
+            "Expected fewer highlight ranges when comments are disabled");
 }

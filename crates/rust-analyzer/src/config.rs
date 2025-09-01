@@ -429,6 +429,13 @@ config_data! {
         /// their contents.
         semanticHighlighting_strings_enable: bool = true,
 
+        /// Use semantic tokens for comments.
+        ///
+        /// In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
+        /// By disabling semantic tokens for comments, other grammars can be used to highlight
+        /// their contents.
+        semanticHighlighting_comments_enable: bool = true,
+
         /// Show full signature of the callable. Only shows parameters if disabled.
         signatureInfo_detail: SignatureDetail = SignatureDetail::Full,
 
@@ -1968,6 +1975,7 @@ impl Config {
     pub fn highlighting_config(&self) -> HighlightConfig {
         HighlightConfig {
             strings: self.semanticHighlighting_strings_enable().to_owned(),
+            comments: self.semanticHighlighting_comments_enable().to_owned(),
             punctuation: self.semanticHighlighting_punctuation_enable().to_owned(),
             specialize_punctuation: self
                 .semanticHighlighting_punctuation_specialization_enable()
@@ -4087,5 +4095,19 @@ mod tests {
         assert!(
             matches!(config.flycheck(None), FlycheckConfig::CargoCommand { options, .. } if options.target_dir == Some(Utf8PathBuf::from("other_folder")))
         );
+    }
+
+    #[test]
+    fn test_default_comments_enabled() {
+        let config = Config::new(
+            AbsPathBuf::assert(project_root()), 
+            Default::default(), 
+            vec![], 
+            None
+        );
+        let highlight_config = config.highlighting_config();
+        
+        // Comments should be enabled by default
+        assert!(highlight_config.comments, "Comments should be enabled by default");
     }
 }

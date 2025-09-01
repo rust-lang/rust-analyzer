@@ -31,6 +31,7 @@ pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: boo
         db,
         HighlightConfig {
             strings: true,
+            comments: true,
             punctuation: true,
             specialize_punctuation: true,
             specialize_operator: true,
