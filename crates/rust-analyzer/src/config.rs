@@ -4107,14 +4107,10 @@ mod tests {
 
     #[test]
     fn test_default_comments_enabled() {
-        let config = Config::new(
-            AbsPathBuf::assert(project_root()), 
-            Default::default(), 
-            vec![], 
-            None
-        );
+        let config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
         let highlight_config = config.highlighting_config();
-        
+
         // Both regular comments and doc comments should be enabled by default
         assert!(highlight_config.comments, "Regular comments should be enabled by default");
         assert!(highlight_config.doc_comments, "Doc comments should be enabled by default");
@@ -4122,12 +4118,8 @@ mod tests {
 
     #[test]
     fn test_separate_comment_config() {
-        let mut config = Config::new(
-            AbsPathBuf::assert(project_root()),
-            Default::default(),
-            vec![],
-            None
-        );
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
 
         // Test disabling regular comments but keeping doc comments enabled
         let mut change = ConfigChange::default();
@@ -4144,11 +4136,11 @@ mod tests {
 
         (config, _, _) = config.apply_change(change);
         let highlight_config = config.highlighting_config();
-        
+
         assert!(!highlight_config.comments, "Regular comments should be disabled");
         assert!(highlight_config.doc_comments, "Doc comments should be enabled");
 
-        // Test disabling doc comments but keeping regular comments enabled  
+        // Test disabling doc comments but keeping regular comments enabled
         let mut change = ConfigChange::default();
         change.change_client_config(serde_json::json!({
             "semanticHighlighting": {
@@ -4163,7 +4155,7 @@ mod tests {
 
         (config, _, _) = config.apply_change(change);
         let highlight_config = config.highlighting_config();
-        
+
         assert!(highlight_config.comments, "Regular comments should be enabled");
         assert!(!highlight_config.doc_comments, "Doc comments should be disabled");
     }
