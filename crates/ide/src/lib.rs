@@ -78,11 +78,14 @@ use view_memory_layout::{RecursiveMemoryLayout, view_memory_layout};
 use crate::navigation_target::ToNav;
 
 pub use crate::{
-    annotations::{Annotation, AnnotationConfig, AnnotationKind, AnnotationLocation},
+    annotations::{
+        Annotation, AnnotationConfig, AnnotationKind, AnnotationLocation, ResolveAnnotationConfig,
+    },
     call_hierarchy::{CallHierarchyConfig, CallItem},
     expand_macro::ExpandedMacro,
     file_structure::{FileStructureConfig, StructureNode, StructureNodeKind},
     folding_ranges::{Fold, FoldKind},
+    goto_implementation::GotoImplementationConfig,
     highlight_related::{HighlightRelatedConfig, HighlightedRange},
     hover::{
         HoverAction, HoverConfig, HoverDocFormat, HoverGotoTypeData, HoverResult,
@@ -510,9 +513,10 @@ impl Analysis {
     /// Returns the impls from the symbol at `position`.
     pub fn goto_implementation(
         &self,
+        config: &GotoImplementationConfig,
         position: FilePosition,
     ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
-        self.with_db(|db| goto_implementation::goto_implementation(db, position))
+        self.with_db(|db| goto_implementation::goto_implementation(db, config, position))
     }
 
     /// Returns the type definitions for the symbol at `position`.
@@ -845,8 +849,12 @@ impl Analysis {
         self.with_db(|db| annotations::annotations(db, config, file_id))
     }
 
-    pub fn resolve_annotation(&self, annotation: Annotation) -> Cancellable<Annotation> {
-        self.with_db(|db| annotations::resolve_annotation(db, annotation))
+    pub fn resolve_annotation(
+        &self,
+        config: &ResolveAnnotationConfig,
+        annotation: Annotation,
+    ) -> Cancellable<Annotation> {
+        self.with_db(|db| annotations::resolve_annotation(db, config, annotation))
     }
 
     pub fn move_item(
