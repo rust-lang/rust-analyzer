@@ -9,6 +9,7 @@ use std::iter;
 
 use chalk_ir::{BoundVar, Mutability, TyKind, TyVariableKind, cast::Cast};
 use hir_def::{hir::ExprId, lang_item::LangItem};
+use rustc_next_trait_solver::solve::HasChanged;
 use rustc_type_ir::solve::Certainty;
 use stdx::always;
 use triomphe::Arc;
@@ -716,7 +717,7 @@ impl<'db> InferenceTable<'db> {
         let goal: Goal = coerce_unsized_tref.cast(Interner);
 
         self.commit_if_ok(|table| match table.solve_obligation(goal) {
-            Ok(Certainty::Yes) => Ok(()),
+            Ok((_, Certainty::Yes) | (HasChanged::Yes, Certainty::Maybe(_))) => Ok(()),
             _ => Err(TypeError),
         })?;
 
