@@ -737,8 +737,14 @@ impl InferenceTable<'_> {
                     },
                 );
             }
+            NextTraitSolveResult::Uncertain(v) => {
+                if v.value.is_identity_subst(Interner) {
+                    return Err(TypeError);
+                }
+                canonicalized.apply_solution(self, v);
+            }
             // ...so, should think about how to get some actually get some guidance here
-            NextTraitSolveResult::Uncertain(..) | NextTraitSolveResult::NoSolution => {
+            NextTraitSolveResult::NoSolution => {
                 return Err(TypeError);
             }
         }
