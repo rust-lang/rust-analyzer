@@ -33,6 +33,68 @@ use crate::{
 // }
 // ```
 pub(crate) fn generate_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    generate_setter_impl(
+        acc,
+        ctx,
+        SetterOptions {
+            assist_type: AssistType::Set,
+            name_prefix: "set_",
+            id: "generate_setter",
+            label: "Generate an `&mut self` setter method",
+        },
+    )
+}
+
+// Assist: generate_builder_setter
+//
+// Generate a `self` setter method.
+//
+// ```
+// struct Person {
+//     nam$0e: String,
+// }
+// ```
+// ->
+// ```
+// struct Person {
+//     name: String,
+// }
+//
+// impl Person {
+//     fn $0with_name(mut self, name: String) -> Self {
+//         self.name = name;
+//         self
+//     }
+// }
+// ```
+pub(crate) fn generate_builder_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    generate_setter_impl(
+        acc,
+        ctx,
+        SetterOptions {
+            assist_type: AssistType::BuilderSet,
+            name_prefix: "with_",
+            id: "generate_builder_setter",
+            label: "Generate a `self` builder setter method",
+        },
+    )
+}
+
+struct SetterOptions {
+    assist_type: AssistType,
+    /// String to prefix to the field name to generate the setter name, like `set_`.
+    name_prefix: &'static str,
+    /// Assist ID.
+    id: &'static str,
+    /// Assist label (shown to users).
+    label: &'static str,
+}
+
+fn generate_setter_impl(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_>,
+    options: SetterOptions,
+) -> Option<()> {
     // This if condition denotes two modes this assist can work in:
     // - First is acting upon selection of record fields
     // - Next is acting upon a single record field
@@ -40,7 +102,8 @@ pub(crate) fn generate_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     // This is the only part where implementation diverges a bit,
     // subsequent code is generic for both of these modes
 
-    let (strukt, info_of_record_fields, mut fn_names) = extract_and_parse(ctx, AssistType::Set)?;
+    let (strukt, info_of_record_fields, mut fn_names) =
+        extract_and_parse(ctx, options.assist_type)?;
 
     // No record fields to do work on :(
     if info_of_record_fields.is_empty() {
@@ -48,7 +111,7 @@ pub(crate) fn generate_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     }
 
     // Prepend set_ to fn names.
-    fn_names.iter_mut().for_each(|name| *name = format!("set_{name}"));
+    fn_names.iter_mut().for_each(|name| *name = format!("{}{name}", options.name_prefix));
 
     // Return early if we've found an existing fn
     let impl_def = find_struct_impl(ctx, &ast::Adt::Struct(strukt.clone()), &fn_names)?;
@@ -59,12 +122,12 @@ pub(crate) fn generate_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         .map(|record_field_info| record_field_info.target)
         .reduce(|acc, target| acc.cover(target))?;
 
-    let setter_info = AssistInfo { impl_def, strukt, assist_type: AssistType::Set };
+    let setter_info = AssistInfo { impl_def, strukt, assist_type: options.assist_type };
 
     acc.add_group(
         &GroupLabel("Generate getter/setter".to_owned()),
-        AssistId::generate("generate_setter"),
-        "Generate an `&mut self` setter method",
+        AssistId::generate(options.id),
+        options.label,
         target,
         |builder| build_source_change(builder, ctx, info_of_record_fields, setter_info),
     );
@@ -164,10 +227,12 @@ struct AssistInfo {
     assist_type: AssistType,
 }
 
+#[derive(Clone, Copy)]
 enum AssistType {
     Get,
     MutGet,
     Set,
+    BuilderSet,
 }
 
 pub(crate) fn generate_getter_impl(
@@ -315,6 +380,52 @@ fn generate_setter_from_info(info: &AssistInfo, record_field_info: &RecordFieldI
     )
 }
 
+fn generate_builder_setter_from_info(
+    info: &AssistInfo,
+    record_field_info: &RecordFieldInfo,
+) -> ast::Fn {
+    let strukt = &info.strukt;
+    let field_name = &record_field_info.fn_name;
+    let fn_name = make::name(&format!("with_{field_name}"));
+    let field_ty = &record_field_info.field_ty;
+    let return_ty = make::ext::ret_ty_self();
+
+    // Make the param list
+    // `(mut self, $field_name: $field_ty)`
+    let field_param =
+        make::param(make::ident_pat(false, false, make::name(field_name)).into(), field_ty.clone());
+    let params = make::param_list(Some(make::mut_self_owned_param()), [field_param]);
+
+    // Make the assignment body
+    // `self.$field_name = $field_name`
+    let self_expr = make::ext::expr_self();
+    let lhs = make::expr_field(self_expr, field_name);
+    let rhs = make::expr_path(make::ext::ident_path(field_name));
+    let assign_stmt = make::expr_stmt(make::expr_assignment(lhs, rhs).into());
+
+    // Make the return expression
+    // `self`
+    let return_expr = make::ext::expr_self();
+
+    let body = make::block_expr([assign_stmt.into()], Some(return_expr));
+
+    // Make the setter fn
+    make::fn_(
+        None,
+        strukt.visibility(),
+        fn_name,
+        None,
+        None,
+        params,
+        body,
+        Some(return_ty),
+        false,
+        false,
+        false,
+        false,
+    )
+}
+
 fn extract_and_parse(
     ctx: &AssistContext<'_>,
     assist_type: AssistType,
@@ -429,6 +540,9 @@ fn build_source_change(
         // Make the new getter or setter fn
         let new_fn = match assist_info.assist_type {
             AssistType::Set => generate_setter_from_info(&assist_info, record_field_info),
+            AssistType::BuilderSet => {
+                generate_builder_setter_from_info(&assist_info, record_field_info)
+            }
             _ => generate_getter_from_info(ctx, &assist_info, record_field_info),
         }
         .clone_for_update();
@@ -955,6 +1069,28 @@ struct Person<T: Clone> {
 impl<T: Clone> Person<T> {
     fn $0set_data(&mut self, data: T) {
         self.data = data;
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_generate_builder_setter_from_field() {
+        check_assist(
+            generate_builder_setter,
+            r#"
+struct Person<T: Clone> {
+    dat$0a: T,
+}"#,
+            r#"
+struct Person<T: Clone> {
+    data: T,
+}
+
+impl<T: Clone> Person<T> {
+    fn $0with_data(mut self, data: T) -> Self {
+        self.data = data;
+        self
     }
 }"#,
         );

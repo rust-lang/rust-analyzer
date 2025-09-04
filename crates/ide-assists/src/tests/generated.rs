@@ -1312,6 +1312,30 @@ fn foo<T: Copy + Clone>() { }
 }
 
 #[test]
+fn doctest_generate_builder_setter() {
+    check_doc_test(
+        "generate_builder_setter",
+        r#####"
+struct Person {
+    nam$0e: String,
+}
+"#####,
+        r#####"
+struct Person {
+    name: String,
+}
+
+impl Person {
+    fn $0with_name(mut self, name: String) -> Self {
+        self.name = name;
+        self
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_constant() {
     check_doc_test(
         "generate_constant",

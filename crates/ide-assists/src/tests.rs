@@ -444,6 +444,10 @@ fn assist_order_field_struct() {
         assists.next().expect("expected assist").label,
         "Generate an `&mut self` setter method"
     );
+    assert_eq!(
+        assists.next().expect("expected assist").label,
+        "Generate a `self` builder setter method"
+    );
     assert_eq!(assists.next().expect("expected assist").label, "Add `#[derive]`");
     assert_eq!(assists.next().expect("expected assist").label, "Generate `new`");
     assert_eq!(assists.next().map(|it| it.label.to_string()), None);
