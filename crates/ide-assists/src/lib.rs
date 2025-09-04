@@ -183,6 +183,7 @@ mod handlers {
     mod introduce_named_lifetime;
     mod introduce_named_type_parameter;
     mod invert_if;
+    mod merge_attributes;
     mod merge_imports;
     mod merge_match_arms;
     mod merge_nested_if;
@@ -319,6 +320,7 @@ mod handlers {
             introduce_named_lifetime::introduce_named_lifetime,
             introduce_named_type_parameter::introduce_named_type_parameter,
             invert_if::invert_if,
+            merge_attributes::merge_attributes,
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
             merge_nested_if::merge_nested_if,
