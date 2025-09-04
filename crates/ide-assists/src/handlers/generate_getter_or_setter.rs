@@ -13,7 +13,7 @@ use crate::{
 
 // Assist: generate_setter
 //
-// Generate a setter method.
+// Generate a `&mut self` setter method.
 //
 // ```
 // struct Person {
@@ -64,7 +64,7 @@ pub(crate) fn generate_setter(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     acc.add_group(
         &GroupLabel("Generate getter/setter".to_owned()),
         AssistId::generate("generate_setter"),
-        "Generate a setter method",
+        "Generate an `&mut self` setter method",
         target,
         |builder| build_source_change(builder, ctx, info_of_record_fields, setter_info),
     );

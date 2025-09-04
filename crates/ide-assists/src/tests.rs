@@ -440,7 +440,10 @@ fn assist_order_field_struct() {
     assert_eq!(assists.next().expect("expected assist").label, "Change visibility to pub(crate)");
     assert_eq!(assists.next().expect("expected assist").label, "Generate a getter method");
     assert_eq!(assists.next().expect("expected assist").label, "Generate a mut getter method");
-    assert_eq!(assists.next().expect("expected assist").label, "Generate a setter method");
+    assert_eq!(
+        assists.next().expect("expected assist").label,
+        "Generate an `&mut self` setter method"
+    );
     assert_eq!(assists.next().expect("expected assist").label, "Add `#[derive]`");
     assert_eq!(assists.next().expect("expected assist").label, "Generate `new`");
     assert_eq!(assists.next().map(|it| it.label.to_string()), None);
