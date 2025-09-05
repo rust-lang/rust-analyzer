@@ -5635,7 +5635,11 @@ impl<'db> Type<'db> {
             .map_or_else(|| TraitEnvironment::empty(krate.id), |d| db.trait_environment(d));
 
         _ = method_resolution::iterate_method_candidates_dyn(
-            &canonical,
+            &canonical.to_nextsolver(DbInterner::new_with(
+                db,
+                Some(environment.krate),
+                environment.block,
+            )),
             db,
             environment,
             traits_in_scope,
@@ -5722,7 +5726,11 @@ impl<'db> Type<'db> {
             .map_or_else(|| TraitEnvironment::empty(krate.id), |d| db.trait_environment(d));
 
         _ = method_resolution::iterate_path_candidates(
-            &canonical,
+            &canonical.to_nextsolver(DbInterner::new_with(
+                db,
+                Some(environment.krate),
+                environment.block,
+            )),
             db,
             environment,
             traits_in_scope,
