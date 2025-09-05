@@ -117,6 +117,10 @@ pub mod ext {
         ty_from_text(&format!("Result<{t}, {e}>"))
     }
 
+    pub fn ret_ty_self() -> ast::RetType {
+        ast_from_text("impl F { fn f() -> Self {} }")
+    }
+
     pub fn token_tree_from_node(node: &ast::SyntaxNode) -> ast::TokenTree {
         ast_from_text(&format!("todo!{node}"))
     }
@@ -1029,6 +1033,10 @@ pub fn self_param() -> ast::SelfParam {
 
 pub fn mut_self_param() -> ast::SelfParam {
     ast_from_text("fn f(&mut self) { }")
+}
+
+pub fn mut_self_owned_param() -> ast::SelfParam {
+    ast_from_text("fn f(mut self) { }")
 }
 
 pub fn ret_type(ty: ast::Type) -> ast::RetType {
