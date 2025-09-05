@@ -119,3 +119,10 @@ steps might help:
 A C compiler should already be available via `org.freedesktop.Sdk`. Any
 other tools or libraries you will need to acquire from Flatpak.
 
+If the user has cargo installed and `rust-analyzer` cannot resolve cargo files and fails to initialize,
+you may alternatively override the `PATH` of the specific flatpak to give it permission to see the binaries,
+such as the below command, which applies to the flatpak identifier of VS Codium:
+
+    ```bash
+    flatpak --user override com.vscodium.codium  --env=PATH=/app/bin:/usr/bin:/home/$USER/.cargo/bin
+    ```
