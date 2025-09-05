@@ -1768,6 +1768,12 @@ impl Config {
             prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
             prefer_absolute: self.imports_prefixExternPrelude(source_root).to_owned(),
             style_lints: self.diagnostics_styleLints_enable(source_root).to_owned(),
+            closure_style: match self.inlayHints_closureStyle() {
+                ClosureStyle::ImplFn => hir::ClosureStyle::ImplFn,
+                ClosureStyle::RustAnalyzer => hir::ClosureStyle::RANotation,
+                ClosureStyle::WithId => hir::ClosureStyle::ClosureWithId,
+                ClosureStyle::Hide => hir::ClosureStyle::Hide,
+            },
             term_search_fuel: self.assist_termSearch_fuel(source_root).to_owned() as u64,
             term_search_borrowck: self.assist_termSearch_borrowcheck(source_root).to_owned(),
         }
