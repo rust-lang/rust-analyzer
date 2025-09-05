@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LineFormat"],"fn":["print_body_hir","print_expr_hir","print_function","print_pat_hir","print_path","print_signature","print_struct","print_variant_body_hir"]};
