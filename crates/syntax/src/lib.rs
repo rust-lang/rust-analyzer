@@ -230,13 +230,22 @@ impl SourceFile {
 macro_rules! match_ast {
     (match $node:ident { $($tt:tt)* }) => { $crate::match_ast!(match ($node) { $($tt)* }) };
 
-    (match ($node:expr) {
-        $( $( $path:ident )::+ ($it:pat) => $res:expr, )*
-        _ => $catch_all:expr $(,)?
-    }) => {{
-        $( if let Some($it) = $($path::)+cast($node.clone()) { $res } else )*
-        { $catch_all }
+    (match ($node:expr) { $($tt:tt)* }) => {{
+        $crate::match_ast!(@inner($node) $($tt)*)
     }};
+
+    (@inner($node:expr) _ => $catch_all:expr $(,)?) => { $catch_all };
+
+    (@inner($node:expr)
+        $( $path:ident )::+ ($it:pat) => $res:expr,
+        $($tt:tt)*
+    ) => {
+        if let Some($it) = $($path::)+cast($node.clone()) {
+            $res
+        } else {
+            $crate::match_ast!(@inner($node) $($tt)*)
+        }
+    };
 }
 
 /// This test does not assert anything and instead just shows off the crate's
