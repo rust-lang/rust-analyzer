@@ -1609,7 +1609,7 @@ impl<'db> Evaluator<'db> {
                     };
                     match target_ty {
                         chalk_ir::FloatTy::F32 => Owned((value as f32).to_le_bytes().to_vec()),
-                        chalk_ir::FloatTy::F64 => Owned((value as f64).to_le_bytes().to_vec()),
+                        chalk_ir::FloatTy::F64 => Owned(value.to_le_bytes().to_vec()),
                         chalk_ir::FloatTy::F16 | chalk_ir::FloatTy::F128 => {
                             not_supported!("unstable floating point type f16 and f128");
                         }

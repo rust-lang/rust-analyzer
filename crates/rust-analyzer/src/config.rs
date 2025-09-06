@@ -382,6 +382,20 @@ config_data! {
         /// Exclude tests from find-all-references and call-hierarchy.
         references_excludeTests: bool = false,
 
+        /// Use semantic tokens for doc comments.
+        ///
+        /// In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
+        /// By disabling semantic tokens for doc comments, other grammars can be used to highlight
+        /// their contents.
+        semanticHighlighting_comments_doc_enable: bool = true,
+
+        /// Use semantic tokens for comments.
+        ///
+        /// In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
+        /// By disabling semantic tokens for comments, other grammars can be used to highlight
+        /// their contents.
+        semanticHighlighting_comments_enable: bool = true,
+
         /// Inject additional highlighting into doc comments.
         ///
         /// When enabled, rust-analyzer will highlight rust source in doc comments as well as intra
@@ -1968,6 +1982,8 @@ impl Config {
     pub fn highlighting_config(&self) -> HighlightConfig {
         HighlightConfig {
             strings: self.semanticHighlighting_strings_enable().to_owned(),
+            comments: self.semanticHighlighting_comments_enable().to_owned(),
+            doc_comments: self.semanticHighlighting_comments_doc_enable().to_owned(),
             punctuation: self.semanticHighlighting_punctuation_enable().to_owned(),
             specialize_punctuation: self
                 .semanticHighlighting_punctuation_specialization_enable()
@@ -4087,5 +4103,60 @@ mod tests {
         assert!(
             matches!(config.flycheck(None), FlycheckConfig::CargoCommand { options, .. } if options.target_dir == Some(Utf8PathBuf::from("other_folder")))
         );
+    }
+
+    #[test]
+    fn test_default_comments_enabled() {
+        let config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+        let highlight_config = config.highlighting_config();
+
+        // Both regular comments and doc comments should be enabled by default
+        assert!(highlight_config.comments, "Regular comments should be enabled by default");
+        assert!(highlight_config.doc_comments, "Doc comments should be enabled by default");
+    }
+
+    #[test]
+    fn test_separate_comment_config() {
+        let mut config =
+            Config::new(AbsPathBuf::assert(project_root()), Default::default(), vec![], None);
+
+        // Test disabling regular comments but keeping doc comments enabled
+        let mut change = ConfigChange::default();
+        change.change_client_config(serde_json::json!({
+            "semanticHighlighting": {
+                "comments": {
+                    "enable": false,
+                    "doc": {
+                        "enable": true
+                    }
+                }
+            }
+        }));
+
+        (config, _, _) = config.apply_change(change);
+        let highlight_config = config.highlighting_config();
+
+        assert!(!highlight_config.comments, "Regular comments should be disabled");
+        assert!(highlight_config.doc_comments, "Doc comments should be enabled");
+
+        // Test disabling doc comments but keeping regular comments enabled
+        let mut change = ConfigChange::default();
+        change.change_client_config(serde_json::json!({
+            "semanticHighlighting": {
+                "comments": {
+                    "enable": true,
+                    "doc": {
+                        "enable": false
+                    }
+                }
+            }
+        }));
+
+        (config, _, _) = config.apply_change(change);
+        let highlight_config = config.highlighting_config();
+
+        assert!(highlight_config.comments, "Regular comments should be enabled");
+        assert!(!highlight_config.doc_comments, "Doc comments should be disabled");
     }
 }
