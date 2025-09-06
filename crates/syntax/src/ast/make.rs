@@ -1110,6 +1110,10 @@ pub fn lifetime_param(lifetime: ast::Lifetime) -> ast::LifetimeParam {
     ast_from_text(&format!("fn f<{lifetime}>() {{ }}"))
 }
 
+pub fn generic_param(text: &str) -> ast::GenericParam {
+    ast_from_text(&format!("fn f<{text}>() {{ }}"))
+}
+
 pub fn generic_param_list(
     pats: impl IntoIterator<Item = ast::GenericParam>,
 ) -> ast::GenericParamList {
