@@ -184,6 +184,7 @@ mod handlers {
     mod introduce_named_type_parameter;
     mod invert_if;
     mod merge_imports;
+    mod merge_lifetimes;
     mod merge_match_arms;
     mod merge_nested_if;
     mod move_bounds;
@@ -321,6 +322,7 @@ mod handlers {
             invert_if::invert_if,
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
+            merge_lifetimes::merge_lifetimes,
             merge_nested_if::merge_nested_if,
             move_bounds::move_bounds_to_where_clause,
             move_const_to_impl::move_const_to_impl,

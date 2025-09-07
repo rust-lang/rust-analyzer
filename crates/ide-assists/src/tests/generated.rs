@@ -2451,6 +2451,23 @@ use std::{fmt::Formatter, io};
 }
 
 #[test]
+fn doctest_merge_lifetimes() {
+    check_doc_test(
+        "merge_lifetimes",
+        r#####"
+struct Foo<$0'a, 'b$0> {
+    data: &'b [Cow<'a, str>],
+}
+"#####,
+        r#####"
+struct Foo<'a> {
+    data: &'a [Cow<'a, str>],
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_merge_match_arms() {
     check_doc_test(
         "merge_match_arms",
