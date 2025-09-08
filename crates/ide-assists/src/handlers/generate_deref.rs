@@ -4,7 +4,7 @@ use hir::{ModPath, ModuleDef};
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
 use syntax::{
     AstNode, Edition, SyntaxNode,
-    ast::{self, HasName},
+    ast::{self, HasGenericParams, HasName},
 };
 
 use crate::{
@@ -162,22 +162,66 @@ fn existing_deref_impl(
     sema: &hir::Semantics<'_, RootDatabase>,
     strukt: &ast::Struct,
 ) -> Option<DerefType> {
-    let strukt = sema.to_def(strukt)?;
-    let krate = strukt.module(sema.db).krate();
+    let strukt_def = sema.to_def(strukt)?;
+    let krate = strukt_def.module(sema.db).krate();
 
     let deref_trait = FamousDefs(sema, krate).core_ops_Deref()?;
     let deref_mut_trait = FamousDefs(sema, krate).core_ops_DerefMut()?;
-    let strukt_type = strukt.ty(sema.db);
 
-    if strukt_type.impls_trait(sema.db, deref_trait, &[]) {
-        if strukt_type.impls_trait(sema.db, deref_mut_trait, &[]) {
-            Some(DerefType::DerefMut)
+    let has_generics = strukt.generic_param_list().is_some();
+
+    if has_generics {
+        let has_deref_impl = has_actual_impl(sema, &strukt_def, deref_trait);
+        let has_deref_mut_impl = has_actual_impl(sema, &strukt_def, deref_mut_trait);
+
+        if has_deref_impl {
+            if has_deref_mut_impl { Some(DerefType::DerefMut) } else { Some(DerefType::Deref) }
         } else {
-            Some(DerefType::Deref)
+            None
         }
     } else {
-        None
+        let strukt_type = strukt_def.ty(sema.db);
+
+        if strukt_type.impls_trait(sema.db, deref_trait, &[]) {
+            if strukt_type.impls_trait(sema.db, deref_mut_trait, &[]) {
+                Some(DerefType::DerefMut)
+            } else {
+                Some(DerefType::Deref)
+            }
+        } else {
+            None
+        }
     }
+}
+
+fn has_actual_impl(
+    sema: &hir::Semantics<'_, RootDatabase>,
+    strukt_def: &hir::Struct,
+    trait_: hir::Trait,
+) -> bool {
+    let module = strukt_def.module(sema.db);
+
+    let impls = module.impl_defs(sema.db);
+
+    for impl_def in impls {
+        if let Some(impl_trait) = impl_def.trait_(sema.db) {
+            if impl_trait != trait_ {
+                continue;
+            }
+        } else {
+            continue;
+        }
+
+        if let Some(impl_target) = impl_def.self_ty(sema.db).as_adt() {
+            if let hir::Adt::Struct(impl_struct) = impl_target {
+                if impl_struct == *strukt_def {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
 }
 
 #[derive(Debug)]
@@ -370,5 +414,27 @@ impl core::ops::Deref for B {}
 impl core::ops::DerefMut for B {}
 "#,
         )
+    }
+
+    #[test]
+    fn test_generate_deref_with_generic_no_existing_impl() {
+        check_assist(
+            generate_deref,
+            r#"
+//- minicore: deref
+struct Foo<T>($0T);
+"#,
+            r#"
+struct Foo<T>(T);
+
+impl<T> core::ops::Deref for Foo<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+"#,
+        );
     }
 }
