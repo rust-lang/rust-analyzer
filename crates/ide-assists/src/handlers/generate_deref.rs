@@ -2,7 +2,9 @@ use hir::{ModPath, ModuleDef};
 use ide_db::{FileId, RootDatabase, famous_defs::FamousDefs};
 use syntax::{
     Edition,
-    ast::{self, AstNode, HasName, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
+    ast::{
+        self, AstNode, HasGenericParams, HasName, edit::AstNodeEdit, syntax_factory::SyntaxFactory,
+    },
     syntax_editor::Position,
 };
 
@@ -211,22 +213,58 @@ fn existing_deref_impl(
     sema: &hir::Semantics<'_, RootDatabase>,
     strukt: &ast::Struct,
 ) -> Option<DerefType> {
-    let strukt = sema.to_def(strukt)?;
-    let krate = strukt.module(sema.db).krate(sema.db);
+    let strukt_def = sema.to_def(strukt)?;
+    let krate = strukt_def.module(sema.db).krate(sema.db);
 
     let deref_trait = FamousDefs(sema, krate).core_ops_Deref()?;
     let deref_mut_trait = FamousDefs(sema, krate).core_ops_DerefMut()?;
-    let strukt_type = strukt.ty(sema.db);
 
-    if strukt_type.impls_trait(sema.db, deref_trait, &[]) {
-        if strukt_type.impls_trait(sema.db, deref_mut_trait, &[]) {
-            Some(DerefType::DerefMut)
+    let has_generics = strukt.generic_param_list().is_some();
+
+    if has_generics {
+        let has_deref = has_actual_impl(sema, &strukt_def, deref_trait);
+        let has_deref_mut = has_actual_impl(sema, &strukt_def, deref_mut_trait);
+
+        if has_deref {
+            if has_deref_mut { Some(DerefType::DerefMut) } else { Some(DerefType::Deref) }
         } else {
-            Some(DerefType::Deref)
+            None
         }
     } else {
-        None
+        let strukt_type = strukt_def.ty(sema.db);
+
+        if strukt_type.impls_trait(sema.db, deref_trait, &[]) {
+            if strukt_type.impls_trait(sema.db, deref_mut_trait, &[]) {
+                Some(DerefType::DerefMut)
+            } else {
+                Some(DerefType::Deref)
+            }
+        } else {
+            None
+        }
     }
+}
+
+fn has_actual_impl(
+    sema: &hir::Semantics<'_, RootDatabase>,
+    strukt_def: &hir::Struct,
+    trait_: hir::Trait,
+) -> bool {
+    let module = strukt_def.module(sema.db);
+
+    for impl_def in module.impl_defs(sema.db) {
+        let Some(impl_trait) = impl_def.trait_(sema.db) else { continue };
+        if impl_trait != trait_ {
+            continue;
+        }
+        if let Some(hir::Adt::Struct(impl_struct)) = impl_def.self_ty(sema.db).as_adt()
+            && impl_struct == *strukt_def
+        {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[derive(Debug)]
