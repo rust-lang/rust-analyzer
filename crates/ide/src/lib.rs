@@ -103,7 +103,7 @@ pub use crate::{
     move_item::Direction,
     navigation_target::{NavigationTarget, TryToNav, UpmappingResult},
     references::ReferenceSearchResult,
-    rename::RenameError,
+    rename::{RenameConfig, RenameError},
     runnables::{Runnable, RunnableKind, TestId, UpdateTest},
     signature_help::SignatureHelp,
     static_index::{
@@ -801,8 +801,9 @@ impl Analysis {
         &self,
         position: FilePosition,
         new_name: &str,
+        config: &RenameConfig,
     ) -> Cancellable<Result<SourceChange, RenameError>> {
-        self.with_db(|db| rename::rename(db, position, new_name))
+        self.with_db(|db| rename::rename(db, position, new_name, config))
     }
 
     pub fn prepare_rename(
