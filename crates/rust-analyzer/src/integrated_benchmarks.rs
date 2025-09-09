@@ -18,6 +18,7 @@ use ide::{
 use ide_db::{
     SnippetCap,
     imports::insert_use::{ImportGranularity, InsertUseConfig},
+    rename::RenameConfig,
 };
 use project_model::CargoConfig;
 use test_utils::project_root;
@@ -360,6 +361,7 @@ fn integrated_diagnostics_benchmark() {
         prefer_absolute: false,
         term_search_fuel: 400,
         term_search_borrowck: true,
+        rename_config: RenameConfig { show_conflicts: true },
     };
     host.analysis()
         .full_diagnostics(&diagnostics_config, ide::AssistResolveStrategy::None, file_id)
