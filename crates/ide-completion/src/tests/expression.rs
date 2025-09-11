@@ -294,6 +294,7 @@ fn complete_after_if_expr() {
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw enum
             kw extern
             kw false
@@ -1106,6 +1107,7 @@ fn foo() { if foo {} $0 }
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw enum
             kw extern
             kw false
@@ -1149,6 +1151,7 @@ fn foo() { if foo {} el$0 }
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw enum
             kw extern
             kw false
@@ -1185,12 +1188,13 @@ fn foo() { if foo {} el$0 }
 fn foo() { bar(if foo {} $0) }
 "#,
         expect![[r#"
-            fn foo() fn()
-            bt u32    u32
+            fn foo()  fn()
+            bt u32     u32
             kw const
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw false
             kw for
             kw if
@@ -1210,12 +1214,13 @@ fn foo() { bar(if foo {} $0) }
 fn foo() { bar(if foo {} el$0) }
 "#,
         expect![[r#"
-            fn foo() fn()
-            bt u32    u32
+            fn foo()  fn()
+            bt u32     u32
             kw const
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw false
             kw for
             kw if
@@ -1242,6 +1247,7 @@ fn foo() { if foo {} $0 let x = 92; }
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw enum
             kw extern
             kw false
@@ -1285,6 +1291,7 @@ fn foo() { if foo {} el$0 let x = 92; }
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw enum
             kw extern
             kw false
@@ -1328,6 +1335,7 @@ fn foo() { if foo {} el$0 { let x = 92; } }
             kw crate::
             kw else
             kw else if
+            kw else if let
             kw enum
             kw extern
             kw false
