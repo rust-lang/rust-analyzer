@@ -47,6 +47,10 @@ pub struct HlRange {
 pub struct HighlightConfig {
     /// Whether to highlight strings
     pub strings: bool,
+    /// Whether to highlight regular comments
+    pub comments: bool,
+    /// Whether to highlight doc comments
+    pub doc_comments: bool,
     /// Whether to highlight punctuation
     pub punctuation: bool,
     /// Whether to specialize punctuation highlights
@@ -588,6 +592,16 @@ fn descend_token(
 fn filter_by_config(highlight: &mut Highlight, config: HighlightConfig) -> bool {
     match &mut highlight.tag {
         HlTag::StringLiteral if !config.strings => return false,
+        HlTag::Comment => {
+            // Check if this is a doc comment (has Documentation modifier)
+            if highlight.mods.contains(HlMod::Documentation) {
+                if !config.doc_comments {
+                    return false;
+                }
+            } else if !config.comments {
+                return false;
+            }
+        }
         // If punctuation is disabled, make the macro bang part of the macro call again.
         tag @ HlTag::Punctuation(HlPunct::MacroBang) => {
             if !config.macro_bang {
