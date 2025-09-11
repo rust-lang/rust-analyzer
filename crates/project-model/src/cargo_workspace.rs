@@ -48,8 +48,9 @@ pub struct CargoWorkspace {
     is_virtual_workspace: bool,
     /// Whether this workspace represents the sysroot workspace.
     is_sysroot: bool,
-    /// Environment variables set in the `.cargo/config` file.
-    config_env: Env,
+    /// Environment variables set in the `.cargo/config` file and the extraEnv
+    /// configuration option.
+    env: Env,
     requires_rustc_private: bool,
 }
 
@@ -320,7 +321,7 @@ impl CargoWorkspace {
     pub fn new(
         mut meta: cargo_metadata::Metadata,
         ws_manifest_path: ManifestPath,
-        cargo_config_env: Env,
+        cargo_env: Env,
         is_sysroot: bool,
     ) -> CargoWorkspace {
         let mut pkg_by_id = FxHashMap::default();
@@ -449,7 +450,7 @@ impl CargoWorkspace {
             is_virtual_workspace,
             requires_rustc_private,
             is_sysroot,
-            config_env: cargo_config_env,
+            env: cargo_env,
         }
     }
 
@@ -540,7 +541,7 @@ impl CargoWorkspace {
     }
 
     pub fn env(&self) -> &Env {
-        &self.config_env
+        &self.env
     }
 
     pub fn is_sysroot(&self) -> bool {
