@@ -1332,7 +1332,7 @@ impl<'db> rustc_type_ir::Interner for DbInterner<'db> {
     ) -> EarlyBinder<Self, impl IntoIterator<Item = (Self::Clause, Self::Span)>> {
         let predicates: Vec<(Clause<'db>, Span)> = self
             .db()
-            .generic_predicates_ns(def_id.0.into())
+            .explicit_super_predicates_of(def_id.0.into())
             .iter()
             .cloned()
             .map(|p| (p, Span::dummy()))
@@ -1347,7 +1347,7 @@ impl<'db> rustc_type_ir::Interner for DbInterner<'db> {
     ) -> EarlyBinder<Self, impl IntoIterator<Item = (Self::Clause, Self::Span)>> {
         let predicates: Vec<(Clause<'db>, Span)> = self
             .db()
-            .generic_predicates_ns(def_id.try_into().unwrap())
+            .explicit_implied_predicates_of(def_id.try_into().unwrap())
             .iter()
             .cloned()
             .map(|p| (p, Span::dummy()))
