@@ -2437,6 +2437,23 @@ fn main() {
 }
 
 #[test]
+fn doctest_merge_attributes() {
+    check_doc_test(
+        "merge_attributes",
+        r#####"
+$0#[cfg(feature = "a")]
+#[cfg(feature = "b")]
+#[cfg(feature = "c")]$0
+struct Foo;
+"#####,
+        r#####"
+#[cfg(all(feature = "a", feature = "b", feature = "c"))]
+struct Foo;
+"#####,
+    )
+}
+
+#[test]
 fn doctest_merge_imports() {
     check_doc_test(
         "merge_imports",
