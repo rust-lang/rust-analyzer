@@ -62,22 +62,43 @@ use tracing::{Level, span};
 /// Handle to a file in [`Vfs`]
 ///
 /// Most functions in rust-analyzer use this when they need to refer to a file.
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct FileId(u32);
-// pub struct FileId(NonMaxU32);
+#[salsa_macros::input]
+pub struct FileId {
+    path: VfsPath,
+}
+
+impl PartialOrd for FileId {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FileId {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.as_u32().cmp(&other.0.as_u32())
+    }
+}
+
+impl fmt::Debug for FileId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("FileId").field(&self.0.as_u32()).finish()
+    }
+}
 
 impl FileId {
     const MAX: u32 = 0x7fff_ffff;
 
     #[inline]
-    pub const fn from_raw(raw: u32) -> FileId {
+    pub fn from_raw(raw: u32) -> FileId {
+        use salsa::plumbing::FromId;
         assert!(raw <= Self::MAX);
-        FileId(raw)
+        let id = unsafe { salsa::Id::from_u32(raw) };
+        FileId::from_id(id)
     }
 
     #[inline]
     pub const fn index(self) -> u32 {
-        self.0
+        self.0.as_u32()
     }
 }
 
@@ -199,7 +220,7 @@ impl Vfs {
     /// This will skip deleted files.
     pub fn iter(&self) -> impl Iterator<Item = (FileId, &VfsPath)> + '_ {
         (0..self.data.len())
-            .map(|it| FileId(it as u32))
+            .map(|it| FileId::from_raw(it as u32))
             .filter(move |&file_id| matches!(self.get(file_id), FileState::Exists(_)))
             .map(move |file_id| {
                 let path = self.interner.lookup(file_id);
@@ -235,7 +256,7 @@ impl Vfs {
         };
 
         let mut set_data = |change_kind| {
-            self.data[file_id.0 as usize] = match change_kind {
+            self.data[file_id.0.as_u32() as usize] = match change_kind {
                 &Change::Create(_, hash) | &Change::Modify(_, hash) => FileState::Exists(hash),
                 Change::Delete => FileState::Deleted,
             };
@@ -299,7 +320,7 @@ impl Vfs {
     /// Does not record a change.
     fn alloc_file_id(&mut self, path: VfsPath) -> FileId {
         let file_id = self.interner.intern(path);
-        let idx = file_id.0 as usize;
+        let idx = file_id.0.as_u32() as usize;
         let len = self.data.len().max(idx + 1);
         self.data.resize(len, FileState::Deleted);
         file_id
@@ -311,14 +332,14 @@ impl Vfs {
     ///
     /// Panics if no file is associated to that id.
     fn get(&self, file_id: FileId) -> FileState {
-        self.data[file_id.0 as usize]
+        self.data[file_id.0.as_u32() as usize]
     }
 
     /// We cannot ignore excluded files, because this will lead to errors when the client
     /// requests semantic information for them, so we instead mark them specially.
     pub fn insert_excluded_file(&mut self, path: VfsPath) {
         let file_id = self.alloc_file_id(path);
-        self.data[file_id.0 as usize] = FileState::Excluded;
+        self.data[file_id.0.as_u32() as usize] = FileState::Excluded;
     }
 }
 

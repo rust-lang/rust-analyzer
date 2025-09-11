@@ -280,7 +280,7 @@ mod tests {
             let tt = syntax_node_to_token_tree(
                 tt.syntax(),
                 &DummyTestSpanMap,
-                DUMMY,
+                *DUMMY,
                 DocCommentDesugarMode::Mbe,
             );
             CfgExpr::parse(&tt)
