@@ -199,6 +199,11 @@ export const childModules = new lc.RequestType<
     lc.LocationLink[] | null,
     void
 >("experimental/childModules");
+export const gotoAssignments = new lc.RequestType<
+    lc.TextDocumentPositionParams,
+    lc.LocationLink[] | null,
+    void
+>("experimental/gotoAssignments");
 export const runnables = new lc.RequestType<RunnablesParams, Runnable[], void>(
     "experimental/runnables",
 );
