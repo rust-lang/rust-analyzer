@@ -3390,6 +3390,36 @@ fn arithmetics {
 }
 
 #[test]
+fn doctest_toggle_lint_attr() {
+    check_doc_test(
+        "toggle_lint_attr",
+        r#####"
+#[$0allow(dead_code)]
+fn foo() {}
+"#####,
+        r#####"
+#[expect(dead_code)]
+fn foo() {}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_toggle_lint_attr_1() {
+    check_doc_test(
+        "toggle_lint_attr",
+        r#####"
+#[$0forbid(dead_code)]
+fn foo() {}
+"#####,
+        r#####"
+#[deny(dead_code)]
+fn foo() {}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_toggle_macro_delimiter() {
     check_doc_test(
         "toggle_macro_delimiter",
