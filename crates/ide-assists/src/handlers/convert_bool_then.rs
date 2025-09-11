@@ -177,6 +177,7 @@ pub(crate) fn convert_bool_then_to_if(acc: &mut Assists, ctx: &AssistContext<'_>
     if !assoc.implementing_ty(ctx.sema.db)?.is_bool() {
         return None;
     }
+    let (else_mcall, else_body) = parent_has_unwrap_or_else(&mcall).unzip();
 
     let target = mcall.syntax().text_range();
     acc.add(
@@ -201,7 +202,9 @@ pub(crate) fn convert_bool_then_to_if(acc: &mut Assists, ctx: &AssistContext<'_>
                     ast::Expr::ReturnExpr(e) => e.expr(),
                     _ => Some(e.clone()),
                 };
-                if let Some(expr) = e {
+                if let Some(expr) = e
+                    && else_body.is_none()
+                {
                     editor.replace(
                         expr.syntax().clone(),
                         mapless_make
@@ -221,14 +224,15 @@ pub(crate) fn convert_bool_then_to_if(acc: &mut Assists, ctx: &AssistContext<'_>
                 ast::Expr::ParenExpr(expr) => expr.expr().unwrap_or(receiver),
                 _ => receiver,
             };
+            let else_branch = match else_body {
+                Some(ast::Expr::BlockExpr(block)) if block.modifier().is_none() => block,
+                Some(expr) => mapless_make.block_expr(None, Some(expr)),
+                None => make.block_expr(None, Some(none_path)),
+            };
             let if_expr = make
-                .expr_if(
-                    cond,
-                    closure_body,
-                    Some(ast::ElseBranch::Block(make.block_expr(None, Some(none_path)))),
-                )
+                .expr_if(cond, closure_body, Some(else_branch.reset_indent().into()))
                 .indent(mcall.indent_level());
-            editor.replace(mcall.syntax().clone(), if_expr.syntax().clone());
+            editor.replace(else_mcall.unwrap_or(mcall).syntax().clone(), if_expr.syntax().clone());
 
             editor.add_mappings(make.finish_with_mappings());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
@@ -301,6 +305,21 @@ fn block_is_none_variant(
         },
         _ => None,
     }) == Some(none_variant)
+}
+
+fn parent_has_unwrap_or_else(e: &ast::MethodCallExpr) -> Option<(ast::MethodCallExpr, ast::Expr)> {
+    let parent = e.syntax().parent()?;
+    let mcall = ast::MethodCallExpr::cast(parent)?;
+    let name = mcall.name_ref()?;
+
+    if name.text() != "unwrap_or_else" {
+        return None;
+    }
+
+    match mcall.arg_list()?.args().collect_array() {
+        Some([ast::Expr::ClosureExpr(closure)]) => Some((mcall, closure.body()?)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -585,6 +604,43 @@ fn main() {
         }
     } else {
         None
+    }
+}
+",
+        );
+    }
+
+    #[test]
+    fn convert_bool_then_to_if_unwrap_or_else() {
+        check_assist(
+            convert_bool_then_to_if,
+            r"
+//- minicore:bool_impl
+fn main() {
+    true.t$0hen(|| {
+        loop {
+            if false {
+                break 0;
+            }
+            break 15;
+        }
+    })
+        .unwrap_or_else(|| {
+            8
+        })
+}
+",
+            r"
+fn main() {
+    if true {
+        loop {
+            if false {
+                break 0;
+            }
+            break 15;
+        }
+    } else {
+        8
     }
 }
 ",
