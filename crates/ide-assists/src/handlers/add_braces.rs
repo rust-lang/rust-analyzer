@@ -1,6 +1,6 @@
 use syntax::{
     AstNode,
-    ast::{self, edit_in_place::Indent, syntax_factory::SyntaxFactory},
+    ast::{self, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -42,10 +42,10 @@ pub(crate) fn add_braces(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
             let make = SyntaxFactory::with_mappings();
             let mut editor = builder.make_editor(expr.syntax());
 
-            let block_expr = make.block_expr(None, Some(expr.clone()));
-            block_expr.indent(expr.indent_level());
+            let new_expr = expr.reset_indent().indent(1.into());
+            let block_expr = make.block_expr(None, Some(new_expr));
 
-            editor.replace(expr.syntax(), block_expr.syntax());
+            editor.replace(expr.syntax(), block_expr.indent(expr.indent_level()).syntax());
 
             editor.add_mappings(make.finish_with_mappings());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
@@ -137,6 +137,71 @@ fn foo() {
         },
         _ => ()
     };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn suggest_add_braces_indentations() {
+        check_assist(
+            add_braces,
+            r#"
+fn foo() {
+    {
+        {
+            match n {
+                Some(n) $0=> match () {
+                    () => {},
+                },
+                _ => ()
+            }
+        }
+    }
+}
+"#,
+            r#"
+fn foo() {
+    {
+        {
+            match n {
+                Some(n) => {
+                    match () {
+                        () => {},
+                    }
+                },
+                _ => ()
+            }
+        }
+    }
+}
+"#,
+        );
+
+        check_assist(
+            add_braces,
+            r#"
+fn foo() {
+    {
+        {
+            t(|n|$0 match n {
+                _ => (),
+            });
+        }
+    }
+}
+"#,
+            r#"
+fn foo() {
+    {
+        {
+            t(|n| {
+                match n {
+                    _ => (),
+                }
+            });
+        }
+    }
 }
 "#,
         );
