@@ -728,11 +728,13 @@ impl<'a> InferenceTable<'a> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    pub(crate) fn solve_obligation(&mut self, goal: Goal) -> Result<Certainty, NoSolution> {
+    pub(crate) fn solve_obligation(
+        &mut self,
+        goal: Goal,
+    ) -> Result<(HasChanged, Certainty), NoSolution> {
         let goal = InEnvironment::new(&self.trait_env.env, goal);
         let goal = goal.to_nextsolver(self.interner);
-        let result = next_trait_solve_in_ctxt(&self.infer_ctxt, goal);
-        result.map(|m| m.1)
+        next_trait_solve_in_ctxt(&self.infer_ctxt, goal)
     }
 
     pub(crate) fn register_obligation(&mut self, predicate: Predicate<'a>) {

@@ -505,8 +505,8 @@ fn test() {
                                 //^ S<i8, i16>
     let obj: &dyn Bar<_, i8, i16> = &S;
                                    //^ S<i8, i16>
-    //let obj: &dyn Foo<i8, _> = &S;
-                              // S<{unknown}, {unknown}>
+    let obj: &dyn Foo<i8, usize> = &S;
+                                  //^ S<i8, {unknown}>
 }"#,
     );
 }
