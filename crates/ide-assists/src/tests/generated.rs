@@ -2046,6 +2046,25 @@ impl<T> From<i32> for Foo<T> {
 }
 
 #[test]
+fn doctest_generate_struct() {
+    check_doc_test(
+        "generate_struct",
+        r#####"
+fn foo() {
+    let bar = Bar$0 { x: 2, y: 3, force: true };
+}
+"#####,
+        r#####"
+fn foo() {
+    let bar = Bar { x: 2, y: 3, force: true };
+}
+
+struct Bar { x: i32, y: i32, force: bool }
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_trait_from_impl() {
     check_doc_test(
         "generate_trait_from_impl",
