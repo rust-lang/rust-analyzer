@@ -963,10 +963,6 @@ fn classify_name_ref<'db>(
             }
         }
     };
-    let after_if_expr = |node: SyntaxNode| {
-        let prev_expr = prev_expr(node);
-        matches!(prev_expr, Some(ast::Expr::IfExpr(_)))
-    };
     let after_incomplete_let = |node: SyntaxNode| {
         prev_expr(node).and_then(|it| it.syntax().parent()).and_then(ast::LetStmt::cast)
     };
@@ -1214,7 +1210,7 @@ fn classify_name_ref<'db>(
         let it = expr.syntax();
         let in_block_expr = is_in_block(it);
         let in_loop_body = is_in_breakable(it);
-        let after_if_expr = after_if_expr(it.clone());
+        let after_if_expr = is_after_if_expr(it.clone());
         let ref_expr_parent =
             path.as_single_name_ref().and_then(|_| it.parent()).and_then(ast::RefExpr::cast);
         let after_amp = non_trivia_sibling(it.clone().into(), Direction::Prev)
@@ -1726,6 +1722,7 @@ fn pattern_context_for(
         param_ctx,
         has_type_ascription,
         should_suggest_name,
+        after_if_expr: is_after_if_expr(pat.syntax().clone()),
         parent_pat: pat.syntax().parent().and_then(ast::Pat::cast),
         mut_token,
         ref_token,
@@ -1868,6 +1865,18 @@ fn is_in_block(node: &SyntaxNode) -> bool {
     node.parent()
         .map(|node| ast::ExprStmt::can_cast(node.kind()) || ast::StmtList::can_cast(node.kind()))
         .unwrap_or(false)
+}
+
+fn is_after_if_expr(node: SyntaxNode) -> bool {
+    let node = match node.parent().and_then(Either::<ast::ExprStmt, ast::MatchArm>::cast) {
+        Some(stmt) => stmt.syntax().clone(),
+        None => node,
+    };
+    let prev_sibling =
+        non_trivia_sibling(node.into(), Direction::Prev).and_then(NodeOrToken::into_node);
+    iter::successors(prev_sibling, |it| it.last_child_or_token()?.into_node())
+        .find_map(ast::IfExpr::cast)
+        .is_some()
 }
 
 fn next_non_trivia_token(e: impl Into<SyntaxElement>) -> Option<SyntaxToken> {
