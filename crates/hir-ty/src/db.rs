@@ -401,6 +401,18 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
         &'db self,
         def: GenericDefId,
     ) -> crate::lower_nextsolver::GenericPredicates<'db>;
+
+    #[salsa::invoke(crate::lower_nextsolver::explicit_super_predicates_of_query)]
+    fn explicit_super_predicates_of<'db>(
+        &'db self,
+        def: GenericDefId,
+    ) -> crate::lower_nextsolver::GenericPredicates<'db>;
+
+    #[salsa::invoke(crate::lower_nextsolver::explicit_implied_predicates_of_query)]
+    fn explicit_implied_predicates_of<'db>(
+        &'db self,
+        def: GenericDefId,
+    ) -> crate::lower_nextsolver::GenericPredicates<'db>;
 }
 
 #[test]

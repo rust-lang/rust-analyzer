@@ -137,6 +137,8 @@ pub fn generics_require_sized_self(db: &dyn HirDatabase, def: GenericDefId) -> b
     };
 
     let interner = DbInterner::new_with(db, Some(krate), None);
+    // FIXME: We should use `explicit_predicates_of` here, which hasn't been implemented to
+    // rust-analyzer yet
     let predicates = db.generic_predicates_ns(def);
     elaborate::elaborate(interner, predicates.iter().copied()).any(|pred| {
         match pred.kind().skip_binder() {

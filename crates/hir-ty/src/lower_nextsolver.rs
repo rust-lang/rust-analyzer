@@ -534,25 +534,23 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         match where_predicate {
             WherePredicate::ForLifetime { target, bound, .. }
             | WherePredicate::TypeBound { target, bound } => {
-                if let PredicateFilter::SelfTrait = predicate_filter {
-                    let target_type = &self.store[*target];
-                    let self_type = 'is_self: {
-                        if let TypeRef::Path(path) = target_type
-                            && path.is_self_type()
-                        {
-                            break 'is_self true;
-                        }
-                        if let TypeRef::TypeParam(param) = target_type
-                            && generics[param.local_id()].is_trait_self()
-                        {
-                            break 'is_self true;
-                        }
-                        false
-                    };
-                    if !self_type {
-                        return Either::Left(Either::Left(iter::empty()));
-                    }
+                let is_self_ty = |ty_ref: TypeRefId| match &self.store[ty_ref] {
+                    TypeRef::Path(path) => path.is_self_type(),
+                    TypeRef::TypeParam(param) => generics[param.local_id()].is_trait_self(),
+                    _ => false,
+                };
+
+                let should_lower = match predicate_filter {
+                    PredicateFilter::SelfOnly => is_self_ty(*target),
+                    PredicateFilter::SelfAndAssociatedTypeBounds => {
+                        is_self_ty(*target) || matches!(&self.store[*target], TypeRef::Path(path) if path.type_anchor().is_some_and(is_self_ty))
+                    },
+                    PredicateFilter::All => true,
+                };
+                if !should_lower {
+                    return Either::Left(Either::Left(iter::empty()));
                 }
+
                 let self_ty = self.lower_ty(*target);
                 Either::Left(Either::Right(self.lower_type_bound(bound, self_ty, ignore_bindings)))
             }
@@ -1236,7 +1234,8 @@ impl<'db> ops::Deref for GenericPredicates<'db> {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum PredicateFilter {
-    SelfTrait,
+    SelfOnly,
+    SelfAndAssociatedTypeBounds,
     All,
 }
 
@@ -1263,6 +1262,21 @@ pub(crate) fn generic_predicates_without_parent_with_diagnostics_query<'db>(
     def: GenericDefId,
 ) -> (GenericPredicates<'db>, Diagnostics) {
     generic_predicates_filtered_by(db, def, PredicateFilter::All, |d| d == def)
+}
+
+pub(crate) fn explicit_super_predicates_of_query<'db>(
+    db: &'db dyn HirDatabase,
+    def: GenericDefId,
+) -> GenericPredicates<'db> {
+    generic_predicates_filtered_by(db, def, PredicateFilter::SelfOnly, |_| true).0
+}
+
+pub(crate) fn explicit_implied_predicates_of_query<'db>(
+    db: &'db dyn HirDatabase,
+    def: GenericDefId,
+) -> GenericPredicates<'db> {
+    generic_predicates_filtered_by(db, def, PredicateFilter::SelfAndAssociatedTypeBounds, |_| true)
+        .0
 }
 
 /// Resolve the where clause(s) of an item with generics,
@@ -1310,8 +1324,12 @@ where
 
     let explicitly_unsized_tys = ctx.unsized_types;
 
-    let sized_trait = LangItem::Sized.resolve_trait(db, resolver.krate());
-    if let Some(sized_trait) = sized_trait {
+    // We don't insert extra `: Sized` bounds if we are collecting predicates only for `Self`
+    if !matches!(
+        predicate_filter,
+        PredicateFilter::SelfOnly | PredicateFilter::SelfAndAssociatedTypeBounds
+    ) && let Some(sized_trait) = LangItem::Sized.resolve_trait(db, resolver.krate())
+    {
         let (mut generics, mut def_id) =
             (crate::next_solver::generics::generics(db, def.into()), def);
         loop {
@@ -1357,6 +1375,9 @@ where
             }
         }
     }
+
+    // FIXME: rustc gathers more predicates by recursing through resulting trait predicates.
+    // See https://github.com/rust-lang/rust/blob/76c5ed2847cdb26ef2822a3a165d710f6b772217/compiler/rustc_hir_analysis/src/collect/predicates_of.rs#L689-L715
 
     (
         GenericPredicates(predicates.is_empty().not().then(|| predicates.into())),
@@ -1724,7 +1745,7 @@ fn named_associated_type_shorthand_candidates<'db, R>(
             for pred in generic_predicates_filtered_by(
                 db,
                 GenericDefId::TraitId(trait_def_id),
-                PredicateFilter::SelfTrait,
+                PredicateFilter::SelfOnly,
                 // We are likely in the midst of lowering generic predicates of `def`.
                 // So, if we allow `pred == def` we might fall into an infinite recursion.
                 // Actually, we have already checked for the case `pred == def` above as we started
