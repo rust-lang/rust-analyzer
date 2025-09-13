@@ -83,8 +83,7 @@ impl Evaluator<'_> {
                 destination,
                 locals,
                 span,
-                !function_data.has_body()
-                    || attrs.by_key(sym::rustc_intrinsic_must_be_overridden).exists(),
+                !function_data.has_body(),
             );
         }
         let is_extern_c = match def.lookup(self.db).container {

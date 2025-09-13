@@ -425,7 +425,6 @@ define_symbols! {
     rustc_deallocator,
     rustc_deprecated_safe_2024,
     rustc_has_incoherent_inherent_impls,
-    rustc_intrinsic_must_be_overridden,
     rustc_intrinsic,
     rustc_layout_scalar_valid_range_end,
     rustc_layout_scalar_valid_range_start,
