@@ -94,6 +94,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::TypedHole<'_>) -> Option<Vec<Ass
                 TextEdit::replace(original_range.range, code),
             )),
             command: None,
+            question_chain: None,
         })
         .collect();
 
