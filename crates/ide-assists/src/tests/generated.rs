@@ -2760,6 +2760,38 @@ pub mod std { pub mod collections { pub struct HashMap { } } }
 }
 
 #[test]
+fn doctest_recursively_add_derive() {
+    check_doc_test(
+        "recursively_add_derive",
+        r#####"
+//- minicore: derive, clone
+struct X(u32);
+
+struct Y(u32);
+
+#[derive(Cl$0one)]
+struct Point {
+    x: X,
+    y: Y,
+}
+"#####,
+        r#####"
+#[derive(Clone)]
+struct X(u32);
+
+#[derive(Clone)]
+struct Y(u32);
+
+#[derive(Clone)]
+struct Point {
+    x: X,
+    y: Y,
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_reformat_number_literal() {
     check_doc_test(
         "reformat_number_literal",
