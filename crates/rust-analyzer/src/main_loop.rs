@@ -847,6 +847,16 @@ impl GlobalState {
                 self.debounce_workspace_fetch();
                 let vfs = &mut self.vfs.write().0;
                 for (path, contents) in files {
+                    if !is_changed
+                        && self.minicore_file_id.is_none()
+                        && matches!(path.name_and_extension(), Some(("minicore", Some("rs"))))
+                        && let Some((minicore_file_id, vfs::FileExcluded::No)) =
+                            vfs.file_id(&VfsPath::from(path.clone()))
+                    {
+                        // Not a lot of bad can happen from mistakenly identifying `minicore`, so proceed with that.
+                        self.minicore_file_id = Some(minicore_file_id);
+                    }
+
                     let path = VfsPath::from(path);
                     // if the file is in mem docs, it's managed by the client via notifications
                     // so only set it if its not in there

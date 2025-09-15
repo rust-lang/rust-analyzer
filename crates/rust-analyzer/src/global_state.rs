@@ -136,6 +136,7 @@ pub(crate) struct GlobalState {
     // as that handle's lifetime is the same as `GlobalState` itself.
     pub(crate) vfs_span: Option<tracing::span::EnteredSpan>,
     pub(crate) wants_to_switch: Option<Cause>,
+    pub(crate) minicore_file_id: Option<FileId>,
 
     /// `workspaces` field stores the data we actually use, while the `OpQueue`
     /// stores the result of the last fetch.
@@ -193,6 +194,7 @@ pub(crate) struct GlobalStateSnapshot {
     mem_docs: MemDocs,
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
     vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
+    minicore_file_id: Option<FileId>,
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
     // used to signal semantic highlighting to fall back to syntax based highlighting until
     // proc-macros have been loaded
@@ -286,6 +288,7 @@ impl GlobalState {
             vfs_span: None,
             vfs_done: true,
             wants_to_switch: None,
+            minicore_file_id: None,
 
             workspaces: Arc::from(Vec::new()),
             crate_graph_file_dependencies: FxHashSet::default(),
@@ -544,6 +547,7 @@ impl GlobalState {
             workspaces: Arc::clone(&self.workspaces),
             analysis: self.analysis_host.analysis(),
             vfs: Arc::clone(&self.vfs),
+            minicore_file_id: self.minicore_file_id,
             check_fixes: Arc::clone(&self.diagnostics.check_fixes),
             mem_docs: self.mem_docs.clone(),
             semantic_tokens_cache: Arc::clone(&self.semantic_tokens_cache),
@@ -809,6 +813,13 @@ impl GlobalStateSnapshot {
 
     pub(crate) fn file_exists(&self, file_id: FileId) -> bool {
         self.vfs.read().0.exists(file_id)
+    }
+
+    pub(crate) fn minicore(&self) -> Cancellable<Option<Arc<str>>> {
+        match self.minicore_file_id {
+            Some(file_id) => self.analysis.file_text(file_id).map(Some),
+            None => Ok(None),
+        }
     }
 }
 

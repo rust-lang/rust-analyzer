@@ -44,7 +44,7 @@ pub struct HlRange {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct HighlightConfig {
+pub struct HighlightConfig<'a> {
     /// Whether to highlight strings
     pub strings: bool,
     /// Whether to highlight punctuation
@@ -61,6 +61,12 @@ pub struct HighlightConfig {
     pub macro_bang: bool,
     /// Whether to highlight unresolved things be their syntax
     pub syntactic_name_ref_highlighting: bool,
+    /// This is a bit of a special field, it's not really a config, rather it's a way to pass information to highlight.
+    ///
+    /// Fixture highlighting requires the presence of a `minicore.rs` file. If such file is believed to be found in
+    /// the workspace (based on the path), this field stores its contents. Otherwise, highlighting will use the `minicore`
+    /// that was baked into the rust-analyzer binary.
+    pub minicore: Option<&'a str>,
 }
 
 // Feature: Semantic Syntax Highlighting
@@ -188,7 +194,7 @@ pub struct HighlightConfig {
 // ![Semantic Syntax Highlighting](https://user-images.githubusercontent.com/48062697/113187625-f7f50100-9250-11eb-825e-91c58f236071.png)
 pub(crate) fn highlight(
     db: &RootDatabase,
-    config: HighlightConfig,
+    config: &HighlightConfig<'_>,
     file_id: FileId,
     range_to_highlight: Option<TextRange>,
 ) -> Vec<HlRange> {
@@ -223,7 +229,7 @@ pub(crate) fn highlight(
 fn traverse(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
-    config: HighlightConfig,
+    config: &HighlightConfig<'_>,
     InRealFile { file_id, value: root }: InRealFile<&SyntaxNode>,
     krate: Option<hir::Crate>,
     range_to_highlight: TextRange,
@@ -488,7 +494,7 @@ fn traverse(
 fn string_injections(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
-    config: HighlightConfig,
+    config: &HighlightConfig<'_>,
     file_id: EditionedFileId,
     krate: Option<hir::Crate>,
     token: SyntaxToken,
@@ -585,7 +591,7 @@ fn descend_token(
     })
 }
 
-fn filter_by_config(highlight: &mut Highlight, config: HighlightConfig) -> bool {
+fn filter_by_config(highlight: &mut Highlight, config: &HighlightConfig<'_>) -> bool {
     match &mut highlight.tag {
         HlTag::StringLiteral if !config.strings => return false,
         // If punctuation is disabled, make the macro bang part of the macro call again.

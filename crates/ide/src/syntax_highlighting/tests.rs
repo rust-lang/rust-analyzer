@@ -7,7 +7,7 @@ use test_utils::{AssertLinear, bench, bench_fixture, skip_slow_tests};
 
 use crate::{FileRange, HighlightConfig, HlTag, TextRange, fixture};
 
-const HL_CONFIG: HighlightConfig = HighlightConfig {
+const HL_CONFIG: HighlightConfig<'_> = HighlightConfig {
     strings: true,
     punctuation: true,
     specialize_punctuation: true,
@@ -16,6 +16,7 @@ const HL_CONFIG: HighlightConfig = HighlightConfig {
     inject_doc_comment: true,
     macro_bang: true,
     syntactic_name_ref_highlighting: false,
+    minicore: None,
 };
 
 #[test]
@@ -1016,6 +1017,35 @@ impl t for foo {
 }
 
 #[test]
+fn test_injection_2() {
+    check_highlighting(
+        r##"
+fn fixture(#[rust_analyzer::rust_fixture] ra_fixture: &str) {}
+
+fn main() {
+    fixture(r#"
+@@- /main.rs crate:main deps:other_crate
+fn test() {
+    let x = other_crate::foo::S::thing();
+    x;
+} //^ i128
+
+@@- /lib.rs crate:other_crate
+pub mod foo {
+    pub struct S;
+    impl S {
+        pub fn thing() -> i128 { 0 }
+    }
+}
+    "#);
+}
+"##,
+        expect_file!["./test_data/highlight_injection_2.html"],
+        false,
+    );
+}
+
+#[test]
 fn test_injection() {
     check_highlighting(
         r##"
@@ -1023,7 +1053,8 @@ fn fixture(#[rust_analyzer::rust_fixture] ra_fixture: &str) {}
 
 fn main() {
     fixture(r#"
-trait Foo {
+@@- minicore: sized
+trait Foo: Sized {
     fn foo() {
         println!("2 + 2 = {}", 4);
     }
