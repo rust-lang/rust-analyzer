@@ -274,6 +274,41 @@ impl Analysis {
         (host.analysis(), file_id)
     }
 
+    pub fn from_ra_fixture(text: &str, minicore: &str) -> (Analysis, Vec<(FileId, usize)>) {
+        // We don't want a mistake in the fixture to crash r-a, so we wrap this in `catch_unwind()`.
+        std::panic::catch_unwind(|| {
+            let mut host = AnalysisHost::default();
+            let fixture = test_fixture::ChangeFixture::parse_with_proc_macros(
+                &host.db,
+                text,
+                minicore,
+                Vec::new(),
+            );
+            host.apply_change(fixture.change);
+            let files = fixture
+                .files
+                .into_iter()
+                .zip(fixture.file_lines)
+                .map(|(file_id, range)| (file_id.file_id(&host.db), range))
+                .collect();
+            (host.analysis(), files)
+        })
+        .unwrap_or_else(|error| {
+            tracing::error!(
+                "cannot crate the crate graph: {}\nCrate graph:\n{}\n",
+                if let Some(&s) = error.downcast_ref::<&'static str>() {
+                    s
+                } else if let Some(s) = error.downcast_ref::<String>() {
+                    s.as_str()
+                } else {
+                    "Box<dyn Any>"
+                },
+                text,
+            );
+            (AnalysisHost::default().analysis(), Vec::new())
+        })
+    }
+
     /// Debug info about the current state of the analysis.
     pub fn status(&self, file_id: Option<FileId>) -> Cancellable<String> {
         self.with_db(|db| status::status(db, file_id))
@@ -675,20 +710,20 @@ impl Analysis {
     /// Computes syntax highlighting for the given file
     pub fn highlight(
         &self,
-        highlight_config: HighlightConfig,
+        highlight_config: HighlightConfig<'_>,
         file_id: FileId,
     ) -> Cancellable<Vec<HlRange>> {
         // highlighting may construct a new database for "speculative" execution, so we can't currently attach the database
         // highlighting instead sets up the attach hook where neceesary for the trait solver
         Cancelled::catch(|| {
-            syntax_highlighting::highlight(&self.db, highlight_config, file_id, None)
+            syntax_highlighting::highlight(&self.db, &highlight_config, file_id, None)
         })
     }
 
     /// Computes syntax highlighting for the given file range.
     pub fn highlight_range(
         &self,
-        highlight_config: HighlightConfig,
+        highlight_config: HighlightConfig<'_>,
         frange: FileRange,
     ) -> Cancellable<Vec<HlRange>> {
         // highlighting may construct a new database for "speculative" execution, so we can't currently attach the database
@@ -696,7 +731,7 @@ impl Analysis {
         Cancelled::catch(|| {
             syntax_highlighting::highlight(
                 &self.db,
-                highlight_config,
+                &highlight_config,
                 frange.file_id,
                 Some(frange.range),
             )

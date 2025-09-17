@@ -12,6 +12,7 @@ use syntax::{
     AstToken, NodeOrToken, SyntaxNode, TextRange, TextSize,
     ast::{self, AstNode, IsString, QuoteOffsets},
 };
+use test_utils::MiniCore;
 
 use crate::{
     Analysis, HlMod, HlRange, HlTag, RootDatabase,
@@ -22,7 +23,7 @@ use crate::{
 pub(super) fn ra_fixture(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
-    config: HighlightConfig,
+    config: &HighlightConfig<'_>,
     literal: &ast::String,
     expanded: &ast::String,
 ) -> Option<()> {
@@ -44,59 +45,126 @@ pub(super) fn ra_fixture(
         hl.add(HlRange { range, highlight: HlTag::StringLiteral.into(), binding_hash: None })
     }
 
+    let minicore = config.minicore.unwrap_or(MiniCore::RAW_SOURCE);
+
     let mut inj = Injector::default();
 
+    // This is used for the `Injector`, to resolve precise location in the string literal,
+    // which will then be used to resolve precise location in the enclosing file.
+    let mut offset_with_indent = TextSize::new(0);
+    // This is used to resolve the location relative to the virtual file into a location
+    // relative to the indentation-trimmed file which will then (by the `Injector`) used
+    // to resolve to a location in the actual file.
+    // Besides indentation, we also skip `$0` cursors for this, since they are not included
+    // in the virtual files.
+    let mut offset_without_indent = TextSize::new(0);
+
     let mut text = &*value;
-    let mut offset: TextSize = 0.into();
+    if let Some(t) = text.strip_prefix('\n') {
+        offset_with_indent += TextSize::of("\n");
+        text = t;
+    }
+    // This stores the offsets of each line, **after we remove indentation**.
+    let mut line_offsets = Vec::new();
+    for mut line in text.split_inclusive('\n') {
+        line_offsets.push(offset_without_indent);
 
-    while !text.is_empty() {
+        if line.starts_with("@@") {
+            // Introducing `//` into a fixture inside fixture causes all sorts of problems,
+            // so for testing purposes we escape it as `@@` and replace it here.
+            inj.add("//", TextRange::at(offset_with_indent, TextSize::of("@@")));
+            line = &line["@@".len()..];
+            offset_with_indent += TextSize::of("@@");
+            offset_without_indent += TextSize::of("@@");
+        }
+
+        // Remove indentation to simplify the mapping with fixture (which de-indents).
+        // Removing indentation shouldn't affect highlighting.
+        let mut unindented_line = line.trim_start();
+        if unindented_line.is_empty() {
+            // The whole line was whitespaces, but we need the newline.
+            unindented_line = "\n";
+        }
+        offset_with_indent += TextSize::of(line) - TextSize::of(unindented_line);
+
         let marker = "$0";
-        let idx = text.find(marker).unwrap_or(text.len());
-        let (chunk, next) = text.split_at(idx);
-        inj.add(chunk, TextRange::at(offset, TextSize::of(chunk)));
+        match unindented_line.find(marker) {
+            Some(marker_pos) => {
+                let (before_marker, after_marker) = unindented_line.split_at(marker_pos);
+                let after_marker = &after_marker[marker.len()..];
 
-        text = next;
-        offset += TextSize::of(chunk);
+                inj.add(
+                    before_marker,
+                    TextRange::at(offset_with_indent, TextSize::of(before_marker)),
+                );
+                offset_with_indent += TextSize::of(before_marker);
+                offset_without_indent += TextSize::of(before_marker);
 
-        if let Some(next) = text.strip_prefix(marker) {
-            if let Some(range) = literal.map_range_up(TextRange::at(offset, TextSize::of(marker))) {
-                hl.add(HlRange {
-                    range,
-                    highlight: HlTag::Keyword | HlMod::Injected,
-                    binding_hash: None,
-                });
+                if let Some(marker_range) =
+                    literal.map_range_up(TextRange::at(offset_with_indent, TextSize::of(marker)))
+                {
+                    hl.add(HlRange {
+                        range: marker_range,
+                        highlight: HlTag::Keyword | HlMod::Injected,
+                        binding_hash: None,
+                    });
+                }
+                offset_with_indent += TextSize::of(marker);
+
+                inj.add(
+                    after_marker,
+                    TextRange::at(offset_with_indent, TextSize::of(after_marker)),
+                );
+                offset_with_indent += TextSize::of(after_marker);
+                offset_without_indent += TextSize::of(after_marker);
             }
-
-            text = next;
-
-            let marker_len = TextSize::of(marker);
-            offset += marker_len;
+            None => {
+                inj.add(
+                    unindented_line,
+                    TextRange::at(offset_with_indent, TextSize::of(unindented_line)),
+                );
+                offset_with_indent += TextSize::of(unindented_line);
+                offset_without_indent += TextSize::of(unindented_line);
+            }
         }
     }
 
-    let (analysis, tmp_file_id) = Analysis::from_single_file(inj.take_text());
+    let (analysis, tmp_file_ids) = Analysis::from_ra_fixture(&inj.take_text(), minicore);
 
-    for mut hl_range in analysis
-        .highlight(
-            HighlightConfig {
-                syntactic_name_ref_highlighting: false,
-                punctuation: true,
-                operator: true,
-                strings: true,
-                specialize_punctuation: config.specialize_punctuation,
-                specialize_operator: config.operator,
-                inject_doc_comment: config.inject_doc_comment,
-                macro_bang: config.macro_bang,
-            },
-            tmp_file_id,
-        )
-        .unwrap()
-    {
-        for range in inj.map_range_up(hl_range.range) {
-            if let Some(range) = literal.map_range_up(range) {
-                hl_range.range = range;
-                hl_range.highlight |= HlMod::Injected;
-                hl.add(hl_range);
+    for (tmp_file_id, tmp_file_line) in tmp_file_ids {
+        // This could be `None` if the file is empty.
+        let Some(&tmp_file_offset) = line_offsets.get(tmp_file_line) else {
+            continue;
+        };
+        for mut hl_range in analysis
+            .highlight(
+                HighlightConfig {
+                    syntactic_name_ref_highlighting: false,
+                    punctuation: true,
+                    operator: true,
+                    strings: true,
+                    specialize_punctuation: config.specialize_punctuation,
+                    specialize_operator: config.operator,
+                    inject_doc_comment: config.inject_doc_comment,
+                    macro_bang: config.macro_bang,
+                    // What if there is a fixture inside a fixture? It's fixtures all the way down.
+                    // (In fact, we have a fixture inside a fixture in our test suite!)
+                    minicore: config.minicore,
+                },
+                tmp_file_id,
+            )
+            .unwrap()
+        {
+            // Resolve the offset relative to the virtual file to an offset relative to the combined indentation-trimmed file
+            let range = hl_range.range + tmp_file_offset;
+            // Then resolve that to an offset relative to the real file.
+            for range in inj.map_range_up(range) {
+                // And finally resolve the offset relative to the literal to relative to the file.
+                if let Some(range) = literal.map_range_up(range) {
+                    hl_range.range = range;
+                    hl_range.highlight |= HlMod::Injected;
+                    hl.add(hl_range);
+                }
             }
         }
     }
@@ -115,7 +183,7 @@ const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
 pub(super) fn doc_comment(
     hl: &mut Highlights,
     sema: &Semantics<'_, RootDatabase>,
-    config: HighlightConfig,
+    config: &HighlightConfig<'_>,
     src_file_id: EditionedFileId,
     node: &SyntaxNode,
 ) {
@@ -248,7 +316,7 @@ pub(super) fn doc_comment(
     if let Ok(ranges) = analysis.with_db(|db| {
         super::highlight(
             db,
-            HighlightConfig {
+            &HighlightConfig {
                 syntactic_name_ref_highlighting: true,
                 punctuation: true,
                 operator: true,
@@ -257,6 +325,7 @@ pub(super) fn doc_comment(
                 specialize_operator: config.operator,
                 inject_doc_comment: config.inject_doc_comment,
                 macro_bang: config.macro_bang,
+                minicore: config.minicore,
             },
             tmp_file_id,
             None,

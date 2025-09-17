@@ -24,7 +24,7 @@ use paths::AbsPathBuf;
 use span::{Edition, FileId, Span};
 use stdx::itertools::Itertools;
 use test_utils::{
-    CURSOR_MARKER, ESCAPED_CURSOR_MARKER, Fixture, FixtureWithProjectMeta, RangeOrOffset,
+    CURSOR_MARKER, ESCAPED_CURSOR_MARKER, Fixture, FixtureWithProjectMeta, MiniCore, RangeOrOffset,
     extract_range_or_offset,
 };
 use triomphe::Arc;
@@ -69,7 +69,12 @@ pub trait WithFixture: Default + ExpandDatabase + SourceDatabase + 'static {
         proc_macros: Vec<(String, ProcMacro)>,
     ) -> Self {
         let mut db = Self::default();
-        let fixture = ChangeFixture::parse_with_proc_macros(&db, ra_fixture, proc_macros);
+        let fixture = ChangeFixture::parse_with_proc_macros(
+            &db,
+            ra_fixture,
+            MiniCore::RAW_SOURCE,
+            proc_macros,
+        );
         fixture.change.apply(&mut db);
         assert!(fixture.file_position.is_none());
         db
@@ -112,6 +117,7 @@ impl<DB: ExpandDatabase + SourceDatabase + Default + 'static> WithFixture for DB
 
 pub struct ChangeFixture {
     pub file_position: Option<(EditionedFileId, RangeOrOffset)>,
+    pub file_lines: Vec<usize>,
     pub files: Vec<EditionedFileId>,
     pub change: ChangeWithProcMacros,
 }
@@ -123,12 +129,13 @@ impl ChangeFixture {
         db: &dyn salsa::Database,
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) -> ChangeFixture {
-        Self::parse_with_proc_macros(db, ra_fixture, Vec::new())
+        Self::parse_with_proc_macros(db, ra_fixture, MiniCore::RAW_SOURCE, Vec::new())
     }
 
     pub fn parse_with_proc_macros(
         db: &dyn salsa::Database,
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        minicore_raw: &str,
         mut proc_macro_defs: Vec<(String, ProcMacro)>,
     ) -> ChangeFixture {
         let FixtureWithProjectMeta {
@@ -149,6 +156,7 @@ impl ChangeFixture {
         let mut source_change = FileChange::default();
 
         let mut files = Vec::new();
+        let mut file_lines = Vec::new();
         let mut crate_graph = CrateGraphBuilder::default();
         let mut crates = FxIndexMap::default();
         let mut crate_deps = Vec::new();
@@ -173,6 +181,8 @@ impl ChangeFixture {
         let proc_macro_cwd = Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap()));
 
         for entry in fixture {
+            file_lines.push(entry.line);
+
             let mut range_or_offset = None;
             let text = if entry.text.contains(CURSOR_MARKER) {
                 if entry.text.contains(ESCAPED_CURSOR_MARKER) {
@@ -259,7 +269,7 @@ impl ChangeFixture {
             fs.insert(core_file, VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_owned()));
             roots.push(SourceRoot::new_library(fs));
 
-            source_change.change_file(core_file, Some(mini_core.source_code()));
+            source_change.change_file(core_file, Some(mini_core.source_code(minicore_raw)));
 
             let core_crate = crate_graph.add_crate_root(
                 core_file,
@@ -394,7 +404,7 @@ impl ChangeFixture {
         change.source_change.set_roots(roots);
         change.source_change.set_crate_graph(crate_graph);
 
-        ChangeFixture { file_position, files, change }
+        ChangeFixture { file_position, file_lines, files, change }
     }
 }
 

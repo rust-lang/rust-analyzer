@@ -29,7 +29,7 @@ pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: boo
 
     let hl_ranges = highlight(
         db,
-        HighlightConfig {
+        &HighlightConfig {
             strings: true,
             punctuation: true,
             specialize_punctuation: true,
@@ -38,6 +38,7 @@ pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: boo
             inject_doc_comment: true,
             macro_bang: true,
             syntactic_name_ref_highlighting: false,
+            minicore: None,
         },
         file_id.file_id(db),
         None,
