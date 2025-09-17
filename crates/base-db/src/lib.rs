@@ -160,7 +160,6 @@ impl Files {
         *file_source_root
     }
 
-
     pub fn set_file_source_root_with_durability(
         &self,
         db: &mut dyn SourceDatabase,
