@@ -141,6 +141,15 @@ impl Files {
         };
     }
 
+    /// - `None` may occur if the
+    ///   [`FileId`](https://docs.rs/ra_ap_vfs/latest/ra_ap_vfs/struct.FileId.html)
+    ///   has been loaded into the VFS but was not registered with the
+    ///   [`ra_ap_base_db::RootDatabase`](https://docs.rs/ra_ap_ide_db/latest/ra_ap_ide_db/struct.RootDatabase.html).
+    /// - See [rust-analyzer#20676](https://github.com/rust-lang/rust-analyzer/issues/20676)
+    ///   for details and reproduction steps.
+    ///
+    /// To ensure proper registration, use
+    /// [`ra_ap_load_cargo::load_workspace()`](https://docs.rs/ra_ap_load-cargo/latest/ra_ap_load_cargo/fn.load_workspace.html).
     pub fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
         let file_source_root = match self.file_source_roots.get(&id) {
             Some(file_source_root) => file_source_root,
@@ -150,6 +159,7 @@ impl Files {
         };
         *file_source_root
     }
+
 
     pub fn set_file_source_root_with_durability(
         &self,
