@@ -16,7 +16,7 @@ fn assert_parse_result(input: &str, expected: CfgExpr) {
     let tt = syntax_node_to_token_tree(
         tt.syntax(),
         DummyTestSpanMap,
-        DUMMY,
+        *DUMMY,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
@@ -29,7 +29,7 @@ fn check_dnf(input: &str, expect: Expect) {
     let tt = syntax_node_to_token_tree(
         tt.syntax(),
         DummyTestSpanMap,
-        DUMMY,
+        *DUMMY,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
@@ -43,7 +43,7 @@ fn check_why_inactive(input: &str, opts: &CfgOptions, expect: Expect) {
     let tt = syntax_node_to_token_tree(
         tt.syntax(),
         DummyTestSpanMap,
-        DUMMY,
+        *DUMMY,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
@@ -59,7 +59,7 @@ fn check_enable_hints(input: &str, opts: &CfgOptions, expected_hints: &[&str]) {
     let tt = syntax_node_to_token_tree(
         tt.syntax(),
         DummyTestSpanMap,
-        DUMMY,
+        *DUMMY,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
