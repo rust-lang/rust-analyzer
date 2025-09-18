@@ -47,7 +47,7 @@ pub type TypeError<'db> = rustc_type_ir::error::TypeError<DbInterner<'db>>;
 pub type QueryResult<'db> = rustc_type_ir::solve::QueryResult<DbInterner<'db>>;
 
 #[cfg(feature = "in-rust-tree")]
-use rustc_data_structure::sorted_map::index_map as indexmap;
+use rustc_data_structures::sorted_map::index_map as indexmap;
 
 pub type FxIndexMap<K, V> =
     indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
