@@ -1,7 +1,7 @@
 use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use syntax::{
     T,
-    ast::{self, AstNode, BinaryOp},
+    ast::{self, AstNode, BinaryOp, edit::AstNodeEdit},
 };
 
 use crate::{
@@ -87,6 +87,58 @@ pub(crate) fn merge_nested_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         edit.replace(cond_range, replace_cond);
         edit.replace(then_branch_range, nested_if_then_branch.syntax().text());
     })
+}
+
+// Assist: merge_nested_else_if
+//
+// This transforms `if x {} else { if y {} }` into `if x {} else if y {}`,
+// This assist can only be applied with the cursor on `else`.
+//
+// ```
+// fn main() {
+//     if x == 3 {
+//         true
+//     } $0else {
+//         if x == 2 {
+//             false
+//         } else {
+//             true
+//         }
+//     }
+// }
+// ```
+// ->
+// ```
+// fn main() {
+//     if x == 3 {
+//         true
+//     } else if x == 2 {
+//         false
+//     } else {
+//         true
+//     }
+// }
+// ```
+pub(crate) fn merge_nested_else_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let else_keyword = ctx.find_token_syntax_at_offset(T![else])?;
+    let expr = ast::IfExpr::cast(else_keyword.parent()?)?;
+    let ast::ElseBranch::Block(else_block) = expr.else_branch()? else { return None };
+    let ast::Expr::IfExpr(else_expr) = else_block.tail_expr()? else { return None };
+
+    if else_block.statements().next().is_some() {
+        return None;
+    }
+
+    let target = else_keyword.text_range();
+    acc.add(
+        AssistId::refactor_rewrite("merge_nested_else_if"),
+        "Merge nested else if",
+        target,
+        |edit| {
+            let else_expr = else_expr.dedent(1.into()).into();
+            edit.replace_ast(ast::Expr::BlockExpr(else_block), else_expr);
+        },
+    )
 }
 
 /// Returns whether the given if condition has logical operators.
