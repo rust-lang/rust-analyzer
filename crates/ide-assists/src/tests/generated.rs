@@ -3069,6 +3069,25 @@ fn handle(action: Action) {
 }
 
 #[test]
+fn doctest_replace_if_matches_to_if_let() {
+    check_doc_test(
+        "replace_if_matches_to_if_let",
+        r#####"
+fn foo(x: Option<i32>) {
+    if let Some(n) = x && $0matches!(n.checked_div(2), Some(5..8)) {
+    }
+}
+"#####,
+        r#####"
+fn foo(x: Option<i32>) {
+    if let Some(n) = x && let Some(5..8) = n.checked_div(2) {
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_replace_is_some_with_if_let_some() {
     check_doc_test(
         "replace_is_some_with_if_let_some",

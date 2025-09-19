@@ -210,6 +210,7 @@ mod handlers {
     mod replace_arith_op;
     mod replace_derive_with_manual_impl;
     mod replace_if_let_with_match;
+    mod replace_if_matches_to_if_let;
     mod replace_is_method_with_if_let_method;
     mod replace_let_with_if_let;
     mod replace_method_eager_lazy;
@@ -352,6 +353,7 @@ mod handlers {
             replace_derive_with_manual_impl::replace_derive_with_manual_impl,
             replace_if_let_with_match::replace_if_let_with_match,
             replace_if_let_with_match::replace_match_with_if_let,
+            replace_if_matches_to_if_let::replace_if_matches_to_if_let,
             replace_is_method_with_if_let_method::replace_is_method_with_if_let_method,
             replace_let_with_if_let::replace_let_with_if_let,
             replace_method_eager_lazy::replace_with_eager_method,
