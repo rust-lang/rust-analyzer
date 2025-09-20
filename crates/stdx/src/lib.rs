@@ -1,5 +1,6 @@
 //! Missing batteries for standard libraries.
 
+use std::borrow::Cow;
 use std::io as sio;
 use std::process::Command;
 use std::{cmp::Ordering, ops, time::Instant};
@@ -212,6 +213,29 @@ pub fn trim_indent(mut text: &str) -> String {
             },
         )
         .collect()
+}
+
+/// Indent non empty lines, including the first line
+#[must_use]
+pub fn indent_string<'a, S>(s: S, indent_level: u8) -> Cow<'a, str>
+where
+    Cow<'a, str>: From<S>,
+{
+    let s = Cow::from(s);
+    if indent_level == 0 || s.is_empty() {
+        return s;
+    }
+    let indent_str = "    ".repeat(indent_level as usize);
+    s.split_inclusive("\n")
+        .map(|line| {
+            if line.trim_end().is_empty() {
+                Cow::Borrowed(line)
+            } else {
+                format!("{indent_str}{line}").into()
+            }
+        })
+        .collect::<String>()
+        .into()
 }
 
 pub fn equal_range_by<T, F>(slice: &[T], mut key: F) -> ops::Range<usize>
