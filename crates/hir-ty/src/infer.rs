@@ -632,6 +632,22 @@ impl InferenceResult {
     pub fn binding_mode(&self, id: PatId) -> Option<BindingMode> {
         self.binding_modes.get(id).copied()
     }
+
+    pub fn expression_types(&self) -> impl Iterator<Item = (ExprId, &Ty)> {
+        self.type_of_expr.iter()
+    }
+
+    pub fn pattern_types(&self) -> impl Iterator<Item = (PatId, &Ty)> {
+        self.type_of_pat.iter()
+    }
+
+    pub fn binding_types(&self) -> impl Iterator<Item = (BindingId, &Ty)> {
+        self.type_of_binding.iter()
+    }
+
+    pub fn return_position_impl_trait_types(&self) -> impl Iterator<Item = (ImplTraitIdx, &Ty)> {
+        self.type_of_rpit.iter()
+    }
 }
 
 impl Index<ExprId> for InferenceResult {
