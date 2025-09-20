@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FnTrait","NextTraitSolveResult"],"fn":["next_trait_solve","next_trait_solve_canonical_in_ctxt","next_trait_solve_in_ctxt"],"struct":["TraitEnvironment"]};

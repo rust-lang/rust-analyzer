@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["convert_args_for_result","convert_binder_to_early_binder","convert_canonical_args_for_result","convert_const_for_result","convert_region_for_result"],"trait":["ChalkToNextSolver","InferenceVarExt","NextSolverToChalk"]};
