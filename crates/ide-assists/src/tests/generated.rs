@@ -2477,6 +2477,37 @@ fn handle(action: Action) {
 }
 
 #[test]
+fn doctest_merge_nested_else_if() {
+    check_doc_test(
+        "merge_nested_else_if",
+        r#####"
+fn main() {
+    if x == 3 {
+        true
+    } $0else {
+        if x == 2 {
+            false
+        } else {
+            true
+        }
+    }
+}
+"#####,
+        r#####"
+fn main() {
+    if x == 3 {
+        true
+    } else if x == 2 {
+        false
+    } else {
+        true
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_merge_nested_if() {
     check_doc_test(
         "merge_nested_if",
