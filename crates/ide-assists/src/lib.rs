@@ -153,6 +153,7 @@ mod handlers {
     mod flip_comma;
     mod flip_or_pattern;
     mod flip_trait_bound;
+    mod generate_asref_impl_from_borrow;
     mod generate_constant;
     mod generate_default_from_enum_variant;
     mod generate_default_from_new;
@@ -304,6 +305,7 @@ mod handlers {
             generate_impl::generate_trait_impl,
             generate_impl::generate_impl_trait,
             generate_is_empty_from_len::generate_is_empty_from_len,
+            generate_asref_impl_from_borrow::generate_asref_impl_from_borrow,
             generate_mut_trait_impl::generate_mut_trait_impl,
             generate_new::generate_new,
             generate_trait_from_impl::generate_trait_from_impl,
