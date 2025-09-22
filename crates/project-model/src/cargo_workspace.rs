@@ -632,6 +632,8 @@ impl FetchMetadata {
     ) -> Self {
         let cargo = sysroot.tool(Tool::Cargo, current_dir, &config.extra_env);
         let mut command = MetadataCommand::new();
+        // Prevent rustup from automatically installing toolchains, see https://github.com/rust-lang/rust-analyzer/issues/20719.
+        command.env("RUSTUP_AUTO_INSTALL", "0");
         command.cargo_path(cargo.get_program());
         cargo.get_envs().for_each(|(var, val)| _ = command.env(var, val.unwrap_or_default()));
         command.manifest_path(cargo_toml.to_path_buf());
