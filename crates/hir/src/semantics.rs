@@ -36,7 +36,7 @@ use hir_ty::{
     diagnostics::unsafe_operations,
     infer_query_with_inspect,
     next_solver::{
-        AnyImplId, DbInterner,
+        AnyImplId, Const as ResolvedConst, DbInterner,
         format_proof_tree::{ProofTreeData, dump_proof_tree_structured},
     },
 };
@@ -1698,6 +1698,18 @@ impl<'db> SemanticsImpl<'db> {
         analyze.type_of_type(self.db, ty)
     }
 
+    pub fn resolve_infer(
+        &self,
+        ty: &ast::InferType,
+    ) -> Option<Either<Type<'db>, ResolvedConst<'db>>> {
+        let analyze = self.analyze(ty.syntax())?;
+        if let Some(const_) = analyze.resolve_infer_type_as_const(ty) {
+            return Some(Either::Right(const_));
+        }
+        let ty = analyze.type_of_type(self.db, &ast::Type::InferType(ty.clone()))?;
+        Some(Either::Left(ty))
+    }
+
     pub fn resolve_trait(&self, path: &ast::Path) -> Option<Trait> {
         let parent_ty = path.syntax().parent().and_then(ast::Type::cast)?;
         let analyze = self.analyze(path.syntax())?;
@@ -1857,6 +1869,13 @@ impl<'db> SemanticsImpl<'db> {
 
     fn resolve_try_expr(&self, try_expr: &ast::TryExpr) -> Option<Function> {
         self.analyze(try_expr.syntax())?.resolve_try_expr(self.db, try_expr)
+    }
+
+    pub fn resolve_underscore_expr(
+        &self,
+        underscore_expr: &ast::UnderscoreExpr,
+    ) -> Option<ResolvedConst<'db>> {
+        self.analyze(underscore_expr.syntax())?.resolve_underscore_expr(underscore_expr)
     }
 
     /// The type that the associated `try` block, closure or function expects.

@@ -37,8 +37,8 @@ use hir_ty::{
     lang_items::lang_items_for_bin_op,
     method_resolution::{self, CandidateId},
     next_solver::{
-        AliasTy, DbInterner, ErrorGuaranteed, GenericArgs, ParamEnv, Ty, TyKind, TypingMode,
-        infer::DbInternerInferExt,
+        AliasTy, Const as ResolvedConst, DbInterner, ErrorGuaranteed, GenericArgs, ParamEnv, Ty,
+        TyKind, TypingMode, infer::DbInternerInferExt,
     },
     traits::structurally_normalize_ty,
 };
@@ -842,6 +842,22 @@ impl<'db> SourceAnalyzer<'db> {
         let substs = GenericArgs::new_from_slice(&[ty.into()]);
 
         Some(self.resolve_impl_method_or_trait_def(db, op_fn, substs))
+    }
+
+    pub(crate) fn resolve_underscore_expr(
+        &self,
+        underscore_expr: &ast::UnderscoreExpr,
+    ) -> Option<ResolvedConst<'db>> {
+        let expr = self.expr_id(ast::Expr::UnderscoreExpr(underscore_expr.clone()))?.as_expr()?;
+        self.infer()?.const_of_const_placeholder(expr.into())
+    }
+
+    pub(crate) fn resolve_infer_type_as_const(
+        &self,
+        infer_type: &ast::InferType,
+    ) -> Option<ResolvedConst<'db>> {
+        let type_ref = self.type_id(&ast::Type::InferType(infer_type.clone()))?;
+        self.infer()?.const_of_const_placeholder(type_ref.into())
     }
 
     pub(crate) fn resolve_record_field(
