@@ -1770,6 +1770,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         lifetime_elision: LifetimeElisionKind<'db>,
         span: Span,
     ) -> Ty<'db> {
+        use hir_def::hir::TypeRefOrExprId::*;
+
         let ty = self
             .with_ty_lowering(store, type_source, lifetime_elision, |ctx| ctx.lower_ty(type_ref));
         let ty = self.process_user_written_ty(span, ty);
@@ -1778,10 +1780,13 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         // We only record them if their number matches. This assumes TypeRef::walk and TypeVisitable process the items in the same order.
         let type_variables = collect_type_inference_vars(&ty);
         let mut placeholder_ids = vec![];
-        TypeRef::walk(type_ref, store, &mut |type_ref_id| {
-            if matches!(store[type_ref_id], TypeRef::Placeholder) {
-                placeholder_ids.push(type_ref_id);
+        TypeRef::walk(type_ref, store, &mut |type_ref_or_expr_id| match type_ref_or_expr_id {
+            TypeRefId(type_ref_id) => {
+                if matches!(store[type_ref_id], TypeRef::Placeholder) {
+                    placeholder_ids.push(type_ref_id);
+                }
             }
+            ExprId(_) => {}
         });
 
         if placeholder_ids.len() == type_variables.len() {
