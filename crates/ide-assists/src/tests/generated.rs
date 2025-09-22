@@ -1128,6 +1128,32 @@ fn $0fun_name(n: i32) {
 }
 
 #[test]
+fn doctest_extract_impl_items() {
+    check_doc_test(
+        "extract_impl_items",
+        r#####"
+struct Foo;
+impl Foo {
+    fn foo() {}
+    $0fn bar() {}
+    fn baz() {}$0
+}
+"#####,
+        r#####"
+struct Foo;
+impl Foo {
+    fn foo() {}
+}
+
+impl Foo {
+    fn bar() {}
+    fn baz() {}
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_extract_module() {
     check_doc_test(
         "extract_module",
