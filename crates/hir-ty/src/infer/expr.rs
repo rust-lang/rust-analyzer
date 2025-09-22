@@ -2002,10 +2002,15 @@ impl<'db> InferenceContext<'db> {
                     },
                 );
 
+                let arg_types = args
+                    .iter()
+                    .map(|&arg| self.infer_expr_inner(arg, &Expectation::none(), ExprIsRead::Yes))
+                    .collect();
                 self.push_diagnostic(InferenceDiagnostic::UnresolvedMethodCall {
                     expr: tgt_expr,
                     receiver: receiver_ty.clone(),
                     name: method_name.clone(),
+                    arg_types,
                     field_with_same_name: field_with_same_name_exists.clone(),
                     assoc_func_with_same_name,
                 });

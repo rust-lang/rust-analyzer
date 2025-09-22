@@ -233,6 +233,7 @@ pub enum InferenceDiagnostic {
         expr: ExprId,
         receiver: Ty,
         name: Name,
+        arg_types: Vec<Ty>,
         /// Contains the type the field resolves to
         field_with_same_name: Option<Ty>,
         assoc_func_with_same_name: Option<FunctionId>,

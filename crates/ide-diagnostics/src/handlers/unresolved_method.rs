@@ -1,17 +1,20 @@
+use hir::HasSource;
 use hir::{FileRange, HirDisplay, InFile, db::ExpandDatabase};
+use ide_db::assists::ExprFillDefaultMode;
 use ide_db::text_edit::TextEdit;
 use ide_db::{
     assists::{Assist, AssistId},
     label::Label,
     source_change::SourceChange,
 };
+use itertools::Itertools;
 use syntax::{
     AstNode, SmolStr, TextRange, ToSmolStr,
     ast::{self, HasArgList, make},
     format_smolstr,
 };
 
-use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
+use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range, fix};
 
 // Diagnostic: unresolved-method
 //
@@ -67,7 +70,71 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedMethodCall<'_>) -> Opt
         fixes.push(assoc_func_fix);
     }
 
+    if let Some(method_fix) = add_method_fix(ctx, d) {
+        fixes.push(method_fix);
+    }
+
     if fixes.is_empty() { None } else { Some(fixes) }
+}
+
+/// Fix to add the missing method.
+fn add_method_fix(
+    ctx: &DiagnosticsContext<'_>,
+    d: &hir::UnresolvedMethodCall<'_>,
+) -> Option<Assist> {
+    let root = ctx.sema.db.parse_or_expand(d.expr.file_id);
+    let expr = d.expr.value.to_node(&root).left()?;
+
+    let db = ctx.sema.db;
+    let ty = d.receiver.clone();
+
+    let mut all_impl_blocks = hir::Impl::all_for_type(db, ty.clone())
+        .into_iter()
+        .chain(hir::Impl::all_for_type(db, ty.strip_reference()));
+    let impl_block = all_impl_blocks.find(|block| block.trait_(db).is_none())?;
+
+    let items = impl_block.items(db);
+    let last_item = items.last()?;
+    let source = last_item.source(db)?;
+    let file_id = match source.file_id {
+        hir::HirFileId::FileId(file_id) => file_id,
+        hir::HirFileId::MacroFile(_) => return None,
+    };
+    let module_id = last_item.module(db);
+    let end_of_last_item = source.node_file_range().file_range()?.range.end();
+
+    let method_body = match ctx.config.expr_fill_default {
+        ExprFillDefaultMode::Default | ExprFillDefaultMode::Todo => "todo!()",
+        ExprFillDefaultMode::Underscore => "_",
+    };
+
+    let method_name = d.name.as_str();
+    let params: Vec<String> = d
+        .arg_types
+        .iter()
+        .enumerate()
+        .map(|(i, ty)| {
+            let name = format!("arg{}", i + 1);
+            let ty = ty.display_source_code(db, module_id.into(), true).unwrap();
+            format!("{name}: {ty}")
+        })
+        .collect();
+    let param_list = if params.is_empty() {
+        "&self".to_owned()
+    } else {
+        format!("&self, {}", params.into_iter().join(","))
+    };
+
+    let text_to_insert = format!("\n  fn {method_name}({param_list}) {{ {method_body} }}");
+    Some(fix(
+        "add-missing-method",
+        "Add missing method",
+        SourceChange::from_text_edit(
+            file_id.file_id(db),
+            TextEdit::insert(end_of_last_item, text_to_insert),
+        ),
+        ctx.sema.original_range(expr.syntax()).range,
+    ))
 }
 
 fn field_fix(
@@ -283,6 +350,116 @@ fn main() {
     // ^^^ error: no method `foo` on type `()`
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_fix_ref_self() {
+        check_fix(
+            r#"
+struct Dolphin;
+
+impl Dolphin {
+  fn do_trick(&self) {}
+}
+
+#[allow(unused)]
+fn say_hi_to(dolphin: &Dolphin) {
+  "hello " + dolphin.name$0();
+}"#,
+            r#"
+struct Dolphin;
+
+impl Dolphin {
+  fn do_trick(&self) {}
+  fn name(&self) { todo!() }
+}
+
+#[allow(unused)]
+fn say_hi_to(dolphin: &Dolphin) {
+  "hello " + dolphin.name();
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_fix_self() {
+        check_fix(
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+}
+
+fn main() {
+  let t = Tiger;
+  t.roar$0();
+}"#,
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+  fn roar(&self) { todo!() }
+}
+
+fn main() {
+  let t = Tiger;
+  t.roar();
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_from_same_impl_block() {
+        check_fix(
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+  fn do_stuff(self) {
+    self.sleep();
+    self.roar$0();
+    self.sleep();
+  }
+}"#,
+            r#"
+struct Tiger;
+
+impl Tiger {
+  fn sleep(&self) {}
+  fn do_stuff(self) {
+    self.sleep();
+    self.roar();
+    self.sleep();
+  }
+  fn roar(&self) { todo!() }
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_add_method_with_args() {
+        check_fix(
+            r#"
+struct Speaker;
+
+impl Speaker {
+  fn greet(&self) {
+    self.say("hello")$0;
+  }
+}"#,
+            r#"
+struct Speaker;
+
+impl Speaker {
+  fn greet(&self) {
+    self.say("hello");
+  }
+  fn say(&self, arg1: &'static str) { todo!() }
+}"#,
         );
     }
 
