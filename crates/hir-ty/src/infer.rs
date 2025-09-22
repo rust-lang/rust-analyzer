@@ -39,7 +39,7 @@ use hir_def::{
     TupleFieldId, TupleId, TypeOrConstParamId, VariantId,
     attrs::AttrFlags,
     expr_store::{Body, ExpressionStore, HygieneId, RootExprOrigin, path::Path},
-    hir::{BindingId, ExprId, ExprOrPatId, LabelId, PatId},
+    hir::{BindingId, Expr, ExprId, ExprOrPatId, LabelId, PatId},
     lang_item::LangItems,
     layout::Integer,
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
@@ -54,7 +54,7 @@ use macros::{TypeFoldable, TypeVisitable};
 use rustc_ast_ir::Mutability;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{
-    AliasTyKind, TypeFoldable,
+    AliasTyKind, InferTy, TypeFoldable,
     inherent::{Const as _, IntoKind, Ty as _},
 };
 use smallvec::SmallVec;
@@ -65,7 +65,7 @@ use thin_vec::ThinVec;
 use crate::{
     ImplTraitId, IncorrectGenericsLenKind, PathLoweringDiagnostic, Span, TargetFeatures,
     closure_analysis::PlaceBase,
-    collect_type_inference_vars,
+    collect_inference_vars,
     db::{HirDatabase, InternedOpaqueTyId},
     infer::{
         callee::DeferredCallResolution,
@@ -87,7 +87,7 @@ use crate::{
         AliasTy, Const, DbInterner, ErrorGuaranteed, GenericArgs, Region, StoredGenericArg,
         StoredGenericArgs, StoredTy, StoredTys, Term, Ty, TyKind, Tys,
         abi::Safety,
-        infer::{InferCtxt, ObligationInspector, traits::ObligationCause},
+        infer::{InferCtxt, ObligationInspector, TyOrConstInferVar, traits::ObligationCause},
     },
     utils::TargetFeatureIsSafeInTarget,
 };
@@ -1778,20 +1778,38 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
 
         // Record the association from placeholders' TypeRefId to type variables.
         // We only record them if their number matches. This assumes TypeRef::walk and TypeVisitable process the items in the same order.
-        let type_variables = collect_type_inference_vars(&ty);
+        let variables = collect_inference_vars(&ty);
         let mut placeholder_ids = vec![];
         TypeRef::walk(type_ref, store, &mut |type_ref_or_expr_id| match type_ref_or_expr_id {
             TypeRefId(type_ref_id) => {
                 if matches!(store[type_ref_id], TypeRef::Placeholder) {
-                    placeholder_ids.push(type_ref_id);
+                    placeholder_ids.push(type_ref_or_expr_id);
                 }
             }
-            ExprId(_) => {}
+            ExprId(expr_id) => {
+                if matches!(store[expr_id], Expr::Underscore) {
+                    placeholder_ids.push(type_ref_or_expr_id);
+                }
+            }
         });
 
-        if placeholder_ids.len() == type_variables.len() {
-            for (placeholder_id, type_variable) in placeholder_ids.into_iter().zip(type_variables) {
-                self.write_type_placeholder_ty(placeholder_id, type_variable);
+        let interner = self.interner();
+        if placeholder_ids.len() == variables.len() {
+            for (placeholder_id, variable) in placeholder_ids.into_iter().zip(variables) {
+                match (placeholder_id, variable) {
+                    (TypeRefId(idx), TyOrConstInferVar::Ty(ty_vid)) => self
+                        .write_type_placeholder_ty(
+                            idx,
+                            Ty::new_infer(interner, InferTy::TyVar(ty_vid)),
+                        ),
+                    (TypeRefId(idx), TyOrConstInferVar::TyInt(int_vid)) => {
+                        self.write_type_placeholder_ty(idx, Ty::new_int_var(interner, int_vid))
+                    }
+                    (TypeRefId(idx), TyOrConstInferVar::TyFloat(float_vid)) => {
+                        self.write_type_placeholder_ty(idx, Ty::new_float_var(interner, float_vid))
+                    }
+                    _ => {}
+                }
             }
         }
 
