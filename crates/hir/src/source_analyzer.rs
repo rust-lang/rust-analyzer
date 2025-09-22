@@ -356,22 +356,50 @@ impl<'db> SourceAnalyzer<'db> {
             && let Some(store) = self.store()
         {
             let mut inferred_types = vec![];
+            let mut inferred_consts = vec![];
             TypeRef::walk(type_ref, store, &mut |type_ref_or_expr_id| {
                 use hir_def::hir::TypeRefOrExprId::*;
                 match type_ref_or_expr_id {
                     TypeRefId(type_ref_id) => {
                         if matches!(store[type_ref_id], TypeRef::Placeholder) {
-                            inferred_types.push(infer.type_of_type_placeholder(type_ref_id));
+                            if let Some(const_) =
+                                infer.const_of_const_placeholder(type_ref_or_expr_id)
+                            {
+                                inferred_consts.push(Some(const_));
+                            } else {
+                                inferred_types.push(infer.type_of_type_placeholder(type_ref_id));
+                            }
                         }
                     }
-                    ExprId(_) => {}
+                    ExprId(expr_id) => {
+                        if matches!(store[expr_id], Expr::Underscore) {
+                            inferred_consts
+                                .push(infer.const_of_const_placeholder(type_ref_or_expr_id));
+                        }
+                    }
                 }
             });
             let mut inferred_types = inferred_types.into_iter();
+            let mut inferred_consts = inferred_consts.into_iter();
 
-            let substituted_ty = hir_ty::next_solver::fold::fold_tys(interner, ty, |ty| {
-                if ty.is_ty_error() { inferred_types.next().flatten().unwrap_or(ty) } else { ty }
-            });
+            let substituted_ty = hir_ty::next_solver::fold::fold_tys_and_consts(
+                interner,
+                ty,
+                |ty| {
+                    if ty.is_ty_error() {
+                        inferred_types.next().flatten().unwrap_or(ty)
+                    } else {
+                        ty
+                    }
+                },
+                |const_| {
+                    if const_.is_error() {
+                        inferred_consts.next().flatten().unwrap_or(const_)
+                    } else {
+                        const_
+                    }
+                },
+            );
 
             // Only used the result if the placeholder and unknown type counts matched
             let success =
