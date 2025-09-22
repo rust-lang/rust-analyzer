@@ -67,7 +67,7 @@ use hir_def::{
     GenericDefId, HasModule, LifetimeParamId, ModuleId, StaticId, TypeAliasId, TypeOrConstParamId,
     TypeParamId,
     expr_store::{Body, ExpressionStore},
-    hir::{BindingId, ExprId, ExprOrPatId, ExprOrPatIdPacked, PatId},
+    hir::{BindingId, ExprId, ExprOrPatId, ExprOrPatIdPacked, PatId, TypeRefIdOrConstRef},
     resolver::{HasResolver, Resolver, TypeNs},
     type_ref::{Rawness, TypeRefId},
 };
@@ -537,6 +537,15 @@ impl From<ExprOrPatIdPacked> for Span {
         match value.unpack() {
             ExprOrPatId::ExprId(idx) => idx.into(),
             ExprOrPatId::PatId(idx) => idx.into(),
+        }
+    }
+}
+
+impl From<TypeRefIdOrConstRef> for Span {
+    fn from(value: TypeRefIdOrConstRef) -> Self {
+        match value {
+            TypeRefIdOrConstRef::TypeRefId(idx) => idx.into(),
+            TypeRefIdOrConstRef::ConstRef(idx) => idx.expr.into(),
         }
     }
 }
