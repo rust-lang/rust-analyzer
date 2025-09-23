@@ -3553,6 +3553,26 @@ fn main() {
 }
 
 #[test]
+fn doctest_unwrap_tuple_destructure_assign() {
+    check_doc_test(
+        "unwrap_tuple_destructure_assign",
+        r#####"
+fn foo() {
+    let (a, b);
+    (a, b) $0= (2, 3);
+}
+"#####,
+        r#####"
+fn foo() {
+    let (a, b);
+    a = 2;
+    b = 3;
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_unwrap_type_to_generic_arg() {
     check_doc_test(
         "unwrap_type_to_generic_arg",

@@ -228,6 +228,7 @@ mod handlers {
     mod unnecessary_async;
     mod unqualify_method_call;
     mod unwrap_block;
+    mod unwrap_destructure_assign;
     mod unwrap_return_type;
     mod unwrap_tuple;
     mod unwrap_type_to_generic_arg;
@@ -371,6 +372,7 @@ mod handlers {
             unnecessary_async::unnecessary_async,
             unqualify_method_call::unqualify_method_call,
             unwrap_block::unwrap_block,
+            unwrap_destructure_assign::unwrap_destructure_assign,
             unwrap_return_type::unwrap_return_type,
             unwrap_tuple::unwrap_tuple,
             unwrap_type_to_generic_arg::unwrap_type_to_generic_arg,
