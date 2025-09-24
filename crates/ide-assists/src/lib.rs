@@ -184,6 +184,7 @@ mod handlers {
     mod introduce_named_type_parameter;
     mod invert_if;
     mod merge_imports;
+    mod merge_let_stmts;
     mod merge_match_arms;
     mod merge_nested_if;
     mod move_bounds;
@@ -322,6 +323,7 @@ mod handlers {
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
             merge_nested_if::merge_nested_if,
+            merge_let_stmts::merge_let_stmts,
             move_bounds::move_bounds_to_where_clause,
             move_const_to_impl::move_const_to_impl,
             move_from_mod_rs::move_from_mod_rs,
