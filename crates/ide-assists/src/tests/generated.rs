@@ -1188,6 +1188,19 @@ enum A { One(One) }
 }
 
 #[test]
+fn doctest_extract_to_default_generic() {
+    check_doc_test(
+        "extract_to_default_generic",
+        r#####"
+struct Foo(u32, $0String$0);
+"#####,
+        r#####"
+struct Foo<T$0 = String>(u32, T);
+"#####,
+    )
+}
+
+#[test]
 fn doctest_extract_type_alias() {
     check_doc_test(
         "extract_type_alias",
