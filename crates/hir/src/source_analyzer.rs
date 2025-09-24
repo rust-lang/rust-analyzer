@@ -29,7 +29,7 @@ use hir_def::{
     lang_item::LangItem,
     nameres::MacroSubNs,
     resolver::{HasResolver, Resolver, TypeNs, ValueNs, resolver_for_scope},
-    type_ref::{Mutability, TypeRefId},
+    type_ref::{Mutability, TypeRef, TypeRefId},
 };
 use hir_expand::{
     HirFileId, InFile,
@@ -37,8 +37,8 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use hir_ty::{
-    Adjustment, AliasTy, InferenceResult, Interner, LifetimeElisionKind, ProjectionTy,
-    Substitution, ToChalk, TraitEnvironment, Ty, TyExt, TyKind, TyLoweringContext,
+    Adjustment, AliasTy, DebruijnIndex, InferenceResult, Interner, LifetimeElisionKind,
+    ProjectionTy, Substitution, ToChalk, TraitEnvironment, Ty, TyExt, TyKind, TyLoweringContext,
     diagnostics::{
         InsideUnsafeBlock, record_literal_missing_fields, record_pattern_missing_fields,
         unsafe_operations,
@@ -264,7 +264,8 @@ impl<'db> SourceAnalyzer<'db> {
         ty: &ast::Type,
     ) -> Option<Type<'db>> {
         let type_ref = self.type_id(ty)?;
-        let ty = TyLoweringContext::new(
+
+        let mut ty = TyLoweringContext::new(
             db,
             &self.resolver,
             self.store()?,
@@ -275,6 +276,30 @@ impl<'db> SourceAnalyzer<'db> {
             LifetimeElisionKind::Infer,
         )
         .lower_ty(type_ref);
+
+        // Try and substitute unknown types using InferenceResult
+        if let Some((infer, store)) = self.infer().zip(self.store()) {
+            let mut inferred_types = vec![];
+            TypeRef::walk(type_ref, store, &mut |type_ref_id, type_ref| {
+                if matches!(type_ref, TypeRef::Placeholder) {
+                    inferred_types.push(infer.type_of_type_placeholder(type_ref_id).clone());
+                }
+            });
+            let mut inferred_types = inferred_types.into_iter();
+
+            let substituted_ty = hir_ty::fold_tys(
+                ty.clone(),
+                |ty, _| if ty.is_unknown() { inferred_types.next().unwrap_or(ty) } else { ty },
+                DebruijnIndex::INNERMOST,
+            );
+
+            // Only used the result if the placeholder and unknown type counts matched
+            let success = inferred_types.next().is_none() && !substituted_ty.contains_unknown();
+            if success {
+                ty = substituted_ty;
+            }
+        }
+
         Some(Type::new_with_resolver(db, &self.resolver, ty))
     }
 
