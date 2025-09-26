@@ -395,6 +395,7 @@ mod handlers {
             generate_getter_or_setter::generate_getter,
             generate_getter_or_setter::generate_getter_mut,
             generate_getter_or_setter::generate_setter,
+            generate_getter_or_setter::generate_builder_setter,
             generate_delegate_methods::generate_delegate_methods,
             generate_deref::generate_deref,
             // Are you sure you want to add new assist here, and not to the
