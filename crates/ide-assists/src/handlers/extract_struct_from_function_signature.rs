@@ -2,10 +2,13 @@ use std::ops::Range;
 
 use hir::{HasCrate, Module, ModuleDef};
 use ide_db::{
-    FxHashSet, RootDatabase,
+    FileId,
+    FxHashSet,
+    RootDatabase,
     assists::AssistId,
     defs::Definition,
     helpers::mod_path_to_ast,
+    // this relies on ted
     imports::insert_use::{ImportScope, InsertUseConfig, insert_use},
     path_transform::PathTransform,
     search::FileReference,
@@ -13,15 +16,16 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    AstNode, Edition, SyntaxElement, SyntaxKind, SyntaxNode, T,
+    AstNode, Edition, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, T,
     algo::find_node_at_range,
     ast::{
-        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility,
+        self, HasArgList, HasGenericParams, HasName, HasVisibility,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
     match_ast,
-    ted::{self, Element},
+    syntax_editor::{Element, Position, SyntaxEditor},
 };
 
 use crate::{AssistContext, Assists};
@@ -85,9 +89,11 @@ pub(crate) fn extract_struct_from_function_signature(
         "Extract struct from signature of a function",
         target,
         |builder| {
+            let make = SyntaxFactory::with_mappings();
+            let mut editor = builder.make_editor(func.syntax());
             let  n_new_lifetimes = field_list.fields().filter_map(|f|f.ty()).map(|t|new_life_time_count(&t)).sum();
             let edition = fn_hir.krate(ctx.db()).edition(ctx.db());
-            let enum_module_def = ModuleDef::from(fn_hir);
+            let function_module_def = ModuleDef::from(fn_hir);
 
             let usages = Definition::Function(fn_hir).usages(&ctx.sema).all();
             let mut visited_modules_set = FxHashSet::default();
@@ -102,46 +108,36 @@ pub(crate) fn extract_struct_from_function_signature(
                     def_file_references = Some(references);
                     continue;
                 }
-                builder.edit_file(file_id.file_id(ctx.db()));
                 let processed = process_references(
                     ctx,
-                    builder,
                     &mut visited_modules_set,
-                    &enum_module_def,
+                    &function_module_def,
                     references,
                     name.clone()
                 );
                 processed.into_iter().for_each(|(path,  import)| {
-                    apply_references(ctx.config.insert_use, path ,import, edition, used_params_range.clone(), &field_list,
-                        name.clone(),
+                    apply_references( builder,ctx.config.insert_use, path ,import, edition, used_params_range.clone(), &field_list,
+                        name.clone(),file_id.file_id(ctx.db()),
                     );
                 });
             }
 
             tracing::info!("extract_struct_from_function_signature: starting edit");
-            builder.edit_file(ctx.vfs_file_id());
-            // atl the make muts should generally before any edits happen
-            let func_mut = builder.make_mut(func.clone());
             // if in impl block then put struct before the impl block
             let (indent, syntax) = param_list.self_param().and_then(|_|ctx.find_node_at_range::<ast::Impl>() )
-                .map(|imp|( imp.indent_level(), builder.make_syntax_mut(imp.syntax().clone()))).unwrap_or((func.indent_level(), func_mut.syntax().clone()));
-             builder.make_mut(param_list.clone());
-            let used_param_list = used_param_list.into_iter().map(|p| builder.make_mut(p)).collect_vec();
+                .map(|imp|( imp.indent_level(), imp.syntax().clone())).unwrap_or((func.indent_level(), func.syntax().clone()));
             tracing::info!("extract_struct_from_function_signature: editing main file");
-            // this has to be after the edit_file (order matters)
-            // func and param_list must be "mut" for the effect to work on used_param_list
             if let Some(references) = def_file_references {
                 let processed = process_references(
                     ctx,
-                    builder,
                     &mut visited_modules_set,
-                    &enum_module_def,
+                    &function_module_def,
                     references,
                     name.clone()
                 );
                 processed.into_iter().for_each(|(path, import)| {
-                    apply_references(ctx.config.insert_use, path, import, edition, used_params_range.clone(), &field_list,
-                        name.clone(),
+                    apply_references(builder, ctx.config.insert_use, path, import, edition, used_params_range.clone(), &field_list,
+                        name.clone(), ctx.vfs_file_id()
                     );
                 });
             }
@@ -173,23 +169,25 @@ pub(crate) fn extract_struct_from_function_signature(
                     }
                 }
             } else {
-                field_list.clone_for_update()
+                field_list
             };
-            field_list.fields().filter_map(|f|f.ty()).try_for_each(|t|generate_new_lifetimes(&t, &mut generics));
+            field_list.fields().filter_map(|f|f.ty()).try_for_each(|t|generate_new_lifetimes(&mut  editor, &t, &mut generics));
             tracing::info!("extract_struct_from_function_signature: collecting fields");
-            let def = create_struct_def(name.clone(), &func_mut, &used_param_list, &field_list, generics);
+            let def = create_struct_def(& make, name.clone(), &func, &used_param_list, &field_list, generics);
             tracing::info!("extract_struct_from_function_signature: creating struct");
             let def = def.indent(indent);
-            ted::insert_all(
-                ted::Position::before(syntax),
+            editor.insert_all(
+                Position::before(syntax),
                 vec![
                     def.syntax().clone().into(),
                     make::tokens::whitespace(&format!("\n\n{indent}")).into(),
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
-            update_function(name,  generic_params.map(|g| g.clone_for_update()), &used_param_list, n_new_lifetimes).unwrap();
+            update_function(&mut editor, name,  generic_params.map(|g| g.clone_for_update()), &used_param_list, n_new_lifetimes).unwrap();
             tracing::info!("extract_struct_from_function_signature: updating function signature and parameter uses");
+            editor.add_mappings(make.finish_with_mappings());
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
@@ -215,6 +213,7 @@ fn extract_field_list(
 }
 
 fn update_function(
+    editor: &mut SyntaxEditor,
     name: ast::Name,
     generics: Option<ast::GenericParamList>,
     used_param_list: &[ast::Param],
@@ -256,11 +255,13 @@ fn update_function(
 
     // it is fine to unwrap() to because there is at least one parameter (if there is no parameters
     // the code action will not show)
-    let start_idx = used_param_list.first().unwrap().syntax().index();
-    let end_idx = used_param_list.last().unwrap().syntax().index();
-    let used_params_range = start_idx..end_idx + 1;
+    let start_idx = used_param_list.first().unwrap().syntax();
+    let end_idx = used_param_list.last().unwrap().syntax();
     let new = vec![param.syntax().syntax_element()];
-    used_param_list.first().unwrap().syntax().parent()?.splice_children(used_params_range, new);
+    editor.replace_all(
+        NodeOrToken::Node(start_idx.clone())..=NodeOrToken::Node(end_idx.clone()),
+        new,
+    );
     // no need update uses of parameters in function, because we destructure the struct
     Some(())
 }
@@ -271,6 +272,7 @@ fn pat_to_name(pat: ast::Pat) -> Option<ast::Name> {
     }
 }
 fn create_struct_def(
+    editor: &SyntaxFactory,
     name: ast::Name,
     func: &ast::Fn,
     param_ast: &[ast::Param],
@@ -279,36 +281,20 @@ fn create_struct_def(
 ) -> ast::Struct {
     let fn_vis = func.visibility();
 
-    let insert_vis = |node: &'_ SyntaxNode, vis: &'_ SyntaxNode| {
-        let vis = vis.clone_for_update();
-        ted::insert(ted::Position::before(node), vis);
-    };
-
-    // for fields without any existing visibility, use visibility of enum
-    let field_list = {
-        if let Some(vis) = &fn_vis {
-            field_list
-                .fields()
-                .filter(|field| field.visibility().is_none())
-                .filter_map(|field| field.name())
-                .for_each(|it| insert_vis(it.syntax(), vis.syntax()));
-        }
-
-        field_list
-    };
     // if we do not expleictly copy over comments/attribures they just get lost
     // TODO: what about comments/attributes in between parameters
-    param_ast.iter().zip(field_list.fields()).for_each(|(param, field)| {
-        let elements = take_all_comments(param.clone());
-        ted::insert_all(ted::Position::first_child_of(field.syntax()), elements);
-        ted::insert_all(
-            ted::Position::first_child_of(field.syntax()),
-            param
-                .attrs()
-                .flat_map(|it| [it.syntax().clone().into(), make::tokens::single_newline().into()])
-                .collect(),
-        );
-    });
+    // param_ast.iter().zip(field_list.fields()).for_each(|(param, field)| {
+    // editor.attr_inner(meta)
+    // let elements = take_all_comments(param.clone());
+    // editor.insert_all(Position::first_child_of(field.syntax()), elements);
+    // editor.insert_all(
+    //     Position::first_child_of(field.syntax()),
+    //     param
+    //         .attrs()
+    //         .flat_map(|it| [it.syntax().clone().into(), make::tokens::single_newline().into()])
+    //         .collect(),
+    // );
+    // });
     let field_list = field_list.indent(IndentLevel::single());
 
     make::struct_(fn_vis, name, generics, field_list.into()).clone_for_update()
@@ -381,6 +367,7 @@ fn contains_impl_trait(ty: &ast::Type) -> bool {
     ty.syntax().descendants().any(|ty| ty.kind() == ast::ImplTraitType::kind())
 }
 fn generate_new_lifetimes(
+    editor: &mut SyntaxEditor,
     ty: &ast::Type,
     existing_type_param_list: &mut Option<ast::GenericParamList>,
 ) -> Option<()> {
@@ -395,7 +382,7 @@ fn generate_new_lifetimes(
                 .get_or_insert(make::generic_param_list(std::iter::empty()).clone_for_update())
                 .add_generic_param(make::lifetime_param(new_lt.clone()).clone_for_update().into());
 
-            ted::replace(lt.syntax(), new_lt.clone_for_update().syntax());
+            // editor.replace(lt.syntax(), new_lt.clone_for_update().syntax());
         } else if let Some(r) = ast::RefType::cast(token.clone())
             && r.lifetime().is_none()
         {
@@ -403,7 +390,7 @@ fn generate_new_lifetimes(
             existing_type_param_list
                 .get_or_insert(make::generic_param_list(std::iter::empty()).clone_for_update())
                 .add_generic_param(make::lifetime_param(new_lt.clone()).clone_for_update().into());
-            ted::insert(ted::Position::after(r.amp_token()?), new_lt.clone_for_update().syntax());
+            // editor.insert(Position::after(r.amp_token()?), new_lt.clone_for_update().syntax());
         }
         // TODO: nominal types that have only lifetimes
         // struct Bar<'a, 'b> { f: &'a &'b i32 }
@@ -423,12 +410,12 @@ fn tag_generics_in_function_signature(
                 ast::GenericParam::LifetimeParam(lt)
                     if matches!(token.kind(), T![lifetime_ident]) =>
                 {
-                    if let Some(lt) = lt.lifetime() {
-                        if lt.text().as_str() == token.text() {
-                            *tag = true;
-                            tagged_one = true;
-                            break;
-                        }
+                    if let Some(lt) = lt.lifetime()
+                        && lt.text().as_str() == token.text()
+                    {
+                        *tag = true;
+                        tagged_one = true;
+                        break;
                     }
                 }
                 param if matches!(token.kind(), T![ident]) => {
@@ -485,7 +472,6 @@ fn existing_definition(
 
 fn process_references(
     ctx: &AssistContext<'_>,
-    builder: &mut SourceChangeBuilder,
     visited_modules: &mut FxHashSet<Module>,
     function_module_def: &ModuleDef,
     refs: Vec<FileReference>,
@@ -497,8 +483,6 @@ fn process_references(
     refs.into_iter()
         .flat_map(|reference| {
             let (call, scope_node, module) = reference_to_node(&ctx.sema, reference)?;
-            let scope_node = builder.make_syntax_mut(scope_node);
-            let call = builder.make_mut(call);
             if !visited_modules.contains(&module) {
                 let mod_path = module.find_use_path(
                     ctx.sema.db,
@@ -538,6 +522,7 @@ fn reference_to_node(
 }
 
 fn apply_references(
+    builder: &mut SourceChangeBuilder,
     insert_use_cfg: InsertUseConfig,
     call: CallExpr,
     import: Option<(ImportScope, hir::ModPath)>,
@@ -545,8 +530,12 @@ fn apply_references(
     used_params_range: Range<usize>,
     field_list: &ast::RecordFieldList,
     name: ast::Name,
+    file_id: impl Into<FileId>,
 ) -> Option<()> {
+    let make = SyntaxFactory::with_mappings();
+    let mut editor = builder.make_editor(call.syntax());
     if let Some((scope, path)) = import {
+        let scope = builder.make_import_scope_mut(scope);
         insert_use(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg);
     }
 
@@ -570,18 +559,24 @@ fn apply_references(
             })
             .collect::<Option<Vec<_>>>()?,
     );
+    let first = call.arg_list()?.args().nth(match call {
+        // for some reason the indices for parameters of method go in increments of 3s (but
+        // start at 4 to accommodate the self parameter)
+        CallExpr::Method(_) => used_params_range.start / 3 - 1,
+        CallExpr::Normal(_) => used_params_range.start - 1,
+    })?;
+    let last = call.arg_list()?.args().nth(match call {
+        // for some reason the indices for parameters of method go in increments of 3s (but
+        // start at 4 to accommodate the self parameter)
+        CallExpr::Method(_) => used_params_range.end / 3 - 1,
+        CallExpr::Normal(_) => used_params_range.end / 3,
+    })?;
     let record_expr = make::record_expr(path, fields).clone_for_update();
-
-    // range for method definition used parames seems to be off
-    call.arg_list()?.syntax().splice_children(
-        match call {
-            // but at call sites methods don't include the self argument as part of the "arg list" so
-            // we have to decduct one parameters (for some reason length 3) from range
-            CallExpr::Method(_) => (used_params_range.start - 3)..(used_params_range.end - 3),
-            CallExpr::Normal(_) => used_params_range,
-        },
+    editor.replace_all(
+        NodeOrToken::Node(first.syntax().clone())..=NodeOrToken::Node(last.syntax().clone()),
         vec![record_expr.syntax().syntax_element()],
     );
+    builder.add_file_edits(file_id, editor);
     Some(())
 }
 
