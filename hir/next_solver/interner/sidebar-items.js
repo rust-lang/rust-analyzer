@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BoundVarKind","VariantDef"],"struct":["AdtDef","AdtDefInner","AdtFlags","AllocId","BoundVarKinds","CanonicalVars","DbInterner","DepNodeIndex","Features","PatList","Pattern","Placeholder","Span","Tracked","UnsizingParams","VariancesOf","VariantIdx"],"type":["PatternKind"]};
