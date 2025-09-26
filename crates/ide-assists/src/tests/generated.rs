@@ -1229,7 +1229,7 @@ fn doctest_extract_struct_from_function_signature() {
 fn foo($0bar: u32, baz: u32$0) { ... }
 "#####,
         r#####"
-struct FooStruct{ bar: u32, baz: u32 }
+struct FooStruct { bar: u32, baz: u32 }
 
 fn foo(FooStruct { bar, baz, .. }: FooStruct) { ... }
 "#####,
