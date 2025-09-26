@@ -1492,6 +1492,10 @@ fn foo(_: a_$0) { }
         expect![[r#"
             bt u32 u32
             kw crate::
+            kw dyn
+            kw fn
+            kw for
+            kw impl
             kw self::
         "#]],
     );
@@ -1506,6 +1510,10 @@ fn foo<T>() {
             tp T
             bt u32 u32
             kw crate::
+            kw dyn
+            kw fn
+            kw for
+            kw impl
             kw self::
         "#]],
     );
