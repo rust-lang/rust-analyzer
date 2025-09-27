@@ -726,9 +726,7 @@ fn main() {
 "#####,
         r#####"
 fn main() {
-    if !cond {
-        return;
-    }
+    if !cond { return }
     foo();
     bar();
 }
