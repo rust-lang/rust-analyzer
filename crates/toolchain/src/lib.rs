@@ -81,6 +81,8 @@ pub fn command<H>(
     #[allow(clippy::disallowed_methods)]
     let mut cmd = Command::new(cmd);
     cmd.current_dir(working_directory);
+    // Prevent rustup from automatically installing toolchains, see https://github.com/rust-lang/rust-analyzer/issues/20719.
+    cmd.env("RUSTUP_AUTO_INSTALL", "0");
     for env in extra_env {
         match env {
             (key, Some(val)) => cmd.env(key, val),
