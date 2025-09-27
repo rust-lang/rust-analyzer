@@ -1,4 +1,5 @@
 use crate::assist_context::{AssistContext, Assists};
+use ide_db::FileId;
 use ide_db::assists::AssistId;
 use ide_db::imports::insert_use::{ImportScope, ImportScopeKind};
 use ide_db::source_change::SourceChangeBuilder;
@@ -8,7 +9,7 @@ use syntax::{
         BlockExpr, HasModuleItem, Item, Module, SourceFile, Use, Whitespace, edit_in_place::Indent,
         make,
     },
-    ted,
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 // Assist: move_use_to_top_level
@@ -43,8 +44,9 @@ pub(crate) fn move_use_to_top_level(acc: &mut Assists, ctx: &AssistContext<'_>) 
         "Move use statement to top-level",
         use_item.syntax().text_range(),
         |builder| {
-            move_use_to_top(&builder.make_import_scope_mut(scope), &use_item);
-            cleanup_original_location(builder, &use_item);
+            let file_id = ctx.vfs_file_id();
+            move_use_to_top(file_id, builder, scope, &use_item);
+            cleanup_original_location(file_id, builder, &use_item);
         },
     )
 }
@@ -56,23 +58,32 @@ fn is_use_item_movable_to_top(use_item: &Use) -> bool {
     })
 }
 
-fn move_use_to_top(scope: &ImportScope, use_item: &Use) {
+fn move_use_to_top(
+    file_id: FileId,
+    builder: &mut SourceChangeBuilder,
+    scope: ImportScope,
+    use_item: &Use,
+) {
+    let source_file = extract_source_file_from_scope(&scope);
+    let mut editor = builder.make_editor(source_file.syntax());
+
     let use_item = use_item.clone_for_update();
     remove_indents_from_use_item(&use_item);
-    insert_use_item_at_top(scope, &use_item);
+    insert_use_item_at_top(&mut editor, source_file, &use_item);
+
+    builder.add_file_edits(file_id, editor);
 }
 
 fn remove_indents_from_use_item(use_item: &Use) {
     use_item.dedent(use_item.indent_level());
 }
 
-fn insert_use_item_at_top(scope: &ImportScope, use_item: &Use) {
-    let source_file: SourceFile = extract_source_file_from_scope(scope);
+fn insert_use_item_at_top(editor: &mut SyntaxEditor, source_file: SourceFile, use_item: &Use) {
     let last_top_level_use: Option<Item> = find_last_top_level_use(&source_file);
 
     match last_top_level_use {
-        Some(last_use) => insert_after_existing_use(&last_use, use_item),
-        None => insert_at_file_beginning(&source_file, use_item),
+        Some(last_use) => insert_after_existing_use(editor, &last_use, use_item),
+        None => insert_at_file_beginning(editor, &source_file, use_item),
     }
 }
 
@@ -96,31 +107,38 @@ fn find_last_top_level_use(source_file: &SourceFile) -> Option<Item> {
     source_file.items().take_while(|item| Use::cast(item.syntax().clone()).is_some()).last()
 }
 
-fn insert_after_existing_use(last_use: &Item, use_item: &Use) {
-    ted::insert_raw(ted::Position::after(last_use.syntax()), use_item.syntax());
-    ted::insert(ted::Position::before(use_item.syntax()), make::tokens::whitespace("\n"));
+fn insert_after_existing_use(editor: &mut SyntaxEditor, last_use: &Item, use_item: &Use) {
+    editor.insert_all(
+        Position::after(last_use.syntax()),
+        vec![make::tokens::whitespace("\n").into(), use_item.syntax().clone().into()],
+    );
 }
 
-fn insert_at_file_beginning(source_file: &SourceFile, use_item: &Use) {
+fn insert_at_file_beginning(editor: &mut SyntaxEditor, source_file: &SourceFile, use_item: &Use) {
     if let Some(first_item) = source_file.items().next() {
-        ted::insert_raw(ted::Position::before(first_item.syntax()), use_item.syntax());
-        ted::insert(ted::Position::after(use_item.syntax()), make::tokens::whitespace("\n\n"));
+        editor.insert_all(
+            Position::before(first_item.syntax()),
+            vec![use_item.syntax().clone().into(), make::tokens::whitespace("\n\n").into()],
+        );
     }
 }
 
-fn cleanup_original_location(builder: &mut SourceChangeBuilder, use_item: &Use) {
-    builder.delete(use_item.syntax().text_range());
+fn cleanup_original_location(file_id: FileId, builder: &mut SourceChangeBuilder, use_item: &Use) {
+    if let Some(parent) = use_item.syntax().parent() {
+        let mut editor = builder.make_editor(&parent);
+        editor.delete(use_item.syntax());
 
-    // Clean up any trailing whitespace after the removed use statement
-    if let Some(whitespace) = use_item
-        .syntax()
-        .next_sibling_or_token()
-        .and_then(|token| token.into_token())
-        .and_then(Whitespace::cast)
-    {
-        if whitespace.syntax().text().starts_with('\n') {
-            builder.delete(whitespace.syntax().text_range());
+        if let Some(ws) = use_item
+            .syntax()
+            .next_sibling_or_token()
+            .and_then(|token| token.into_token())
+            .and_then(Whitespace::cast)
+            .filter(|ws| ws.syntax().text().starts_with('\n'))
+        {
+            editor.delete(ws.syntax());
         }
+
+        builder.add_file_edits(file_id, editor);
     }
 }
 
