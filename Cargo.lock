@@ -2021,6 +2021,7 @@ dependencies = [
  "ide",
  "ide-completion",
  "ide-db",
+ "ide-diagnostics",
  "ide-ssr",
  "indexmap",
  "intern",

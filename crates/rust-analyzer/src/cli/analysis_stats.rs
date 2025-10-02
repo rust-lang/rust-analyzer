@@ -28,7 +28,7 @@ use ide_db::{
     EditionedFileId, LineIndexDatabase, SnippetCap,
     base_db::{
         SourceDatabase,
-        salsa::{self, Database},
+        salsa::{self, Cancelled, Database},
     },
 };
 use itertools::Itertools;
@@ -1128,36 +1128,44 @@ impl flags::AnalysisStats {
         file_ids.dedup();
         let mut sw = self.stop_watch();
 
+        HirDatabase::zalsa_register_downcaster(db);
+
         let mut bar = create_bar();
         for &file_id in &file_ids {
             let msg = format!("diagnostics: {}", vfs.file_path(file_id.file_id(db)));
             bar.set_message(move || msg.clone());
-            _ = analysis.full_diagnostics(
-                &DiagnosticsConfig {
-                    enabled: true,
-                    proc_macros_enabled: true,
-                    proc_attr_macros_enabled: true,
-                    disable_experimental: false,
-                    disabled: Default::default(),
-                    expr_fill_default: Default::default(),
-                    snippet_cap: SnippetCap::new(true),
-                    insert_use: ide_db::imports::insert_use::InsertUseConfig {
-                        granularity: ide_db::imports::insert_use::ImportGranularity::Crate,
-                        enforce_granularity: true,
-                        prefix_kind: hir::PrefixKind::ByCrate,
-                        group: true,
-                        skip_glob_imports: true,
-                    },
-                    prefer_no_std: false,
-                    prefer_prelude: true,
-                    prefer_absolute: false,
-                    style_lints: false,
-                    term_search_fuel: 400,
-                    term_search_borrowck: true,
+
+            let config = DiagnosticsConfig {
+                enabled: true,
+                proc_macros_enabled: true,
+                proc_attr_macros_enabled: true,
+                disable_experimental: false,
+                disabled: Default::default(),
+                expr_fill_default: Default::default(),
+                snippet_cap: SnippetCap::new(true),
+                insert_use: ide_db::imports::insert_use::InsertUseConfig {
+                    granularity: ide_db::imports::insert_use::ImportGranularity::Crate,
+                    enforce_granularity: true,
+                    prefix_kind: hir::PrefixKind::ByCrate,
+                    group: true,
+                    skip_glob_imports: true,
                 },
-                ide::AssistResolveStrategy::All,
-                analysis.editioned_file_id_to_vfs(file_id),
-            );
+                prefer_no_std: false,
+                prefer_prelude: true,
+                prefer_absolute: false,
+                style_lints: false,
+                term_search_fuel: 400,
+                term_search_borrowck: true,
+            };
+            let id_vfs = analysis.editioned_file_id_to_vfs(file_id);
+            _ = Cancelled::catch(|| {
+                ide_diagnostics::full_diagnostics(
+                    db,
+                    &config,
+                    &ide::AssistResolveStrategy::All,
+                    id_vfs,
+                )
+            });
             bar.inc(1);
         }
         bar.finish_and_clear();
@@ -1166,41 +1174,40 @@ impl flags::AnalysisStats {
         for &file_id in &file_ids {
             let msg = format!("inlay hints: {}", vfs.file_path(file_id.file_id(db)));
             bar.set_message(move || msg.clone());
-            _ = analysis.inlay_hints(
-                &InlayHintsConfig {
-                    render_colons: false,
+            let config = InlayHintsConfig {
+                render_colons: false,
+                type_hints: true,
+                sized_bound: false,
+                discriminant_hints: ide::DiscriminantHints::Always,
+                parameter_hints: true,
+                generic_parameter_hints: ide::GenericParameterHints {
                     type_hints: true,
-                    sized_bound: false,
-                    discriminant_hints: ide::DiscriminantHints::Always,
-                    parameter_hints: true,
-                    generic_parameter_hints: ide::GenericParameterHints {
-                        type_hints: true,
-                        lifetime_hints: true,
-                        const_hints: true,
-                    },
-                    chaining_hints: true,
-                    adjustment_hints: ide::AdjustmentHints::Always,
-                    adjustment_hints_disable_reborrows: true,
-                    adjustment_hints_mode: ide::AdjustmentHintsMode::Postfix,
-                    adjustment_hints_hide_outside_unsafe: false,
-                    closure_return_type_hints: ide::ClosureReturnTypeHints::Always,
-                    closure_capture_hints: true,
-                    binding_mode_hints: true,
-                    implicit_drop_hints: true,
-                    lifetime_elision_hints: ide::LifetimeElisionHints::Always,
-                    param_names_for_lifetime_elision_hints: true,
-                    hide_named_constructor_hints: false,
-                    hide_closure_initialization_hints: false,
-                    hide_closure_parameter_hints: false,
-                    closure_style: hir::ClosureStyle::ImplFn,
-                    max_length: Some(25),
-                    closing_brace_hints_min_lines: Some(20),
-                    fields_to_resolve: InlayFieldsToResolve::empty(),
-                    range_exclusive_hints: true,
+                    lifetime_hints: true,
+                    const_hints: true,
                 },
-                analysis.editioned_file_id_to_vfs(file_id),
-                None,
-            );
+                chaining_hints: true,
+                adjustment_hints: ide::AdjustmentHints::Always,
+                adjustment_hints_disable_reborrows: true,
+                adjustment_hints_mode: ide::AdjustmentHintsMode::Postfix,
+                adjustment_hints_hide_outside_unsafe: false,
+                closure_return_type_hints: ide::ClosureReturnTypeHints::Always,
+                closure_capture_hints: true,
+                binding_mode_hints: true,
+                implicit_drop_hints: true,
+                lifetime_elision_hints: ide::LifetimeElisionHints::Always,
+                param_names_for_lifetime_elision_hints: true,
+                hide_named_constructor_hints: false,
+                hide_closure_initialization_hints: false,
+                hide_closure_parameter_hints: false,
+                closure_style: hir::ClosureStyle::ImplFn,
+                max_length: Some(25),
+                closing_brace_hints_min_lines: Some(20),
+                fields_to_resolve: InlayFieldsToResolve::empty(),
+                range_exclusive_hints: true,
+            };
+            let file_id = analysis.editioned_file_id_to_vfs(file_id);
+
+            _ = Cancelled::catch(|| Analysis::inlay_hints_preattached(db, file_id, None, &config));
             bar.inc(1);
         }
         bar.finish_and_clear();
@@ -1209,24 +1216,25 @@ impl flags::AnalysisStats {
         for &file_id in &file_ids {
             let msg = format!("annotations: {}", vfs.file_path(file_id.file_id(db)));
             bar.set_message(move || msg.clone());
-            analysis
-                .annotations(
-                    &AnnotationConfig {
-                        binary_target: true,
-                        annotate_runnables: true,
-                        annotate_impls: true,
-                        annotate_references: false,
-                        annotate_method_references: false,
-                        annotate_enum_variant_references: false,
-                        location: ide::AnnotationLocation::AboveName,
-                    },
-                    analysis.editioned_file_id_to_vfs(file_id),
-                )
-                .unwrap()
-                .into_iter()
-                .for_each(|annotation| {
-                    _ = analysis.resolve_annotation(annotation);
-                });
+            let config = AnnotationConfig {
+                binary_target: true,
+                annotate_runnables: true,
+                annotate_impls: true,
+                annotate_references: false,
+                annotate_method_references: false,
+                annotate_enum_variant_references: false,
+                location: ide::AnnotationLocation::AboveName,
+            };
+
+            Analysis::annotations_preattached(
+                db,
+                &config,
+                analysis.editioned_file_id_to_vfs(file_id),
+            )
+            .into_iter()
+            .for_each(|annotation| {
+                _ = Analysis::resolve_annotation_preattached(db, annotation);
+            });
             bar.inc(1);
         }
         bar.finish_and_clear();
