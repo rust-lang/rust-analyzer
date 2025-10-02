@@ -22,7 +22,7 @@ use hir_def::{
 };
 use ide::{
     Analysis, AnalysisHost, AnnotationConfig, DiagnosticsConfig, Edition, InlayFieldsToResolve,
-    InlayHintsConfig, LineCol, RootDatabase,
+    InlayHintsConfig, LineCol, ResolveAnnotationConfig, RootDatabase,
 };
 use ide_db::{
     EditionedFileId, LineIndexDatabase, SnippetCap,
@@ -1219,13 +1219,17 @@ impl flags::AnalysisStats {
                         annotate_method_references: false,
                         annotate_enum_variant_references: false,
                         location: ide::AnnotationLocation::AboveName,
+                        filter_adjacent_derive_implementations: false,
                     },
                     analysis.editioned_file_id_to_vfs(file_id),
                 )
                 .unwrap()
                 .into_iter()
                 .for_each(|annotation| {
-                    _ = analysis.resolve_annotation(annotation);
+                    _ = analysis.resolve_annotation(
+                        &ResolveAnnotationConfig { filter_adjacent_derive_implementations: false },
+                        annotation,
+                    );
                 });
             bar.inc(1);
         }
