@@ -443,6 +443,15 @@ impl Analysis {
         })
     }
 
+    pub fn inlay_hints_preattached(
+        db: &RootDatabase,
+        file_id: FileId,
+        range: Option<TextRange>,
+        config: &InlayHintsConfig,
+    ) -> Vec<InlayHint> {
+        inlay_hints::inlay_hints(db, file_id, range, config)
+    }
+
     /// Returns a list of the places in the file where type hints can be displayed.
     pub fn inlay_hints(
         &self,
@@ -450,8 +459,9 @@ impl Analysis {
         file_id: FileId,
         range: Option<TextRange>,
     ) -> Cancellable<Vec<InlayHint>> {
-        self.with_db(|db| inlay_hints::inlay_hints(db, file_id, range, config))
+        self.with_db(|db| Self::inlay_hints_preattached(db, file_id, range, config))
     }
+
     pub fn inlay_hints_resolve(
         &self,
         config: &InlayHintsConfig,
@@ -851,16 +861,28 @@ impl Analysis {
         })
     }
 
+    pub fn annotations_preattached(
+        db: &RootDatabase,
+        config: &AnnotationConfig,
+        file_id: FileId,
+    ) -> Vec<Annotation> {
+        annotations::annotations(db, config, file_id)
+    }
+
     pub fn annotations(
         &self,
         config: &AnnotationConfig,
         file_id: FileId,
     ) -> Cancellable<Vec<Annotation>> {
-        self.with_db(|db| annotations::annotations(db, config, file_id))
+        self.with_db(|db| Self::annotations_preattached(db, config, file_id))
+    }
+
+    pub fn resolve_annotation_preattached(db: &RootDatabase, annotation: Annotation) -> Annotation {
+        annotations::resolve_annotation(db, annotation)
     }
 
     pub fn resolve_annotation(&self, annotation: Annotation) -> Cancellable<Annotation> {
-        self.with_db(|db| annotations::resolve_annotation(db, annotation))
+        self.with_db(|db| Self::resolve_annotation_preattached(db, annotation))
     }
 
     pub fn move_item(
