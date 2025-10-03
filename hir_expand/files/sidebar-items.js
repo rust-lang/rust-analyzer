@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["FilePositionWrapper","FileRangeWrapper","InFileWrapper"],"type":["AstId","ErasedAstId","FilePosition","FileRange","HirFilePosition","HirFileRange","InFile","InMacroFile","InRealFile","MacroFilePosition","MacroFileRange"]};
