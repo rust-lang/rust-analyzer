@@ -3,6 +3,9 @@
 use std::{env, path::PathBuf, process::Command};
 
 fn main() {
+    #[cfg(windows)]
+    add_icon_windows();
+
     set_rerun();
     set_commit_info();
     println!("cargo::rustc-check-cfg=cfg(rust_analyzer)");
@@ -49,4 +52,15 @@ fn set_commit_info() {
     println!("cargo:rustc-env=RA_COMMIT_HASH={}", next());
     println!("cargo:rustc-env=RA_COMMIT_SHORT_HASH={}", next());
     println!("cargo:rustc-env=RA_COMMIT_DATE={}", next())
+}
+
+// Function which adds ferris as a ICON for Cargo
+#[cfg(windows)]
+fn add_icon_windows() {
+    // ICON Link
+    // https://github.com/ShadowDara/photos-upload/tree/main/ferris
+    // https://raw.githubusercontent.com/ShadowDara/photos-upload/refs/heads/main/ferris/rust-r.ico
+    let mut res = winres::WindowsResource::new();
+    res.set_icon("rust-r.ico");
+    res.compile().unwrap();
 }

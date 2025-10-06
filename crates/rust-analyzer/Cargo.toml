@@ -83,6 +83,9 @@ windows-sys = { version = "0.60", features = [
   "Win32_System_Threading",
 ] }
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "0.5.4", package = "tikv-jemallocator", optional = true }
 
