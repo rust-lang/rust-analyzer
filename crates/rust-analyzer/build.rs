@@ -5,7 +5,7 @@ use std::{env, path::PathBuf, process::Command};
 fn main() {
     #[cfg(windows)]
     add_icon_windows();
-    
+
     set_rerun();
     set_commit_info();
     println!("cargo::rustc-check-cfg=cfg(rust_analyzer)");
