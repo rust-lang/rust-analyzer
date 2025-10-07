@@ -1006,6 +1006,13 @@ pub(crate) fn trimmed_text_range(source_file: &SourceFile, initial_range: TextRa
     trimmed_range
 }
 
+pub(crate) fn selected<T: AstNode>(range: TextRange) -> impl Fn(&T) -> bool {
+    let empty_style = range.is_empty();
+    move |node| {
+        node.syntax().text_range().intersect(range).is_some_and(|it| it.is_empty() == empty_style)
+    }
+}
+
 /// Convert a list of function params to a list of arguments that can be passed
 /// into a function call.
 pub(crate) fn convert_param_list_to_arg_list(list: ast::ParamList) -> ast::ArgList {
