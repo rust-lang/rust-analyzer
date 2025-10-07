@@ -756,7 +756,13 @@ fn expected_type_and_name<'db>(
                         .map(|c| (Some(c.return_type()), None))
                         .unwrap_or((None, None))
                 },
-                ast::ParamList(_) => (None, None),
+                ast::ParamList(it) => {
+                    let closure = it.syntax().parent().and_then(ast::ClosureExpr::cast);
+                    let ty = closure.and_then(|it| sema.type_of_expr(&it.into()));
+                    ty.and_then(|ty| ty.original.as_callable(sema.db))
+                        .map(|c| (Some(c.return_type()), None))
+                        .unwrap_or((None, None))
+                },
                 ast::Stmt(_) => (None, None),
                 ast::Item(_) => (None, None),
                 _ => {
@@ -1938,6 +1944,7 @@ fn prev_special_biased_token_at_trivia(mut token: SyntaxToken) -> SyntaxToken {
         | T![|=]
         | T![&=]
         | T![^=]
+        | T![|]
         | T![return]
         | T![break]
         | T![continue] = prev.kind()
