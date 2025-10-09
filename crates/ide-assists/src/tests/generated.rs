@@ -1259,6 +1259,24 @@ fn main() {
 }
 
 #[test]
+fn doctest_fix_closure_body() {
+    check_doc_test(
+        "fix_closure_body",
+        r#####"
+//- minicore: fn
+fn foo() -> impl Fn(i32) {
+    ||$0
+}
+"#####,
+        r#####"
+fn foo() -> impl Fn(i32) {
+    |it| {$0}
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_fix_visibility() {
     check_doc_test(
         "fix_visibility",
