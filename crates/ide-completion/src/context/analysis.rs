@@ -923,7 +923,7 @@ fn classify_name_ref<'db>(
                     receiver_ty,
                     kind: DotAccessKind::Field { receiver_is_ambiguous_float_literal },
                     receiver,
-                    ctx: DotAccessExprCtx { in_block_expr: is_in_block(field.syntax()), in_breakable: is_in_breakable(field.syntax()) }
+                    ctx: DotAccessExprCtx { in_block_expr: is_in_block(field.syntax()), in_breakable: is_in_breakable(field.syntax()).0 }
                 });
                 return Some(make_res(kind));
             },
@@ -938,7 +938,7 @@ fn classify_name_ref<'db>(
                     receiver_ty: receiver.as_ref().and_then(|it| sema.type_of_expr(it)),
                     kind: DotAccessKind::Method { has_parens },
                     receiver,
-                    ctx: DotAccessExprCtx { in_block_expr: is_in_block(method.syntax()), in_breakable: is_in_breakable(method.syntax()) }
+                    ctx: DotAccessExprCtx { in_block_expr: is_in_block(method.syntax()), in_breakable: is_in_breakable(method.syntax()).0 }
                 });
                 return Some(make_res(kind));
             },
@@ -1244,7 +1244,7 @@ fn classify_name_ref<'db>(
     let make_path_kind_expr = |expr: ast::Expr| {
         let it = expr.syntax();
         let in_block_expr = is_in_block(it);
-        let in_loop_body = is_in_breakable(it);
+        let (in_loop_body, innermost_breakable) = is_in_breakable(it);
         let after_if_expr = after_if_expr(it.clone());
         let ref_expr_parent =
             path.as_single_name_ref().and_then(|_| it.parent()).and_then(ast::RefExpr::cast);
@@ -1298,6 +1298,11 @@ fn classify_name_ref<'db>(
                 None => (None, None),
             }
         };
+        let innermost_breakable_ty = innermost_breakable
+            .and_then(ast::Expr::cast)
+            .and_then(|expr| find_node_in_file_compensated(sema, original_file, &expr))
+            .and_then(|expr| sema.type_of_expr(&expr))
+            .map(|ty| if ty.original.is_never() { ty.adjusted() } else { ty.original() });
         let is_func_update = func_update_record(it);
         let in_condition = is_in_condition(&expr);
         let after_incomplete_let = after_incomplete_let(it.clone()).is_some();
@@ -1331,6 +1336,7 @@ fn classify_name_ref<'db>(
                 after_amp,
                 is_func_update,
                 innermost_ret_ty,
+                innermost_breakable_ty,
                 self_param,
                 in_value,
                 incomplete_let,
@@ -1880,7 +1886,7 @@ fn is_in_token_of_for_loop(path: &ast::Path) -> bool {
     .unwrap_or(false)
 }
 
-fn is_in_breakable(node: &SyntaxNode) -> BreakableKind {
+fn is_in_breakable(node: &SyntaxNode) -> (BreakableKind, Option<SyntaxNode>) {
     node.ancestors()
         .take_while(|it| it.kind() != SyntaxKind::FN && it.kind() != SyntaxKind::CLOSURE_EXPR)
         .find_map(|it| {
@@ -1889,15 +1895,15 @@ fn is_in_breakable(node: &SyntaxNode) -> BreakableKind {
                     ast::ForExpr(it) => (BreakableKind::For, it.loop_body()),
                     ast::WhileExpr(it) => (BreakableKind::While, it.loop_body()),
                     ast::LoopExpr(it) => (BreakableKind::Loop, it.loop_body()),
-                    ast::BlockExpr(it) => return it.label().map(|_| BreakableKind::Block),
+                    ast::BlockExpr(it) => return it.label().map(|_| (BreakableKind::Block, Some(it.syntax().clone()))),
                     _ => return None,
                 }
             };
             loop_body
                 .filter(|it| it.syntax().text_range().contains_range(node.text_range()))
-                .map(|_| breakable)
+                .map(|_| (breakable, Some(it)))
         })
-        .unwrap_or(BreakableKind::None)
+        .unwrap_or((BreakableKind::None, None))
 }
 
 fn is_in_block(node: &SyntaxNode) -> bool {

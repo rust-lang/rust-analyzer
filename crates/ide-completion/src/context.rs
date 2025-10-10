@@ -157,6 +157,7 @@ pub(crate) struct PathExprCtx<'db> {
     pub(crate) is_func_update: Option<ast::RecordExpr>,
     pub(crate) self_param: Option<hir::SelfParam>,
     pub(crate) innermost_ret_ty: Option<hir::Type<'db>>,
+    pub(crate) innermost_breakable_ty: Option<hir::Type<'db>>,
     pub(crate) impl_: Option<ast::Impl>,
     /// Whether this expression occurs in match arm guard position: before the
     /// fat arrow token
