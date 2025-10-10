@@ -388,12 +388,25 @@ impl GlobalState {
                     sender.send(Task::FetchBuildData(BuildDataProgress::Report(msg))).unwrap()
                 }
             };
-            let res = ProjectWorkspace::run_all_build_scripts(
-                &workspaces,
-                &config,
-                &progress,
-                &root_path,
-            );
+            let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                ProjectWorkspace::run_all_build_scripts(&workspaces, &config, &progress, &root_path)
+            }));
+
+            let res = res.unwrap_or_else(|error| {
+                let panic_msg = if let Some(s) = error.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = error.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    format!("{:?}", error)
+                };
+
+                // Also log to tracing for debugging
+                tracing::error!("Build scripts panicked: {}", panic_msg);
+
+                // If panic occurred, return empty results for all workspaces
+                workspaces.iter().map(|_| Ok(WorkspaceBuildScripts::default())).collect()
+            });
 
             sender.send(Task::FetchBuildData(BuildDataProgress::End((workspaces, res)))).unwrap();
         });
