@@ -282,11 +282,10 @@ impl<'db> MemoryMap<'db> {
     }
 }
 
-// FIXME(next-solver): add a lifetime to this
 /// A concrete constant value
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConstScalar {
-    Bytes(Box<[u8]>, MemoryMap<'static>),
+pub enum ConstScalar<'db> {
+    Bytes(Box<[u8]>, MemoryMap<'db>),
     // FIXME: this is a hack to get around chalk not being able to represent unevaluatable
     // constants
     UnevaluatedConst(GeneralConstId, Substitution),
@@ -298,7 +297,7 @@ pub enum ConstScalar {
     Unknown,
 }
 
-impl Hash for ConstScalar {
+impl Hash for ConstScalar<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
         if let ConstScalar::Bytes(b, _) = self {

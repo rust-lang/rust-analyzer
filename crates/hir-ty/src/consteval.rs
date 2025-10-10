@@ -149,7 +149,7 @@ pub fn unknown_const_as_generic(ty: Ty) -> GenericArg {
 }
 
 /// Interns a constant scalar with the given type
-pub fn intern_const_scalar(value: ConstScalar, ty: Ty) -> Const {
+pub fn intern_const_scalar(value: ConstScalar<'static>, ty: Ty) -> Const {
     ConstData { ty, value: ConstValue::Concrete(chalk_ir::ConcreteConst { interned: value }) }
         .intern(Interner)
 }
