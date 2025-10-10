@@ -1316,6 +1316,23 @@ fn main() {
 }
 
 #[test]
+fn doctest_flip_else_if() {
+    check_doc_test(
+        "flip_else_if",
+        r#####"
+fn foo() {
+    let n = if cond1 { 2 } else$0 if cond2 { 3 } else { 0 };
+}
+"#####,
+        r#####"
+fn foo() {
+    let n = if cond2 { 3 } else if cond1 { 2 } else { 0 };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_flip_or_pattern() {
     check_doc_test(
         "flip_or_pattern",
