@@ -80,17 +80,8 @@ fn if_expr_to_guarded_return(
         return None;
     }
 
-    // FIXME: This relies on untyped syntax tree and casts to much. It should be
-    // rewritten to use strongly-typed APIs.
-
     // check for early return and continue
-    let first_in_then_block = then_block.syntax().first_child()?;
-    if ast::ReturnExpr::can_cast(first_in_then_block.kind())
-        || ast::ContinueExpr::can_cast(first_in_then_block.kind())
-        || first_in_then_block
-            .children()
-            .any(|x| ast::ReturnExpr::can_cast(x.kind()) || ast::ContinueExpr::can_cast(x.kind()))
-    {
+    if is_early_block(&then_block) {
         return None;
     }
 
@@ -270,6 +261,17 @@ fn flat_let_chain(mut expr: ast::Expr) -> Vec<ast::Expr> {
     chains.push(expr);
     chains.reverse();
     chains
+}
+
+fn is_early_block(then_block: &ast::StmtList) -> bool {
+    let is_early_expr =
+        |expr| matches!(expr, ast::Expr::ReturnExpr(_) | ast::Expr::ContinueExpr(_));
+    let into_expr = |stmt| match stmt {
+        ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr(),
+        _ => None,
+    };
+    then_block.tail_expr().is_some_and(is_early_expr)
+        || then_block.statements().filter_map(into_expr).any(is_early_expr)
 }
 
 #[cfg(test)]
