@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PrettifyWsKind"],"fn":["prettify_macro_expansion"]};

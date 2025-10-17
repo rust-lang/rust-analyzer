@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AutorefOrPtrAdjustment","LookupMode","TyFingerprint","VisibleFromModule"],"fn":["check_orphan_rules","def_crates","is_dyn_method","iterate_method_candidates_dyn","iterate_path_candidates","lookup_impl_const"],"struct":["InherentImpls","ReceiverAdjustments","TraitImpls"],"trait":["MethodCandidateCallback"]};
