@@ -2641,6 +2641,25 @@ impl S {
 }
 
 #[test]
+fn doctest_move_for_binder() {
+    check_doc_test(
+        "move_for_binder",
+        r#####"
+fn foo<F>()
+where
+    F: $0for<'a> Fn(&'a str)
+{}
+"#####,
+        r#####"
+fn foo<F>()
+where
+    for<'a> F: Fn(&'a str)
+{}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_move_from_mod_rs() {
     check_doc_test(
         "move_from_mod_rs",
