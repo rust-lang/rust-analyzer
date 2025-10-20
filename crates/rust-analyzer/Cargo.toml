@@ -53,6 +53,7 @@ semver.workspace = true
 memchr = "2.7.5"
 cargo_metadata.workspace = true
 process-wrap.workspace = true
+strip-ansi-escapes.workspace = true
 
 cfg.workspace = true
 hir-def.workspace = true

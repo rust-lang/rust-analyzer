@@ -2048,6 +2048,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "stdx",
+ "strip-ansi-escapes",
  "syntax",
  "syntax-bridge",
  "tenthash",
@@ -2377,6 +2378,15 @@ dependencies = [
  "miow",
  "tracing",
  "windows-sys 0.60.2",
+]
+
+[[package]]
+name = "strip-ansi-escapes"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a8f8038e7e7969abb3f1b7c2a811225e9296da208539e0f79c5251d6cac0025"
+dependencies = [
+ "vte",
 ]
 
 [[package]]
@@ -2838,6 +2848,15 @@ dependencies = [
  "tracing",
  "vfs",
  "walkdir",
+]
+
+[[package]]
+name = "vte"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "231fdcd7ef3037e8330d8e17e61011a2c244126acc0a982f4040ac3f9f0bc077"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
