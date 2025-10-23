@@ -180,7 +180,7 @@ impl Attrs {
 
     #[inline]
     pub fn cfg(&self) -> Option<CfgExpr> {
-        let mut cfgs = self.by_key(sym::cfg).tt_values().map(CfgExpr::parse);
+        let mut cfgs = self.cfgs();
         let first = cfgs.next()?;
         match cfgs.next() {
             Some(second) => {
