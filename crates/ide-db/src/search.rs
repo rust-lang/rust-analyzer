@@ -10,9 +10,9 @@ use std::{cell::LazyCell, cmp::Reverse};
 use base_db::{RootQueryDb, SourceDatabase};
 use either::Either;
 use hir::{
-    Adt, AsAssocItem, DefWithBody, EditionedFileId, FileRange, FileRangeWrapper, HasAttrs,
-    HasContainer, HasSource, InFile, InFileWrapper, InRealFile, InlineAsmOperand, ItemContainer,
-    ModuleSource, PathResolution, Semantics, Visibility, sym,
+    Adt, AsAssocItem, AttrsWithOwner, CfgExpr, DefWithBody, EditionedFileId, FileRange,
+    FileRangeWrapper, HasAttrs, HasContainer, HasSource, InFile, InFileWrapper, InRealFile,
+    InlineAsmOperand, ItemContainer, ModuleSource, PathResolution, Semantics, Visibility, sym,
 };
 use memchr::memmem::Finder;
 use parser::SyntaxKind;
@@ -1377,4 +1377,19 @@ fn is_name_ref_in_test(sema: &Semantics<'_, RootDatabase>, name_ref: &ast::NameR
 fn is_test_function(sema: &Semantics<'_, RootDatabase>, node: &syntax::SyntaxNode) -> bool {
     ast::Fn::cast(node.clone())
         .is_some_and(|func| sema.to_def(&func).is_some_and(|func| func.is_test(sema.db)))
+}
+
+/// Returns true if the given attributes enable code only in test configurations.
+pub fn has_cfg_test(attrs: &AttrsWithOwner) -> bool {
+    fn is_cfg_test(cfg_expr: &CfgExpr) -> bool {
+        use CfgExpr::*;
+        use cfg::CfgAtom;
+        match cfg_expr {
+            Atom(CfgAtom::Flag(flag)) => *flag == sym::test,
+            All(exprs) => exprs.iter().any(is_cfg_test),
+            // N.B. possible false negatives here.
+            Invalid | Atom(CfgAtom::KeyValue { .. }) | Any(_) | Not(_) => false,
+        }
+    }
+    attrs.cfgs().any(|cfg_expr| is_cfg_test(&cfg_expr))
 }
