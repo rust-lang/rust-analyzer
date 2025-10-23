@@ -1370,8 +1370,11 @@ fn is_name_ref_in_import(name_ref: &ast::NameRef) -> bool {
 }
 
 fn is_name_ref_in_test(sema: &Semantics<'_, RootDatabase>, name_ref: &ast::NameRef) -> bool {
-    name_ref.syntax().ancestors().any(|node| match ast::Fn::cast(node) {
-        Some(it) => sema.to_def(&it).is_some_and(|func| func.is_test(sema.db)),
-        None => false,
-    })
+    name_ref.syntax().ancestors().any(|node|is_test_function(sema, &node))
+}
+
+/// Returns true if the node is a function with the `#[test]` attribute.
+fn is_test_function(sema: &Semantics<'_, RootDatabase>, node: &syntax::SyntaxNode) -> bool {
+    ast::Fn::cast(node.clone())
+        .is_some_and(|func| sema.to_def(&func).is_some_and(|func| func.is_test(sema.db)))
 }
