@@ -1370,13 +1370,53 @@ fn is_name_ref_in_import(name_ref: &ast::NameRef) -> bool {
 }
 
 fn is_name_ref_in_test(sema: &Semantics<'_, RootDatabase>, name_ref: &ast::NameRef) -> bool {
-    name_ref.syntax().ancestors().any(|node|is_test_function(sema, &node))
+    name_ref
+        .syntax()
+        .ancestors()
+        .any(|node| is_test_function(sema, &node) || node_has_cfg_test(sema, &node))
+        || current_module_is_declared_in_cfg_test(sema, name_ref)
 }
 
 /// Returns true if the node is a function with the `#[test]` attribute.
 fn is_test_function(sema: &Semantics<'_, RootDatabase>, node: &syntax::SyntaxNode) -> bool {
     ast::Fn::cast(node.clone())
         .is_some_and(|func| sema.to_def(&func).is_some_and(|func| func.is_test(sema.db)))
+}
+
+/// Returns true if the node is only enabled in test configurations.
+fn node_has_cfg_test(sema: &Semantics<'_, RootDatabase>, node: &syntax::SyntaxNode) -> bool {
+    macro_rules! attrs {
+        ($it:expr) => {
+            sema.to_def($it).map(|node| node.attrs(sema.db))
+        };
+    }
+    use ast::*;
+    let attrs = match_ast! {
+        match node {
+            Adt(it) => attrs!(&it),
+            Const(it) => attrs!(&it),
+            ConstParam(it) => attrs!(&it),
+            Enum(it) => attrs!(&it),
+            ExternCrate(it) => attrs!(&it),
+            Fn(it) => attrs!(&it),
+            GenericParam(it) => attrs!(&it),
+            Impl(it) => attrs!(&it),
+            LifetimeParam(it) => attrs!(&it),
+            Macro(it) => attrs!(&it),
+            Module(it) => attrs!(&it),
+            RecordField(it) => attrs!(&it),
+            SourceFile(it) => attrs!(&it),
+            Static(it) => attrs!(&it),
+            Struct(it) => attrs!(&it),
+            Trait(it) => attrs!(&it),
+            TypeAlias(it) => attrs!(&it),
+            TypeParam(it) => attrs!(&it),
+            Union(it) => attrs!(&it),
+            Variant(it) => attrs!(&it),
+            _ => None,
+        }
+    };
+    attrs.as_ref().is_some_and(has_cfg_test)
 }
 
 /// Returns true if the given attributes enable code only in test configurations.
@@ -1392,4 +1432,15 @@ pub fn has_cfg_test(attrs: &AttrsWithOwner) -> bool {
         }
     }
     attrs.cfgs().any(|cfg_expr| is_cfg_test(&cfg_expr))
+}
+
+/// Returns true if this reference's enclosing module is declared conditional on `cfg(test)`.
+/// E.g. it's declared like `#[cfg(test)] mod tests;` in its parent module.
+fn current_module_is_declared_in_cfg_test(
+    sema: &Semantics<'_, RootDatabase>,
+    name_ref: &ast::NameRef,
+) -> bool {
+    let file_id = sema.original_range(name_ref.syntax()).file_id;
+    sema.file_to_module_def(file_id.file_id(sema.db))
+        .is_some_and(|mod_def| has_cfg_test(&mod_def.attrs(sema.db)))
 }

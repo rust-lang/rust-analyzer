@@ -467,7 +467,7 @@ mod tests {
     fn exclude_tests() {
         check(
             r#"
-fn test_func() {}
+pub fn test_func() {}
 
 fn func() {
     test_func$0();
@@ -477,12 +477,26 @@ fn func() {
 fn test() {
     test_func();
 }
+#[cfg(test)]
+fn cfg_test_fn() {
+    test_func();
+}
+#[cfg(test)]
+mod cfg_test_mod {
+    use super::test_func;
+    fn test() {
+        test_func();
+    }
+}
 "#,
+            // TODO The last two should be "import test" and "test".
             expect![[r#"
-                test_func Function FileId(0) 0..17 3..12
+                test_func Function FileId(0) 0..21 7..16
 
-                FileId(0) 35..44
-                FileId(0) 75..84 test
+                FileId(0) 39..48
+                FileId(0) 79..88 test
+                FileId(0) 130..139
+                FileId(0) 227..236
             "#]],
         );
 
