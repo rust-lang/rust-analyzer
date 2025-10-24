@@ -1282,8 +1282,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         struct TypeAliasImplTraitCollector<'a, 'db> {
             db: &'a dyn HirDatabase,
             table: &'a mut InferenceTable<'db>,
-            assocs: FxHashMap<InternedOpaqueTyId, (ImplId, Ty<'db>)>,
-            non_assocs: FxHashMap<InternedOpaqueTyId, Ty<'db>>,
+            assocs: FxHashMap<InternedOpaqueTyId<'db>, (ImplId, Ty<'db>)>,
+            non_assocs: FxHashMap<InternedOpaqueTyId<'db>, Ty<'db>>,
         }
 
         impl<'db> TypeVisitor<DbInterner<'db>> for TypeAliasImplTraitCollector<'_, 'db> {

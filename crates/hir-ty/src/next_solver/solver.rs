@@ -142,9 +142,9 @@ impl<'db> SolverDelegate for SolverContext<'db> {
     fn fetch_eligible_assoc_item(
         &self,
         _goal_trait_ref: rustc_type_ir::TraitRef<Self::Interner>,
-        trait_assoc_def_id: SolverDefId,
+        trait_assoc_def_id: SolverDefId<'db>,
         impl_id: ImplIdWrapper,
-    ) -> Result<Option<SolverDefId>, ErrorGuaranteed> {
+    ) -> Result<Option<SolverDefId<'db>>, ErrorGuaranteed> {
         let impl_items = impl_id.0.impl_items(self.0.interner.db());
         let id = match trait_assoc_def_id {
             SolverDefId::TypeAliasId(trait_assoc_id) => {

@@ -284,7 +284,7 @@ impl<'db> FulfillmentCtxt<'db> {
 /// This function can be also return false positives, which will lead to poor diagnostics
 /// so we want to keep this visitor *precise* too.
 pub struct StalledOnCoroutines<'a, 'db> {
-    pub stalled_coroutines: &'a [SolverDefId],
+    pub stalled_coroutines: &'a [SolverDefId<'db>],
     pub cache: FxHashSet<Ty<'db>>,
 }
 

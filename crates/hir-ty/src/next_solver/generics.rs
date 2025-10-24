@@ -14,7 +14,7 @@ use super::SolverDefId;
 
 use super::DbInterner;
 
-pub(crate) fn generics(db: &dyn HirDatabase, def: SolverDefId) -> Generics {
+pub(crate) fn generics<'db>(db: &'db dyn HirDatabase, def: SolverDefId<'db>) -> Generics {
     let mk_lt = |parent, index, local_id| {
         let id = GenericParamId::LifetimeParamId(LifetimeParamId { parent, local_id });
         GenericParamDef { index, id }

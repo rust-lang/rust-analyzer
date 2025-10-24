@@ -158,7 +158,7 @@ fn could_unify_impl<'db>(
 pub(crate) struct InferenceTable<'db> {
     pub(crate) db: &'db dyn HirDatabase,
     pub(crate) trait_env: Arc<TraitEnvironment<'db>>,
-    pub(crate) tait_coercion_table: Option<FxHashMap<InternedOpaqueTyId, Ty<'db>>>,
+    pub(crate) tait_coercion_table: Option<FxHashMap<InternedOpaqueTyId<'db>, Ty<'db>>>,
     pub(crate) infer_ctxt: InferCtxt<'db>,
     pub(super) fulfillment_cx: FulfillmentCtxt<'db>,
     pub(super) diverging_type_vars: FxHashSet<Ty<'db>>,
@@ -478,14 +478,14 @@ impl<'db> InferenceTable<'db> {
     }
 
     /// Create a `GenericArgs` full of infer vars for `def`.
-    pub(crate) fn fresh_args_for_item(&self, def: SolverDefId) -> GenericArgs<'db> {
+    pub(crate) fn fresh_args_for_item(&self, def: SolverDefId<'db>) -> GenericArgs<'db> {
         self.infer_ctxt.fresh_args_for_item(def)
     }
 
     /// Like `fresh_args_for_item()`, but first uses the args from `first`.
     pub(crate) fn fill_rest_fresh_args(
         &self,
-        def_id: SolverDefId,
+        def_id: SolverDefId<'db>,
         first: impl IntoIterator<Item = GenericArg<'db>>,
     ) -> GenericArgs<'db> {
         self.infer_ctxt.fill_rest_fresh_args(def_id, first)

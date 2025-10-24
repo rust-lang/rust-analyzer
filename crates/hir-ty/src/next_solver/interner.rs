@@ -299,24 +299,24 @@ impl<'db> inherent::Span<DbInterner<'db>> for Span {
     }
 }
 
-interned_vec_nolifetime_salsa!(BoundVarKinds, BoundVarKind, nofold);
+interned_vec_nolifetime_salsa!(BoundVarKinds, BoundVarKind<'db>, nofold);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum BoundVarKind {
-    Ty(BoundTyKind),
-    Region(BoundRegionKind),
+pub enum BoundVarKind<'db> {
+    Ty(BoundTyKind<'db>),
+    Region(BoundRegionKind<'db>),
     Const,
 }
 
-impl BoundVarKind {
-    pub fn expect_region(self) -> BoundRegionKind {
+impl<'db> BoundVarKind<'db> {
+    pub fn expect_region(self) -> BoundRegionKind<'db> {
         match self {
             BoundVarKind::Region(lt) => lt,
             _ => panic!("expected a region, but found another kind"),
         }
     }
 
-    pub fn expect_ty(self) -> BoundTyKind {
+    pub fn expect_ty(self) -> BoundTyKind<'db> {
         match self {
             BoundVarKind::Ty(ty) => ty,
             _ => panic!("expected a type, but found another kind"),
@@ -850,8 +850,8 @@ macro_rules! as_lang_item {
 }
 
 impl<'db> Interner for DbInterner<'db> {
-    type DefId = SolverDefId;
-    type LocalDefId = SolverDefId;
+    type DefId = SolverDefId<'db>;
+    type LocalDefId = SolverDefId<'db>;
     type LocalDefIds = SolverDefIds<'db>;
     type TraitId = TraitIdWrapper;
     type ForeignId = TypeAliasIdWrapper;
@@ -870,7 +870,7 @@ impl<'db> Interner for DbInterner<'db> {
     type Term = Term<'db>;
 
     type BoundVarKinds = BoundVarKinds<'db>;
-    type BoundVarKind = BoundVarKind;
+    type BoundVarKind = BoundVarKind<'db>;
 
     type PredefinedOpaques = PredefinedOpaques<'db>;
 
@@ -907,8 +907,8 @@ impl<'db> Interner for DbInterner<'db> {
     type Tys = Tys<'db>;
     type FnInputTys = Tys<'db>;
     type ParamTy = ParamTy;
-    type BoundTy = BoundTy;
-    type PlaceholderTy = PlaceholderTy;
+    type BoundTy = BoundTy<'db>;
+    type PlaceholderTy = PlaceholderTy<'db>;
     type Symbol = ();
 
     type ErrorGuaranteed = ErrorGuaranteed;
@@ -929,9 +929,9 @@ impl<'db> Interner for DbInterner<'db> {
 
     type Region = Region<'db>;
     type EarlyParamRegion = EarlyParamRegion;
-    type LateParamRegion = LateParamRegion;
-    type BoundRegion = BoundRegion;
-    type PlaceholderRegion = PlaceholderRegion;
+    type LateParamRegion = LateParamRegion<'db>;
+    type BoundRegion = BoundRegion<'db>;
+    type PlaceholderRegion = PlaceholderRegion<'db>;
 
     type RegionAssumptions = RegionAssumptions<'db>;
 
@@ -1796,10 +1796,10 @@ impl<'db> Interner for DbInterner<'db> {
     ) -> rustc_type_ir::Binder<Self, T> {
         struct Anonymize<'a, 'db> {
             interner: DbInterner<'db>,
-            map: &'a mut FxIndexMap<BoundVar, BoundVarKind>,
+            map: &'a mut FxIndexMap<BoundVar, BoundVarKind<'db>>,
         }
         impl<'db> BoundVarReplacerDelegate<'db> for Anonymize<'_, 'db> {
-            fn replace_region(&mut self, br: BoundRegion) -> Region<'db> {
+            fn replace_region(&mut self, br: BoundRegion<'db>) -> Region<'db> {
                 let entry = self.map.entry(br.var);
                 let index = entry.index();
                 let var = BoundVar::from_usize(index);
@@ -1808,7 +1808,7 @@ impl<'db> Interner for DbInterner<'db> {
                 let br = BoundRegion { var, kind };
                 Region::new_bound(self.interner, DebruijnIndex::ZERO, br)
             }
-            fn replace_ty(&mut self, bt: BoundTy) -> Ty<'db> {
+            fn replace_ty(&mut self, bt: BoundTy<'db>) -> Ty<'db> {
                 let entry = self.map.entry(bt.var);
                 let index = entry.index();
                 let var = BoundVar::from_usize(index);
@@ -1970,14 +1970,14 @@ impl<'db> DbInterner<'db> {
         self.replace_escaping_bound_vars_uncached(
             value,
             FnMutDelegate {
-                regions: &mut |r: BoundRegion| {
+                regions: &mut |r: BoundRegion<'db>| {
                     Region::new_bound(
                         self,
                         DebruijnIndex::ZERO,
                         BoundRegion { var: shift_bv(r.var), kind: r.kind },
                     )
                 },
-                types: &mut |t: BoundTy| {
+                types: &mut |t: BoundTy<'db>| {
                     Ty::new_bound(
                         self,
                         DebruijnIndex::ZERO,
@@ -2070,7 +2070,7 @@ macro_rules! TrivialTypeTraversalImpls {
 }
 
 TrivialTypeTraversalImpls! {
-    SolverDefId,
+    SolverDefId<'db>,
     TraitIdWrapper,
     TypeAliasIdWrapper,
     CallableIdWrapper,
@@ -2084,10 +2084,10 @@ TrivialTypeTraversalImpls! {
     Span,
     ParamConst,
     ParamTy,
-    BoundRegion,
+    BoundRegion<'db>,
     BoundVar,
-    Placeholder<BoundRegion>,
-    Placeholder<BoundTy>,
+    Placeholder<BoundRegion<'db>>,
+    Placeholder<BoundTy<'db>>,
     Placeholder<BoundVar>,
 }
 

@@ -83,7 +83,7 @@ impl<'db> Ty<'db> {
         Ty::new(interner, TyKind::Param(ParamTy { id, index }))
     }
 
-    pub fn new_placeholder(interner: DbInterner<'db>, placeholder: PlaceholderTy) -> Self {
+    pub fn new_placeholder(interner: DbInterner<'db>, placeholder: PlaceholderTy<'db>) -> Self {
         Ty::new(interner, TyKind::Placeholder(placeholder))
     }
 
@@ -889,11 +889,11 @@ impl<'db> rustc_type_ir::inherent::Ty<DbInterner<'db>> for Ty<'db> {
         Ty::new(interner, TyKind::Param(param))
     }
 
-    fn new_placeholder(interner: DbInterner<'db>, param: PlaceholderTy) -> Self {
+    fn new_placeholder(interner: DbInterner<'db>, param: PlaceholderTy<'db>) -> Self {
         Ty::new(interner, TyKind::Placeholder(param))
     }
 
-    fn new_bound(interner: DbInterner<'db>, debruijn: DebruijnIndex, var: BoundTy) -> Self {
+    fn new_bound(interner: DbInterner<'db>, debruijn: DebruijnIndex, var: BoundTy<'db>) -> Self {
         Ty::new(interner, TyKind::Bound(BoundVarIndexKind::Bound(debruijn), var))
     }
 
@@ -1195,7 +1195,7 @@ impl<'db> rustc_type_ir::inherent::Tys<DbInterner<'db>> for Tys<'db> {
     }
 }
 
-pub type PlaceholderTy = Placeholder<BoundTy>;
+pub type PlaceholderTy<'db> = Placeholder<BoundTy<'db>>;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ParamTy {
@@ -1219,13 +1219,13 @@ impl std::fmt::Debug for ParamTy {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct BoundTy {
+pub struct BoundTy<'db> {
     pub var: BoundVar,
     // FIXME: This is for diagnostics in rustc, do we really need it?
-    pub kind: BoundTyKind,
+    pub kind: BoundTyKind<'db>,
 }
 
-impl std::fmt::Debug for BoundTy {
+impl<'db> std::fmt::Debug for BoundTy<'db> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             BoundTyKind::Anon => write!(f, "{:?}", self.var),
@@ -1235,9 +1235,9 @@ impl std::fmt::Debug for BoundTy {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub enum BoundTyKind {
+pub enum BoundTyKind<'db> {
     Anon,
-    Param(SolverDefId),
+    Param(SolverDefId<'db>),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -1270,18 +1270,18 @@ impl ParamLike for ParamTy {
     }
 }
 
-impl<'db> BoundVarLike<DbInterner<'db>> for BoundTy {
+impl<'db> BoundVarLike<DbInterner<'db>> for BoundTy<'db> {
     fn var(self) -> BoundVar {
         self.var
     }
 
-    fn assert_eq(self, var: BoundVarKind) {
+    fn assert_eq(self, var: BoundVarKind<'db>) {
         assert_eq!(self.kind, var.expect_ty())
     }
 }
 
-impl<'db> PlaceholderLike<DbInterner<'db>> for PlaceholderTy {
-    type Bound = BoundTy;
+impl<'db> PlaceholderLike<DbInterner<'db>> for PlaceholderTy<'db> {
+    type Bound = BoundTy<'db>;
 
     fn universe(self) -> rustc_type_ir::UniverseIndex {
         self.universe
@@ -1295,7 +1295,7 @@ impl<'db> PlaceholderLike<DbInterner<'db>> for PlaceholderTy {
         Placeholder { universe: ui, bound: self.bound }
     }
 
-    fn new(ui: rustc_type_ir::UniverseIndex, bound: BoundTy) -> Self {
+    fn new(ui: rustc_type_ir::UniverseIndex, bound: BoundTy<'db>) -> Self {
         Placeholder { universe: ui, bound }
     }
 

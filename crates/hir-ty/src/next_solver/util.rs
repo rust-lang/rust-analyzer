@@ -499,8 +499,9 @@ pub fn apply_args_to_binder<'db, T: TypeFoldable<DbInterner<'db>>>(
     args: GenericArgs<'db>,
     interner: DbInterner<'db>,
 ) -> T {
-    let types = &mut |ty: BoundTy| args.as_slice()[ty.var.index()].expect_ty();
-    let regions = &mut |region: BoundRegion| args.as_slice()[region.var.index()].expect_region();
+    let types = &mut |ty: BoundTy<'db>| args.as_slice()[ty.var.index()].expect_ty();
+    let regions =
+        &mut |region: BoundRegion<'db>| args.as_slice()[region.var.index()].expect_region();
     let consts = &mut |const_: BoundConst| args.as_slice()[const_.var.index()].expect_const();
     let mut instantiate = BoundVarReplacer::new(interner, FnMutDelegate { types, regions, consts });
     b.skip_binder().fold_with(&mut instantiate)
@@ -508,7 +509,7 @@ pub fn apply_args_to_binder<'db, T: TypeFoldable<DbInterner<'db>>>(
 
 pub fn explicit_item_bounds<'db>(
     interner: DbInterner<'db>,
-    def_id: SolverDefId,
+    def_id: SolverDefId<'db>,
 ) -> EarlyBinder<'db, Clauses<'db>> {
     let db = interner.db();
     match def_id {
@@ -689,8 +690,8 @@ impl<'db> TypeVisitor<DbInterner<'db>> for ContainsTypeErrors {
 /// The inverse of [`BoundVarReplacer`]: replaces placeholders with the bound vars from which they came.
 pub struct PlaceholderReplacer<'a, 'db> {
     infcx: &'a InferCtxt<'db>,
-    mapped_regions: FxIndexMap<PlaceholderRegion, BoundRegion>,
-    mapped_types: FxIndexMap<Placeholder<BoundTy>, BoundTy>,
+    mapped_regions: FxIndexMap<PlaceholderRegion<'db>, BoundRegion<'db>>,
+    mapped_types: FxIndexMap<Placeholder<BoundTy<'db>>, BoundTy<'db>>,
     mapped_consts: FxIndexMap<PlaceholderConst, BoundConst>,
     universe_indices: &'a [Option<UniverseIndex>],
     current_index: DebruijnIndex,
@@ -699,8 +700,8 @@ pub struct PlaceholderReplacer<'a, 'db> {
 impl<'a, 'db> PlaceholderReplacer<'a, 'db> {
     pub fn replace_placeholders<T: TypeFoldable<DbInterner<'db>>>(
         infcx: &'a InferCtxt<'db>,
-        mapped_regions: FxIndexMap<PlaceholderRegion, BoundRegion>,
-        mapped_types: FxIndexMap<Placeholder<BoundTy>, BoundTy>,
+        mapped_regions: FxIndexMap<PlaceholderRegion<'db>, BoundRegion<'db>>,
+        mapped_types: FxIndexMap<Placeholder<BoundTy<'db>>, BoundTy<'db>>,
         mapped_consts: FxIndexMap<PlaceholderConst, BoundConst>,
         universe_indices: &'a [Option<UniverseIndex>],
         value: T,
