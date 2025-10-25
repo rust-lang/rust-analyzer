@@ -35,13 +35,13 @@ impl<'db> InferCtxt<'db> {
         let next_universe = self.create_next_universe();
 
         let delegate = FnMutDelegate {
-            regions: &mut |br: BoundRegion| {
+            regions: &mut |br: BoundRegion<'db>| {
                 Region::new_placeholder(
                     self.interner,
                     PlaceholderRegion { universe: next_universe, bound: br },
                 )
             },
-            types: &mut |bound_ty: BoundTy| {
+            types: &mut |bound_ty: BoundTy<'db>| {
                 Ty::new_placeholder(
                     self.interner,
                     PlaceholderTy { universe: next_universe, bound: bound_ty },

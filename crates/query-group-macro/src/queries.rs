@@ -282,11 +282,16 @@ impl ToTokens for Intern {
         let interned_pat = ty.first().expect("at least one pat; this is a bug");
         let interned_pat = &interned_pat.pat;
 
-        let wrapper_struct = self.interned_struct_path.to_token_stream();
+        let mut type_constructor = proc_macro2::TokenStream::new();
+        self.interned_struct_path.leading_colon.to_tokens(&mut type_constructor);
+        for segment in &self.interned_struct_path.segments {
+            segment.ident.to_tokens(&mut type_constructor);
+            quote! {::}.to_tokens(&mut type_constructor);
+        }
 
         let method = quote! {
             #sig {
-                #wrapper_struct::new(self, #interned_pat)
+                #type_constructor new(self, #interned_pat)
             }
         };
 
@@ -306,6 +311,7 @@ impl Lookup {
         let sig = &self.signature;
 
         let ident = format_ident!("lookup_{}", sig.ident);
+        let generics = &sig.generics;
 
         let ty = self.pat_and_tys.to_vec();
 
@@ -314,8 +320,10 @@ impl Lookup {
         let interned_pat = ty.first().expect("at least one pat; this is a bug");
         let interned_return_ty = &interned_pat.ty;
 
+        let FnArg::Receiver(receiver) = sig.inputs.first().unwrap() else { unreachable!() };
+
         self.signature = parse_quote!(
-            fn #ident(&self, id: #interned_key) -> #interned_return_ty
+            fn #ident #generics(#receiver, id: #interned_key) -> #interned_return_ty
         );
     }
 }
@@ -324,11 +332,17 @@ impl ToTokens for Lookup {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let sig = &self.signature;
 
-        let wrapper_struct = self.interned_struct_path.to_token_stream();
+        let mut type_constructor = proc_macro2::TokenStream::new();
+        self.interned_struct_path.leading_colon.to_tokens(&mut type_constructor);
+        for segment in &self.interned_struct_path.segments {
+            segment.ident.to_tokens(&mut type_constructor);
+            quote! {::}.to_tokens(&mut type_constructor);
+        }
+
         let method = quote! {
             #sig {
                 let zalsa = self.zalsa();
-                #wrapper_struct::ingredient(zalsa).data(zalsa, id.as_id()).0.clone()
+                #type_constructor ingredient(zalsa).data(zalsa, id.as_id()).0.clone()
             }
         };
 

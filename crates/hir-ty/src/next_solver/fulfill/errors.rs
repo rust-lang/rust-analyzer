@@ -702,7 +702,7 @@ mod wf {
         #[instrument(level = "debug", skip(self))]
         fn nominal_obligations(
             &mut self,
-            def_id: SolverDefId,
+            def_id: SolverDefId<'db>,
             args: GenericArgs<'db>,
         ) -> PredicateObligations<'db> {
             // PERF: `Sized`'s predicates include `MetaSized`, but both are compiler implemented marker

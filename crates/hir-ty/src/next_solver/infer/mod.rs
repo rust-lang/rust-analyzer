@@ -279,7 +279,7 @@ pub struct TypeTrace<'db> {
 
 /// Times when we replace bound regions with existentials:
 #[derive(Clone, Copy, Debug)]
-pub enum BoundRegionConversionTime {
+pub enum BoundRegionConversionTime<'db> {
     /// when a fn is called
     FnCall,
 
@@ -287,7 +287,7 @@ pub enum BoundRegionConversionTime {
     HigherRankedType,
 
     /// when projecting an associated type
-    AssocTypeProjection(SolverDefId),
+    AssocTypeProjection(SolverDefId<'db>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -603,7 +603,7 @@ impl<'db> InferCtxt<'db> {
             .new_var(self.universe(), TypeVariableOrigin { param_def_id: None })
     }
 
-    pub fn next_ty_var_with_origin(&self, origin: TypeVariableOrigin) -> Ty<'db> {
+    pub fn next_ty_var_with_origin(&self, origin: TypeVariableOrigin<'db>) -> Ty<'db> {
         let vid = self.inner.borrow_mut().type_variables().new_var(self.universe(), origin);
         Ty::new_var(self.interner, vid)
     }
@@ -764,14 +764,14 @@ impl<'db> InferCtxt<'db> {
 
     /// Given a set of generics defined on a type or impl, returns the generic parameters mapping
     /// each type/region parameter to a fresh inference variable.
-    pub fn fresh_args_for_item(&self, def_id: SolverDefId) -> GenericArgs<'db> {
+    pub fn fresh_args_for_item(&self, def_id: SolverDefId<'db>) -> GenericArgs<'db> {
         GenericArgs::for_item(self.interner, def_id, |_index, kind, _| self.var_for_def(kind))
     }
 
     /// Like `fresh_args_for_item()`, but first uses the args from `first`.
     pub fn fill_rest_fresh_args(
         &self,
-        def_id: SolverDefId,
+        def_id: SolverDefId<'db>,
         first: impl IntoIterator<Item = GenericArg<'db>>,
     ) -> GenericArgs<'db> {
         GenericArgs::fill_rest(self.interner, def_id, first, |_index, kind, _| {
@@ -807,7 +807,7 @@ impl<'db> InferCtxt<'db> {
     }
 
     #[inline(always)]
-    pub fn can_define_opaque_ty(&self, id: impl Into<SolverDefId>) -> bool {
+    pub fn can_define_opaque_ty(&self, id: impl Into<SolverDefId<'db>>) -> bool {
         match self.typing_mode_unchecked() {
             TypingMode::Analysis { defining_opaque_types_and_generators } => {
                 defining_opaque_types_and_generators.contains(&id.into())
@@ -983,7 +983,7 @@ impl<'db> InferCtxt<'db> {
     // use [`InferCtxt::enter_forall`] instead.
     pub fn instantiate_binder_with_fresh_vars<T>(
         &self,
-        _lbrct: BoundRegionConversionTime,
+        _lbrct: BoundRegionConversionTime<'db>,
         value: Binder<'db, T>,
     ) -> T
     where
@@ -1010,10 +1010,10 @@ impl<'db> InferCtxt<'db> {
         }
 
         impl<'db> BoundVarReplacerDelegate<'db> for ToFreshVars<'db> {
-            fn replace_region(&mut self, br: BoundRegion) -> Region<'db> {
+            fn replace_region(&mut self, br: BoundRegion<'db>) -> Region<'db> {
                 self.args[br.var.index()].expect_region()
             }
-            fn replace_ty(&mut self, bt: BoundTy) -> Ty<'db> {
+            fn replace_ty(&mut self, bt: BoundTy<'db>) -> Ty<'db> {
                 self.args[bt.var.index()].expect_ty()
             }
             fn replace_const(&mut self, bv: BoundConst) -> Const<'db> {

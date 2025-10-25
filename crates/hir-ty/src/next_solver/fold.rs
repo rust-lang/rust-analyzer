@@ -17,8 +17,8 @@ use super::{
 /// gets mapped to the same result. `BoundVarReplacer` caches by using
 /// a `DelayedMap` which does not cache the first few types it encounters.
 pub trait BoundVarReplacerDelegate<'db> {
-    fn replace_region(&mut self, br: BoundRegion) -> Region<'db>;
-    fn replace_ty(&mut self, bt: BoundTy) -> Ty<'db>;
+    fn replace_region(&mut self, br: BoundRegion<'db>) -> Region<'db>;
+    fn replace_ty(&mut self, bt: BoundTy<'db>) -> Ty<'db>;
     fn replace_const(&mut self, bv: BoundConst) -> Const<'db>;
 }
 
@@ -26,16 +26,16 @@ pub trait BoundVarReplacerDelegate<'db> {
 /// always return the same result for each bound variable, no matter how
 /// frequently they are called.
 pub struct FnMutDelegate<'db, 'a> {
-    pub regions: &'a mut (dyn FnMut(BoundRegion) -> Region<'db> + 'a),
-    pub types: &'a mut (dyn FnMut(BoundTy) -> Ty<'db> + 'a),
+    pub regions: &'a mut (dyn FnMut(BoundRegion<'db>) -> Region<'db> + 'a),
+    pub types: &'a mut (dyn FnMut(BoundTy<'db>) -> Ty<'db> + 'a),
     pub consts: &'a mut (dyn FnMut(BoundConst) -> Const<'db> + 'a),
 }
 
 impl<'db, 'a> BoundVarReplacerDelegate<'db> for FnMutDelegate<'db, 'a> {
-    fn replace_region(&mut self, br: BoundRegion) -> Region<'db> {
+    fn replace_region(&mut self, br: BoundRegion<'db>) -> Region<'db> {
         (self.regions)(br)
     }
-    fn replace_ty(&mut self, bt: BoundTy) -> Ty<'db> {
+    fn replace_ty(&mut self, bt: BoundTy<'db>) -> Ty<'db> {
         (self.types)(bt)
     }
     fn replace_const(&mut self, bv: BoundConst) -> Const<'db> {

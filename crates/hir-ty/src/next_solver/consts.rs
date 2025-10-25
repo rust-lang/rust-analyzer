@@ -397,7 +397,7 @@ impl<'db> rustc_type_ir::inherent::BoundVarLike<DbInterner<'db>> for BoundConst 
         self.var
     }
 
-    fn assert_eq(self, var: BoundVarKind) {
+    fn assert_eq(self, var: BoundVarKind<'db>) {
         var.expect_const()
     }
 }

@@ -386,7 +386,7 @@ impl<'db> TypeRelation<DbInterner<'db>> for Generalizer<'_, 'db> {
 
     fn relate_item_args(
         &mut self,
-        item_def_id: SolverDefId,
+        item_def_id: SolverDefId<'db>,
         a_arg: GenericArgs<'db>,
         b_arg: GenericArgs<'db>,
     ) -> RelateResult<'db, GenericArgs<'db>> {

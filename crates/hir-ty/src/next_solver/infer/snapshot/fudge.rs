@@ -114,7 +114,7 @@ impl<'db> InferCtxt<'db> {
 
     fn fudge_inference<T: TypeFoldable<DbInterner<'db>>>(
         &self,
-        snapshot_vars: SnapshotVarData,
+        snapshot_vars: SnapshotVarData<'db>,
         value: T,
     ) -> T {
         // Micro-optimization: if no variables have been created, then
@@ -127,16 +127,16 @@ impl<'db> InferCtxt<'db> {
     }
 }
 
-struct SnapshotVarData {
+struct SnapshotVarData<'db> {
     region_vars: Range<RegionVid>,
-    type_vars: (Range<TyVid>, Vec<TypeVariableOrigin>),
+    type_vars: (Range<TyVid>, Vec<TypeVariableOrigin<'db>>),
     int_vars: Range<IntVid>,
     float_vars: Range<FloatVid>,
     const_vars: (Range<ConstVid>, Vec<ConstVariableOrigin>),
 }
 
-impl SnapshotVarData {
-    fn new(infcx: &InferCtxt<'_>, vars_pre_snapshot: VariableLengths) -> SnapshotVarData {
+impl<'db> SnapshotVarData<'db> {
+    fn new(infcx: &InferCtxt<'db>, vars_pre_snapshot: VariableLengths) -> SnapshotVarData<'db> {
         let mut inner = infcx.inner.borrow_mut();
         let region_vars = inner
             .unwrap_region_constraints()
@@ -166,7 +166,7 @@ impl SnapshotVarData {
 
 struct InferenceFudger<'a, 'db> {
     infcx: &'a InferCtxt<'db>,
-    snapshot_vars: SnapshotVarData,
+    snapshot_vars: SnapshotVarData<'db>,
 }
 
 impl<'a, 'db> TypeFolder<DbInterner<'db>> for InferenceFudger<'a, 'db> {

@@ -6462,7 +6462,7 @@ fn as_name_opt(name: Option<impl AsName>) -> Name {
 
 fn generic_args_from_tys<'db>(
     interner: DbInterner<'db>,
-    def_id: SolverDefId,
+    def_id: SolverDefId<'db>,
     args: impl IntoIterator<Item = Ty<'db>>,
 ) -> GenericArgs<'db> {
     let mut args = args.into_iter();
