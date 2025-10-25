@@ -14,6 +14,7 @@ doctest = false
 
 [dependencies]
 cov-mark = "2.0.0"
+cfg.workspace = true
 crossbeam-channel.workspace = true
 tracing.workspace = true
 rayon.workspace = true
