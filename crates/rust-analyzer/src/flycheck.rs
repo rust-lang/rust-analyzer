@@ -421,11 +421,16 @@ impl FlycheckActor {
 
                     let formatted_command = format!("{command:?}");
 
+                    let strip_ansi_color_codes = !matches!(
+                        self.config,
+                        FlycheckConfig::CargoCommand { ansi_color_output: false, .. }
+                    );
+
                     tracing::debug!(?command, "will restart flycheck");
                     let (sender, receiver) = unbounded();
                     match CommandHandle::spawn(
                         command,
-                        CargoCheckParser,
+                        CargoCheckParser { strip_ansi_color_codes },
                         sender,
                         match &self.config {
                             FlycheckConfig::CargoCommand { options, .. } => Some(
@@ -655,11 +660,12 @@ impl FlycheckActor {
                     };
                 }
 
-                cmd.arg(if *ansi_color_output {
-                    "--message-format=json-diagnostic-rendered-ansi"
+                if *ansi_color_output {
+                    cmd.arg("--message-format=json-diagnostic-rendered-ansi");
                 } else {
-                    "--message-format=json"
-                });
+                    cmd.arg("--message-format=json");
+                    cmd.arg("--color=never");
+                }
 
                 if let Some(manifest_path) = &self.manifest_path {
                     cmd.arg("--manifest-path");
@@ -725,7 +731,9 @@ enum CargoCheckMessage {
     Diagnostic { diagnostic: Diagnostic, package_id: Option<Arc<PackageId>> },
 }
 
-struct CargoCheckParser;
+struct CargoCheckParser {
+    strip_ansi_color_codes: bool,
+}
 
 impl CargoParser<CargoCheckMessage> for CargoCheckParser {
     fn from_line(&self, line: &str, error: &mut String) -> Option<CargoCheckMessage> {
@@ -739,15 +747,24 @@ impl CargoParser<CargoCheckMessage> for CargoCheckParser {
                         Some(CargoCheckMessage::CompilerArtifact(artifact))
                     }
                     cargo_metadata::Message::CompilerMessage(msg) => {
+                        let mut diagnostic = msg.message;
+                        if self.strip_ansi_color_codes {
+                            diagnostic.rendered =
+                                diagnostic.rendered.map(strip_ansi_escapes::strip_str);
+                        }
                         Some(CargoCheckMessage::Diagnostic {
-                            diagnostic: msg.message,
+                            diagnostic,
                             package_id: Some(Arc::new(msg.package_id)),
                         })
                     }
                     _ => None,
                 },
-                JsonMessage::Rustc(message) => {
-                    Some(CargoCheckMessage::Diagnostic { diagnostic: message, package_id: None })
+                JsonMessage::Rustc(mut diagnostic) => {
+                    if self.strip_ansi_color_codes {
+                        diagnostic.rendered =
+                            diagnostic.rendered.map(strip_ansi_escapes::strip_str);
+                    }
+                    Some(CargoCheckMessage::Diagnostic { diagnostic, package_id: None })
                 }
             };
         }
