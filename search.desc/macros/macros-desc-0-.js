@@ -1,0 +1,1 @@
+searchState.loadedDescShard("macros", 0, "Proc macros for rust-analyzer.\nDerives <code>TypeFoldable</code> for the annotated <code>struct</code> or <code>enum</code> (…\nDerives <code>TypeVisitable</code> for the annotated <code>struct</code> or <code>enum</code> (…")

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BoundRegionConversionTime","TyOrConstInferVar","ValuePairs"],"mod":["at","canonical","region_constraints","relate","resolve"],"struct":["FixupError","InferCtxt","InferCtxtBuilder","InferCtxtInner","InferOk","MemberConstraint","RegionObligation","TypeTrace"],"trait":["DbInternerInferExt"],"type":["InferResult"]};

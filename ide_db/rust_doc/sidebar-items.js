@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["format_docs","is_rust_fence"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FieldsShape","ImportAlias","ImportKind","RawVisibility","UseTreeKind","VisibilityExplicitness"],"struct":["Const","Enum","ExternBlock","ExternCrate","Function","Impl","ItemTree","ItemTreeDataStats","Macro2","MacroCall","MacroRules","Mod","Static","Struct","Trait","TreeId","TypeAlias","Union","Use","UseTree"]};
