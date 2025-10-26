@@ -19,8 +19,8 @@ use syntax::{
     AstNode, Edition, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode,
     algo::find_node_at_range,
     ast::{
-        self, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility, RecordField, make,
-        syntax_factory::SyntaxFactory,
+        self, GenericParam, HasArgList, HasAttrs, HasGenericParams, HasName, HasVisibility,
+        RecordField, make, syntax_factory::SyntaxFactory,
     },
     match_ast,
     syntax_editor::{Element, Position, SyntaxEditor},
@@ -175,23 +175,12 @@ pub(crate) fn extract_struct_from_function_signature(
             // and then apply it into record list after
             let field_list = make.record_field_list(field_list).clone_subtree();
             let mut field_editor = SyntaxEditor::new(field_list.syntax().clone());
-            let mut generic_editor = generics.map(|generics| {
-                let syntax_editor = SyntaxEditor::new(generics.clone_subtree().syntax().clone());
-                (generics, syntax_editor)
-            });
+            let mut generic_editor = generics;
             field_list
                 .fields()
                 .flat_map(|f| f.ty())
                 .try_for_each(|ty| generate_new_lifetimes(&mut field_editor, &ty, &mut generic_editor));
-            let generics = generic_editor.map(|(_, editor)| {let binding = editor.finish();
-            let generics = binding.new_root();
-                match_ast! {match generics {
-
-                        ast::GenericParamList(generics) => generics,
-                        _ => unreachable!(),
-
-                }}
-            } );
+            let generics = generic_editor.map(make::generic_param_list);
 
 
             move_comments_and_attributes(&mut field_editor, &used_param_list, &field_list);
@@ -223,7 +212,7 @@ pub(crate) fn extract_struct_from_function_signature(
                 ],
             );
             tracing::info!("extract_struct_from_function_signature: inserting struct {def}");
-            update_function(&mut editor, name, generic_params, &used_param_list, n_new_lifetimes)
+            update_function(&mut editor, name, generic_params.map(make::generic_param_list), &used_param_list, n_new_lifetimes)
                 .unwrap();
             tracing::info!(
                 "extract_struct_from_function_signature: updating function signature and parameter uses"
@@ -259,15 +248,11 @@ fn update_function(
         .filter(|generics| generics.generic_params().count() > 0)
         .or((n_new_lifetimes > 0).then_some(make::generic_param_list(std::iter::empty())))
         .map(move |generics| {
-            let args = generics.to_generic_args().clone_subtree();
-            let mut editor = SyntaxEditor::new(args.syntax().clone());
+            let mut args = generics.to_generic_args().clone_subtree().generic_args().collect_vec();
             (0..n_new_lifetimes).for_each(|_| {
-                editor.add_generic_arg(
-                    &args,
-                    make::lifetime_arg(make::lifetime("'_")).clone_for_update().into(),
-                );
+                args.push(make::lifetime_arg(make::lifetime("'_")).clone_for_update().into())
             });
-            editor.finish().new_root().clone()
+            make::generic_arg_list(args)
         });
     // FIXME: replace with a `ast::make` constructor
     let ty = match generic_args {
@@ -363,7 +348,7 @@ fn take_all_comments(node: impl ast::AstNode) -> Vec<SyntaxElement> {
 fn extract_generic_params<'a>(
     known_generics: &ast::GenericParamList,
     field_list: impl Iterator<Item = &'a RecordField>,
-) -> Option<ast::GenericParamList> {
+) -> Option<Vec<GenericParam>> {
     let mut generics = known_generics.generic_params().map(|param| (param, false)).collect_vec();
 
     let tagged_one = field_list
@@ -371,20 +356,28 @@ fn extract_generic_params<'a>(
         .fold(false, |tagged, ty| tag_generics_in_function_signature(&ty, &mut generics) || tagged);
 
     let generics = generics.into_iter().filter_map(|(param, tag)| tag.then_some(param));
-    tagged_one.then(|| make::generic_param_list(generics))
+    tagged_one.then(|| generics.collect_vec())
 }
 fn generate_unique_lifetime_param_name(
-    existing_type_param_list: &Option<(ast::GenericParamList, SyntaxEditor)>,
+    existing_type_param_list: &Option<Vec<GenericParam>>,
 ) -> Option<ast::Lifetime> {
-    match existing_type_param_list {
-        Some((type_params, _)) => {
-            let used_lifetime_params: FxHashSet<_> =
-                type_params.lifetime_params().map(|p| p.syntax().text().to_string()).collect();
-            ('a'..='z').map(|it| format!("'{it}")).find(|it| !used_lifetime_params.contains(it))
-        }
-        None => Some("'a".to_owned()),
-    }
-    .map(|it| make::lifetime(&it))
+    existing_type_param_list.as_ref().map_or_else(
+        || Some(make::lifetime("'a")),
+        |existing_type_param_list| {
+            let used_lifetime_params: FxHashSet<_> = existing_type_param_list
+                .iter()
+                .filter_map(|l| match l {
+                    ast::GenericParam::LifetimeParam(l) => Some(l),
+                    _ => None,
+                })
+                .map(|p| p.syntax().text().to_string())
+                .collect();
+            ('a'..='z')
+                .map(|it| format!("'{it}"))
+                .find(|it| !used_lifetime_params.contains(it))
+                .map(|it| make::lifetime(&it))
+        },
+    )
 }
 fn new_life_time_count(ty: &ast::Type) -> usize {
     ty.syntax()
@@ -404,7 +397,7 @@ fn contains_impl_trait(ty: &ast::Type) -> bool {
 fn generate_new_lifetimes(
     fields_editor: &mut SyntaxEditor,
     ty: &ast::Type,
-    existing_type_param_list: &mut Option<(ast::GenericParamList, SyntaxEditor)>,
+    existing_type_param_list: &mut Option<Vec<GenericParam>>,
 ) -> Option<()> {
     for token in ty.syntax().descendants() {
         // we do not have to worry about for<'a> because we are only looking at '_ or &Type
@@ -414,16 +407,8 @@ fn generate_new_lifetimes(
         {
             let new_lt = generate_unique_lifetime_param_name(existing_type_param_list)?;
             fields_editor.replace(lt.syntax(), new_lt.syntax().clone_for_update());
-            let (generics, editor) = existing_type_param_list.get_or_insert_with(|| {
-                let generics = make::generic_param_list(std::iter::empty());
-                let syntax_editor = SyntaxEditor::new(generics.syntax().clone_subtree());
-
-                (generics, syntax_editor)
-            });
-            editor.add_generic_param(
-                generics,
-                make::lifetime_param(new_lt).clone_for_update().into(),
-            );
+            let existing_type_param_list = existing_type_param_list.get_or_insert_default();
+            existing_type_param_list.push(make::lifetime_param(new_lt).clone_for_update().into());
         } else if let Some(r) = ast::RefType::cast(token.clone())
             && r.lifetime().is_none()
         {
@@ -435,17 +420,8 @@ fn generate_new_lifetimes(
                     make::tokens::whitespace(" ").into(),
                 ],
             );
-            let (generics, editor) = existing_type_param_list.get_or_insert_with(|| {
-                let generics = make::generic_param_list(std::iter::empty());
-                let syntax_editor = SyntaxEditor::new(generics.syntax().clone_subtree());
-
-                (generics, syntax_editor)
-            });
-
-            editor.add_generic_param(
-                generics,
-                make::lifetime_param(new_lt).clone_for_update().into(),
-            );
+            let existing_type_param_list = existing_type_param_list.get_or_insert_default();
+            existing_type_param_list.push(make::lifetime_param(new_lt).clone_for_update().into());
         }
         // TODO: nominal types that have only lifetimes
         // struct Bar<'a, 'b> { f: &'a &'b i32 }
@@ -526,7 +502,7 @@ fn existing_definition(
 }
 
 fn process_references(
-    ctx: &AssistContext<'_>,
+    ctx: &'_ AssistContext<'_>,
     visited_modules: &mut FxHashSet<Module>,
     function_module_def: &ModuleDef,
     refs: Vec<FileReference>,
@@ -543,7 +519,7 @@ fn process_references(
                     ctx.sema.db,
                     *function_module_def,
                     ctx.config.insert_use.prefix_kind,
-                    ctx.config.find_path_confg(ctx.sema.is_nightly(module.krate())),
+                    ctx.config.find_path_config(ctx.sema.is_nightly(module.krate())),
                 );
                 if let Some(mut mod_path) = mod_path {
                     mod_path.pop_segment();
@@ -983,6 +959,28 @@ f: i32 }
 
 fn foo(
     FooStruct { f, .. }: FooStruct,
+) { }
+"#,
+        )
+    }
+    #[test]
+    fn test_extract_function_signature_with_annoynmous_and_hidden_lifetime() {
+        check_assist(
+            extract_struct_from_function_signature,
+            r#"
+struct Foo<'a>(&'a i32);
+
+fn foo(
+    $0ctx: &Foo<'_>$0,
+) { }
+"#,
+            r#"
+struct Foo<'a>(&'a i32);
+
+struct FooStruct<'a, 'b> { ctx: &'a Foo<'b> }
+
+fn foo(
+    FooStruct { ctx, .. }: FooStruct<'_, '_>,
 ) { }
 "#,
         )
