@@ -479,7 +479,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                             |f| ImplTraitId::ReturnTypeImplTrait(f, idx),
                             |a| ImplTraitId::TypeAliasImplTrait(a, idx),
                         );
-                        let opaque_ty_id: SolverDefId =
+                        let opaque_ty_id: SolverDefId<'db> =
                             self.db.intern_impl_trait_id(impl_trait_id).into();
 
                         // We don't want to lower the bounds inside the binders
@@ -878,7 +878,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
     fn lower_impl_trait(
         &mut self,
-        def_id: SolverDefId,
+        def_id: SolverDefId<'db>,
         bounds: &[TypeBound],
         krate: Crate,
     ) -> ImplTrait<'db> {

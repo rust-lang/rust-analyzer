@@ -121,7 +121,7 @@ impl<'db> InferCtxt<'db> {
             CanonicalVarKind::PlaceholderRegion(PlaceholderRegion { universe, bound }) => {
                 let universe_mapped = universe_map(universe);
                 let placeholder_mapped: crate::next_solver::Placeholder<
-                    crate::next_solver::BoundRegion,
+                    crate::next_solver::BoundRegion<'db>,
                 > = PlaceholderRegion { universe: universe_mapped, bound };
                 Region::new_placeholder(self.interner, placeholder_mapped).into()
             }

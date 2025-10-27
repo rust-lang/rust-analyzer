@@ -5,7 +5,6 @@ use hir_def::{
     GeneralConstId, GenericDefId, ImplId, StaticId, StructId, TraitId, TypeAliasId, UnionId,
 };
 use rustc_type_ir::inherent;
-use stdx::impl_from;
 
 use crate::db::{InternedClosureId, InternedCoroutineId, InternedOpaqueTyId};
 
@@ -18,7 +17,7 @@ pub enum Ctor {
 }
 
 #[derive(PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa::Supertype)]
-pub enum SolverDefId {
+pub enum SolverDefId<'db> {
     AdtId(AdtId),
     ConstId(ConstId),
     FunctionId(FunctionId),
@@ -28,13 +27,13 @@ pub enum SolverDefId {
     TypeAliasId(TypeAliasId),
     InternedClosureId(InternedClosureId),
     InternedCoroutineId(InternedCoroutineId),
-    InternedOpaqueTyId(InternedOpaqueTyId),
+    InternedOpaqueTyId(InternedOpaqueTyId<'db>),
     EnumVariantId(EnumVariantId),
     // FIXME(next-solver): Do we need the separation of `Ctor`? It duplicates some variants.
     Ctor(Ctor),
 }
 
-impl std::fmt::Debug for SolverDefId {
+impl<'db> std::fmt::Debug for SolverDefId<'db> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let interner = DbInterner::conjure();
         let db = interner.db;
@@ -102,23 +101,83 @@ impl std::fmt::Debug for SolverDefId {
     }
 }
 
-impl_from!(
-    AdtId(StructId, EnumId, UnionId),
-    ConstId,
-    FunctionId,
-    ImplId,
-    StaticId,
-    TraitId,
-    TypeAliasId,
-    InternedClosureId,
-    InternedCoroutineId,
-    InternedOpaqueTyId,
-    EnumVariantId,
-    Ctor
-    for SolverDefId
-);
+impl<'db> From<AdtId> for SolverDefId<'db> {
+    fn from(it: AdtId) -> SolverDefId<'db> {
+        SolverDefId::AdtId(it)
+    }
+}
+impl<'db> From<StructId> for SolverDefId<'db> {
+    fn from(it: StructId) -> SolverDefId<'db> {
+        SolverDefId::AdtId(AdtId::StructId(it))
+    }
+}
+impl<'db> From<EnumId> for SolverDefId<'db> {
+    fn from(it: EnumId) -> SolverDefId<'db> {
+        SolverDefId::AdtId(AdtId::EnumId(it))
+    }
+}
+impl<'db> From<UnionId> for SolverDefId<'db> {
+    fn from(it: UnionId) -> SolverDefId<'db> {
+        SolverDefId::AdtId(AdtId::UnionId(it))
+    }
+}
+impl<'db> From<ConstId> for SolverDefId<'db> {
+    fn from(it: ConstId) -> SolverDefId<'db> {
+        SolverDefId::ConstId(it)
+    }
+}
+impl<'db> From<FunctionId> for SolverDefId<'db> {
+    fn from(it: FunctionId) -> SolverDefId<'db> {
+        SolverDefId::FunctionId(it)
+    }
+}
+impl<'db> From<ImplId> for SolverDefId<'db> {
+    fn from(it: ImplId) -> SolverDefId<'db> {
+        SolverDefId::ImplId(it)
+    }
+}
+impl<'db> From<StaticId> for SolverDefId<'db> {
+    fn from(it: StaticId) -> SolverDefId<'db> {
+        SolverDefId::StaticId(it)
+    }
+}
+impl<'db> From<TraitId> for SolverDefId<'db> {
+    fn from(it: TraitId) -> SolverDefId<'db> {
+        SolverDefId::TraitId(it)
+    }
+}
+impl<'db> From<TypeAliasId> for SolverDefId<'db> {
+    fn from(it: TypeAliasId) -> SolverDefId<'db> {
+        SolverDefId::TypeAliasId(it)
+    }
+}
+impl<'db> From<InternedClosureId> for SolverDefId<'db> {
+    fn from(it: InternedClosureId) -> SolverDefId<'db> {
+        SolverDefId::InternedClosureId(it)
+    }
+}
+impl<'db> From<InternedCoroutineId> for SolverDefId<'db> {
+    fn from(it: InternedCoroutineId) -> SolverDefId<'db> {
+        SolverDefId::InternedCoroutineId(it)
+    }
+}
+impl<'db> From<InternedOpaqueTyId<'db>> for SolverDefId<'db> {
+    fn from(it: InternedOpaqueTyId<'db>) -> SolverDefId<'db> {
+        SolverDefId::InternedOpaqueTyId(it)
+    }
+}
+impl<'db> From<EnumVariantId> for SolverDefId<'db> {
+    fn from(it: EnumVariantId) -> SolverDefId<'db> {
+        SolverDefId::EnumVariantId(it)
+    }
+}
+impl<'db> From<Ctor> for SolverDefId<'db> {
+    fn from(it: Ctor) -> SolverDefId<'db> {
+        SolverDefId::Ctor(it)
+    }
+}
 
-impl From<GenericDefId> for SolverDefId {
+impl<'db> From<GenericDefId> for SolverDefId<'db> {
     fn from(value: GenericDefId) -> Self {
         match value {
             GenericDefId::AdtId(adt_id) => SolverDefId::AdtId(adt_id),
@@ -132,7 +191,7 @@ impl From<GenericDefId> for SolverDefId {
     }
 }
 
-impl From<GeneralConstId> for SolverDefId {
+impl<'db> From<GeneralConstId> for SolverDefId<'db> {
     #[inline]
     fn from(value: GeneralConstId) -> Self {
         match value {
@@ -142,7 +201,7 @@ impl From<GeneralConstId> for SolverDefId {
     }
 }
 
-impl From<DefWithBodyId> for SolverDefId {
+impl<'db> From<DefWithBodyId> for SolverDefId<'db> {
     #[inline]
     fn from(value: DefWithBodyId) -> Self {
         match value {
@@ -154,10 +213,10 @@ impl From<DefWithBodyId> for SolverDefId {
     }
 }
 
-impl TryFrom<SolverDefId> for GenericDefId {
+impl<'db> TryFrom<SolverDefId<'db>> for GenericDefId {
     type Error = ();
 
-    fn try_from(value: SolverDefId) -> Result<Self, Self::Error> {
+    fn try_from(value: SolverDefId<'db>) -> Result<Self, Self::Error> {
         Ok(match value {
             SolverDefId::AdtId(adt_id) => GenericDefId::AdtId(adt_id),
             SolverDefId::ConstId(const_id) => GenericDefId::ConstId(const_id),
@@ -175,10 +234,10 @@ impl TryFrom<SolverDefId> for GenericDefId {
     }
 }
 
-impl SolverDefId {
+impl<'db> SolverDefId<'db> {
     #[inline]
     #[track_caller]
-    pub fn expect_opaque_ty(self) -> InternedOpaqueTyId {
+    pub fn expect_opaque_ty(self) -> InternedOpaqueTyId<'db> {
         match self {
             SolverDefId::InternedOpaqueTyId(it) => it,
             _ => panic!("expected opaque type, found {self:?}"),
@@ -195,8 +254,8 @@ impl SolverDefId {
     }
 }
 
-impl<'db> inherent::DefId<DbInterner<'db>> for SolverDefId {
-    fn as_local(self) -> Option<SolverDefId> {
+impl<'db> inherent::DefId<DbInterner<'db>> for SolverDefId<'db> {
+    fn as_local(self) -> Option<SolverDefId<'db>> {
         Some(self)
     }
     fn is_local(self) -> bool {
@@ -229,18 +288,18 @@ macro_rules! declare_id_wrapper {
             }
         }
 
-        impl From<$name> for SolverDefId {
+        impl<'db> From<$name> for SolverDefId<'db> {
             #[inline]
-            fn from(value: $name) -> SolverDefId {
+            fn from(value: $name) -> SolverDefId<'db> {
                 value.0.into()
             }
         }
 
-        impl TryFrom<SolverDefId> for $name {
+        impl<'db> TryFrom<SolverDefId<'db>> for $name {
             type Error = ();
 
             #[inline]
-            fn try_from(value: SolverDefId) -> Result<Self, Self::Error> {
+            fn try_from(value: SolverDefId<'db>) -> Result<Self, Self::Error> {
                 match value {
                     SolverDefId::$wraps(it) => Ok(Self(it)),
                     _ => Err(()),
@@ -249,7 +308,7 @@ macro_rules! declare_id_wrapper {
         }
 
         impl<'db> inherent::DefId<DbInterner<'db>> for $name {
-            fn as_local(self) -> Option<SolverDefId> {
+            fn as_local(self) -> Option<SolverDefId<'db>> {
                 Some(self.into())
             }
             fn is_local(self) -> bool {
@@ -286,9 +345,9 @@ impl From<CallableDefId> for CallableIdWrapper {
         Self(value)
     }
 }
-impl From<CallableIdWrapper> for SolverDefId {
+impl<'db> From<CallableIdWrapper> for SolverDefId<'db> {
     #[inline]
-    fn from(value: CallableIdWrapper) -> SolverDefId {
+    fn from(value: CallableIdWrapper) -> SolverDefId<'db> {
         match value.0 {
             CallableDefId::FunctionId(it) => it.into(),
             CallableDefId::StructId(it) => Ctor::Struct(it).into(),
@@ -296,10 +355,10 @@ impl From<CallableIdWrapper> for SolverDefId {
         }
     }
 }
-impl TryFrom<SolverDefId> for CallableIdWrapper {
+impl<'db> TryFrom<SolverDefId<'db>> for CallableIdWrapper {
     type Error = ();
     #[inline]
-    fn try_from(value: SolverDefId) -> Result<Self, Self::Error> {
+    fn try_from(value: SolverDefId<'db>) -> Result<Self, Self::Error> {
         match value {
             SolverDefId::FunctionId(it) => Ok(Self(it.into())),
             SolverDefId::Ctor(Ctor::Struct(it)) => Ok(Self(it.into())),
@@ -309,7 +368,7 @@ impl TryFrom<SolverDefId> for CallableIdWrapper {
     }
 }
 impl<'db> inherent::DefId<DbInterner<'db>> for CallableIdWrapper {
-    fn as_local(self) -> Option<SolverDefId> {
+    fn as_local(self) -> Option<SolverDefId<'db>> {
         Some(self.into())
     }
     fn is_local(self) -> bool {

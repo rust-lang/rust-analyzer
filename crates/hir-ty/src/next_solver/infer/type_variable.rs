@@ -62,7 +62,7 @@ impl<'tcx> Rollback<UndoLog<'tcx>> for TypeVariableStorage<'tcx> {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TypeVariableStorage<'db> {
     /// The origins of each type variable.
-    values: IndexVec<TyVid, TypeVariableData>,
+    values: IndexVec<TyVid, TypeVariableData<'db>>,
     /// Two variables are unified in `eq_relations` when we have a
     /// constraint `?X == ?Y`. This table also stores, for each key,
     /// the known value.
@@ -95,16 +95,16 @@ pub(crate) struct TypeVariableTable<'a, 'db> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct TypeVariableOrigin {
+pub struct TypeVariableOrigin<'db> {
     /// `DefId` of the type parameter this was instantiated for, if any.
     ///
     /// This should only be used for diagnostics.
-    pub param_def_id: Option<SolverDefId>,
+    pub param_def_id: Option<SolverDefId<'db>>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TypeVariableData {
-    origin: TypeVariableOrigin,
+pub(crate) struct TypeVariableData<'db> {
+    origin: TypeVariableOrigin<'db>,
 }
 
 #[derive(Clone, Debug)]
@@ -156,7 +156,7 @@ impl<'db> TypeVariableTable<'_, 'db> {
     ///
     /// Note that this function does not return care whether
     /// `vid` has been unified with something else or not.
-    pub(crate) fn var_origin(&self, vid: TyVid) -> TypeVariableOrigin {
+    pub(crate) fn var_origin(&self, vid: TyVid) -> TypeVariableOrigin<'db> {
         self.storage.values[vid].origin
     }
 
@@ -205,7 +205,11 @@ impl<'db> TypeVariableTable<'_, 'db> {
     /// - `origin`: indicates *why* the type variable was created.
     ///   The code in this module doesn't care, but it can be useful
     ///   for improving error messages.
-    pub(crate) fn new_var(&mut self, universe: UniverseIndex, origin: TypeVariableOrigin) -> TyVid {
+    pub(crate) fn new_var(
+        &mut self,
+        universe: UniverseIndex,
+        origin: TypeVariableOrigin<'db>,
+    ) -> TyVid {
         let eq_key = self.eq_relations().new_key(TypeVariableValue::Unknown { universe });
 
         let sub_key = self.sub_unification_table().new_key(());
@@ -271,7 +275,7 @@ impl<'db> TypeVariableTable<'_, 'db> {
     pub(crate) fn vars_since_snapshot(
         &mut self,
         value_count: usize,
-    ) -> (Range<TyVid>, Vec<TypeVariableOrigin>) {
+    ) -> (Range<TyVid>, Vec<TypeVariableOrigin<'db>>) {
         let range = TyVid::from_usize(value_count)..TyVid::from_usize(self.num_vars());
         (range.clone(), iter_idx_range(range).map(|index| self.var_origin(index)).collect())
     }

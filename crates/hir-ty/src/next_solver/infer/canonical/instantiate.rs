@@ -79,11 +79,11 @@ where
         value
     } else {
         let delegate = FnMutDelegate {
-            regions: &mut |br: BoundRegion| match var_values[br.var].kind() {
+            regions: &mut |br: BoundRegion<'db>| match var_values[br.var].kind() {
                 GenericArgKind::Lifetime(l) => l,
                 r => panic!("{br:?} is a region but value is {r:?}"),
             },
-            types: &mut |bound_ty: BoundTy| match var_values[bound_ty.var].kind() {
+            types: &mut |bound_ty: BoundTy<'db>| match var_values[bound_ty.var].kind() {
                 GenericArgKind::Type(ty) => ty,
                 r => panic!("{bound_ty:?} is a type but value is {r:?}"),
             },

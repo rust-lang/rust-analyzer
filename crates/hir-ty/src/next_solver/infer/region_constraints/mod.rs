@@ -122,7 +122,7 @@ pub struct Verify<'db> {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum GenericKind<'db> {
     Param(ParamTy),
-    Placeholder(PlaceholderTy),
+    Placeholder(PlaceholderTy<'db>),
     Alias(AliasTy<'db>),
 }
 

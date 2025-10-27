@@ -13,7 +13,7 @@ interned_vec_db!(PredefinedOpaques, PredefinedOpaque);
 pub type ExternalConstraintsData<'db> =
     rustc_type_ir::solve::ExternalConstraintsData<DbInterner<'db>>;
 
-interned_vec_nolifetime_salsa!(SolverDefIds, SolverDefId);
+interned_vec_nolifetime_salsa!(SolverDefIds, SolverDefId<'db>);
 
 #[salsa::interned(constructor = new_, debug)]
 pub struct ExternalConstraints<'db> {
