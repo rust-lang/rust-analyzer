@@ -732,6 +732,25 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_to_format_string() {
+    check_doc_test(
+        "convert_to_format_string",
+        r#####"
+fn foo() {
+    let n = 2;
+    let s = "n: {n$0}";
+}
+"#####,
+        r#####"
+fn foo() {
+    let n = 2;
+    let s = format!("n: {n}");
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_to_guarded_return() {
     check_doc_test(
         "convert_to_guarded_return",
