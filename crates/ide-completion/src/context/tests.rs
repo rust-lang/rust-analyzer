@@ -605,3 +605,55 @@ fn foo() {
         expect![[r#"ty: bool, name: ?"#]],
     );
 }
+
+#[test]
+fn expected_type_range_expr() {
+    check_expected_type_and_name(
+        r#"
+//- minicore: range
+enum State { Stop }
+fn bar(x: core::ops::Range<State>) {}
+fn foo() {
+    bar(State::Stop..$0)
+}
+"#,
+        expect![[r#"ty: State, name: ?"#]],
+    );
+
+    check_expected_type_and_name(
+        r#"
+//- minicore: range
+enum State { Stop }
+fn bar(x: core::ops::Range<State>) {}
+fn foo() {
+    bar($0..State::Stop)
+}
+"#,
+        expect![[r#"ty: State, name: ?"#]],
+    );
+
+    // FIXME: Analyze the type of `..` and use the generic parameters of Range*
+    check_expected_type_and_name(
+        r#"
+//- minicore: range
+enum State { Stop }
+fn bar(x: core::ops::Range<State>) {}
+fn foo() {
+    bar(..$0)
+}
+"#,
+        expect![[r#"ty: ?, name: ?"#]],
+    );
+
+    check_expected_type_and_name(
+        r#"
+//- minicore: range
+enum State { Stop }
+fn bar(x: core::ops::Range<State>) {}
+fn foo() {
+    bar($0..)
+}
+"#,
+        expect![[r#"ty: ?, name: ?"#]],
+    );
+}

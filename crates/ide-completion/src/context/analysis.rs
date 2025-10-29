@@ -14,7 +14,7 @@ use syntax::{
     },
     ast::{
         self, AttrKind, HasArgList, HasGenericArgs, HasGenericParams, HasLoopBody, HasName,
-        NameOrNameRef,
+        NameOrNameRef, RangeItem,
     },
     match_ast,
 };
@@ -86,7 +86,8 @@ pub(super) fn expand_and_analyze<'db>(
 
     // add the relative offset back, so that left_biased finds the proper token
     let original_offset = expansion.original_offset + relative_offset;
-    let token = expansion.original_file.token_at_offset(original_offset).left_biased()?;
+    let token = expansion.original_file.token_at_offset(original_offset);
+    let token = left_biased_or_after_l_paren(token)?;
 
     hir::attach_db(sema.db, || analyze(sema, expansion, original_token, &token)).map(
         |(analysis, expected, qualifier_ctx)| AnalysisResult {
@@ -732,6 +733,11 @@ fn expected_type_and_name<'db>(
                     cov_mark::hit!(expected_type_if_let_with_leading_char);
                     cov_mark::hit!(expected_type_match_arm_with_leading_char);
                     let ty = sema.type_of_pat(&ast::Pat::from(it)).map(TypeInfo::original);
+                    (ty, None)
+                },
+                ast::RangeExpr(it) => {
+                    let bound = it.start().or_else(|| it.end());
+                    let ty = bound.and_then(|it| sema.type_of_expr(&it)).map(TypeInfo::original);
                     (ty, None)
                 },
                 ast::Fn(it) => {
@@ -1992,4 +1998,13 @@ fn prev_special_biased_token_at_trivia(mut token: SyntaxToken) -> SyntaxToken {
         token = prev
     }
     token
+}
+
+fn left_biased_or_after_l_paren(token: syntax::TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
+    match token {
+        syntax::TokenAtOffset::None => None,
+        syntax::TokenAtOffset::Single(it) => Some(it),
+        syntax::TokenAtOffset::Between(left, right) if left.kind() == T!['('] => Some(right),
+        syntax::TokenAtOffset::Between(left, _) => Some(left),
+    }
 }
