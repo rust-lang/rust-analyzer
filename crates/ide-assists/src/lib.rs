@@ -161,6 +161,7 @@ mod handlers {
     mod generate_delegate_trait;
     mod generate_deref;
     mod generate_derive;
+    mod generate_doc_cfg;
     mod generate_documentation_template;
     mod generate_enum_is_method;
     mod generate_enum_projection_method;
@@ -296,6 +297,7 @@ mod handlers {
             generate_derive::generate_derive,
             generate_documentation_template::generate_doc_example,
             generate_documentation_template::generate_documentation_template,
+            generate_doc_cfg::generate_doc_cfg,
             generate_enum_is_method::generate_enum_is_method,
             generate_enum_projection_method::generate_enum_as_method,
             generate_enum_projection_method::generate_enum_try_into_method,
