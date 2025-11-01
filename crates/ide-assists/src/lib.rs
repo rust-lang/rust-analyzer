@@ -225,6 +225,7 @@ mod handlers {
     mod toggle_async_sugar;
     mod toggle_ignore;
     mod toggle_macro_delimiter;
+    mod unmerge_else_if;
     mod unmerge_imports;
     mod unmerge_match_arm;
     mod unnecessary_async;
@@ -372,6 +373,7 @@ mod handlers {
             toggle_ignore::toggle_ignore,
             toggle_macro_delimiter::toggle_macro_delimiter,
             unmerge_match_arm::unmerge_match_arm,
+            unmerge_else_if::unmerge_else_if,
             unmerge_imports::unmerge_imports,
             unnecessary_async::unnecessary_async,
             unqualify_method_call::unqualify_method_call,

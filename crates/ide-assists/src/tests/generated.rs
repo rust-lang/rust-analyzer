@@ -3578,6 +3578,37 @@ sth!{ }
 }
 
 #[test]
+fn doctest_unmerge_else_if() {
+    check_doc_test(
+        "unmerge_else_if",
+        r#####"
+fn foo() {
+    if cond1 {
+        xxx()
+    } else if$0 cond2 {
+        yyy()
+    } else {
+        zzz()
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    if cond1 {
+        xxx()
+    } else {
+        if cond2 {
+            yyy()
+        } else {
+            zzz()
+        }
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_unmerge_imports() {
     check_doc_test(
         "unmerge_imports",
