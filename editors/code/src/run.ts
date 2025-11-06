@@ -59,7 +59,7 @@ export async function selectRunnable(
     );
 }
 
-async function selectRunnableAtCursor(
+export async function selectRunnableAtCursor(
     ctx: CtxInit,
     editor: RustEditor,
     prevRunnable?: RunnableQuickPick,
