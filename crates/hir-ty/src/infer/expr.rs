@@ -1819,7 +1819,7 @@ impl<'db> InferenceContext<'_, 'db> {
             indices_to_skip,
             is_varargs,
         );
-        self.table.normalize_associated_types_in(ret_ty)
+        self.table.structurally_resolve_type(ret_ty)
     }
 
     fn infer_method_call(
@@ -1999,7 +1999,7 @@ impl<'db> InferenceContext<'_, 'db> {
         self.table.unify(formal_receiver_ty, receiver_ty);
 
         self.check_call_arguments(tgt_expr, &param_tys, ret_ty, expected, args, &[], is_varargs);
-        self.table.normalize_associated_types_in(ret_ty)
+        self.table.structurally_resolve_type(ret_ty)
     }
 
     /// Generic function that factors out common logic from function calls,

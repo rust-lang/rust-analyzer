@@ -48,7 +48,7 @@ fn infer_pattern() {
             83..84 '1': i32
             86..93 '"hello"': &'static str
             101..151 'for (e...     }': fn into_iter<{unknown}>({unknown}) -> <{unknown} as IntoIterator>::IntoIter
-            101..151 'for (e...     }': <{unknown} as IntoIterator>::IntoIter
+            101..151 'for (e...     }': {unknown}
             101..151 'for (e...     }': !
             101..151 'for (e...     }': {unknown}
             101..151 'for (e...     }': &'? mut {unknown}

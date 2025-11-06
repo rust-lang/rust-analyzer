@@ -197,7 +197,7 @@ fn expr_macro_def_expanded_in_various_places() {
             39..442 '{     ...!(); }': {unknown}
             73..94 'spam!(...am!())': {unknown}
             100..119 'for _ ...!() {}': fn into_iter<isize>(isize) -> <isize as IntoIterator>::IntoIter
-            100..119 'for _ ...!() {}': <isize as IntoIterator>::IntoIter
+            100..119 'for _ ...!() {}': {unknown}
             100..119 'for _ ...!() {}': !
             100..119 'for _ ...!() {}': {unknown}
             100..119 'for _ ...!() {}': &'? mut {unknown}
@@ -291,7 +291,7 @@ fn expr_macro_rules_expanded_in_various_places() {
             53..456 '{     ...!(); }': {unknown}
             87..108 'spam!(...am!())': {unknown}
             114..133 'for _ ...!() {}': fn into_iter<isize>(isize) -> <isize as IntoIterator>::IntoIter
-            114..133 'for _ ...!() {}': <isize as IntoIterator>::IntoIter
+            114..133 'for _ ...!() {}': {unknown}
             114..133 'for _ ...!() {}': !
             114..133 'for _ ...!() {}': {unknown}
             114..133 'for _ ...!() {}': &'? mut {unknown}

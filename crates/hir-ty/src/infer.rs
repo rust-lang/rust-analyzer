@@ -1597,7 +1597,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                     tried_resolving_once = true;
 
                     ty = self.table.insert_type_vars(ty);
-                    ty = self.table.normalize_associated_types_in(ty);
                     ty = self.table.structurally_resolve_type(ty);
                     if ty.is_ty_error() {
                         return (self.err_ty(), None);

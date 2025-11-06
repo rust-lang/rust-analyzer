@@ -3891,7 +3891,7 @@ fn foo<T: Bar>() {
         expect![[r#"
             110..127 '{     ...z(); }': ()
             116..122 'T::baz': fn baz<T>() -> <{unknown} as Foo>::Gat<'?>
-            116..124 'T::baz()': <{unknown} as Foo>::Gat<'?>
+            116..124 'T::baz()': {unknown}
         "#]],
     );
 }

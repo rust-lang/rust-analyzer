@@ -269,7 +269,7 @@ fn infer_std_crash_5() {
         expect![[r#"
             26..322 '{     ...   } }': ()
             32..320 'for co...     }': fn into_iter<{unknown}>({unknown}) -> <{unknown} as IntoIterator>::IntoIter
-            32..320 'for co...     }': <{unknown} as IntoIterator>::IntoIter
+            32..320 'for co...     }': {unknown}
             32..320 'for co...     }': !
             32..320 'for co...     }': {unknown}
             32..320 'for co...     }': &'? mut {unknown}
@@ -1255,7 +1255,7 @@ fn test() {
         expect![[r#"
             10..68 '{     ...   } }': ()
             16..66 'for _ ...     }': fn into_iter<()>(()) -> <() as IntoIterator>::IntoIter
-            16..66 'for _ ...     }': <() as IntoIterator>::IntoIter
+            16..66 'for _ ...     }': {unknown}
             16..66 'for _ ...     }': !
             16..66 'for _ ...     }': {unknown}
             16..66 'for _ ...     }': &'? mut {unknown}
