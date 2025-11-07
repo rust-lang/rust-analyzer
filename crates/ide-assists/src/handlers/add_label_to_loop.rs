@@ -1,8 +1,5 @@
 use ide_db::syntax_helpers::node_ext::for_each_break_and_continue_expr;
-use syntax::{
-    T,
-    ast::{self, AstNode, HasLoopBody},
-};
+use syntax::ast::{self, AstNode, HasLoopBody};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -28,9 +25,9 @@ use crate::{AssistContext, AssistId, Assists};
 // }
 // ```
 pub(crate) fn add_label_to_loop(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let loop_kw = ctx.find_token_syntax_at_offset(T![loop])?;
-    let loop_expr = loop_kw.parent().and_then(ast::LoopExpr::cast)?;
-    if loop_expr.label().is_some() {
+    let loop_expr = ctx.find_node_at_offset::<ast::LoopLike>()?;
+    let loop_kw = loop_expr.loop_token()?;
+    if loop_expr.label().is_some() || !loop_kw.text_range().contains_inclusive(ctx.offset()) {
         return None;
     }
 
@@ -83,6 +80,48 @@ fn main() {
             r#"
 fn main() {
     'l: loop {
+        break 'l;
+        continue 'l;
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn add_label_to_while_expr() {
+        check_assist(
+            add_label_to_loop,
+            r#"
+fn main() {
+    while$0 true {
+        break;
+        continue;
+    }
+}"#,
+            r#"
+fn main() {
+    'l: while true {
+        break 'l;
+        continue 'l;
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn add_label_to_for_expr() {
+        check_assist(
+            add_label_to_loop,
+            r#"
+fn main() {
+    for$0 _ in 0..5 {
+        break;
+        continue;
+    }
+}"#,
+            r#"
+fn main() {
+    'l: for _ in 0..5 {
         break 'l;
         continue 'l;
     }
@@ -155,6 +194,31 @@ fn main() {
             r#"
 fn main() {
     'l: loop$0 {
+        break 'l;
+        continue 'l;
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn do_not_add_label_if_outside_keyword() {
+        check_assist_not_applicable(
+            add_label_to_loop,
+            r#"
+fn main() {
+    'l: loop {$0
+        break 'l;
+        continue 'l;
+    }
+}"#,
+        );
+
+        check_assist_not_applicable(
+            add_label_to_loop,
+            r#"
+fn main() {
+    'l: while true {$0
         break 'l;
         continue 'l;
     }
