@@ -28,6 +28,7 @@ stdx.workspace = true
 span = { path = "../span", version = "0.0.0", default-features = false}
 
 intern.workspace = true
+postcard.workspace = true
 
 [lints]
 workspace = true
