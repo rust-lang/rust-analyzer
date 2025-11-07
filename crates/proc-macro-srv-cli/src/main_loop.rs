@@ -197,8 +197,6 @@ fn run_postcard() -> io::Result<()> {
             thread::sleep(std::time::Duration::from_secs(1));
             continue;
         };
-        dbg!(&req);
-
         let res = match req {
             msg::Request::ListMacros { dylib_path } => {
                 msg::Response::ListMacros(srv.list_macros(&dylib_path).map(|macros| {
@@ -301,7 +299,6 @@ fn run_postcard() -> io::Result<()> {
             }
         };
 
-        dbg!(&res);
         let res = postcard_wire::encode_cobs(&res).unwrap();
         postcard_wire::write_postcard(&mut writer, &res)?;
     }
