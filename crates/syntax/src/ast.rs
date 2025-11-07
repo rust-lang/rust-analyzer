@@ -25,8 +25,9 @@ pub use self::{
     expr_ext::{ArrayExprKind, BlockModifier, CallableExpr, ElseBranch, LiteralKind},
     generated::{nodes::*, tokens::*},
     node_ext::{
-        AttrKind, FieldKind, Macro, NameLike, NameOrNameRef, PathSegmentKind, SelfParamKind,
-        SlicePatComponents, StructKind, TypeBoundKind, TypeOrConstParam, VisibilityKind,
+        AttrKind, FieldKind, LoopLike, Macro, NameLike, NameOrNameRef, PathSegmentKind,
+        SelfParamKind, SlicePatComponents, StructKind, TypeBoundKind, TypeOrConstParam,
+        VisibilityKind,
     },
     operators::{ArithOp, BinaryOp, CmpOp, LogicOp, Ordering, RangeOp, UnaryOp},
     token_ext::{
