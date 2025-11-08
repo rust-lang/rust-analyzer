@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 use either::Either;
 use hir::{
     AssocItem, Crate, FieldSource, HasContainer, HasCrate, HasSource, HirDisplay, HirFileId,
-    InFile, LocalSource, ModuleSource, Semantics, db::ExpandDatabase, symbols::FileSymbol,
+    InFile, LocalSource, ModuleSource, Semantics, Symbol, db::ExpandDatabase, symbols::FileSymbol,
 };
 use ide_db::{
     FileId, FileRange, RootDatabase, SymbolKind,
@@ -51,8 +51,7 @@ pub struct NavigationTarget {
     // FIXME: Symbol
     pub name: SmolStr,
     pub kind: Option<SymbolKind>,
-    // FIXME: Symbol
-    pub container_name: Option<SmolStr>,
+    pub container_name: Option<Symbol>,
     pub description: Option<String>,
     pub docs: Option<Documentation>,
     /// In addition to a `name` field, a `NavigationTarget` may also be aliased
@@ -349,13 +348,13 @@ impl TryToNav for hir::ModuleDef {
 
 pub(crate) trait ToNavFromAst: Sized {
     const KIND: SymbolKind;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         _ = db;
         None
     }
 }
 
-fn container_name(db: &RootDatabase, t: impl HasContainer, edition: Edition) -> Option<SmolStr> {
+fn container_name(db: &RootDatabase, t: impl HasContainer, edition: Edition) -> Option<Symbol> {
     match t.container(db) {
         hir::ItemContainer::Trait(it) => Some(it.name(db).display_no_db(edition).to_smolstr()),
         // FIXME: Handle owners of blocks correctly here
@@ -364,36 +363,38 @@ fn container_name(db: &RootDatabase, t: impl HasContainer, edition: Edition) -> 
         }
         _ => None,
     }
+    .as_deref()
+    .map(Symbol::intern)
 }
 
 impl ToNavFromAst for hir::Function {
     const KIND: SymbolKind = SymbolKind::Function;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
 
 impl ToNavFromAst for hir::Const {
     const KIND: SymbolKind = SymbolKind::Const;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
 impl ToNavFromAst for hir::Static {
     const KIND: SymbolKind = SymbolKind::Static;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
 impl ToNavFromAst for hir::Struct {
     const KIND: SymbolKind = SymbolKind::Struct;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
 impl ToNavFromAst for hir::Enum {
     const KIND: SymbolKind = SymbolKind::Enum;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
@@ -402,19 +403,19 @@ impl ToNavFromAst for hir::Variant {
 }
 impl ToNavFromAst for hir::Union {
     const KIND: SymbolKind = SymbolKind::Union;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
 impl ToNavFromAst for hir::TypeAlias {
     const KIND: SymbolKind = SymbolKind::TypeAlias;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
 impl ToNavFromAst for hir::Trait {
     const KIND: SymbolKind = SymbolKind::Trait;
-    fn container_name(self, db: &RootDatabase) -> Option<SmolStr> {
+    fn container_name(self, db: &RootDatabase) -> Option<Symbol> {
         container_name(db, self, self.krate(db).edition(db))
     }
 }
