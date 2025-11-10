@@ -193,19 +193,19 @@ fn main() {
 }
 
 #[test]
-fn doctest_add_lifetime_to_type() {
+fn doctest_add_missing_lifetime() {
     check_doc_test(
-        "add_lifetime_to_type",
+        "add_missing_lifetime",
         r#####"
-struct Point {
-    x: &$0u32,
-    y: u32,
+struct $0Foo<T> {
+    x: &'a i32,
+    y: &T
 }
 "#####,
         r#####"
-struct Point<'a> {
-    x: &'a u32,
-    y: u32,
+struct Foo<'a, ${1:'l}, T> {
+    x: &'a i32,
+    y: &${0:'l} T
 }
 "#####,
     )
