@@ -23,9 +23,9 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 // ->
 // ```
-// struct Foo<'a, ${1:'l}, T> {
+// struct Foo<'a, ${0:'b}, T> {
 //     x: &'a i32,
-//     y: &${0:'l} T
+//     y: &${0:'b} T
 // }
 // ```
 
@@ -207,236 +207,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn add_lifetime() {
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct Foo {
-    a: &$0i32,
-    b: &usize
-}"#,
-            r#"
-struct Foo<${1:'l}> {
-    a: &${2:'l} i32,
-    b: &${0:'l} usize
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-enum Foo {
-    Bar { a: i32 },
-    Other,
-    Tuple(u32, &$0u32)
-}"#,
-            r#"
-enum Foo<${1:'l}> {
-    Bar { a: i32 },
-    Other,
-    Tuple(u32, &${0:'l} u32)
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-union Foo<T> {
-    a: &$0T,
-    b: usize
-}"#,
-            r#"
-union Foo<${1:'l}, T> {
-    a: &${0:'l} T,
-    b: usize
-}"#,
-        );
-    }
-
-    #[test]
-    fn add_lifetime_to_struct() {
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct Foo {
-    a: &$0i32
-}"#,
-            r#"
-struct Foo<${1:'l}> {
-    a: &${0:'l} i32
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct Foo {
-    a: &$0i32,
-    b: &usize
-}"#,
-            r#"
-struct Foo<${1:'l}> {
-    a: &${2:'l} i32,
-    b: &${0:'l} usize
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct Foo {
-    a: &$0i32,
-    b: usize
-}"#,
-            r#"
-struct Foo<${1:'l}> {
-    a: &${0:'l} i32,
-    b: usize
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct Foo<T> {
-    a: &$0T,
-    b: usize
-}"#,
-            r#"
-struct Foo<${1:'l}, T> {
-    a: &${0:'l} T,
-    b: usize
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct Foo {
-    a: &'a$0 i32
-}"#,
-            r#"
-struct Foo<'a> {
-    a: &'a i32
-}"#,
-        );
-
-        check_assist_not_applicable(add_missing_lifetime, r#"struct Foo<'a> { a: &$0'a i32 }"#);
-    }
-
-    #[test]
-    fn add_lifetime_to_enum() {
-        check_assist(
-            add_missing_lifetime,
-            r#"
-enum Foo {
-    Bar { a: i32 },
-    Other,
-    Tuple(u32, &$0u32)
-}"#,
-            r#"
-enum Foo<${1:'l}> {
-    Bar { a: i32 },
-    Other,
-    Tuple(u32, &${0:'l} u32)
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-enum Foo {
-    Bar { a: &$0i32 }
-}"#,
-            r#"
-enum Foo<${1:'l}> {
-    Bar { a: &${0:'l} i32 }
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-enum Foo<T> {
-    Bar {
-    a: &$0i32,
-    b: &T
-    }
-}"#,
-            r#"
-enum Foo<${1:'l}, T> {
-    Bar {
-    a: &${2:'l} i32,
-    b: &${0:'l} T
-    }
-}"#,
-        );
-
-        check_assist_not_applicable(
-            add_missing_lifetime,
-            r#"enum Foo<'a> { Bar { a: &$0'a i32 }}"#,
-        );
-        check_assist_not_applicable(add_missing_lifetime, r#"enum Foo { Bar, $0Misc }"#);
-    }
-
-    #[test]
-    fn add_lifetime_to_union() {
-        check_assist(
-            add_missing_lifetime,
-            r#"
-union Foo {
-    a: &$0i32
-}"#,
-            r#"
-union Foo<${1:'l}> {
-    a: &${0:'l} i32
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-union Foo {
-    a: &$0i32,
-    b: &usize
-}"#,
-            r#"
-union Foo<${1:'l}> {
-    a: &${2:'l} i32,
-    b: &${0:'l} usize
-}"#,
-        );
-
-        check_assist(
-            add_missing_lifetime,
-            r#"
-union Foo<T> {
-    a: &$0T,
-    b: usize
-}"#,
-            r#"
-union Foo<${1:'l}, T> {
-    a: &${0:'l} T,
-    b: usize
-}"#,
-        );
-
-        check_assist_not_applicable(add_missing_lifetime, r#"struct Foo<'a> { a: &'a $0i32 }"#);
-    }
-
-    #[test]
-    fn declare_undeclared_lifetimes() {
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct $0Foo {
-    x: &'a i32
-}"#,
-            r#"
-struct Foo<'a> {
-    x: &'a i32
-}"#,
-        );
+    fn struct_lifetime() {
         check_assist(
             add_missing_lifetime,
             r#"
@@ -450,7 +221,6 @@ struct Foo<'a, 'b> {
     y: &'b u32
 }"#,
         );
-
         check_assist(
             add_missing_lifetime,
             r#"
@@ -460,6 +230,73 @@ struct $0Foo<T> {
             r#"
 struct Foo<'a, T> {
     x: &'a T
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+struct Foo<T> {
+    a: &$0T,
+    b: usize
+}"#,
+            r#"
+struct Foo<${0:'a}, T> {
+    a: &${0:'a} T,
+    b: usize
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+struct Foo<'a> {
+    x: &'a i32,
+    y: &$0u32
+}"#,
+            r#"
+struct Foo<${0:'b}, 'a> {
+    x: &'a i32,
+    y: &${0:'b} u32
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+struct $0Foo {
+    x: &'a i32,
+    y: &u32
+}"#,
+            r#"
+struct Foo<'a, ${0:'b}> {
+    x: &'a i32,
+    y: &${0:'b} u32
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+struct $0Foo<T> {
+    x: &'a i32,
+    y: &T
+}"#,
+            r#"
+struct Foo<'a, ${0:'b}, T> {
+    x: &'a i32,
+    y: &${0:'b} T
+}"#,
+        );
+    }
+
+    #[test]
+    fn enum_lifetime() {
+        check_assist(
+            add_missing_lifetime,
+            r#"
+enum $0Foo {
+    Bar { x: &'a i32 }
+}"#,
+            r#"
+enum Foo<'a> {
+    Bar { x: &'a i32 }
 }"#,
         );
         check_assist(
@@ -479,24 +316,49 @@ enum Foo<'a, 'b, T> {
     }
 }"#,
         );
-    }
-
-    #[test]
-    fn add_lifetime_with_existing_declared() {
         check_assist(
             add_missing_lifetime,
             r#"
-struct Foo<'a> {
-    x: &'a i32,
-    y: &$0u32
+enum Foo {
+    Bar { a: &$0i32 }
 }"#,
             r#"
-struct Foo<${1:'l}, 'a> {
-    x: &'a i32,
-    y: &${0:'l} u32
+enum Foo<${0:'a}> {
+    Bar { a: &${0:'a} i32 }
 }"#,
         );
-
+        check_assist(
+            add_missing_lifetime,
+            r#"
+enum Foo<T> {
+    Bar { a: T },
+    Other,
+    Tuple(u32, &$0u32)
+}"#,
+            r#"
+enum Foo<${0:'a}, T> {
+    Bar { a: T },
+    Other,
+    Tuple(u32, &${0:'a} u32)
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+enum Foo<T> {
+    Bar {
+        a: &$0i32,
+        b: &T
+    }
+}"#,
+            r#"
+enum Foo<${0:'a}, T> {
+    Bar {
+        a: &${0:'a} i32,
+        b: &${0:'a} T
+    }
+}"#,
+        );
         check_assist(
             add_missing_lifetime,
             r#"
@@ -507,41 +369,11 @@ enum Foo<'a> {
     }
 }"#,
             r#"
-enum Foo<${1:'l}, 'a> {
+enum Foo<${0:'b}, 'a> {
     Bar {
         x: &'a i32,
-        y: &${0:'l} u32
+        y: &${0:'b} u32
     }
-}"#,
-        );
-    }
-
-    #[test]
-    fn declare_undeclared_and_add_new() {
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct $0Foo {
-    x: &'a i32,
-    y: &u32
-}"#,
-            r#"
-struct Foo<'a, ${1:'l}> {
-    x: &'a i32,
-    y: &${0:'l} u32
-}"#,
-        );
-        check_assist(
-            add_missing_lifetime,
-            r#"
-struct $0Foo<T> {
-    x: &'a i32,
-    y: &T
-}"#,
-            r#"
-struct Foo<'a, ${1:'l}, T> {
-    x: &'a i32,
-    y: &${0:'l} T
 }"#,
         );
         check_assist(
@@ -552,9 +384,87 @@ enum $0Foo {
     Baz(&u32)
 }"#,
             r#"
-enum Foo<'a, ${1:'l}> {
+enum Foo<'a, ${0:'b}> {
     Bar { x: &'a i32 },
-    Baz(&${0:'l} u32)
+    Baz(&${0:'b} u32)
+}"#,
+        );
+    }
+
+    #[test]
+    fn union_lifetime() {
+        check_assist(
+            add_missing_lifetime,
+            r#"
+union $0Foo {
+    x: &'a i32
+}"#,
+            r#"
+union Foo<'a> {
+    x: &'a i32
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+union $0Foo<T> {
+    x: &'a T
+}"#,
+            r#"
+union Foo<'a, T> {
+    x: &'a T
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+union Foo {
+    a: &$0i32,
+    b: &usize
+}"#,
+            r#"
+union Foo<${0:'a}> {
+    a: &${0:'a} i32,
+    b: &${0:'a} usize
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+union Foo<T> {
+    a: &$0T,
+    b: usize
+}"#,
+            r#"
+union Foo<${0:'a}, T> {
+    a: &${0:'a} T,
+    b: usize
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+union Foo<'a> {
+    x: &'a i32,
+    y: &$0u32
+}"#,
+            r#"
+union Foo<${0:'b}, 'a> {
+    x: &'a i32,
+    y: &${0:'b} u32
+}"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+union $0Foo<T> {
+    x: &'a T,
+    y: &i32
+}"#,
+            r#"
+union Foo<'a, ${0:'b}, T> {
+    x: &'a T,
+    y: &${0:'b} i32
 }"#,
         );
     }
@@ -570,5 +480,7 @@ enum Foo<'a, ${1:'l}> {
             add_missing_lifetime,
             r#"enum $0Foo<'a> { Bar { x: &'a i32 } }"#,
         );
+        check_assist_not_applicable(add_missing_lifetime, r#"enum Foo { Bar, $0Misc }"#);
+        check_assist_not_applicable(add_missing_lifetime, r#"union Foo<'a> { a: &'a $0i32 }"#);
     }
 }

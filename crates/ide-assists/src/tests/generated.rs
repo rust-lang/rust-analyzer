@@ -203,9 +203,9 @@ struct $0Foo<T> {
 }
 "#####,
         r#####"
-struct Foo<'a, ${1:'l}, T> {
+struct Foo<'a, ${0:'b}, T> {
     x: &'a i32,
-    y: &${0:'l} T
+    y: &${0:'b} T
 }
 "#####,
     )
