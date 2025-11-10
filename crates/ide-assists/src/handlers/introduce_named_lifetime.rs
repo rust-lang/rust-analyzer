@@ -1,6 +1,6 @@
-use ide_db::FxHashSet;
+use ide_db::syntax_helpers::suggest_name::NameGenerator;
 use syntax::{
-    AstNode, TextRange,
+    AstNode, SmolStr, TextRange,
     ast::{self, HasGenericParams, edit_in_place::GenericParamsOwnerEdit, make},
     ted::{self, Position},
 };
@@ -57,7 +57,7 @@ fn generate_fn_def_assist(
     lifetime: ast::Lifetime,
 ) -> Option<()> {
     let param_list: ast::ParamList = fn_def.param_list()?;
-    let new_lifetime_param = generate_unique_lifetime_param_name(fn_def.generic_param_list())?;
+    let new_lifetime_param = generate_unique_lifetime_param_name(fn_def.generic_param_list());
     let self_param =
         // use the self if it's a reference and has no explicit lifetime
         param_list.self_param().filter(|p| p.lifetime().is_none() && p.amp_token().is_some());
@@ -106,7 +106,7 @@ fn generate_impl_def_assist(
     lifetime_loc: TextRange,
     lifetime: ast::Lifetime,
 ) -> Option<()> {
-    let new_lifetime_param = generate_unique_lifetime_param_name(impl_def.generic_param_list())?;
+    let new_lifetime_param = generate_unique_lifetime_param_name(impl_def.generic_param_list());
     acc.add(AssistId::refactor(ASSIST_NAME), ASSIST_LABEL, lifetime_loc, |builder| {
         let impl_def = builder.make_mut(impl_def);
         let lifetime = builder.make_mut(lifetime);
@@ -122,16 +122,19 @@ fn generate_impl_def_assist(
 /// which is not in the list
 fn generate_unique_lifetime_param_name(
     existing_type_param_list: Option<ast::GenericParamList>,
-) -> Option<ast::Lifetime> {
-    match existing_type_param_list {
-        Some(type_params) => {
-            let used_lifetime_params: FxHashSet<_> =
-                type_params.lifetime_params().map(|p| p.syntax().text().to_string()).collect();
-            ('a'..='z').map(|it| format!("'{it}")).find(|it| !used_lifetime_params.contains(it))
-        }
-        None => Some("'a".to_owned()),
-    }
-    .map(|it| make::lifetime(&it))
+) -> ast::Lifetime {
+    let existing_lifetimes: Vec<SmolStr> = existing_type_param_list
+        .map(|type_params| {
+            type_params
+                .lifetime_params()
+                .filter_map(|param| param.lifetime())
+                .map(|lt| lt.text().into())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut name_gen = NameGenerator::new_with_names(existing_lifetimes.iter().map(|s| s.as_str()));
+    make::lifetime(&name_gen.for_lifetime())
 }
 
 enum NeedsLifetime {
