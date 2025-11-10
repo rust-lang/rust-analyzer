@@ -1,12 +1,12 @@
-use ide_db::{FxIndexSet, source_change::SourceChangeBuilder};
+use ide_db::{FxIndexSet, syntax_helpers::suggest_name::NameGenerator};
 use syntax::{
-    NodeOrToken, T,
+    NodeOrToken, SmolStr, T,
     ast::{
         self, AstNode, HasGenericParams, HasName,
         make::{self, tokens},
         syntax_factory::SyntaxFactory,
     },
-    syntax_editor::{Position, SyntaxEditor},
+    syntax_editor::{Position, SyntaxAnnotation, SyntaxEditor},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -35,21 +35,21 @@ pub(crate) fn add_missing_lifetime(acc: &mut Assists, ctx: &AssistContext<'_>) -
     let (refs_without_lifetime, refs_with_lifetime): (Vec<_>, Vec<_>) =
         all_inner_refs.into_iter().partition(|ref_type| ref_type.lifetime().is_none());
 
-    let adt_declared_lifetimes: FxIndexSet<String> = node
+    let adt_declared_lifetimes: FxIndexSet<SmolStr> = node
         .generic_param_list()
         .map(|gen_list| {
             gen_list
                 .lifetime_params()
                 .filter_map(|lt| lt.lifetime())
-                .map(|lt| lt.text().to_string())
+                .map(|lt| lt.text().into())
                 .collect()
         })
         .unwrap_or_default();
 
-    let adt_undeclared_lifetimes: FxIndexSet<String> = refs_with_lifetime
+    let adt_undeclared_lifetimes: FxIndexSet<SmolStr> = refs_with_lifetime
         .iter()
         .filter_map(|ref_type| ref_type.lifetime())
-        .map(|lt| lt.text().to_string())
+        .map(|lt| lt.text().into())
         .filter(|lt_text| !adt_declared_lifetimes.contains(lt_text))
         .collect();
 
@@ -57,15 +57,26 @@ pub(crate) fn add_missing_lifetime(acc: &mut Assists, ctx: &AssistContext<'_>) -
         return None;
     }
 
-    add_and_declare_lifetimes(acc, ctx, &node, adt_undeclared_lifetimes, refs_without_lifetime)
+    let all_existing_lifetimes: Vec<SmolStr> =
+        adt_declared_lifetimes.iter().chain(adt_undeclared_lifetimes.iter()).cloned().collect();
+
+    add_and_declare_lifetimes(
+        acc,
+        ctx,
+        &node,
+        adt_undeclared_lifetimes,
+        refs_without_lifetime,
+        all_existing_lifetimes,
+    )
 }
 
 fn add_and_declare_lifetimes(
     acc: &mut Assists,
     ctx: &AssistContext<'_>,
     node: &ast::Adt,
-    adt_undeclared_lifetimes: FxIndexSet<String>,
+    adt_undeclared_lifetimes: FxIndexSet<SmolStr>,
     refs_without_lifetime: Vec<ast::RefType>,
+    all_existing_lifetimes: Vec<SmolStr>,
 ) -> Option<()> {
     let has_refs_without_lifetime = !refs_without_lifetime.is_empty();
     let has_undeclared_lifetimes = !adt_undeclared_lifetimes.is_empty();
@@ -75,6 +86,11 @@ fn add_and_declare_lifetimes(
         (true, false) | (true, true) => "Add missing lifetimes",
         _ => return None,
     };
+
+    let mut name_gen =
+        NameGenerator::new_with_names(all_existing_lifetimes.iter().map(|s| s.as_str()));
+    let new_lifetime_name =
+        if has_refs_without_lifetime { name_gen.for_lifetime() } else { SmolStr::default() };
 
     acc.add(
         AssistId::quick_fix("add_missing_lifetime"),
@@ -98,7 +114,7 @@ fn add_and_declare_lifetimes(
 
             if has_refs_without_lifetime {
                 has_undeclared_lifetimes.then(|| lifetime_elements.extend(comma_and_space.clone()));
-                let lifetime = make.lifetime("'l");
+                let lifetime = make.lifetime(&new_lifetime_name);
                 new_lifetime_to_annotate = Some(lifetime.clone());
                 lifetime_elements.push(lifetime.syntax().clone().into());
             }
