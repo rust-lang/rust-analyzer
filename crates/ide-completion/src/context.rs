@@ -102,6 +102,30 @@ impl PathCompletionCtx<'_> {
             }
         )
     }
+
+    pub(crate) fn required_thin_arrow(&self) -> bool {
+        let PathKind::Type {
+            location:
+                TypeLocation::TypeAscription(TypeAscriptionTarget::RetType {
+                    item: Some(ref fn_item),
+                    ..
+                }),
+        } = self.kind
+        else {
+            return false;
+        };
+        let Some(ret_type) = fn_item.ret_type() else { return true };
+        if ret_type.thin_arrow_token().is_some() {
+            return false;
+        }
+        match ret_type.ty() {
+            Some(ast::Type::PathType(path_ty)) => {
+                path_ty.path().is_some_and(|path| path.as_single_name_ref().is_some())
+            }
+            Some(_) => false,
+            None => true,
+        }
+    }
 }
 
 /// The kind of path we are completing right now.
@@ -231,7 +255,7 @@ impl TypeLocation {
 pub(crate) enum TypeAscriptionTarget {
     Let(Option<ast::Pat>),
     FnParam(Option<ast::Pat>),
-    RetType(Option<ast::Expr>),
+    RetType { body: Option<ast::Expr>, item: Option<ast::Fn> },
     Const(Option<ast::Expr>),
 }
 
