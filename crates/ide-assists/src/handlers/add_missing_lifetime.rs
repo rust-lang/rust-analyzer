@@ -1,8 +1,8 @@
 use ide_db::{FxIndexSet, source_change::SourceChangeBuilder};
 use syntax::{
-    NodeOrToken, SyntaxElement, SyntaxNode, SyntaxToken, T,
+    NodeOrToken, T,
     ast::{
-        self, AstNode, HasGenericParams, HasName, Lifetime,
+        self, AstNode, HasGenericParams, HasName,
         make::{self, tokens},
         syntax_factory::SyntaxFactory,
     },
@@ -191,28 +191,12 @@ fn add_lifetime_to_refs(
     for r#ref in refs_without_lifetime {
         let Some(amp_token) = r#ref.amp_token() else { continue };
         let lifetime = make.lifetime(lifetime_text);
-        insert_elements_after(
-            &NodeOrToken::Token(amp_token),
-            &lifetime,
-            vec![lifetime.syntax().clone().into(), tokens::single_space().into()],
-            ctx,
-            editor,
-            builder,
-        );
-    }
-}
-
-fn insert_elements_after(
-    node_or_token: &NodeOrToken<SyntaxNode, SyntaxToken>,
-    lifetime: &Lifetime,
-    elements: Vec<SyntaxElement>,
-    ctx: &AssistContext<'_>,
-    editor: &mut SyntaxEditor,
-    builder: &mut SourceChangeBuilder,
-) {
-    editor.insert_all(Position::after(node_or_token), elements);
-    if let Some(cap) = ctx.config.snippet_cap {
-        editor.add_annotation(lifetime.syntax(), builder.make_placeholder_snippet(cap));
+        let node_or_token = &NodeOrToken::Token(amp_token);
+        let elements = vec![lifetime.syntax().clone().into(), tokens::single_space().into()];
+        editor.insert_all(Position::after(node_or_token), elements);
+        if let Some(cap) = ctx.config.snippet_cap {
+            editor.add_annotation(lifetime.syntax(), builder.make_placeholder_snippet(cap));
+        };
     }
 }
 
