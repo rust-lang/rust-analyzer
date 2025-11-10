@@ -108,8 +108,8 @@ mod handlers {
     mod add_explicit_enum_discriminant;
     mod add_explicit_type;
     mod add_label_to_loop;
-    mod add_lifetime_to_type;
     mod add_missing_impl_members;
+    mod add_missing_lifetime;
     mod add_missing_match_arms;
     mod add_return_type;
     mod add_turbo_fish;
@@ -244,7 +244,7 @@ mod handlers {
             add_explicit_enum_discriminant::add_explicit_enum_discriminant,
             add_explicit_type::add_explicit_type,
             add_label_to_loop::add_label_to_loop,
-            add_lifetime_to_type::add_lifetime_to_type,
+            add_missing_lifetime::add_missing_lifetime,
             add_missing_match_arms::add_missing_match_arms,
             add_return_type::add_return_type,
             add_turbo_fish::add_turbo_fish,
