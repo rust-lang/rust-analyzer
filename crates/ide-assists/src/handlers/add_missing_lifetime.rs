@@ -120,14 +120,22 @@ fn add_and_declare_lifetimes(
                 editor.insert_all(Position::after(name.syntax()), final_elements);
             }
 
+            let snippet = ctx.config.snippet_cap.map(|cap| builder.make_placeholder_snippet(cap));
+
             if let Some(lifetime) = new_lifetime_to_annotate
-                && let Some(cap) = ctx.config.snippet_cap
+                && let Some(snippet) = snippet
             {
-                editor.add_annotation(lifetime.syntax(), builder.make_placeholder_snippet(cap));
+                editor.add_annotation(lifetime.syntax(), snippet);
             }
 
             if has_refs_without_lifetime {
-                add_lifetime_to_refs(refs_without_lifetime, "'l", ctx, &mut editor, builder, &make);
+                add_lifetime_to_refs(
+                    refs_without_lifetime,
+                    &new_lifetime_name,
+                    &mut editor,
+                    &make,
+                    snippet,
+                );
             }
 
             editor.add_mappings(make.finish_with_mappings());
@@ -183,10 +191,9 @@ fn find_all_ref_types_from_field_list(field_list: &ast::FieldList) -> Option<Vec
 fn add_lifetime_to_refs(
     refs_without_lifetime: Vec<ast::RefType>,
     lifetime_text: &str,
-    ctx: &AssistContext<'_>,
     editor: &mut SyntaxEditor,
-    builder: &mut SourceChangeBuilder,
     make: &SyntaxFactory,
+    snippet: Option<SyntaxAnnotation>,
 ) {
     for r#ref in refs_without_lifetime {
         let Some(amp_token) = r#ref.amp_token() else { continue };
@@ -194,8 +201,8 @@ fn add_lifetime_to_refs(
         let node_or_token = &NodeOrToken::Token(amp_token);
         let elements = vec![lifetime.syntax().clone().into(), tokens::single_space().into()];
         editor.insert_all(Position::after(node_or_token), elements);
-        if let Some(cap) = ctx.config.snippet_cap {
-            editor.add_annotation(lifetime.syntax(), builder.make_placeholder_snippet(cap));
+        if let Some(snippet) = snippet {
+            editor.add_annotation(lifetime.syntax(), snippet);
         };
     }
 }
