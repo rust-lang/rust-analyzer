@@ -204,8 +204,9 @@ pub(crate) fn complete_type_path(
                 _ => {}
             };
 
+            // FIXME: "crate::" -> "-> crate::" when required_thin_arrow
             acc.add_nameref_keywords_with_colon(ctx);
-            acc.add_type_keywords(ctx);
+            acc.add_type_keywords(ctx, path_ctx.required_thin_arrow());
             ctx.process_all_names(&mut |name, def, doc_aliases| {
                 if scope_def_applicable(def) {
                     acc.add_path_resolution(ctx, path_ctx, name, def, doc_aliases);
@@ -228,14 +229,14 @@ pub(crate) fn complete_ascribed_type(
         TypeAscriptionTarget::Let(pat) | TypeAscriptionTarget::FnParam(pat) => {
             ctx.sema.type_of_pat(pat.as_ref()?)
         }
-        TypeAscriptionTarget::Const(exp) | TypeAscriptionTarget::RetType(exp) => {
+        TypeAscriptionTarget::Const(exp) | TypeAscriptionTarget::RetType { body: exp, .. } => {
             ctx.sema.type_of_expr(exp.as_ref()?)
         }
     }?
     .adjusted();
     if !ty.is_unknown() {
         let ty_string = ty.display_source_code(ctx.db, ctx.module.into(), true).ok()?;
-        acc.add(render_type_inference(ty_string, ctx));
+        acc.add(render_type_inference(ty_string, ctx, path_ctx));
     }
     None
 }
