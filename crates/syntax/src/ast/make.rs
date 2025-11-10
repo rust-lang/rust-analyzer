@@ -608,6 +608,9 @@ pub fn expr_empty_block() -> ast::BlockExpr {
 pub fn expr_path(path: ast::Path) -> ast::Expr {
     expr_from_text(&path.to_string())
 }
+pub fn expr_name_ref(name: ast::NameRef) -> ast::Expr {
+    expr_from_text(&name.text())
+}
 pub fn expr_continue(label: Option<ast::Lifetime>) -> ast::Expr {
     match label {
         Some(label) => expr_from_text(&format!("continue {label}")),
