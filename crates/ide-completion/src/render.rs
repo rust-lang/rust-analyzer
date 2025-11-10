@@ -220,13 +220,17 @@ pub(crate) fn render_tuple_field(
 pub(crate) fn render_type_inference(
     ty_string: String,
     ctx: &CompletionContext<'_>,
+    path_ctx: &PathCompletionCtx<'_>,
 ) -> CompletionItem {
     let mut builder = CompletionItem::new(
         CompletionItemKind::InferredType,
         ctx.source_range(),
-        ty_string,
+        &ty_string,
         ctx.edition,
     );
+    if path_ctx.required_thin_arrow() {
+        builder.insert_text(format!("-> {ty_string}"));
+    }
     builder.set_relevance(CompletionRelevance {
         type_match: Some(CompletionRelevanceTypeMatch::Exact),
         exact_name_match: true,
@@ -424,11 +428,13 @@ fn render_resolution_path(
     let db = completion.db;
     let config = completion.config;
     let requires_import = import_to_add.is_some();
+    let arrow = if path_ctx.required_thin_arrow() { "-> " } else { "" };
 
-    let name = local_name.display_no_db(ctx.completion.edition).to_smolstr();
+    let name = local_name.display(db, completion.edition).to_smolstr();
+    let prefix = format_args!("{arrow}{name}");
     let mut item = render_resolution_simple_(ctx, &local_name, import_to_add, resolution);
-    if local_name.needs_escape(completion.edition) {
-        item.insert_text(local_name.display_no_db(completion.edition).to_smolstr());
+    if local_name.needs_escape(completion.edition) || !arrow.is_empty() {
+        item.insert_text(prefix.to_smolstr());
     }
     // Add `<>` for generic types
     let type_path_no_ty_args = matches!(
@@ -449,7 +455,7 @@ fn render_resolution_path(
             item.lookup_by(name.clone())
                 .label(SmolStr::from_iter([&name, "<…>"]))
                 .trigger_call_info()
-                .insert_snippet(cap, format!("{}<$0>", local_name.display(db, completion.edition)));
+                .insert_snippet(cap, format!("{prefix}<$0>"));
         }
     }
 
