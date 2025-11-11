@@ -111,12 +111,12 @@ impl Clone for SmolStr {
             SmolStr(v.0.clone())
         }
 
-        if !self.is_heap_allocated() {
-            // SAFETY: We verified that the payload of `Repr` is a POD
-            return unsafe { core::ptr::read(self as *const SmolStr) };
+        if self.is_heap_allocated() {
+            return cold_clone(self);
         }
 
-        cold_clone(self)
+        // SAFETY: We verified that the payload of `Repr` is a POD
+        unsafe { core::ptr::read(self as *const SmolStr) }
     }
 }
 
