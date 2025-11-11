@@ -9,7 +9,7 @@ use stdx::to_lower_snake_case;
 use syntax::{
     AstNode, Edition, SmolStr, SmolStrBuilder, ToSmolStr,
     ast::{self, HasName},
-    match_ast,
+    format_smolstr, match_ast,
 };
 
 use crate::RootDatabase;
@@ -230,6 +230,40 @@ impl NameGenerator {
         }
 
         self.suggest_name("var_name")
+    }
+
+    /// Suggest a unique lifetime name following Rust conventions.
+    ///
+    /// Generates lifetime names in alphabetical order: `'a`, `'b`, `'c`, ..., `'z`.
+    /// This follows Rust's idiomatic lifetime naming conventions.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use ide_db::syntax_helpers::suggest_name::NameGenerator;
+    /// let mut gen = NameGenerator::default();
+    /// assert_eq!(gen.for_lifetime(), "'a");
+    /// assert_eq!(gen.for_lifetime(), "'b");
+    /// assert_eq!(gen.for_lifetime(), "'c");
+    /// ```
+    ///
+    /// When initialized with existing lifetimes:
+    ///
+    /// ```
+    /// # use ide_db::syntax_helpers::suggest_name::NameGenerator;
+    /// let mut gen = NameGenerator::new_with_names(["'a", "'c"].iter().copied());
+    /// assert_eq!(gen.for_lifetime(), "'b");
+    /// assert_eq!(gen.for_lifetime(), "'d");
+    /// ```
+    pub fn for_lifetime(&mut self) -> SmolStr {
+        for c in 'a'..='z' {
+            let candidate = format_smolstr!("'{c}");
+            if !self.pool.contains_key(&candidate) {
+                self.pool.insert(candidate.clone(), 0);
+                return candidate;
+            }
+        }
+        self.suggest_name("'a")
     }
 
     /// Insert a name into the pool
@@ -1141,5 +1175,41 @@ fn main() {
         assert_eq!(generator.suggest_name("b2"), "b4");
 
         assert_eq!(generator.suggest_name("c"), "c5");
+    }
+
+    #[test]
+    fn for_lifetime_generates_alphabetical_names() {
+        let mut generator = NameGenerator::default();
+        assert_eq!(generator.for_lifetime(), "'a");
+        assert_eq!(generator.for_lifetime(), "'b");
+        assert_eq!(generator.for_lifetime(), "'c");
+    }
+
+    #[test]
+    fn for_lifetime_avoids_existing_names() {
+        let mut generator =
+            NameGenerator::new_with_names(["'a", "'b", "'d", "'e", "'f"].into_iter());
+        assert_eq!(generator.for_lifetime(), "'c");
+        assert_eq!(generator.for_lifetime(), "'g");
+    }
+
+    #[test]
+    fn for_lifetime_exhaustive() {
+        let mut generator = NameGenerator::default();
+        let mut lifetimes = Vec::new();
+        for _ in 0..10 {
+            lifetimes.push(generator.for_lifetime());
+        }
+        assert_eq!(lifetimes[0], "'a");
+        assert_eq!(lifetimes[1], "'b");
+        assert_eq!(lifetimes[9], "'j");
+    }
+
+    #[test]
+    fn for_lifetime_fallback_when_exhausted() {
+        let all_lifetimes: Vec<_> = ('a'..='z').map(|c| format!("'{c}")).collect();
+        let mut generator = NameGenerator::new_with_names(all_lifetimes.iter().map(|s| s.as_str()));
+        let fallback = generator.for_lifetime();
+        assert_eq!(fallback, "'a1");
     }
 }
