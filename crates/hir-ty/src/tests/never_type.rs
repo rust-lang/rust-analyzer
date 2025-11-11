@@ -362,7 +362,7 @@ fn diverging_expression_3_break() {
             140..141 'x': u32
             149..175 '{ for ...; }; }': u32
             151..172 'for a ...eak; }': fn into_iter<{unknown}>({unknown}) -> <{unknown} as IntoIterator>::IntoIter
-            151..172 'for a ...eak; }': <{unknown} as IntoIterator>::IntoIter
+            151..172 'for a ...eak; }': {unknown}
             151..172 'for a ...eak; }': !
             151..172 'for a ...eak; }': {unknown}
             151..172 'for a ...eak; }': &'? mut {unknown}
@@ -379,7 +379,7 @@ fn diverging_expression_3_break() {
             226..227 'x': u32
             235..253 '{ for ... {}; }': u32
             237..250 'for a in b {}': fn into_iter<{unknown}>({unknown}) -> <{unknown} as IntoIterator>::IntoIter
-            237..250 'for a in b {}': <{unknown} as IntoIterator>::IntoIter
+            237..250 'for a in b {}': {unknown}
             237..250 'for a in b {}': !
             237..250 'for a in b {}': {unknown}
             237..250 'for a in b {}': &'? mut {unknown}
@@ -395,7 +395,7 @@ fn diverging_expression_3_break() {
             304..305 'x': u32
             313..340 '{ for ...; }; }': u32
             315..337 'for a ...urn; }': fn into_iter<{unknown}>({unknown}) -> <{unknown} as IntoIterator>::IntoIter
-            315..337 'for a ...urn; }': <{unknown} as IntoIterator>::IntoIter
+            315..337 'for a ...urn; }': {unknown}
             315..337 'for a ...urn; }': !
             315..337 'for a ...urn; }': {unknown}
             315..337 'for a ...urn; }': &'? mut {unknown}
