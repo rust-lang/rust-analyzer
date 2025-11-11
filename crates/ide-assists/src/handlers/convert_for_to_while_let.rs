@@ -27,8 +27,8 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 // fn main() {
 //     let x = vec![1, 2, 3];
-//     let mut tmp = x.into_iter();
-//     while let Some(v) = tmp.next() {
+//     let mut iter = x.into_iter();
+//     while let Some(v) = iter.next() {
 //         let y = v * 2;
 //     };
 // }
@@ -74,7 +74,7 @@ pub(crate) fn convert_for_loop_to_while_let(
             let mut new_name = suggest_name::NameGenerator::new_from_scope_locals(
                 ctx.sema.scope(for_loop.syntax()),
             );
-            let tmp_var = new_name.suggest_name("tmp");
+            let tmp_var = new_name.suggest_name("iter");
 
             let mut_expr = make.let_stmt(
                 make.ident_pat(false, true, make.name(&tmp_var)).into(),
@@ -178,8 +178,8 @@ fn main() {
             r"
 fn main() {
     let mut x = vec![1, 2, 3];
-    let mut tmp = x.into_iter();
-    while let Some(v) = tmp.next() {
+    let mut iter = x.into_iter();
+    while let Some(v) = iter.next() {
         v *= 2;
     };
 }",
@@ -215,8 +215,8 @@ impl<T> core::iter::Iterator for core::ops::Range<T> {
 }
 
 fn main() {
-    let mut tmp = 0..92;
-    while let Some(x) = tmp.next() {
+    let mut iter = 0..92;
+    while let Some(x) = iter.next() {
         print!("{}", x);
     }
 }"#,
@@ -270,8 +270,8 @@ impl S {
 
 fn main() {
     let x = S;
-    let mut tmp = x.iter();
-    while let Some(v) = tmp.next() {
+    let mut iter = x.iter();
+    while let Some(v) = iter.next() {
         let a = v * 2;
     }
 }
@@ -296,8 +296,8 @@ fn main() {
 struct NoIterMethod;
 fn main() {
     let x = NoIterMethod;
-    let mut tmp = (&x).into_iter();
-    while let Some(v) = tmp.next() {
+    let mut iter = (&x).into_iter();
+    while let Some(v) = iter.next() {
         let a = v * 2;
     }
 }
@@ -322,8 +322,8 @@ fn main() {
 struct NoIterMethod;
 fn main() {
     let x = NoIterMethod;
-    let mut tmp = (&mut x).into_iter();
-    while let Some(v) = tmp.next() {
+    let mut iter = (&mut x).into_iter();
+    while let Some(v) = iter.next() {
         let a = v * 2;
     }
 }
@@ -363,8 +363,8 @@ impl S {
 
 fn main() {
     let x = S;
-    let mut tmp = x.iter_mut();
-    while let Some(v) = tmp.next() {
+    let mut iter = x.iter_mut();
+    while let Some(v) = iter.next() {
         let a = v * 2;
     }
 }
@@ -388,8 +388,8 @@ fn main() {
 fn main() {
     let mut x = vec![1, 2, 3];
     let y = &mut x;
-    let mut tmp = y.into_iter();
-    while let Some(v) = tmp.next() {
+    let mut iter = y.into_iter();
+    while let Some(v) = iter.next() {
         *v *= 2;
     }
 }",
@@ -411,8 +411,8 @@ fn main() {
 "#,
             r#"
 fn main() {
-    let mut tmp = core::iter::repeat(92).take(1);
-    while let Some(a) = tmp.next() {
+    let mut iter = core::iter::repeat(92).take(1);
+    while let Some(a) = iter.next() {
         println!("{}", a);
     }
 }
