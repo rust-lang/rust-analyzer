@@ -1,6 +1,6 @@
 use hir::{EditionedFileId, FileRange, HasCrate, HasSource, Semantics};
 use ide_db::{RootDatabase, assists::Assist, source_change::SourceChange, text_edit::TextEdit};
-use syntax::{AstNode, TextRange, TextSize, ast::HasVisibility};
+use syntax::{AstNode, SyntaxKind, TextRange, TextSize, ast::HasVisibility};
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 
@@ -8,7 +8,6 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 //
 // This diagnostic is triggered if the accessed field is not visible from the current module.
 pub(crate) fn private_field(ctx: &DiagnosticsContext<'_>, d: &hir::PrivateField) -> Diagnostic {
-    // FIXME: add quickfix
     Diagnostic::new_with_syntax_node_ptr(
         ctx,
         DiagnosticCode::RustcHardError("E0616"),
@@ -50,10 +49,24 @@ pub(crate) fn field_is_private_fixes(
             source.with_value(visibility.syntax()).original_file_range_opt(sema.db)?.0
         }
         None => {
-            let (range, _) = source.syntax().original_file_range_opt(sema.db)?;
+            let field_syntax = source.value.syntax();
+            let vis_before = field_syntax.children_with_tokens().find(|it| {
+                !matches!(
+                    it.kind(),
+                    SyntaxKind::WHITESPACE | SyntaxKind::COMMENT | SyntaxKind::ATTR
+                )
+            })?;
+
+            // Get the text range of the first non-comment token relative to the field node
+            let relative_offset =
+                vis_before.text_range().start() - field_syntax.text_range().start();
+            let (field_range, _) = source.syntax().original_file_range_opt(sema.db)?;
+
+            let absolute_offset = field_range.range.start() + relative_offset;
+
             FileRange {
-                file_id: range.file_id,
-                range: TextRange::at(range.range.start(), TextSize::new(0)),
+                file_id: field_range.file_id,
+                range: TextRange::at(absolute_offset, TextSize::new(0)),
             }
         }
     };
@@ -225,6 +238,136 @@ pub mod foo {
 
 fn foo(v: foo::bar::Struct) {
     v.field;
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn change_visibility_of_field_with_doc_comment() {
+        check_fix(
+            r#"
+pub mod foo {
+    pub struct Foo {
+        /// This is a doc comment
+        bar: u32,
+    }
+}
+
+fn main() {
+    let x = foo::Foo { bar: 0 };
+    x.bar$0;
+}
+            "#,
+            r#"
+pub mod foo {
+    pub struct Foo {
+        /// This is a doc comment
+        pub(crate) bar: u32,
+    }
+}
+
+fn main() {
+    let x = foo::Foo { bar: 0 };
+    x.bar;
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn change_visibility_of_field_with_line_comment() {
+        check_fix(
+            r#"
+pub mod foo {
+    pub struct Foo {
+        // This is a line comment
+        bar: u32,
+    }
+}
+
+fn main() {
+    let x = foo::Foo { bar: 0 };
+    x.bar$0;
+}
+            "#,
+            r#"
+pub mod foo {
+    pub struct Foo {
+        // This is a line comment
+        pub(crate) bar: u32,
+    }
+}
+
+fn main() {
+    let x = foo::Foo { bar: 0 };
+    x.bar;
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn change_visibility_of_field_with_multiple_doc_comments() {
+        check_fix(
+            r#"
+pub mod foo {
+    pub struct Foo {
+        /// First line
+        /// Second line
+        bar: u32,
+    }
+}
+
+fn main() {
+    let x = foo::Foo { bar: 0 };
+    x.bar$0;
+}
+            "#,
+            r#"
+pub mod foo {
+    pub struct Foo {
+        /// First line
+        /// Second line
+        pub(crate) bar: u32,
+    }
+}
+
+fn main() {
+    let x = foo::Foo { bar: 0 };
+    x.bar;
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn change_visibility_of_field_with_attr_and_comment() {
+        check_fix(
+            r#"
+mod foo {
+    pub struct Foo {
+        #[rustfmt::skip]
+        /// First line
+        /// Second line
+        bar: u32,
+    }
+}
+fn main() {
+    foo::Foo { $0bar: 42 };
+}
+            "#,
+            r#"
+mod foo {
+    pub struct Foo {
+        #[rustfmt::skip]
+        /// First line
+        /// Second line
+        pub(crate) bar: u32,
+    }
+}
+fn main() {
+    foo::Foo { bar: 42 };
 }
             "#,
         );
