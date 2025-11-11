@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["crate_symbols","world_symbols"],"struct":["LibraryRoots","LocalRoots","Query","SymbolIndex"]};
