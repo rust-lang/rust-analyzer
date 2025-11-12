@@ -152,6 +152,7 @@ mod handlers {
     mod fix_visibility;
     mod flip_binexpr;
     mod flip_comma;
+    mod flip_else_if;
     mod flip_or_pattern;
     mod flip_trait_bound;
     mod generate_blanket_trait_impl;
@@ -289,6 +290,7 @@ mod handlers {
             flip_binexpr::flip_binexpr,
             flip_binexpr::flip_range_expr,
             flip_comma::flip_comma,
+            flip_else_if::flip_else_if,
             flip_or_pattern::flip_or_pattern,
             flip_trait_bound::flip_trait_bound,
             generate_constant::generate_constant,
