@@ -1,4 +1,5 @@
 use ide_db::{FxIndexSet, syntax_helpers::suggest_name::NameGenerator};
+use itertools::chain;
 use syntax::{
     NodeOrToken, SmolStr, T,
     ast::{
@@ -53,7 +54,10 @@ pub(crate) fn add_missing_lifetime(acc: &mut Assists, ctx: &AssistContext<'_>) -
         .filter(|lt_text| !adt_declared_lifetimes.contains(lt_text))
         .collect();
 
-    if refs_without_lifetime.is_empty() && adt_undeclared_lifetimes.is_empty() {
+    let has_refs_without_lifetime = !refs_without_lifetime.is_empty();
+    let has_undeclared_lifetimes = !adt_undeclared_lifetimes.is_empty();
+
+    if !has_refs_without_lifetime && !has_undeclared_lifetimes {
         return None;
     }
 
@@ -67,6 +71,8 @@ pub(crate) fn add_missing_lifetime(acc: &mut Assists, ctx: &AssistContext<'_>) -
         adt_undeclared_lifetimes,
         refs_without_lifetime,
         all_existing_lifetimes,
+        has_refs_without_lifetime,
+        has_undeclared_lifetimes,
     )
 }
 
@@ -77,10 +83,9 @@ fn add_and_declare_lifetimes(
     adt_undeclared_lifetimes: FxIndexSet<SmolStr>,
     refs_without_lifetime: Vec<ast::RefType>,
     all_existing_lifetimes: Vec<SmolStr>,
+    has_refs_without_lifetime: bool,
+    has_undeclared_lifetimes: bool,
 ) -> Option<()> {
-    let has_refs_without_lifetime = !refs_without_lifetime.is_empty();
-    let has_undeclared_lifetimes = !adt_undeclared_lifetimes.is_empty();
-
     let message = match (has_refs_without_lifetime, has_undeclared_lifetimes) {
         (false, true) => "Declare used lifetimes in generic parameters",
         (true, false) | (true, true) => "Add missing lifetimes",
@@ -99,41 +104,46 @@ fn add_and_declare_lifetimes(
         |builder| {
             let make = SyntaxFactory::with_mappings();
             let mut editor = builder.make_editor(node.syntax());
-            let comma_and_space = [make::token(T![,]).into(), tokens::single_space().into()];
+            let comma_and_space = || [make::token(T![,]).into(), tokens::single_space().into()];
 
             let mut lifetime_elements = vec![];
             let mut new_lifetime_to_annotate = None;
 
             if has_undeclared_lifetimes {
                 for (i, lifetime_text) in adt_undeclared_lifetimes.iter().enumerate() {
-                    (i > 0).then(|| lifetime_elements.extend(comma_and_space.clone()));
-                    let new_lifetime = make.lifetime(lifetime_text);
-                    lifetime_elements.push(new_lifetime.syntax().clone().into());
+                    (i > 0).then(|| lifetime_elements.extend(comma_and_space()));
+                    lifetime_elements.push(make.lifetime(lifetime_text).syntax().clone().into());
                 }
             }
 
             if has_refs_without_lifetime {
-                has_undeclared_lifetimes.then(|| lifetime_elements.extend(comma_and_space.clone()));
+                has_undeclared_lifetimes.then(|| lifetime_elements.extend(comma_and_space()));
                 let lifetime = make.lifetime(&new_lifetime_name);
-                new_lifetime_to_annotate = Some(lifetime.clone());
                 lifetime_elements.push(lifetime.syntax().clone().into());
+                new_lifetime_to_annotate = Some(lifetime);
             }
 
-            if let Some(gen_param) = node.generic_param_list()
-                && let Some(left_angle) = gen_param.l_angle_token()
-            {
-                if !lifetime_elements.is_empty() {
+            if let Some(gen_param) = node.generic_param_list() {
+                if let Some(last_lifetime) = gen_param.lifetime_params().last() {
+                    editor.insert_all(
+                        Position::after(last_lifetime.syntax()),
+                        chain!(comma_and_space(), lifetime_elements).collect(),
+                    );
+                } else if let Some(l_angle) = gen_param.l_angle_token() {
                     lifetime_elements.push(make::token(T![,]).into());
                     lifetime_elements.push(tokens::single_space().into());
+                    editor.insert_all(Position::after(&l_angle), lifetime_elements);
                 }
-                editor.insert_all(Position::after(&left_angle), lifetime_elements);
-            } else if let Some(name) = node.name()
-                && !lifetime_elements.is_empty()
-            {
-                let mut final_elements = vec![make::token(T![<]).into()];
-                final_elements.append(&mut lifetime_elements);
-                final_elements.push(make::token(T![>]).into());
-                editor.insert_all(Position::after(name.syntax()), final_elements);
+            } else if let Some(name) = node.name() {
+                editor.insert_all(
+                    Position::after(name.syntax()),
+                    chain!(
+                        [make::token(T![<]).into()],
+                        lifetime_elements,
+                        [make::token(T![>]).into()]
+                    )
+                    .collect(),
+                );
             }
 
             let snippet = ctx.config.snippet_cap.map(|cap| builder.make_placeholder_snippet(cap));
@@ -276,7 +286,7 @@ struct Foo<'a> {
     y: &$0u32
 }"#,
             r#"
-struct Foo<${0:'b}, 'a> {
+struct Foo<'a, ${0:'b}> {
     x: &'a i32,
     y: &${0:'b} u32
 }"#,
@@ -300,12 +310,21 @@ struct Foo<'a, ${0:'b}> {
 struct $0Foo<T> {
     x: &'a i32,
     y: &T
+    z: &'b u32
 }"#,
             r#"
-struct Foo<'a, ${0:'b}, T> {
+struct Foo<'a, 'b, ${0:'c}, T> {
     x: &'a i32,
-    y: &${0:'b} T
+    y: &${0:'c} T
+    z: &'b u32
 }"#,
+        );
+        check_assist(
+            add_missing_lifetime,
+            r#"
+struct $0Foo(&fn(&str) -> &str);"#,
+            r#"
+struct Foo<${0:'a}>(&${0:'a} fn(&str) -> &str);"#,
         );
     }
 
@@ -392,7 +411,7 @@ enum Foo<'a> {
     }
 }"#,
             r#"
-enum Foo<${0:'b}, 'a> {
+enum Foo<'a, ${0:'b}> {
     Bar {
         x: &'a i32,
         y: &${0:'b} u32
@@ -472,7 +491,7 @@ union Foo<'a> {
     y: &$0u32
 }"#,
             r#"
-union Foo<${0:'b}, 'a> {
+union Foo<'a, ${0:'b}> {
     x: &'a i32,
     y: &${0:'b} u32
 }"#,
