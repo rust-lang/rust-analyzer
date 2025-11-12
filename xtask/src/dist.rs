@@ -142,7 +142,7 @@ fn dist_server(
 
     if target_name.ends_with("-windows-msvc") {
         // https://github.com/rust-lang/rust-analyzer/issues/20970
-        rustflags.push("-Ctarget-feature=+crt-static".to_string());
+        rustflags.push("-Ctarget-feature=+crt-static".to_owned());
     }
 
     if !rustflags.is_empty() {
