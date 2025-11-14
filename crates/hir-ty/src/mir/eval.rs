@@ -757,10 +757,8 @@ impl<'db> Evaluator<'db> {
                 }
                 ProjectionElem::Index(op) => {
                     let op_interval = locals.ptr[*op];
-                    let offset = from_bytes!(
-                        usize,
-                        self.read_memory(op_interval.addr, op_interval.size)?
-                    );
+                    let offset =
+                        from_bytes!(usize, self.read_memory(op_interval.addr, op_interval.size)?);
                     metadata = None; // Result of index is always sized
                     let ty_size =
                         self.size_of_sized(ty, locals, "array inner type should be sized")?;
