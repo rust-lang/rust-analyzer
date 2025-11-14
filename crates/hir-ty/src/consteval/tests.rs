@@ -2932,3 +2932,133 @@ fn recursive_adt() {
         |e| matches!(e, ConstEvalError::MirLowerError(MirLowerError::Loop)),
     );
 }
+
+#[test]
+fn nested_array_indexing() {
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: [[u64; 1]; 1] = [[42]];
+const GOAL: u64 = DATA[0][0];
+    "#,
+        42,
+    );
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: [[u8; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
+const GOAL: u8 = DATA[1][2];
+    "#,
+        6,
+    );
+}
+
+#[test]
+fn nested_array_with_locals() {
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: [[u64; 1]; 1] = [[42]];
+const GOAL: u64 = {
+    let x = DATA[0][0];
+    x
+};
+    "#,
+        42,
+    );
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: [[i32; 4]; 3] = [[10, 20, 30, 40], [50, 60, 70, 80], [90, 100, 110, 120]];
+const GOAL: i32 = {
+    let row = DATA[2];
+    let val = row[1];
+    val
+};
+    "#,
+        100,
+    );
+}
+
+#[test]
+fn array_indexing_with_temporaries() {
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: [[u64; 1]; 1] = [[42]];
+const GOAL: u64 = {
+    123u64 < 234;
+    345u64 < 456;
+    let x = DATA[0][0];
+    x
+};
+    "#,
+        42,
+    );
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: [u32; 5] = [10, 20, 30, 40, 50];
+const GOAL: u32 = {
+    let a = 1 + 1;
+    let b = 5 * 2;
+    DATA[a + 1]
+};
+    "#,
+        40,
+    );
+}
+
+#[test]
+fn slice_indexing_with_locals() {
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const GOAL: u64 = {
+    let data: &[u64] = &[42, 43, 44];
+    data[0]
+};
+    "#,
+        42,
+    );
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: &[u64] = &[10, 20, 30];
+const GOAL: u64 = {
+    let x = DATA[1];
+    x
+};
+    "#,
+        20,
+    );
+}
+
+#[test]
+fn slice_indexing_with_expressions() {
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const DATA: &[u64] = &[42];
+const GOAL: u64 = {
+    123u64 < 234;
+    345u64 < 456;
+    let x = DATA[0];
+    x
+};
+    "#,
+        42,
+    );
+    check_number(
+        r#"
+//- minicore: coerce_unsized, index, slice
+const VALUES: &[i32] = &[100, 200, 300, 400];
+const GOAL: i32 = {
+    let _ = 1 + 2;
+    let _ = true && false;
+    VALUES[2]
+};
+    "#,
+        300,
+    );
+}
