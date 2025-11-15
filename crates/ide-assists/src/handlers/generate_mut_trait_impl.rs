@@ -1,8 +1,12 @@
 use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
 use syntax::{
     AstNode, T,
-    ast::{self, edit_in_place::Indent, make},
-    ted,
+    ast::{
+        self, HasAttrs, HasGenericParams, HasName,
+        edit::{AstNodeEdit, IndentLevel},
+        make,
+    },
+    syntax_editor::{Element, Position, SyntaxEditor},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -45,10 +49,10 @@ use crate::{AssistContext, AssistId, Assists};
 // }
 // ```
 pub(crate) fn generate_mut_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let impl_def = ctx.find_node_at_offset::<ast::Impl>()?.clone_for_update();
+    let impl_def = ctx.find_node_at_offset::<ast::Impl>()?;
     let indent = impl_def.indent_level();
 
-    let ast::Type::PathType(path) = impl_def.trait_()? else {
+    let ast::Type::PathType(path) = impl_def.trait_()?.clone_subtree() else {
         return None;
     };
     let trait_name = path.path()?.segment()?.name_ref()?;
@@ -59,44 +63,41 @@ pub(crate) fn generate_mut_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_>
     let trait_ = resolve_target_trait(&ctx.sema, &impl_def)?;
     let trait_new = get_trait_mut(&trait_, famous)?;
 
-    // Index -> IndexMut
-    ted::replace(trait_name.syntax(), make::name_ref(trait_new).clone_for_update().syntax());
+    let new_trait_type = {
+        let mut trait_type_editor = SyntaxEditor::new(path.syntax().clone());
+        trait_type_editor
+            .replace(trait_name.syntax(), make::name_ref(trait_new).syntax().clone_for_update());
+        ast::PathType::cast(trait_type_editor.finish().new_root().clone())?
+    };
 
-    // index -> index_mut
-    let (trait_method_name, new_trait_method_name) = impl_def
+    let new_trait_method_name = impl_def
         .syntax()
         .descendants()
         .filter_map(ast::Name::cast)
         .find_map(process_method_name)?;
-    ted::replace(
-        trait_method_name.syntax(),
-        make::name(new_trait_method_name).clone_for_update().syntax(),
-    );
-
-    if let Some(type_alias) = impl_def.syntax().descendants().find_map(ast::TypeAlias::cast) {
-        ted::remove(type_alias.syntax());
-    }
-
-    // &self -> &mut self
-    let mut_self_param = make::mut_self_param();
-    let self_param: ast::SelfParam =
-        impl_def.syntax().descendants().find_map(ast::SelfParam::cast)?;
-    ted::replace(self_param.syntax(), mut_self_param.clone_for_update().syntax());
-
-    // &Self::Output -> &mut Self::Output
-    let ret_type = impl_def.syntax().descendants().find_map(ast::RetType::cast)?;
-    let new_ret_type = process_ret_type(&ret_type)?;
-    ted::replace(ret_type.syntax(), make::ret_type(new_ret_type).clone_for_update().syntax());
 
     let fn_ = impl_def.assoc_item_list()?.assoc_items().find_map(|it| match it {
         ast::AssocItem::Fn(f) => Some(f),
         _ => None,
     })?;
-    let _ = process_ref_mut(&fn_);
+    let fn_ = ast::AssocItem::Fn(generate_fn(&fn_, new_trait_method_name)?).indent(IndentLevel(1));
 
-    let assoc_list = make::assoc_item_list(None).clone_for_update();
-    ted::replace(impl_def.assoc_item_list()?.syntax(), assoc_list.syntax());
-    impl_def.get_or_create_assoc_item_list().add_item(syntax::ast::AssocItem::Fn(fn_));
+    let assoc_list = make::assoc_item_list(Some(vec![fn_]));
+    let new_impl = make::impl_trait(
+        impl_def.attrs(),
+        impl_def.unsafe_token().is_some(),
+        impl_def.generic_param_list(),
+        None,
+        None,
+        None,
+        false,
+        ast::Type::PathType(new_trait_type),
+        impl_def.self_ty()?,
+        impl_def.where_clause(),
+        None,
+        Some(assoc_list),
+    )
+    .indent(indent);
 
     let target = impl_def.syntax().text_range();
     acc.add(
@@ -104,30 +105,55 @@ pub(crate) fn generate_mut_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_>
         format!("Generate `{trait_new}` impl from this `{trait_name}` trait"),
         target,
         |edit| {
-            edit.insert(
-                target.start(),
-                if ctx.config.snippet_cap.is_some() {
-                    format!("$0{impl_def}\n\n{indent}")
-                } else {
-                    format!("{impl_def}\n\n{indent}")
-                },
+            let mut editor = edit.make_editor(impl_def.syntax());
+            editor.insert_all(
+                Position::before(impl_def.syntax()),
+                vec![
+                    new_impl.syntax().syntax_element(),
+                    make::tokens::whitespace(&format!("\n\n{indent}")).syntax_element(),
+                ],
             );
+            if let Some(cap) = ctx.config.snippet_cap {
+                let tabstop_before = edit.make_tabstop_before(cap);
+                editor.add_annotation(new_impl.syntax(), tabstop_before);
+            }
+            edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
 
-fn process_ref_mut(fn_: &ast::Fn) -> Option<()> {
+fn generate_fn(fn_: &ast::Fn, new_method_name: &str) -> Option<ast::Fn> {
+    let fn_ = fn_.reset_indent().clone_subtree();
+    let mut editor = SyntaxEditor::new(fn_.syntax().clone());
+
+    // index -> index_mut
+    let fn_name = fn_.name()?;
+    let new_name = make::name(new_method_name);
+    editor.replace(fn_name.syntax(), new_name.syntax().clone_for_update());
+
+    // &self -> &mut self
+    let self_param: ast::SelfParam = fn_.syntax().descendants().find_map(ast::SelfParam::cast)?;
+    let mut_self_param = make::mut_self_param();
+    editor.replace(self_param.syntax(), mut_self_param.syntax().clone_for_update());
+
+    // &Self::Output -> &mut Self::Output
+    let ret_type = fn_.ret_type()?;
+    let new_ret_type = make::ret_type(process_ret_type(&ret_type)?).clone_for_update();
+    editor.replace(ret_type.syntax(), new_ret_type.syntax());
+
     let expr = fn_.body()?.tail_expr()?;
     match &expr {
         ast::Expr::RefExpr(ref_expr) if ref_expr.mut_token().is_none() => {
-            ted::insert_all_raw(
-                ted::Position::after(ref_expr.amp_token()?),
+            editor.insert_all(
+                Position::after(ref_expr.amp_token()?),
                 vec![make::token(T![mut]).into(), make::tokens::whitespace(" ").into()],
             );
         }
         _ => {}
     }
-    None
+
+    let fn_ = editor.finish().new_root().clone();
+    ast::Fn::cast(fn_)
 }
 
 fn get_trait_mut(apply_trait: &hir::Trait, famous: FamousDefs<'_, '_>) -> Option<&'static str> {
@@ -147,7 +173,7 @@ fn get_trait_mut(apply_trait: &hir::Trait, famous: FamousDefs<'_, '_>) -> Option
     None
 }
 
-fn process_method_name(name: ast::Name) -> Option<(ast::Name, &'static str)> {
+fn process_method_name(name: ast::Name) -> Option<&'static str> {
     let new_name = match &*name.text() {
         "index" => "index_mut",
         "as_ref" => "as_mut",
@@ -155,7 +181,7 @@ fn process_method_name(name: ast::Name) -> Option<(ast::Name, &'static str)> {
         "deref" => "deref_mut",
         _ => return None,
     };
-    Some((name, new_name))
+    Some(new_name)
 }
 
 fn process_ret_type(ref_ty: &ast::RetType) -> Option<ast::Type> {
@@ -228,7 +254,9 @@ impl<T> core::ops::Index$0<Axis> for [T; 3] where T: Copy {
             r#"
 pub enum Axis { X = 0, Y = 1, Z = 2 }
 
-$0impl<T> core::ops::IndexMut<Axis> for [T; 3] where T: Copy {
+$0impl<T> core::ops::IndexMut<Axis> for [T; 3]
+where T: Copy
+{
     fn index_mut(&mut self, index: Axis) -> &mut Self::Output {
         let var_name = &self[index as usize];
         var_name
@@ -332,7 +360,9 @@ mod foo {
 mod foo {
     pub enum Axis { X = 0, Y = 1, Z = 2 }
 
-    $0impl<T> core::ops::IndexMut<Axis> for [T; 3] where T: Copy {
+    $0impl<T> core::ops::IndexMut<Axis> for [T; 3]
+    where T: Copy
+    {
         fn index_mut(&mut self, index: Axis) -> &mut Self::Output {
             let var_name = &self[index as usize];
             var_name
@@ -375,7 +405,9 @@ mod foo {
     mod bar {
         pub enum Axis { X = 0, Y = 1, Z = 2 }
 
-        $0impl<T> core::ops::IndexMut<Axis> for [T; 3] where T: Copy {
+        $0impl<T> core::ops::IndexMut<Axis> for [T; 3]
+        where T: Copy
+        {
             fn index_mut(&mut self, index: Axis) -> &mut Self::Output {
                 let var_name = &self[index as usize];
                 var_name
