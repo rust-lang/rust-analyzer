@@ -2,11 +2,8 @@ use std::{fmt, sync::OnceLock};
 
 use arrayvec::ArrayVec;
 use ast::HasName;
-use cfg::{CfgAtom, CfgExpr};
-use hir::{
-    AsAssocItem, AttrsWithOwner, HasAttrs, HasCrate, HasSource, Semantics, Symbol, db::HirDatabase,
-    sym,
-};
+use cfg::CfgExpr;
+use hir::{AsAssocItem, HasAttrs, HasCrate, HasSource, Semantics, Symbol, db::HirDatabase};
 use ide_assists::utils::{has_test_related_attribute, test_related_attribute_syn};
 use ide_db::impl_empty_upmap_from_ra_fixture;
 use ide_db::{
@@ -15,7 +12,7 @@ use ide_db::{
     defs::Definition,
     documentation::docs_from_attrs,
     helpers::visit_file_defs,
-    search::{FileReferenceNode, SearchScope},
+    search::{FileReferenceNode, SearchScope, has_cfg_test},
 };
 use itertools::Itertools;
 use macros::UpmapFromRaFixture;
@@ -323,7 +320,7 @@ pub(crate) fn runnable_fn(
     def: hir::Function,
 ) -> Option<Runnable> {
     let edition = def.krate(sema.db).edition(sema.db);
-    let under_cfg_test = has_cfg_test(def.module(sema.db).attrs(sema.db));
+    let under_cfg_test = has_cfg_test(&def.module(sema.db).attrs(sema.db));
     let kind = if !under_cfg_test && def.is_main(sema.db) {
         RunnableKind::Bin
     } else {
@@ -366,7 +363,7 @@ pub(crate) fn runnable_mod(
     sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
 ) -> Option<Runnable> {
-    if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(def.attrs(sema.db)))
+    if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(&def.attrs(sema.db)))
     {
         return None;
     }
@@ -442,10 +439,6 @@ pub(crate) fn runnable_impl(
     })
 }
 
-fn has_cfg_test(attrs: AttrsWithOwner) -> bool {
-    attrs.cfgs().any(|cfg| matches!(&cfg, CfgExpr::Atom(CfgAtom::Flag(s)) if *s == sym::test))
-}
-
 /// Creates a test mod runnable for outline modules at the top of their definition.
 fn runnable_mod_outline_definition(
     sema: &Semantics<'_, RootDatabase>,
@@ -453,7 +446,7 @@ fn runnable_mod_outline_definition(
 ) -> Option<Runnable> {
     def.as_source_file_id(sema.db)?;
 
-    if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(def.attrs(sema.db)))
+    if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(&def.attrs(sema.db)))
     {
         return None;
     }
