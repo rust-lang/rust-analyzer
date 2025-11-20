@@ -693,11 +693,17 @@ impl FunctionBody {
                 parent
                     .statements()
                     .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
-                    .filter_map(|stmt| match stmt {
-                        ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr(),
-                        ast::Stmt::Item(_) => None,
-                        ast::Stmt::LetStmt(stmt) => stmt.initializer(),
+                    .flat_map(|stmt| match stmt {
+                        ast::Stmt::ExprStmt(expr_stmt) => vec![expr_stmt.expr()],
+                        ast::Stmt::Item(_) => vec![None],
+                        ast::Stmt::LetStmt(stmt) => vec![
+                            stmt.initializer(),
+                            stmt.let_else()
+                                .and_then(|le| le.block_expr())
+                                .map(|be| ast::Expr::BlockExpr(be)),
+                        ],
                     })
+                    .filter_map(std::convert::identity)
                     .for_each(|expr| walk_expr(&expr, cb));
                 if let Some(expr) = parent
                     .tail_expr()
@@ -716,11 +722,17 @@ impl FunctionBody {
                 parent
                     .statements()
                     .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
-                    .filter_map(|stmt| match stmt {
-                        ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr(),
-                        ast::Stmt::Item(_) => None,
-                        ast::Stmt::LetStmt(stmt) => stmt.initializer(),
+                    .flat_map(|stmt| match stmt {
+                        ast::Stmt::ExprStmt(expr_stmt) => vec![expr_stmt.expr()],
+                        ast::Stmt::Item(_) => vec![None],
+                        ast::Stmt::LetStmt(stmt) => vec![
+                            stmt.initializer(),
+                            stmt.let_else()
+                                .and_then(|le| le.block_expr())
+                                .map(|be| ast::Expr::BlockExpr(be)),
+                        ],
                     })
+                    .filter_map(std::convert::identity)
                     .for_each(|expr| preorder_expr(&expr, cb));
                 if let Some(expr) = parent
                     .tail_expr()
@@ -6290,6 +6302,41 @@ fn foo() {
 
 fn $0fun_name(v: i32) {
     print!("{v:?}{}", v == 123);
+}"#,
+        );
+    }
+
+    #[test]
+    fn no_parameter_for_variable_used_only_let_else() {
+        check_assist(
+            extract_function,
+            r#"
+fn foo() -> u32 {
+    let x = 5;
+
+    $0let Some(y) = Some(1) else {
+        return x * 2;
+    };$0
+
+    y
+}"#,
+            r#"
+fn foo() -> u32 {
+    let x = 5;
+
+    let y = match fun_name(x) {
+        Ok(value) => value,
+        Err(value) => return value,
+    };
+
+    y
+}
+
+fn $0fun_name(x: u32) -> Result<_, u32> {
+    let Some(y) = Some(1) else {
+        return Err(x * 2);
+    };
+    Ok(y)
 }"#,
         );
     }
