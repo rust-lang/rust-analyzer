@@ -215,7 +215,7 @@ fn keyword_with_condition(
             return format!("{keyword} {snippet}");
         }
     }
-    keyword.to_string()
+    keyword.to_owned()
 }
 
 fn format_for_label(for_expr: &ast::ForExpr, config: &InlayHintsConfig<'_>) -> String {
@@ -327,7 +327,7 @@ fn snippet_from_node(node: &SyntaxNode, config: &InlayHintsConfig<'_>) -> String
             last_was_space = false;
         }
     }
-    let normalized = normalized.trim().to_string();
+    let normalized = normalized.trim().to_owned();
     if normalized.is_empty() {
         return normalized;
     }
@@ -338,13 +338,11 @@ fn snippet_from_node(node: &SyntaxNode, config: &InlayHintsConfig<'_>) -> String
     }
 
     let mut truncated = String::new();
-    let mut used = 0usize;
-    for ch in normalized.chars() {
+    for (used, ch) in normalized.chars().enumerate() {
         if used == limit {
             break;
         }
         truncated.push(ch);
-        used += 1;
     }
     truncated.push_str("...");
     truncated
