@@ -132,10 +132,12 @@ mod handlers {
     mod convert_named_struct_to_tuple_struct;
     mod convert_nested_function_to_closure;
     mod convert_range_for_to_while;
+    mod convert_record_struct_to_unit_struct;
     mod convert_to_guarded_return;
     mod convert_tuple_return_type_to_struct;
     mod convert_tuple_struct_to_named_struct;
     mod convert_two_arm_bool_match_to_matches_macro;
+    mod convert_unit_struct_to_record_struct;
     mod convert_while_to_loop;
     mod destructure_struct_binding;
     mod destructure_tuple_binding;
@@ -270,9 +272,11 @@ mod handlers {
             convert_named_struct_to_tuple_struct::convert_named_struct_to_tuple_struct,
             convert_nested_function_to_closure::convert_nested_function_to_closure,
             convert_range_for_to_while::convert_range_for_to_while,
+            convert_record_struct_to_unit_struct::convert_record_struct_to_unit_struct,
             convert_to_guarded_return::convert_to_guarded_return,
             convert_tuple_return_type_to_struct::convert_tuple_return_type_to_struct,
             convert_tuple_struct_to_named_struct::convert_tuple_struct_to_named_struct,
+            convert_unit_struct_to_record_struct::convert_unit_struct_to_record_struct,
             convert_two_arm_bool_match_to_matches_macro::convert_two_arm_bool_match_to_matches_macro,
             convert_while_to_loop::convert_while_to_loop,
             destructure_struct_binding::destructure_struct_binding,
