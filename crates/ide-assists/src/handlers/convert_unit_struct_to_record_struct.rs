@@ -94,7 +94,7 @@ fn edit_struct_def(
                 .prev_token()
                 .filter(|tok| tok.kind() == SyntaxKind::WHITESPACE)
                 .map(|tok| {
-                    let text = tok.text().to_string();
+                    let text = tok.text().to_owned();
                     edit.delete(tok.text_range());
                     text
                 });
