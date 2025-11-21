@@ -1,5 +1,6 @@
 use syntax::{
-    AstNode, SyntaxKind, T,
+    AstNode, Direction, SyntaxKind, T,
+    algo::skip_trivia_token,
     ast::{self, syntax_factory::SyntaxFactory},
     syntax_editor::Position,
 };
@@ -32,6 +33,16 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     }
 
     let expr = parens.expr()?;
+
+    if let ast::Expr::ReturnExpr(ret) = &expr
+        && ret.expr().is_none()
+        && let Some(r_paren) = parens.r_paren_token()
+        && let Some(next) = r_paren.next_token().and_then(|t| skip_trivia_token(t, Direction::Next))
+        && next.kind() == T![||]
+    {
+        cov_mark::hit!(remove_parens_return_closure);
+        return None;
+    }
 
     let parent = parens.syntax().parent()?;
     if expr.needs_parens_in(&parent) {
@@ -244,6 +255,24 @@ mod tests {
             remove_parentheses,
             r#"fn f() { &$0(return ()) }"#,
             r#"fn f() { &return () }"#,
+        );
+    }
+
+    #[test]
+    fn remove_parens_return_in_unary_not() {
+        cov_mark::check!(remove_parens_return_closure);
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn main() { let _x = true && !$0(return) || true; }"#,
+        );
+    }
+
+    #[test]
+    fn remove_parens_return_in_disjunction_is_ok() {
+        check_assist(
+            remove_parentheses,
+            r#"fn f() { let _ = true || $0(return); }"#,
+            r#"fn f() { let _ = true || return; }"#,
         );
     }
 
