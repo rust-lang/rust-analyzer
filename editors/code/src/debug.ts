@@ -446,37 +446,6 @@ async function recompileTestFromDebuggingSession(session: vscode.DebugSession, c
 
     log.debug("Executing cargo build --all-targets in:", cwd);
     await vscode.tasks.executeTask(task);
-
-    // Wait for the compilation to complete before allowing restart to procee
-
-    // Wait for the binary to actually be updated on disk
-    const maxWaitMs = 2000;
-    const startWait = Date.now();
-    let binaryUpdated = false;
-
-    while (Date.now() - startWait < maxWaitMs) {
-        try {
-            const afterStat = await fs.stat(program);
-            const afterTime = afterStat.mtime;
-
-            if (!beforeTime || afterTime > beforeTime) {
-                log.debug("Binary updated! New timestamp:", afterTime.toISOString());
-                binaryUpdated = true;
-                break;
-            }
-        } catch (e) {
-            // Binary might not exist yet
-        }
-
-        // Wait 50ms before checking again
-        await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-
-    if (!binaryUpdated && beforeTime) {
-        log.warn("Warning: Binary timestamp did not change after compilation!");
-    }
-
-    log.debug("Recompilation finished, debugger will now restart with binary:", program);
 }
 
 export function initializeDebugSessionTrackingAndRebuild(ctx: Ctx) {
@@ -498,7 +467,7 @@ export function initializeDebugSessionTrackingAndRebuild(ctx: Ctx) {
                         );
                         manuallyRestartingSessions.add(session.id);
 
-                        // Stop the session immediately (this cancels the restart)
+                        // Stop the session immediately (this cancels the restart and forces the cache to rebuild)
                         vscode.debug.stopDebugging(session).then(async () => {
                             try {
                                 // Recompile with the new code
@@ -522,39 +491,4 @@ export function initializeDebugSessionTrackingAndRebuild(ctx: Ctx) {
             };
         },
     });
-
-    vscode.debug.onDidStartDebugSession((session: vscode.DebugSession) => {
-        if (!activeDebugSessionIds.includes(session.id)) {
-            activeDebugSessionIds.push(session.id);
-        }
-    });
-
-    vscode.debug.onDidChangeActiveDebugSession((session: vscode.DebugSession | undefined) => {
-        if (session && !activeDebugSessionIds.includes(session.id)) {
-            activeDebugSessionIds.push(session.id);
-        }
-    });
-
-    vscode.debug.onDidReceiveDebugSessionCustomEvent(
-        async (event: vscode.DebugSessionCustomEvent) => {
-            const session = event.session;
-            if (activeDebugSessionIds.find((s) => s === session.id)) {
-                if (event.event === "recompileTest") {
-                    await recompileTestFromDebuggingSession(session, ctx);
-                }
-            }
-        },
-    );
-
-    vscode.debug.onDidTerminateDebugSession(async (session: vscode.DebugSession) => {
-        removeActiveSession(session);
-    });
-}
-
-function removeActiveSession(session: vscode.DebugSession) {
-    const activeSessionId = activeDebugSessionIds.findIndex((id) => id === session.id);
-
-    if (activeSessionId !== -1) {
-        activeDebugSessionIds.splice(activeSessionId, 1);
-    }
 }
