@@ -755,6 +755,31 @@ fn foo() {
 }
 
 #[test]
+fn doctest_convert_record_struct_to_unit_struct() {
+    check_doc_test(
+        "convert_record_struct_to_unit_struct",
+        r#####"
+struct Foo$0 {}
+
+impl Foo {
+    fn new() -> Self {
+        Foo {}
+    }
+}
+"#####,
+        r#####"
+struct Foo;
+
+impl Foo {
+    fn new() -> Self {
+        Foo
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_to_guarded_return() {
     check_doc_test(
         "convert_to_guarded_return",
@@ -861,6 +886,31 @@ fn main() {
         r#####"
 fn main() {
     matches!(scrutinee, Some(val) if val.cond())
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_convert_unit_struct_to_record_struct() {
+    check_doc_test(
+        "convert_unit_struct_to_record_struct",
+        r#####"
+struct Foo$0;
+
+impl Foo {
+    fn new() -> Self {
+        Foo
+    }
+}
+"#####,
+        r#####"
+struct Foo {}
+
+impl Foo {
+    fn new() -> Self {
+        Foo {}
+    }
 }
 "#####,
     )
