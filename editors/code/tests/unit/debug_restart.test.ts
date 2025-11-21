@@ -59,11 +59,7 @@ export async function getTests(ctx: Context) {
             }
 
             assert.strictEqual(sessionIds.length, 1, "Session should be tracked");
-            assert.strictEqual(
-                sessionIds[0],
-                "test-session-2",
-                "Session ID should match",
-            );
+            assert.strictEqual(sessionIds[0], "test-session-2", "Session ID should match");
 
             // Simulate session termination
             const index = sessionIds.findIndex((id) => id === mockSession.id);
