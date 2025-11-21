@@ -408,39 +408,145 @@ function quote(xs: string[]) {
 }
 
 async function recompileTestFromDebuggingSession(session: vscode.DebugSession, ctx: Ctx) {
-    const { cwd, args: sessionArgs }: vscode.DebugConfiguration = session.configuration;
+    const config: vscode.DebugConfiguration = session.configuration;
 
+    log.debug("=== FULL DEBUG CONFIG ===");
+    log.debug(JSON.stringify(config, null, 2));
+    log.debug("=========================");
+
+    const { cwd, program } = config;
+
+    // Show what we're trying to rebuild
+    log.debug("CWD:", cwd);
+    log.debug("Program:", program);
+
+    // Check binary timestamp before rebuild
+    const fs = await import("fs/promises");
+    let beforeTime: Date | undefined;
+    try {
+        const beforeStat = await fs.stat(program);
+        beforeTime = beforeStat.mtime;
+        log.debug("Binary timestamp before rebuild:", beforeTime.toISOString());
+    } catch (e) {
+        log.debug("Could not stat binary before rebuild:", e);
+    }
+
+    // Rebuild the entire project (both lib and tests)
     const args: ra.CargoRunnableArgs = {
         cwd: cwd,
-        cargoArgs: ["test", "--no-run", "--test", "lib"],
-
-        // The first element of the debug configuration args is the test path e.g. "test_bar::foo::test_a::test_b"
-        executableArgs: sessionArgs,
+        cargoArgs: ["build", "--all-targets"],
+        executableArgs: [],
     };
     const runnable: ra.Runnable = {
         kind: "cargo",
-        label: "compile-test",
+        label: "recompile-for-debug",
         args,
     };
     const task: vscode.Task = await createTaskFromRunnable(runnable, ctx.config);
 
-    // It is not needed to call the language server, since the test path is already resolved in the
-    // configuration option. We can simply call a debug configuration with the --no-run option to compile
+    log.debug("Executing cargo build --all-targets in:", cwd);
     await vscode.tasks.executeTask(task);
+
+    // Wait for the compilation to complete before allowing restart to procee
+
+    // Wait for the binary to actually be updated on disk
+    const maxWaitMs = 2000;
+    const startWait = Date.now();
+    let binaryUpdated = false;
+
+    while (Date.now() - startWait < maxWaitMs) {
+        try {
+            const afterStat = await fs.stat(program);
+            const afterTime = afterStat.mtime;
+
+            if (!beforeTime || afterTime > beforeTime) {
+                log.debug("Binary updated! New timestamp:", afterTime.toISOString());
+                binaryUpdated = true;
+                break;
+            }
+        } catch (e) {
+            // Binary might not exist yet
+        }
+
+        // Wait 50ms before checking again
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    if (!binaryUpdated && beforeTime) {
+        log.warn("Warning: Binary timestamp did not change after compilation!");
+    }
+
+    log.debug("Recompilation finished, debugger will now restart with binary:", program);
 }
 
 export function initializeDebugSessionTrackingAndRebuild(ctx: Ctx) {
+    // Track sessions we're manually restarting to avoid loops
+    const manuallyRestartingSessions = new Set<string>();
+
+    // Register a debug adapter tracker factory to intercept restart messages
+    vscode.debug.registerDebugAdapterTrackerFactory("*", {
+        createDebugAdapterTracker(session: vscode.DebugSession) {
+            return {
+                onWillReceiveMessage: async (message: unknown) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const msg = message as any;
+
+                    // Intercept restart command - stop it and do our own restart
+                    if (msg.command === "restart" && !manuallyRestartingSessions.has(session.id)) {
+                        log.debug(
+                            "Intercepting restart, will stop and manually restart after recompiling",
+                        );
+                        manuallyRestartingSessions.add(session.id);
+
+                        // Stop the session immediately (this cancels the restart)
+                        vscode.debug.stopDebugging(session).then(async () => {
+                            try {
+                                // Recompile with the new code
+                                await recompileTestFromDebuggingSession(session, ctx);
+
+                                // Start a completely fresh debug session with the same config
+                                log.debug("Starting fresh debug session after recompile");
+                                await vscode.debug.startDebugging(
+                                    session.workspaceFolder,
+                                    session.configuration,
+                                );
+                            } finally {
+                                manuallyRestartingSessions.delete(session.id);
+                            }
+                        });
+
+                        // Return false or modify message to cancel the original restart
+                        // (though stopping the session should handle this)
+                    }
+                },
+            };
+        },
+    });
+
     vscode.debug.onDidStartDebugSession((session: vscode.DebugSession) => {
         if (!activeDebugSessionIds.includes(session.id)) {
             activeDebugSessionIds.push(session.id);
         }
     });
 
-    vscode.debug.onDidTerminateDebugSession(async (session: vscode.DebugSession) => {
-        // The id of the session will be the same when pressing restart the restart button
-        if (activeDebugSessionIds.find((s) => s === session.id)) {
-            await recompileTestFromDebuggingSession(session, ctx);
+    vscode.debug.onDidChangeActiveDebugSession((session: vscode.DebugSession | undefined) => {
+        if (session && !activeDebugSessionIds.includes(session.id)) {
+            activeDebugSessionIds.push(session.id);
         }
+    });
+
+    vscode.debug.onDidReceiveDebugSessionCustomEvent(
+        async (event: vscode.DebugSessionCustomEvent) => {
+            const session = event.session;
+            if (activeDebugSessionIds.find((s) => s === session.id)) {
+                if (event.event === "recompileTest") {
+                    await recompileTestFromDebuggingSession(session, ctx);
+                }
+            }
+        },
+    );
+
+    vscode.debug.onDidTerminateDebugSession(async (session: vscode.DebugSession) => {
         removeActiveSession(session);
     });
 }
