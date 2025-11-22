@@ -1,6 +1,5 @@
 use syntax::{
-    AstNode, Direction, SyntaxKind, T,
-    algo::skip_trivia_token,
+    AstNode, SyntaxKind, T,
     ast::{self, syntax_factory::SyntaxFactory},
     syntax_editor::Position,
 };
@@ -34,21 +33,8 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
     let expr = parens.expr()?;
 
-    if let ast::Expr::ReturnExpr(_) = &expr
-        && let Some(r_paren) = parens.r_paren_token()
-        && let Some(next) = r_paren.next_token().and_then(|t| skip_trivia_token(t, Direction::Next))
-        && next.kind() == T![||]
-    {
-        cov_mark::hit!(remove_parens_return_closure);
-        return None;
-    }
-
     let parent = parens.syntax().parent()?;
-    let allow_prefix_ret_like = matches!(
-        (&expr, ast::Expr::cast(parent.clone())),
-        (e, Some(ast::Expr::PrefixExpr(_))) if matches!(e, ast::Expr::ReturnExpr(_) | ast::Expr::BreakExpr(_) | ast::Expr::ContinueExpr(_))
-    );
-    if !allow_prefix_ret_like && expr.needs_parens_in(&parent) {
+    if expr.needs_parens_in(&parent) {
         return None;
     }
 
@@ -279,7 +265,6 @@ mod tests {
     #[test]
     fn remove_parens_return_in_disjunction_with_closure_risk() {
         // `return` may only be blocked when it would form `return ||`
-        cov_mark::check!(remove_parens_return_closure);
         check_assist_not_applicable(
             remove_parentheses,
             r#"fn f() { let _x = true && $0(return) || true; }"#,
