@@ -3,14 +3,15 @@
 use stdx::always;
 
 use crate::{
-    AstNode, SyntaxNode,
-    ast::{self, BinaryOp, Expr, HasArgList, RangeItem},
+    AstNode, Direction, SyntaxNode, T,
+    algo::skip_trivia_token,
+    ast::{self, BinExpr, BinaryOp, Expr, HasArgList, RangeItem},
     match_ast,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum ExprPrecedence {
-    // return val, break val, yield val, closures
+    // return, break, continue, yield, yeet, become (with or without value)
     Jump,
     // = += -= *= /= %= &= |= ^= <<= >>=
     Assign,
@@ -76,18 +77,12 @@ pub fn precedence(expr: &ast::Expr) -> ExprPrecedence {
             Some(_) => ExprPrecedence::Unambiguous,
         },
 
-        Expr::BreakExpr(e) if e.expr().is_some() => ExprPrecedence::Jump,
-        Expr::BecomeExpr(e) if e.expr().is_some() => ExprPrecedence::Jump,
-        Expr::ReturnExpr(e) if e.expr().is_some() => ExprPrecedence::Jump,
-        Expr::YeetExpr(e) if e.expr().is_some() => ExprPrecedence::Jump,
-        Expr::YieldExpr(e) if e.expr().is_some() => ExprPrecedence::Jump,
-
         Expr::BreakExpr(_)
         | Expr::BecomeExpr(_)
         | Expr::ReturnExpr(_)
         | Expr::YeetExpr(_)
         | Expr::YieldExpr(_)
-        | Expr::ContinueExpr(_) => ExprPrecedence::Unambiguous,
+        | Expr::ContinueExpr(_) => ExprPrecedence::Jump,
 
         Expr::RangeExpr(..) => ExprPrecedence::Range,
 
@@ -226,9 +221,25 @@ impl Expr {
             return false;
         }
 
-        // Special-case prefix operators with return/break/etc without value
-        // e.g., `!(return)` - parentheses are necessary
-        if self.is_ret_like_with_no_value() && parent.is_prefix() {
+        // Keep parens when a ret-like expr is followed by `||` or `&&`.
+        // For `||`, removing parens could reparse as `<ret-like> || <closure>`.
+        // For `&&`, we avoid introducing `<ret-like> && <expr>` into a binary chain.
+
+        if matches!(
+            self,
+            Expr::ReturnExpr(_)
+                | Expr::BreakExpr(_)
+                | Expr::BecomeExpr(_)
+                | Expr::YeetExpr(_)
+                | Expr::YieldExpr(_)
+        ) && let Some(paren_expr) = self.syntax().parent().and_then(ast::ParenExpr::cast)
+            && let Some(parent_expr) = paren_expr.syntax().parent().and_then(ast::Expr::cast)
+            && BinExpr::can_cast(parent_expr.syntax().kind())
+            && let Some(r_paren) = paren_expr.r_paren_token()
+            && let Some(next) =
+                r_paren.next_token().and_then(|t| skip_trivia_token(t, Direction::Next))
+            && matches!(next.kind(), T![||] | T![&&])
+        {
             return true;
         }
 
