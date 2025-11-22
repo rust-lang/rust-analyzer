@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn remove_parens_return_in_disjunction_with_closure_risk() {
-        // `return` may only be blocked when it would form `return ||`
+        // `return` may only be blocked when it would form `return ||` or `return &&`
         check_assist_not_applicable(
             remove_parentheses,
             r#"fn f() { let _x = true && $0(return) || true; }"#,
@@ -280,6 +280,22 @@ mod tests {
         check_assist_not_applicable(
             remove_parentheses,
             r#"fn f() { let _x = true && !$0(return false) || true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && $0(return) && true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && !$0(return) && true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && $0(return false) && true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && !$0(return false) && true; }"#,
         );
     }
 

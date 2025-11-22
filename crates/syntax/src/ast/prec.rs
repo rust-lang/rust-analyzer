@@ -5,7 +5,7 @@ use stdx::always;
 use crate::{
     AstNode, Direction, SyntaxNode, T,
     algo::skip_trivia_token,
-    ast::{self, BinaryOp, Expr, HasArgList, RangeItem},
+    ast::{self, BinExpr, BinaryOp, Expr, HasArgList, RangeItem},
     match_ast,
 };
 
@@ -221,14 +221,24 @@ impl Expr {
             return false;
         }
 
-        // Keep parens when `(return ...)` is followed by `||`;
-        // otherwise it would become `return || <closure>` with different semantics
-        if let Expr::ReturnExpr(_) = self
-            && let Some(paren_expr) = self.syntax().parent().and_then(ast::ParenExpr::cast)
+        // Keep parens when a ret-like expr is followed by `||` or `&&`.
+        // For `||`, removing parens could reparse as `<ret-like> || <closure>`.
+        // For `&&`, we avoid introducing `<ret-like> && <expr>` into a binary chain.
+
+        if matches!(
+            self,
+            Expr::ReturnExpr(_)
+                | Expr::BreakExpr(_)
+                | Expr::BecomeExpr(_)
+                | Expr::YeetExpr(_)
+                | Expr::YieldExpr(_)
+        ) && let Some(paren_expr) = self.syntax().parent().and_then(ast::ParenExpr::cast)
+            && let Some(parent_expr) = paren_expr.syntax().parent().and_then(ast::Expr::cast)
+            && BinExpr::can_cast(parent_expr.syntax().kind())
             && let Some(r_paren) = paren_expr.r_paren_token()
             && let Some(next) =
                 r_paren.next_token().and_then(|t| skip_trivia_token(t, Direction::Next))
-            && next.kind() == T![||]
+            && matches!(next.kind(), T![||] | T![&&])
         {
             return true;
         }
