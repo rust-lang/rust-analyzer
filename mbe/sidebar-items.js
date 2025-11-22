@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CountError","DelimiterKind","ExpandErrorKind","ParseError"],"fn":["expect_fragment"],"struct":["DeclarativeMacro","Delimiter","ExpandError","Punct","ValueResult"],"type":["ExpandResult","MatchedArmIndex"]};

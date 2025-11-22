@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MacroSubNs","ModuleOrigin","ModuleSource"],"fn":["block_def_map","crate_def_map"],"mod":["assoc","attr_resolution","diagnostics","proc_macro"],"struct":["DefMap","LocalDefMap","ModuleData","ResolvePathResultPrefixInfo"]};

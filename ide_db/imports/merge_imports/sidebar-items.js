@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MergeBehavior","NormalizationStyle"],"fn":["common_prefix","eq_attrs","eq_visibility","try_merge_imports","try_merge_trees","try_normalize_import","try_normalize_use_tree","try_normalize_use_tree_mut"]};

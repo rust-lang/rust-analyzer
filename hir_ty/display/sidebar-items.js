@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ClosureStyle","DisplayKind","DisplayLifetime","DisplaySourceCodeError","HirDisplayError","SizedByDefault"],"fn":["hir_display_with_store","write_bounds_like_dyn_trait_with_prefix","write_visibility"],"struct":["DisplayTarget","HirDisplayWrapper","HirFormatter"],"trait":["HirDisplay","HirDisplayWithExpressionStore","HirWrite"]};
