@@ -34,8 +34,7 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
     let expr = parens.expr()?;
 
-    if let ast::Expr::ReturnExpr(ret) = &expr
-        && ret.expr().is_none()
+    if let ast::Expr::ReturnExpr(_) = &expr
         && let Some(r_paren) = parens.r_paren_token()
         && let Some(next) = r_paren.next_token().and_then(|t| skip_trivia_token(t, Direction::Next))
         && next.kind() == T![||]
@@ -45,7 +44,11 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     }
 
     let parent = parens.syntax().parent()?;
-    if expr.needs_parens_in(&parent) {
+    let allow_prefix_ret_like = matches!(
+        (&expr, ast::Expr::cast(parent.clone())),
+        (e, Some(ast::Expr::PrefixExpr(_))) if matches!(e, ast::Expr::ReturnExpr(_) | ast::Expr::BreakExpr(_) | ast::Expr::ContinueExpr(_))
+    );
+    if !allow_prefix_ret_like && expr.needs_parens_in(&parent) {
         return None;
     }
 
@@ -174,15 +177,16 @@ mod tests {
     }
 
     #[test]
-    fn remove_parens_prefix_with_return_no_value() {
-        // removing `()` from !(return) would make `!return` which is invalid syntax
-        check_assist_not_applicable(
+    fn remove_parens_prefix_with_ret_like_prefix() {
+        check_assist(remove_parentheses, r#"fn f() { !$0(return) }"#, r#"fn f() { !return }"#);
+        // `break`, `continue` behave the same under prefix operators
+        check_assist(remove_parentheses, r#"fn f() { !$0(break) }"#, r#"fn f() { !break }"#);
+        check_assist(remove_parentheses, r#"fn f() { !$0(continue) }"#, r#"fn f() { !continue }"#);
+        check_assist(
             remove_parentheses,
-            r#"fn main() { let _x = true && !$0(return) || true; }"#,
+            r#"fn f() { !$0(return false) }"#,
+            r#"fn f() { !return false }"#,
         );
-        check_assist_not_applicable(remove_parentheses, r#"fn f() { !$0(return) }"#);
-        check_assist_not_applicable(remove_parentheses, r#"fn f() { !$0(break) }"#);
-        check_assist_not_applicable(remove_parentheses, r#"fn f() { !$0(continue) }"#);
 
         // Binary operators should still allow removal
         check_assist(
@@ -260,10 +264,37 @@ mod tests {
 
     #[test]
     fn remove_parens_return_in_unary_not() {
+        check_assist(
+            remove_parentheses,
+            r#"fn f() { cond && !$0(return) }"#,
+            r#"fn f() { cond && !return }"#,
+        );
+        check_assist(
+            remove_parentheses,
+            r#"fn f() { cond && !$0(return false) }"#,
+            r#"fn f() { cond && !return false }"#,
+        );
+    }
+
+    #[test]
+    fn remove_parens_return_in_disjunction_with_closure_risk() {
+        // `return` may only be blocked when it would form `return ||`
         cov_mark::check!(remove_parens_return_closure);
         check_assist_not_applicable(
             remove_parentheses,
-            r#"fn main() { let _x = true && !$0(return) || true; }"#,
+            r#"fn f() { let _x = true && $0(return) || true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && !$0(return) || true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && $0(return false) || true; }"#,
+        );
+        check_assist_not_applicable(
+            remove_parentheses,
+            r#"fn f() { let _x = true && !$0(return false) || true; }"#,
         );
     }
 
