@@ -505,17 +505,17 @@ impl GlobalState {
                     self.send_request::<lsp_types::request::CodeLensRefresh>((), |_, _| ());
                 }
 
-                // Refresh inlay hints if the client supports it.
-                if self.config.inlay_hints_refresh() {
-                    self.send_request::<lsp_types::request::InlayHintRefreshRequest>((), |_, _| ());
-                }
-
                 if self.config.diagnostics_refresh() {
                     self.send_request::<lsp_types::request::WorkspaceDiagnosticRefresh>(
                         (),
                         |_, _| (),
                     );
                 }
+            }
+
+            // Refresh inlay hints only when quiescent to avoid flickering during typing.
+            if became_quiescent && self.config.inlay_hints_refresh() {
+                self.send_request::<lsp_types::request::InlayHintRefreshRequest>((), |_, _| ());
             }
 
             let project_or_mem_docs_changed =
