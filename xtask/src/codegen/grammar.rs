@@ -250,6 +250,19 @@ fn generate_nodes(kinds: KindsSrc, grammar: &AstSrc) -> String {
                 let trait_name = format_ident!("{}", trait_name);
                 quote!(impl ast::#trait_name for #name {})
             });
+            let cast_methods = variants.iter().map(|variant| {
+                let into_method =
+                    format_ident!("into_{}", to_lower_snake_case(&variant.to_string()));
+                quote! {
+                    pub fn #into_method(self) -> Option<#variant> {
+                        if let Self::#variant(variant) = self {
+                            Some(variant)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            });
 
             let ast_node = if en.name == "Stmt" {
                 quote! {}
@@ -290,6 +303,9 @@ fn generate_nodes(kinds: KindsSrc, grammar: &AstSrc) -> String {
                         #(#variants(#variants),)*
                     }
 
+                    impl #name {
+                        #(#cast_methods)*
+                    }
                     #(#traits)*
                 },
                 quote! {

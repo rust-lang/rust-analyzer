@@ -1974,6 +1974,17 @@ pub enum Adt {
     Struct(Struct),
     Union(Union),
 }
+impl Adt {
+    pub fn into_enum(self) -> Option<Enum> {
+        if let Self::Enum(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_struct(self) -> Option<Struct> {
+        if let Self::Struct(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_union(self) -> Option<Union> {
+        if let Self::Union(variant) = self { Some(variant) } else { None }
+    }
+}
 impl ast::HasAttrs for Adt {}
 impl ast::HasDocComments for Adt {}
 impl ast::HasGenericParams for Adt {}
@@ -1987,12 +1998,37 @@ pub enum AsmOperand {
     AsmRegOperand(AsmRegOperand),
     AsmSym(AsmSym),
 }
+impl AsmOperand {
+    pub fn into_asm_const(self) -> Option<AsmConst> {
+        if let Self::AsmConst(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_asm_label(self) -> Option<AsmLabel> {
+        if let Self::AsmLabel(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_asm_reg_operand(self) -> Option<AsmRegOperand> {
+        if let Self::AsmRegOperand(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_asm_sym(self) -> Option<AsmSym> {
+        if let Self::AsmSym(variant) = self { Some(variant) } else { None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AsmPiece {
     AsmClobberAbi(AsmClobberAbi),
     AsmOperandNamed(AsmOperandNamed),
     AsmOptions(AsmOptions),
+}
+impl AsmPiece {
+    pub fn into_asm_clobber_abi(self) -> Option<AsmClobberAbi> {
+        if let Self::AsmClobberAbi(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_asm_operand_named(self) -> Option<AsmOperandNamed> {
+        if let Self::AsmOperandNamed(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_asm_options(self) -> Option<AsmOptions> {
+        if let Self::AsmOptions(variant) = self { Some(variant) } else { None }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2001,6 +2037,20 @@ pub enum AssocItem {
     Fn(Fn),
     MacroCall(MacroCall),
     TypeAlias(TypeAlias),
+}
+impl AssocItem {
+    pub fn into_const(self) -> Option<Const> {
+        if let Self::Const(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_fn(self) -> Option<Fn> {
+        if let Self::Fn(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_call(self) -> Option<MacroCall> {
+        if let Self::MacroCall(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_type_alias(self) -> Option<TypeAlias> {
+        if let Self::TypeAlias(variant) = self { Some(variant) } else { None }
+    }
 }
 impl ast::HasAttrs for AssocItem {}
 impl ast::HasDocComments for AssocItem {}
@@ -2044,6 +2094,116 @@ pub enum Expr {
     YeetExpr(YeetExpr),
     YieldExpr(YieldExpr),
 }
+impl Expr {
+    pub fn into_array_expr(self) -> Option<ArrayExpr> {
+        if let Self::ArrayExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_asm_expr(self) -> Option<AsmExpr> {
+        if let Self::AsmExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_await_expr(self) -> Option<AwaitExpr> {
+        if let Self::AwaitExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_become_expr(self) -> Option<BecomeExpr> {
+        if let Self::BecomeExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_bin_expr(self) -> Option<BinExpr> {
+        if let Self::BinExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_block_expr(self) -> Option<BlockExpr> {
+        if let Self::BlockExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_break_expr(self) -> Option<BreakExpr> {
+        if let Self::BreakExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_call_expr(self) -> Option<CallExpr> {
+        if let Self::CallExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_cast_expr(self) -> Option<CastExpr> {
+        if let Self::CastExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_closure_expr(self) -> Option<ClosureExpr> {
+        if let Self::ClosureExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_continue_expr(self) -> Option<ContinueExpr> {
+        if let Self::ContinueExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_field_expr(self) -> Option<FieldExpr> {
+        if let Self::FieldExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_for_expr(self) -> Option<ForExpr> {
+        if let Self::ForExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_format_args_expr(self) -> Option<FormatArgsExpr> {
+        if let Self::FormatArgsExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_if_expr(self) -> Option<IfExpr> {
+        if let Self::IfExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_index_expr(self) -> Option<IndexExpr> {
+        if let Self::IndexExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_let_expr(self) -> Option<LetExpr> {
+        if let Self::LetExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_literal(self) -> Option<Literal> {
+        if let Self::Literal(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_loop_expr(self) -> Option<LoopExpr> {
+        if let Self::LoopExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_expr(self) -> Option<MacroExpr> {
+        if let Self::MacroExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_match_expr(self) -> Option<MatchExpr> {
+        if let Self::MatchExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_method_call_expr(self) -> Option<MethodCallExpr> {
+        if let Self::MethodCallExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_offset_of_expr(self) -> Option<OffsetOfExpr> {
+        if let Self::OffsetOfExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_paren_expr(self) -> Option<ParenExpr> {
+        if let Self::ParenExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_path_expr(self) -> Option<PathExpr> {
+        if let Self::PathExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_prefix_expr(self) -> Option<PrefixExpr> {
+        if let Self::PrefixExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_range_expr(self) -> Option<RangeExpr> {
+        if let Self::RangeExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_record_expr(self) -> Option<RecordExpr> {
+        if let Self::RecordExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_ref_expr(self) -> Option<RefExpr> {
+        if let Self::RefExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_return_expr(self) -> Option<ReturnExpr> {
+        if let Self::ReturnExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_try_expr(self) -> Option<TryExpr> {
+        if let Self::TryExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_tuple_expr(self) -> Option<TupleExpr> {
+        if let Self::TupleExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_underscore_expr(self) -> Option<UnderscoreExpr> {
+        if let Self::UnderscoreExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_while_expr(self) -> Option<WhileExpr> {
+        if let Self::WhileExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_yeet_expr(self) -> Option<YeetExpr> {
+        if let Self::YeetExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_yield_expr(self) -> Option<YieldExpr> {
+        if let Self::YieldExpr(variant) = self { Some(variant) } else { None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExternItem {
@@ -2051,6 +2211,20 @@ pub enum ExternItem {
     MacroCall(MacroCall),
     Static(Static),
     TypeAlias(TypeAlias),
+}
+impl ExternItem {
+    pub fn into_fn(self) -> Option<Fn> {
+        if let Self::Fn(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_call(self) -> Option<MacroCall> {
+        if let Self::MacroCall(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_static(self) -> Option<Static> {
+        if let Self::Static(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_type_alias(self) -> Option<TypeAlias> {
+        if let Self::TypeAlias(variant) = self { Some(variant) } else { None }
+    }
 }
 impl ast::HasAttrs for ExternItem {}
 impl ast::HasDocComments for ExternItem {}
@@ -2060,6 +2234,14 @@ pub enum FieldList {
     RecordFieldList(RecordFieldList),
     TupleFieldList(TupleFieldList),
 }
+impl FieldList {
+    pub fn into_record_field_list(self) -> Option<RecordFieldList> {
+        if let Self::RecordFieldList(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_tuple_field_list(self) -> Option<TupleFieldList> {
+        if let Self::TupleFieldList(variant) = self { Some(variant) } else { None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericArg {
@@ -2068,12 +2250,37 @@ pub enum GenericArg {
     LifetimeArg(LifetimeArg),
     TypeArg(TypeArg),
 }
+impl GenericArg {
+    pub fn into_assoc_type_arg(self) -> Option<AssocTypeArg> {
+        if let Self::AssocTypeArg(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_const_arg(self) -> Option<ConstArg> {
+        if let Self::ConstArg(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_lifetime_arg(self) -> Option<LifetimeArg> {
+        if let Self::LifetimeArg(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_type_arg(self) -> Option<TypeArg> {
+        if let Self::TypeArg(variant) = self { Some(variant) } else { None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericParam {
     ConstParam(ConstParam),
     LifetimeParam(LifetimeParam),
     TypeParam(TypeParam),
+}
+impl GenericParam {
+    pub fn into_const_param(self) -> Option<ConstParam> {
+        if let Self::ConstParam(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_lifetime_param(self) -> Option<LifetimeParam> {
+        if let Self::LifetimeParam(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_type_param(self) -> Option<TypeParam> {
+        if let Self::TypeParam(variant) = self { Some(variant) } else { None }
+    }
 }
 impl ast::HasAttrs for GenericParam {}
 
@@ -2097,6 +2304,59 @@ pub enum Item {
     Union(Union),
     Use(Use),
 }
+impl Item {
+    pub fn into_asm_expr(self) -> Option<AsmExpr> {
+        if let Self::AsmExpr(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_const(self) -> Option<Const> {
+        if let Self::Const(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_enum(self) -> Option<Enum> {
+        if let Self::Enum(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_extern_block(self) -> Option<ExternBlock> {
+        if let Self::ExternBlock(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_extern_crate(self) -> Option<ExternCrate> {
+        if let Self::ExternCrate(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_fn(self) -> Option<Fn> {
+        if let Self::Fn(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_impl(self) -> Option<Impl> {
+        if let Self::Impl(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_call(self) -> Option<MacroCall> {
+        if let Self::MacroCall(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_def(self) -> Option<MacroDef> {
+        if let Self::MacroDef(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_rules(self) -> Option<MacroRules> {
+        if let Self::MacroRules(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_module(self) -> Option<Module> {
+        if let Self::Module(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_static(self) -> Option<Static> {
+        if let Self::Static(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_struct(self) -> Option<Struct> {
+        if let Self::Struct(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_trait(self) -> Option<Trait> {
+        if let Self::Trait(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_type_alias(self) -> Option<TypeAlias> {
+        if let Self::TypeAlias(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_union(self) -> Option<Union> {
+        if let Self::Union(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_use(self) -> Option<Use> {
+        if let Self::Use(variant) = self { Some(variant) } else { None }
+    }
+}
 impl ast::HasAttrs for Item {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2118,12 +2378,73 @@ pub enum Pat {
     TupleStructPat(TupleStructPat),
     WildcardPat(WildcardPat),
 }
+impl Pat {
+    pub fn into_box_pat(self) -> Option<BoxPat> {
+        if let Self::BoxPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_const_block_pat(self) -> Option<ConstBlockPat> {
+        if let Self::ConstBlockPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_ident_pat(self) -> Option<IdentPat> {
+        if let Self::IdentPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_literal_pat(self) -> Option<LiteralPat> {
+        if let Self::LiteralPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_pat(self) -> Option<MacroPat> {
+        if let Self::MacroPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_or_pat(self) -> Option<OrPat> {
+        if let Self::OrPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_paren_pat(self) -> Option<ParenPat> {
+        if let Self::ParenPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_path_pat(self) -> Option<PathPat> {
+        if let Self::PathPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_range_pat(self) -> Option<RangePat> {
+        if let Self::RangePat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_record_pat(self) -> Option<RecordPat> {
+        if let Self::RecordPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_ref_pat(self) -> Option<RefPat> {
+        if let Self::RefPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_rest_pat(self) -> Option<RestPat> {
+        if let Self::RestPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_slice_pat(self) -> Option<SlicePat> {
+        if let Self::SlicePat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_tuple_pat(self) -> Option<TuplePat> {
+        if let Self::TuplePat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_tuple_struct_pat(self) -> Option<TupleStructPat> {
+        if let Self::TupleStructPat(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_wildcard_pat(self) -> Option<WildcardPat> {
+        if let Self::WildcardPat(variant) = self { Some(variant) } else { None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Stmt {
     ExprStmt(ExprStmt),
     Item(Item),
     LetStmt(LetStmt),
+}
+impl Stmt {
+    pub fn into_expr_stmt(self) -> Option<ExprStmt> {
+        if let Self::ExprStmt(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_item(self) -> Option<Item> {
+        if let Self::Item(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_let_stmt(self) -> Option<LetStmt> {
+        if let Self::LetStmt(variant) = self { Some(variant) } else { None }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2143,11 +2464,63 @@ pub enum Type {
     SliceType(SliceType),
     TupleType(TupleType),
 }
+impl Type {
+    pub fn into_array_type(self) -> Option<ArrayType> {
+        if let Self::ArrayType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_dyn_trait_type(self) -> Option<DynTraitType> {
+        if let Self::DynTraitType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_fn_ptr_type(self) -> Option<FnPtrType> {
+        if let Self::FnPtrType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_for_type(self) -> Option<ForType> {
+        if let Self::ForType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_impl_trait_type(self) -> Option<ImplTraitType> {
+        if let Self::ImplTraitType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_infer_type(self) -> Option<InferType> {
+        if let Self::InferType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_macro_type(self) -> Option<MacroType> {
+        if let Self::MacroType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_never_type(self) -> Option<NeverType> {
+        if let Self::NeverType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_paren_type(self) -> Option<ParenType> {
+        if let Self::ParenType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_path_type(self) -> Option<PathType> {
+        if let Self::PathType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_ptr_type(self) -> Option<PtrType> {
+        if let Self::PtrType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_ref_type(self) -> Option<RefType> {
+        if let Self::RefType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_slice_type(self) -> Option<SliceType> {
+        if let Self::SliceType(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_tuple_type(self) -> Option<TupleType> {
+        if let Self::TupleType(variant) = self { Some(variant) } else { None }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UseBoundGenericArg {
     Lifetime(Lifetime),
     NameRef(NameRef),
+}
+impl UseBoundGenericArg {
+    pub fn into_lifetime(self) -> Option<Lifetime> {
+        if let Self::Lifetime(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_name_ref(self) -> Option<NameRef> {
+        if let Self::NameRef(variant) = self { Some(variant) } else { None }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2155,6 +2528,17 @@ pub enum VariantDef {
     Struct(Struct),
     Union(Union),
     Variant(Variant),
+}
+impl VariantDef {
+    pub fn into_struct(self) -> Option<Struct> {
+        if let Self::Struct(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_union(self) -> Option<Union> {
+        if let Self::Union(variant) = self { Some(variant) } else { None }
+    }
+    pub fn into_variant(self) -> Option<Variant> {
+        if let Self::Variant(variant) = self { Some(variant) } else { None }
+    }
 }
 impl ast::HasAttrs for VariantDef {}
 impl ast::HasDocComments for VariantDef {}
