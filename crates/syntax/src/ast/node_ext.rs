@@ -880,6 +880,53 @@ impl AstNode for TypeOrConstParam {
 
 impl HasAttrs for TypeOrConstParam {}
 
+pub enum LoopLike {
+    ForExpr(ast::ForExpr),
+    LoopExpr(ast::LoopExpr),
+    WhileExpr(ast::WhileExpr),
+}
+
+impl LoopLike {
+    pub fn loop_token(&self) -> Option<SyntaxToken> {
+        match self {
+            LoopLike::ForExpr(it) => it.for_token(),
+            LoopLike::LoopExpr(it) => it.loop_token(),
+            LoopLike::WhileExpr(it) => it.while_token(),
+        }
+    }
+}
+
+impl AstNode for LoopLike {
+    fn can_cast(kind: SyntaxKind) -> bool
+    where
+        Self: Sized,
+    {
+        matches!(kind, SyntaxKind::FOR_EXPR | SyntaxKind::LOOP_EXPR | SyntaxKind::WHILE_EXPR)
+    }
+
+    fn cast(syntax: SyntaxNode) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        match syntax.kind() {
+            SyntaxKind::FOR_EXPR => ast::ForExpr::cast(syntax).map(Self::ForExpr),
+            SyntaxKind::LOOP_EXPR => ast::LoopExpr::cast(syntax).map(Self::LoopExpr),
+            SyntaxKind::WHILE_EXPR => ast::WhileExpr::cast(syntax).map(Self::WhileExpr),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode {
+        match self {
+            LoopLike::ForExpr(it) => it.syntax(),
+            LoopLike::LoopExpr(it) => it.syntax(),
+            LoopLike::WhileExpr(it) => it.syntax(),
+        }
+    }
+}
+
+impl ast::HasLoopBody for LoopLike {}
+
 pub enum VisibilityKind {
     In(ast::Path),
     PubCrate,
