@@ -187,6 +187,7 @@ impl ast::Expr {
     /// ast::Expr::parse("let fail = true;", Edition::CURRENT).tree();
     /// ```
     pub fn parse(text: &str, edition: Edition) -> Parse<ast::Expr> {
+        #[cfg(feature = "tracing")]
         let _p = tracing::info_span!("Expr::parse").entered();
         let (green, errors) = parsing::parse_text_at(text, parser::TopEntryPoint::Expr, edition);
         let root = SyntaxNode::new_root(green.clone());
@@ -227,6 +228,7 @@ pub use crate::ast::SourceFile;
 
 impl SourceFile {
     pub fn parse(text: &str, edition: Edition) -> Parse<SourceFile> {
+        #[cfg(feature = "tracing")]
         let _p = tracing::info_span!("SourceFile::parse").entered();
         let (green, errors) = parsing::parse_text(text, edition);
         let root = SyntaxNode::new_root(green.clone());

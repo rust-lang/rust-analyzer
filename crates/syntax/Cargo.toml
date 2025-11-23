@@ -20,7 +20,7 @@ rustc-hash.workspace = true
 rustc-literal-escaper.workspace = true
 smol_str.workspace = true
 triomphe.workspace = true
-tracing.workspace = true
+tracing = { workspace = true, optional = true }
 
 parser.workspace = true
 stdx.workspace = true
@@ -33,6 +33,7 @@ rustc_apfloat = "0.2.3"
 test-utils.workspace = true
 
 [features]
+default = ["tracing"]
 in-rust-tree = []
 
 [lints]

@@ -19,6 +19,7 @@ use crate::{
 };
 
 pub(crate) fn validate(root: &SyntaxNode, errors: &mut Vec<SyntaxError>) {
+    #[cfg(feature = "tracing")]
     let _p = tracing::info_span!("parser::validate").entered();
     // FIXME:
     // * Add unescape validation of raw string literals and raw byte string literals
