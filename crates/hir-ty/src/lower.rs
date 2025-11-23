@@ -1551,13 +1551,28 @@ impl<'db> GenericPredicates<'db> {
     /// Resolve the where clause(s) of an item with generics.
     ///
     /// Diagnostics are computed only for this item's predicates, not for parents.
-    #[salsa::tracked(returns(ref), unsafe(non_update_return_type))]
+    #[salsa::tracked(returns(ref), unsafe(non_update_return_type), cycle_result = generic_predicates_query_with_diagnostics_cycle_result)]
     pub fn query_with_diagnostics(
         db: &'db dyn HirDatabase,
         def: GenericDefId,
     ) -> (GenericPredicates<'db>, Diagnostics) {
         generic_predicates_filtered_by(db, def, PredicateFilter::All, |_| true)
     }
+}
+
+pub(crate) fn generic_predicates_query_with_diagnostics_cycle_result<'db>(
+    _db: &'db dyn HirDatabase,
+    _def: GenericDefId,
+) -> (GenericPredicates<'db>, Diagnostics) {
+    (
+        GenericPredicates {
+            predicates: EarlyBinder::bind(Box::new([])),
+            own_predicates_start: 0,
+            is_trait: false,
+            parent_is_trait: false,
+        },
+        None,
+    )
 }
 
 impl<'db> GenericPredicates<'db> {
