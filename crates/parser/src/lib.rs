@@ -89,6 +89,7 @@ pub enum TopEntryPoint {
 
 impl TopEntryPoint {
     pub fn parse(&self, input: &Input, edition: Edition) -> Output {
+        #[cfg(feature = "tracing")]
         let _p = tracing::info_span!("TopEntryPoint::parse", ?self).entered();
         let entry_point: fn(&'_ mut parser::Parser<'_>) = match self {
             TopEntryPoint::SourceFile => grammar::entry::top::source_file,

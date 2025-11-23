@@ -35,6 +35,7 @@ struct LexError {
 
 impl<'a> LexedStr<'a> {
     pub fn new(edition: Edition, text: &'a str) -> LexedStr<'a> {
+        #[cfg(feature = "tracing")]
         let _p = tracing::info_span!("LexedStr::new").entered();
         let mut conv = Converter::new(edition, text);
         if let Ok(script) = crate::frontmatter::ScriptSource::parse(text) {
