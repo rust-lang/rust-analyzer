@@ -376,6 +376,7 @@ mod handlers {
             toggle_ignore::toggle_ignore,
             toggle_macro_delimiter::toggle_macro_delimiter,
             unmerge_match_arm::unmerge_match_arm,
+            unmerge_match_arm::unmerge_to_guarded_arm,
             unmerge_imports::unmerge_imports,
             unnecessary_async::unnecessary_async,
             unqualify_method_call::unqualify_method_call,

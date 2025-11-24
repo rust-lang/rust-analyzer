@@ -3654,6 +3654,32 @@ fn handle(action: Action) {
 }
 
 #[test]
+fn doctest_unmerge_to_guarded_arm() {
+    check_doc_test(
+        "unmerge_to_guarded_arm",
+        r#####"
+enum Kind { Num(u32) }
+
+fn handle(kind: Kind) {
+    match kind {
+        Kind::Num(n) $0=> foo(n),
+    }
+}
+"#####,
+        r#####"
+enum Kind { Num(u32) }
+
+fn handle(kind: Kind) {
+    match kind {
+        Kind::Num(n) if $0 => foo(n),
+        Kind::Num(n) => foo(n),
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_unnecessary_async() {
     check_doc_test(
         "unnecessary_async",
