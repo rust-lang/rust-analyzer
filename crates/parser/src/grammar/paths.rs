@@ -148,7 +148,12 @@ pub(crate) fn opt_path_type_args(p: &mut Parser<'_>) {
     if p.at(T![::]) && matches!(p.nth(2), T![<] | T!['(']) {
         m = p.start();
         p.bump(T![::]);
-    } else if (p.current() == T![<] && p.nth(1) != T![=] && !(p.at(T![<<]) && !matches!(p.nth(2), T![ident] | T![Self] | T![super] | T![crate] | T![self]))) || p.current() == T!['('] {
+    } else if (p.current() == T![<]
+        && p.nth(1) != T![=]
+        && (!p.at(T![<<])
+            || matches!(p.nth(2), T![ident] | T![Self] | T![super] | T![crate] | T![self])))
+        || p.current() == T!['(']
+    {
         m = p.start();
     } else {
         return;
