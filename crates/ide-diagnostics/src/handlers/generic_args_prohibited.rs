@@ -638,4 +638,22 @@ fn foo() {
         "#,
         );
     }
+
+    #[test]
+    fn no_false_positive_with_shift_after_cast() {
+        // Issue #20958: Type parameter followed by shift operator should not trigger E0109
+        check_diagnostics(
+            r#"
+macro_rules! make_shift {
+    ($t:ty) => {
+        fn foo() {
+            let _ = 1 as $t << 2;
+        }
+    };
+}
+
+make_shift!(u8);
+        "#,
+        );
+    }
 }
