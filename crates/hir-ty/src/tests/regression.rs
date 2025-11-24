@@ -2562,3 +2562,35 @@ fn main() {
         "#,
     );
 }
+
+#[test]
+fn issue_21006_cyclic_type_alias_in_trait_bounds() {
+    // Test for cyclic dependency in generic predicates when a trait's where clause
+    // references a type alias that depends on the trait itself.
+    // Pattern from opaque-ke: trait CipherSuite where OprfHash<Self>: Trait
+    //                        + type OprfHash<CS: CipherSuite> = <CS::Assoc as Trait>::Type
+    // This should not panic rust-analyzer due to cyclic predicates.
+    check_no_mismatches(
+        r#"
+trait Hash {}
+trait Trait {
+    type Assoc: Trait;
+}
+
+// Type alias that projects an associated type from a trait bound
+type MyHash<T: Trait> = <T::Assoc as Trait>::Assoc;
+
+// Trait with where clause referencing the type alias with Self
+trait CipherSuite
+where
+    MyHash<Self>: Hash,
+{
+    type Assoc: Trait;
+}
+
+fn test<T: CipherSuite>() {
+    // If we reach here without panic, the cycle handler is working
+}
+        "#,
+    );
+}
