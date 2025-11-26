@@ -582,8 +582,8 @@ macro_rules! arbitrary {
 }
 
 impl <A: Arbitrary> $crate::arbitrary::Arbitrary for Vec<A> {
-    type Parameters = RangedParams1<A::Parameters> ;
-    type Strategy = VecStrategy<A::Strategy> ;
+    type Parameters = RangedParams1<A::Parameters>;
+    type Strategy = VecStrategy<A::Strategy>;
     fn arbitrary_with(args: Self::Parameters) -> Self::Strategy { {
             let product_unpack![range, a] = args;
             vec(any_with::<A>(a), range)
@@ -1178,6 +1178,35 @@ macro_rules! ub_prim_impl {
 
 fn mask() -> u8 {
     (1 as u8<<(1<<0))-1
+}
+"#]],
+    );
+}
+
+#[test]
+fn test_issue_20958() {
+    // Issue #20958: False positive E0109 when type parameter followed by shift operator
+    // The parser should recognize that `$t` from `$t:ty` is a complete type, so `<<`
+    // after it is a shift operator, not the start of generic arguments.
+    check(
+        r#"
+macro_rules! test {
+    ($t:ty) => {
+        fn f() -> u8 { 1 as $t << 2 }
+    };
+}
+
+test!(u8);
+"#,
+        expect![[r#"
+macro_rules! test {
+    ($t:ty) => {
+        fn f() -> u8 { 1 as $t << 2 }
+    };
+}
+
+fn f() -> u8 {
+    1 as u8<<2
 }
 "#]],
     );

@@ -140,6 +140,10 @@ enum Fragment<'a> {
     /// would cause a syntax error. We need to fix it up just before transcribing;
     /// see `transcriber::fix_up_and_push_path_tt()`.
     Path(tt::TokenTreesView<'a, Span>),
+    /// Type fragments need special handling to preserve operator precedence when followed by
+    /// shift operators like `<<` or `>>`. Unlike other fragments, we don't use `extend_with_tt_alone`
+    /// which would force spacing rules that break operator recognition.
+    Ty(tt::TokenTreesView<'a, Span>),
     TokensOwned(tt::TopSubtree<Span>),
 }
 
@@ -150,6 +154,7 @@ impl Fragment<'_> {
             Fragment::Tokens(it) => it.len() == 0,
             Fragment::Expr(it) => it.len() == 0,
             Fragment::Path(it) => it.len() == 0,
+            Fragment::Ty(it) => it.len() == 0,
             Fragment::TokensOwned(it) => it.0.is_empty(),
         }
     }

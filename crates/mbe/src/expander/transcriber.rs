@@ -397,6 +397,14 @@ fn expand_var(
                 Fragment::TokensOwned(tt) => {
                     builder.extend_with_tt_alone(tt.view().strip_invisible())
                 }
+                // Type fragments - wrap in InvisibleTy delimiter to mark tokens for parser
+                Fragment::Ty(tt) => {
+                    let mut span = id;
+                    marker(&mut span);
+                    builder.open(tt::DelimiterKind::InvisibleTy, span);
+                    builder.extend_with_tt(tt.strip_invisible());
+                    builder.close(span);
+                }
                 Fragment::Expr(sub) => {
                     let sub = sub.strip_invisible();
                     let mut span = id;

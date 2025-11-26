@@ -844,7 +844,10 @@ fn match_meta_var<'t>(
             let tt_result = input.from_savepoint(savepoint);
             return ValueResult { value: Fragment::Tokens(tt_result), err };
         }
-        MetaVarKind::Ty => parser::PrefixEntryPoint::Ty,
+        MetaVarKind::Ty => {
+            return expect_fragment(input, parser::PrefixEntryPoint::Ty, edition, delim_span)
+                .map(Fragment::Ty);
+        }
         MetaVarKind::Pat => parser::PrefixEntryPoint::PatTop,
         MetaVarKind::PatParam => parser::PrefixEntryPoint::Pat,
         MetaVarKind::Stmt => parser::PrefixEntryPoint::Stmt,
