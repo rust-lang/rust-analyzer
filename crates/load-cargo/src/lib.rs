@@ -11,7 +11,9 @@ use hir_expand::proc_macro::{
 };
 use ide_db::{
     ChangeWithProcMacros, FxHashMap, RootDatabase,
-    base_db::{CrateGraphBuilder, Env, ProcMacroLoadingError, SourceRoot, SourceRootId},
+    base_db::{
+        CrateGraphBuilder, Env, ProcMacroLoadingError, SourceDatabase, SourceRoot, SourceRootId,
+    },
     prime_caches,
 };
 use itertools::Itertools;
@@ -516,6 +518,7 @@ struct Expander(proc_macro_api::ProcMacro);
 impl ProcMacroExpander for Expander {
     fn expand(
         &self,
+        db: &dyn SourceDatabase,
         subtree: &tt::TopSubtree<Span>,
         attrs: Option<&tt::TopSubtree<Span>>,
         env: &Env,
@@ -525,6 +528,7 @@ impl ProcMacroExpander for Expander {
         current_dir: String,
     ) -> Result<tt::TopSubtree<Span>, ProcMacroExpansionError> {
         match self.0.expand(
+            db,
             subtree.view(),
             attrs.map(|attrs| attrs.view()),
             env.clone().into(),
