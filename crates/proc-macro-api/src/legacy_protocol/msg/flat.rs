@@ -380,6 +380,7 @@ impl SubtreeRepr {
             tt::DelimiterKind::Parenthesis => 1,
             tt::DelimiterKind::Brace => 2,
             tt::DelimiterKind::Bracket => 3,
+            tt::DelimiterKind::InvisibleTy => 4,
         };
         [self.open.0, kind, self.tt[0], self.tt[1]]
     }
@@ -389,6 +390,7 @@ impl SubtreeRepr {
             1 => tt::DelimiterKind::Parenthesis,
             2 => tt::DelimiterKind::Brace,
             3 => tt::DelimiterKind::Bracket,
+            4 => tt::DelimiterKind::InvisibleTy,
             other => panic!("bad kind {other}"),
         };
         SubtreeRepr { open: SpanId(open), close: SpanId(!0), kind, tt: [lo, len] }
@@ -399,6 +401,7 @@ impl SubtreeRepr {
             tt::DelimiterKind::Parenthesis => 1,
             tt::DelimiterKind::Brace => 2,
             tt::DelimiterKind::Bracket => 3,
+            tt::DelimiterKind::InvisibleTy => 4,
         };
         [self.open.0, self.close.0, kind, self.tt[0], self.tt[1]]
     }
@@ -408,6 +411,7 @@ impl SubtreeRepr {
             1 => tt::DelimiterKind::Parenthesis,
             2 => tt::DelimiterKind::Brace,
             3 => tt::DelimiterKind::Bracket,
+            4 => tt::DelimiterKind::InvisibleTy,
             other => panic!("bad kind {other}"),
         };
         SubtreeRepr { open: SpanId(open), close: SpanId(close), kind, tt: [lo, len] }

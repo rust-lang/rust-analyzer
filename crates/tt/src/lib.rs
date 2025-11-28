@@ -429,7 +429,7 @@ impl<S: Copy> fmt::Display for TokenTreesView<'_, S> {
                 DelimiterKind::Parenthesis => ("(", ")"),
                 DelimiterKind::Brace => ("{", "}"),
                 DelimiterKind::Bracket => ("[", "]"),
-                DelimiterKind::Invisible => ("", ""),
+                DelimiterKind::Invisible | DelimiterKind::InvisibleTy => ("", ""),
             };
             f.write_str(l)?;
             token_trees_display(f, iter)?;
@@ -562,6 +562,11 @@ pub enum DelimiterKind {
     Brace,
     Bracket,
     Invisible,
+    /// Invisible delimiter wrapping a type fragment from macro expansion.
+    /// This helps the parser disambiguate cases like `$t << 2` where `$t:ty`
+    /// expands to a complete type and `<<` should be parsed as a shift operator,
+    /// not the start of generic arguments.
+    InvisibleTy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -731,6 +736,7 @@ fn print_debug_subtree<S: fmt::Debug>(
     let Delimiter { kind, open, close } = &subtree.delimiter;
     let delim = match kind {
         DelimiterKind::Invisible => "$$",
+        DelimiterKind::InvisibleTy => "$$ty",
         DelimiterKind::Parenthesis => "()",
         DelimiterKind::Brace => "{}",
         DelimiterKind::Bracket => "[]",
@@ -896,6 +902,7 @@ impl<S> TopSubtree<S> {
                 DelimiterKind::Bracket => ("[", "]"),
                 DelimiterKind::Parenthesis => ("(", ")"),
                 DelimiterKind::Invisible => ("$", "$"),
+                DelimiterKind::InvisibleTy => ("$ty", "$ty"),
             };
 
             output.push_str(delim.0);
@@ -971,7 +978,7 @@ pub fn pretty<S>(mut tkns: &[TokenTree<S>]) -> String {
                     DelimiterKind::Brace => ("{", "}"),
                     DelimiterKind::Bracket => ("[", "]"),
                     DelimiterKind::Parenthesis => ("(", ")"),
-                    DelimiterKind::Invisible => ("", ""),
+                    DelimiterKind::Invisible | DelimiterKind::InvisibleTy => ("", ""),
                 };
                 format!("{open}{content}{close}")
             }

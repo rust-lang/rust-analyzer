@@ -16,6 +16,8 @@ pub fn to_parser_input<Ctx: Copy + fmt::Debug + PartialEq + Eq + Hash>(
 
     let mut current = buffer.cursor();
     let mut syntax_context_to_edition_cache = FxHashMap::default();
+    // Track nesting level of InvisibleTy delimiters
+    let mut invisible_ty_depth = 0usize;
 
     while !current.eof() {
         let tt = current.token_tree();
@@ -88,28 +90,36 @@ pub fn to_parser_input<Ctx: Copy + fmt::Debug + PartialEq + Eq + Hash>(
                         }
                     }
                 }
+                // Mark token as from type fragment if we're inside an InvisibleTy delimiter
+                if invisible_ty_depth > 0 {
+                    res.was_from_type_fragment();
+                }
                 current.bump();
             }
             Some(tt::TokenTree::Subtree(subtree)) => {
-                if let Some(kind) = match subtree.delimiter.kind {
-                    tt::DelimiterKind::Parenthesis => Some(T!['(']),
-                    tt::DelimiterKind::Brace => Some(T!['{']),
-                    tt::DelimiterKind::Bracket => Some(T!['[']),
-                    tt::DelimiterKind::Invisible => None,
-                } {
-                    res.push(kind);
+                match subtree.delimiter.kind {
+                    tt::DelimiterKind::Parenthesis => res.push(T!['(']),
+                    tt::DelimiterKind::Brace => res.push(T!['{']),
+                    tt::DelimiterKind::Bracket => res.push(T!['[']),
+                    tt::DelimiterKind::Invisible => (),
+                    tt::DelimiterKind::InvisibleTy => {
+                        // Entering an InvisibleTy delimiter - increment depth
+                        invisible_ty_depth += 1;
+                    }
                 }
                 current.bump();
             }
             None => {
                 let subtree = current.end();
-                if let Some(kind) = match subtree.delimiter.kind {
-                    tt::DelimiterKind::Parenthesis => Some(T![')']),
-                    tt::DelimiterKind::Brace => Some(T!['}']),
-                    tt::DelimiterKind::Bracket => Some(T![']']),
-                    tt::DelimiterKind::Invisible => None,
-                } {
-                    res.push(kind);
+                match subtree.delimiter.kind {
+                    tt::DelimiterKind::Parenthesis => res.push(T![')']),
+                    tt::DelimiterKind::Brace => res.push(T!['}']),
+                    tt::DelimiterKind::Bracket => res.push(T![']']),
+                    tt::DelimiterKind::Invisible => (),
+                    tt::DelimiterKind::InvisibleTy => {
+                        // Exiting an InvisibleTy delimiter - decrement depth
+                        invisible_ty_depth = invisible_ty_depth.saturating_sub(1);
+                    }
                 }
             }
         };

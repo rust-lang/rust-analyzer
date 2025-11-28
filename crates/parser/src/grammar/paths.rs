@@ -149,6 +149,12 @@ pub(crate) fn opt_path_type_args(p: &mut Parser<'_>) {
         m = p.start();
         p.bump(T![::]);
     } else if (p.current() == T![<] && p.nth(1) != T![=]) || p.current() == T!['('] {
+        // If the previous token was from a type fragment (e.g., `$t:ty` in a macro)
+        // and we're seeing `<<`, treat it as a shift operator, not generic args.
+        // This fixes cases like `1 as $t << 2` where $t expands to `u8`.
+        if p.prev_from_type_fragment() && p.at(T![<<]) {
+            return;
+        }
         m = p.start();
     } else {
         return;

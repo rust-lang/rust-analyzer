@@ -167,6 +167,15 @@ impl<'t> Parser<'t> {
         self.inp.contextual_kind(self.pos + n) == kw
     }
 
+    /// Checks if the previous token came from a type fragment in macro expansion.
+    /// This helps disambiguate shift operators from generic arguments.
+    pub(crate) fn prev_from_type_fragment(&self) -> bool {
+        if self.pos == 0 {
+            return false;
+        }
+        self.inp.is_from_type_fragment(self.pos - 1)
+    }
+
     /// Starts a new node in the syntax tree. All nodes and tokens
     /// consumed between the `start` and the corresponding `Marker::complete`
     /// belong to the same node.

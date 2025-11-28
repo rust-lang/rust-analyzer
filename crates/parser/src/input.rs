@@ -16,6 +16,9 @@ pub struct Input {
     kind: Vec<SyntaxKind>,
     joint: Vec<bits>,
     contextual_kind: Vec<SyntaxKind>,
+    /// Tracks tokens that came from type fragments in macro expansion.
+    /// This helps disambiguate shift operators from generic arguments.
+    from_type_fragment: Vec<bits>,
 }
 
 /// `pub` impl used by callers to create `Tokens`.
@@ -26,6 +29,7 @@ impl Input {
             kind: Vec::with_capacity(capacity),
             joint: Vec::with_capacity(capacity / size_of::<bits>()),
             contextual_kind: Vec::with_capacity(capacity),
+            from_type_fragment: Vec::with_capacity(capacity / size_of::<bits>()),
         }
     }
     #[inline]
@@ -58,11 +62,20 @@ impl Input {
         let (idx, b_idx) = self.bit_index(n);
         self.joint[idx] |= 1 << b_idx;
     }
+    /// Marks the last token as coming from a type fragment in macro expansion.
+    /// This helps the parser disambiguate shift operators from generic arguments.
+    #[inline]
+    pub fn was_from_type_fragment(&mut self) {
+        let n = self.len() - 1;
+        let (idx, b_idx) = self.bit_index(n);
+        self.from_type_fragment[idx] |= 1 << b_idx;
+    }
     #[inline]
     fn push_impl(&mut self, kind: SyntaxKind, contextual_kind: SyntaxKind) {
         let idx = self.len();
         if idx.is_multiple_of(bits::BITS as usize) {
             self.joint.push(0);
+            self.from_type_fragment.push(0);
         }
         self.kind.push(kind);
         self.contextual_kind.push(contextual_kind);
@@ -80,6 +93,10 @@ impl Input {
     pub(crate) fn is_joint(&self, n: usize) -> bool {
         let (idx, b_idx) = self.bit_index(n);
         self.joint[idx] & (1 << b_idx) != 0
+    }
+    pub(crate) fn is_from_type_fragment(&self, n: usize) -> bool {
+        let (idx, b_idx) = self.bit_index(n);
+        self.from_type_fragment.get(idx).map_or(false, |bits| bits & (1 << b_idx) != 0)
     }
 }
 
