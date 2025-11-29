@@ -1088,6 +1088,7 @@ dependencies = [
  "arrayvec",
  "base-db",
  "bitflags 2.9.4",
+ "cfg",
  "cov-mark",
  "crossbeam-channel",
  "either",
