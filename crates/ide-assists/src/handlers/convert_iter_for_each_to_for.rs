@@ -3,7 +3,7 @@ use ide_db::famous_defs::FamousDefs;
 use stdx::format_to;
 use syntax::{
     AstNode,
-    ast::{self, HasArgList, HasLoopBody, edit_in_place::Indent, make},
+    ast::{self, HasArgList, HasLoopBody, edit::AstNodeEdit, make},
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -61,11 +61,10 @@ pub(crate) fn convert_iter_for_each_to_for(
                 stmt.as_ref().map_or_else(|| method.indent_level(), ast::ExprStmt::indent_level);
 
             let block = match body {
-                ast::Expr::BlockExpr(block) => block,
-                _ => make::block_expr(Vec::new(), Some(body)),
+                ast::Expr::BlockExpr(block) => block.reset_indent(),
+                _ => make::block_expr(Vec::new(), Some(body.reset_indent().indent(1.into()))),
             }
-            .clone_for_update();
-            block.reindent_to(indent);
+            .indent(indent);
 
             let expr_for_loop = make::expr_for_loop(param, receiver, block);
             builder.replace(range, expr_for_loop.to_string())
@@ -281,15 +280,23 @@ fn main() {
             r#"
 //- minicore: iterators
 fn main() {
-    let it = core::iter::repeat(92);
-    it.$0for_each(|(x, y)| println!("x: {}, y: {}", x, y));
+    {
+        let it = core::iter::repeat(92);
+        it.$0for_each(|param| match param {
+            (x, y) => println!("x: {}, y: {}", x, y),
+        });
+    }
 }
 "#,
             r#"
 fn main() {
-    let it = core::iter::repeat(92);
-    for (x, y) in it {
-        println!("x: {}, y: {}", x, y)
+    {
+        let it = core::iter::repeat(92);
+        for param in it {
+            match param {
+                (x, y) => println!("x: {}, y: {}", x, y),
+            }
+        }
     }
 }
 "#,
