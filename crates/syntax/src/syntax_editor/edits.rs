@@ -4,15 +4,59 @@ use crate::{
     AstToken, Direction, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
     algo::neighbor,
     ast::{
-        self, AstNode, Fn, GenericParam, HasGenericParams, HasName, edit::IndentLevel, make,
-        syntax_factory::SyntaxFactory,
+        self, AstNode, Fn, GenericArgList, GenericParam, GenericParamList, HasGenericParams,
+        HasName, edit::IndentLevel, make, syntax_factory::SyntaxFactory,
     },
     syntax_editor::{Position, SyntaxEditor},
 };
 
 impl SyntaxEditor {
+    // adapted from edit_in_place
+    pub fn add_generic_arg(
+        &mut self,
+        generics_args: &GenericArgList,
+        generic_arg: ast::GenericArg,
+    ) {
+        match generics_args.generic_args().last() {
+            Some(last_param) => {
+                let position = Position::after(last_param.syntax());
+                let elements = vec![
+                    make::token(T![,]).into(),
+                    make::tokens::single_space().into(),
+                    generic_arg.syntax().clone().into(),
+                ];
+                self.insert_all(position, elements);
+            }
+            None => {
+                let after_l_angle = Position::after(generics_args.l_angle_token().unwrap());
+                self.insert(after_l_angle, generic_arg.syntax());
+            }
+        }
+    }
+    // adapted from edit_in_place
+    pub fn add_generic_param(
+        &mut self,
+        generics_params: &GenericParamList,
+        generic_param: ast::GenericParam,
+    ) {
+        match generics_params.generic_params().last() {
+            Some(last_param) => {
+                let position = Position::after(last_param.syntax());
+                let elements = vec![
+                    make::token(T![,]).into(),
+                    make::tokens::single_space().into(),
+                    generic_param.syntax().clone().into(),
+                ];
+                self.insert_all(position, elements);
+            }
+            None => {
+                let after_l_angle = Position::after(generics_params.l_angle_token().unwrap());
+                self.insert(after_l_angle, generic_param.syntax());
+            }
+        }
+    }
     /// Adds a new generic param to the function using `SyntaxEditor`
-    pub fn add_generic_param(&mut self, function: &Fn, new_param: GenericParam) {
+    pub fn add_generic_param_to_function(&mut self, function: &Fn, new_param: GenericParam) {
         match function.generic_param_list() {
             Some(generic_param_list) => match generic_param_list.generic_params().last() {
                 Some(last_param) => {
