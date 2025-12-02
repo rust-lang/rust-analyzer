@@ -1693,6 +1693,13 @@ impl<'db> GenericPredicates<'db> {
 
 impl<'db> GenericPredicates<'db> {
     #[inline]
+    pub(crate) fn from_explicit_own_predicates(
+        predicates: EarlyBinder<'db, Box<[Clause<'db>]>>,
+    ) -> Self {
+        Self { predicates, own_predicates_start: 0, is_trait: false, parent_is_trait: false }
+    }
+
+    #[inline]
     pub fn query(db: &'db dyn HirDatabase, def: GenericDefId) -> &'db GenericPredicates<'db> {
         &Self::query_with_diagnostics(db, def).0
     }
