@@ -1757,18 +1757,27 @@ pub(crate) fn trait_environment_for_body_query(
     db.trait_environment(def)
 }
 
+pub(crate) fn param_env_from_predicates<'db>(
+    interner: DbInterner<'db>,
+    predicates: &GenericPredicates<'db>,
+) -> ParamEnv<'db> {
+    let clauses = rustc_type_ir::elaborate::elaborate(
+        interner,
+        predicates.all_predicates().iter_identity_copied(),
+    );
+    let clauses = Clauses::new_from_iter(interner, clauses);
+
+    // FIXME: We should normalize projections here, like rustc does.
+    ParamEnv { clauses }
+}
+
 pub(crate) fn trait_environment_query<'db>(
     db: &'db dyn HirDatabase,
     def: GenericDefId,
 ) -> ParamEnv<'db> {
     let module = def.module(db);
     let interner = DbInterner::new_with(db, module.krate(db));
-    let predicates = GenericPredicates::query_all(db, def);
-    let clauses = rustc_type_ir::elaborate::elaborate(interner, predicates.iter_identity_copied());
-    let clauses = Clauses::new_from_iter(interner, clauses);
-
-    // FIXME: We should normalize projections here, like rustc does.
-    ParamEnv { clauses }
+    param_env_from_predicates(interner, GenericPredicates::query(db, def))
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

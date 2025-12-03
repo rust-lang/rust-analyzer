@@ -2267,7 +2267,7 @@ fn predicates_of<'db>(
     def_id: SolverDefId,
 ) -> &'db GenericPredicates<'db> {
     if let SolverDefId::BuiltinDeriveImplId(impl_) = def_id {
-        crate::builtin_derive::builtin_derive_predicates(db, impl_)
+        crate::builtin_derive::predicates(db, impl_)
     } else {
         GenericPredicates::query(db, def_id.try_into().unwrap())
     }
