@@ -2382,6 +2382,8 @@ impl Config {
 
     pub(crate) fn cargo_test_options(&self, source_root: Option<SourceRootId>) -> CargoOptions {
         CargoOptions {
+            // Might be nice to allow users to specify test_command = "nextest"
+            subcommand: "test".into(),
             target_tuples: self.cargo_target(source_root).clone().into_iter().collect(),
             all_targets: false,
             no_default_features: *self.cargo_noDefaultFeatures(source_root),
@@ -2415,9 +2417,9 @@ impl Config {
                     },
                 }
             }
-            Some(_) | None => FlycheckConfig::CargoCommand {
-                command: self.check_command(source_root).clone(),
-                options: CargoOptions {
+            Some(_) | None => FlycheckConfig::Automatic {
+                cargo_options: CargoOptions {
+                    subcommand: self.check_command(source_root).clone(),
                     target_tuples: self
                         .check_targets(source_root)
                         .clone()
@@ -4117,8 +4119,8 @@ mod tests {
         assert_eq!(config.cargo_targetDir(None), &None);
         assert!(matches!(
             config.flycheck(None),
-            FlycheckConfig::CargoCommand {
-                options: CargoOptions { target_dir_config: TargetDirectoryConfig::None, .. },
+            FlycheckConfig::Automatic {
+                cargo_options: CargoOptions { target_dir_config: TargetDirectoryConfig::None, .. },
                 ..
             }
         ));
@@ -4141,8 +4143,8 @@ mod tests {
             Utf8PathBuf::from(std::env::var("CARGO_TARGET_DIR").unwrap_or("target".to_owned()));
         assert!(matches!(
             config.flycheck(None),
-            FlycheckConfig::CargoCommand {
-                options: CargoOptions { target_dir_config, .. },
+            FlycheckConfig::Automatic {
+                cargo_options: CargoOptions { target_dir_config, .. },
                 ..
             } if target_dir_config.target_dir(Some(&ws_target_dir)).map(Cow::into_owned)
                 == Some(ws_target_dir.join("rust-analyzer"))
@@ -4167,8 +4169,8 @@ mod tests {
         );
         assert!(matches!(
             config.flycheck(None),
-            FlycheckConfig::CargoCommand {
-                options: CargoOptions { target_dir_config, .. },
+            FlycheckConfig::Automatic {
+                cargo_options: CargoOptions { target_dir_config, .. },
                 ..
             } if target_dir_config.target_dir(None).map(Cow::into_owned)
                 == Some(Utf8PathBuf::from("other_folder"))
