@@ -1410,6 +1410,9 @@ fn node_to_insert_after(body: &FunctionBody, anchor: Anchor) -> Option<SyntaxNod
                 if ancestors.peek().map(SyntaxNode::kind) == Some(SyntaxKind::IMPL) {
                     break;
                 }
+                if anchor == Anchor::Method {
+                    break;
+                }
             }
             _ => (),
         }
@@ -2965,6 +2968,35 @@ impl S {
 
     fn $0fun_name(&mut self) {
         self.f += 1;
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn method_in_trait() {
+        check_assist(
+            extract_function,
+            r#"
+trait Foo {
+    fn f(&self) -> i32;
+
+    fn foo(&self) -> i32 {
+        $0self.f()+self.f()$0
+    }
+}
+"#,
+            r#"
+trait Foo {
+    fn f(&self) -> i32;
+
+    fn foo(&self) -> i32 {
+        self.fun_name()
+    }
+
+    fn $0fun_name(&self) -> i32 {
+        self.f()+self.f()
     }
 }
 "#,
