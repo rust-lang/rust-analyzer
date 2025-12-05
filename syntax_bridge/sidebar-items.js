@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DocCommentDesugarMode","TopEntryPoint"],"fn":["desugar_doc_comment_text","parse_to_token_tree","parse_to_token_tree_static_span","syntax_node_to_token_tree","syntax_node_to_token_tree_modified","to_parser_input","token_tree_to_syntax_node"],"mod":["dummy_test_span_utils","prettify_macro_expansion"],"trait":["SpanMapper"]};
