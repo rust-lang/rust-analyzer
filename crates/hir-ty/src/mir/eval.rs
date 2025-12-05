@@ -76,12 +76,14 @@ macro_rules! from_bytes {
         }).into())
     };
 }
+use from_bytes;
 
 macro_rules! not_supported {
     ($it: expr) => {
-        return Err(MirEvalError::NotSupported(format!($it)))
+        return Err($crate::mir::eval::MirEvalError::NotSupported(format!($it)))
     };
 }
+use not_supported;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct VTableMap<'db> {
@@ -2617,6 +2619,9 @@ impl<'db> Evaluator<'db> {
                 def,
                 generic_args,
             );
+            let Either::Left(imp) = imp else {
+                not_supported!("evaluating builtin derive impls is not supported")
+            };
 
             let mir_body = self
                 .db
