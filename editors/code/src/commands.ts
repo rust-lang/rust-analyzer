@@ -14,6 +14,7 @@ import {
     selectRunnable,
     createTaskFromRunnable,
     createCargoArgs,
+    selectRunnableAtCursor,
 } from "./run";
 import {
     isRustDocument,
@@ -1209,6 +1210,13 @@ export function debug(ctx: CtxInit): Cmd {
 export function debugSingle(ctx: CtxInit): Cmd {
     return async (config: ra.Runnable) => {
         await startDebugSession(ctx, config);
+    };
+}
+
+export function fetchRunnableAtCursor(ctx: CtxInit): Cmd {
+    return async () => {
+        const editor = ctx.activeRustEditor ?? ctx.activeCargoTomlEditor;
+        return await selectRunnableAtCursor(ctx, editor, undefined);
     };
 }
 
