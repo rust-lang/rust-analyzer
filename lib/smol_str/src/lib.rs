@@ -875,9 +875,9 @@ impl SmolStrBuilder {
 
     /// Builds a [`SmolStr`] from `self`.
     #[must_use]
-    pub fn finish(&self) -> SmolStr {
-        SmolStr(match &self.0 {
-            &SmolStrBuilderRepr::Inline { len, buf } => {
+    pub fn finish(self) -> SmolStr {
+        SmolStr(match self.0 {
+            SmolStrBuilderRepr::Inline { len, buf } => {
                 debug_assert!(len <= INLINE_CAP);
                 Repr::Inline {
                     // SAFETY: We know that `value.len` is less than or equal to the maximum value of `InlineSize`
@@ -885,7 +885,7 @@ impl SmolStrBuilder {
                     buf,
                 }
             }
-            SmolStrBuilderRepr::Heap(heap) => Repr::new(heap),
+            SmolStrBuilderRepr::Heap(heap) => Repr::Heap(Arc::from(heap.into_boxed_str())),
         })
     }
 
