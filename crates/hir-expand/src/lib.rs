@@ -1087,10 +1087,30 @@ impl ExpandTo {
 
 intern::impl_internable!(ModPath);
 
-#[salsa_macros::interned(no_lifetime, debug, revisions = usize::MAX)]
+#[salsa_macros::tracked(debug)]
+#[derive(PartialOrd, Ord)]
 #[doc(alias = "MacroFileId")]
-pub struct MacroCallId {
+pub struct MacroCallIdLt<'id> {
     pub loc: MacroCallLoc,
+}
+pub type MacroCallId = MacroCallIdLt<'static>;
+
+impl MacroCallIdLt<'_> {
+    /// # Safety
+    ///
+    /// The caller must ensure that the `MacroCallId` is not leaked outside of query computations.
+    pub unsafe fn to_static(self) -> MacroCallId {
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl MacroCallId {
+    /// # Safety
+    ///
+    /// The caller must ensure that the `MacroCallId` comes from the given database.
+    pub unsafe fn to_db<'db>(self, _db: &'db dyn ExpandDatabase) -> MacroCallIdLt<'db> {
+        unsafe { std::mem::transmute(self) }
+    }
 }
 
 impl From<span::MacroCallId> for MacroCallId {

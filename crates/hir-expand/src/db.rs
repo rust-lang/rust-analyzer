@@ -697,7 +697,7 @@ fn check_tt_count(tt: &tt::TopSubtree) -> Result<(), ExpandResult<()>> {
 }
 
 fn intern_macro_call(db: &dyn ExpandDatabase, macro_call: MacroCallLoc) -> MacroCallId {
-    MacroCallId::new(db, macro_call)
+    unsafe { crate::MacroCallIdLt::new(db, macro_call).to_static() }
 }
 
 fn lookup_intern_macro_call(db: &dyn ExpandDatabase, macro_call: MacroCallId) -> MacroCallLoc {
