@@ -3908,6 +3908,31 @@ impl Local {
                 .unwrap(),
         }
     }
+
+    /// The leftmost definition for this local if present.
+    pub fn try_primary_source(self, db: &dyn HirDatabase) -> Option<LocalSource> {
+        let (body, source_map) = db.body_with_source_map(self.parent);
+        match body.self_param.zip(source_map.self_param_syntax()) {
+            Some((param, source)) if param == self.binding_id => {
+                let root = source.file_syntax(db);
+                Some(LocalSource {
+                    local: self,
+                    source: source.map(|ast| Either::Right(ast.to_node(&root))),
+                })
+            }
+            _ => source_map.patterns_for_binding(self.binding_id).first().and_then(|&definition| {
+                let src = source_map.pat_syntax(definition).ok()?;
+                let root = src.file_syntax(db);
+                Some(LocalSource {
+                    local: self,
+                    source: src.map(|ast| match ast.to_node(&root) {
+                        Either::Right(ast::Pat::IdentPat(it)) => Either::Left(it),
+                        _ => unreachable!("local with non ident-pattern"),
+                    }),
+                })
+            }),
+        }
+    }
 }
 
 impl PartialOrd for Local {
