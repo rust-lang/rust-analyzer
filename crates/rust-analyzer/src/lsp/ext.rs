@@ -407,6 +407,40 @@ impl Request for ChildModules {
     const METHOD: &'static str = "experimental/childModules";
 }
 
+pub enum GotoAssignments {}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum GotoAssignmentsResponse {
+    Scalar(lsp_types::Location),
+    Array(Vec<lsp_types::Location>),
+    Link(Vec<lsp_types::LocationLink>),
+}
+
+impl From<lsp_types::Location> for GotoAssignmentsResponse {
+    fn from(location: lsp_types::Location) -> Self {
+        GotoAssignmentsResponse::Scalar(location)
+    }
+}
+
+impl From<Vec<lsp_types::Location>> for GotoAssignmentsResponse {
+    fn from(locations: Vec<lsp_types::Location>) -> Self {
+        GotoAssignmentsResponse::Array(locations)
+    }
+}
+
+impl From<Vec<lsp_types::LocationLink>> for GotoAssignmentsResponse {
+    fn from(locations: Vec<lsp_types::LocationLink>) -> Self {
+        GotoAssignmentsResponse::Link(locations)
+    }
+}
+
+impl Request for GotoAssignments {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = Option<GotoAssignmentsResponse>;
+    const METHOD: &'static str = "experimental/gotoAssignments";
+}
+
 pub enum JoinLines {}
 
 impl Request for JoinLines {
