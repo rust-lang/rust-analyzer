@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use base_db::SourceDatabase;
 use hir::{Crate, ItemInNs, ModuleDef, Name, Semantics};
-use span::{Edition, FileId};
+use span::{Edition, File};
 use syntax::{
     AstToken, SyntaxKind, SyntaxToken, ToSmolStr, TokenAtOffset,
     ast::{self, make},
@@ -60,7 +60,7 @@ pub fn mod_path_to_ast(path: &hir::ModPath, edition: Edition) -> ast::Path {
 /// Iterates all `ModuleDef`s and `Impl` blocks of the given file.
 pub fn visit_file_defs(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     cb: &mut dyn FnMut(Definition),
 ) {
     let db = sema.db;

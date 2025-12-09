@@ -138,7 +138,9 @@ pub(crate) fn handle_did_close_text_document(
         }
 
         // Clear diagnostics also for excluded files, just in case.
-        if let Some((file_id, _)) = state.vfs.read().0.file_id(&path) {
+        if state.vfs.read().0.file_id(&path).is_some() {
+            let db = state.analysis_host.raw_database();
+            let file_id = ide_db::span::File::new(db, path.clone());
             state.diagnostics.clear_native_for(file_id);
         }
 
@@ -300,8 +302,11 @@ pub(crate) fn handle_did_change_watched_files(
 fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
     let _p = tracing::info_span!("run_flycheck").entered();
 
-    let file_id = state.vfs.read().0.file_id(&vfs_path);
-    if let Some((file_id, vfs::FileExcluded::No)) = file_id {
+    let vfs_file_id = state.vfs.read().0.file_id(&vfs_path);
+    if let Some((_, vfs::FileExcluded::No)) = vfs_file_id {
+        // Convert vfs::FileId to ide::FileId (span::File)
+        let db = state.analysis_host.raw_database();
+        let file_id = ide_db::span::File::new(db, vfs_path.clone());
         let world = state.snapshot();
         let invocation_strategy = state.config.flycheck(None).invocation_strategy();
         let may_flycheck_workspace = state.config.flycheck_workspace(None);

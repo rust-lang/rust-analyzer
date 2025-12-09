@@ -141,15 +141,20 @@ impl<'db> MatchFinder<'db> {
 
     /// Constructs an instance using the start of the first file in `db` as the lookup context.
     pub fn at_first_file(db: &'db ide_db::RootDatabase) -> Result<MatchFinder<'db>, SsrError> {
-        if let Some(first_file_id) = LocalRoots::get(db)
+        let first_file = LocalRoots::get(db)
             .roots(db)
             .iter()
             .next()
-            .and_then(|root| db.source_root(*root).source_root(db).iter().next())
-        {
+            .and_then(|root| {
+                let sr = db.source_root(*root).source_root(db);
+                let vfs_file_id = sr.iter().next()?;
+                let path = sr.path_for_file(&vfs_file_id)?;
+                Some(ide_db::span::File::new(db, path.clone()))
+            });
+        if let Some(file_id) = first_file {
             MatchFinder::in_context(
                 db,
-                ide_db::FilePosition { file_id: first_file_id, offset: 0.into() },
+                ide_db::FilePosition { file_id, offset: 0.into() },
                 vec![],
             )
         } else {
@@ -176,7 +181,7 @@ impl<'db> MatchFinder<'db> {
         let mut matches_by_file = FxHashMap::default();
         for m in self.matches().matches {
             matches_by_file
-                .entry(m.range.file_id.file_id(self.sema.db))
+                .entry(m.range.file_id.file(self.sema.db))
                 .or_insert_with(SsrMatches::default)
                 .matches
                 .push(m);
@@ -230,7 +235,7 @@ impl<'db> MatchFinder<'db> {
     ) -> Vec<MatchDebugInfo> {
         let file = self.sema.parse(file_id);
         let mut res = Vec::new();
-        let file_text = self.sema.db.file_text(file_id.file_id(self.sema.db)).text(self.sema.db);
+        let file_text = self.sema.db.file_text(file_id.file(self.sema.db)).text(self.sema.db);
         let mut remaining_text = &**file_text;
         let mut base = 0;
         let len = snippet.len() as u32;

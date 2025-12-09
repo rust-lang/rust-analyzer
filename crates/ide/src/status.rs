@@ -1,7 +1,6 @@
-use ide_db::RootDatabase;
+use ide_db::{FileId, RootDatabase};
 use ide_db::base_db::{BuiltCrateData, ExtraCrateData};
 use itertools::Itertools;
-use span::FileId;
 use stdx::format_to;
 
 // Feature: Status
@@ -36,7 +35,7 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
         }
         for crate_id in crates {
             let BuiltCrateData {
-                root_file_id,
+                root_file_path: _,
                 edition,
                 dependencies,
                 origin,
@@ -44,6 +43,7 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
                 is_proc_macro,
                 proc_macro_cwd,
             } = crate_id.data(db);
+            let root_file_id = crate_id.root_file(db);
             let ExtraCrateData { version, display_name, potential_cfg_options } =
                 crate_id.extra_data(db);
             let cfg_options = crate_id.cfg_options(db);

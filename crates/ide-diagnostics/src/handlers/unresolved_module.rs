@@ -44,7 +44,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedModule) -> Option<Vec<
                     &format!("Create module at `{candidate}`"),
                     FileSystemEdit::CreateFile {
                         dst: AnchoredPathBuf {
-                            anchor: d.decl.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
+                            anchor: d.decl.file_id.original_file(ctx.sema.db).file(ctx.sema.db).path(ctx.sema.db).clone(),
                             path: candidate.clone(),
                         },
                         initial_contents: "".to_owned(),

@@ -56,7 +56,7 @@ impl flags::Diagnostics {
             .into_iter()
             .filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+                let source_root = db.file_source_root(file_id.file(db)).source_root_id(db);
                 let source_root = db.source_root(source_root).source_root(db);
                 !source_root.is_library
             })
@@ -66,7 +66,7 @@ impl flags::Diagnostics {
         for module in work {
             let file_id = module.definition_source_file_id(db).original_file(db);
             if !visited_files.contains(&file_id) {
-                let message = format!("processing {}", _vfs.file_path(file_id.file_id(db)));
+                let message = format!("processing {}", file_id.file(db).path(db));
                 bar.set_message(move || message.clone());
                 let crate_name = module
                     .krate(db)
@@ -78,7 +78,7 @@ impl flags::Diagnostics {
                     .full_diagnostics(
                         &DiagnosticsConfig::test_sample(),
                         AssistResolveStrategy::None,
-                        file_id.file_id(db),
+                        file_id.file(db),
                     )
                     .unwrap()
                 {
@@ -102,7 +102,7 @@ impl flags::Diagnostics {
                     let end = line_index.line_col(range.range.end());
                     bar.println(format!(
                         "at crate {crate_name}, file {}: {severity:?} {code:?} from {start:?} to {end:?}: {message}",
-                        _vfs.file_path(file_id.file_id(db))
+                        file_id.file(db).path(db)
                     ));
                 }
 

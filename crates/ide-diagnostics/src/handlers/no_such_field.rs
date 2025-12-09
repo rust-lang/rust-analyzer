@@ -114,7 +114,7 @@ fn missing_record_expr_field_fixes(
     }
 
     let source_change = SourceChange::from_text_edit(
-        def_file_id.file_id(sema.db),
+        def_file_id.file(sema.db),
         TextEdit::insert(last_field_syntax.text_range().end(), new_field),
     );
 

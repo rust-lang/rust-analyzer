@@ -128,9 +128,11 @@ mod tests {
         let mut database = RootDatabase::default();
         let change_fixture = ChangeFixture::parse(ra_fixture);
         database.apply_change(change_fixture.change);
-        let (file_id, range_or_offset) =
+        let (path, edition, range_or_offset) =
             change_fixture.file_position.expect("expected a marker ($0)");
-        let file_id = EditionedFileId::from_span_guess_origin(&database, file_id);
+        let file = crate::span::File::new(&database, path);
+        let span_file_id = crate::span::EditionedFileId::new(&database, file, edition);
+        let file_id = EditionedFileId::from_span_guess_origin(&database, span_file_id);
         let offset = range_or_offset.expect_offset();
         (database, FilePosition { file_id, offset })
     }

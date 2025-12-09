@@ -2,7 +2,7 @@
 
 use hir::{Crate, Module};
 use hir_ty::db::HirDatabase;
-use ide_db::{LineIndexDatabase, base_db::SourceDatabase};
+use ide_db::LineIndexDatabase;
 use profile::StopWatch;
 use project_model::{CargoConfig, RustLibSource};
 use syntax::TextRange;
@@ -35,16 +35,13 @@ impl flags::RunTests {
                 _ => None,
             })
             .filter(|x| x.is_test(db));
-        let span_formatter = |file_id, text_range: TextRange| {
+        let span_formatter = |file_id: ide::FileId, text_range: TextRange| {
             let line_col = match db.line_index(file_id).try_line_col(text_range.start()) {
                 None => " (unknown line col)".to_owned(),
                 Some(x) => format!("#{}:{}", x.line + 1, x.col),
             };
-            let source_root = db.file_source_root(file_id).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
 
-            let path = source_root.path_for_file(&file_id).map(|x| x.to_string());
-            let path = path.as_deref().unwrap_or("<unknown file>");
+            let path = file_id.path(db).to_string();
             format!("file://{path}{line_col}")
         };
         let mut pass_count = 0;

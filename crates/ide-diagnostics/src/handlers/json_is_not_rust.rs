@@ -128,7 +128,7 @@ pub(crate) fn json_in_items(
                 state.has_serialize = serialize_resolved.is_some();
                 state.build_struct("Root", &it);
                 edit.insert(range.start(), state.result);
-                let vfs_file_id = file_id.file_id(sema.db);
+                let vfs_file_id = file_id.file(sema.db);
                 acc.push(
                     Diagnostic::new(
                         DiagnosticCode::Ra("json-is-not-rust", Severity::WeakWarning),

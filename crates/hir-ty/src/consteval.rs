@@ -48,7 +48,7 @@ impl ConstEvalError<'_> {
         &self,
         f: &mut String,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(span::FileId, span::TextRange) -> String,
+        span_formatter: impl Fn(span::File, span::TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
         match self {

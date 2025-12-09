@@ -90,11 +90,11 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>)
                     editor.replace(target, replacement);
                 }
 
-                if file_id.file_id(ctx.db()) == ctx.vfs_file_id() {
+                if file_id.file(ctx.db()) == ctx.vfs_file_id() {
                     editor.delete(ast_alias.syntax());
                     definition_deleted = true;
                 }
-                builder.add_file_edits(file_id.file_id(ctx.db()), editor);
+                builder.add_file_edits(file_id.file(ctx.db()), editor);
             };
 
             for (file_id, refs) in usages.into_iter() {

@@ -306,12 +306,13 @@ impl StaticIndex<'_> {
             let work = all_modules(db).into_iter().filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
                 let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
+                    db.file_source_root(file_id.file(&analysis.db)).source_root_id(db);
                 let source_root = db.source_root(source_root).source_root(db);
                 let is_vendored = match vendored_libs_config {
-                    VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
-                        .is_some_and(|module_path| module_path.starts_with(workspace_root)),
+                    VendoredLibrariesConfig::Included { workspace_root } => {
+                        let module_path = file_id.file(&analysis.db).path(&analysis.db);
+                        module_path.starts_with(workspace_root)
+                    }
                     VendoredLibrariesConfig::Excluded => false,
                 };
 
@@ -331,7 +332,7 @@ impl StaticIndex<'_> {
                 if visited_files.contains(&file_id) {
                     continue;
                 }
-                this.add_file(file_id);
+                this.add_file(file_id.file(&analysis.db));
                 visited_files.insert(file_id);
             }
             this

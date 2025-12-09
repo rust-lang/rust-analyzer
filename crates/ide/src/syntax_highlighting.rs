@@ -229,7 +229,7 @@ fn traverse(
     krate: Option<hir::Crate>,
     range_to_highlight: TextRange,
 ) {
-    let is_unlinked = sema.file_to_module_def(file_id.file_id(sema.db)).is_none();
+    let is_unlinked = sema.file_to_module_def(file_id.file(sema.db)).is_none();
 
     enum AttrOrDerive {
         Attr(ast::Item),

@@ -761,8 +761,8 @@ impl GlobalState {
                 self.crate_graph_file_dependencies.insert(vfs_path.clone());
                 let file_id = vfs.file_id(&vfs_path);
                 self.incomplete_crate_graph |= file_id.is_none();
-                file_id.and_then(|(file_id, excluded)| {
-                    (excluded == vfs::FileExcluded::No).then_some(file_id)
+                file_id.and_then(|(_, excluded)| {
+                    (excluded == vfs::FileExcluded::No).then_some(vfs_path.clone())
                 })
             };
 
@@ -935,7 +935,7 @@ impl GlobalState {
 pub fn ws_to_crate_graph(
     workspaces: &[ProjectWorkspace],
     extra_env: &FxHashMap<String, Option<String>>,
-    mut load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
+    mut load: impl FnMut(&AbsPath) -> Option<vfs::VfsPath>,
 ) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
     let mut crate_graph = CrateGraphBuilder::default();
     let mut proc_macro_paths = Vec::default();

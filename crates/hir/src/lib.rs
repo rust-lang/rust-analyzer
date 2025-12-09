@@ -101,7 +101,7 @@ use rustc_type_ir::{
     inherent::{AdtDef, GenericArgs as _, IntoKind, SliceLike, Term as _, Ty as _},
 };
 use smallvec::SmallVec;
-use span::{AstIdNode, Edition, FileId};
+use span::{AstIdNode, Edition, File};
 use stdx::{format_to, impl_from, never};
 use syntax::{
     AstNode, AstPtr, SmolStr, SyntaxNode, SyntaxNodePtr, TextRange, ToSmolStr,
@@ -267,8 +267,8 @@ impl Crate {
         def_map.modules().map(|(id, _)| id.into()).collect()
     }
 
-    pub fn root_file(self, db: &dyn HirDatabase) -> FileId {
-        self.id.data(db).root_file_id
+    pub fn root_file(self, db: &dyn HirDatabase) -> File {
+        self.id.root_file(db)
     }
 
     pub fn edition(self, db: &dyn HirDatabase) -> Edition {
@@ -2467,7 +2467,7 @@ impl Function {
     pub fn eval(
         self,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(FileId, TextRange) -> String,
+        span_formatter: impl Fn(File, TextRange) -> String,
     ) -> Result<String, ConstEvalError<'_>> {
         let interner = DbInterner::new_no_crate(db);
         let body = db.monomorphized_mir_body(

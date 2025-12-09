@@ -1,7 +1,8 @@
 //! This module resolves `mod foo;` declaration to file.
 use arrayvec::ArrayVec;
-use base_db::{AnchoredPath, Crate};
+use base_db::Crate;
 use hir_expand::{EditionedFileId, name::Name};
+use span::File;
 
 use crate::{HirFileId, db::DefDatabase};
 
@@ -78,24 +79,35 @@ impl ModDir {
         };
 
         let orig_file_id = file_id.original_file_respecting_includes(db);
-        for candidate in candidate_files.iter() {
-            let path = AnchoredPath { anchor: orig_file_id.file_id(db), path: candidate.as_str() };
-            if let Some(file_id) = db.resolve_path(path) {
-                let is_mod_rs = candidate.ends_with("/mod.rs");
+        let orig_file = orig_file_id.file(db);
 
-                let root_dir_owner = is_mod_rs || attr_path.is_some();
-                let dir_path = if root_dir_owner {
-                    DirPath::empty()
-                } else {
-                    DirPath::new(format!("{name}/"))
-                };
-                if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
-                    return Ok((
-                        // FIXME: Edition, is this rightr?
-                        EditionedFileId::new(db, file_id, orig_file_id.edition(db), krate),
-                        is_mod_rs,
-                        mod_dir,
-                    ));
+        // Get the anchor file's directory
+        let mut anchor_path = orig_file.path(db).clone();
+        anchor_path.pop();
+
+        for candidate in candidate_files.iter() {
+            // Resolve the candidate path relative to the anchor directory
+            if let Some(resolved_path) = anchor_path.join(candidate.as_str()) {
+                let resolved_file = File::new(db, resolved_path);
+
+                // Check if the file exists by checking if it's registered
+                if db.has_file(resolved_file) {
+                    let is_mod_rs = candidate.ends_with("/mod.rs");
+
+                    let root_dir_owner = is_mod_rs || attr_path.is_some();
+                    let dir_path = if root_dir_owner {
+                        DirPath::empty()
+                    } else {
+                        DirPath::new(format!("{name}/"))
+                    };
+                    if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
+                        return Ok((
+                            // FIXME: Edition, is this rightr?
+                            EditionedFileId::new(db, resolved_file, orig_file_id.edition(db), krate),
+                            is_mod_rs,
+                            mod_dir,
+                        ));
+                    }
                 }
             }
         }

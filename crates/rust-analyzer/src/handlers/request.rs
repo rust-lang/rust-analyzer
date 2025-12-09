@@ -30,11 +30,11 @@ use serde_json::json;
 use stdx::{format_to, never};
 use syntax::{TextRange, TextSize};
 use triomphe::Arc;
-use vfs::{AbsPath, AbsPathBuf, FileId, VfsPath};
+use vfs::{AbsPath, AbsPathBuf, VfsPath};
 
 use crate::{
     config::{
-        ClientCommandsConfig, Config, HoverActionsConfig, RustfmtConfig, WorkspaceSymbolConfig,
+        ClientCommandsConfig, Configg, HoverActionsConfig, RustfmtConfig, WorkspaceSymbolConfig,
     },
     diagnostics::convert_diagnostic,
     global_state::{FetchWorkspaceRequest, GlobalState, GlobalStateSnapshot},
@@ -1794,7 +1794,8 @@ pub(crate) fn handle_inlay_hints_resolve(
         return Ok(original_hint);
     };
     let resolve_data: lsp_ext::InlayHintResolveData = serde_json::from_value(data)?;
-    let file_id = FileId::from_raw(resolve_data.file_id);
+    // SAFETY: The file_id was stored from a valid span::File::index() call.
+    let file_id = unsafe { ide_db::span::File::from_raw(resolve_data.file_id) };
     if resolve_data.version != snap.file_version(file_id) {
         tracing::warn!("Inlay hint resolve data is outdated");
         return Ok(original_hint);

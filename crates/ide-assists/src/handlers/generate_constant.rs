@@ -134,9 +134,9 @@ fn target_data_for_generate_constant(
                 .any(|it| it.kind() == SyntaxKind::WHITESPACE && it.to_string().contains('\n'));
             let post_string =
                 if siblings_has_newline { format!("{indent}") } else { format!("\n{indent}") };
-            Some((offset, indent + 1, Some(file_id.file_id(ctx.db())), post_string))
+            Some((offset, indent + 1, Some(file_id.file(ctx.db())), post_string))
         }
-        _ => Some((TextSize::from(0), 0.into(), Some(file_id.file_id(ctx.db())), "\n".into())),
+        _ => Some((TextSize::from(0), 0.into(), Some(file_id.file(ctx.db())), "\n".into())),
     }
 }
 

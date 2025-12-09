@@ -100,8 +100,8 @@ fn field_fix(
         group: None,
         target: range,
         source_change: Some(SourceChange::from_iter([
-            (file_id.file_id(ctx.sema.db), TextEdit::insert(range.start(), "(".to_owned())),
-            (file_id.file_id(ctx.sema.db), TextEdit::insert(range.end(), ")".to_owned())),
+            (file_id.file(ctx.sema.db), TextEdit::insert(range.start(), "(".to_owned())),
+            (file_id.file(ctx.sema.db), TextEdit::insert(range.end(), ")".to_owned())),
         ])),
         command: None,
     })
@@ -181,7 +181,7 @@ fn assoc_func_fix(
             group: None,
             target: range.range,
             source_change: Some(SourceChange::from_text_edit(
-                range.file_id.file_id(ctx.sema.db),
+                range.file_id.file(ctx.sema.db),
                 TextEdit::replace(range.range, assoc_func_call_expr_string),
             )),
             command: None,

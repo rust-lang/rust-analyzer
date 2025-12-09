@@ -597,9 +597,10 @@ impl AttrId {
             return derive_attr_range;
         };
         // Fake the span map, as we don't really need spans here, just the offsets of the node in the file.
-        let span_map = RealSpanMap::absolute(span::EditionedFileId::current_edition(
-            span::FileId::from_raw(0),
-        ));
+        let span_map = RealSpanMap::absolute(
+            span::EditionedFileId::dummy(span::Edition::CURRENT),
+            span::Edition::CURRENT,
+        );
         let tt = syntax_bridge::syntax_node_to_token_tree(
             tt.syntax(),
             SpanMapRef::RealSpanMap(&span_map),

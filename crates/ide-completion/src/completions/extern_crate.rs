@@ -35,11 +35,11 @@ mod test {
     #[test]
     fn can_complete_extern_crate() {
         let case = r#"
-//- /lib.rs crate:other_crate_a
+//- /other_crate_a.rs crate:other_crate_a
 // nothing here
 //- /other_crate_b.rs crate:other_crate_b
 pub mod good_mod{}
-//- /lib.rs crate:crate_c
+//- /crate_c.rs crate:crate_c
 // nothing here
 //- /lib.rs crate:lib deps:other_crate_a,other_crate_b,crate_c extern-prelude:other_crate_a
 extern crate oth$0
@@ -54,11 +54,11 @@ mod other_mod {}
     #[test]
     fn will_not_complete_existing_import() {
         let case = r#"
-//- /lib.rs crate:other_crate_a
+//- /other_crate_a.rs crate:other_crate_a
 // nothing here
-//- /lib.rs crate:crate_c
+//- /crate_c.rs crate:crate_c
 // nothing here
-//- /lib.rs crate:other_crate_b
+//- /other_crate_b.rs crate:other_crate_b
 //
 //- /lib.rs crate:lib deps:other_crate_a,other_crate_b,crate_c extern-prelude:other_crate_a,other_crate_b
 extern crate other_crate_b;

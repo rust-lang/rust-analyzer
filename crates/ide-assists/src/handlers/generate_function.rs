@@ -211,7 +211,7 @@ fn get_adt_source(
     let adt_source =
         ctx.sema.find_node_at_offset_with_macros(file.syntax(), range.range.start())?;
     find_struct_impl(ctx, &adt_source, &[fn_name.to_owned()])
-        .map(|impl_| (impl_, range.file_id.file_id(ctx.db())))
+        .map(|impl_| (impl_, range.file_id.file(ctx.db())))
 }
 
 struct FunctionBuilder {
@@ -1219,7 +1219,7 @@ fn next_space_for_fn_in_module(
         }
     };
 
-    (file.file_id(db), assist_item)
+    (file.file(db), assist_item)
 }
 
 #[derive(Clone, Copy)]

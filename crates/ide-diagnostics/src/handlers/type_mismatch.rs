@@ -146,7 +146,7 @@ fn add_missing_ok_or_some(
                 }
 
                 let source_change = SourceChange::from_text_edit(
-                    expr_ptr.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
+                    expr_ptr.file_id.original_file(ctx.sema.db).file(ctx.sema.db),
                     builder.finish(),
                 );
                 let name = format!("Insert {variant_name}(()) as the tail of this block");
@@ -160,7 +160,7 @@ fn add_missing_ok_or_some(
                 builder
                     .insert(ret_expr.syntax().text_range().end(), format!(" {variant_name}(())"));
                 let source_change = SourceChange::from_text_edit(
-                    expr_ptr.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
+                    expr_ptr.file_id.original_file(ctx.sema.db).file(ctx.sema.db),
                     builder.finish(),
                 );
                 let name = format!("Insert {variant_name}(()) as the return value");
@@ -174,7 +174,7 @@ fn add_missing_ok_or_some(
     builder.insert(expr.syntax().text_range().start(), format!("{variant_name}("));
     builder.insert(expr.syntax().text_range().end(), ")".to_owned());
     let source_change = SourceChange::from_text_edit(
-        expr_ptr.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
+        expr_ptr.file_id.original_file(ctx.sema.db).file(ctx.sema.db),
         builder.finish(),
     );
     let name = format!("Wrap in {variant_name}");
@@ -218,7 +218,7 @@ fn remove_unnecessary_wrapper(
     let inner_arg = call_expr.arg_list()?.args().next()?;
 
     let file_id = expr_ptr.file_id.original_file(db);
-    let mut builder = SourceChangeBuilder::new(file_id.file_id(ctx.sema.db));
+    let mut builder = SourceChangeBuilder::new(file_id.file(ctx.sema.db));
     let mut editor;
     match inner_arg {
         // We're returning `()`
@@ -254,7 +254,7 @@ fn remove_unnecessary_wrapper(
         }
     }
 
-    builder.add_file_edits(file_id.file_id(ctx.sema.db), editor);
+    builder.add_file_edits(file_id.file(ctx.sema.db), editor);
     let name = format!("Remove unnecessary {}() wrapper", variant.name(db).as_str());
     acc.push(fix(
         "remove_unnecessary_wrapper",
@@ -287,7 +287,7 @@ fn remove_semicolon(
 
     let edit = TextEdit::delete(semicolon_range);
     let source_change = SourceChange::from_text_edit(
-        expr_ptr.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
+        expr_ptr.file_id.original_file(ctx.sema.db).file(ctx.sema.db),
         edit,
     );
 
@@ -316,7 +316,7 @@ fn str_ref_to_owned(
 
     let edit = TextEdit::insert(expr.syntax().text_range().end(), to_owned);
     let source_change = SourceChange::from_text_edit(
-        expr_ptr.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
+        expr_ptr.file_id.original_file(ctx.sema.db).file(ctx.sema.db),
         edit,
     );
     acc.push(fix("str_ref_to_owned", "Add .to_owned() here", source_change, expr_range));

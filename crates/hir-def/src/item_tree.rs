@@ -102,6 +102,7 @@ fn lower_extra_crate_attrs<'a>(
     #[derive(Copy, Clone)]
     struct FakeSpanMap {
         file_id: span::EditionedFileId,
+        edition: span::Edition,
     }
     impl syntax_bridge::SpanMapper<Span> for FakeSpanMap {
         fn span_for(&self, range: TextRange) -> Span {
@@ -111,12 +112,12 @@ fn lower_extra_crate_attrs<'a>(
                     file_id: self.file_id,
                     ast_id: NO_DOWNMAP_ERASED_FILE_AST_ID_MARKER,
                 },
-                ctx: SyntaxContext::root(self.file_id.edition()),
+                ctx: SyntaxContext::root(self.edition),
             }
         }
     }
 
-    let span_map = FakeSpanMap { file_id };
+    let span_map = FakeSpanMap { file_id, edition: file_id.edition(db) };
     AttrsOrCfg::lower(db, &crate_attrs_as_src, cfg_options, span_map)
 }
 

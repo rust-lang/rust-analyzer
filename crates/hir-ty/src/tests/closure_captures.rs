@@ -20,7 +20,7 @@ fn check_closure_captures(#[rust_analyzer::rust_fixture] ra_fixture: &str, expec
     let _tracing = setup_tracing();
     let (db, file_id) = TestDB::with_single_file(ra_fixture);
     crate::attach_db(&db, || {
-        let module = db.module_for_file(file_id.file_id(&db));
+        let module = db.module_for_file(file_id.file(&db));
         let def_map = module.def_map(&db);
 
         let mut defs = Vec::new();

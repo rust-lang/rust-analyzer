@@ -31,7 +31,7 @@ struct LsifManager<'a, 'w> {
     package_map: FxHashMap<PackageInformation, Id>,
     analysis: &'a Analysis,
     db: &'a RootDatabase,
-    vfs: &'a Vfs,
+    _vfs: &'a Vfs,
     out: &'w mut dyn std::io::Write,
 }
 
@@ -59,7 +59,7 @@ impl LsifManager<'_, '_> {
             package_map: FxHashMap::default(),
             analysis,
             db,
-            vfs,
+            _vfs: vfs,
             out,
         }
     }
@@ -141,7 +141,7 @@ impl LsifManager<'_, '_> {
         if let Some(it) = self.file_map.get(&id) {
             return *it;
         }
-        let path = self.vfs.file_path(id);
+        let path = id.path(self.db);
         let path = path.as_path().unwrap();
         let doc_id = self.add_vertex(lsif::Vertex::Document(lsif::Document {
             language_id: "rust".to_owned(),

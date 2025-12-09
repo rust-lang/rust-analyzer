@@ -18,7 +18,8 @@ use project_model::{
 
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace};
 use rustc_hash::FxHashMap;
-use vfs::{AbsPathBuf, FileId};
+use ide::FileId;
+use vfs::AbsPathBuf;
 use walkdir::WalkDir;
 
 use crate::cli::{Result, flags, report_metric};
@@ -151,7 +152,9 @@ impl Tester {
         let should_have_no_error = text.contains("// check-pass")
             || text.contains("// build-pass")
             || text.contains("// run-pass");
-        change.change_file(self.root_file, Some(text));
+        let db = self.host.raw_database();
+        let root_file_path = self.root_file.path(db).clone();
+        change.change_file(root_file_path, Some(text));
         self.host.apply_change(change);
         let diagnostic_config = DiagnosticsConfig::test_sample();
 

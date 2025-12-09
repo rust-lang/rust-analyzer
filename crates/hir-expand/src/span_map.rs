@@ -134,8 +134,11 @@ pub(crate) fn real_span_map(
         _ => (),
     });
 
+    let span_file_id = editioned_file_id.editioned_file_id(db);
+    let edition = editioned_file_id.edition(db);
     Arc::new(RealSpanMap::from_file(
-        editioned_file_id.editioned_file_id(db),
+        span_file_id,
+        edition,
         pairs.into_boxed_slice(),
         tree.syntax().text_range().end(),
     ))

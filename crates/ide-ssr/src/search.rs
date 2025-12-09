@@ -155,7 +155,10 @@ impl<'db> MatchFinder<'db> {
             use ide_db::base_db::SourceDatabase;
             for &root in LocalRoots::get(self.sema.db).roots(self.sema.db).iter() {
                 let sr = self.sema.db.source_root(root).source_root(self.sema.db);
-                for file_id in sr.iter() {
+                for vfs_file_id in sr.iter() {
+                    // Convert vfs::FileId to span::File
+                    let Some(path) = sr.path_for_file(&vfs_file_id) else { continue };
+                    let file_id = ide_db::span::File::new(self.sema.db, path.clone());
                     callback(file_id);
                 }
             }
@@ -224,7 +227,7 @@ impl<'db> MatchFinder<'db> {
         }
         let Some(node_range) = self.sema.original_range_opt(code) else { return false };
         for range in &self.restrict_ranges {
-            if range.file_id == node_range.file_id.file_id(self.sema.db)
+            if range.file_id == node_range.file_id.file(self.sema.db)
                 && range.range.contains_range(node_range.range)
             {
                 return true;

@@ -27,7 +27,8 @@ use hir_expand::{
 };
 use intern::{Symbol, sym};
 use paths::AbsPathBuf;
-use span::{Edition, FileId, Span};
+use base_db::FileId;
+use span::{Edition, Span};
 use stdx::itertools::Itertools;
 use test_utils::{
     CURSOR_MARKER, ESCAPED_CURSOR_MARKER, Fixture, FixtureWithProjectMeta, MiniCore, RangeOrOffset,
@@ -46,7 +47,10 @@ pub trait WithFixture: Default + ExpandDatabase + SourceDatabase + 'static {
         let fixture = ChangeFixture::parse(ra_fixture);
         fixture.change.apply(&mut db);
         assert_eq!(fixture.files.len(), 1, "Multiple file found in the fixture");
-        let file = EditionedFileId::from_span_guess_origin(&db, fixture.files[0]);
+        let (path, edition) = &fixture.files[0];
+        let span_file = span::File::new(&db, path.clone());
+        let span_editioned = span::EditionedFileId::new(&db, span_file, *edition);
+        let file = EditionedFileId::from_span_guess_origin(&db, span_editioned);
         (db, file)
     }
 
@@ -61,7 +65,11 @@ pub trait WithFixture: Default + ExpandDatabase + SourceDatabase + 'static {
         let files = fixture
             .files
             .into_iter()
-            .map(|file| EditionedFileId::from_span_guess_origin(&db, file))
+            .map(|(path, edition)| {
+                let span_file = span::File::new(&db, path);
+                let span_editioned = span::EditionedFileId::new(&db, span_file, edition);
+                EditionedFileId::from_span_guess_origin(&db, span_editioned)
+            })
             .collect();
         (db, files)
     }
@@ -110,10 +118,12 @@ pub trait WithFixture: Default + ExpandDatabase + SourceDatabase + 'static {
         let fixture = ChangeFixture::parse(ra_fixture);
         fixture.change.apply(&mut db);
 
-        let (file_id, range_or_offset) = fixture
+        let (path, edition, range_or_offset) = fixture
             .file_position
             .expect("Could not find file position in fixture. Did you forget to add an `$0`?");
-        let file_id = EditionedFileId::from_span_guess_origin(&db, file_id);
+        let span_file = span::File::new(&db, path);
+        let span_editioned = span::EditionedFileId::new(&db, span_file, edition);
+        let file_id = EditionedFileId::from_span_guess_origin(&db, span_editioned);
         (db, file_id, range_or_offset)
     }
 
@@ -125,11 +135,13 @@ pub trait WithFixture: Default + ExpandDatabase + SourceDatabase + 'static {
 impl<DB: ExpandDatabase + SourceDatabase + Default + 'static> WithFixture for DB {}
 
 pub struct ChangeFixture {
-    pub file_position: Option<(span::EditionedFileId, RangeOrOffset)>,
+    /// (path, edition, range_or_offset) - will be converted to EditionedFileId after db is available
+    pub file_position: Option<(VfsPath, Edition, RangeOrOffset)>,
     pub file_lines: Vec<usize>,
-    pub files: Vec<span::EditionedFileId>,
+    /// (path, edition) pairs - will be converted to EditionedFileId after db is available
+    pub files: Vec<(VfsPath, Edition)>,
     pub change: ChangeWithProcMacros,
-    pub sysroot_files: Vec<FileId>,
+    pub sysroot_files: Vec<VfsPath>,
 }
 
 const SOURCE_ROOT_PREFIX: &str = "/";
@@ -167,7 +179,7 @@ impl ChangeFixture {
         let mut crate_graph = CrateGraphBuilder::default();
         let mut crates = FxIndexMap::default();
         let mut crate_deps = Vec::new();
-        let mut default_crate_root: Option<FileId> = None;
+        let mut default_crate_root: Option<VfsPath> = None;
         let mut default_edition = Edition::CURRENT;
         let mut default_cfg = CfgOptions::default();
         let mut default_env = Env::from_iter([(
@@ -205,9 +217,9 @@ impl ChangeFixture {
             };
 
             let meta = FileMeta::from_fixture(entry, current_source_root_kind);
+            let path = VfsPath::new_virtual_path(meta.path.clone());
             if let Some(range_or_offset) = range_or_offset {
-                file_position =
-                    Some((span::EditionedFileId::new(file_id, meta.edition), range_or_offset));
+                file_position = Some((path.clone(), meta.edition, range_or_offset));
             }
 
             assert!(meta.path.starts_with(SOURCE_ROOT_PREFIX));
@@ -231,7 +243,7 @@ impl ChangeFixture {
             if let Some((krate, origin, version)) = meta.krate {
                 let crate_name = CrateName::normalize_dashes(&krate);
                 let crate_id = crate_graph.add_crate_root(
-                    file_id,
+                    path.clone(),
                     meta.edition,
                     Some(crate_name.clone().into()),
                     version,
@@ -256,33 +268,33 @@ impl ChangeFixture {
                 }
             } else if meta.path == "/main.rs" || meta.path == "/lib.rs" {
                 assert!(default_crate_root.is_none());
-                default_crate_root = Some(file_id);
+                default_crate_root = Some(path.clone());
                 default_edition = meta.edition;
                 default_cfg.append(meta.cfg);
                 default_env.extend_from_other(&meta.env);
             }
 
-            source_change.change_file(file_id, Some(text));
-            let path = VfsPath::new_virtual_path(meta.path);
-            file_set.insert(file_id, path);
-            files.push(span::EditionedFileId::new(file_id, meta.edition));
+            source_change.change_file(path.clone(), Some(text));
+            file_set.insert(file_id, path.clone());
+            files.push((path, meta.edition));
             file_id = FileId::from_raw(file_id.index() + 1);
         }
 
         let mini_core = mini_core.map(|mini_core| {
-            let core_file = file_id;
+            let core_file_id = file_id;
             file_id = FileId::from_raw(file_id.index() + 1);
+            let core_path = VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_owned());
 
             let mut fs = FileSet::default();
-            fs.insert(core_file, VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_owned()));
+            fs.insert(core_file_id, core_path.clone());
             roots.push(SourceRoot::new_library(fs));
 
-            sysroot_files.push(core_file);
+            sysroot_files.push(core_path.clone());
 
-            source_change.change_file(core_file, Some(mini_core.source_code(minicore_raw)));
+            source_change.change_file(core_path.clone(), Some(mini_core.source_code(minicore_raw)));
 
             let core_crate = crate_graph.add_crate_root(
-                core_file,
+                core_path,
                 Edition::CURRENT,
                 Some(CrateDisplayName::from_canonical_name("core")),
                 None,
@@ -359,25 +371,23 @@ impl ChangeFixture {
 
         let mut proc_macros = ProcMacrosBuilder::default();
         if !proc_macro_names.is_empty() {
-            let proc_lib_file = file_id;
+            let proc_lib_file_id = file_id;
+            let proc_lib_path = VfsPath::new_virtual_path("/sysroot/proc_macros/lib.rs".to_owned());
 
             proc_macro_defs.extend(default_test_proc_macros());
             let (proc_macro, source) = filter_test_proc_macros(&proc_macro_names, proc_macro_defs);
             let mut fs = FileSet::default();
-            fs.insert(
-                proc_lib_file,
-                VfsPath::new_virtual_path("/sysroot/proc_macros/lib.rs".to_owned()),
-            );
+            fs.insert(proc_lib_file_id, proc_lib_path.clone());
             roots.push(SourceRoot::new_library(fs));
 
-            sysroot_files.push(proc_lib_file);
+            sysroot_files.push(proc_lib_path.clone());
 
-            source_change.change_file(proc_lib_file, Some(source));
+            source_change.change_file(proc_lib_path.clone(), Some(source));
 
             let all_crates = crate_graph.iter().collect::<Vec<_>>();
 
             let proc_macros_crate = crate_graph.add_crate_root(
-                proc_lib_file,
+                proc_lib_path,
                 Edition::CURRENT,
                 Some(CrateDisplayName::from_canonical_name("proc_macros")),
                 None,

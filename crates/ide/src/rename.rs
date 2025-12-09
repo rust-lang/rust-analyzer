@@ -371,7 +371,7 @@ fn find_definitions(
             // remove duplicates, comparing `Definition`s
             Ok(v.into_iter()
                 .unique_by(|&(.., def, _, _)| def)
-                .map(|(a, b, c, d, e)| (a.into_file_id(sema.db), b, c, d, e))
+                .map(|(a, b, c, d, e)| (a.into_file(sema.db), b, c, d, e))
                 .collect::<Vec<_>>()
                 .into_iter())
         }
@@ -457,7 +457,7 @@ fn transform_assoc_fn_into_method_call(
             replacement.push('(');
 
             source_change.insert_source_edit(
-                replace_range.file_id.file_id(sema.db),
+                replace_range.file_id.file(sema.db),
                 TextEdit::replace(replace_range.range, replacement),
             );
         }
@@ -527,7 +527,7 @@ fn rename_to_self(
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
-            file_id.file_id(sema.db),
+            file_id.file(sema.db),
             source_edit_from_references(
                 sema.db,
                 references,
@@ -538,7 +538,7 @@ fn rename_to_self(
         )
     }));
     source_change.insert_source_edit(
-        file_id.original_file(sema.db).file_id(sema.db),
+        file_id.original_file(sema.db).file(sema.db),
         TextEdit::replace(param_source.syntax().text_range(), String::from(self_param)),
     );
     transform_assoc_fn_into_method_call(sema, &mut source_change, fn_def);
@@ -714,7 +714,7 @@ fn transform_method_call_into_assoc_fn(
             }
 
             source_change.insert_source_edit(
-                replace_range.file_id.file_id(sema.db),
+                replace_range.file_id.file(sema.db),
                 TextEdit::replace(replace_range.range, replacement),
             );
         }
@@ -754,10 +754,10 @@ fn rename_self_to_param(
         bail!("Cannot rename reference to `_` as it is being referenced multiple times");
     }
     let mut source_change = SourceChange::default();
-    source_change.insert_source_edit(file_id.original_file(sema.db).file_id(sema.db), edit);
+    source_change.insert_source_edit(file_id.original_file(sema.db).file(sema.db), edit);
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
-            file_id.file_id(sema.db),
+            file_id.file(sema.db),
             source_edit_from_references(
                 sema.db,
                 references,

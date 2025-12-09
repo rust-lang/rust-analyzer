@@ -38,7 +38,7 @@ pub(crate) fn move_to_mod_rs(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     let target = source_file.syntax().text_range();
     let module_name = module.name(ctx.db())?.as_str().to_smolstr();
     let path = format!("./{module_name}/mod.rs");
-    let dst = AnchoredPathBuf { anchor: ctx.vfs_file_id(), path };
+    let dst = AnchoredPathBuf { anchor: ctx.vfs_file_id().path(ctx.db()).clone(), path };
     acc.add(
         AssistId::refactor("move_to_mod_rs"),
         format!("Convert {module_name}.rs to {module_name}/mod.rs"),

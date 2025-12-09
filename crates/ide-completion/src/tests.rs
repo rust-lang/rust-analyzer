@@ -163,9 +163,11 @@ pub(crate) fn position(
     let change_fixture = ChangeFixture::parse(ra_fixture);
     database.enable_proc_attr_macros();
     database.apply_change(change_fixture.change);
-    let (file_id, range_or_offset) = change_fixture.file_position.expect("expected a marker ($0)");
+    let (path, _edition, range_or_offset) =
+        change_fixture.file_position.expect("expected a marker ($0)");
+    let file_id = ide_db::span::File::new(&database, path);
     let offset = range_or_offset.expect_offset();
-    let position = FilePosition { file_id: file_id.file_id(), offset };
+    let position = FilePosition { file_id, offset };
     (database, position)
 }
 

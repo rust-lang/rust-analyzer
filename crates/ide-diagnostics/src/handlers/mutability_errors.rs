@@ -39,7 +39,7 @@ pub(crate) fn need_mut(ctx: &DiagnosticsContext<'_>, d: &hir::NeedMut) -> Option
         Some(vec![fix(
             "add_mut",
             "Change it to be mutable",
-            SourceChange::from_text_edit(file_id.file_id(ctx.sema.db), edit),
+            SourceChange::from_text_edit(file_id.file(ctx.sema.db), edit),
             use_range,
         )])
     })();
@@ -83,7 +83,7 @@ pub(crate) fn unused_mut(ctx: &DiagnosticsContext<'_>, d: &hir::UnusedMut) -> Op
         Some(vec![fix(
             "remove_mut",
             "Remove unnecessary `mut`",
-            SourceChange::from_text_edit(file_id.file_id(ctx.sema.db), edit),
+            SourceChange::from_text_edit(file_id.file(ctx.sema.db), edit),
             use_range,
         )])
     })();

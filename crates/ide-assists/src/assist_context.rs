@@ -105,7 +105,7 @@ impl<'a> AssistContext<'a> {
     }
 
     pub(crate) fn vfs_file_id(&self) -> FileId {
-        self.frange.file_id.file_id(self.db())
+        self.frange.file_id.file(self.db())
     }
 
     pub(crate) fn file_id(&self) -> EditionedFileId {
@@ -168,7 +168,7 @@ impl Assists {
     pub(crate) fn new(ctx: &AssistContext<'_>, resolve: AssistResolveStrategy) -> Assists {
         Assists {
             resolve,
-            file: ctx.frange.file_id.file_id(ctx.db()),
+            file: ctx.frange.file_id.file(ctx.db()),
             buf: Vec::new(),
             allowed: ctx.config.allowed.clone(),
         }

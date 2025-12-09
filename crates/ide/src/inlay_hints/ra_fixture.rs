@@ -13,7 +13,7 @@ pub(super) fn hints(
     config: &InlayHintsConfig<'_>,
     literal: ast::Literal,
 ) -> Option<()> {
-    let file_id = file_id.file_id(sema.db);
+    let file_id = file_id.file(sema.db);
     let literal = ast::String::cast(literal.token())?;
     let (analysis, fixture_analysis) =
         Analysis::from_ra_fixture(sema, literal.clone(), &literal, config.minicore)?;

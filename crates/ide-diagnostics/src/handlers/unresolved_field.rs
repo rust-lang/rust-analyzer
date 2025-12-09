@@ -116,7 +116,7 @@ fn add_variant_to_union(
     let (offset, record_field) =
         record_field_layout(None, field_name, suggested_type, field_list, adt_syntax.value)?;
 
-    let mut src_change_builder = SourceChangeBuilder::new(range.file_id.file_id(ctx.sema.db));
+    let mut src_change_builder = SourceChangeBuilder::new(range.file_id.file(ctx.sema.db));
     src_change_builder.insert(offset, record_field);
     Some(Assist {
         id: AssistId::quick_fix("add-variant-to-union"),
@@ -163,7 +163,7 @@ fn add_field_to_struct_fix(
             )?;
 
             let mut src_change_builder =
-                SourceChangeBuilder::new(struct_range.file_id.file_id(ctx.sema.db));
+                SourceChangeBuilder::new(struct_range.file_id.file(ctx.sema.db));
 
             // FIXME: Allow for choosing a visibility modifier see https://github.com/rust-lang/rust-analyzer/issues/11563
             src_change_builder.insert(offset, record_field);
@@ -179,7 +179,7 @@ fn add_field_to_struct_fix(
         None => {
             // Add a field list to the Unit Struct
             let mut src_change_builder =
-                SourceChangeBuilder::new(struct_range.file_id.file_id(ctx.sema.db));
+                SourceChangeBuilder::new(struct_range.file_id.file(ctx.sema.db));
             let field_name = match field_name.chars().next() {
                 // FIXME : See match arm below regarding tuple structs.
                 Some(ch) if ch.is_numeric() => return None,
@@ -275,7 +275,7 @@ fn method_fix(
         group: None,
         target: range,
         source_change: Some(SourceChange::from_text_edit(
-            file_id.file_id(ctx.sema.db),
+            file_id.file(ctx.sema.db),
             TextEdit::insert(range.end(), "()".to_owned()),
         )),
         command: None,

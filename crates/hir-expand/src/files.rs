@@ -2,7 +2,7 @@
 use std::borrow::Borrow;
 
 use either::Either;
-use span::{AstIdNode, ErasedFileAstId, FileAstId, FileId, SyntaxContext};
+use span::{AstIdNode, ErasedFileAstId, File, FileAstId, SyntaxContext};
 use syntax::{AstNode, AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize};
 
 use crate::{
@@ -38,8 +38,8 @@ pub type FilePosition = FilePositionWrapper<EditionedFileId>;
 
 impl FilePosition {
     #[inline]
-    pub fn into_file_id(self, db: &dyn ExpandDatabase) -> FilePositionWrapper<FileId> {
-        FilePositionWrapper { file_id: self.file_id.file_id(db), offset: self.offset }
+    pub fn into_file(self, db: &dyn ExpandDatabase) -> FilePositionWrapper<File> {
+        FilePositionWrapper { file_id: self.file_id.file(db), offset: self.offset }
     }
 }
 
@@ -72,13 +72,13 @@ pub type FileRange = FileRangeWrapper<EditionedFileId>;
 
 impl FileRange {
     #[inline]
-    pub fn into_file_id(self, db: &dyn ExpandDatabase) -> FileRangeWrapper<FileId> {
-        FileRangeWrapper { file_id: self.file_id.file_id(db), range: self.range }
+    pub fn into_file(self, db: &dyn ExpandDatabase) -> FileRangeWrapper<File> {
+        FileRangeWrapper { file_id: self.file_id.file(db), range: self.range }
     }
 
     #[inline]
     pub fn file_text(self, db: &dyn ExpandDatabase) -> &triomphe::Arc<str> {
-        db.file_text(self.file_id.file_id(db)).text(db)
+        db.file_text(self.file_id.file(db)).text(db)
     }
 
     #[inline]

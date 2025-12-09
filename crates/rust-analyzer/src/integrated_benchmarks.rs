@@ -67,10 +67,13 @@ fn integrated_highlighting_benchmark() {
     };
     let mut host = AnalysisHost::with_database(db);
 
-    let file_id = {
+    let (vfs_file_path, file_id) = {
         let file = workspace_to_load.join(file);
         let path = VfsPath::from(AbsPathBuf::assert(file));
-        file_id(&vfs, &path)
+        let _vfs_file_id = file_id(&vfs, &path);
+        // Convert to span::File
+        let span_file = ide::FileId::new(host.raw_database(), path.clone());
+        (path, span_file)
     };
 
     {
@@ -87,7 +90,7 @@ fn integrated_highlighting_benchmark() {
             "self. data. cargo_buildScripts_rebuildOnSave",
         );
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(vfs_file_path.clone(), Some(text));
         host.apply_change(change);
     }
 
@@ -135,10 +138,13 @@ fn integrated_completion_benchmark() {
     };
     let mut host = AnalysisHost::with_database(db);
 
-    let file_id = {
+    let (vfs_file_path, file_id) = {
         let file = workspace_to_load.join(file);
         let path = VfsPath::from(AbsPathBuf::assert(file));
-        file_id(&vfs, &path)
+        let _vfs_file_id = file_id(&vfs, &path);
+        // Convert to span::File
+        let span_file = ide::FileId::new(host.raw_database(), path.clone());
+        (path, span_file)
     };
 
     // kick off parsing and index population
@@ -150,7 +156,7 @@ fn integrated_completion_benchmark() {
             patch(&mut text, "db.struct_signature(self.id)", "sel;\ndb.struct_signature(self.id)")
                 + "sel".len();
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(vfs_file_path.clone(), Some(text));
         host.apply_change(change);
         completion_offset
     };
@@ -204,7 +210,7 @@ fn integrated_completion_benchmark() {
             ";sel;\ndb.struct_signature(self.id)",
         ) + ";sel".len();
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(vfs_file_path.clone(), Some(text));
         host.apply_change(change);
         completion_offset
     };
@@ -257,7 +263,7 @@ fn integrated_completion_benchmark() {
             "self.;\ndb.struct_signature(self.id)",
         ) + "self.".len();
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(vfs_file_path.clone(), Some(text));
         host.apply_change(change);
         completion_offset
     };
@@ -336,10 +342,13 @@ fn integrated_diagnostics_benchmark() {
     };
     let mut host = AnalysisHost::with_database(db);
 
-    let file_id = {
+    let (vfs_file_path, file_id) = {
         let file = workspace_to_load.join(file);
         let path = VfsPath::from(AbsPathBuf::assert(file));
-        file_id(&vfs, &path)
+        let _vfs_file_id = file_id(&vfs, &path);
+        // Convert to span::File
+        let span_file = ide::FileId::new(host.raw_database(), path.clone());
+        (path, span_file)
     };
 
     let diagnostics_config = DiagnosticsConfig {
@@ -375,7 +384,7 @@ fn integrated_diagnostics_benchmark() {
         let mut text = host.analysis().file_text(file_id).unwrap().to_string();
         patch(&mut text, "db.struct_signature(self.id)", "();\ndb.struct_signature(self.id)");
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(vfs_file_path, Some(text));
         host.apply_change(change);
     };
 

@@ -1000,7 +1000,7 @@ pub(crate) fn orig_range_with_focus_r(
 
     UpmappingResult {
         call_site: (
-            call_site_range.into_file_id(db),
+            call_site_range.into_file(db),
             call_site_focus.and_then(|hir::FileRange { file_id, range }| {
                 if call_site_range.file_id == file_id && call_site_range.range.contains_range(range)
                 {
@@ -1012,7 +1012,7 @@ pub(crate) fn orig_range_with_focus_r(
         ),
         def_site: def_site.map(|(def_site_range, def_site_focus)| {
             (
-                def_site_range.into_file_id(db),
+                def_site_range.into_file(db),
                 def_site_focus.and_then(|hir::FileRange { file_id, range }| {
                     if def_site_range.file_id == file_id
                         && def_site_range.range.contains_range(range)
@@ -1034,7 +1034,7 @@ fn orig_range(
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
     UpmappingResult {
         call_site: (
-            InFile::new(hir_file, value).original_file_range_rooted(db).into_file_id(db),
+            InFile::new(hir_file, value).original_file_range_rooted(db).into_file(db),
             None,
         ),
         def_site: None,
@@ -1048,7 +1048,7 @@ fn orig_range_r(
 ) -> UpmappingResult<(FileRange, Option<TextRange>)> {
     UpmappingResult {
         call_site: (
-            InFile::new(hir_file, value).original_node_file_range(db).0.into_file_id(db),
+            InFile::new(hir_file, value).original_node_file_range(db).0.into_file(db),
             None,
         ),
         def_site: None,

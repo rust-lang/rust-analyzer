@@ -23,12 +23,12 @@ pub(crate) fn view_crate_graph(db: &RootDatabase, full: bool) -> Result<String, 
         .iter()
         .copied()
         .map(|krate| (krate, (krate.data(db), krate.extra_data(db))))
-        .filter(|(_, (crate_data, _))| {
+        .filter(|(krate, (_, _))| {
             if full {
                 true
             } else {
                 // Only render workspace crates
-                let root_id = db.file_source_root(crate_data.root_file_id).source_root_id(db);
+                let root_id = db.file_source_root(krate.root_file(db)).source_root_id(db);
                 !db.source_root(root_id).source_root(db).is_library
             }
         })

@@ -1,5 +1,7 @@
 //! "Recursive" Syntax highlighting for code in doctests and fixtures.
 
+use std::panic::AssertUnwindSafe;
+
 use hir::{EditionedFileId, HirFileId, InFile, Semantics};
 use ide_db::{
     SymbolKind, defs::Definition, documentation::Documentation, range_mapper::RangeMapper,
@@ -172,6 +174,7 @@ pub(super) fn doc_comment(
     inj.add_unmapped("\n}");
 
     let (analysis, tmp_file_id) = Analysis::from_single_file(inj.take_text());
+    let tmp_file_id = AssertUnwindSafe(tmp_file_id);
 
     if let Ok(ranges) = analysis.with_db(|db| {
         super::highlight(
@@ -188,7 +191,7 @@ pub(super) fn doc_comment(
                 macro_bang: config.macro_bang,
                 minicore: config.minicore,
             },
-            tmp_file_id,
+            *tmp_file_id,
             None,
         )
     }) {

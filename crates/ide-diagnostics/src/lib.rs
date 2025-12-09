@@ -374,7 +374,7 @@ pub fn semantic_diagnostics(
             }
         }
         None => {
-            handlers::unlinked_file::unlinked_file(&ctx, &mut res, editioned_file_id.file_id(db))
+            handlers::unlinked_file::unlinked_file(&ctx, &mut res, editioned_file_id.file(db))
         }
     }
 
@@ -759,5 +759,5 @@ fn adjusted_display_range<N: AstNode>(
     let hir::FileRange { file_id, range } = diag_ptr
         .with_value(adj(node).unwrap_or_else(|| diag_ptr.value.text_range()))
         .original_node_file_range_rooted(ctx.sema.db);
-    ide_db::FileRange { file_id: file_id.file_id(ctx.sema.db), range }
+    ide_db::FileRange { file_id: file_id.file(ctx.sema.db), range }
 }

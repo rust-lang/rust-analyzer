@@ -3,7 +3,7 @@
 use std::{path::PathBuf, time::Instant};
 
 use ide::{
-    AnalysisHost, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
+    AnalysisHost, FileId, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
     RootDatabase, StaticIndex, StaticIndexedFile, SymbolInformationKind, TextRange, TokenId,
     TokenStaticData, VendoredLibrariesConfig,
 };
@@ -12,7 +12,6 @@ use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scip::types::{self as scip_types, SymbolInformation};
 use tracing::error;
-use vfs::FileId;
 
 use crate::{
     cli::flags,
@@ -54,7 +53,7 @@ impl flags::Scip {
             prefill_caches: true,
         };
         let cargo_config = config.cargo(None);
-        let (db, vfs, _) = load_workspace_at(
+        let (db, _vfs, _) = load_workspace_at(
             root.as_path().as_ref(),
             &cargo_config,
             &load_cargo_config,
@@ -133,7 +132,7 @@ impl flags::Scip {
         for StaticIndexedFile { file_id, tokens, .. } in si.files {
             symbol_generator.clear_document_local_state();
 
-            let Some(relative_path) = get_relative_filepath(&vfs, &root, file_id) else { continue };
+            let Some(relative_path) = get_relative_filepath(db, &root, file_id) else { continue };
             let line_index = get_line_index(db, file_id);
 
             let mut occurrences = Vec::new();
@@ -239,7 +238,7 @@ impl flags::Scip {
             };
 
             let file_id = definition.file_id;
-            let Some(relative_path) = get_relative_filepath(&vfs, &root, file_id) else { continue };
+            let Some(relative_path) = get_relative_filepath(db, &root, file_id) else { continue };
             let line_index = get_line_index(db, file_id);
             let text_range = definition.range;
             if file_ids_emitted.contains(&file_id) {
@@ -337,11 +336,11 @@ fn compute_symbol_info(
 }
 
 fn get_relative_filepath(
-    vfs: &vfs::Vfs,
+    db: &RootDatabase,
     rootpath: &vfs::AbsPathBuf,
     file_id: ide::FileId,
 ) -> Option<String> {
-    Some(vfs.file_path(file_id).as_path()?.strip_prefix(rootpath)?.as_str().to_owned())
+    Some(file_id.path(db).as_path()?.strip_prefix(rootpath)?.as_str().to_owned())
 }
 
 fn get_line_index(db: &RootDatabase, file_id: FileId) -> LineIndex {
@@ -524,10 +523,11 @@ mod test {
         let mut host = AnalysisHost::default();
         let change_fixture = ChangeFixture::parse(ra_fixture);
         host.raw_database_mut().apply_change(change_fixture.change);
-        let (file_id, range_or_offset) =
+        let (path, _edition, range_or_offset) =
             change_fixture.file_position.expect("expected a marker ()");
+        let file_id = ide_db::span::File::new(host.raw_database(), path);
         let offset = range_or_offset.expect_offset();
-        let position = FilePosition { file_id: file_id.file_id(), offset };
+        let position = FilePosition { file_id, offset };
         (host, position)
     }
 
@@ -940,7 +940,8 @@ pub mod example_mod {
         let token = si.tokens.get(*token_id).unwrap();
 
         let expected_range = FileRangeWrapper {
-            file_id: FileId::from_raw(0),
+            // SAFETY: This is test code with a known valid file ID
+            file_id: unsafe { FileId::from_raw(0) },
             range: TextRange::new(0.into(), 11.into()),
         };
 

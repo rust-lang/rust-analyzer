@@ -1665,7 +1665,7 @@ mod tests {
 //- /lib.rs crate:foo crate-attr:no_std crate-attr:cfg(target_arch="x86")
         "#;
         let (db, file_id) = TestDB::with_single_file(fixture);
-        let module = db.module_for_file(file_id.file_id(&db));
+        let module = db.module_for_file(file_id.file(&db));
         let attrs = AttrFlags::query(&db, AttrDefId::ModuleId(module));
         assert!(attrs.contains(AttrFlags::IS_NO_STD | AttrFlags::HAS_CFG));
     }

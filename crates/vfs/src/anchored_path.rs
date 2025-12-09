@@ -24,7 +24,7 @@
 //! That's why we use anchored representation -- each path carries an info about
 //! a file this path originates from. We can fetch fs/"universe" information
 //! from the anchor than.
-use crate::FileId;
+use crate::VfsPath;
 
 /// Path relative to a file.
 ///
@@ -32,7 +32,7 @@ use crate::FileId;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AnchoredPathBuf {
     /// File that this path is relative to.
-    pub anchor: FileId,
+    pub anchor: VfsPath,
     /// Path relative to `anchor`'s containing directory.
     pub path: String,
 }
@@ -40,10 +40,10 @@ pub struct AnchoredPathBuf {
 /// Path relative to a file.
 ///
 /// Borrowed version of [`AnchoredPathBuf`].
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AnchoredPath<'a> {
     /// File that this path is relative to.
-    pub anchor: FileId,
+    pub anchor: VfsPath,
     /// Path relative to `anchor`'s containing directory.
     pub path: &'a str,
 }

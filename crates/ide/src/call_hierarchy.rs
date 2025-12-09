@@ -84,9 +84,9 @@ pub(crate) fn incoming_calls(
                 }
 
                 let range = sema.original_range(name.syntax());
-                calls.add(nav.call_site, range.into_file_id(db));
+                calls.add(nav.call_site, range.into_file(db));
                 if let Some(other) = nav.def_site {
-                    calls.add(other, range.into_file_id(db));
+                    calls.add(other, range.into_file(db));
                 }
             }
         }
@@ -151,7 +151,7 @@ pub(crate) fn outgoing_calls(
             Some(nav_target.into_iter().zip(iter::repeat(range)))
         })
         .flatten()
-        .for_each(|(nav, range)| calls.add(nav, range.into_file_id(db)));
+        .for_each(|(nav, range)| calls.add(nav, range.into_file(db)));
 
     Some(calls.into_items())
 }

@@ -1,5 +1,5 @@
 use hir::{ConstEvalError, DefWithBody, DisplayTarget, Semantics};
-use ide_db::{FilePosition, LineIndexDatabase, RootDatabase, base_db::SourceDatabase};
+use ide_db::{FilePosition, LineIndexDatabase, RootDatabase};
 use std::time::{Duration, Instant};
 use stdx::format_to;
 use syntax::{AstNode, TextRange, algo::ancestors_at_offset, ast};
@@ -34,12 +34,8 @@ fn find_and_interpret(db: &RootDatabase, position: FilePosition) -> Option<(Dura
         ast::Item::Static(it) => sema.to_def(&it)?.into(),
         _ => return None,
     };
-    let span_formatter = |file_id, text_range: TextRange| {
-        let source_root = db.file_source_root(file_id).source_root_id(db);
-        let source_root = db.source_root(source_root).source_root(db);
-
-        let path = source_root.path_for_file(&file_id).map(|x| x.to_string());
-        let path = path.as_deref().unwrap_or("<unknown file>");
+    let span_formatter = |file_id: ide_db::FileId, text_range: TextRange| {
+        let path = file_id.path(db).to_string();
         match db.line_index(file_id).try_line_col(text_range.start()) {
             Some(line_col) => format!("file://{path}:{}:{}", line_col.line + 1, line_col.col),
             None => format!("file://{path} range {text_range:?}"),
@@ -63,11 +59,8 @@ pub(crate) fn render_const_eval_error(
     e: ConstEvalError<'_>,
     display_target: DisplayTarget,
 ) -> String {
-    let span_formatter = |file_id, text_range: TextRange| {
-        let source_root = db.file_source_root(file_id).source_root_id(db);
-        let source_root = db.source_root(source_root).source_root(db);
-        let path = source_root.path_for_file(&file_id).map(|x| x.to_string());
-        let path = path.as_deref().unwrap_or("<unknown file>");
+    let span_formatter = |file_id: ide_db::FileId, text_range: TextRange| {
+        let path = file_id.path(db).to_string();
         match db.line_index(file_id).try_line_col(text_range.start()) {
             Some(line_col) => format!("file://{path}:{}:{}", line_col.line + 1, line_col.col),
             None => format!("file://{path} range {text_range:?}"),

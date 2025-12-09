@@ -102,7 +102,7 @@ fn process_usages(
     is_self_present: bool,
 ) {
     let source_file = ctx.sema.parse(editioned_file_id);
-    let file_id = editioned_file_id.file_id(ctx.db());
+    let file_id = editioned_file_id.file(ctx.db());
     builder.edit_file(file_id);
     let possible_ranges = references
         .into_iter()

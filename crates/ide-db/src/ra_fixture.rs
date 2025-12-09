@@ -4,7 +4,7 @@ use std::hash::{BuildHasher, Hash};
 
 use hir::{CfgExpr, FilePositionWrapper, FileRangeWrapper, Semantics, Symbol};
 use smallvec::SmallVec;
-use span::{TextRange, TextSize};
+use span::{File, TextRange, TextSize};
 use syntax::{
     AstToken, SmolStr,
     ast::{self, IsString},
@@ -15,13 +15,13 @@ use crate::{
     documentation::Documentation, range_mapper::RangeMapper, search::ReferenceCategory,
 };
 
-pub use span::FileId;
+pub use span::File as FileId;
 
 impl RootDatabase {
     fn from_ra_fixture(
         text: &str,
         minicore: MiniCore<'_>,
-    ) -> Result<(RootDatabase, Vec<(FileId, usize)>, Vec<FileId>), ()> {
+    ) -> Result<(RootDatabase, Vec<(File, usize)>, Vec<File>), ()> {
         // We don't want a mistake in the fixture to crash r-a, so we wrap this in `catch_unwind()`.
         std::panic::catch_unwind(|| {
             let mut db = RootDatabase::default();
@@ -32,11 +32,16 @@ impl RootDatabase {
                 .files
                 .into_iter()
                 .zip(fixture.file_lines)
-                .map(|(file_id, range)| (file_id.file_id(), range))
+                .map(|((path, _edition), range)| (File::new(&db, path), range))
                 .collect();
-            (db, files, fixture.sysroot_files)
+            let sysroot_files = fixture
+                .sysroot_files
+                .into_iter()
+                .map(|path| File::new(&db, path))
+                .collect();
+            (db, files, sysroot_files)
         })
-        .map_err(|error| {
+        .map_err(|error: Box<dyn std::any::Any + Send>| {
             tracing::error!(
                 "cannot crate the crate graph: {}\nCrate graph:\n{}\n",
                 if let Some(&s) = error.downcast_ref::<&'static str>() {

@@ -19,9 +19,9 @@ use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet, FxHasher};
 use salsa::{Durability, Setter};
 use span::Edition;
 use triomphe::Arc;
-use vfs::{AbsPathBuf, AnchoredPath, FileId, VfsPath, file_set::FileSet};
+use vfs::{AbsPathBuf, AnchoredPath, VfsPath, file_set::FileSet};
 
-use crate::{CrateWorkspaceData, EditionedFileId, FxIndexSet, RootQueryDb};
+use crate::{CrateWorkspaceData, EditionedFileId, File, FxIndexSet, RootQueryDb};
 
 pub type ProcMacroPaths =
     FxHashMap<CrateBuilderId, Result<(String, AbsPathBuf), ProcMacroLoadingError>>;
@@ -104,19 +104,22 @@ impl SourceRoot {
         SourceRoot { is_library: true, file_set }
     }
 
-    pub fn path_for_file(&self, file: &FileId) -> Option<&VfsPath> {
+    // TODO: These methods use vfs::FileId. Once FileSet is migrated to use span::File,
+    // these can be updated or removed.
+
+    pub fn path_for_file(&self, file: &vfs::FileId) -> Option<&VfsPath> {
         self.file_set.path_for_file(file)
     }
 
-    pub fn file_for_path(&self, path: &VfsPath) -> Option<&FileId> {
+    pub fn file_for_path(&self, path: &VfsPath) -> Option<&vfs::FileId> {
         self.file_set.file_for_path(path)
     }
 
-    pub fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
+    pub fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<vfs::FileId> {
         self.file_set.resolve_path(path)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = FileId> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = vfs::FileId> + '_ {
         self.file_set.iter()
     }
 }
@@ -336,13 +339,15 @@ impl ReleaseChannel {
 /// the other, we store for it, because it has more dependencies to be invalidated).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UniqueCrateData {
-    root_file_id: FileId,
+    root_file_path: VfsPath,
     disambiguator: Option<Box<(BuiltCrateData, HashableCfgOptions)>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrateData<Id> {
-    pub root_file_id: FileId,
+    /// The path to the root file of this crate.
+    /// Use `Crate::root_file(db)` to get the interned `File`.
+    pub root_file_path: VfsPath,
     pub edition: Edition,
     /// The dependencies of this crate.
     ///
@@ -524,7 +529,7 @@ pub struct CratesMap(DashMap<UniqueCrateData, Crate, BuildHasherDefault<FxHasher
 impl CrateGraphBuilder {
     pub fn add_crate_root(
         &mut self,
-        root_file_id: FileId,
+        root_file_path: VfsPath,
         edition: Edition,
         display_name: Option<CrateDisplayName>,
         version: Option<String>,
@@ -548,7 +553,7 @@ impl CrateGraphBuilder {
             .collect();
         self.arena.alloc(CrateBuilder {
             basic: CrateData {
-                root_file_id,
+                root_file_path,
                 edition,
                 dependencies: Vec::new(),
                 origin,
@@ -624,7 +629,7 @@ impl CrateGraphBuilder {
             db: &mut dyn RootQueryDb,
             crates_map: &CratesMap,
             visited: &mut FxHashMap<CrateBuilderId, Crate>,
-            visited_root_files: &mut FxHashSet<FileId>,
+            visited_root_files: &mut FxHashSet<VfsPath>,
             all_crates: &mut FxIndexSet<Crate>,
             source: CrateBuilderId,
         ) -> Crate {
@@ -657,17 +662,17 @@ impl CrateGraphBuilder {
                 is_proc_macro: krate.basic.is_proc_macro,
                 origin: krate.basic.origin.clone(),
                 crate_attrs: krate.basic.crate_attrs.clone(),
-                root_file_id: krate.basic.root_file_id,
+                root_file_path: krate.basic.root_file_path.clone(),
                 proc_macro_cwd: krate.basic.proc_macro_cwd.clone(),
             };
-            let disambiguator = if visited_root_files.insert(krate.basic.root_file_id) {
+            let disambiguator = if visited_root_files.insert(krate.basic.root_file_path.clone()) {
                 None
             } else {
                 Some(Box::new((crate_data.clone(), krate.cfg_options.to_hashable())))
             };
 
             let unique_crate_data =
-                UniqueCrateData { root_file_id: krate.basic.root_file_id, disambiguator };
+                UniqueCrateData { root_file_path: krate.basic.root_file_path.clone(), disambiguator };
             let crate_input = match crates_map.0.entry(unique_crate_data) {
                 Entry::Occupied(entry) => {
                     let old_crate = *entry.get();
@@ -867,9 +872,17 @@ impl CrateGraphBuilder {
 }
 
 impl Crate {
+    /// Returns the interned `File` for this crate's root file.
+    pub fn root_file(self, db: &dyn salsa::Database) -> File {
+        let data = self.data(db);
+        File::new(db, data.root_file_path.clone())
+    }
+
+    /// Returns the `EditionedFileId` for this crate's root file (file + edition).
     pub fn root_file_id(self, db: &dyn salsa::Database) -> EditionedFileId {
         let data = self.data(db);
-        EditionedFileId::new(db, data.root_file_id, data.edition, self)
+        let file = File::new(db, data.root_file_path.clone());
+        EditionedFileId::new(db, file, data.edition, self)
     }
 }
 
@@ -962,11 +975,11 @@ impl fmt::Display for CyclicDependenciesError {
 #[cfg(test)]
 mod tests {
     use triomphe::Arc;
-    use vfs::AbsPathBuf;
+    use vfs::{AbsPathBuf, VfsPath};
 
     use crate::{CrateWorkspaceData, DependencyBuilder};
 
-    use super::{CrateGraphBuilder, CrateName, CrateOrigin, Edition::Edition2018, Env, FileId};
+    use super::{CrateGraphBuilder, CrateName, CrateOrigin, Edition::Edition2018, Env};
 
     fn empty_ws_data() -> Arc<CrateWorkspaceData> {
         Arc::new(CrateWorkspaceData { target: Err("".into()), toolchain: None })
@@ -976,7 +989,7 @@ mod tests {
     fn detect_cyclic_dependency_indirect() {
         let mut graph = CrateGraphBuilder::default();
         let crate1 = graph.add_crate_root(
-            FileId::from_raw(1u32),
+            VfsPath::new_virtual_path("/crate1/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -990,7 +1003,7 @@ mod tests {
             empty_ws_data(),
         );
         let crate2 = graph.add_crate_root(
-            FileId::from_raw(2u32),
+            VfsPath::new_virtual_path("/crate2/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1004,7 +1017,7 @@ mod tests {
             empty_ws_data(),
         );
         let crate3 = graph.add_crate_root(
-            FileId::from_raw(3u32),
+            VfsPath::new_virtual_path("/crate3/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1038,7 +1051,7 @@ mod tests {
     fn detect_cyclic_dependency_direct() {
         let mut graph = CrateGraphBuilder::default();
         let crate1 = graph.add_crate_root(
-            FileId::from_raw(1u32),
+            VfsPath::new_virtual_path("/crate1/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1052,7 +1065,7 @@ mod tests {
             empty_ws_data(),
         );
         let crate2 = graph.add_crate_root(
-            FileId::from_raw(2u32),
+            VfsPath::new_virtual_path("/crate2/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1081,7 +1094,7 @@ mod tests {
     fn it_works() {
         let mut graph = CrateGraphBuilder::default();
         let crate1 = graph.add_crate_root(
-            FileId::from_raw(1u32),
+            VfsPath::new_virtual_path("/crate1/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1095,7 +1108,7 @@ mod tests {
             empty_ws_data(),
         );
         let crate2 = graph.add_crate_root(
-            FileId::from_raw(2u32),
+            VfsPath::new_virtual_path("/crate2/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1109,7 +1122,7 @@ mod tests {
             empty_ws_data(),
         );
         let crate3 = graph.add_crate_root(
-            FileId::from_raw(3u32),
+            VfsPath::new_virtual_path("/crate3/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1138,7 +1151,7 @@ mod tests {
     fn dashes_are_normalized() {
         let mut graph = CrateGraphBuilder::default();
         let crate1 = graph.add_crate_root(
-            FileId::from_raw(1u32),
+            VfsPath::new_virtual_path("/crate1/lib.rs".into()),
             Edition2018,
             None,
             None,
@@ -1152,7 +1165,7 @@ mod tests {
             empty_ws_data(),
         );
         let crate2 = graph.add_crate_root(
-            FileId::from_raw(2u32),
+            VfsPath::new_virtual_path("/crate2/lib.rs".into()),
             Edition2018,
             None,
             None,

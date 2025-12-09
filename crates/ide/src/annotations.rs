@@ -169,7 +169,7 @@ pub(crate) fn annotations(
             };
             // otherwise try upmapping the entire node out of attributes
             let InRealFile { file_id, value } = node.original_ast_node_rooted(db)?;
-            if file_id.file_id(db) == source_file_id {
+            if file_id.file(db) == source_file_id {
                 Some((
                     value.syntax().text_range(),
                     value.name().map(|name| name.syntax().text_range()),

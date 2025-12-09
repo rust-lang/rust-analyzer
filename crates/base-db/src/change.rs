@@ -5,15 +5,17 @@ use std::fmt;
 
 use salsa::Durability;
 use triomphe::Arc;
-use vfs::FileId;
+use vfs::VfsPath;
 
-use crate::{CrateGraphBuilder, CratesIdMap, RootQueryDb, SourceRoot, SourceRootId};
+use crate::{CrateGraphBuilder, CratesIdMap, File, RootQueryDb, SourceRoot, SourceRootId};
 
 /// Encapsulate a bunch of raw `.set` calls on the database.
 #[derive(Default)]
 pub struct FileChange {
     pub roots: Option<Vec<SourceRoot>>,
-    pub files_changed: Vec<(FileId, Option<String>)>,
+    /// Files that changed, keyed by path.
+    /// We use VfsPath here since we may not have a database at the time of change collection.
+    pub files_changed: Vec<(VfsPath, Option<String>)>,
     pub crate_graph: Option<CrateGraphBuilder>,
 }
 
@@ -38,8 +40,8 @@ impl FileChange {
         self.roots = Some(roots);
     }
 
-    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>) {
-        self.files_changed.push((file_id, new_text))
+    pub fn change_file(&mut self, path: VfsPath, new_text: Option<String>) {
+        self.files_changed.push((path, new_text))
     }
 
     pub fn set_crate_graph(&mut self, graph: CrateGraphBuilder) {
@@ -52,22 +54,28 @@ impl FileChange {
             for (idx, root) in roots.into_iter().enumerate() {
                 let root_id = SourceRootId(idx as u32);
                 let durability = source_root_durability(&root);
-                for file_id in root.iter() {
-                    db.set_file_source_root_with_durability(file_id, root_id, durability);
+                // Iterate over files in this root and set their source root.
+                // We need to get the path for each vfs::FileId and convert to span::File.
+                for vfs_file_id in root.iter() {
+                    if let Some(path) = root.path_for_file(&vfs_file_id) {
+                        let file = File::new(db.as_dyn_database(), path.clone());
+                        db.set_file_source_root_with_durability(file, root_id, durability);
+                    }
                 }
 
                 db.set_source_root_with_durability(root_id, Arc::new(root), durability);
             }
         }
 
-        for (file_id, text) in self.files_changed {
-            let source_root_id = db.file_source_root(file_id);
+        for (path, text) in self.files_changed {
+            let file = File::new(db.as_dyn_database(), path);
+            let source_root_id = db.file_source_root(file);
             let source_root = db.source_root(source_root_id.source_root_id(db));
 
             let durability = file_text_durability(&source_root.source_root(db));
             // XXX: can't actually remove the file, just reset the text
             let text = text.unwrap_or_default();
-            db.set_file_text_with_durability(file_id, &text, durability)
+            db.set_file_text_with_durability(file, &text, durability)
         }
 
         if let Some(crate_graph) = self.crate_graph {

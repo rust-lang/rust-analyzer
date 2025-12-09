@@ -171,7 +171,8 @@ pub fn expand_speculative(
     let loc = db.lookup_intern_macro_call(actual_macro_call);
     let (_, _, span) = db.macro_arg_considering_derives(actual_macro_call, &loc.kind);
 
-    let span_map = RealSpanMap::absolute(span.anchor.file_id);
+    let edition = span.anchor.file_id.edition(db);
+    let span_map = RealSpanMap::absolute(span.anchor.file_id, edition);
     let span_map = SpanMapRef::RealSpanMap(&span_map);
 
     // Build the subtree and token mapping for the speculative args

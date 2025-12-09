@@ -20,7 +20,7 @@ use la_arena::ArenaMap;
 use rustc_apfloat::Float;
 use rustc_hash::FxHashMap;
 use rustc_type_ir::inherent::{Const as _, IntoKind, SliceLike, Ty as _};
-use span::{Edition, FileId};
+use span::{Edition, File};
 use syntax::TextRange;
 use triomphe::Arc;
 
@@ -163,7 +163,7 @@ impl MirLowerError<'_> {
         &self,
         f: &mut String,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(FileId, TextRange) -> String,
+        span_formatter: impl Fn(File, TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
         match self {

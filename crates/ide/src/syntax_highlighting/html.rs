@@ -31,7 +31,7 @@ pub(crate) fn highlight_as_html_with_config(
         )
     }
 
-    let hl_ranges = highlight(db, config, file_id.file_id(db), None);
+    let hl_ranges = highlight(db, config, file_id.file(db), None);
     let text = file.to_string();
     let mut buf = String::new();
     buf.push_str(STYLE);

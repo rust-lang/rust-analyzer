@@ -11,7 +11,7 @@ use hir_def::{ModuleId, db::DefDatabase, nameres::crate_def_map};
 use hir_expand::EditionedFileId;
 use rustc_hash::FxHashMap;
 use salsa::Durability;
-use span::FileId;
+use span::File;
 use syntax::TextRange;
 use test_utils::extract_annotations;
 use triomphe::Arc;
@@ -71,23 +71,27 @@ impl fmt::Debug for TestDB {
 
 #[salsa_macros::db]
 impl SourceDatabase for TestDB {
-    fn file_text(&self, file_id: base_db::FileId) -> FileText {
-        self.files.file_text(file_id)
+    fn file_text(&self, file: File) -> FileText {
+        self.files.file_text(file)
     }
 
-    fn set_file_text(&mut self, file_id: base_db::FileId, text: &str) {
+    fn has_file(&self, file: File) -> bool {
+        self.files.has_file(file)
+    }
+
+    fn set_file_text(&mut self, file: File, text: &str) {
         let files = Arc::clone(&self.files);
-        files.set_file_text(self, file_id, text);
+        files.set_file_text(self, file, text);
     }
 
     fn set_file_text_with_durability(
         &mut self,
-        file_id: base_db::FileId,
+        file: File,
         text: &str,
         durability: Durability,
     ) {
         let files = Arc::clone(&self.files);
-        files.set_file_text_with_durability(self, file_id, text, durability);
+        files.set_file_text_with_durability(self, file, text, durability);
     }
 
     /// Source root of the file.
@@ -105,18 +109,18 @@ impl SourceDatabase for TestDB {
         files.set_source_root_with_durability(self, source_root_id, source_root, durability);
     }
 
-    fn file_source_root(&self, id: base_db::FileId) -> FileSourceRootInput {
-        self.files.file_source_root(id)
+    fn file_source_root(&self, file: File) -> FileSourceRootInput {
+        self.files.file_source_root(file)
     }
 
     fn set_file_source_root_with_durability(
         &mut self,
-        id: base_db::FileId,
+        file: File,
         source_root_id: SourceRootId,
         durability: Durability,
     ) {
         let files = Arc::clone(&self.files);
-        files.set_file_source_root_with_durability(self, id, source_root_id, durability);
+        files.set_file_source_root_with_durability(self, file, source_root_id, durability);
     }
 
     fn crates_map(&self) -> Arc<CratesMap> {
@@ -134,12 +138,12 @@ impl salsa::Database for TestDB {}
 impl panic::RefUnwindSafe for TestDB {}
 
 impl TestDB {
-    pub(crate) fn module_for_file_opt(&self, file_id: impl Into<FileId>) -> Option<ModuleId> {
+    pub(crate) fn module_for_file_opt(&self, file_id: impl Into<File>) -> Option<ModuleId> {
         let file_id = file_id.into();
         for &krate in self.relevant_crates(file_id).iter() {
             let crate_def_map = crate_def_map(self, krate);
             for (module_id, data) in crate_def_map.modules() {
-                if data.origin.file_id().map(|file_id| file_id.file_id(self)) == Some(file_id) {
+                if data.origin.file_id().map(|file_id| file_id.file(self)) == Some(file_id) {
                     return Some(module_id);
                 }
             }
@@ -147,7 +151,7 @@ impl TestDB {
         None
     }
 
-    pub(crate) fn module_for_file(&self, file_id: impl Into<FileId>) -> ModuleId {
+    pub(crate) fn module_for_file(&self, file_id: impl Into<File>) -> ModuleId {
         self.module_for_file_opt(file_id.into()).unwrap()
     }
 
@@ -165,7 +169,7 @@ impl TestDB {
         files
             .into_iter()
             .filter_map(|file_id| {
-                let text = self.file_text(file_id.file_id(self));
+                let text = self.file_text(file_id.file(self));
                 let annotations = extract_annotations(text.text(self));
                 if annotations.is_empty() {
                     return None;

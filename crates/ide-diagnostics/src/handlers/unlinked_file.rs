@@ -87,7 +87,7 @@ fn fixes(
     let source_root = ctx.sema.db.file_source_root(file_id).source_root_id(db);
     let source_root = ctx.sema.db.source_root(source_root).source_root(db);
 
-    let our_path = source_root.path_for_file(&file_id)?;
+    let our_path = file_id.path(db);
     let parent = our_path.parent()?;
     let (module_name, _) = our_path.name_and_extension()?;
     let (parent, module_name) = match module_name {
@@ -108,10 +108,7 @@ fn fixes(
 
         let root_module = &crate_def_map[crate_def_map.root_module_id()];
         let Some(root_file_id) = root_module.origin.file_id() else { continue };
-        let Some(crate_root_path) = source_root.path_for_file(&root_file_id.file_id(ctx.sema.db))
-        else {
-            continue;
-        };
+        let crate_root_path = root_file_id.file(ctx.sema.db).path(ctx.sema.db);
         let Some(rel) = parent.strip_prefix(&crate_root_path.parent()?) else { continue };
 
         // try resolving the relative difference of the paths as inline modules
@@ -136,7 +133,7 @@ fn fixes(
             current.definition_source(ctx.sema.db);
         let parent_file_id = parent_file_id.file_id()?;
         return make_fixes(
-            parent_file_id.file_id(ctx.sema.db),
+            parent_file_id.file(ctx.sema.db),
             source,
             &module_name,
             trigger_range,
@@ -152,16 +149,20 @@ fn fixes(
         Some(([parent.join(&format!("{name}.rs"))?, path.join("mod.rs")?], name.to_owned()))
     });
     let mut stack = vec![];
-    let &parent_id =
+    let parent_file =
         paths.inspect(|(_, name)| stack.push(name.clone())).find_map(|(paths, _)| {
-            paths.into_iter().find_map(|path| source_root.file_for_path(&path))
+            paths.into_iter().find_map(|path| {
+                // source_root.file_for_path returns vfs::FileId, convert to span::File
+                let _ = source_root.file_for_path(&path)?;
+                Some(ide_db::span::File::new(db, path))
+            })
         })?;
     stack.pop();
-    let relevant_crates = db.relevant_crates(parent_id);
+    let relevant_crates = db.relevant_crates(parent_file);
     'crates: for &krate in relevant_crates.iter() {
         let crate_def_map = crate_def_map(ctx.sema.db, krate);
         let Some((_, module)) = crate_def_map.modules().find(|(_, module)| {
-            module.origin.file_id().map(|file_id| file_id.file_id(ctx.sema.db)) == Some(parent_id)
+            module.origin.file_id().map(|file_id| file_id.file(ctx.sema.db)) == Some(parent_file)
                 && !module.origin.is_inline()
         }) else {
             continue;
@@ -169,7 +170,7 @@ fn fixes(
 
         if stack.is_empty() {
             return make_fixes(
-                parent_id,
+                parent_file,
                 module.definition_source(ctx.sema.db).value,
                 &module_name,
                 trigger_range,
@@ -193,7 +194,7 @@ fn fixes(
                 current.definition_source(ctx.sema.db);
             let parent_file_id = parent_file_id.file_id()?;
             return make_fixes(
-                parent_file_id.file_id(ctx.sema.db),
+                parent_file_id.file(ctx.sema.db),
                 source,
                 &module_name,
                 trigger_range,

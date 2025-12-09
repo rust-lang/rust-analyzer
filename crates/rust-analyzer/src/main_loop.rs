@@ -14,7 +14,8 @@ use lsp_server::{Connection, Notification, Request};
 use lsp_types::{TextDocumentIdentifier, notification::Notification as _};
 use stdx::thread::ThreadIntent;
 use tracing::{Level, error, span};
-use vfs::{AbsPathBuf, FileId, loader::LoadingProgress};
+use ide::FileId;
+use vfs::{AbsPathBuf, loader::LoadingProgress};
 
 use crate::{
     config::Config,
@@ -541,7 +542,7 @@ impl GlobalState {
 
         if let Some(diagnostic_changes) = self.diagnostics.take_changes() {
             for file_id in diagnostic_changes {
-                let uri = file_id_to_url(&self.vfs.read().0, file_id);
+                let uri = file_id_to_url(self.analysis_host.raw_database(), file_id);
                 let version = from_proto::vfs_path(&uri)
                     .ok()
                     .and_then(|path| self.mem_docs.get(&path).map(|it| it.version));
@@ -613,11 +614,14 @@ impl GlobalState {
             let vfs = &self.vfs.read().0;
             self.mem_docs
                 .iter()
-                .map(|path| vfs.file_id(path).unwrap())
-                .filter_map(|(file_id, excluded)| {
-                    (excluded == vfs::FileExcluded::No).then_some(file_id)
+                .filter_map(|path| {
+                    let (vfs_file_id, excluded) = vfs.file_id(path)?;
+                    (excluded == vfs::FileExcluded::No).then_some(vfs_file_id)
                 })
-                .filter(|&file_id| {
+                .filter_map(|vfs_file_id| {
+                    // Convert vfs::FileId to ide::FileId (span::File)
+                    let path = vfs.file_path(vfs_file_id).clone();
+                    let file_id = ide_db::span::File::new(db, path);
                     let source_root_id = db.file_source_root(file_id).source_root_id(db);
                     let source_root = db.source_root(source_root_id).source_root(db);
                     // Only publish diagnostics for files in the workspace, not from crates.io deps
@@ -625,7 +629,7 @@ impl GlobalState {
                     // While theoretically these should never have errors, we have quite a few false
                     // positives particularly in the stdlib, and those diagnostics would stay around
                     // forever if we emitted them here.
-                    !source_root.is_library
+                    (!source_root.is_library).then_some(file_id)
                 })
                 .collect::<std::sync::Arc<_>>()
         };
@@ -698,19 +702,24 @@ impl GlobalState {
             return;
         }
         let db = self.analysis_host.raw_database();
-        let subscriptions = self
-            .mem_docs
-            .iter()
-            .map(|path| self.vfs.read().0.file_id(path).unwrap())
-            .filter_map(|(file_id, excluded)| {
-                (excluded == vfs::FileExcluded::No).then_some(file_id)
-            })
-            .filter(|&file_id| {
-                let source_root_id = db.file_source_root(file_id).source_root_id(db);
-                let source_root = db.source_root(source_root_id).source_root(db);
-                !source_root.is_library
-            })
-            .collect::<Vec<_>>();
+        let subscriptions = {
+            let vfs = &self.vfs.read().0;
+            self.mem_docs
+                .iter()
+                .filter_map(|path| {
+                    let (vfs_file_id, excluded) = vfs.file_id(path)?;
+                    (excluded == vfs::FileExcluded::No).then_some(vfs_file_id)
+                })
+                .filter_map(|vfs_file_id| {
+                    // Convert vfs::FileId to ide::FileId (span::File)
+                    let path = vfs.file_path(vfs_file_id).clone();
+                    let file_id = ide_db::span::File::new(db, path);
+                    let source_root_id = db.file_source_root(file_id).source_root_id(db);
+                    let source_root = db.source_root(source_root_id).source_root(db);
+                    (!source_root.is_library).then_some(file_id)
+                })
+                .collect::<Vec<_>>()
+        };
         tracing::trace!("updating tests for {:?}", subscriptions);
 
         // Updating tests are triggered by the user typing
@@ -1132,7 +1141,7 @@ impl GlobalState {
                     &snap,
                 );
                 for diag in diagnostics {
-                    match url_to_file_id(&self.vfs.read().0, &diag.url) {
+                    match url_to_file_id(self.analysis_host.raw_database(), &self.vfs.read().0, &diag.url) {
                         Ok(Some(file_id)) => self.diagnostics.add_check_diagnostic(
                             id,
                             generation,

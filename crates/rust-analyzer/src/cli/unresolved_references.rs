@@ -1,11 +1,10 @@
 //! Reports references in code that the IDE layer cannot resolve.
 use hir::{AnyDiagnostic, Crate, Module, Semantics, db::HirDatabase, sym};
-use ide::{AnalysisHost, RootDatabase, TextRange};
+use ide::{AnalysisHost, FileId, RootDatabase, TextRange};
 use ide_db::{FxHashSet, LineIndexDatabase as _, base_db::SourceDatabase, defs::NameRefClass};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use parser::SyntaxKind;
 use syntax::{AstNode, WalkEvent, ast};
-use vfs::FileId;
 
 use crate::cli::flags;
 
@@ -45,7 +44,7 @@ impl flags::UnresolvedReferences {
             with_proc_macro_server,
             prefill_caches: false,
         };
-        let (db, vfs, _proc_macro) =
+        let (db, _vfs, _proc_macro) =
             load_workspace_at(&self.path, &cargo_config, &load_cargo_config, &|_| {})?;
         let host = AnalysisHost::with_database(db);
         let db = host.raw_database();
@@ -55,14 +54,14 @@ impl flags::UnresolvedReferences {
 
         let work = all_modules(db).into_iter().filter(|module| {
             let file_id = module.definition_source_file_id(db).original_file(db);
-            let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+            let source_root = db.file_source_root(file_id.file(db)).source_root_id(db);
             let source_root = db.source_root(source_root).source_root(db);
             !source_root.is_library
         });
 
         for module in work {
             let file_id = module.definition_source_file_id(db).original_file(db);
-            let file_id = file_id.file_id(db);
+            let file_id = file_id.file(db);
             if !visited_files.contains(&file_id) {
                 let crate_name = module
                     .krate(db)
@@ -70,7 +69,7 @@ impl flags::UnresolvedReferences {
                     .as_deref()
                     .unwrap_or(&sym::unknown)
                     .to_owned();
-                let file_path = vfs.file_path(file_id);
+                let file_path = file_id.path(db);
                 eprintln!("processing crate: {crate_name}, module: {file_path}",);
 
                 let line_index = db.line_index(file_id);
@@ -127,7 +126,7 @@ fn find_unresolved_references(
         let node = inactive_code.node;
         let range = node.map(|it| it.text_range()).original_node_file_range_rooted(db);
 
-        if range.file_id.file_id(db) != file_id {
+        if range.file_id.file(db) != file_id {
             continue;
         }
 

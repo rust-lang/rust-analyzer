@@ -161,7 +161,7 @@ fn edit_struct_references(
     let usages = strukt_def.usages(&ctx.sema).include_self_refs().all();
 
     for (file_id, refs) in usages {
-        edit.edit_file(file_id.file_id(ctx.db()));
+        edit.edit_file(file_id.file(ctx.db()));
         for r in refs {
             process_struct_name_reference(ctx, r, edit);
         }
@@ -243,7 +243,7 @@ fn edit_field_references(
         let def = Definition::Field(field);
         let usages = def.usages(&ctx.sema).all();
         for (file_id, refs) in usages {
-            edit.edit_file(file_id.file_id(ctx.db()));
+            edit.edit_file(file_id.file(ctx.db()));
             for r in refs {
                 if let Some(name_ref) = r.name.as_name_ref() {
                     // Only edit the field reference if it's part of a `.field` access

@@ -107,7 +107,7 @@ pub(super) fn hints(
                         .and_then(|d| source_map.pat_syntax(*d).ok())
                         .and_then(|d| {
                             Some(FileRange {
-                                file_id: d.file_id.file_id()?.file_id(sema.db),
+                                file_id: d.file_id.file_id()?.file(sema.db),
                                 range: d.value.text_range(),
                             })
                         })

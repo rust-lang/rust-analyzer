@@ -25,10 +25,9 @@ impl FileSet {
 
     /// Get the id of the file corresponding to `path`.
     ///
-    /// If either `path`'s [`anchor`](AnchoredPath::anchor) or the resolved path is not in
-    /// the set, returns [`None`].
+    /// If the resolved path is not in the set, returns [`None`].
     pub fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        let mut base = self.paths[&path.anchor].clone();
+        let mut base = path.anchor.clone();
         base.pop();
         let path = base.join(path.path)?;
         self.files.get(&path).copied()

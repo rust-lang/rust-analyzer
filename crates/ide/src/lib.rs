@@ -71,6 +71,7 @@ use ide_db::{
     },
     prime_caches, symbol_index,
 };
+use ide_db::base_db::FileId as VfsFileId;
 use ide_db::{MiniCore, ra_fixture::RaFixtureAnalysis};
 use macros::UpmapFromRaFixture;
 use syntax::{SourceFile, ast};
@@ -237,9 +238,10 @@ impl Analysis {
     // `AnalysisHost` for creating a fully-featured analysis.
     pub fn from_single_file(text: String) -> (Analysis, FileId) {
         let mut host = AnalysisHost::default();
-        let file_id = FileId::from_raw(0);
+        let path = VfsPath::new_virtual_path("/main.rs".to_owned());
+        let vfs_file_id = VfsFileId::from_raw(0);
         let mut file_set = FileSet::default();
-        file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_owned()));
+        file_set.insert(vfs_file_id, path.clone());
         let source_root = SourceRoot::new_local(file_set);
 
         let mut change = ChangeWithProcMacros::default();
@@ -257,7 +259,7 @@ impl Analysis {
         let crate_attrs = Vec::new();
         cfg_options.insert_atom(sym::test);
         crate_graph.add_crate_root(
-            file_id,
+            path.clone(),
             Edition::CURRENT,
             None,
             None,
@@ -273,10 +275,12 @@ impl Analysis {
                 toolchain: None,
             }),
         );
-        change.change_file(file_id, Some(text));
+        change.change_file(path.clone(), Some(text));
         change.set_crate_graph(crate_graph);
 
         host.apply_change(change);
+        // Convert VfsPath to span::File now that database is available
+        let file_id = ide_db::span::File::new(&host.db, path);
         (host.analysis(), file_id)
     }
 
@@ -304,7 +308,8 @@ impl Analysis {
 
     /// Debug info about the current state of the analysis.
     pub fn status(&self, file_id: Option<FileId>) -> Cancellable<String> {
-        self.with_db(|db| status::status(db, file_id))
+        let file_id = file_id.map(AssertUnwindSafe);
+        self.with_db(|db| status::status(db, file_id.map(|f| *f)))
     }
 
     pub fn source_root_id(&self, file_id: FileId) -> Cancellable<SourceRootId> {
@@ -334,8 +339,9 @@ impl Analysis {
     pub fn parse(&self, file_id: FileId) -> Cancellable<SourceFile> {
         // FIXME edition
         self.with_db(|db| {
+            let span_file_id = ide_db::span::EditionedFileId::new(db, file_id, ide_db::span::Edition::CURRENT);
             let editioned_file_id_wrapper =
-                EditionedFileId::current_edition_guess_origin(&self.db, file_id);
+                EditionedFileId::from_span_guess_origin(db, span_file_id);
 
             db.parse(editioned_file_id_wrapper).tree()
         })
@@ -355,6 +361,19 @@ impl Analysis {
         self.with_db(|db| db.line_index(file_id))
     }
 
+    /// Gets the file's path.
+    pub fn file_path(&self, file_id: FileId) -> Cancellable<VfsPath> {
+        self.with_db(|db| file_id.path(db).clone())
+    }
+
+    /// Returns a reference to the underlying database.
+    ///
+    /// Note: This should be used sparingly, primarily for cases where you need
+    /// direct database access for interned types.
+    pub fn raw_db(&self) -> &RootDatabase {
+        &self.db
+    }
+
     /// Selects the next syntactic nodes encompassing the range.
     pub fn extend_selection(&self, frange: FileRange) -> Cancellable<TextRange> {
         self.with_db(|db| extend_selection::extend_selection(db, frange))
@@ -364,7 +383,8 @@ impl Analysis {
     /// supported).
     pub fn matching_brace(&self, position: FilePosition) -> Cancellable<Option<TextSize>> {
         self.with_db(|db| {
-            let file_id = EditionedFileId::current_edition_guess_origin(&self.db, position.file_id);
+            let span_file_id = ide_db::span::EditionedFileId::new(db, position.file_id, ide_db::span::Edition::CURRENT);
+            let file_id = EditionedFileId::from_span_guess_origin(db, span_file_id);
             let parse = db.parse(file_id);
             let file = parse.tree();
             matching_brace::matching_brace(&file, position.offset)
@@ -424,8 +444,9 @@ impl Analysis {
     /// stuff like trailing commas.
     pub fn join_lines(&self, config: &JoinLinesConfig, frange: FileRange) -> Cancellable<TextEdit> {
         self.with_db(|db| {
+            let span_file_id = ide_db::span::EditionedFileId::new(db, frange.file_id, ide_db::span::Edition::CURRENT);
             let editioned_file_id_wrapper =
-                EditionedFileId::current_edition_guess_origin(&self.db, frange.file_id);
+                EditionedFileId::from_span_guess_origin(db, span_file_id);
             let parse = db.parse(editioned_file_id_wrapper);
             join_lines::join_lines(config, &parse.tree(), frange.range)
         })
@@ -466,8 +487,9 @@ impl Analysis {
     ) -> Cancellable<Vec<StructureNode>> {
         // FIXME: Edition
         self.with_db(|db| {
+            let span_file_id = ide_db::span::EditionedFileId::new(db, file_id, ide_db::span::Edition::CURRENT);
             let editioned_file_id_wrapper =
-                EditionedFileId::current_edition_guess_origin(&self.db, file_id);
+                EditionedFileId::from_span_guess_origin(db, span_file_id);
             let source_file = db.parse(editioned_file_id_wrapper).tree();
             file_structure::file_structure(&source_file, config)
         })
@@ -498,8 +520,9 @@ impl Analysis {
     /// Returns the set of folding ranges.
     pub fn folding_ranges(&self, file_id: FileId) -> Cancellable<Vec<Fold>> {
         self.with_db(|db| {
+            let span_file_id = ide_db::span::EditionedFileId::new(db, file_id, ide_db::span::Edition::CURRENT);
             let editioned_file_id_wrapper =
-                EditionedFileId::current_edition_guess_origin(&self.db, file_id);
+                EditionedFileId::from_span_guess_origin(db, span_file_id);
 
             folding_ranges::folding_ranges(&db.parse(editioned_file_id_wrapper).tree())
         })
@@ -672,7 +695,7 @@ impl Analysis {
 
     /// Returns the root file of the given crate.
     pub fn crate_root(&self, crate_id: Crate) -> Cancellable<FileId> {
-        self.with_db(|db| crate_id.data(db).root_file_id)
+        self.with_db(|db| crate_id.root_file(db))
     }
 
     /// Returns the set of possible targets to run for the current file.
@@ -906,7 +929,7 @@ impl Analysis {
     }
 
     pub fn editioned_file_id_to_vfs(&self, file_id: hir::EditionedFileId) -> FileId {
-        file_id.file_id(&self.db)
+        file_id.file(&self.db)
     }
 
     /// Performs an operation on the database that may be canceled.

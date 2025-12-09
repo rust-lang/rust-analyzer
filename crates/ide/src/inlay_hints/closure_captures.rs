@@ -75,7 +75,7 @@ pub(super) fn hints(
                 source.name().and_then(|name| {
                     name.syntax().original_file_range_opt(sema.db).map(TupleExt::head).map(
                         |frange| ide_db::FileRange {
-                            file_id: frange.file_id.file_id(sema.db),
+                            file_id: frange.file_id.file(sema.db),
                             range: frange.range,
                         },
                     )

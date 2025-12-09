@@ -28,7 +28,7 @@ use rustc_type_ir::{
     AliasTyKind,
     inherent::{AdtDef, IntoKind, Region as _, SliceLike, Ty as _},
 };
-use span::FileId;
+use span::File;
 use stdx::never;
 use syntax::{SyntaxNodePtr, TextRange};
 use triomphe::Arc;
@@ -373,7 +373,7 @@ impl MirEvalError<'_> {
         &self,
         f: &mut String,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(FileId, TextRange) -> String,
+        span_formatter: impl Fn(File, TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
         writeln!(f, "Mir eval error:")?;
@@ -423,7 +423,7 @@ impl MirEvalError<'_> {
                 };
                 let file_id = span.file_id.original_file(db);
                 let text_range = span.value.text_range();
-                writeln!(f, "{}", span_formatter(file_id.file_id(db), text_range))?;
+                writeln!(f, "{}", span_formatter(file_id.file(db), text_range))?;
             }
         }
         match err {

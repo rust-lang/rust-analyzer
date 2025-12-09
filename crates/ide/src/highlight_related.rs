@@ -139,7 +139,7 @@ fn highlight_closure_captures(
                     .sources(sema.db)
                     .into_iter()
                     .flat_map(|x| x.to_nav(sema.db))
-                    .filter(|decl| decl.file_id == file_id.file_id(sema.db))
+                    .filter(|decl| decl.file_id == file_id.file(sema.db))
                     .filter_map(|decl| decl.focus_range)
                     .map(move |range| HighlightedRange { range, category })
                     .chain(usages)
@@ -263,7 +263,7 @@ fn highlight_references(
                     .sources(sema.db)
                     .into_iter()
                     .flat_map(|x| x.to_nav(sema.db))
-                    .filter(|decl| decl.file_id == file_id.file_id(sema.db))
+                    .filter(|decl| decl.file_id == file_id.file(sema.db))
                     .filter_map(|decl| decl.focus_range)
                     .map(|range| HighlightedRange { range, category })
                     .for_each(|x| {
@@ -281,7 +281,7 @@ fn highlight_references(
                     },
                 };
                 for nav in navs {
-                    if nav.file_id != file_id.file_id(sema.db) {
+                    if nav.file_id != file_id.file(sema.db) {
                         continue;
                     }
                     let hl_range = nav.focus_range.map(|range| {

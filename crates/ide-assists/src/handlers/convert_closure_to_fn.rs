@@ -587,7 +587,7 @@ fn handle_call(
     let indent =
         if insert_newlines { first_arg_indent.unwrap().to_string() } else { String::new() };
     // FIXME: This text manipulation seems risky.
-    let text = ctx.db().file_text(file_id.file_id(ctx.db())).text(ctx.db());
+    let text = ctx.db().file_text(file_id.file(ctx.db())).text(ctx.db());
     let mut text = text[..u32::from(range.end()).try_into().unwrap()].trim_end();
     if !text.ends_with(')') {
         return None;
@@ -630,7 +630,7 @@ fn handle_call(
         to_insert.push(',');
     }
 
-    builder.edit_file(file_id.file_id(ctx.db()));
+    builder.edit_file(file_id.file(ctx.db()));
     builder.insert(offset, to_insert);
 
     Some(())

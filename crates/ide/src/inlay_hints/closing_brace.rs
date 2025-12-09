@@ -174,7 +174,7 @@ pub(super) fn hints(
     }
 
     let linked_location =
-        name_range.map(|range| FileRange { file_id: file_id.file_id(sema.db), range });
+        name_range.map(|range| FileRange { file_id: file_id.file(sema.db), range });
     acc.push(InlayHint {
         range: closing_token.text_range(),
         kind: InlayKind::ClosingBrace,

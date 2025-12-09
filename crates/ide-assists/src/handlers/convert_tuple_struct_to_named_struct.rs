@@ -233,7 +233,7 @@ fn edit_struct_references(
                 }
             }
         }
-        edit.add_file_edits(file_id.file_id(ctx.db()), editor);
+        edit.add_file_edits(file_id.file(ctx.db()), editor);
     }
 }
 
@@ -261,7 +261,7 @@ fn edit_field_references(
                     editor.replace(original.syntax(), name.syntax());
                 }
             }
-            edit.add_file_edits(file_id.file_id(ctx.db()), editor);
+            edit.add_file_edits(file_id.file(ctx.db()), editor);
         }
     }
 }

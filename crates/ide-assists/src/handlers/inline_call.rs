@@ -108,7 +108,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
 
             let mut remove_def = true;
             let mut inline_refs_for_file = |file_id: EditionedFileId, refs: Vec<FileReference>| {
-                let file_id = file_id.file_id(ctx.db());
+                let file_id = file_id.file(ctx.db());
                 builder.edit_file(file_id);
                 let call_krate = ctx.sema.file_to_module_def(file_id).map(|it| it.krate(ctx.db()));
                 let count = refs.len();

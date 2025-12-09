@@ -68,7 +68,7 @@ use hir_expand::{
 use intern::Symbol;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use span::{Edition, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
+use span::{Edition, File, FileAstId, ROOT_ERASED_FILE_AST_ID};
 use stdx::format_to;
 use syntax::{AstNode, SmolStr, SyntaxNode, ToSmolStr, ast};
 use triomphe::Arc;
@@ -486,12 +486,12 @@ impl DefMap {
     pub fn modules_for_file<'a>(
         &'a self,
         db: &'a dyn DefDatabase,
-        file_id: FileId,
+        file: File,
     ) -> impl Iterator<Item = ModuleId> + 'a {
         self.modules
             .iter()
             .filter(move |(_id, data)| {
-                data.origin.file_id().map(|file_id| file_id.file_id(db)) == Some(file_id)
+                data.origin.file_id().map(|file_id| file_id.file(db)) == Some(file)
             })
             .map(|(id, _data)| id)
     }

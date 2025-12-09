@@ -59,7 +59,7 @@ pub(crate) fn trait_impl_redundant_assoc_item(
     Diagnostic::new(
         DiagnosticCode::RustcHardError("E0407"),
         format!("{redundant_item_name} is not a member of trait `{trait_name}`"),
-        ide_db::FileRange { file_id: file_id.file_id(ctx.sema.db), range },
+        ide_db::FileRange { file_id: file_id.file(ctx.sema.db), range },
     )
     .stable()
     .with_fixes(quickfix_for_redundant_assoc_item(
@@ -99,7 +99,7 @@ fn quickfix_for_redundant_assoc_item(
         builder.insert(where_to_insert.range.end(), redundant_item_def);
         Some(())
     };
-    let mut source_change_builder = SourceChangeBuilder::new(file_id.file_id(ctx.sema.db));
+    let mut source_change_builder = SourceChangeBuilder::new(file_id.file(ctx.sema.db));
     add_assoc_item_def(&mut source_change_builder)?;
 
     Some(vec![Assist {

@@ -5,7 +5,7 @@ use core::fmt;
 use std::hash::{Hash, Hasher};
 
 use span::Edition;
-use vfs::FileId;
+pub use span::File;
 
 use crate::{Crate, RootQueryDb};
 
@@ -218,8 +218,9 @@ const _: () = {
                 WithoutCrate { editioned_file_id },
                 |_, _| {
                     // FileId not in the database.
+                    let file = editioned_file_id.file(db.as_dyn_database());
                     let krate = db
-                        .relevant_crates(editioned_file_id.file_id())
+                        .relevant_crates(file)
                         .first()
                         .copied()
                         .or_else(|| db.all_crates().first().copied())
@@ -267,36 +268,23 @@ const _: () = {
 
 impl EditionedFileId {
     #[inline]
-    pub fn new(db: &dyn salsa::Database, file_id: FileId, edition: Edition, krate: Crate) -> Self {
-        EditionedFileId::from_span(db, span::EditionedFileId::new(file_id, edition), krate)
+    pub fn new(db: &dyn salsa::Database, file: File, edition: Edition, krate: Crate) -> Self {
+        EditionedFileId::from_span(db, span::EditionedFileId::new(db, file, edition), krate)
     }
 
-    /// Attaches the current edition and guesses the crate for the file.
-    ///
-    /// Only use this if you cannot precisely determine the origin. This can happen in one of two cases:
-    ///
-    ///  1. The file is not in the module tree.
-    ///  2. You are latency sensitive and cannot afford calling the def map to precisely compute the origin
-    ///     (e.g. on enter feature, folding, etc.).
+    /// Returns the [`File`] (interned path) for this file.
     #[inline]
-    pub fn current_edition_guess_origin(db: &dyn RootQueryDb, file_id: FileId) -> Self {
-        Self::from_span_guess_origin(db, span::EditionedFileId::current_edition(file_id))
+    pub fn file(self, db: &dyn salsa::Database) -> File {
+        self.editioned_file_id(db).file(db)
     }
 
     #[inline]
-    pub fn file_id(self, db: &dyn salsa::Database) -> vfs::FileId {
-        let id = self.editioned_file_id(db);
-        id.file_id()
-    }
-
-    #[inline]
-    pub fn unpack(self, db: &dyn salsa::Database) -> (vfs::FileId, span::Edition) {
-        let id = self.editioned_file_id(db);
-        (id.file_id(), id.edition())
+    pub fn unpack(self, db: &dyn salsa::Database) -> (File, Edition) {
+        self.editioned_file_id(db).unpack(db)
     }
 
     #[inline]
     pub fn edition(self, db: &dyn salsa::Database) -> Edition {
-        self.editioned_file_id(db).edition()
+        self.editioned_file_id(db).edition(db)
     }
 }

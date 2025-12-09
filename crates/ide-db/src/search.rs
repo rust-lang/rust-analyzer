@@ -163,14 +163,15 @@ impl SearchScope {
 
         let all_crates = db.all_crates();
         for &krate in all_crates.iter() {
+            let root_file = krate.root_file(db);
+            let source_root_id = db.file_source_root(root_file).source_root_id(db);
             let crate_data = krate.data(db);
-            let source_root = db.file_source_root(crate_data.root_file_id).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
-            entries.extend(
-                source_root
-                    .iter()
-                    .map(|id| (EditionedFileId::new(db, id, crate_data.edition, krate), None)),
-            );
+            let source_root = db.source_root(source_root_id).source_root(db);
+            entries.extend(source_root.iter().filter_map(|id| {
+                let path = source_root.path_for_file(&id)?;
+                let file = span::File::new(db, path.clone());
+                Some((EditionedFileId::new(db, file, crate_data.edition, krate), None))
+            }));
         }
         SearchScope { entries }
     }
@@ -181,10 +182,12 @@ impl SearchScope {
         for rev_dep in of.transitive_reverse_dependencies(db) {
             let root_file = rev_dep.root_file(db);
 
-            let source_root = db.file_source_root(root_file).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
-            entries.extend(source_root.iter().map(|id| {
-                (EditionedFileId::new(db, id, rev_dep.edition(db), rev_dep.into()), None)
+            let source_root_id = db.file_source_root(root_file).source_root_id(db);
+            let source_root = db.source_root(source_root_id).source_root(db);
+            entries.extend(source_root.iter().filter_map(|id| {
+                let path = source_root.path_for_file(&id)?;
+                let file = span::File::new(db, path.clone());
+                Some((EditionedFileId::new(db, file, rev_dep.edition(db), rev_dep.into()), None))
             }));
         }
         SearchScope { entries }
@@ -199,7 +202,11 @@ impl SearchScope {
         SearchScope {
             entries: source_root
                 .iter()
-                .map(|id| (EditionedFileId::new(db, id, of.edition(db), of.into()), None))
+                .filter_map(|id| {
+                    let path = source_root.path_for_file(&id)?;
+                    let file = span::File::new(db, path.clone());
+                    Some((EditionedFileId::new(db, file, of.edition(db), of.into()), None))
+                })
                 .collect(),
         }
     }
@@ -484,7 +491,7 @@ impl<'a> FindUsages<'a> {
         scope: &'b SearchScope,
     ) -> impl Iterator<Item = (Arc<str>, EditionedFileId, TextRange)> + 'b {
         scope.entries.iter().map(|(&file_id, &search_range)| {
-            let text = db.file_text(file_id.file_id(db)).text(db);
+            let text = db.file_text(file_id.file(db)).text(db);
             let search_range =
                 search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&**text)));
 
@@ -1056,7 +1063,7 @@ impl<'a> FindUsages<'a> {
                     return;
                 };
 
-                let file_text = sema.db.file_text(file_id.file_id(self.sema.db));
+                let file_text = sema.db.file_text(file_id.file(self.sema.db));
                 let text = file_text.text(sema.db);
                 let search_range =
                     search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&**text)));

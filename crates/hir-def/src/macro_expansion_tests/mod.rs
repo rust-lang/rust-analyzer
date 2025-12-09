@@ -409,7 +409,7 @@ fn regression_20171() {
     let span = Span {
         range: TextRange::empty(TextSize::new(0)),
         anchor: SpanAnchor {
-            file_id: span::EditionedFileId::current_edition(span::FileId::from_raw(0)),
+            file_id: span::EditionedFileId::dummy(Edition::CURRENT),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: SyntaxContext::root(Edition::CURRENT),

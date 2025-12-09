@@ -11,14 +11,13 @@ use hir::{
 };
 use ide_db::{MiniCore, ra_fixture::UpmapFromRaFixture};
 use ide_db::{
-    RootDatabase, SymbolKind,
+    FileId, RootDatabase, SymbolKind,
     base_db::{AnchoredPath, SourceDatabase},
     defs::{Definition, IdentClass},
     famous_defs::FamousDefs,
     helpers::pick_best_token,
 };
 use itertools::Itertools;
-use span::FileId;
 use syntax::{
     AstNode, AstToken,
     SyntaxKind::*,
@@ -239,7 +238,16 @@ fn try_lookup_include_path(
     }
     let path = token.value.value().ok()?;
 
-    let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
+    // Get the anchor file's VfsPath
+    let anchor = file_id.path(sema.db).clone();
+    // Get the source root for this file and resolve the path
+    let source_root = sema.db.file_source_root(file_id).source_root_id(sema.db);
+    let source_root = sema.db.source_root(source_root).source_root(sema.db);
+    let vfs_file_id = source_root.resolve_path(AnchoredPath { anchor, path: &path })?;
+    // Convert vfs::FileId to span::File
+    let resolved_path = source_root.path_for_file(&vfs_file_id)?;
+    let file_id = ide_db::span::File::new(sema.db, resolved_path.clone());
+
     let size = sema.db.file_text(file_id).text(sema.db).len().try_into().ok()?;
     Some(NavigationTarget {
         file_id,
@@ -381,7 +389,7 @@ fn nav_for_exit_points(
 
                         if let Some(FileRange { file_id, range }) = focus_frange {
                             let contains_frange = |nav: &NavigationTarget| {
-                                nav.file_id == file_id.file_id(db) && nav.full_range.contains_range(range)
+                                nav.file_id == file_id.file(db) && nav.full_range.contains_range(range)
                             };
 
                             if let Some(def_site) = nav.def_site.as_mut() {

@@ -19,7 +19,7 @@
 
 use hir::{PathResolution, Semantics};
 use ide_db::{
-    FileId, MiniCore, RootDatabase,
+    FileId, FxHashMap, MiniCore, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
     helpers::pick_best_token,
     ra_fixture::UpmapFromRaFixture,
@@ -27,7 +27,6 @@ use ide_db::{
 };
 use itertools::Itertools;
 use macros::UpmapFromRaFixture;
-use nohash_hasher::IntMap;
 use syntax::AstToken;
 use syntax::{
     AstNode,
@@ -54,7 +53,7 @@ pub struct ReferenceSearchResult {
     /// The map key is the file ID, and the value is a vector of (range, category) pairs.
     /// - range: The text range of the reference in the file
     /// - category: Metadata about how the reference is used (read/write/etc)
-    pub references: IntMap<FileId, Vec<(TextRange, ReferenceCategory)>>,
+    pub references: FxHashMap<FileId, Vec<(TextRange, ReferenceCategory)>>,
 }
 
 /// Information about the declaration site of a searched item.
@@ -132,11 +131,11 @@ pub(crate) fn find_all_refs(
                 retain_adt_literal_usages(&mut usages, def, sema);
             }
 
-            let mut references: IntMap<FileId, Vec<(TextRange, ReferenceCategory)>> = usages
+            let mut references: FxHashMap<FileId, Vec<(TextRange, ReferenceCategory)>> = usages
                 .into_iter()
                 .map(|(file_id, refs)| {
                     (
-                        file_id.file_id(sema.db),
+                        file_id.file(sema.db),
                         refs.into_iter()
                             .map(|file_ref| (file_ref.range, file_ref.category))
                             .unique()
@@ -443,7 +442,7 @@ fn handle_control_flow_keywords(
             .into_iter()
             .map(|HighlightedRange { range, category }| (range, category))
             .collect();
-        (file_id.file_id(sema.db), ranges)
+        (file_id.file(sema.db), ranges)
     })
     .collect();
 
@@ -1120,10 +1119,10 @@ pub(super) struct Foo$0 {
         check_with_scope(
             code,
             Some(&mut |db| {
-                SearchScope::single_file(EditionedFileId::current_edition_guess_origin(
-                    db,
-                    FileId::from_raw(2),
-                ))
+                // SAFETY: This is a test fixture, file ID 2 is predictably created
+                let file_id = unsafe { FileId::from_raw(2) };
+                let span_file_id = ide_db::span::EditionedFileId::new(db, file_id, ide_db::span::Edition::CURRENT);
+                SearchScope::single_file(ide_db::EditionedFileId::from_span_guess_origin(db, span_file_id))
             }),
             expect![[r#"
                 quux Function FileId(0) 19..35 26..30

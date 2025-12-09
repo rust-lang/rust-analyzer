@@ -16,7 +16,8 @@ use intern::{Symbol, sym};
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
 use rustc_hash::{FxHashMap, FxHashSet};
 use semver::Version;
-use span::{Edition, FileId};
+use base_db::VfsPath;
+use span::Edition;
 use toolchain::Tool;
 use tracing::instrument;
 use tracing::{debug, error, info};
@@ -36,7 +37,7 @@ use crate::{
     utf8_stdout,
 };
 
-pub type FileLoader<'a> = &'a mut dyn for<'b> FnMut(&'b AbsPath) -> Option<FileId>;
+pub type FileLoader<'a> = &'a mut dyn for<'b> FnMut(&'b AbsPath) -> Option<VfsPath>;
 
 /// `PackageRoot` describes a package root folder.
 /// Which may be an external dependency, or a member of
@@ -1602,7 +1603,7 @@ fn add_target_crate_root(
     pkg: &PackageData,
     build_data: Option<(&BuildScriptOutput, bool)>,
     cfg_options: CfgOptions,
-    file_id: FileId,
+    file_id: VfsPath,
     cargo_crate_name: &str,
     kind: TargetKind,
     origin: CrateOrigin,

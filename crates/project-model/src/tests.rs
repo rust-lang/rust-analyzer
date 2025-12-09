@@ -8,7 +8,7 @@ use intern::sym;
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
 use rustc_hash::FxHashMap;
 use serde::de::DeserializeOwned;
-use span::FileId;
+use base_db::VfsPath;
 
 use crate::{
     CargoWorkspace, CfgOverrides, ManifestPath, ProjectJson, ProjectJsonData, ProjectWorkspace,
@@ -117,13 +117,13 @@ fn rooted_project_json(data: ProjectJsonData) -> ProjectJson {
 
 fn to_crate_graph(
     project_workspace: ProjectWorkspace,
-    file_map: &mut FxHashMap<AbsPathBuf, FileId>,
+    file_map: &mut FxHashMap<AbsPathBuf, VfsPath>,
 ) -> (CrateGraphBuilder, ProcMacroPaths) {
     project_workspace.to_crate_graph(
         &mut {
             |path| {
-                let len = file_map.len() + 1;
-                Some(*file_map.entry(path.to_path_buf()).or_insert(FileId::from_raw(len as u32)))
+                let vfs_path = VfsPath::from(path.to_path_buf());
+                Some(file_map.entry(path.to_path_buf()).or_insert(vfs_path).clone())
             }
         },
         &Default::default(),
@@ -236,7 +236,7 @@ fn crate_graph_dedup() {
 
 #[test]
 fn smoke_test_real_sysroot_cargo() {
-    let file_map = &mut FxHashMap::<AbsPathBuf, FileId>::default();
+    let file_map = &mut FxHashMap::<AbsPathBuf, VfsPath>::default();
     let meta: Metadata = get_test_json_file("hello-world-metadata.json");
     let manifest_path =
         ManifestPath::try_from(AbsPathBuf::try_from(meta.workspace_root.clone()).unwrap()).unwrap();
@@ -275,8 +275,8 @@ fn smoke_test_real_sysroot_cargo() {
     project_workspace.to_crate_graph(
         &mut {
             |path| {
-                let len = file_map.len();
-                Some(*file_map.entry(path.to_path_buf()).or_insert(FileId::from_raw(len as u32)))
+                let vfs_path = VfsPath::from(path.to_path_buf());
+                Some(file_map.entry(path.to_path_buf()).or_insert(vfs_path).clone())
             }
         },
         &Default::default(),

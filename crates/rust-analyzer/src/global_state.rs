@@ -21,8 +21,7 @@ use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
 use parking_lot::{
-    MappedRwLockReadGuard, Mutex, RwLock, RwLockReadGuard, RwLockUpgradableReadGuard,
-    RwLockWriteGuard,
+    MappedRwLockReadGuard, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
 use proc_macro_api::ProcMacroClient;
 use project_model::{ManifestPath, ProjectWorkspace, ProjectWorkspaceKind, WorkspaceBuildScripts};
@@ -331,7 +330,7 @@ impl GlobalState {
         // that can be used by the config module because config talks
         // in `SourceRootId`s instead of `FileId`s and `FileId` -> `SourceRootId`
         // mapping is not ready until `AnalysisHost::apply_changes` has been called.
-        let mut modified_ratoml_files: FxHashMap<FileId, (ChangeKind, vfs::VfsPath)> =
+        let mut modified_ratoml_files: FxHashMap<VfsPath, (ChangeKind, VfsPath)> =
             FxHashMap::default();
 
         let mut change = ChangeWithProcMacros::default();
@@ -341,7 +340,8 @@ impl GlobalState {
             return false;
         }
 
-        let (change, modified_rust_files, workspace_structure_change) =
+        // Collect data in the scoped block, then process it outside where we have db access
+        let (modified_rust_files, workspace_structure_change, bytes, deleted_files, has_structure_changes) =
             self.cancellation_pool.scoped(|s| {
                 // start cancellation in parallel, this will kick off lru eviction
                 // allowing us to do meaningful work while waiting
@@ -359,18 +359,19 @@ impl GlobalState {
                 let mut has_structure_changes = false;
                 let mut bytes = vec![];
                 let mut modified_rust_files = vec![];
+                let mut deleted_files = vec![];
                 for file in changed_files.into_values() {
-                    let vfs_path = vfs.file_path(file.file_id);
+                    let vfs_path = vfs.file_path(file.file_id).clone();
                     if let Some(("rust-analyzer", Some("toml"))) = vfs_path.name_and_extension() {
                         // Remember ids to use them after `apply_changes`
-                        modified_ratoml_files.insert(file.file_id, (file.kind(), vfs_path.clone()));
+                        modified_ratoml_files.insert(vfs_path.clone(), (file.kind(), vfs_path.clone()));
                     }
 
                     if let Some(path) = vfs_path.as_path() {
                         has_structure_changes |= file.is_created_or_deleted();
 
                         if file.is_modified() && path.extension() == Some("rs") {
-                            modified_rust_files.push(file.file_id);
+                            modified_rust_files.push(vfs_path.clone());
                         }
 
                         let additional_files = self
@@ -384,7 +385,7 @@ impl GlobalState {
                         let path = path.to_path_buf();
                         if file.is_created_or_deleted() {
                             workspace_structure_change.get_or_insert((path, false)).1 |=
-                                self.crate_graph_file_dependencies.contains(vfs_path);
+                                self.crate_graph_file_dependencies.contains(&vfs_path);
                         } else if reload::should_refresh_for_change(
                             &path,
                             file.kind(),
@@ -397,7 +398,7 @@ impl GlobalState {
 
                     // Clear native diagnostics when their file gets deleted
                     if !file.exists() {
-                        self.diagnostics.clear_native_for(file.file_id);
+                        deleted_files.push(vfs_path.clone());
                     }
 
                     let text = if let vfs::Change::Create(v, _) | vfs::Change::Modify(v, _) =
@@ -414,25 +415,39 @@ impl GlobalState {
                     };
                     // delay `line_endings_map` changes until we are done normalizing the text
                     // this allows delaying the re-acquisition of the write lock
-                    bytes.push((file.file_id, text));
+                    bytes.push((vfs_path.clone(), text));
                 }
-                let (vfs, line_endings_map) = &mut *RwLockUpgradableReadGuard::upgrade(guard);
-                bytes.into_iter().for_each(|(file_id, text)| {
-                    let text = match text {
-                        None => None,
-                        Some((text, line_endings)) => {
-                            line_endings_map.insert(file_id, line_endings);
-                            Some(text)
-                        }
-                    };
-                    change.change_file(file_id, text);
-                });
-                if has_structure_changes {
-                    let roots = self.source_root_config.partition(vfs);
-                    change.set_roots(roots);
-                }
-                (change, modified_rust_files, workspace_structure_change)
+                (modified_rust_files, workspace_structure_change, bytes, deleted_files, has_structure_changes)
             });
+
+        // Now that the scoped block is done, we can access analysis_host again
+        let db = self.analysis_host.raw_database();
+
+        // Process bytes and update line_endings_map
+        {
+            let (vfs, line_endings_map) = &mut *self.vfs.write();
+            for (vfs_path, text) in bytes {
+                let text = match text {
+                    None => None,
+                    Some((text, line_endings)) => {
+                        let file_id = ide_db::span::File::new(db, vfs_path.clone());
+                        line_endings_map.insert(file_id, line_endings);
+                        Some(text)
+                    }
+                };
+                change.change_file(vfs_path, text);
+            }
+            if has_structure_changes {
+                let roots = self.source_root_config.partition(vfs);
+                change.set_roots(roots);
+            }
+        }
+
+        // Clear diagnostics for deleted files
+        for vfs_path in deleted_files {
+            let file_id = ide_db::span::File::new(db, vfs_path);
+            self.diagnostics.clear_native_for(file_id);
+        }
 
         self.analysis_host.apply_change(change);
         if !modified_ratoml_files.is_empty()
@@ -465,7 +480,8 @@ impl GlobalState {
                     })
                     .collect_vec();
 
-                for (file_id, (change_kind, vfs_path)) in modified_ratoml_files {
+                for (file_path, (change_kind, vfs_path)) in modified_ratoml_files {
+                    let file_id = ide_db::span::File::new(db, file_path);
                     tracing::info!(%vfs_path, ?change_kind, "Processing rust-analyzer.toml changes");
                     if vfs_path.as_path() == user_config_abs_path {
                         tracing::info!(%vfs_path, ?change_kind, "Use config rust-analyzer.toml changes");
@@ -541,8 +557,13 @@ impl GlobalState {
         // didn't find anything (to make up for the lack of precision).
         {
             if !matches!(&workspace_structure_change, Some((.., true))) {
+                let db = self.analysis_host.raw_database();
+                let modified_rust_file_ids: Vec<FileId> = modified_rust_files
+                    .into_iter()
+                    .map(|path| ide_db::span::File::new(db, path))
+                    .collect();
                 _ = self.deferred_task_queue.sender.send(
-                    crate::main_loop::DeferredTask::CheckProcMacroSources(modified_rust_files),
+                    crate::main_loop::DeferredTask::CheckProcMacroSources(modified_rust_file_ids),
                 );
             }
             // FIXME: ideally we should only trigger a workspace fetch for non-library changes
@@ -739,16 +760,29 @@ impl GlobalStateSnapshot {
 
     /// Returns `None` if the file was excluded.
     pub(crate) fn url_to_file_id(&self, url: &Url) -> anyhow::Result<Option<FileId>> {
-        url_to_file_id(&self.vfs_read(), url)
+        let path = from_proto::vfs_path(url)?;
+        self.vfs_path_to_file_id(&path)
     }
 
     pub(crate) fn file_id_to_url(&self, id: FileId) -> Url {
-        file_id_to_url(&self.vfs_read(), id)
+        let path = self.analysis.file_path(id).unwrap();
+        let path = path.as_path().unwrap();
+        url_from_abs_path(path)
     }
 
     /// Returns `None` if the file was excluded.
     pub(crate) fn vfs_path_to_file_id(&self, vfs_path: &VfsPath) -> anyhow::Result<Option<FileId>> {
-        vfs_path_to_file_id(&self.vfs_read(), vfs_path)
+        let (_, excluded) = self.vfs_read()
+            .file_id(vfs_path)
+            .ok_or_else(|| anyhow::format_err!("file not found: {vfs_path}"))?;
+        match excluded {
+            vfs::FileExcluded::Yes => Ok(None),
+            vfs::FileExcluded::No => {
+                let db = self.analysis.raw_db();
+                let file_id = ide_db::span::File::new(db, vfs_path.clone());
+                Ok(Some(file_id))
+            }
+        }
     }
 
     pub(crate) fn file_line_index(&self, file_id: FileId) -> Cancellable<LineIndex> {
@@ -759,7 +793,8 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn file_version(&self, file_id: FileId) -> Option<i32> {
-        Some(self.mem_docs.get(self.vfs_read().file_path(file_id))?.version)
+        let path = self.analysis.file_path(file_id).ok()?;
+        Some(self.mem_docs.get(&path)?.version)
     }
 
     pub(crate) fn url_file_version(&self, url: &Url) -> Option<i32> {
@@ -768,7 +803,7 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn anchored_path(&self, path: &AnchoredPathBuf) -> Url {
-        let mut base = self.vfs_read().file_path(path.anchor).clone();
+        let mut base = path.anchor.clone();
         base.pop();
         let path = base.join(&path.path).unwrap();
         let path = path.as_path().unwrap();
@@ -776,7 +811,7 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn file_id_to_file_path(&self, file_id: FileId) -> vfs::VfsPath {
-        self.vfs_read().file_path(file_id).clone()
+        self.analysis.file_path(file_id).unwrap()
     }
 
     pub(crate) fn target_spec_for_crate(&self, crate_id: Crate) -> Option<TargetSpec> {
@@ -789,7 +824,7 @@ impl GlobalStateSnapshot {
         file_id: FileId,
         crate_id: Crate,
     ) -> Option<TargetSpec> {
-        let path = self.vfs_read().file_path(file_id).clone();
+        let path = self.analysis.file_path(file_id).ok()?;
         let path = path.as_path()?;
 
         for workspace in self.workspaces.iter() {
@@ -859,7 +894,10 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn file_exists(&self, file_id: FileId) -> bool {
-        self.vfs.read().0.exists(file_id)
+        self.analysis
+            .file_path(file_id)
+            .ok()
+            .is_some_and(|path| self.vfs.read().0.file_id(&path).is_some())
     }
 
     #[inline]
@@ -871,27 +909,35 @@ impl GlobalStateSnapshot {
     }
 }
 
-pub(crate) fn file_id_to_url(vfs: &vfs::Vfs, id: FileId) -> Url {
-    let path = vfs.file_path(id);
+pub(crate) fn file_id_to_url(db: &ide::RootDatabase, id: FileId) -> Url {
+    let path = id.path(db);
     let path = path.as_path().unwrap();
     url_from_abs_path(path)
 }
 
 /// Returns `None` if the file was excluded.
-pub(crate) fn url_to_file_id(vfs: &vfs::Vfs, url: &Url) -> anyhow::Result<Option<FileId>> {
+pub(crate) fn url_to_file_id(
+    db: &ide::RootDatabase,
+    vfs: &vfs::Vfs,
+    url: &Url,
+) -> anyhow::Result<Option<FileId>> {
     let path = from_proto::vfs_path(url)?;
-    vfs_path_to_file_id(vfs, &path)
+    vfs_path_to_file_id(db, vfs, &path)
 }
 
 /// Returns `None` if the file was excluded.
 pub(crate) fn vfs_path_to_file_id(
+    db: &ide::RootDatabase,
     vfs: &vfs::Vfs,
     vfs_path: &VfsPath,
 ) -> anyhow::Result<Option<FileId>> {
-    let (file_id, excluded) =
+    let (_, excluded) =
         vfs.file_id(vfs_path).ok_or_else(|| anyhow::format_err!("file not found: {vfs_path}"))?;
     match excluded {
         vfs::FileExcluded::Yes => Ok(None),
-        vfs::FileExcluded::No => Ok(Some(file_id)),
+        vfs::FileExcluded::No => {
+            let file_id = ide_db::span::File::new(db, vfs_path.clone());
+            Ok(Some(file_id))
+        }
     }
 }

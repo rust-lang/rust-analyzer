@@ -71,7 +71,7 @@ pub(super) fn hints(
                         },
                     }?;
                     sema.original_range_opt(name_syntax.syntax()).map(|frange| ide_db::FileRange {
-                        file_id: frange.file_id.file_id(sema.db),
+                        file_id: frange.file_id.file(sema.db),
                         range: frange.range,
                     })
                 }),

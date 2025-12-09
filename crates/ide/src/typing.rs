@@ -77,7 +77,7 @@ pub(crate) fn on_char_typed(
     let edition = Edition::CURRENT_FIXME;
     let editioned_file_id_wrapper = EditionedFileId::from_span_guess_origin(
         db,
-        span::EditionedFileId::new(position.file_id, edition),
+        span::EditionedFileId::new(db, position.file_id, edition),
     );
     let file = &db.parse(editioned_file_id_wrapper);
     let char_matches_position =

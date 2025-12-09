@@ -131,8 +131,9 @@ pub fn load_workspace_into_db(
             let contents = loader.load_sync(path);
             let path = vfs::VfsPath::from(path.to_path_buf());
             vfs.set_file_contents(path.clone(), contents);
-            vfs.file_id(&path).and_then(|(file_id, excluded)| {
-                (excluded == vfs::FileExcluded::No).then_some(file_id)
+            // Check if file was loaded and not excluded
+            vfs.file_id(&path).and_then(|(_, excluded)| {
+                (excluded == vfs::FileExcluded::No).then_some(path.clone())
             })
         },
         extra_env,
@@ -485,7 +486,8 @@ fn load_crate_graph_into_db(
         if let vfs::Change::Create(v, _) | vfs::Change::Modify(v, _) = file.change
             && let Ok(text) = String::from_utf8(v)
         {
-            analysis_change.change_file(file.file_id, Some(text))
+            let path = vfs.file_path(file.file_id).clone();
+            analysis_change.change_file(path, Some(text))
         }
     }
     let source_roots = source_root_config.partition(vfs);

@@ -404,7 +404,7 @@ impl MacroCallKind {
 impl HirFileId {
     pub fn edition(self, db: &dyn ExpandDatabase) -> Edition {
         match self {
-            HirFileId::FileId(file_id) => file_id.editioned_file_id(db).edition(),
+            HirFileId::FileId(file_id) => file_id.edition(db),
             HirFileId::MacroFile(m) => db.lookup_intern_macro_call(m).def.edition,
         }
     }

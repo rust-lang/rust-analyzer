@@ -232,10 +232,7 @@ mod tests {
     const DUMMY: tt::Span = tt::Span {
         range: TextRange::empty(TextSize::new(0)),
         anchor: SpanAnchor {
-            file_id: span::EditionedFileId::new(
-                span::FileId::from_raw(0xe4e4e),
-                span::Edition::CURRENT,
-            ),
+            file_id: span::EditionedFileId::dummy(span::Edition::CURRENT),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: SyntaxContext::root(Edition::CURRENT),
@@ -275,8 +272,8 @@ mod tests {
         assert_eq!(quoted.to_string(), "hello");
         let t = format!("{quoted:#?}");
         expect![[r#"
-            SUBTREE $$ 937550:Root[0000, 0]@0..0#ROOT2024 937550:Root[0000, 0]@0..0#ROOT2024
-              IDENT   hello 937550:Root[0000, 0]@0..0#ROOT2024"#]]
+            SUBTREE $$ 51269198:Root[0000, 0]@0..0#ROOT2024 51269198:Root[0000, 0]@0..0#ROOT2024
+              IDENT   hello 51269198:Root[0000, 0]@0..0#ROOT2024"#]]
         .assert_eq(&t);
     }
 

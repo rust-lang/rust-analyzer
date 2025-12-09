@@ -403,7 +403,7 @@ impl Module {
 
                 None
             });
-            refs_in_files.entry(file_id.file_id(ctx.db())).or_default().extend(usages);
+            refs_in_files.entry(file_id.file(ctx.db())).or_default().extend(usages);
         }
     }
 
@@ -524,7 +524,7 @@ impl Module {
             ctx,
             curr_parent_module,
             selection_range,
-            file_id.file_id(ctx.db()),
+            file_id.file(ctx.db()),
         );
 
         // Find use stmt that use def in current file
@@ -700,7 +700,7 @@ fn check_def_in_mod_and_out_sel(
                 let have_same_parent = if let Some(ast_module) = &curr_parent_module {
                     ctx.sema.to_module_def(ast_module).is_some_and(|it| it == $x.module(ctx.db()))
                 } else {
-                    source.file_id.original_file(ctx.db()).file_id(ctx.db()) == curr_file_id
+                    source.file_id.original_file(ctx.db()).file(ctx.db()) == curr_file_id
                 };
 
                 let in_sel = !selection_range.contains_range(source.value.syntax().text_range());
@@ -716,7 +716,7 @@ fn check_def_in_mod_and_out_sel(
                 (Some(ast_module), Some(hir_module)) => {
                     ctx.sema.to_module_def(ast_module).is_some_and(|it| it == hir_module)
                 }
-                _ => source.file_id.original_file(ctx.db()).file_id(ctx.db()) == curr_file_id,
+                _ => source.file_id.original_file(ctx.db()).file(ctx.db()) == curr_file_id,
             };
 
             if have_same_parent && let ModuleSource::Module(module_) = source.value {

@@ -197,6 +197,8 @@ impl<S> Drop for SpanMap<S> {
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct RealSpanMap {
     file_id: EditionedFileId,
+    /// The edition for this file (cached for span construction without db lookup)
+    edition: crate::Edition,
     /// Invariant: Sorted vec over TextSize
     // FIXME: SortedVec<(TextSize, ErasedFileAstId)>?
     pairs: Box<[(TextSize, ErasedFileAstId)]>,
@@ -215,9 +217,10 @@ impl fmt::Display for RealSpanMap {
 
 impl RealSpanMap {
     /// Creates a real file span map that returns absolute ranges (relative ranges to the root ast id).
-    pub fn absolute(file_id: EditionedFileId) -> Self {
+    pub fn absolute(file_id: EditionedFileId, edition: crate::Edition) -> Self {
         RealSpanMap {
             file_id,
+            edition,
             pairs: Box::from([(TextSize::new(0), ROOT_ERASED_FILE_AST_ID)]),
             end: TextSize::new(!0),
         }
@@ -225,10 +228,11 @@ impl RealSpanMap {
 
     pub fn from_file(
         file_id: EditionedFileId,
+        edition: crate::Edition,
         pairs: Box<[(TextSize, ErasedFileAstId)]>,
         end: TextSize,
     ) -> Self {
-        Self { file_id, pairs, end }
+        Self { file_id, edition, pairs, end }
     }
 
     pub fn span_for_range(&self, range: TextRange) -> Span {
@@ -246,7 +250,7 @@ impl RealSpanMap {
         Span {
             range: range - offset,
             anchor: SpanAnchor { file_id: self.file_id, ast_id },
-            ctx: SyntaxContext::root(self.file_id.edition()),
+            ctx: SyntaxContext::root(self.edition),
         }
     }
 }

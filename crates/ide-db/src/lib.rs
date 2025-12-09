@@ -76,10 +76,12 @@ pub use ::line_index;
 
 /// `base_db` is normally also needed in places where `ide_db` is used, so this re-export is for convenience.
 pub use base_db::{self, FxIndexMap, FxIndexSet};
-pub use span::{self, FileId};
+pub use span::{self, File};
+// Backwards-compatible alias
+pub use span::File as FileId;
 
-pub type FilePosition = FilePositionWrapper<FileId>;
-pub type FileRange = FileRangeWrapper<FileId>;
+pub type FilePosition = FilePositionWrapper<File>;
+pub type FileRange = FileRangeWrapper<File>;
 
 #[salsa_macros::db]
 pub struct RootDatabase {
@@ -125,23 +127,27 @@ impl fmt::Debug for RootDatabase {
 
 #[salsa_macros::db]
 impl SourceDatabase for RootDatabase {
-    fn file_text(&self, file_id: vfs::FileId) -> FileText {
-        self.files.file_text(file_id)
+    fn file_text(&self, file: File) -> FileText {
+        self.files.file_text(file)
     }
 
-    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
+    fn has_file(&self, file: File) -> bool {
+        self.files.has_file(file)
+    }
+
+    fn set_file_text(&mut self, file: File, text: &str) {
         let files = Arc::clone(&self.files);
-        files.set_file_text(self, file_id, text);
+        files.set_file_text(self, file, text);
     }
 
     fn set_file_text_with_durability(
         &mut self,
-        file_id: vfs::FileId,
+        file: File,
         text: &str,
         durability: Durability,
     ) {
         let files = Arc::clone(&self.files);
-        files.set_file_text_with_durability(self, file_id, text, durability);
+        files.set_file_text_with_durability(self, file, text, durability);
     }
 
     /// Source root of the file.
@@ -159,18 +165,18 @@ impl SourceDatabase for RootDatabase {
         files.set_source_root_with_durability(self, source_root_id, source_root, durability);
     }
 
-    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
-        self.files.file_source_root(id)
+    fn file_source_root(&self, file: File) -> FileSourceRootInput {
+        self.files.file_source_root(file)
     }
 
     fn set_file_source_root_with_durability(
         &mut self,
-        id: vfs::FileId,
+        file: File,
         source_root_id: SourceRootId,
         durability: Durability,
     ) {
         let files = Arc::clone(&self.files);
-        files.set_file_source_root_with_durability(self, id, source_root_id, durability);
+        files.set_file_source_root_with_durability(self, file, source_root_id, durability);
     }
 
     fn crates_map(&self) -> Arc<CratesMap> {

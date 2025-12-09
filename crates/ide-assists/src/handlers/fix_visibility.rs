@@ -106,7 +106,7 @@ fn target_data_for_def(
         Some((
             ast::AnyHasVisibility::new(source.value),
             range,
-            file_id.original_file(db).file_id(db),
+            file_id.original_file(db).file(db),
         ))
     }
 
@@ -145,7 +145,7 @@ fn target_data_for_def(
             let in_file_source = m.declaration_source(db)?;
             let file_id = in_file_source.file_id.original_file(db);
             let range = in_file_source.value.syntax().text_range();
-            (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file_id(db))
+            (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file(db))
         }
         // FIXME
         hir::ModuleDef::Macro(_) => return None,
