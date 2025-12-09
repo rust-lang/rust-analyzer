@@ -177,7 +177,7 @@ function createCommands(): Record<string, CommandFactory> {
         copyRunCommandLine: { enabled: commands.copyRunCommandLine },
         debug: { enabled: commands.debug },
         newDebugConfig: { enabled: commands.newDebugConfig },
-        fetchRunnableAtCursor : { enabled: commands.fetchRunnableAtCursor },
+        fetchRunnableAtCursor: { enabled: commands.fetchRunnableAtCursor },
         openDocs: { enabled: commands.openDocs },
         openExternalDocs: { enabled: commands.openExternalDocs },
         openCargoToml: { enabled: commands.openCargoToml },
