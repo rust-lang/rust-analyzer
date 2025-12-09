@@ -1216,6 +1216,7 @@ export function debugSingle(ctx: CtxInit): Cmd {
 export function fetchRunnableAtCursor(ctx: CtxInit): Cmd {
     return async () => {
         const editor = ctx.activeRustEditor ?? ctx.activeCargoTomlEditor;
+        if (!editor) return;
         return await selectRunnableAtCursor(ctx, editor, undefined);
     };
 }
