@@ -140,8 +140,8 @@ fn foo<T>() {}
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 470..475,
                                         },

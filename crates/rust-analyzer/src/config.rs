@@ -9,11 +9,11 @@ use cfg::{CfgAtom, CfgDiff};
 use hir::Symbol;
 use ide::{
     AnnotationConfig, AssistConfig, CallHierarchyConfig, CallableSnippets, CompletionConfig,
-    CompletionFieldsToResolve, DiagnosticsConfig, GenericParameterHints, GotoDefinitionConfig,
-    GotoImplementationConfig, HighlightConfig, HighlightRelatedConfig, HoverConfig, HoverDocFormat,
-    InlayFieldsToResolve, InlayHintsConfig, JoinLinesConfig, MemoryLayoutHoverConfig,
-    MemoryLayoutHoverRenderKind, RaFixtureConfig, RenameConfig, Snippet, SnippetScope,
-    SourceRootId,
+    CompletionFieldsToResolve, DiagnosticsConfig, FileRootId, GenericParameterHints,
+    GotoDefinitionConfig, GotoImplementationConfig, HighlightConfig, HighlightRelatedConfig,
+    HoverConfig, HoverDocFormat, InlayFieldsToResolve, InlayHintsConfig, JoinLinesConfig,
+    MemoryLayoutHoverConfig, MemoryLayoutHoverRenderKind, RaFixtureConfig, RenameConfig, Snippet,
+    SnippetScope,
 };
 use ide_db::{
     MiniCore, SnippetCap,
@@ -612,7 +612,7 @@ config_data! {
 }
 
 config_data! {
-    /// Local configurations can be defined per `SourceRoot`. This almost always corresponds to a `Crate`.
+    /// Local configurations can be defined per file root. This almost always corresponds to a `Crate`.
     local: struct LocalDefaultConfigData <- LocalConfigInput ->  {
         /// Insert #[must_use] when generating `as_` methods for enum variants.
         assist_emitMustUse: bool = false,
@@ -1136,10 +1136,10 @@ pub struct Config {
     /// Config node whose values apply to **every** Rust project.
     user_config: Option<(GlobalWorkspaceLocalConfigInput, ConfigErrors)>,
 
-    ratoml_file: FxHashMap<SourceRootId, (RatomlFile, ConfigErrors)>,
+    ratoml_file: FxHashMap<FileRootId, (RatomlFile, ConfigErrors)>,
 
     /// Clone of the value that is stored inside a `GlobalState`.
-    source_root_parent_map: Arc<FxHashMap<SourceRootId, SourceRootId>>,
+    file_root_parent_map: Arc<FxHashMap<FileRootId, FileRootId>>,
 
     /// Use case : It is an error to have an empty value for `check_command`.
     /// Since it is a `global` command at the moment, its final value can only be determined by
@@ -1163,7 +1163,7 @@ impl fmt::Debug for Config {
             .field("client_config", &self.client_config)
             .field("user_config", &self.user_config)
             .field("ratoml_file", &self.ratoml_file)
-            .field("source_root_parent_map", &self.source_root_parent_map)
+            .field("file_root_parent_map", &self.file_root_parent_map)
             .field("validation_errors", &self.validation_errors)
             .field("detached_files", &self.detached_files)
             .finish()
@@ -1190,11 +1190,11 @@ impl Config {
         Some(AbsPathBuf::assert_utf8(user_config_path))
     }
 
-    pub fn same_source_root_parent_map(
+    pub fn same_file_root_parent_map(
         &self,
-        other: &Arc<FxHashMap<SourceRootId, SourceRootId>>,
+        other: &Arc<FxHashMap<FileRootId, FileRootId>>,
     ) -> bool {
-        Arc::ptr_eq(&self.source_root_parent_map, other)
+        Arc::ptr_eq(&self.file_root_parent_map, other)
     }
 
     // FIXME @alibektas : Server's health uses error sink but in other places it is not used atm.
@@ -1304,7 +1304,7 @@ impl Config {
         }
 
         if let Some(change) = change.ratoml_file_change {
-            for (source_root_id, (kind, _, text)) in change {
+            for (file_root_id, (kind, _, text)) in change {
                 match kind {
                     RatomlFileKind::Crate => {
                         if let Some(text) = text {
@@ -1319,7 +1319,7 @@ impl Config {
                                         &mut toml_errors,
                                     );
                                     config.ratoml_file.insert(
-                                        source_root_id,
+                                        file_root_id,
                                         (
                                             RatomlFile::Crate(LocalConfigInput::from_toml(
                                                 &table,
@@ -1362,7 +1362,7 @@ impl Config {
                                         &mut toml_errors,
                                     );
                                     config.ratoml_file.insert(
-                                        source_root_id,
+                                        file_root_id,
                                         (
                                             RatomlFile::Workspace(
                                                 WorkspaceLocalConfigInput::from_toml(
@@ -1399,8 +1399,8 @@ impl Config {
             }
         }
 
-        if let Some(source_root_map) = change.source_map_change {
-            config.source_root_parent_map = source_root_map;
+        if let Some(file_root_map) = change.file_root_map_change {
+            config.file_root_parent_map = file_root_map;
         }
 
         if config.check_command(None).is_empty() {
@@ -1457,21 +1457,20 @@ impl Config {
 pub struct ConfigChange {
     user_config_change: Option<Arc<str>>,
     client_config_change: Option<serde_json::Value>,
-    ratoml_file_change:
-        Option<FxHashMap<SourceRootId, (RatomlFileKind, VfsPath, Option<Arc<str>>)>>,
-    source_map_change: Option<Arc<FxHashMap<SourceRootId, SourceRootId>>>,
+    ratoml_file_change: Option<FxHashMap<FileRootId, (RatomlFileKind, VfsPath, Option<Arc<str>>)>>,
+    file_root_map_change: Option<Arc<FxHashMap<FileRootId, FileRootId>>>,
 }
 
 impl ConfigChange {
     pub fn change_ratoml(
         &mut self,
-        source_root: SourceRootId,
+        file_root: FileRootId,
         vfs_path: VfsPath,
         content: Option<Arc<str>>,
     ) -> Option<(RatomlFileKind, VfsPath, Option<Arc<str>>)> {
         self.ratoml_file_change
             .get_or_insert_with(Default::default)
-            .insert(source_root, (RatomlFileKind::Crate, vfs_path, content))
+            .insert(file_root, (RatomlFileKind::Crate, vfs_path, content))
     }
 
     pub fn change_user_config(&mut self, content: Option<Arc<str>>) {
@@ -1481,25 +1480,25 @@ impl ConfigChange {
 
     pub fn change_workspace_ratoml(
         &mut self,
-        source_root: SourceRootId,
+        file_root: FileRootId,
         vfs_path: VfsPath,
         content: Option<Arc<str>>,
     ) -> Option<(RatomlFileKind, VfsPath, Option<Arc<str>>)> {
         self.ratoml_file_change
             .get_or_insert_with(Default::default)
-            .insert(source_root, (RatomlFileKind::Workspace, vfs_path, content))
+            .insert(file_root, (RatomlFileKind::Workspace, vfs_path, content))
     }
 
     pub fn change_client_config(&mut self, change: serde_json::Value) {
         self.client_config_change = Some(change);
     }
 
-    pub fn change_source_root_parent_map(
+    pub fn change_file_root_parent_map(
         &mut self,
-        source_root_map: Arc<FxHashMap<SourceRootId, SourceRootId>>,
+        file_root_map: Arc<FxHashMap<FileRootId, FileRootId>>,
     ) {
-        assert!(self.source_map_change.is_none());
-        self.source_map_change = Some(source_root_map);
+        assert!(self.file_root_map_change.is_none());
+        self.file_root_map_change = Some(file_root_map);
     }
 }
 
@@ -1788,7 +1787,7 @@ impl Config {
             }),
             client_config: (FullConfigInput::default(), ConfigErrors(vec![])),
             default_config: DEFAULT_CONFIG_DATA.get_or_init(|| Box::leak(Box::default())),
-            source_root_parent_map: Arc::new(FxHashMap::default()),
+            file_root_parent_map: Arc::new(FxHashMap::default()),
             user_config: None,
             detached_files: Default::default(),
             validation_errors: Default::default(),
@@ -1854,33 +1853,33 @@ impl Config {
         &self.caps
     }
 
-    pub fn assist(&self, source_root: Option<SourceRootId>) -> AssistConfig {
+    pub fn assist(&self, file_root: Option<FileRootId>) -> AssistConfig {
         AssistConfig {
             snippet_cap: self.snippet_cap(),
             allowed: None,
-            insert_use: self.insert_use_config(source_root),
-            prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
-            assist_emit_must_use: self.assist_emitMustUse(source_root).to_owned(),
-            prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
-            prefer_absolute: self.imports_prefixExternPrelude(source_root).to_owned(),
-            term_search_fuel: self.assist_termSearch_fuel(source_root).to_owned() as u64,
+            insert_use: self.insert_use_config(file_root),
+            prefer_no_std: self.imports_preferNoStd(file_root).to_owned(),
+            assist_emit_must_use: self.assist_emitMustUse(file_root).to_owned(),
+            prefer_prelude: self.imports_preferPrelude(file_root).to_owned(),
+            prefer_absolute: self.imports_prefixExternPrelude(file_root).to_owned(),
+            term_search_fuel: self.assist_termSearch_fuel(file_root).to_owned() as u64,
             code_action_grouping: self.code_action_group(),
-            expr_fill_default: match self.assist_expressionFillDefault(source_root) {
+            expr_fill_default: match self.assist_expressionFillDefault(file_root) {
                 ExprFillDefaultDef::Todo => ExprFillDefaultMode::Todo,
                 ExprFillDefaultDef::Default => ExprFillDefaultMode::Default,
                 ExprFillDefaultDef::Underscore => ExprFillDefaultMode::Underscore,
             },
-            prefer_self_ty: *self.assist_preferSelf(source_root),
-            show_rename_conflicts: *self.rename_showConflicts(source_root),
+            prefer_self_ty: *self.assist_preferSelf(file_root),
+            show_rename_conflicts: *self.rename_showConflicts(file_root),
         }
     }
 
-    pub fn rename(&self, source_root: Option<SourceRootId>) -> RenameConfig {
+    pub fn rename(&self, file_root: Option<FileRootId>) -> RenameConfig {
         RenameConfig {
-            prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
-            prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
-            prefer_absolute: self.imports_prefixExternPrelude(source_root).to_owned(),
-            show_conflicts: *self.rename_showConflicts(source_root),
+            prefer_no_std: self.imports_preferNoStd(file_root).to_owned(),
+            prefer_prelude: self.imports_preferPrelude(file_root).to_owned(),
+            prefer_absolute: self.imports_prefixExternPrelude(file_root).to_owned(),
+            show_conflicts: *self.rename_showConflicts(file_root),
         }
     }
 
@@ -1897,44 +1896,44 @@ impl Config {
 
     pub fn completion<'a>(
         &'a self,
-        source_root: Option<SourceRootId>,
+        file_root: Option<FileRootId>,
         minicore: MiniCore<'a>,
     ) -> CompletionConfig<'a> {
         let client_capability_fields = self.completion_resolve_support_properties();
         CompletionConfig {
-            enable_postfix_completions: self.completion_postfix_enable(source_root).to_owned(),
-            enable_imports_on_the_fly: self.completion_autoimport_enable(source_root).to_owned()
+            enable_postfix_completions: self.completion_postfix_enable(file_root).to_owned(),
+            enable_imports_on_the_fly: self.completion_autoimport_enable(file_root).to_owned()
                 && self.caps.has_completion_item_resolve_additionalTextEdits(),
-            enable_self_on_the_fly: self.completion_autoself_enable(source_root).to_owned(),
-            enable_auto_iter: *self.completion_autoIter_enable(source_root),
-            enable_auto_await: *self.completion_autoAwait_enable(source_root),
-            enable_private_editable: self.completion_privateEditable_enable(source_root).to_owned(),
+            enable_self_on_the_fly: self.completion_autoself_enable(file_root).to_owned(),
+            enable_auto_iter: *self.completion_autoIter_enable(file_root),
+            enable_auto_await: *self.completion_autoAwait_enable(file_root),
+            enable_private_editable: self.completion_privateEditable_enable(file_root).to_owned(),
             full_function_signatures: self
-                .completion_fullFunctionSignatures_enable(source_root)
+                .completion_fullFunctionSignatures_enable(file_root)
                 .to_owned(),
-            callable: match self.completion_callable_snippets(source_root) {
+            callable: match self.completion_callable_snippets(file_root) {
                 CallableCompletionDef::FillArguments => Some(CallableSnippets::FillArguments),
                 CallableCompletionDef::AddParentheses => Some(CallableSnippets::AddParentheses),
                 CallableCompletionDef::None => None,
             },
-            add_colons_to_module: *self.completion_addColonsToModule(source_root),
-            add_semicolon_to_unit: *self.completion_addSemicolonToUnit(source_root),
+            add_colons_to_module: *self.completion_addColonsToModule(file_root),
+            add_semicolon_to_unit: *self.completion_addSemicolonToUnit(file_root),
             snippet_cap: SnippetCap::new(self.completion_snippet()),
-            insert_use: self.insert_use_config(source_root),
-            prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
-            prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
-            prefer_absolute: self.imports_prefixExternPrelude(source_root).to_owned(),
+            insert_use: self.insert_use_config(file_root),
+            prefer_no_std: self.imports_preferNoStd(file_root).to_owned(),
+            prefer_prelude: self.imports_preferPrelude(file_root).to_owned(),
+            prefer_absolute: self.imports_prefixExternPrelude(file_root).to_owned(),
             snippets: self.snippets.clone().to_vec(),
-            limit: self.completion_limit(source_root).to_owned(),
-            enable_term_search: self.completion_termSearch_enable(source_root).to_owned(),
-            term_search_fuel: self.completion_termSearch_fuel(source_root).to_owned() as u64,
+            limit: self.completion_limit(file_root).to_owned(),
+            enable_term_search: self.completion_termSearch_enable(file_root).to_owned(),
+            term_search_fuel: self.completion_termSearch_fuel(file_root).to_owned() as u64,
             fields_to_resolve: if self.client_is_neovim() {
                 CompletionFieldsToResolve::empty()
             } else {
                 CompletionFieldsToResolve::from_client_capabilities(&client_capability_fields)
             },
             exclude_flyimport: self
-                .completion_autoimport_exclude(source_root)
+                .completion_autoimport_exclude(file_root)
                 .iter()
                 .map(|it| match it {
                     AutoImportExclusion::Path(path) => {
@@ -1959,7 +1958,7 @@ impl Config {
                     ),
                 })
                 .collect(),
-            exclude_traits: self.completion_excludeTraits(source_root),
+            exclude_traits: self.completion_excludeTraits(file_root),
             ra_fixture: self.ra_fixture(minicore),
         }
     }
@@ -1974,35 +1973,35 @@ impl Config {
         &self.detached_files
     }
 
-    pub fn diagnostics(&self, source_root: Option<SourceRootId>) -> DiagnosticsConfig {
+    pub fn diagnostics(&self, file_root: Option<FileRootId>) -> DiagnosticsConfig {
         DiagnosticsConfig {
-            enabled: *self.diagnostics_enable(source_root),
+            enabled: *self.diagnostics_enable(file_root),
             proc_attr_macros_enabled: self.expand_proc_attr_macros(),
             proc_macros_enabled: *self.procMacro_enable(),
-            disable_experimental: !self.diagnostics_experimental_enable(source_root),
-            disabled: self.diagnostics_disabled(source_root).clone(),
-            expr_fill_default: match self.assist_expressionFillDefault(source_root) {
+            disable_experimental: !self.diagnostics_experimental_enable(file_root),
+            disabled: self.diagnostics_disabled(file_root).clone(),
+            expr_fill_default: match self.assist_expressionFillDefault(file_root) {
                 ExprFillDefaultDef::Todo => ExprFillDefaultMode::Todo,
                 ExprFillDefaultDef::Default => ExprFillDefaultMode::Default,
                 ExprFillDefaultDef::Underscore => ExprFillDefaultMode::Underscore,
             },
             snippet_cap: self.snippet_cap(),
-            insert_use: self.insert_use_config(source_root),
-            prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
-            prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
-            prefer_absolute: self.imports_prefixExternPrelude(source_root).to_owned(),
-            style_lints: self.diagnostics_styleLints_enable(source_root).to_owned(),
-            term_search_fuel: self.assist_termSearch_fuel(source_root).to_owned() as u64,
-            show_rename_conflicts: *self.rename_showConflicts(source_root),
+            insert_use: self.insert_use_config(file_root),
+            prefer_no_std: self.imports_preferNoStd(file_root).to_owned(),
+            prefer_prelude: self.imports_preferPrelude(file_root).to_owned(),
+            prefer_absolute: self.imports_prefixExternPrelude(file_root).to_owned(),
+            style_lints: self.diagnostics_styleLints_enable(file_root).to_owned(),
+            term_search_fuel: self.assist_termSearch_fuel(file_root).to_owned() as u64,
+            show_rename_conflicts: *self.rename_showConflicts(file_root),
         }
     }
 
-    pub fn diagnostic_fixes(&self, source_root: Option<SourceRootId>) -> DiagnosticsConfig {
+    pub fn diagnostic_fixes(&self, file_root: Option<FileRootId>) -> DiagnosticsConfig {
         // We always want to show quickfixes for diagnostics, even when diagnostics/experimental diagnostics are disabled.
         DiagnosticsConfig {
             enabled: true,
             disable_experimental: false,
-            ..self.diagnostics(source_root)
+            ..self.diagnostics(file_root)
         }
     }
 
@@ -2010,7 +2009,7 @@ impl Config {
         self.procMacro_enable().to_owned() && self.procMacro_attributes_enable().to_owned()
     }
 
-    pub fn highlight_related(&self, _source_root: Option<SourceRootId>) -> HighlightRelatedConfig {
+    pub fn highlight_related(&self, _file_root: Option<FileRootId>) -> HighlightRelatedConfig {
         HighlightRelatedConfig {
             references: self.highlightRelated_references_enable().to_owned(),
             break_points: self.highlightRelated_breakPoints_enable().to_owned(),
@@ -2171,9 +2170,9 @@ impl Config {
         }
     }
 
-    fn insert_use_config(&self, source_root: Option<SourceRootId>) -> InsertUseConfig {
+    fn insert_use_config(&self, file_root: Option<FileRootId>) -> InsertUseConfig {
         InsertUseConfig {
-            granularity: match self.imports_granularity_group(source_root) {
+            granularity: match self.imports_granularity_group(file_root) {
                 ImportGranularityDef::Item | ImportGranularityDef::Preserve => {
                     ImportGranularity::Item
                 }
@@ -2181,14 +2180,14 @@ impl Config {
                 ImportGranularityDef::Module => ImportGranularity::Module,
                 ImportGranularityDef::One => ImportGranularity::One,
             },
-            enforce_granularity: self.imports_granularity_enforce(source_root).to_owned(),
-            prefix_kind: match self.imports_prefix(source_root) {
+            enforce_granularity: self.imports_granularity_enforce(file_root).to_owned(),
+            prefix_kind: match self.imports_prefix(file_root) {
                 ImportPrefixDef::Plain => PrefixKind::Plain,
                 ImportPrefixDef::ByCrate => PrefixKind::ByCrate,
                 ImportPrefixDef::BySelf => PrefixKind::BySelf,
             },
-            group: self.imports_group_enable(source_root).to_owned(),
-            skip_glob_imports: !self.imports_merge_glob(source_root),
+            group: self.imports_group_enable(file_root).to_owned(),
+            skip_glob_imports: !self.imports_merge_glob(file_root),
         }
     }
 
@@ -2307,42 +2306,39 @@ impl Config {
         self.cachePriming_enable().to_owned()
     }
 
-    pub fn publish_diagnostics(&self, source_root: Option<SourceRootId>) -> bool {
-        self.diagnostics_enable(source_root).to_owned()
+    pub fn publish_diagnostics(&self, file_root: Option<FileRootId>) -> bool {
+        self.diagnostics_enable(file_root).to_owned()
     }
 
-    pub fn diagnostics_map(&self, source_root: Option<SourceRootId>) -> DiagnosticsMapConfig {
+    pub fn diagnostics_map(&self, file_root: Option<FileRootId>) -> DiagnosticsMapConfig {
         DiagnosticsMapConfig {
-            remap_prefix: self.diagnostics_remapPrefix(source_root).clone(),
-            warnings_as_info: self.diagnostics_warningsAsInfo(source_root).clone(),
-            warnings_as_hint: self.diagnostics_warningsAsHint(source_root).clone(),
-            check_ignore: self.check_ignore(source_root).clone(),
+            remap_prefix: self.diagnostics_remapPrefix(file_root).clone(),
+            warnings_as_info: self.diagnostics_warningsAsInfo(file_root).clone(),
+            warnings_as_hint: self.diagnostics_warningsAsHint(file_root).clone(),
+            check_ignore: self.check_ignore(file_root).clone(),
         }
     }
 
-    pub fn extra_args(&self, source_root: Option<SourceRootId>) -> &Vec<String> {
-        self.cargo_extraArgs(source_root)
+    pub fn extra_args(&self, file_root: Option<FileRootId>) -> &Vec<String> {
+        self.cargo_extraArgs(file_root)
     }
 
-    pub fn extra_env(
-        &self,
-        source_root: Option<SourceRootId>,
-    ) -> &FxHashMap<String, Option<String>> {
-        self.cargo_extraEnv(source_root)
+    pub fn extra_env(&self, file_root: Option<FileRootId>) -> &FxHashMap<String, Option<String>> {
+        self.cargo_extraEnv(file_root)
     }
 
-    pub fn check_extra_args(&self, source_root: Option<SourceRootId>) -> Vec<String> {
-        let mut extra_args = self.extra_args(source_root).clone();
-        extra_args.extend_from_slice(self.check_extraArgs(source_root));
+    pub fn check_extra_args(&self, file_root: Option<FileRootId>) -> Vec<String> {
+        let mut extra_args = self.extra_args(file_root).clone();
+        extra_args.extend_from_slice(self.check_extraArgs(file_root));
         extra_args
     }
 
     pub fn check_extra_env(
         &self,
-        source_root: Option<SourceRootId>,
+        file_root: Option<FileRootId>,
     ) -> FxHashMap<String, Option<String>> {
-        let mut extra_env = self.cargo_extraEnv(source_root).clone();
-        extra_env.extend(self.check_extraEnv(source_root).clone());
+        let mut extra_env = self.cargo_extraEnv(file_root).clone();
+        extra_env.extend(self.check_extraEnv(file_root).clone());
         extra_env
     }
 
@@ -2366,9 +2362,9 @@ impl Config {
 
     pub fn ignored_proc_macros(
         &self,
-        source_root: Option<SourceRootId>,
+        file_root: Option<FileRootId>,
     ) -> &FxHashMap<Box<str>, Box<[Box<str>]>> {
-        self.procMacro_ignored(source_root)
+        self.procMacro_ignored(file_root)
     }
 
     pub fn expand_proc_macros(&self) -> bool {
@@ -2397,23 +2393,23 @@ impl Config {
         }
     }
 
-    pub fn cargo_autoreload_config(&self, source_root: Option<SourceRootId>) -> bool {
-        self.cargo_autoreload(source_root).to_owned()
+    pub fn cargo_autoreload_config(&self, file_root: Option<FileRootId>) -> bool {
+        self.cargo_autoreload(file_root).to_owned()
     }
 
-    pub fn run_build_scripts(&self, source_root: Option<SourceRootId>) -> bool {
-        self.cargo_buildScripts_enable(source_root).to_owned() || self.procMacro_enable().to_owned()
+    pub fn run_build_scripts(&self, file_root: Option<FileRootId>) -> bool {
+        self.cargo_buildScripts_enable(file_root).to_owned() || self.procMacro_enable().to_owned()
     }
 
-    pub fn cargo(&self, source_root: Option<SourceRootId>) -> CargoConfig {
-        let rustc_source = self.rustc_source(source_root).as_ref().map(|rustc_src| {
+    pub fn cargo(&self, file_root: Option<FileRootId>) -> CargoConfig {
+        let rustc_source = self.rustc_source(file_root).as_ref().map(|rustc_src| {
             if rustc_src == "discover" {
                 RustLibSource::Discover
             } else {
                 RustLibSource::Path(self.root_path.join(rustc_src))
             }
         });
-        let sysroot = self.cargo_sysroot(source_root).as_ref().map(|sysroot| {
+        let sysroot = self.cargo_sysroot(file_root).as_ref().map(|sysroot| {
             if sysroot == "discover" {
                 RustLibSource::Discover
             } else {
@@ -2421,10 +2417,10 @@ impl Config {
             }
         });
         let sysroot_src =
-            self.cargo_sysrootSrc(source_root).as_ref().map(|sysroot| self.root_path.join(sysroot));
-        let config_path = self.cargo_config_path(source_root);
+            self.cargo_sysrootSrc(file_root).as_ref().map(|sysroot| self.root_path.join(sysroot));
+        let config_path = self.cargo_config_path(file_root);
         let extra_includes = self
-            .vfs_extraIncludes(source_root)
+            .vfs_extraIncludes(file_root)
             .iter()
             .map(String::as_str)
             .map(AbsPathBuf::try_from)
@@ -2432,15 +2428,15 @@ impl Config {
             .collect();
 
         CargoConfig {
-            all_targets: *self.cargo_allTargets(source_root),
-            features: match &self.cargo_features(source_root) {
+            all_targets: *self.cargo_allTargets(file_root),
+            features: match &self.cargo_features(file_root) {
                 CargoFeaturesDef::All => CargoFeatures::All,
                 CargoFeaturesDef::Selected(features) => CargoFeatures::Selected {
                     features: features.clone(),
-                    no_default_features: self.cargo_noDefaultFeatures(source_root).to_owned(),
+                    no_default_features: self.cargo_noDefaultFeatures(file_root).to_owned(),
                 },
             },
-            target: self.cargo_target(source_root).clone(),
+            target: self.cargo_target(file_root).clone(),
             sysroot,
             sysroot_src,
             rustc_source,
@@ -2448,7 +2444,7 @@ impl Config {
             cfg_overrides: project_model::CfgOverrides {
                 global: {
                     let (enabled, disabled): (Vec<_>, Vec<_>) =
-                        self.cargo_cfgs(source_root).iter().partition_map(|s| {
+                        self.cargo_cfgs(file_root).iter().partition_map(|s| {
                             s.strip_prefix("!").map_or(Either::Left(s), Either::Right)
                         });
                     CfgDiff::new(
@@ -2477,24 +2473,24 @@ impl Config {
                 },
                 selective: Default::default(),
             },
-            wrap_rustc_in_build_scripts: *self.cargo_buildScripts_useRustcWrapper(source_root),
-            invocation_strategy: match self.cargo_buildScripts_invocationStrategy(source_root) {
+            wrap_rustc_in_build_scripts: *self.cargo_buildScripts_useRustcWrapper(file_root),
+            invocation_strategy: match self.cargo_buildScripts_invocationStrategy(file_root) {
                 InvocationStrategy::Once => project_model::InvocationStrategy::Once,
                 InvocationStrategy::PerWorkspace => project_model::InvocationStrategy::PerWorkspace,
             },
-            run_build_script_command: self.cargo_buildScripts_overrideCommand(source_root).clone(),
-            extra_args: self.cargo_extraArgs(source_root).clone(),
-            extra_env: self.cargo_extraEnv(source_root).clone(),
-            target_dir_config: self.target_dir_from_config(source_root),
-            set_test: *self.cfg_setTest(source_root),
-            no_deps: *self.cargo_noDeps(source_root),
-            metadata_extra_args: self.cargo_metadataExtraArgs(source_root).clone(),
+            run_build_script_command: self.cargo_buildScripts_overrideCommand(file_root).clone(),
+            extra_args: self.cargo_extraArgs(file_root).clone(),
+            extra_env: self.cargo_extraEnv(file_root).clone(),
+            target_dir_config: self.target_dir_from_config(file_root),
+            set_test: *self.cfg_setTest(file_root),
+            no_deps: *self.cargo_noDeps(file_root),
+            metadata_extra_args: self.cargo_metadataExtraArgs(file_root).clone(),
             config_path,
         }
     }
 
-    pub fn cfg_set_test(&self, source_root: Option<SourceRootId>) -> bool {
-        *self.cfg_setTest(source_root)
+    pub fn cfg_set_test(&self, file_root: Option<FileRootId>) -> bool {
+        *self.cfg_setTest(file_root)
     }
 
     pub(crate) fn completion_snippets_default() -> FxIndexMap<String, SnippetDef> {
@@ -2544,55 +2540,55 @@ impl Config {
         .unwrap()
     }
 
-    pub fn rustfmt(&self, source_root_id: Option<SourceRootId>) -> RustfmtConfig {
-        match &self.rustfmt_overrideCommand(source_root_id) {
+    pub fn rustfmt(&self, file_root_id: Option<FileRootId>) -> RustfmtConfig {
+        match &self.rustfmt_overrideCommand(file_root_id) {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
                 RustfmtConfig::CustomCommand { command, args }
             }
             Some(_) | None => RustfmtConfig::Rustfmt {
-                extra_args: self.rustfmt_extraArgs(source_root_id).clone(),
-                enable_range_formatting: *self.rustfmt_rangeFormatting_enable(source_root_id),
+                extra_args: self.rustfmt_extraArgs(file_root_id).clone(),
+                enable_range_formatting: *self.rustfmt_rangeFormatting_enable(file_root_id),
             },
         }
     }
 
-    pub fn flycheck_workspace(&self, source_root: Option<SourceRootId>) -> bool {
-        *self.check_workspace(source_root)
+    pub fn flycheck_workspace(&self, file_root: Option<FileRootId>) -> bool {
+        *self.check_workspace(file_root)
     }
 
-    pub(crate) fn cargo_test_options(&self, source_root: Option<SourceRootId>) -> CargoOptions {
+    pub(crate) fn cargo_test_options(&self, file_root: Option<FileRootId>) -> CargoOptions {
         CargoOptions {
             // Might be nice to allow users to specify test_command = "nextest"
             subcommand: "test".into(),
-            target_tuples: self.cargo_target(source_root).clone().into_iter().collect(),
+            target_tuples: self.cargo_target(file_root).clone().into_iter().collect(),
             all_targets: false,
-            no_default_features: *self.cargo_noDefaultFeatures(source_root),
-            all_features: matches!(self.cargo_features(source_root), CargoFeaturesDef::All),
-            features: match self.cargo_features(source_root).clone() {
+            no_default_features: *self.cargo_noDefaultFeatures(file_root),
+            all_features: matches!(self.cargo_features(file_root), CargoFeaturesDef::All),
+            features: match self.cargo_features(file_root).clone() {
                 CargoFeaturesDef::All => vec![],
                 CargoFeaturesDef::Selected(it) => it,
             },
-            extra_args: self.extra_args(source_root).clone(),
-            extra_test_bin_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
-            extra_env: self.extra_env(source_root).clone(),
-            target_dir_config: self.target_dir_from_config(source_root),
+            extra_args: self.extra_args(file_root).clone(),
+            extra_test_bin_args: self.runnables_extraTestBinaryArgs(file_root).clone(),
+            extra_env: self.extra_env(file_root).clone(),
+            target_dir_config: self.target_dir_from_config(file_root),
             set_test: true,
-            config_path: self.cargo_config_path(source_root),
+            config_path: self.cargo_config_path(file_root),
         }
     }
 
-    pub(crate) fn flycheck(&self, source_root: Option<SourceRootId>) -> FlycheckConfig {
-        match &self.check_overrideCommand(source_root) {
+    pub(crate) fn flycheck(&self, file_root: Option<FileRootId>) -> FlycheckConfig {
+        match &self.check_overrideCommand(file_root) {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
                 FlycheckConfig::CustomCommand {
                     command,
                     args,
-                    extra_env: self.check_extra_env(source_root),
-                    invocation_strategy: match self.check_invocationStrategy(source_root) {
+                    extra_env: self.check_extra_env(file_root),
+                    invocation_strategy: match self.check_invocationStrategy(file_root) {
                         InvocationStrategy::Once => crate::flycheck::InvocationStrategy::Once,
                         InvocationStrategy::PerWorkspace => {
                             crate::flycheck::InvocationStrategy::PerWorkspace
@@ -2602,80 +2598,80 @@ impl Config {
             }
             Some(_) | None => FlycheckConfig::Automatic {
                 cargo_options: CargoOptions {
-                    subcommand: self.check_command(source_root).clone(),
+                    subcommand: self.check_command(file_root).clone(),
                     target_tuples: self
-                        .check_targets(source_root)
+                        .check_targets(file_root)
                         .clone()
                         .and_then(|targets| match &targets.0[..] {
                             [] => None,
                             targets => Some(targets.into()),
                         })
                         .unwrap_or_else(|| {
-                            self.cargo_target(source_root).clone().into_iter().collect()
+                            self.cargo_target(file_root).clone().into_iter().collect()
                         }),
                     all_targets: self
-                        .check_allTargets(source_root)
-                        .unwrap_or(*self.cargo_allTargets(source_root)),
+                        .check_allTargets(file_root)
+                        .unwrap_or(*self.cargo_allTargets(file_root)),
                     no_default_features: self
-                        .check_noDefaultFeatures(source_root)
-                        .unwrap_or(*self.cargo_noDefaultFeatures(source_root)),
+                        .check_noDefaultFeatures(file_root)
+                        .unwrap_or(*self.cargo_noDefaultFeatures(file_root)),
                     all_features: matches!(
-                        self.check_features(source_root)
+                        self.check_features(file_root)
                             .as_ref()
-                            .unwrap_or(self.cargo_features(source_root)),
+                            .unwrap_or(self.cargo_features(file_root)),
                         CargoFeaturesDef::All
                     ),
                     features: match self
-                        .check_features(source_root)
+                        .check_features(file_root)
                         .clone()
-                        .unwrap_or_else(|| self.cargo_features(source_root).clone())
+                        .unwrap_or_else(|| self.cargo_features(file_root).clone())
                     {
                         CargoFeaturesDef::All => vec![],
                         CargoFeaturesDef::Selected(it) => it,
                     },
-                    extra_args: self.check_extra_args(source_root),
-                    extra_test_bin_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
-                    extra_env: self.check_extra_env(source_root),
-                    config_path: self.cargo_config_path(source_root),
-                    target_dir_config: self.target_dir_from_config(source_root),
-                    set_test: *self.cfg_setTest(source_root),
+                    extra_args: self.check_extra_args(file_root),
+                    extra_test_bin_args: self.runnables_extraTestBinaryArgs(file_root).clone(),
+                    extra_env: self.check_extra_env(file_root),
+                    config_path: self.cargo_config_path(file_root),
+                    target_dir_config: self.target_dir_from_config(file_root),
+                    set_test: *self.cfg_setTest(file_root),
                 },
                 ansi_color_output: self.color_diagnostic_output(),
             },
         }
     }
 
-    fn cargo_config_path(&self, source_root: Option<SourceRootId>) -> Option<AbsPathBuf> {
-        self.cargo_configPath(source_root).as_ref().map(|path| self.root_path.join(path))
+    fn cargo_config_path(&self, file_root: Option<FileRootId>) -> Option<AbsPathBuf> {
+        self.cargo_configPath(file_root).as_ref().map(|path| self.root_path.join(path))
     }
 
-    fn target_dir_from_config(&self, source_root: Option<SourceRootId>) -> TargetDirectoryConfig {
-        match &self.cargo_targetDir(source_root) {
+    fn target_dir_from_config(&self, file_root: Option<FileRootId>) -> TargetDirectoryConfig {
+        match &self.cargo_targetDir(file_root) {
             Some(TargetDirectory::UseSubdirectory(true)) => TargetDirectoryConfig::UseSubdirectory,
             Some(TargetDirectory::UseSubdirectory(false)) | None => TargetDirectoryConfig::None,
             Some(TargetDirectory::Directory(dir)) => TargetDirectoryConfig::Directory(dir.clone()),
         }
     }
 
-    pub fn check_on_save(&self, source_root: Option<SourceRootId>) -> bool {
-        *self.checkOnSave(source_root)
+    pub fn check_on_save(&self, file_root: Option<FileRootId>) -> bool {
+        *self.checkOnSave(file_root)
     }
 
-    pub fn script_rebuild_on_save(&self, source_root: Option<SourceRootId>) -> bool {
-        *self.cargo_buildScripts_rebuildOnSave(source_root)
+    pub fn script_rebuild_on_save(&self, file_root: Option<FileRootId>) -> bool {
+        *self.cargo_buildScripts_rebuildOnSave(file_root)
     }
 
-    pub fn runnables(&self, source_root: Option<SourceRootId>) -> RunnablesConfig {
+    pub fn runnables(&self, file_root: Option<FileRootId>) -> RunnablesConfig {
         RunnablesConfig {
-            override_cargo: self.runnables_command(source_root).clone(),
-            cargo_extra_args: self.runnables_extraArgs(source_root).clone(),
-            config_path: self.cargo_config_path(source_root),
-            extra_test_binary_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
-            test_command: self.runnables_test_command(source_root).clone(),
-            test_override_command: self.runnables_test_overrideCommand(source_root).clone(),
-            bench_command: self.runnables_bench_command(source_root).clone(),
-            bench_override_command: self.runnables_bench_overrideCommand(source_root).clone(),
-            doc_test_override_command: self.runnables_doctest_overrideCommand(source_root).clone(),
+            override_cargo: self.runnables_command(file_root).clone(),
+            cargo_extra_args: self.runnables_extraArgs(file_root).clone(),
+            config_path: self.cargo_config_path(file_root),
+            extra_test_binary_args: self.runnables_extraTestBinaryArgs(file_root).clone(),
+            test_command: self.runnables_test_command(file_root).clone(),
+            test_override_command: self.runnables_test_overrideCommand(file_root).clone(),
+            bench_command: self.runnables_bench_command(file_root).clone(),
+            bench_override_command: self.runnables_bench_overrideCommand(file_root).clone(),
+            doc_test_override_command: self.runnables_doctest_overrideCommand(file_root).clone(),
         }
     }
 
@@ -2728,26 +2724,26 @@ impl Config {
         }
     }
 
-    pub fn document_symbol(&self, source_root: Option<SourceRootId>) -> DocumentSymbolConfig {
+    pub fn document_symbol(&self, file_root: Option<FileRootId>) -> DocumentSymbolConfig {
         DocumentSymbolConfig {
-            search_exclude_locals: *self.document_symbol_search_excludeLocals(source_root),
+            search_exclude_locals: *self.document_symbol_search_excludeLocals(file_root),
         }
     }
 
-    pub fn workspace_symbol(&self, source_root: Option<SourceRootId>) -> WorkspaceSymbolConfig {
+    pub fn workspace_symbol(&self, file_root: Option<FileRootId>) -> WorkspaceSymbolConfig {
         WorkspaceSymbolConfig {
-            search_exclude_imports: *self.workspace_symbol_search_excludeImports(source_root),
-            search_scope: match self.workspace_symbol_search_scope(source_root) {
+            search_exclude_imports: *self.workspace_symbol_search_excludeImports(file_root),
+            search_scope: match self.workspace_symbol_search_scope(file_root) {
                 WorkspaceSymbolSearchScopeDef::Workspace => WorkspaceSymbolSearchScope::Workspace,
                 WorkspaceSymbolSearchScopeDef::WorkspaceAndDependencies => {
                     WorkspaceSymbolSearchScope::WorkspaceAndDependencies
                 }
             },
-            search_kind: match self.workspace_symbol_search_kind(source_root) {
+            search_kind: match self.workspace_symbol_search_kind(file_root) {
                 WorkspaceSymbolSearchKindDef::OnlyTypes => WorkspaceSymbolSearchKind::OnlyTypes,
                 WorkspaceSymbolSearchKindDef::AllSymbols => WorkspaceSymbolSearchKind::AllSymbols,
             },
-            search_limit: *self.workspace_symbol_search_limit(source_root),
+            search_limit: *self.workspace_symbol_search_limit(file_root),
         }
     }
 
@@ -3301,10 +3297,10 @@ macro_rules! _impl_for_config_data {
             $(
                 $($doc)*
                 #[allow(non_snake_case)]
-                $vis fn $field(&self, source_root: Option<SourceRootId>) -> &$ty {
-                    let mut source_root = source_root.as_ref();
-                    while let Some(sr) = source_root {
-                        if let Some((file, _)) = self.ratoml_file.get(&sr) {
+                $vis fn $field(&self, file_root: Option<FileRootId>) -> &$ty {
+                    let mut file_root = file_root.as_ref();
+                    while let Some(file_root_id) = file_root {
+                        if let Some((file, _)) = self.ratoml_file.get(file_root_id) {
                             match file {
                                 RatomlFile::Workspace(config) => {
                                     if let Some(v) = config.local.$field.as_ref() {
@@ -3318,7 +3314,7 @@ macro_rules! _impl_for_config_data {
                                 }
                             }
                         }
-                        source_root = self.source_root_parent_map.get(&sr);
+                        file_root = self.file_root_parent_map.get(file_root_id);
                     }
 
                     if let Some(v) = self.client_config.0.local.$field.as_ref() {
@@ -3345,15 +3341,15 @@ macro_rules! _impl_for_config_data {
             $(
                 $($doc)*
                 #[allow(non_snake_case)]
-                $vis fn $field(&self, source_root: Option<SourceRootId>) -> &$ty {
-                    let mut source_root = source_root.as_ref();
-                    while let Some(sr) = source_root {
-                        if let Some((RatomlFile::Workspace(config), _)) = self.ratoml_file.get(&sr) {
+                $vis fn $field(&self, file_root: Option<FileRootId>) -> &$ty {
+                    let mut file_root = file_root.as_ref();
+                    while let Some(file_root_id) = file_root {
+                        if let Some((RatomlFile::Workspace(config), _)) = self.ratoml_file.get(file_root_id) {
                             if let Some(v) = config.workspace.$field.as_ref() {
                                 return &v;
                             }
                         }
-                        source_root = self.source_root_parent_map.get(&sr);
+                        file_root = self.file_root_parent_map.get(file_root_id);
                     }
 
                     if let Some(v) = self.client_config.0.workspace.$field.as_ref() {

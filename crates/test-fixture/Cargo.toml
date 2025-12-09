@@ -19,6 +19,7 @@ stdx.workspace = true
 intern.workspace = true
 triomphe.workspace = true
 paths.workspace = true
+rustc-hash.workspace = true
 
 [features]
 default = []

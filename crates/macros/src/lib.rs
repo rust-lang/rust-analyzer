@@ -227,8 +227,8 @@ fn upmap_from_ra_fixture(mut s: synstructure::Structure<'_>) -> proc_macro2::Tok
             fn upmap_from_ra_fixture(
                 self,
                 __analysis: &::ide_db::ra_fixture::RaFixtureAnalysis,
-                __virtual_file_id: ::ide_db::ra_fixture::FileId,
-                __real_file_id: ::ide_db::ra_fixture::FileId,
+                __virtual_file_id: ::ide_db::ra_fixture::File,
+                __real_file_id: ::ide_db::ra_fixture::File,
             ) -> Result<Self, ()> {
                 Ok(match self { #body })
             }

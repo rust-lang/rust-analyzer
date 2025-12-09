@@ -1,5 +1,5 @@
 use hir::{HasSource, HasVisibility, ModuleDef, PathResolution, ScopeDef, db::HirDatabase};
-use ide_db::FileId;
+use ide_db::File;
 use syntax::{
     AstNode, TextRange,
     ast::{self, HasVisibility as _, syntax_factory::SyntaxFactory},
@@ -113,11 +113,11 @@ fn add_vis_to_referenced_module_def(acc: &mut Assists, ctx: &AssistContext<'_, '
 fn target_data_for_def(
     db: &dyn HirDatabase,
     def: hir::ModuleDef,
-) -> Option<(ast::AnyHasVisibility, TextRange, FileId, Option<hir::Name>)> {
+) -> Option<(ast::AnyHasVisibility, TextRange, File, Option<hir::Name>)> {
     fn offset_target_and_file_id<S, Ast>(
         db: &dyn HirDatabase,
         x: S,
-    ) -> Option<(ast::AnyHasVisibility, TextRange, FileId)>
+    ) -> Option<(ast::AnyHasVisibility, TextRange, File)>
     where
         S: HasSource<Ast = Ast>,
         Ast: AstNode + ast::HasVisibility,
@@ -126,11 +126,7 @@ fn target_data_for_def(
         let in_file_syntax = source.syntax();
         let file_id = in_file_syntax.file_id;
         let range = in_file_syntax.value.text_range();
-        Some((
-            ast::AnyHasVisibility::new(source.value),
-            range,
-            file_id.original_file(db).file_id(db),
-        ))
+        Some((ast::AnyHasVisibility::new(source.value), range, file_id.original_file(db).file(db)))
     }
 
     let target_name;
@@ -168,7 +164,7 @@ fn target_data_for_def(
             let in_file_source = m.declaration_source(db)?;
             let file_id = in_file_source.file_id.original_file(db);
             let range = in_file_source.value.syntax().text_range();
-            (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file_id(db))
+            (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file(db))
         }
         // FIXME
         hir::ModuleDef::Macro(_) => return None,

@@ -93,7 +93,7 @@ pub(super) fn doc_comment(
         Some(it) => it,
         None => return,
     };
-    let vfs_file_id = src_file_id.file_id(sema.db);
+    let vfs_file_id = src_file_id.file(sema.db);
     let src_file_id: HirFileId = src_file_id.into();
     let Some(docs) = attributes.hir_docs(sema.db) else { return };
 

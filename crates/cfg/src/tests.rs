@@ -3,9 +3,8 @@ use expect_test::{Expect, expect};
 use intern::Symbol;
 use syntax::{AstNode, Edition, ast};
 use syntax_bridge::{
-    DocCommentDesugarMode,
-    dummy_test_span_utils::{DUMMY, DummyTestSpanMap},
-    syntax_node_to_token_tree,
+    DocCommentDesugarMode, syntax_node_to_token_tree,
+    test_span_utils::{TEST_SPAN, TestSpanMap},
 };
 
 use crate::{CfgAtom, CfgExpr, CfgOptions, DnfExpr};
@@ -21,8 +20,8 @@ fn assert_parse_result(input: &str, expected: CfgExpr) {
     let pred_ast = source_file.descendants().find_map(ast::CfgPredicate::cast).unwrap();
     let tt = syntax_node_to_token_tree(
         pred_ast.syntax(),
-        DummyTestSpanMap,
-        DUMMY,
+        TestSpanMap,
+        TEST_SPAN,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
@@ -37,8 +36,8 @@ fn check_dnf(input: &str, expect: Expect) {
     let pred_ast = source_file.syntax().descendants().find_map(ast::CfgPredicate::cast).unwrap();
     let tt = syntax_node_to_token_tree(
         pred_ast.syntax(),
-        DummyTestSpanMap,
-        DUMMY,
+        TestSpanMap,
+        TEST_SPAN,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
@@ -55,8 +54,8 @@ fn check_why_inactive(input: &str, opts: &CfgOptions, expect: Expect) {
     let pred_ast = source_file.syntax().descendants().find_map(ast::CfgPredicate::cast).unwrap();
     let tt = syntax_node_to_token_tree(
         pred_ast.syntax(),
-        DummyTestSpanMap,
-        DUMMY,
+        TestSpanMap,
+        TEST_SPAN,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);
@@ -75,8 +74,8 @@ fn check_enable_hints(input: &str, opts: &CfgOptions, expected_hints: &[&str]) {
     let pred_ast = source_file.syntax().descendants().find_map(ast::CfgPredicate::cast).unwrap();
     let tt = syntax_node_to_token_tree(
         pred_ast.syntax(),
-        DummyTestSpanMap,
-        DUMMY,
+        TestSpanMap,
+        TEST_SPAN,
         DocCommentDesugarMode::ProcMacro,
     );
     let cfg = CfgExpr::parse(&tt);

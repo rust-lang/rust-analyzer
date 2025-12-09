@@ -47,7 +47,7 @@ fn fixes(sema: &Semantics<'_, RootDatabase>, d: &hir::NonExhaustiveLet) -> Optio
     };
     let semicolon = if let_stmt.semicolon_token().is_none() { ";" } else { "" };
     let else_block = format!(" else {{ {early_text} }}{semicolon}");
-    let file_id = file_id.file_id(sema.db);
+    let file_id = file_id.file(sema.db);
 
     let source_change =
         SourceChange::from_text_edit(file_id, TextEdit::insert(insert_offset, else_block));

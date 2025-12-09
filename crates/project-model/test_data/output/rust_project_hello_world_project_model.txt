@@ -1,8 +1,8 @@
 {
     0: CrateBuilder {
         basic: CrateData {
-            root_file_id: FileId(
-                1,
+            root_file_id: File(
+                0,
             ),
             edition: Edition2018,
             dependencies: [],

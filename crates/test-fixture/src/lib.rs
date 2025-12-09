@@ -10,8 +10,8 @@ use std::{any::TypeId, mem, str::FromStr, sync};
 use base_db::target::TargetData;
 use base_db::{
     Crate, CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CrateWorkspaceData,
-    DependencyBuilder, Env, FileChange, FileSet, FxIndexMap, LangCrateOrigin, SourceDatabase,
-    SourceRoot, Version, VfsPath, all_crates,
+    DependencyBuilder, Env, FileChange, FileRegistration, FileRoot, FileRootId, FileRootKind,
+    FxIndexMap, LangCrateOrigin, SourceDatabase, Version, VfsPath, all_crates,
 };
 use cfg::CfgOptions;
 use hir_expand::{
@@ -26,7 +26,8 @@ use hir_expand::{
 };
 use intern::{Symbol, sym};
 use paths::AbsPathBuf;
-use span::{Edition, FileId, Span};
+use rustc_hash::FxHashSet;
+use span::{Edition, File, Span};
 use stdx::itertools::Itertools;
 use test_utils::{
     CURSOR_MARKER, ESCAPED_CURSOR_MARKER, Fixture, FixtureWithProjectMeta, MiniCore, RangeOrOffset,
@@ -34,7 +35,7 @@ use test_utils::{
 };
 use triomphe::Arc;
 
-pub const WORKSPACE: base_db::SourceRootId = base_db::SourceRootId(0);
+pub const WORKSPACE: base_db::FileRootId = base_db::FileRootId(0);
 
 /// A trait for setting up test databases from fixture strings.
 ///
@@ -72,7 +73,7 @@ pub const WORKSPACE: base_db::SourceRootId = base_db::SourceRootId(0);
 /// - **`cfg:<key>=<value>,<flag>`**: Configuration options, e.g., `cfg:test,feature="foo"`
 /// - **`env:<KEY>=<value>`**: Environment variables
 /// - **`crate-attr:<attr>`**: Crate-level attributes, e.g., `crate-attr:no_std`
-/// - **`new_source_root:local|library`**: Starts a new source root
+/// - **`new_file_root:local|library`**: Starts a new file root
 /// - **`library`**: Marks crate as external library (not workspace member)
 ///
 /// ## Global Meta (must appear at the top, in order)
@@ -145,7 +146,7 @@ pub trait WithFixture: Default + SourceDatabase + 'static {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) -> (Self, EditionedFileId) {
         let mut db = Self::default();
-        let fixture = ChangeFixture::parse(ra_fixture);
+        let fixture = ChangeFixture::parse(&db, ra_fixture);
         fixture.change.apply(&mut db);
         assert_eq!(fixture.files.len(), 1, "Multiple file found in the fixture");
         let file_id = EditionedFileId::from_span_file_id(&db, fixture.files[0]);
@@ -158,7 +159,7 @@ pub trait WithFixture: Default + SourceDatabase + 'static {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) -> (Self, Vec<EditionedFileId>) {
         let mut db = Self::default();
-        let fixture = ChangeFixture::parse(ra_fixture);
+        let fixture = ChangeFixture::parse(&db, ra_fixture);
         fixture.change.apply(&mut db);
         assert!(fixture.file_position.is_none());
         let files = fixture
@@ -173,7 +174,7 @@ pub trait WithFixture: Default + SourceDatabase + 'static {
     #[track_caller]
     fn with_files(#[rust_analyzer::rust_fixture] ra_fixture: &str) -> Self {
         let mut db = Self::default();
-        let fixture = ChangeFixture::parse(ra_fixture);
+        let fixture = ChangeFixture::parse(&db, ra_fixture);
         fixture.change.apply(&mut db);
         assert!(fixture.file_position.is_none());
         db
@@ -186,8 +187,12 @@ pub trait WithFixture: Default + SourceDatabase + 'static {
         proc_macros: Vec<(String, ProcMacro)>,
     ) -> Self {
         let mut db = Self::default();
-        let fixture =
-            ChangeFixture::parse_with_proc_macros(ra_fixture, MiniCore::RAW_SOURCE, proc_macros);
+        let fixture = ChangeFixture::parse_with_proc_macros(
+            &db,
+            ra_fixture,
+            MiniCore::RAW_SOURCE,
+            proc_macros,
+        );
         fixture.change.apply(&mut db);
         assert!(fixture.file_position.is_none());
         db
@@ -215,7 +220,7 @@ pub trait WithFixture: Default + SourceDatabase + 'static {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) -> (Self, EditionedFileId, RangeOrOffset) {
         let mut db = Self::default();
-        let fixture = ChangeFixture::parse(ra_fixture);
+        let fixture = ChangeFixture::parse(&db, ra_fixture);
         fixture.change.apply(&mut db);
 
         let (file_id, range_or_offset) = fixture
@@ -237,17 +242,21 @@ pub struct ChangeFixture {
     pub file_lines: Vec<usize>,
     pub files: Vec<span::EditionedFileId>,
     pub change: ChangeWithProcMacros,
-    pub sysroot_files: Vec<FileId>,
+    pub sysroot_files: Vec<File>,
 }
 
 const SOURCE_ROOT_PREFIX: &str = "/";
 
 impl ChangeFixture {
-    pub fn parse(#[rust_analyzer::rust_fixture] ra_fixture: &str) -> ChangeFixture {
-        Self::parse_with_proc_macros(ra_fixture, MiniCore::RAW_SOURCE, Vec::new())
+    pub fn parse(
+        db: &dyn SourceDatabase,
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+    ) -> ChangeFixture {
+        Self::parse_with_proc_macros(db, ra_fixture, MiniCore::RAW_SOURCE, Vec::new())
     }
 
     pub fn parse_with_proc_macros(
+        db: &dyn SourceDatabase,
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
         minicore_raw: &str,
         mut proc_macro_defs: Vec<(String, ProcMacro)>,
@@ -275,7 +284,7 @@ impl ChangeFixture {
         let mut crate_graph = CrateGraphBuilder::default();
         let mut crates = FxIndexMap::default();
         let mut crate_deps = Vec::new();
-        let mut default_crate_root: Option<FileId> = None;
+        let mut default_crate_root: Option<File> = None;
         let mut default_edition = Edition::CURRENT;
         let mut default_cfg = CfgOptions::default();
         let mut default_env = Env::from_iter([(
@@ -283,10 +292,10 @@ impl ChangeFixture {
             String::from("__ra_is_test_fixture"),
         )]);
 
-        let mut file_set = FileSet::default();
-        let mut current_source_root_kind = SourceRootKind::Local;
-        let mut file_id = FileId::from_raw(0);
+        let mut current_file_root_files = Vec::new();
+        let mut current_file_root_kind = FileRootKind::Local;
         let mut roots = Vec::new();
+        let mut seen_paths = FxHashSet::default();
 
         let mut file_position = None;
 
@@ -312,7 +321,9 @@ impl ChangeFixture {
                 entry.text.as_str().into()
             };
 
-            let meta = FileMeta::from_fixture(entry, current_source_root_kind);
+            let meta = FileMeta::from_fixture(entry, current_file_root_kind);
+            let path = VfsPath::new_virtual_path(meta.path.clone());
+            let file_id = File::new(db.as_dyn_database(), path.clone());
             if let Some(range_or_offset) = range_or_offset {
                 file_position =
                     Some((span::EditionedFileId::new(file_id, meta.edition), range_or_offset));
@@ -323,17 +334,13 @@ impl ChangeFixture {
                 assert!(meta.krate.is_some(), "can't specify deps without naming the crate")
             }
 
-            if let Some(kind) = meta.introduce_new_source_root {
+            if let Some(kind) = meta.introduce_new_file_root {
                 assert!(
                     meta.krate.is_some(),
-                    "new_source_root meta doesn't make sense without crate meta"
+                    "new_file_root meta doesn't make sense without crate meta"
                 );
-                let prev_kind = mem::replace(&mut current_source_root_kind, kind);
-                let prev_root = match prev_kind {
-                    SourceRootKind::Local => SourceRoot::new_local(mem::take(&mut file_set)),
-                    SourceRootKind::Library => SourceRoot::new_library(mem::take(&mut file_set)),
-                };
-                roots.push(prev_root);
+                let prev_kind = mem::replace(&mut current_file_root_kind, kind);
+                roots.push((prev_kind, mem::take(&mut current_file_root_files)));
             }
 
             if let Some((krate, origin, version)) = meta.krate {
@@ -371,19 +378,21 @@ impl ChangeFixture {
             }
 
             source_change.change_file(file_id, Some(text));
-            let path = VfsPath::new_virtual_path(meta.path);
-            file_set.insert(file_id, path);
+            assert!(
+                seen_paths.insert(meta.path.clone()),
+                "duplicate fixture path `{}`: two crates cannot share a root file, \
+                 give each crate a distinct path (e.g. `/{{crate}}/lib.rs`)",
+                meta.path
+            );
+            current_file_root_files.push((file_id, path));
             files.push(span::EditionedFileId::new(file_id, meta.edition));
-            file_id = FileId::from_raw(file_id.index() + 1);
         }
 
         let mini_core = mini_core.map(|mini_core| {
-            let core_file = file_id;
-            file_id = FileId::from_raw(file_id.index() + 1);
+            let path = VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_owned());
+            let core_file = File::new(db.as_dyn_database(), path.clone());
 
-            let mut fs = FileSet::default();
-            fs.insert(core_file, VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_owned()));
-            roots.push(SourceRoot::new_library(fs));
+            roots.push((FileRootKind::Library, vec![(core_file, path)]));
 
             sysroot_files.push(core_file);
 
@@ -467,16 +476,12 @@ impl ChangeFixture {
 
         let mut proc_macros = ProcMacrosBuilder::default();
         if !proc_macro_names.is_empty() {
-            let proc_lib_file = file_id;
+            let path = VfsPath::new_virtual_path("/sysroot/proc_macros/lib.rs".to_owned());
+            let proc_lib_file = File::new(db.as_dyn_database(), path.clone());
 
             proc_macro_defs.extend(default_test_proc_macros());
             let (proc_macro, source) = filter_test_proc_macros(&proc_macro_names, proc_macro_defs);
-            let mut fs = FileSet::default();
-            fs.insert(
-                proc_lib_file,
-                VfsPath::new_virtual_path("/sysroot/proc_macros/lib.rs".to_owned()),
-            );
-            roots.push(SourceRoot::new_library(fs));
+            roots.push((FileRootKind::Library, vec![(proc_lib_file, path)]));
 
             sysroot_files.push(proc_lib_file);
 
@@ -516,17 +521,22 @@ impl ChangeFixture {
             }
         }
 
-        let _ = file_id;
-
-        let root = match current_source_root_kind {
-            SourceRootKind::Local => SourceRoot::new_local(mem::take(&mut file_set)),
-            SourceRootKind::Library => SourceRoot::new_library(mem::take(&mut file_set)),
-        };
-        roots.push(root);
+        roots.push((current_file_root_kind, mem::take(&mut current_file_root_files)));
 
         let mut change = ChangeWithProcMacros { source_change, proc_macros: Some(proc_macros) };
 
-        change.source_change.set_roots(roots);
+        let file_registrations = roots
+            .into_iter()
+            .enumerate()
+            .flat_map(|(idx, (kind, files))| {
+                let root = FileRoot { id: FileRootId(idx as u32), kind };
+                files
+                    .into_iter()
+                    .map(move |(file, _)| FileRegistration { file, root })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        change.source_change.set_indexed_files(file_registrations);
         change.source_change.set_crate_graph(crate_graph);
 
         ChangeFixture { file_position, file_lines, files, change, sysroot_files }
@@ -732,12 +742,6 @@ fn filter_test_proc_macros(
     (proc_macros, source)
 }
 
-#[derive(Debug, Clone, Copy)]
-enum SourceRootKind {
-    Local,
-    Library,
-}
-
 #[derive(Debug)]
 struct FileMeta {
     path: String,
@@ -748,11 +752,11 @@ struct FileMeta {
     edition: Edition,
     env: Env,
     crate_attrs: Vec<String>,
-    introduce_new_source_root: Option<SourceRootKind>,
+    introduce_new_file_root: Option<FileRootKind>,
 }
 
 impl FileMeta {
-    fn from_fixture(f: Fixture, current_source_root_kind: SourceRootKind) -> Self {
+    fn from_fixture(f: Fixture, current_file_root_kind: FileRootKind) -> Self {
         let mut cfg = CfgOptions::default();
         for (k, v) in f.cfgs {
             if let Some(v) = v {
@@ -762,25 +766,24 @@ impl FileMeta {
             }
         }
 
-        let introduce_new_source_root = f.introduce_new_source_root.map(|kind| match &*kind {
-            "local" => SourceRootKind::Local,
-            "library" => SourceRootKind::Library,
-            invalid => panic!("invalid source root kind '{invalid}'"),
+        let introduce_new_file_root = f.introduce_new_file_root.map(|kind| match &*kind {
+            "local" => FileRootKind::Local,
+            "library" => FileRootKind::Library,
+            invalid => panic!("invalid file root kind '{invalid}'"),
         });
-        let current_source_root_kind =
-            introduce_new_source_root.unwrap_or(current_source_root_kind);
+        let current_file_root_kind = introduce_new_file_root.unwrap_or(current_file_root_kind);
 
         let deps = f.deps;
         Self {
             path: f.path,
-            krate: f.krate.map(|it| parse_crate(it, current_source_root_kind, f.library)),
+            krate: f.krate.map(|it| parse_crate(it, current_file_root_kind, f.library)),
             extern_prelude: f.extern_prelude,
             deps,
             cfg,
             edition: f.edition.map_or(Edition::CURRENT, |v| Edition::from_str(&v).unwrap()),
             env: f.env.into_iter().collect(),
             crate_attrs: f.crate_attrs,
-            introduce_new_source_root,
+            introduce_new_file_root,
         }
     }
 }
@@ -793,7 +796,7 @@ enum ForceNoneLangOrigin {
 
 fn parse_crate(
     crate_str: String,
-    current_source_root_kind: SourceRootKind,
+    current_file_root_kind: FileRootKind,
     explicit_non_workspace_member: bool,
 ) -> (String, CrateOrigin, Option<String>) {
     let (crate_str, force_non_lang_origin) = if let Some(s) = crate_str.strip_prefix("r#") {
@@ -814,7 +817,10 @@ fn parse_crate(
     };
 
     let non_workspace_member = explicit_non_workspace_member
-        || matches!(current_source_root_kind, SourceRootKind::Library);
+        || match current_file_root_kind {
+            FileRootKind::Local => false,
+            FileRootKind::Library => true,
+        };
 
     let origin = if force_non_lang_origin == ForceNoneLangOrigin::Yes {
         let name = Symbol::intern(&name);

@@ -1,7 +1,7 @@
 use crate::assist_context::{AssistContext, Assists};
 use hir::{HasVisibility, HirDisplay, Module};
 use ide_db::{
-    FileId,
+    File,
     assists::AssistId,
     defs::{Definition, NameRefClass},
 };
@@ -116,7 +116,7 @@ fn target_data_for_generate_constant(
     ctx: &AssistContext<'_, '_>,
     current_module: Module,
     constant_module: Module,
-) -> Option<(TextSize, IndentLevel, Option<FileId>, String)> {
+) -> Option<(TextSize, IndentLevel, Option<File>, String)> {
     if current_module == constant_module {
         // insert in current file
         return None;
@@ -134,9 +134,9 @@ fn target_data_for_generate_constant(
                 .any(|it| it.kind() == SyntaxKind::WHITESPACE && it.to_string().contains('\n'));
             let post_string =
                 if siblings_has_newline { format!("{indent}") } else { format!("\n{indent}") };
-            Some((offset, indent + 1, Some(file_id.file_id(ctx.db())), post_string))
+            Some((offset, indent + 1, Some(file_id.file(ctx.db())), post_string))
         }
-        _ => Some((TextSize::from(0), 0.into(), Some(file_id.file_id(ctx.db())), "\n".into())),
+        _ => Some((TextSize::from(0), 0.into(), Some(file_id.file(ctx.db())), "\n".into())),
     }
 }
 

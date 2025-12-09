@@ -32,7 +32,7 @@ use rustc_type_ir::{
     inherent::{GenericArgs as _, IntoKind, Region as _, SliceLike, Ty as _},
 };
 use salsa::SalsaValue;
-use span::FileId;
+use span::File;
 use stdx::never;
 use syntax::{SyntaxNodePtr, TextRange};
 use triomphe::Arc;
@@ -383,7 +383,7 @@ impl MirEvalError<'_> {
         &self,
         f: &mut String,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(FileId, TextRange) -> String,
+        span_formatter: impl Fn(File, TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
         writeln!(f, "Mir eval error:")?;
@@ -442,7 +442,7 @@ impl MirEvalError<'_> {
                 };
                 let file_id = span.file_id.original_file(db);
                 let text_range = span.value.text_range();
-                writeln!(f, "{}", span_formatter(file_id.file_id(db), text_range))?;
+                writeln!(f, "{}", span_formatter(file_id.file(db), text_range))?;
             }
         }
         match err {
@@ -737,9 +737,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         let Some((file_id, text_range)) = self.resolve_mir_span(owner, span) else {
             return (String::new(), 0, 0);
         };
-        let source_root = self.db.file_source_root(file_id).source_root_id(self.db);
-        let source_root = self.db.source_root(source_root).source_root(self.db);
-        let path = source_root.path_for_file(&file_id).map(|path| path.to_string());
+        let path = self.db.file_path(file_id).map(|path| path.to_string());
         let (line, col) = self.db.line_column(file_id, text_range.start()).unwrap_or((0, 0));
         (path.unwrap_or_default(), line + 1, col + 1)
     }
@@ -748,7 +746,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         &self,
         owner: InferBodyId<'db>,
         span: MirSpan,
-    ) -> Option<(FileId, TextRange)> {
+    ) -> Option<(File, TextRange)> {
         let (source_map, self_param_syntax) = match owner {
             InferBodyId::DefWithBodyId(def) => {
                 let body = &Body::with_source_map(self.db, def).1;
@@ -770,7 +768,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
             MirSpan::Unknown => return None,
         };
         let file_id = span.file_id.original_file(self.db);
-        Some((file_id.file_id(self.db), span.value.text_range()))
+        Some((file_id.file(self.db), span.value.text_range()))
     }
 
     fn projected_ty(&self, ty: PlaceTy<'db>, proj: PlaceElem) -> PlaceTy<'db> {

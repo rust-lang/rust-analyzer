@@ -1,7 +1,6 @@
-use ide_db::RootDatabase;
 use ide_db::base_db::{BuiltCrateData, ExtraCrateData};
+use ide_db::{File, RootDatabase};
 use itertools::Itertools;
-use span::FileId;
 use stdx::format_to;
 
 // Feature: Status
@@ -13,7 +12,7 @@ use stdx::format_to;
 // | VS Code | **rust-analyzer: Status** |
 //
 // ![Status](https://user-images.githubusercontent.com/48062697/113065584-05f34500-91b1-11eb-98cc-5c196f76be7f.gif)
-pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
+pub(crate) fn status(db: &RootDatabase, file_id: Option<File>) -> String {
     let mut buf = String::new();
 
     // format_to!(buf, "{}\n", collect_query(CompressedFileTextQuery.in_db(db)));

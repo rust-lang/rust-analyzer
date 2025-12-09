@@ -68,8 +68,8 @@ use hir::{ChangeWithProcMacros, EditionedFileId, crate_def_map, sym};
 use ide_db::{
     FxHashMap, FxIndexSet,
     base_db::{
-        AbsPathBuf, CrateOrigin, CrateWorkspaceData, Env, FileSet, SourceDatabase, VfsPath,
-        relevant_crates,
+        AbsPathBuf, CrateOrigin, CrateWorkspaceData, Env, SourceDatabase, VfsPath,
+        local_file_roots, relevant_crates,
         salsa::{Cancelled, Database, Durability},
     },
     line_index, prime_caches,
@@ -133,9 +133,11 @@ pub use ide_completion::{
     SnippetScope,
 };
 pub use ide_db::{
-    FileId, FilePosition, FileRange, RootDatabase, Severity, SymbolKind,
+    File, FilePosition, FileRange, RootDatabase, Severity, SymbolKind,
     assists::ExprFillDefaultMode,
-    base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId},
+    base_db::{
+        Crate, CrateGraphBuilder, FileChange, FileRegistration, FileRoot, FileRootId, FileRootKind,
+    },
     documentation::Documentation,
     label::Label,
     line_index::{LineCol, LineIndex},
@@ -254,15 +256,16 @@ impl Analysis {
     // Creates an analysis instance for a single file, without any external
     // dependencies, stdlib support or ability to apply changes. See
     // `AnalysisHost` for creating a fully-featured analysis.
-    pub fn from_single_file(text: String, proc_macro_cwd: Arc<AbsPathBuf>) -> (Analysis, FileId) {
+    pub fn from_single_file(text: String, proc_macro_cwd: Arc<AbsPathBuf>) -> (Analysis, File) {
         let mut host = AnalysisHost::default();
-        let file_id = FileId::from_raw(0);
-        let mut file_set = FileSet::default();
-        file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_owned()));
-        let source_root = SourceRoot::new_local(file_set);
+        let path = VfsPath::new_virtual_path("/main.rs".to_owned());
+        let file_id = File::new(&host.db, path);
 
         let mut change = ChangeWithProcMacros::default();
-        change.set_roots(vec![source_root]);
+        change.set_indexed_files(vec![FileRegistration {
+            file: file_id,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        }]);
         let mut crate_graph = CrateGraphBuilder::default();
         // FIXME: cfg options
         // Default to enable test for single file.
@@ -317,19 +320,21 @@ impl Analysis {
     }
 
     /// Debug info about the current state of the analysis.
-    pub fn status(&self, file_id: Option<FileId>) -> Cancellable<String> {
+    pub fn status(&self, file_id: Option<File>) -> Cancellable<String> {
         self.with_db(|db| status::status(db, file_id))
     }
 
-    pub fn source_root_id(&self, file_id: FileId) -> Cancellable<SourceRootId> {
-        self.with_db(|db| db.file_source_root(file_id).source_root_id(db))
+    pub fn file_root_id(&self, file_id: File) -> Cancellable<FileRootId> {
+        self.with_db(|db| {
+            let Some(root) = db.file_root(file_id) else {
+                panic!("Unable to fetch file root for `vfs::File`: {file_id:?}; this is a bug")
+            };
+            root.id
+        })
     }
 
-    pub fn is_local_source_root(&self, source_root_id: SourceRootId) -> Cancellable<bool> {
-        self.with_db(|db| {
-            let sr = db.source_root(source_root_id).source_root(db);
-            !sr.is_library
-        })
+    pub fn is_local_file_root(&self, file_root_id: FileRootId) -> Cancellable<bool> {
+        self.with_db(|db| local_file_roots(db).contains(&file_root_id))
     }
 
     /// Warm caches for the given `scope`. `scope` must be closed under
@@ -350,12 +355,12 @@ impl Analysis {
     }
 
     /// Gets the text of the source file.
-    pub fn file_text(&self, file_id: FileId) -> Cancellable<Arc<str>> {
-        self.with_db(|db| SourceDatabase::file_text(db, file_id).text(db).clone())
+    pub fn file_text(&self, file_id: File) -> Cancellable<Arc<str>> {
+        self.with_db(|db| db.file_data(file_id).text(db).clone())
     }
 
     /// Gets the syntax tree of the file.
-    pub fn parse(&self, file_id: FileId) -> Cancellable<SourceFile> {
+    pub fn parse(&self, file_id: File) -> Cancellable<SourceFile> {
         // FIXME edition
         self.with_db(|db| {
             let editioned_file_id_wrapper = EditionedFileId::current_edition(&self.db, file_id);
@@ -365,17 +370,34 @@ impl Analysis {
     }
 
     /// Returns true if this file belongs to an immutable library.
-    pub fn is_library_file(&self, file_id: FileId) -> Cancellable<bool> {
+    pub fn is_library_file(&self, file_id: File) -> Cancellable<bool> {
         self.with_db(|db| {
-            let source_root = db.file_source_root(file_id).source_root_id(db);
-            db.source_root(source_root).source_root(db).is_library
+            let Some(root) = db.file_root(file_id) else {
+                return false;
+            };
+            root.kind == FileRootKind::Library
         })
     }
 
     /// Gets the file's `LineIndex`: data structure to convert between absolute
     /// offsets and line/column representation.
-    pub fn file_line_index(&self, file_id: FileId) -> Cancellable<Arc<LineIndex>> {
+    pub fn file_line_index(&self, file_id: File) -> Cancellable<Arc<LineIndex>> {
         self.with_db(|db| line_index(db, file_id).clone())
+    }
+
+    /// Gets the line endings of the original (pre-normalization) file text.
+    pub fn file_line_endings(&self, file_id: File) -> Cancellable<ide_db::base_db::LineEndings> {
+        self.with_db(|db| db.file_data(file_id).line_endings(db))
+    }
+
+    /// The path of a file, or `None` if the file id is unknown to the VFS.
+    pub fn file_path(&self, file_id: File) -> Option<VfsPath> {
+        hir::attach_db(&self.db, || SourceDatabase::file_path(&self.db, file_id))
+    }
+
+    /// The file id for a path, or `None` if the path is unknown or excluded.
+    pub fn file_id_for_path(&self, path: &VfsPath) -> Option<File> {
+        hir::attach_db(&self.db, || self.db.file_for_indexed_path(path))
     }
 
     /// Selects the next syntactic nodes encompassing the range.
@@ -394,7 +416,7 @@ impl Analysis {
         })
     }
 
-    pub fn view_syntax_tree(&self, file_id: FileId) -> Cancellable<String> {
+    pub fn view_syntax_tree(&self, file_id: File) -> Cancellable<String> {
         self.with_db(|db| view_syntax_tree::view_syntax_tree(db, file_id))
     }
 
@@ -418,7 +440,7 @@ impl Analysis {
         self.with_db(|db| interpret::interpret(db, position))
     }
 
-    pub fn view_item_tree(&self, file_id: FileId) -> Cancellable<String> {
+    pub fn view_item_tree(&self, file_id: File) -> Cancellable<String> {
         self.with_db(|db| view_item_tree::view_item_tree(db, file_id))
     }
 
@@ -434,7 +456,7 @@ impl Analysis {
         self.with_db(|db| test_explorer::discover_tests_in_crate(db, crate_id))
     }
 
-    pub fn discover_tests_in_file(&self, file_id: FileId) -> Cancellable<Vec<TestItem>> {
+    pub fn discover_tests_in_file(&self, file_id: File) -> Cancellable<Vec<TestItem>> {
         self.with_db(|db| test_explorer::discover_tests_in_file(db, file_id))
     }
 
@@ -493,7 +515,7 @@ impl Analysis {
     pub fn file_structure(
         &self,
         config: &FileStructureConfig,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Vec<StructureNode>> {
         // FIXME: Edition
         self.with_db(|db| {
@@ -507,7 +529,7 @@ impl Analysis {
     pub fn inlay_hints(
         &self,
         config: &InlayHintsConfig<'_>,
-        file_id: FileId,
+        file_id: File,
         range: Option<TextRange>,
     ) -> Cancellable<Vec<InlayHint>> {
         self.with_db(|db| inlay_hints::inlay_hints(db, file_id, range, config))
@@ -515,7 +537,7 @@ impl Analysis {
     pub fn inlay_hints_resolve(
         &self,
         config: &InlayHintsConfig<'_>,
-        file_id: FileId,
+        file_id: File,
         resolve_range: TextRange,
         hash: u64,
         hasher: impl Fn(&InlayHint) -> u64 + Send + UnwindSafe,
@@ -526,7 +548,7 @@ impl Analysis {
     }
 
     /// Returns the set of folding ranges.
-    pub fn folding_ranges(&self, file_id: FileId, collapsed_text: bool) -> Cancellable<Vec<Fold>> {
+    pub fn folding_ranges(&self, file_id: File, collapsed_text: bool) -> Cancellable<Vec<Fold>> {
         self.with_db(|db| {
             let editioned_file_id_wrapper = EditionedFileId::current_edition(&self.db, file_id);
 
@@ -673,7 +695,7 @@ impl Analysis {
     }
 
     /// Returns crates that this file belongs to.
-    pub fn crates_for(&self, file_id: FileId) -> Cancellable<Vec<Crate>> {
+    pub fn crates_for(&self, file_id: File) -> Cancellable<Vec<Crate>> {
         self.with_db(|db| parent_module::crates_for(db, file_id))
     }
 
@@ -683,7 +705,7 @@ impl Analysis {
     }
 
     /// Returns crates that this file *might* belong to.
-    pub fn relevant_crates_for(&self, file_id: FileId) -> Cancellable<Vec<Crate>> {
+    pub fn relevant_crates_for(&self, file_id: File) -> Cancellable<Vec<Crate>> {
         self.with_db(|db| relevant_crates(db, file_id).to_vec())
     }
 
@@ -703,12 +725,12 @@ impl Analysis {
     }
 
     /// Returns the root file of the given crate.
-    pub fn crate_root(&self, crate_id: Crate) -> Cancellable<FileId> {
+    pub fn crate_root(&self, crate_id: Crate) -> Cancellable<File> {
         self.with_db(|db| crate_id.data(db).root_file_id)
     }
 
     /// Returns the set of possible targets to run for the current file.
-    pub fn runnables(&self, file_id: FileId) -> Cancellable<Vec<Runnable>> {
+    pub fn runnables(&self, file_id: File) -> Cancellable<Vec<Runnable>> {
         self.with_db(|db| runnables::runnables(db, file_id))
     }
 
@@ -740,7 +762,7 @@ impl Analysis {
     pub fn highlight(
         &self,
         highlight_config: HighlightConfig<'_>,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Vec<HlRange>> {
         self.with_db(|db| syntax_highlighting::highlight(db, &highlight_config, file_id, None))
     }
@@ -765,7 +787,7 @@ impl Analysis {
     pub fn highlight_as_html_with_config(
         &self,
         config: HighlightConfig<'_>,
-        file_id: FileId,
+        file_id: File,
         rainbow: bool,
     ) -> Cancellable<String> {
         self.with_db(|db| {
@@ -774,7 +796,7 @@ impl Analysis {
     }
 
     /// Computes syntax highlighting for the given file.
-    pub fn highlight_as_html(&self, file_id: FileId, rainbow: bool) -> Cancellable<String> {
+    pub fn highlight_as_html(&self, file_id: File, rainbow: bool) -> Cancellable<String> {
         self.with_db(|db| syntax_highlighting::highlight_as_html(db, file_id, rainbow))
     }
 
@@ -804,7 +826,7 @@ impl Analysis {
     pub fn syntax_diagnostics(
         &self,
         config: &DiagnosticsConfig,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Vec<Diagnostic>> {
         self.with_db(|db| ide_diagnostics::syntax_diagnostics(db, config, file_id))
     }
@@ -814,7 +836,7 @@ impl Analysis {
         &self,
         config: &DiagnosticsConfig,
         resolve: AssistResolveStrategy,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Vec<Diagnostic>> {
         self.with_db(|db| ide_diagnostics::semantic_diagnostics(db, config, &resolve, file_id))
     }
@@ -824,7 +846,7 @@ impl Analysis {
         &self,
         config: &DiagnosticsConfig,
         resolve: AssistResolveStrategy,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Vec<Diagnostic>> {
         self.with_db(|db| ide_diagnostics::full_diagnostics(db, config, &resolve, file_id))
     }
@@ -883,7 +905,7 @@ impl Analysis {
 
     pub fn will_rename_file(
         &self,
-        file_id: FileId,
+        file_id: File,
         new_name_stem: &str,
         config: &RenameConfig,
     ) -> Cancellable<Option<SourceChange>> {
@@ -910,7 +932,7 @@ impl Analysis {
     pub fn annotations(
         &self,
         config: &AnnotationConfig<'_>,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Vec<Annotation>> {
         self.with_db(|db| annotations::annotations(db, config, file_id))
     }
@@ -938,7 +960,7 @@ impl Analysis {
         self.with_db(|db| view_memory_layout(db, position))
     }
 
-    pub fn get_failed_obligations(&self, offset: TextSize, file_id: FileId) -> Cancellable<String> {
+    pub fn get_failed_obligations(&self, offset: TextSize, file_id: File) -> Cancellable<String> {
         self.with_db(|db| {
             let sema = Semantics::new(db);
             let source_file = sema.parse_guess_edition(file_id);
@@ -950,8 +972,8 @@ impl Analysis {
         })
     }
 
-    pub fn editioned_file_id_to_vfs(&self, file_id: hir::EditionedFileId) -> FileId {
-        file_id.file_id(&self.db)
+    pub fn editioned_file_id_to_vfs(&self, file_id: hir::EditionedFileId) -> File {
+        file_id.file(&self.db)
     }
 
     /// Performs an operation on the database that may be canceled.
@@ -980,4 +1002,24 @@ impl Analysis {
 fn analysis_is_send() {
     fn is_send<T: Send>() {}
     is_send::<Analysis>();
+}
+
+#[test]
+fn file_path_accessors_use_file_roots() {
+    let mut host = AnalysisHost::default();
+    let path = VfsPath::new_virtual_path("/lib.rs".to_owned());
+    let file_id = File::new(&host.db, path.clone());
+
+    let mut change = ChangeWithProcMacros::default();
+    change.set_indexed_files(vec![FileRegistration {
+        file: file_id,
+        root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+    }]);
+    host.apply_change(change);
+
+    let analysis = host.analysis();
+    assert_eq!(analysis.file_path(file_id), Some(path.clone()));
+    assert_eq!(analysis.file_id_for_path(&path), Some(file_id));
+    let missing = File::new(&host.db, VfsPath::new_virtual_path("/missing.rs".to_owned()));
+    assert_eq!(analysis.file_path(missing), None);
 }

@@ -227,8 +227,8 @@ fn caller() {
     call$0ee();
 }
 "#,
-            expect![["callee Function FileId(0) 0..14 3..9"]],
-            expect!["caller Function FileId(0) 15..44 18..24 : FileId(0):33..39"],
+            expect!["callee Function File(512) 0..14 3..9"],
+            expect!["caller Function File(512) 15..44 18..24 : File(512):33..39"],
             expect![[]],
         );
     }
@@ -244,8 +244,8 @@ fn caller() {
     callee();
 }
 "#,
-            expect![["callee Function FileId(0) 0..14 3..9"]],
-            expect!["caller Function FileId(0) 15..44 18..24 : FileId(0):33..39"],
+            expect!["callee Function File(512) 0..14 3..9"],
+            expect!["caller Function File(512) 15..44 18..24 : File(512):33..39"],
             expect![[]],
         );
     }
@@ -262,8 +262,8 @@ fn caller() {
     callee();
 }
 "#,
-            expect![["callee Function FileId(0) 0..14 3..9"]],
-            expect!["caller Function FileId(0) 15..58 18..24 : FileId(0):33..39, FileId(0):47..53"],
+            expect!["callee Function File(512) 0..14 3..9"],
+            expect!["caller Function File(512) 15..58 18..24 : File(512):33..39, File(512):47..53"],
             expect![[]],
         );
     }
@@ -283,10 +283,10 @@ fn caller2() {
     callee();
 }
 "#,
-            expect![["callee Function FileId(0) 0..14 3..9"]],
+            expect!["callee Function File(512) 0..14 3..9"],
             expect![[r#"
-                caller1 Function FileId(0) 15..45 18..25 : FileId(0):34..40
-                caller2 Function FileId(0) 47..77 50..57 : FileId(0):66..72"#]],
+                caller1 Function File(512) 15..45 18..25 : File(512):34..40
+                caller2 Function File(512) 47..77 50..57 : File(512):66..72"#]],
             expect![[]],
         );
     }
@@ -312,10 +312,10 @@ mod tests {
     }
 }
 "#,
-            expect![["callee Function FileId(0) 0..14 3..9"]],
+            expect!["callee Function File(512) 0..14 3..9"],
             expect![[r#"
-                caller1 Function FileId(0) 15..45 18..25 : FileId(0):34..40
-                test_caller Function FileId(0) 95..149 110..121 tests : FileId(0):134..140"#]],
+                caller1 Function File(512) 15..45 18..25 : File(512):34..40
+                test_caller Function File(512) 95..149 110..121 tests : File(512):134..140"#]],
             expect![[]],
         );
     }
@@ -336,8 +336,8 @@ fn caller() {
 //- /foo/mod.rs
 pub fn callee() {}
 "#,
-            expect!["callee Function FileId(1) 0..18 7..13 foo"],
-            expect!["caller Function FileId(0) 27..56 30..36 : FileId(0):45..51"],
+            expect!["callee Function File(513) 0..18 7..13 foo"],
+            expect!["caller Function File(512) 27..56 30..36 : File(512):45..51"],
             expect![[]],
         );
     }
@@ -354,9 +354,9 @@ fn call$0er() {
     callee();
 }
 "#,
-            expect![["caller Function FileId(0) 15..58 18..24"]],
+            expect!["caller Function File(512) 15..58 18..24"],
             expect![[]],
-            expect!["callee Function FileId(0) 0..14 3..9 : FileId(0):33..39, FileId(0):47..53"],
+            expect!["callee Function File(512) 0..14 3..9 : File(512):33..39, File(512):47..53"],
         );
     }
 
@@ -376,9 +376,9 @@ fn call$0er() {
 //- /foo/mod.rs
 pub fn callee() {}
 "#,
-            expect![["caller Function FileId(0) 27..56 30..36"]],
+            expect!["caller Function File(512) 27..56 30..36"],
             expect![[]],
-            expect!["callee Function FileId(1) 0..18 7..13 foo : FileId(0):45..51"],
+            expect!["callee Function File(513) 0..18 7..13 foo : File(512):45..51"],
         );
     }
 
@@ -400,9 +400,9 @@ fn caller3() {
 
 }
 "#,
-            expect![["caller2 Function FileId(0) 33..64 36..43"]],
-            expect!["caller1 Function FileId(0) 0..31 3..10 : FileId(0):19..26"],
-            expect!["caller3 Function FileId(0) 66..83 69..76 : FileId(0):52..59"],
+            expect!["caller2 Function File(512) 33..64 36..43"],
+            expect!["caller1 Function File(512) 0..31 3..10 : File(512):19..26"],
+            expect!["caller3 Function File(512) 66..83 69..76 : File(512):52..59"],
         );
     }
 
@@ -421,9 +421,9 @@ fn main() {
     a$0()
 }
 "#,
-            expect![["a Function FileId(0) 0..18 3..4"]],
-            expect!["main Function FileId(0) 31..52 34..38 : FileId(0):47..48"],
-            expect!["b Function FileId(0) 20..29 23..24 : FileId(0):13..14"],
+            expect!["a Function File(512) 0..18 3..4"],
+            expect!["main Function File(512) 31..52 34..38 : File(512):47..48"],
+            expect!["b Function File(512) 20..29 23..24 : File(512):13..14"],
         );
 
         check_hierarchy(
@@ -439,8 +439,8 @@ fn main() {
     a()
 }
 "#,
-            expect![["b Function FileId(0) 20..29 23..24"]],
-            expect!["a Function FileId(0) 0..18 3..4 : FileId(0):13..14"],
+            expect!["b Function File(512) 20..29 23..24"],
+            expect!["a Function File(512) 0..18 3..4 : File(512):13..14"],
             expect![[]],
         );
     }
@@ -465,8 +465,8 @@ fn caller() {
     call!(call$0ee);
 }
 "#,
-            expect![[r#"callee Function FileId(0) 144..159 152..158"#]],
-            expect!["caller Function FileId(0) 160..194 163..169 : FileId(0):184..190"],
+            expect!["callee Function File(512) 144..159 152..158"],
+            expect!["caller Function File(512) 160..194 163..169 : File(512):184..190"],
             expect![[]],
         );
         check_hierarchy(
@@ -487,8 +487,8 @@ fn caller() {
     call!(callee);
 }
 "#,
-            expect![[r#"callee Function FileId(0) 144..159 152..158"#]],
-            expect!["caller Function FileId(0) 160..194 163..169 : FileId(0):184..190"],
+            expect!["callee Function File(512) 144..159 152..158"],
+            expect!["caller Function File(512) 160..194 163..169 : File(512):184..190"],
             expect![[]],
         );
     }
@@ -513,7 +513,7 @@ fn caller$0() {
     call!(callee);
 }
 "#,
-            expect![[r#"caller Function FileId(0) 160..194 163..169"#]],
+            expect!["caller Function File(512) 160..194 163..169"],
             expect![[]],
             // FIXME
             expect![[]],
@@ -544,8 +544,8 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["callee Function FileId(0) 22..37 30..36"],
-            expect!["caller Function FileId(0) 38..72 41..47 : FileId(0):62..68"],
+            expect!["callee Function File(512) 22..37 30..36"],
+            expect!["caller Function File(512) 38..72 41..47 : File(512):62..68"],
             expect![[]],
         );
         check_hierarchy(
@@ -570,8 +570,8 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["callee Function FileId(0) 22..37 30..36"],
-            expect!["caller Function FileId(0) 38..72 41..47 : FileId(0):62..68"],
+            expect!["callee Function File(512) 22..37 30..36"],
+            expect!["caller Function File(512) 38..72 41..47 : File(512):62..68"],
             expect![[]],
         );
         check_hierarchy(
@@ -599,11 +599,11 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["callee Function FileId(0) 22..37 30..36"],
+            expect!["callee Function File(512) 22..37 30..36"],
             expect![[r#"
-                caller Function FileId(0) 38..43 : FileId(0):44..50
-                caller Function FileId(1) 130..136 130..136 : FileId(0):44..50
-                callee Function FileId(0) 38..52 44..50 : FileId(0):44..50"#]],
+                caller Function File(512) 38..43 : File(512):44..50
+                caller Function File(513) 130..136 130..136 : File(512):44..50
+                callee Function File(512) 38..52 44..50 : File(512):44..50"#]],
             expect![[]],
         );
     }
@@ -633,7 +633,7 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["caller Function FileId(0) 38..72 41..47"],
+            expect!["caller Function File(512) 38..72 41..47"],
             expect![[]],
             // FIXME
             expect![[]],
@@ -661,7 +661,7 @@ macro_rules! call {
     }
 }
 "#,
-            expect!["caller Function FileId(0) 38..72 41..47"],
+            expect!["caller Function File(512) 38..72 41..47"],
             expect![[]],
             // FIXME
             expect![[]],
@@ -687,8 +687,8 @@ fn caller() {
     S1::callee();
 }
 "#,
-            expect!["callee Function FileId(0) 15..27 18..24 T1"],
-            expect!["caller Function FileId(0) 82..115 85..91 : FileId(0):104..110"],
+            expect!["callee Function File(512) 15..27 18..24 T1"],
+            expect!["caller Function File(512) 82..115 85..91 : File(512):104..110"],
             expect![[]],
         );
     }
@@ -715,14 +715,14 @@ fn f3() {
     f1(); f2();
 }
 "#,
-            expect!["f1 Function FileId(0) 25..52 28..30"],
+            expect!["f1 Function File(512) 25..52 28..30"],
             expect![[r#"
-                main Function FileId(0) 0..23 3..7 : FileId(0):16..18
-                f2 Function FileId(0) 54..81 57..59 : FileId(0):68..70
-                f3 Function FileId(0) 83..118 94..96 : FileId(0):105..107"#]],
+                main Function File(512) 0..23 3..7 : File(512):16..18
+                f2 Function File(512) 54..81 57..59 : File(512):68..70
+                f3 Function File(512) 83..118 94..96 : File(512):105..107"#]],
             expect![[r#"
-                f2 Function FileId(0) 54..81 57..59 : FileId(0):39..41
-                f3 Function FileId(0) 83..118 94..96 : FileId(0):45..47"#]],
+                f2 Function File(512) 54..81 57..59 : File(512):39..41
+                f3 Function File(512) 83..118 94..96 : File(512):45..47"#]],
         );
 
         check_hierarchy(
@@ -745,11 +745,11 @@ fn f3() {
     f1(); f2();
 }
 "#,
-            expect!["f1 Function FileId(0) 25..52 28..30"],
+            expect!["f1 Function File(512) 25..52 28..30"],
             expect![[r#"
-                main Function FileId(0) 0..23 3..7 : FileId(0):16..18
-                f2 Function FileId(0) 54..81 57..59 : FileId(0):68..70"#]],
-            expect!["f2 Function FileId(0) 54..81 57..59 : FileId(0):39..41"],
+                main Function File(512) 0..23 3..7 : File(512):16..18
+                f2 Function File(512) 54..81 57..59 : File(512):68..70"#]],
+            expect!["f2 Function File(512) 54..81 57..59 : File(512):39..41"],
         );
     }
 }

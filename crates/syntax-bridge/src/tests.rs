@@ -6,17 +6,17 @@ use test_utils::extract_annotations;
 use tt::{Leaf, Punct, Spacing, buffer::Cursor};
 
 use crate::{
-    DocCommentDesugarMode,
-    dummy_test_span_utils::{DUMMY, DummyTestSpanMap},
-    parse_to_token_tree_static_span, syntax_node_to_token_tree, token_tree_to_syntax_node,
+    DocCommentDesugarMode, parse_to_token_tree_static_span, syntax_node_to_token_tree,
+    test_span_utils::{TEST_SPAN, TestSpanMap},
+    token_tree_to_syntax_node,
 };
 
 fn check_punct_spacing(fixture: &str) {
     let source_file = ast::SourceFile::parse(fixture, span::Edition::CURRENT).ok().unwrap();
     let subtree = syntax_node_to_token_tree(
         source_file.syntax(),
-        DummyTestSpanMap,
-        DUMMY,
+        TestSpanMap,
+        TEST_SPAN,
         DocCommentDesugarMode::Mbe,
     );
     let mut annotations: FxHashMap<_, _> = extract_annotations(fixture)
@@ -103,7 +103,7 @@ fn main() {
 fn scientific_notation_field_access_recovers() {
     let tt = parse_to_token_tree_static_span(
         span::Edition::CURRENT,
-        DUMMY,
+        TEST_SPAN,
         r#"
 fn main() {
     s.00E+10;

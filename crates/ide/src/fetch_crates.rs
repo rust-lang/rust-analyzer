@@ -1,5 +1,5 @@
 use ide_db::{
-    FileId, FxIndexSet, RootDatabase,
+    File, FxIndexSet, RootDatabase,
     base_db::{CrateOrigin, all_crates},
 };
 
@@ -7,7 +7,7 @@ use ide_db::{
 pub struct CrateInfo {
     pub name: Option<String>,
     pub version: Option<String>,
-    pub root_file_id: FileId,
+    pub root_file_id: File,
 }
 
 // Feature: Show Dependency Tree
@@ -23,19 +23,20 @@ pub(crate) fn fetch_crates(db: &RootDatabase) -> FxIndexSet<CrateInfo> {
     all_crates(db)
         .iter()
         .copied()
-        .map(|crate_id| (crate_id.data(db), crate_id.extra_data(db)))
-        .filter(|(data, _)| !matches!(data.origin, CrateOrigin::Local { .. }))
-        .map(|(data, extra_data)| crate_info(data, extra_data))
+        .map(|crate_id| (crate_id, crate_id.data(db), crate_id.extra_data(db)))
+        .filter(|(_, data, _)| !matches!(data.origin, CrateOrigin::Local { .. }))
+        .map(|(crate_id, _, extra_data)| crate_info(db, crate_id, extra_data))
         .collect()
 }
 
 fn crate_info(
-    data: &ide_db::base_db::BuiltCrateData,
+    db: &RootDatabase,
+    crate_id: ide_db::base_db::Crate,
     extra_data: &ide_db::base_db::ExtraCrateData,
 ) -> CrateInfo {
     let crate_name = crate_name(extra_data);
     let version = extra_data.version.clone();
-    CrateInfo { name: crate_name, version, root_file_id: data.root_file_id }
+    CrateInfo { name: crate_name, version, root_file_id: crate_id.data(db).root_file_id }
 }
 
 fn crate_name(data: &ide_db::base_db::ExtraCrateData) -> Option<String> {

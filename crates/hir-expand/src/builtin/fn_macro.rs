@@ -2,13 +2,13 @@
 
 use std::borrow::Cow;
 
-use base_db::{AnchoredPath, SourceDatabase};
+use base_db::SourceDatabase;
 use cfg::CfgExpr;
 use either::Either;
 use intern::{Symbol, sym};
 use itertools::Itertools;
 use mbe::{DelimiterKind, expect_fragment};
-use span::{Edition, FileId, Span};
+use span::{Edition, Span};
 use stdx::format_to;
 use syntax::{
     format_smolstr,
@@ -753,10 +753,9 @@ fn relative_file(
     err_span: Span,
 ) -> Result<EditionedFileId, ExpandError> {
     let lookup = call_id.loc(db);
-    let call_site = lookup.kind.file_id().original_file_respecting_includes(db).file_id(db);
-    let path = AnchoredPath { anchor: call_site, path: path_str };
-    let res: FileId = db
-        .resolve_path(path)
+    let call_site = lookup.kind.file_id().original_file_respecting_includes(db).file(db);
+    let (res, _) = db
+        .resolve_path(call_site, &[path_str])
         .ok_or_else(|| ExpandError::other(err_span, format!("failed to load file `{path_str}`")))?;
     // Prevent include itself
     if res == call_site && !allow_recursion {
@@ -896,7 +895,7 @@ fn include_str_expand(
         }
     };
 
-    let text = db.file_text(file_id.file_id(db));
+    let text = db.file_data(file_id.file(db));
     let text = &**text.text(db);
 
     ExpandResult::ok(quote!(call_site =>#text))

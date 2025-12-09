@@ -1,6 +1,6 @@
 use expect_test::{Expect, expect};
 use ide_db::{FileRange, base_db::SourceDatabase, ra_fixture::RaFixtureConfig};
-use span::FileId;
+use span::File;
 use syntax::TextRange;
 
 use crate::{
@@ -59,7 +59,7 @@ fn check_with_config(
         .unwrap()
         .unwrap();
 
-    let content = analysis.db.file_text(position.file_id);
+    let content = analysis.db.file_data(position.file_id);
     let hovered_element = &content.text(&analysis.db)[hover.range];
 
     let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
@@ -130,7 +130,7 @@ fn check_hover_no_markdown(#[rust_analyzer::rust_fixture] ra_fixture: &str, expe
 }
 
 #[track_caller]
-fn assert_actions(mut actions: Vec<HoverAction>, file_id: FileId, expect: Expect) {
+fn assert_actions(mut actions: Vec<HoverAction>, file_id: File, expect: Expect) {
     // stub out ranges into minicore as they can change every now and then
     actions.iter_mut().for_each(|action| match action {
         super::HoverAction::GoToType(act) => act.iter_mut().for_each(|data| {
@@ -420,8 +420,8 @@ fn main() {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S2",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 10..20,
                                 focus_range: 17..19,
@@ -433,8 +433,8 @@ fn main() {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..9,
                                 focus_range: 7..8,
@@ -446,8 +446,8 @@ fn main() {
                         HoverGotoTypeData {
                             mod_path: "core::ops::function::FnOnce",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    1,
+                                file_id: File(
+                                    513,
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -2449,8 +2449,8 @@ fn foo(Foo { b$0ar }: &Foo) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -2485,8 +2485,8 @@ fn test() {
             [
                 Reference(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 3,
                     },
@@ -2496,8 +2496,8 @@ fn test() {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 20..29,
                                 focus_range: 27..28,
@@ -2531,8 +2531,8 @@ fn test() {
             [
                 Reference(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 15,
                     },
@@ -2542,8 +2542,8 @@ fn test() {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -2576,8 +2576,8 @@ fn test() {
             [
                 Reference(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 16,
                     },
@@ -2587,8 +2587,8 @@ fn test() {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -2791,8 +2791,8 @@ fn test_hover_trait_show_qualifiers() {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 13,
                     },
@@ -3511,8 +3511,8 @@ fn test_hover_trait_has_impl_action() {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 6,
                     },
@@ -3530,8 +3530,8 @@ fn test_hover_struct_has_impl_action() {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 7,
                     },
@@ -3549,8 +3549,8 @@ fn test_hover_union_has_impl_action() {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 6,
                     },
@@ -3568,8 +3568,8 @@ fn test_hover_enum_has_impl_action() {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 5,
                     },
@@ -3587,8 +3587,8 @@ fn test_hover_self_has_impl_action() {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 7,
                     },
@@ -3609,8 +3609,8 @@ fn foo_$0test() {}
             [
                 Reference(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 11,
                     },
@@ -3619,8 +3619,8 @@ fn foo_$0test() {}
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
+                            file_id: File(
+                                512,
                             ),
                             full_range: 0..24,
                             focus_range: 11..19,
@@ -3660,8 +3660,8 @@ mod tests$0 {
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
+                            file_id: File(
+                                512,
                             ),
                             full_range: 0..46,
                             focus_range: 4..9,
@@ -3700,8 +3700,8 @@ fn main() { let s$0t = S{ f1:0 }; }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..19,
                                 focus_range: 7..8,
@@ -3733,8 +3733,8 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Arg",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..16,
                                 focus_range: 7..10,
@@ -3746,8 +3746,8 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 17..37,
                                 focus_range: 24..25,
@@ -3792,8 +3792,8 @@ fn main() { let s$0t = S{ f1: S{ f1: Arg(0) } }; }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Arg",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..16,
                                 focus_range: 7..10,
@@ -3805,8 +3805,8 @@ fn main() { let s$0t = S{ f1: S{ f1: Arg(0) } }; }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 17..37,
                                 focus_range: 24..25,
@@ -3841,8 +3841,8 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::A",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..14,
                                 focus_range: 7..8,
@@ -3854,8 +3854,8 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::B",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 15..29,
                                 focus_range: 22..23,
@@ -3867,8 +3867,8 @@ fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::M::C",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 42..64,
                                 focus_range: 53..54,
@@ -3901,8 +3901,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -3935,8 +3935,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -3948,8 +3948,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 16..25,
                                 focus_range: 23..24,
@@ -3982,8 +3982,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 13..25,
                                 focus_range: 19..22,
@@ -3995,8 +3995,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4032,8 +4032,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 16..31,
                                 focus_range: 22..25,
@@ -4045,8 +4045,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4058,8 +4058,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S1",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 32..44,
                                 focus_range: 39..41,
@@ -4071,8 +4071,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S2",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 45..57,
                                 focus_range: 52..54,
@@ -4102,8 +4102,8 @@ fn foo(ar$0g: &impl Foo) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4136,8 +4136,8 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 13..28,
                                 focus_range: 19..22,
@@ -4149,8 +4149,8 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4162,8 +4162,8 @@ fn foo(ar$0g: &impl Foo + Bar<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 29..39,
                                 focus_range: 36..37,
@@ -4204,8 +4204,8 @@ pub mod future {
                         HoverGotoTypeData {
                             mod_path: "core::future::Future",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    1,
+                                file_id: File(
+                                    513,
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -4218,8 +4218,8 @@ pub mod future {
                         HoverGotoTypeData {
                             mod_path: "main::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..110,
                                 focus_range: 108..109,
@@ -4250,8 +4250,8 @@ fn foo(ar$0g: &impl Foo<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4263,8 +4263,8 @@ fn foo(ar$0g: &impl Foo<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 16..27,
                                 focus_range: 23..24,
@@ -4300,8 +4300,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::B",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 48..61,
                                 focus_range: 55..56,
@@ -4313,8 +4313,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4326,8 +4326,8 @@ fn main() { let s$0t = foo(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 16..25,
                                 focus_range: 23..24,
@@ -4357,8 +4357,8 @@ fn foo(ar$0g: &dyn Foo) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4389,8 +4389,8 @@ fn foo(ar$0g: &dyn Foo<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..15,
                                 focus_range: 6..9,
@@ -4402,8 +4402,8 @@ fn foo(ar$0g: &dyn Foo<S>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 16..27,
                                 focus_range: 23..24,
@@ -4437,8 +4437,8 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::B",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 43..57,
                                 focus_range: 50..51,
@@ -4450,8 +4450,8 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::DynTrait",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 22..42,
                                 focus_range: 28..36,
@@ -4463,8 +4463,8 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::ImplTrait",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..21,
                                 focus_range: 6..15,
@@ -4476,8 +4476,8 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 58..69,
                                 focus_range: 65..66,
@@ -4518,8 +4518,8 @@ fn main() { let s$0t = test().get(); }
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..62,
                                 focus_range: 6..9,
@@ -4551,8 +4551,8 @@ impl<const BAR: Bar> Foo<BAR$0> {}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Bar",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -4583,8 +4583,8 @@ fn foo<T: Foo>(t: T$0){}
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..12,
                                 focus_range: 6..9,
@@ -4616,8 +4616,8 @@ impl Foo {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -7422,8 +7422,8 @@ fn foo() {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Foo",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 0..11,
                                 focus_range: 7..10,
@@ -9403,8 +9403,8 @@ impl Iterator for S {
             [
                 Implementation(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 7,
                     },
@@ -9414,8 +9414,8 @@ impl Iterator for S {
                         HoverGotoTypeData {
                             mod_path: "core::future::Future",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    1,
+                                file_id: File(
+                                    513,
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -9428,8 +9428,8 @@ impl Iterator for S {
                         HoverGotoTypeData {
                             mod_path: "core::iter::traits::iterator::Iterator",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    1,
+                                file_id: File(
+                                    513,
                                 ),
                                 full_range: 4294967295..4294967295,
                                 focus_range: 4294967295..4294967295,
@@ -9442,8 +9442,8 @@ impl Iterator for S {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::Notable",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 21..59,
                                 focus_range: 49..56,
@@ -9455,8 +9455,8 @@ impl Iterator for S {
                         HoverGotoTypeData {
                             mod_path: "ra_test_fixture::S2",
                             nav: NavigationTarget {
-                                file_id: FileId(
-                                    0,
+                                file_id: File(
+                                    512,
                                 ),
                                 full_range: 10..20,
                                 focus_range: 17..19,
@@ -9623,7 +9623,7 @@ fn raw_keyword_different_editions() {
 //- /lib1.rs crate:with_edition_2015 edition:2015
 pub fn dyn() {}
 
-//- /lib2.rs crate:with_edition_2018 edition:2018 deps:with_edition_2015 new_source_root:local
+//- /lib2.rs crate:with_edition_2018 edition:2018 deps:with_edition_2015 new_file_root:local
 fn foo() {
     with_edition_2015::r#dyn$0();
 }
@@ -9646,7 +9646,7 @@ fn foo() {
 //- /lib1.rs crate:with_edition_2018 edition:2018
 pub fn r#dyn() {}
 
-//- /lib2.rs crate:with_edition_2015 edition:2015 deps:with_edition_2018 new_source_root:local
+//- /lib2.rs crate:with_edition_2015 edition:2015 deps:with_edition_2018 new_file_root:local
 fn foo() {
     with_edition_2018::dyn$0();
 }
@@ -9669,7 +9669,7 @@ fn foo() {
 //- /lib1.rs crate:escaping_needlessly edition:2015
 pub fn r#dyn() {}
 
-//- /lib2.rs crate:dependent edition:2015 deps:escaping_needlessly new_source_root:local
+//- /lib2.rs crate:dependent edition:2015 deps:escaping_needlessly new_file_root:local
 fn foo() {
     escaping_needlessly::dyn$0();
 }
@@ -10144,15 +10144,15 @@ type A$0 = B;
     // Multiple nested crate.
     check(
         r#"
-//- /lib.rs crate:c
+//- /c/lib.rs crate:c
 /// Docs for C
 pub struct C;
 
-//- /lib.rs crate:b deps:c
+//- /b/lib.rs crate:b deps:c
 pub use c::C;
 pub type B = C;
 
-//- /lib.rs crate:a deps:b
+//- /a/lib.rs crate:a deps:b
 pub use b::B;
 pub type A = B;
 
@@ -10794,7 +10794,7 @@ fn test$0() {
     assert_debug_snapshot!(actual);
 }
 
-//- /lib.rs crate:expect_test
+//- /expect_test/lib.rs crate:expect_test
 struct Expect;
 
 impl Expect {
@@ -10806,13 +10806,13 @@ macro_rules! expect {
     ($e:expr) => Expect; // dummy
 }
 
-//- /lib.rs crate:insta
+//- /insta/lib.rs crate:insta
 #[macro_export]
 macro_rules! assert_debug_snapshot {
     ($e:expr) => {}; // dummy
 }
 
-//- /lib.rs crate:snapbox
+//- /snapbox/lib.rs crate:snapbox
 pub struct Assert;
 
 impl Assert {
@@ -10832,8 +10832,8 @@ macro_rules! str {
             [
                 Reference(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 92,
                     },
@@ -10842,8 +10842,8 @@ macro_rules! str {
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
+                            file_id: File(
+                                512,
                             ),
                             full_range: 81..301,
                             focus_range: 92..96,
@@ -10900,8 +10900,8 @@ pub use expect_test;
             [
                 Reference(
                     FilePositionWrapper {
-                        file_id: FileId(
-                            0,
+                        file_id: File(
+                            512,
                         ),
                         offset: 44,
                     },
@@ -10910,8 +10910,8 @@ pub use expect_test;
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
+                            file_id: File(
+                                512,
                             ),
                             full_range: 33..121,
                             focus_range: 44..48,

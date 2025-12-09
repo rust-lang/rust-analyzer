@@ -1,17 +1,21 @@
 //! Database used for testing `hir`.
 
-use std::{fmt, panic, sync::Mutex};
+use std::{
+    fmt, panic,
+    sync::{Mutex, OnceLock},
+};
 
 use base_db::{
-    CrateGraphBuilder, CratesMap, FileSourceRootInput, FileText, Nonce, SourceDatabase, SourceRoot,
-    SourceRootId, SourceRootInput, all_crates, relevant_crates, set_all_crates_with_durability,
+    CrateGraphBuilder, CratesMap, FileLookup, FileRegistration, FileVisibility, Files, Nonce,
+    PendingFileChangeKind, SourceDatabase, VfsPath, WorkspaceFiles, all_crates, relevant_crates,
+    set_all_crates_with_durability,
 };
 
 use hir_def::{ModuleId, nameres::crate_def_map};
 use hir_expand::EditionedFileId;
 use rustc_hash::FxHashMap;
 use salsa::Durability;
-use span::FileId;
+use span::File;
 use syntax::TextRange;
 use test_utils::extract_annotations;
 use triomphe::Arc;
@@ -19,7 +23,8 @@ use triomphe::Arc;
 #[salsa::db]
 pub(crate) struct TestDB {
     storage: salsa::Storage<Self>,
-    files: Arc<base_db::Files>,
+    files: Files,
+    workspace_files: OnceLock<WorkspaceFiles>,
     crates_map: Arc<CratesMap>,
     events: Arc<Mutex<Option<Vec<salsa::Event>>>>,
     nonce: Nonce,
@@ -39,19 +44,16 @@ impl Default for TestDB {
                 }
             }))),
             events,
-            files: Default::default(),
+            files: Files::default(),
+            workspace_files: OnceLock::new(),
             crates_map: Default::default(),
             nonce: Nonce::new(),
         };
+        let workspace_files = WorkspaceFiles::new(&this, Vec::new().into(), Vec::new().into());
+        assert!(this.workspace_files.set(workspace_files).is_ok());
         hir_def::set_expand_proc_attr_macros(&mut this, true);
         // This needs to be here otherwise `CrateGraphBuilder` panics.
         set_all_crates_with_durability(&mut this, std::iter::empty(), Durability::HIGH);
-        _ = base_db::LibraryRoots::builder(Default::default())
-            .durability(Durability::MEDIUM)
-            .new(&this);
-        _ = base_db::LocalRoots::builder(Default::default())
-            .durability(Durability::MEDIUM)
-            .new(&this);
         CrateGraphBuilder::default().set_in_db(&mut this);
         this
     }
@@ -62,6 +64,7 @@ impl Clone for TestDB {
         Self {
             storage: self.storage.clone(),
             files: self.files.clone(),
+            workspace_files: self.workspace_files.clone(),
             crates_map: self.crates_map.clone(),
             events: self.events.clone(),
             nonce: self.nonce,
@@ -77,52 +80,46 @@ impl fmt::Debug for TestDB {
 
 #[salsa::db]
 impl SourceDatabase for TestDB {
-    fn file_text(&self, file_id: base_db::FileId) -> FileText {
-        self.files.file_text(file_id)
+    fn workspace_files(&self) -> WorkspaceFiles {
+        *self.workspace_files.get().expect("TestDB must initialize workspace files")
     }
 
-    fn set_file_text(&mut self, file_id: base_db::FileId, text: &str) {
-        let files = Arc::clone(&self.files);
-        files.set_file_text(self, file_id, text);
+    fn file_data(&self, file: File) -> base_db::FileData {
+        self.files.file_data(file)
     }
 
-    fn set_file_text_with_durability(
+    fn file_path(&self, file_id: File) -> Option<VfsPath> {
+        self.files.file_path(self, file_id)
+    }
+
+    fn file_for_path(&self, path: &VfsPath) -> Option<FileLookup> {
+        self.files.file_for_path(self, path)
+    }
+
+    fn intern_file_path(&self, path: VfsPath) -> File {
+        self.files.intern_file_path(self, path)
+    }
+
+    fn resolve_path(&self, anchor: File, paths: &[&str]) -> Option<(File, usize)> {
+        base_db::resolve_path(self, anchor, paths)
+    }
+
+    fn record_file_contents(
         &mut self,
-        file_id: base_db::FileId,
-        text: &str,
-        durability: Durability,
+        path: VfsPath,
+        contents: Option<Vec<u8>>,
+        visibility: FileVisibility,
     ) {
-        let files = Arc::clone(&self.files);
-        files.set_file_text_with_durability(self, file_id, text, durability);
+        self.files.clone().record_file_contents(self, path, contents, visibility);
     }
 
-    /// Source root of the file.
-    fn source_root(&self, source_root_id: SourceRootId) -> SourceRootInput {
-        self.files.source_root(source_root_id)
+    fn take_file_changes(&mut self) -> rustc_hash::FxHashMap<File, PendingFileChangeKind> {
+        self.files.take_file_changes()
     }
 
-    fn set_source_root_with_durability(
-        &mut self,
-        source_root_id: SourceRootId,
-        source_root: Arc<SourceRoot>,
-        durability: Durability,
-    ) {
-        let files = Arc::clone(&self.files);
-        files.set_source_root_with_durability(self, source_root_id, source_root, durability);
-    }
-
-    fn file_source_root(&self, id: base_db::FileId) -> FileSourceRootInput {
-        self.files.file_source_root(self, id)
-    }
-
-    fn set_file_source_root_with_durability(
-        &mut self,
-        id: base_db::FileId,
-        source_root_id: SourceRootId,
-        durability: Durability,
-    ) {
-        let files = Arc::clone(&self.files);
-        files.set_file_source_root_with_durability(self, id, source_root_id, durability);
+    fn set_indexed_files(&mut self, files: Vec<FileRegistration>) {
+        let workspace_files = self.workspace_files();
+        workspace_files.replace(self, &self.files.clone(), files);
     }
 
     fn crates_map(&self) -> Arc<CratesMap> {
@@ -133,7 +130,7 @@ impl SourceDatabase for TestDB {
         (self.nonce, salsa::plumbing::ZalsaDatabase::zalsa(self).current_revision())
     }
 
-    fn line_column(&self, _file: FileId, _offset: syntax::TextSize) -> Result<(u32, u32), ()> {
+    fn line_column(&self, _file: File, _offset: syntax::TextSize) -> Result<(u32, u32), ()> {
         Err(())
     }
 }
@@ -144,12 +141,12 @@ impl salsa::Database for TestDB {}
 impl panic::RefUnwindSafe for TestDB {}
 
 impl TestDB {
-    pub(crate) fn module_for_file_opt(&self, file_id: impl Into<FileId>) -> Option<ModuleId> {
+    pub(crate) fn module_for_file_opt(&self, file_id: impl Into<File>) -> Option<ModuleId> {
         let file_id = file_id.into();
         for &krate in relevant_crates(self, file_id).iter() {
             let crate_def_map = crate_def_map(self, krate);
             for (module_id, data) in crate_def_map.modules() {
-                if data.origin.file_id().map(|file_id| file_id.file_id(self)) == Some(file_id) {
+                if data.origin.file_id().map(|file_id| file_id.file(self)) == Some(file_id) {
                     return Some(module_id);
                 }
             }
@@ -157,7 +154,7 @@ impl TestDB {
         None
     }
 
-    pub(crate) fn module_for_file(&self, file_id: impl Into<FileId>) -> ModuleId {
+    pub(crate) fn module_for_file(&self, file_id: impl Into<File>) -> ModuleId {
         self.module_for_file_opt(file_id.into()).unwrap()
     }
 
@@ -175,7 +172,7 @@ impl TestDB {
         files
             .into_iter()
             .filter_map(|file_id| {
-                let text = self.file_text(file_id.file_id(self));
+                let text = self.file_data(file_id.file(self));
                 let annotations = extract_annotations(text.text(self));
                 if annotations.is_empty() {
                     return None;

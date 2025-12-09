@@ -7,6 +7,7 @@
 extern crate rustc_driver as _;
 
 pub use salsa;
+pub use span::File;
 use span::TextSize;
 
 mod change;
@@ -16,9 +17,9 @@ pub mod target;
 
 use std::{
     cell::RefCell,
-    hash::BuildHasherDefault,
-    panic,
-    sync::{Once, atomic::AtomicUsize},
+    collections::hash_map::Entry,
+    mem, panic,
+    sync::{Arc as StdArc, Once, RwLock, atomic::AtomicUsize},
 };
 
 pub use crate::{
@@ -27,16 +28,15 @@ pub use crate::{
     input::{
         BuiltCrateData, BuiltDependency, Crate, CrateBuilder, CrateBuilderId, CrateDataBuilder,
         CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CratesIdMap, CratesMap,
-        DependencyBuilder, Env, ExtraCrateData, LangCrateOrigin, ProcMacroLoadingError,
-        ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId, UniqueCrateData,
+        DependencyBuilder, Env, ExtraCrateData, FileRoot, FileRootId, FileRootKind,
+        LangCrateOrigin, ProcMacroLoadingError, ProcMacroPaths, ReleaseChannel, UniqueCrateData,
     },
 };
-use dashmap::{DashMap, mapref::entry::Entry};
-use rustc_hash::{FxHashSet, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet};
 use salsa::{Durability, Setter};
 pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
 use triomphe::Arc;
-pub use vfs::{AbsPathBuf, AnchoredPath, AnchoredPathBuf, FileId, VfsPath, file_set::FileSet};
+pub use vfs::{AbsPathBuf, AnchoredPath, AnchoredPathBuf, VfsPath};
 
 pub type FxIndexSet<T> = indexmap::IndexSet<T, rustc_hash::FxBuildHasher>;
 pub type FxIndexMap<K, V> =
@@ -67,217 +67,513 @@ pub const DEFAULT_FILE_TEXT_LRU_CAP: u16 = 16;
 pub const DEFAULT_PARSE_LRU_CAP: u16 = 128;
 pub const DEFAULT_BORROWCK_LRU_CAP: u16 = 2024;
 
-#[derive(Debug, Default)]
-pub struct Files {
-    files: Arc<DashMap<vfs::FileId, FileText, BuildHasherDefault<FxHasher>>>,
-    source_roots: Arc<DashMap<SourceRootId, SourceRootInput, BuildHasherDefault<FxHasher>>>,
-    file_source_roots: Arc<DashMap<vfs::FileId, FileSourceRootInput, BuildHasherDefault<FxHasher>>>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LineEndings {
+    Unix,
+    Dos,
 }
 
-impl Files {
-    pub fn file_text(&self, file_id: vfs::FileId) -> FileText {
-        match self.files.get(&file_id) {
-            Some(text) => *text,
-            None => {
-                panic!("Unable to fetch file text for `vfs::FileId`: {file_id:?}; this is a bug")
+impl LineEndings {
+    pub fn normalize(src: String) -> (String, LineEndings) {
+        let mut buf = src.into_bytes();
+        let mut gap_len = 0;
+        let mut tail = buf.as_mut_slice();
+        let mut crlf_seen = false;
+
+        let finder = memchr::memmem::Finder::new(b"\r\n");
+
+        loop {
+            let idx = match finder.find(&tail[gap_len..]) {
+                None if crlf_seen => tail.len(),
+                None => {
+                    return (
+                        String::from_utf8(buf).expect("input was valid UTF-8"),
+                        LineEndings::Unix,
+                    );
+                }
+                Some(idx) => {
+                    crlf_seen = true;
+                    idx + gap_len
+                }
+            };
+            tail.copy_within(gap_len..idx, 0);
+            tail = &mut tail[idx - gap_len..];
+            if tail.len() == gap_len {
+                break;
             }
+            gap_len += 1;
         }
-    }
 
-    pub fn set_file_text(&self, db: &mut dyn SourceDatabase, file_id: vfs::FileId, text: &str) {
-        match self.files.entry(file_id) {
-            Entry::Occupied(mut occupied) => {
-                occupied.get_mut().set_text(db).to(Arc::from(text));
-            }
-            Entry::Vacant(vacant) => {
-                let text = FileText::new(db, Arc::from(text), file_id);
-                vacant.insert(text);
-            }
+        let new_len = buf.len() - gap_len;
+        // SAFETY: removing `\r` from UTF-8 `\r\n` pairs preserves UTF-8 validity.
+        let src = unsafe {
+            buf.set_len(new_len);
+            String::from_utf8_unchecked(buf)
         };
-    }
-
-    pub fn set_file_text_with_durability(
-        &self,
-        db: &mut dyn SourceDatabase,
-        file_id: vfs::FileId,
-        text: &str,
-        durability: Durability,
-    ) {
-        match self.files.entry(file_id) {
-            Entry::Occupied(mut occupied) => {
-                occupied.get_mut().set_text(db).with_durability(durability).to(Arc::from(text));
-            }
-            Entry::Vacant(vacant) => {
-                let text =
-                    FileText::builder(Arc::from(text), file_id).durability(durability).new(db);
-                vacant.insert(text);
-            }
-        };
-    }
-
-    /// Source root of the file.
-    pub fn source_root(&self, source_root_id: SourceRootId) -> SourceRootInput {
-        let source_root = match self.source_roots.get(&source_root_id) {
-            Some(source_root) => source_root,
-            None => panic!(
-                "Unable to fetch `SourceRootInput` with `SourceRootId` ({source_root_id:?}); this is a bug"
-            ),
-        };
-
-        *source_root
-    }
-
-    pub fn set_source_root_with_durability(
-        &self,
-        db: &mut dyn SourceDatabase,
-        source_root_id: SourceRootId,
-        source_root: Arc<SourceRoot>,
-        durability: Durability,
-    ) {
-        match self.source_roots.entry(source_root_id) {
-            Entry::Occupied(mut occupied) => {
-                occupied.get_mut().set_source_root(db).with_durability(durability).to(source_root);
-            }
-            Entry::Vacant(vacant) => {
-                let source_root =
-                    SourceRootInput::builder(source_root).durability(durability).new(db);
-                vacant.insert(source_root);
-            }
-        };
-    }
-
-    pub fn file_source_root(
-        &self,
-        db: &dyn SourceDatabase,
-        id: vfs::FileId,
-    ) -> FileSourceRootInput {
-        let file_source_root = match self.file_source_roots.get(&id) {
-            Some(file_source_root) => file_source_root,
-            None => panic!(
-                "Unable to get `FileSourceRootInput` with `vfs::FileId` ({id:?}, path: {}); this is a bug",
-                self.path_for_file(db, id)
-                    .map_or_else(|| "<unknown>".to_owned(), |path| path.to_string()),
-            ),
-        };
-        *file_source_root
-    }
-
-    fn path_for_file(&self, db: &dyn SourceDatabase, id: vfs::FileId) -> Option<vfs::VfsPath> {
-        for source_root in &*self.source_roots {
-            let source_root = *source_root.value();
-            if let Some(path) = source_root.source_root(db).path_for_file(&id) {
-                return Some(path.clone());
-            }
-        }
-        None
-    }
-
-    pub fn set_file_source_root_with_durability(
-        &self,
-        db: &mut dyn SourceDatabase,
-        id: vfs::FileId,
-        source_root_id: SourceRootId,
-        durability: Durability,
-    ) {
-        match self.file_source_roots.entry(id) {
-            Entry::Occupied(mut occupied) => {
-                occupied
-                    .get_mut()
-                    .set_source_root_id(db)
-                    .with_durability(durability)
-                    .to(source_root_id);
-            }
-            Entry::Vacant(vacant) => {
-                let file_source_root =
-                    FileSourceRootInput::builder(source_root_id).durability(durability).new(db);
-                vacant.insert(file_source_root);
-            }
-        };
+        (src, LineEndings::Dos)
     }
 }
 
-/// The set of roots for crates.io libraries.
-/// Files in libraries are assumed to never change.
-#[salsa::input(singleton, debug)]
-pub struct LibraryRoots {
-    #[returns(ref)]
-    pub roots: FxHashSet<SourceRootId>,
+/// Keeps loader events explicit about whether their contents enter indexed files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileVisibility {
+    Indexed,
+    Excluded,
 }
 
-/// The set of "local" (that is, from the current workspace) roots.
-/// Files in local roots are assumed to change frequently.
-#[salsa::input(singleton, debug)]
-pub struct LocalRoots {
-    #[returns(ref)]
-    pub roots: FxHashSet<SourceRootId>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileStatus {
+    Exists,
+    Deleted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileLookup {
+    pub file: File,
+    pub status: FileStatus,
+}
+
+/// Carries contents only for pending states that still have file contents.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PendingFileChangeKind {
+    Create(Vec<u8>),
+    Modify(Vec<u8>),
+    Delete,
 }
 
 #[salsa::input(debug)]
-pub struct FileText {
+pub struct FileData {
+    #[returns(copy)]
+    pub file: File,
+    #[returns(copy)]
+    pub root: Option<FileRoot>,
+    #[returns(copy)]
+    pub status: FileStatus,
     #[returns(ref)]
     pub text: Arc<str>,
-    pub file_id: vfs::FileId,
-}
-
-#[salsa::input(debug)]
-pub struct FileSourceRootInput {
     #[returns(copy)]
-    pub source_root_id: SourceRootId,
+    pub line_endings: LineEndings,
 }
 
-#[salsa::input(debug)]
-pub struct SourceRootInput {
-    #[returns(clone)]
-    pub source_root: Arc<SourceRoot>,
+#[salsa::input]
+/// The files that participate in workspace analysis, partitioned by durability.
+///
+/// [`Files`] deliberately does not own this membership: it is only a cache from paths to Salsa
+/// inputs. Keeping membership in a Salsa input ensures additions and removals invalidate queries
+/// over the workspace.
+pub struct WorkspaceFiles {
+    #[returns(ref)]
+    pub local_files: Arc<[File]>,
+    #[returns(ref)]
+    pub library_files: Arc<[File]>,
+}
+
+#[derive(Clone, Default)]
+pub struct Files {
+    inner: StdArc<FilesInner>,
+}
+
+#[derive(Default)]
+struct FilesInner {
+    state: RwLock<FilesState>,
+}
+
+#[derive(Default)]
+struct FilesState {
+    data: FxHashMap<File, FileData>,
+    pending_changes: FxHashMap<File, PendingFileChangeKind>,
+}
+
+#[doc(hidden)]
+#[salsa::interned]
+pub struct InternedAnchoredPath {
+    #[returns(copy)]
+    pub anchor: File,
+    #[returns(ref)]
+    pub path: String,
 }
 
 #[salsa::db]
 pub trait SourceDatabase: salsa::Database + std::fmt::Debug {
-    /// Text of the file.
-    fn file_text(&self, file_id: vfs::FileId) -> FileText;
+    /// Returns the database-owned workspace membership input.
+    fn workspace_files(&self) -> WorkspaceFiles;
 
-    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str);
+    fn file_data(&self, file: File) -> FileData;
 
-    fn set_file_text_with_durability(
-        &mut self,
-        file_id: vfs::FileId,
-        text: &str,
-        durability: Durability,
-    );
-
-    /// Contents of the source root.
-    fn source_root(&self, id: SourceRootId) -> SourceRootInput;
-
-    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput;
-
-    fn set_file_source_root_with_durability(
-        &mut self,
-        id: vfs::FileId,
-        source_root_id: SourceRootId,
-        durability: Durability,
-    );
-
-    /// Source root of the file.
-    fn set_source_root_with_durability(
-        &mut self,
-        source_root_id: SourceRootId,
-        source_root: Arc<SourceRoot>,
-        durability: Durability,
-    );
-
-    fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
-        // FIXME: this *somehow* should be platform agnostic...
-        let source_root = self.file_source_root(path.anchor);
-        let source_root = self.source_root(source_root.source_root_id(self));
-        source_root.source_root(self).resolve_path(path)
+    fn set_file_text(&mut self, file: File, text: &str) {
+        self.file_data(file).set_text(self).to(Arc::from(text));
     }
+
+    fn set_file_text_with_line_endings_and_durability(
+        &mut self,
+        file: File,
+        text: &str,
+        line_endings: LineEndings,
+        durability: Durability,
+    ) {
+        let data = self.file_data(file);
+        data.set_text(self).with_durability(durability).to(Arc::from(text));
+        data.set_line_endings(self).with_durability(durability).to(line_endings);
+    }
+
+    fn file_root(&self, file: File) -> Option<FileRoot> {
+        let db = self.as_dyn_database();
+        let data = self.file_data(file);
+        match data.status(db) {
+            FileStatus::Exists => data.root(db),
+            FileStatus::Deleted => None,
+        }
+    }
+
+    fn resolve_path(&self, anchor: File, paths: &[&str]) -> Option<(File, usize)>;
+
+    fn file_path(&self, file: File) -> Option<VfsPath>;
+
+    fn file_for_path(&self, path: &VfsPath) -> Option<FileLookup>;
+
+    fn file_for_indexed_path(&self, path: &VfsPath) -> Option<File> {
+        match self.file_for_path(path) {
+            Some(FileLookup { file, status: FileStatus::Exists })
+                if self.file_root(file).is_some() =>
+            {
+                Some(file)
+            }
+            Some(_) | None => None,
+        }
+    }
+
+    fn intern_file_path(&self, path: VfsPath) -> File;
+
+    fn record_file_contents(
+        &mut self,
+        path: VfsPath,
+        contents: Option<Vec<u8>>,
+        visibility: FileVisibility,
+    );
+
+    fn take_file_changes(&mut self) -> FxHashMap<File, PendingFileChangeKind>;
+
+    fn files(&self) -> Vec<File> {
+        let db = self.as_dyn_database();
+        let files = self.workspace_files();
+        files.local_files(db).iter().chain(files.library_files(db).iter()).copied().collect()
+    }
+
+    fn files_by_kind(&self, kind: FileRootKind) -> Arc<[File]> {
+        let db = self.as_dyn_database();
+        let files = self.workspace_files();
+        match kind {
+            FileRootKind::Local => files.local_files(db).clone(),
+            FileRootKind::Library => files.library_files(db).clone(),
+        }
+    }
+
+    #[doc(hidden)]
+    fn set_indexed_files(&mut self, files: Vec<FileRegistration>);
 
     #[doc(hidden)]
     fn crates_map(&self) -> Arc<CratesMap>;
 
     fn nonce_and_revision(&self) -> (Nonce, salsa::Revision);
 
-    fn line_column(&self, file: FileId, offset: TextSize) -> Result<(u32, u32), ()>;
+    fn line_column(&self, file: File, offset: TextSize) -> Result<(u32, u32), ()>;
+}
+
+#[salsa::tracked(returns(copy))]
+fn lookup_resolve_path(db: &dyn SourceDatabase, path: InternedAnchoredPath<'_>) -> Option<File> {
+    let mut base = db.file_path(path.anchor(db))?;
+    base.pop();
+    let path = base.join(path.path(db))?;
+    let file = db.intern_file_path(path);
+    match db.file_data(file).status(db) {
+        FileStatus::Exists if db.file_root(file).is_some() => Some(file),
+        FileStatus::Exists | FileStatus::Deleted => None,
+    }
+}
+
+pub fn resolve_path(
+    db: &dyn SourceDatabase,
+    anchor: File,
+    paths: &[&str],
+) -> Option<(File, usize)> {
+    for (index, path) in paths.iter().enumerate() {
+        let target_id =
+            lookup_resolve_path(db, InternedAnchoredPath::new(db, anchor, path.to_string()));
+        match target_id {
+            Some(target_id) => return Some((target_id, index)),
+            None => (),
+        }
+    }
+
+    None
+}
+
+impl WorkspaceFiles {
+    /// Replaces workspace membership while updating each file's root classification.
+    pub fn replace<DB: SourceDatabase + ?Sized>(
+        self,
+        db: &mut DB,
+        files: &Files,
+        registrations: Vec<FileRegistration>,
+    ) {
+        let mut active = FxHashSet::default();
+        let mut local_files = Vec::new();
+        let mut library_files = Vec::new();
+        let mut indexed = Vec::new();
+        let files = {
+            let mut state = files.inner.state.write().unwrap();
+            for FileRegistration { file, root } in registrations {
+                active.insert(file);
+                match root.kind {
+                    FileRootKind::Local => local_files.push(file),
+                    FileRootKind::Library => library_files.push(file),
+                }
+                let durability = root.kind.root_durability();
+                let data = files.get_or_create_file_data(db, &mut state, file, durability);
+                indexed.push((data, root, durability));
+            }
+            state.data.values().copied().collect::<Vec<_>>()
+        };
+
+        for (data, root, durability) in indexed {
+            data.set_root(db).with_durability(durability).to(Some(root));
+            data.set_status(db).with_durability(durability).to(FileStatus::Exists);
+        }
+        for data in files {
+            if active.contains(&data.file(db)) {
+                continue;
+            }
+            match data.status(db) {
+                FileStatus::Exists => {
+                    if data.root(db).is_some() {
+                        data.set_root(db).with_durability(Durability::LOW).to(None);
+                        data.set_status(db)
+                            .with_durability(Durability::LOW)
+                            .to(FileStatus::Deleted);
+                    }
+                }
+                FileStatus::Deleted => (),
+            }
+        }
+        local_files.sort_unstable();
+        local_files.dedup();
+        library_files.sort_unstable();
+        library_files.dedup();
+        self.set_local_files(db)
+            .with_durability(FileRootKind::Local.root_durability())
+            .to(local_files.into());
+        self.set_library_files(db)
+            .with_durability(FileRootKind::Library.root_durability())
+            .to(library_files.into());
+    }
+}
+
+impl Files {
+    pub fn file_data(&self, file: File) -> FileData {
+        let state = self.inner.state.read().unwrap();
+        match state.data.get(&file).copied() {
+            Some(data) => data,
+            None => panic!("Unable to fetch file data for {file:?}; this is a bug"),
+        }
+    }
+
+    pub fn file_path(&self, db: &dyn salsa::Database, file: File) -> Option<VfsPath> {
+        let data = {
+            let state = self.inner.state.read().unwrap();
+            state.data.get(&file).copied()
+        }?;
+        match data.status(db) {
+            FileStatus::Exists => Some(file.path(db).clone()),
+            FileStatus::Deleted => None,
+        }
+    }
+
+    pub fn file_for_path(&self, db: &dyn salsa::Database, path: &VfsPath) -> Option<FileLookup> {
+        let file = File::new(db, path.clone());
+        let data = self.inner.state.read().unwrap().data.get(&file).copied()?;
+        Some(FileLookup { file, status: data.status(db) })
+    }
+
+    pub fn intern_file_path<DB: SourceDatabase + ?Sized>(&self, db: &DB, path: VfsPath) -> File {
+        let file = File::new(db, path);
+        {
+            let state = self.inner.state.read().unwrap();
+            if state.data.contains_key(&file) {
+                return file;
+            }
+        }
+
+        let mut state = self.inner.state.write().unwrap();
+        if !state.data.contains_key(&file) {
+            self.create_file_data(db, &mut state, file, Durability::LOW);
+        }
+        file
+    }
+
+    pub fn record_file_contents<DB: SourceDatabase + ?Sized>(
+        &self,
+        db: &mut DB,
+        path: VfsPath,
+        contents: Option<Vec<u8>>,
+        visibility: FileVisibility,
+    ) {
+        match visibility {
+            FileVisibility::Indexed => {
+                let file = File::new(db, path);
+                let mut state = self.inner.state.write().unwrap();
+                let data = match state.data.get(&file).copied() {
+                    Some(data) => data,
+                    None => match contents {
+                        Some(_) => self.create_file_data(db, &mut state, file, Durability::LOW),
+                        None => return,
+                    },
+                };
+                let exists = match state.pending_changes.get(&file) {
+                    Some(kind) => match kind {
+                        PendingFileChangeKind::Create(_) | PendingFileChangeKind::Modify(_) => true,
+                        PendingFileChangeKind::Delete => false,
+                    },
+                    None => match data.status(db) {
+                        FileStatus::Exists => true,
+                        FileStatus::Deleted => false,
+                    },
+                };
+
+                let kind = match (exists, contents) {
+                    (false, None) => return,
+                    (false, Some(contents)) => PendingFileChangeKind::Create(contents),
+                    (true, None) => PendingFileChangeKind::Delete,
+                    (true, Some(contents)) => PendingFileChangeKind::Modify(contents),
+                };
+                merge_pending_file_change(&mut state.pending_changes, file, kind);
+            }
+            FileVisibility::Excluded => match contents {
+                Some(contents) => {
+                    let file = File::new(db, path);
+                    let data = {
+                        let mut state = self.inner.state.write().unwrap();
+                        let data = match state.data.get(&file).copied() {
+                            Some(data) => data,
+                            None => self.create_file_data(db, &mut state, file, Durability::LOW),
+                        };
+                        state.pending_changes.remove(&file);
+                        data
+                    };
+                    if let Ok(text) = String::from_utf8(contents) {
+                        let (text, line_endings) = LineEndings::normalize(text);
+                        data.set_text(db).with_durability(Durability::LOW).to(Arc::from(text));
+                        data.set_line_endings(db).with_durability(Durability::LOW).to(line_endings);
+                    }
+                    data.set_root(db).with_durability(Durability::LOW).to(None);
+                    data.set_status(db).with_durability(Durability::LOW).to(FileStatus::Exists);
+                }
+                None => {
+                    let file = File::new(db, path);
+                    let data = {
+                        let mut state = self.inner.state.write().unwrap();
+                        let data = state.data.get(&file).copied();
+                        if data.is_some() {
+                            state.pending_changes.remove(&file);
+                        }
+                        data
+                    };
+                    if let Some(data) = data {
+                        match data.status(db) {
+                            FileStatus::Exists if data.root(db).is_none() => {
+                                data.set_status(db)
+                                    .with_durability(Durability::LOW)
+                                    .to(FileStatus::Deleted);
+                            }
+                            FileStatus::Exists | FileStatus::Deleted => (),
+                        }
+                    }
+                }
+            },
+        }
+    }
+
+    pub fn take_file_changes(&self) -> FxHashMap<File, PendingFileChangeKind> {
+        let mut state = self.inner.state.write().unwrap();
+        mem::take(&mut state.pending_changes)
+    }
+
+    fn get_or_create_file_data<DB: SourceDatabase + ?Sized>(
+        &self,
+        db: &DB,
+        state: &mut FilesState,
+        file: File,
+        durability: Durability,
+    ) -> FileData {
+        if let Some(data) = state.data.get(&file).copied() {
+            return data;
+        }
+        self.create_file_data(db, state, file, durability)
+    }
+
+    fn create_file_data<DB: SourceDatabase + ?Sized>(
+        &self,
+        db: &DB,
+        state: &mut FilesState,
+        file: File,
+        durability: Durability,
+    ) -> FileData {
+        let data =
+            FileData::builder(file, None, FileStatus::Deleted, Arc::from(""), LineEndings::Unix)
+                .durability(durability)
+                .file_durability(Durability::NEVER_CHANGE)
+                .new(db);
+        state.data.insert(file, data);
+        data
+    }
+}
+
+fn merge_pending_file_change(
+    changes: &mut FxHashMap<File, PendingFileChangeKind>,
+    file: File,
+    change: PendingFileChangeKind,
+) {
+    match changes.entry(file) {
+        Entry::Vacant(entry) => {
+            entry.insert(change);
+        }
+        Entry::Occupied(mut entry) => {
+            let old = entry.get_mut();
+            let merged = match (mem::replace(old, PendingFileChangeKind::Delete), change) {
+                (PendingFileChangeKind::Create(_), PendingFileChangeKind::Create(text))
+                | (PendingFileChangeKind::Create(_), PendingFileChangeKind::Modify(text)) => {
+                    Some(PendingFileChangeKind::Create(text))
+                }
+                (PendingFileChangeKind::Create(_), PendingFileChangeKind::Delete) => None,
+                (PendingFileChangeKind::Modify(_), PendingFileChangeKind::Create(text))
+                | (PendingFileChangeKind::Modify(_), PendingFileChangeKind::Modify(text)) => {
+                    Some(PendingFileChangeKind::Modify(text))
+                }
+                (PendingFileChangeKind::Modify(_), PendingFileChangeKind::Delete) => {
+                    Some(PendingFileChangeKind::Delete)
+                }
+                (PendingFileChangeKind::Delete, PendingFileChangeKind::Create(text))
+                | (PendingFileChangeKind::Delete, PendingFileChangeKind::Modify(text)) => {
+                    Some(PendingFileChangeKind::Modify(text))
+                }
+                (PendingFileChangeKind::Delete, PendingFileChangeKind::Delete) => {
+                    Some(PendingFileChangeKind::Delete)
+                }
+            };
+
+            match merged {
+                Some(kind) => *old = kind,
+                None => {
+                    entry.remove();
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FileRegistration {
+    pub file: File,
+    pub root: FileRoot,
 }
 
 static NEXT_NONCE: AtomicUsize = AtomicUsize::new(0);
@@ -354,40 +650,94 @@ pub fn all_crates(db: &dyn salsa::Database) -> std::sync::Arc<[Crate]> {
     AllCrates::try_get(db).map_or(std::sync::Arc::default(), |all_crates| all_crates.crates(db))
 }
 
-// FIXME: VFS rewrite should allow us to get rid of this wrapper
 #[doc(hidden)]
 #[salsa::interned]
-pub struct InternedSourceRootId {
+pub struct InternedFileRoot {
     #[returns(copy)]
-    pub id: SourceRootId,
+    pub root: FileRoot,
 }
 
-/// Crates whose root file is in `id`.
-pub fn source_root_crates(db: &dyn SourceDatabase, id: SourceRootId) -> &[Crate] {
+#[salsa::tracked(returns(deref))]
+pub fn local_file_roots(db: &dyn SourceDatabase) -> Box<[FileRootId]> {
+    file_roots(db, FileRootKind::Local)
+}
+
+#[salsa::tracked(returns(deref))]
+pub fn library_file_roots(db: &dyn SourceDatabase) -> Box<[FileRootId]> {
+    file_roots(db, FileRootKind::Library)
+}
+
+fn file_roots(db: &dyn SourceDatabase, kind: FileRootKind) -> Box<[FileRootId]> {
+    let mut roots = FxHashSet::default();
+    for &file in db.files_by_kind(kind).iter() {
+        let Some(root) = db.file_root(file) else {
+            continue;
+        };
+        if root.kind == kind {
+            roots.insert(root.id);
+        }
+    }
+    let mut roots = roots.into_iter().collect::<Vec<_>>();
+    roots.sort();
+    roots.into_boxed_slice()
+}
+
+pub fn file_root_files(db: &dyn SourceDatabase, root: FileRoot) -> &[File] {
     #[salsa::tracked(returns(deref))]
-    pub fn source_root_crates<'db>(
+    pub fn file_root_files<'db>(
         db: &'db dyn SourceDatabase,
-        id: InternedSourceRootId<'db>,
+        root: InternedFileRoot<'db>,
+    ) -> Box<[File]> {
+        let root = root.root(db);
+        db.files_by_kind(root.kind)
+            .iter()
+            .copied()
+            .filter_map(|file| {
+                let file_root = db.file_root(file)?;
+                if file_root.id == root.id { Some(file) } else { None }
+            })
+            .collect()
+    }
+
+    file_root_files(db, InternedFileRoot::new(db, root))
+}
+
+#[salsa::tracked(returns(deref))]
+pub fn local_files(db: &dyn SourceDatabase) -> Box<[File]> {
+    db.files_by_kind(FileRootKind::Local).iter().copied().collect()
+}
+
+/// Crates whose root file belongs to `root`.
+pub fn file_root_crates(db: &dyn SourceDatabase, root: FileRoot) -> &[Crate] {
+    #[salsa::tracked(returns(deref))]
+    pub fn file_root_crates<'db>(
+        db: &'db dyn SourceDatabase,
+        root: InternedFileRoot<'db>,
     ) -> Box<[Crate]> {
         let crates = AllCrates::get(db).crates(db);
-        let id = id.id(db);
+        let root = root.root(db);
         crates
             .iter()
             .copied()
             .filter(|&krate| {
                 let root_file = krate.data(db).root_file_id;
-                db.file_source_root(root_file).source_root_id(db) == id
+                let Some(file_root) = db.file_root(root_file) else {
+                    return false;
+                };
+                file_root == root
             })
             .collect()
     }
-    source_root_crates(db, InternedSourceRootId::new(db, id))
+    file_root_crates(db, InternedFileRoot::new(db, root))
 }
 
-pub fn relevant_crates(db: &dyn SourceDatabase, file_id: FileId) -> &[Crate] {
+pub fn relevant_crates(db: &dyn SourceDatabase, file: File) -> &[Crate] {
     let _p = tracing::info_span!("relevant_crates").entered();
 
-    let source_root = db.file_source_root(file_id);
-    source_root_crates(db, source_root.source_root_id(db))
+    let Some(root) = db.file_root(file) else {
+        panic!("Unable to fetch file root for {file:?}; this is a bug")
+    };
+    file_root_crates(db, root)
 }
 
 #[must_use]

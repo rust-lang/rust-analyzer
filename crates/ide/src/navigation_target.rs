@@ -9,7 +9,7 @@ use hir::{
     InFile, LocalSource, ModuleSource, Name, Semantics, Symbol, sym, symbols::FileSymbol,
 };
 use ide_db::{
-    FileId, FileRange, RootDatabase, SymbolKind,
+    File, FileRange, RootDatabase, SymbolKind,
     base_db::{CrateOrigin, LangCrateOrigin, all_crates},
     defs::{Definition, find_std_module},
     documentation::HasDocs,
@@ -29,7 +29,7 @@ use syntax::{
 /// code, like a function or a struct, but this is not strictly required.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct NavigationTarget {
-    pub file_id: FileId,
+    pub file_id: File,
     /// Range which encompasses the whole element.
     ///
     /// Should include body, doc comments, attributes, etc.
@@ -77,8 +77,8 @@ impl UpmapFromRaFixture for NavigationTarget {
     fn upmap_from_ra_fixture(
         self,
         analysis: &ide_db::ra_fixture::RaFixtureAnalysis,
-        _virtual_file_id: FileId,
-        real_file_id: FileId,
+        _virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         let virtual_file_id = self.file_id;
         Ok(NavigationTarget {
@@ -216,7 +216,7 @@ impl NavigationTarget {
     }
 
     pub(crate) fn from_syntax(
-        file_id: FileId,
+        file_id: File,
         name: Symbol,
         focus_range: Option<TextRange>,
         full_range: TextRange,
@@ -1074,8 +1074,8 @@ fn foo() { enum FooInner { } }
         expect![[r#"
             [
                 NavigationTarget {
-                    file_id: FileId(
-                        0,
+                    file_id: File(
+                        512,
                     ),
                     full_range: 0..17,
                     focus_range: 5..13,
@@ -1084,8 +1084,8 @@ fn foo() { enum FooInner { } }
                     description: "enum FooInner",
                 },
                 NavigationTarget {
-                    file_id: FileId(
-                        0,
+                    file_id: File(
+                        512,
                     ),
                     full_range: 29..46,
                     focus_range: 34..42,

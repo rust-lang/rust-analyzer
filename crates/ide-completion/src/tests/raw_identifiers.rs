@@ -7,7 +7,7 @@ use crate::tests::{TEST_CONFIG, completion_list_with_config_raw, position};
 fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
     let completions = completion_list_with_config_raw(TEST_CONFIG, ra_fixture, true, None);
     let (db, position) = position(ra_fixture);
-    let mut actual = db.file_text(position.file_id).text(&db).to_string();
+    let mut actual = db.file_data(position.file_id).text(&db).to_string();
     // FIXME: rewrite in terms of `#![feature(exact_length_collection)]`. See: #149266
     Itertools::exactly_one(completions.into_iter())
         .expect("more than one completion")
@@ -23,7 +23,7 @@ fn keyword_since_edition_completes_without_raw_on_old_edition() {
 //- /a.rs crate:a edition:2015
 pub fn dyn() {}
 
-//- /b.rs crate:b edition:2015 deps:a new_source_root:local
+//- /b.rs crate:b edition:2015 deps:a new_file_root:local
 fn foo() {
     a::dyn$0
 "#,
@@ -38,7 +38,7 @@ fn foo() {
 //- /a.rs crate:a edition:2018
 pub fn r#dyn() {}
 
-//- /b.rs crate:b edition:2015 deps:a new_source_root:local
+//- /b.rs crate:b edition:2015 deps:a new_file_root:local
 fn foo() {
     a::dyn$0
 "#,
@@ -56,7 +56,7 @@ fn keyword_since_edition_completes_with_raw_on_new_edition() {
 //- /a.rs crate:a edition:2015
 pub fn dyn() {}
 
-//- /b.rs crate:b edition:2018 deps:a new_source_root:local
+//- /b.rs crate:b edition:2018 deps:a new_file_root:local
 fn foo() {
     a::dyn$0
 "#,
@@ -71,7 +71,7 @@ fn foo() {
 //- /a.rs crate:a edition:2018
 pub fn r#dyn() {}
 
-//- /b.rs crate:b edition:2018 deps:a new_source_root:local
+//- /b.rs crate:b edition:2018 deps:a new_file_root:local
 fn foo() {
     a::dyn$0
 "#,

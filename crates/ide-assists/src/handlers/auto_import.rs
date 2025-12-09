@@ -392,10 +392,10 @@ mod tests {
 //- /main.rs crate:main deps:foo,bar
 HashMap$0::new();
 
-//- /lib.rs crate:foo
+//- /foo/lib.rs crate:foo
 pub mod collections { pub struct HashMap; }
 
-//- /lib.rs crate:bar
+//- /bar/lib.rs crate:bar
 pub mod collections { pub mod hash_map { pub struct HashMap; } }
         ";
 
@@ -433,12 +433,12 @@ pub struct HashMap;
 //- /main.rs crate:main deps:foo,bar
 HashMap$0::new();
 
-//- /lib.rs crate:foo
+//- /foo/lib.rs crate:foo
 pub mod module {
     pub struct HashMap;
 }
 
-//- /lib.rs crate:bar library
+//- /bar/lib.rs crate:bar library
 pub struct HashMap;
         ";
 
@@ -451,7 +451,7 @@ pub struct HashMap;
 //- /main.rs crate:main deps:foo,bar
 HashMap$0::new();
 
-//- /lib.rs crate:foo
+//- /foo/lib.rs crate:foo
 pub mod deeply {
     pub mod nested {
         pub mod module {
@@ -460,7 +460,7 @@ pub mod deeply {
     }
 }
 
-//- /lib.rs crate:bar library
+//- /bar/lib.rs crate:bar library
 pub struct HashMap;
         ";
 

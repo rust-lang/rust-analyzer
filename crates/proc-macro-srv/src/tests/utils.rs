@@ -2,7 +2,7 @@
 
 use expect_test::Expect;
 use span::{
-    EditionedFileId, FileId, ROOT_ERASED_FILE_AST_ID, Span, SpanAnchor, SyntaxContext, TextRange,
+    EditionedFileId, File, ROOT_ERASED_FILE_AST_ID, Span, SpanAnchor, SyntaxContext, TextRange,
 };
 use std::ops::Range;
 
@@ -10,6 +10,11 @@ use crate::{
     EnvSnapshot, ProcMacroClientInterface, ProcMacroSrv, SpanId, dylib, proc_macro_test_dylib_path,
     token_stream::TokenStream,
 };
+
+// These IDs model files interned by the remote rust-analyzer process. The server only transports
+// them back to its callback and never uses them for a Salsa lookup.
+const DEF_SITE_FILE: File = unsafe { File::from_raw(41) };
+const CALL_SITE_FILE: File = unsafe { File::from_raw(42) };
 
 fn make_ctx() -> SyntaxContext {
     // SAFETY: Tests do not use a Database, so this won't ever be used within salsa.
@@ -88,7 +93,7 @@ fn assert_expand_impl(
     let def_site = Span {
         range: TextRange::new(0.into(), 150.into()),
         anchor: SpanAnchor {
-            file_id: EditionedFileId::current_edition(FileId::from_raw(41)),
+            file_id: EditionedFileId::current_edition(DEF_SITE_FILE),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: make_ctx(),
@@ -96,7 +101,7 @@ fn assert_expand_impl(
     let call_site = Span {
         range: TextRange::new(0.into(), 100.into()),
         anchor: SpanAnchor {
-            file_id: EditionedFileId::current_edition(FileId::from_raw(42)),
+            file_id: EditionedFileId::current_edition(CALL_SITE_FILE),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: make_ctx(),
@@ -148,11 +153,11 @@ impl ProcMacroClientInterface for MockCallback<'_> {
             .map(ToOwned::to_owned)
     }
 
-    fn file(&mut self, _file_id: FileId) -> String {
+    fn file(&mut self, _file_id: File) -> String {
         String::new()
     }
 
-    fn local_file(&mut self, _file_id: FileId) -> Option<String> {
+    fn local_file(&mut self, _file_id: File) -> Option<String> {
         None
     }
 
@@ -191,7 +196,7 @@ pub fn assert_expand_with_callback(
     let def_site = Span {
         range: TextRange::new(0.into(), 150.into()),
         anchor: SpanAnchor {
-            file_id: EditionedFileId::current_edition(FileId::from_raw(41)),
+            file_id: EditionedFileId::current_edition(DEF_SITE_FILE),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: make_ctx(),
@@ -199,7 +204,7 @@ pub fn assert_expand_with_callback(
     let call_site = Span {
         range: TextRange::new(0.into(), 100.into()),
         anchor: SpanAnchor {
-            file_id: EditionedFileId::current_edition(FileId::from_raw(42)),
+            file_id: EditionedFileId::current_edition(CALL_SITE_FILE),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         },
         ctx: make_ctx(),

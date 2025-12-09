@@ -16,16 +16,17 @@ use project_model::{
     RustSourceWorkspaceConfig, Sysroot,
 };
 
+use ide::File;
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace};
 use rustc_hash::FxHashMap;
-use vfs::{AbsPathBuf, FileId};
+use vfs::AbsPathBuf;
 use walkdir::WalkDir;
 
 use crate::cli::{Result, flags, report_metric};
 
 struct Tester {
     host: AnalysisHost,
-    root_file: FileId,
+    root_file: File,
     pass_count: u64,
     ignore_count: u64,
     fail_count: u64,
@@ -110,7 +111,7 @@ impl Tester {
             num_worker_threads: 1,
             proc_macro_processes: 1,
         };
-        let (db, _vfs, _proc_macro) =
+        let (db, _proc_macro) =
             load_workspace(workspace, &cargo_config.extra_env, &load_cargo_config)?;
         let host = AnalysisHost::with_database(db);
         let db = host.raw_database();

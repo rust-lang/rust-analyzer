@@ -73,14 +73,14 @@ pub fn deserialize_span_data_index_map(map: &[u32]) -> SpanDataIndexMap {
     chunks
         .iter()
         .map(|&[file_id, ast_id, start, end, e]| {
+            // SAFETY: We only receive spans from the server. If someone mess up the communication UB can happen,
+            // but that will be their problem.
             Span {
                 anchor: SpanAnchor {
                     file_id: EditionedFileId::from_raw(file_id),
                     ast_id: ErasedFileAstId::from_raw(ast_id),
                 },
                 range: TextRange::new(start.into(), end.into()),
-                // SAFETY: We only receive spans from the server. If someone mess up the communication UB can happen,
-                // but that will be their problem.
                 ctx: unsafe { SyntaxContext::from_u32(e) },
             }
         })

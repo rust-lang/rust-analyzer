@@ -1,7 +1,10 @@
 //! Applies structured search replace rules from the command line.
 
 use anyhow::Context;
-use ide_db::{EditionedFileId, base_db::SourceDatabase};
+use ide_db::{
+    EditionedFileId,
+    base_db::{SourceDatabase, local_files},
+};
 use ide_ssr::MatchFinder;
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use project_model::{CargoConfig, RustLibSource};
@@ -23,7 +26,7 @@ impl flags::Ssr {
             num_worker_threads: 1,
             proc_macro_processes: 1,
         };
-        let (ref db, vfs, _proc_macro) = load_workspace_at(
+        let (ref db, _proc_macro) = load_workspace_at(
             &std::env::current_dir()?,
             &cargo_config,
             &load_cargo_config,
@@ -35,10 +38,10 @@ impl flags::Ssr {
         }
         let edits = match_finder.edits();
         for (file_id, edit) in edits {
-            if let Some(path) = vfs.file_path(file_id).as_path() {
-                let mut contents = db.file_text(file_id).text(db).to_string();
+            if let Some(path) = db.file_path(file_id).and_then(|path| path.into_abs_path()) {
+                let mut contents = db.file_data(file_id).text(db).to_string();
                 edit.apply(&mut contents);
-                std::fs::write(path, contents)
+                std::fs::write(&path, contents)
                     .with_context(|| format!("failed to write {path}"))?;
             }
         }
@@ -51,7 +54,6 @@ impl flags::Search {
     /// `debug_snippet`. This is intended for debugging and probably isn't useful in its current
     /// form for much else.
     pub fn run(self) -> anyhow::Result<()> {
-        use ide_db::base_db::SourceDatabase;
         let cargo_config =
             CargoConfig { all_targets: true, set_test: true, ..CargoConfig::default() };
         let load_cargo_config = LoadCargoConfig {
@@ -61,7 +63,7 @@ impl flags::Search {
             num_worker_threads: 1,
             proc_macro_processes: 1,
         };
-        let (ref db, _vfs, _proc_macro) = load_workspace_at(
+        let (ref db, _proc_macro) = load_workspace_at(
             &std::env::current_dir()?,
             &cargo_config,
             &load_cargo_config,
@@ -72,15 +74,12 @@ impl flags::Search {
             match_finder.add_search_pattern(pattern)?;
         }
         if let Some(debug_snippet) = &self.debug {
-            for &root in ide_db::LocalRoots::get(db).roots(db).iter() {
-                let sr = db.source_root(root).source_root(db);
-                for file_id in sr.iter() {
-                    for debug_info in match_finder.debug_where_text_equal(
-                        EditionedFileId::current_edition(db, file_id),
-                        debug_snippet,
-                    ) {
-                        println!("{debug_info:#?}");
-                    }
+            for &file_id in local_files(db).iter() {
+                for debug_info in match_finder.debug_where_text_equal(
+                    EditionedFileId::current_edition(db, file_id),
+                    debug_snippet,
+                ) {
+                    println!("{debug_info:#?}");
                 }
             }
         } else {

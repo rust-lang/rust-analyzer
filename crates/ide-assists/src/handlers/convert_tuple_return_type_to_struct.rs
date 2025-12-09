@@ -158,7 +158,7 @@ fn replace_usages(
                 insert_use_with_editor(&import_scope, path, &ctx.config.insert_use, &editor);
             }
         });
-        edit.add_file_edits(file_id.file_id(ctx.db()), editor);
+        edit.add_file_edits(file_id.file(ctx.db()), editor);
     }
 }
 

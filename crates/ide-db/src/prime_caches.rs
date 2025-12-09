@@ -307,7 +307,7 @@ pub fn parallel_prime_caches(
                     // Compute the symbol search index.
                     // This primes the cache for `ide_db::symbol_index::world_symbols()`.
                     //
-                    // We do this for workspace crates only (members of local_roots), because doing it
+                    // We do this for workspace crates only (members of local file roots), because doing it
                     // for all dependencies could be *very* unnecessarily slow in a large project.
                     //
                     // FIXME: We should do it unconditionally if the configuration is set to default to

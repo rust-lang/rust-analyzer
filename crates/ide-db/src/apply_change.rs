@@ -64,8 +64,6 @@ impl RootDatabase {
             // // SymbolsDatabase
             // crate::symbol_index::ModuleSymbolsQuery
             // crate::symbol_index::LibrarySymbolsQuery
-            // crate::symbol_index::LocalRootsQuery
-            // crate::symbol_index::LibraryRootsQuery
             // // HirDatabase
             // hir::db::AdtDatumQuery
             // hir::db::AdtVarianceQuery
@@ -153,9 +151,7 @@ impl RootDatabase {
             // // SourceDatabaseExt
             // base_db::FileTextQuery
             // base_db::CompressedFileTextQuery
-            // base_db::FileSourceRootQuery
-            // base_db::SourceRootQuery
-            // base_db::SourceRootCratesQuery
+            // base_db::FileRootCratesQuery
         ];
 
         acc.sort_by_key(|it| std::cmp::Reverse(it.1));

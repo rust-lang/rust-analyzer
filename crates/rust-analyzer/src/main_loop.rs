@@ -9,12 +9,15 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, never, select};
-use ide_db::base_db::{SourceDatabase, VfsPath};
+use ide_db::{
+    File,
+    base_db::{FileRootKind, SourceDatabase, VfsPath},
+};
 use lsp_server::{Connection, Notification, Request};
 use lsp_types::{Notification as _, TextDocumentIdentifier};
 use stdx::thread::ThreadIntent;
 use tracing::{Level, error, span};
-use vfs::{AbsPathBuf, FileId, loader::LoadingProgress};
+use vfs::{AbsPathBuf, loader::LoadingProgress};
 
 use crate::{
     config::Config,
@@ -23,7 +26,6 @@ use crate::{
     flycheck::{self, ClearDiagnosticsKind, ClearScope, FlycheckMessage},
     global_state::{
         FetchBuildDataResponse, FetchWorkspaceRequest, FetchWorkspaceResponse, GlobalState,
-        file_id_to_url, url_to_file_id,
     },
     handlers::{
         dispatch::{NotificationDispatcher, RequestDispatcher},
@@ -100,13 +102,13 @@ impl fmt::Display for Event {
 #[derive(Debug)]
 pub(crate) enum DeferredTask {
     CheckIfIndexed(lsp_types::Uri),
-    CheckProcMacroSources(Vec<FileId>),
+    CheckProcMacroSources(Vec<File>),
 }
 
 #[derive(Debug)]
 pub(crate) enum DiagnosticsTaskKind {
-    Syntax(DiagnosticsGeneration, Vec<(FileId, Vec<lsp_types::Diagnostic>)>),
-    Semantic(DiagnosticsGeneration, Vec<(FileId, Vec<lsp_types::Diagnostic>)>),
+    Syntax(DiagnosticsGeneration, Vec<(File, Vec<lsp_types::Diagnostic>)>),
+    Semantic(DiagnosticsGeneration, Vec<(File, Vec<lsp_types::Diagnostic>)>),
 }
 
 #[derive(Debug)]
@@ -594,7 +596,12 @@ impl GlobalState {
 
         if let Some(diagnostic_changes) = self.diagnostics.take_changes() {
             for file_id in diagnostic_changes {
-                let uri = file_id_to_url(&self.vfs.read().0, file_id);
+                let path = self
+                    .analysis_host
+                    .raw_database()
+                    .file_path(file_id)
+                    .expect("file id has no associated path");
+                let uri = to_proto::url_from_abs_path(path.as_path().unwrap());
                 let version = from_proto::vfs_path(&uri)
                     .ok()
                     .and_then(|path| self.mem_docs.get(&path).map(|it| it.version));
@@ -670,22 +677,19 @@ impl GlobalState {
         let db = self.analysis_host.raw_database();
         let generation = self.diagnostics.next_generation();
         let subscriptions = {
-            let vfs = &self.vfs.read().0;
             self.mem_docs
                 .iter()
-                .map(|path| vfs.file_id(path).unwrap())
-                .filter_map(|(file_id, excluded)| {
-                    (excluded == vfs::FileExcluded::No).then_some(file_id)
-                })
+                .filter_map(|path| db.file_for_indexed_path(path))
                 .filter(|&file_id| {
-                    let source_root_id = db.file_source_root(file_id).source_root_id(db);
-                    let source_root = db.source_root(source_root_id).source_root(db);
                     // Only publish diagnostics for files in the workspace, not from crates.io deps
                     // or the sysroot.
                     // While theoretically these should never have errors, we have quite a few false
                     // positives particularly in the stdlib, and those diagnostics would stay around
                     // forever if we emitted them here.
-                    !source_root.is_library
+                    let Some(root) = db.file_root(file_id) else {
+                        return false;
+                    };
+                    root.kind == FileRootKind::Local
                 })
                 .collect::<std::sync::Arc<_>>()
         };
@@ -775,14 +779,12 @@ impl GlobalState {
         let subscriptions = self
             .mem_docs
             .iter()
-            .map(|path| self.vfs.read().0.file_id(path).unwrap())
-            .filter_map(|(file_id, excluded)| {
-                (excluded == vfs::FileExcluded::No).then_some(file_id)
-            })
+            .filter_map(|path| db.file_for_indexed_path(path))
             .filter(|&file_id| {
-                let source_root_id = db.file_source_root(file_id).source_root_id(db);
-                let source_root = db.source_root(source_root_id).source_root(db);
-                !source_root.is_library
+                let Some(root) = db.file_root(file_id) else {
+                    return false;
+                };
+                root.kind == FileRootKind::Local
             })
             .collect::<Vec<_>>();
         tracing::trace!("updating tests for {:?}", subscriptions);
@@ -986,7 +988,6 @@ impl GlobalState {
             vfs::loader::Message::Changed { files } | vfs::loader::Message::Loaded { files } => {
                 let _p = tracing::info_span!("GlobalState::handle_vfs_msg{changed/load}").entered();
                 self.debounce_workspace_fetch();
-                let vfs = &mut self.vfs.write().0;
                 for (path, contents) in files {
                     if matches!(path.name_and_extension(), Some(("minicore", Some("rs")))) {
                         // Not a lot of bad can happen from mistakenly identifying `minicore`, so proceed with that.
@@ -1001,12 +1002,18 @@ impl GlobalState {
                     // notifications so only set it if it's not in there. Library files are
                     // exempt from that authority as they are considered immutable, for
                     // them disk is always the source of truth.
-                    let is_library = self.source_root_config.path_is_library(&path);
+                    let is_library = self.file_root_config.path_is_library(&path);
                     let client_is_authoritative = !is_library && self.mem_docs.contains(&path);
                     if !client_is_authoritative
-                        && (is_changed || is_library || vfs.file_id(&path).is_none())
+                        && (is_changed
+                            || is_library
+                            || self
+                                .analysis_host
+                                .raw_database()
+                                .file_for_indexed_path(&path)
+                                .is_none())
                     {
-                        vfs.set_file_contents(path, contents);
+                        self.set_file_contents(path, contents);
                     }
                 }
             }
@@ -1088,7 +1095,7 @@ impl GlobalState {
                 self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, move |sender| {
                     let _p = tracing::info_span!("GlobalState::check_if_indexed").entered();
                     tracing::debug!(?uri, "handling uri");
-                    let Some(id) = from_proto::file_id(&snap, &uri).expect("unable to get FileId")
+                    let Some(id) = from_proto::file_id(&snap, &uri).expect("unable to get File")
                     else {
                         return;
                     };
@@ -1222,7 +1229,7 @@ impl GlobalState {
                     &snap,
                 );
                 for diag in diagnostics {
-                    match url_to_file_id(&self.vfs.read().0, &diag.url) {
+                    match snap.url_to_file_id(&diag.url) {
                         Ok(Some(file_id)) => self.diagnostics.add_check_diagnostic(
                             id,
                             generation,

@@ -273,8 +273,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 23..30,
                                         },
@@ -1363,8 +1363,8 @@ fn identity<T>(t: T) -> T {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 12..13,
                                         },
@@ -1399,8 +1399,8 @@ fn f<const N: usize>() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 11..12,
                                         },
@@ -1437,8 +1437,8 @@ fn f<'a>() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 7..8,
                                         },

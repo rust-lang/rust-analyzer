@@ -57,11 +57,11 @@ pub mod syntax_helpers {
 pub use hir::{ChangeWithProcMacros, EditionedFileId};
 use salsa::Durability;
 
-use std::{fmt, mem::ManuallyDrop};
+use std::{fmt, mem::ManuallyDrop, sync::OnceLock};
 
 use base_db::{
-    CrateGraphBuilder, CratesMap, FileSourceRootInput, FileText, Files, Nonce, SourceDatabase,
-    SourceRoot, SourceRootId, SourceRootInput, set_all_crates_with_durability,
+    CrateGraphBuilder, CratesMap, FileLookup, FileRegistration, FileVisibility, Files, Nonce,
+    PendingFileChangeKind, SourceDatabase, WorkspaceFiles, set_all_crates_with_durability,
 };
 use hir::{FilePositionWrapper, FileRangeWrapper, db::HirDatabase};
 use triomphe::Arc;
@@ -72,11 +72,11 @@ pub use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 pub use ::line_index;
 
 /// `base_db` is normally also needed in places where `ide_db` is used, so this re-export is for convenience.
-pub use base_db::{self, FxIndexMap, FxIndexSet, LibraryRoots, LocalRoots};
-pub use span::{self, FileId};
+pub use base_db::{self, FxIndexMap, FxIndexSet};
+pub use span::{self, File};
 
-pub type FilePosition = FilePositionWrapper<FileId>;
-pub type FileRange = FileRangeWrapper<FileId>;
+pub type FilePosition = FilePositionWrapper<File>;
+pub type FileRange = FileRangeWrapper<File>;
 
 #[salsa::db]
 pub struct RootDatabase {
@@ -87,7 +87,8 @@ pub struct RootDatabase {
     // which duplicates `Weak::drop` and `Arc::drop` tens of thousands of times, which makes
     // compile times of all `ide_*` and downstream crates suffer greatly.
     storage: ManuallyDrop<salsa::Storage<Self>>,
-    files: Arc<Files>,
+    files: Files,
+    workspace_files: OnceLock<WorkspaceFiles>,
     crates_map: Arc<CratesMap>,
     nonce: Nonce,
 }
@@ -108,6 +109,7 @@ impl Clone for RootDatabase {
         Self {
             storage: self.storage.clone(),
             files: self.files.clone(),
+            workspace_files: self.workspace_files.clone(),
             crates_map: self.crates_map.clone(),
             nonce: self.nonce,
         }
@@ -122,52 +124,46 @@ impl fmt::Debug for RootDatabase {
 
 #[salsa::db]
 impl SourceDatabase for RootDatabase {
-    fn file_text(&self, file_id: vfs::FileId) -> FileText {
-        self.files.file_text(file_id)
+    fn workspace_files(&self) -> WorkspaceFiles {
+        *self.workspace_files.get().expect("RootDatabase must initialize workspace files")
     }
 
-    fn set_file_text(&mut self, file_id: vfs::FileId, text: &str) {
-        let files = Arc::clone(&self.files);
-        files.set_file_text(self, file_id, text);
+    fn file_data(&self, file: File) -> base_db::FileData {
+        self.files.file_data(file)
     }
 
-    fn set_file_text_with_durability(
+    fn file_path(&self, file_id: File) -> Option<vfs::VfsPath> {
+        self.files.file_path(self, file_id)
+    }
+
+    fn file_for_path(&self, path: &vfs::VfsPath) -> Option<FileLookup> {
+        self.files.file_for_path(self, path)
+    }
+
+    fn intern_file_path(&self, path: vfs::VfsPath) -> File {
+        self.files.intern_file_path(self, path)
+    }
+
+    fn resolve_path(&self, anchor: File, paths: &[&str]) -> Option<(File, usize)> {
+        base_db::resolve_path(self, anchor, paths)
+    }
+
+    fn record_file_contents(
         &mut self,
-        file_id: vfs::FileId,
-        text: &str,
-        durability: Durability,
+        path: vfs::VfsPath,
+        contents: Option<Vec<u8>>,
+        visibility: FileVisibility,
     ) {
-        let files = Arc::clone(&self.files);
-        files.set_file_text_with_durability(self, file_id, text, durability);
+        self.files.clone().record_file_contents(self, path, contents, visibility);
     }
 
-    /// Source root of the file.
-    fn source_root(&self, source_root_id: SourceRootId) -> SourceRootInput {
-        self.files.source_root(source_root_id)
+    fn take_file_changes(&mut self) -> FxHashMap<File, PendingFileChangeKind> {
+        self.files.take_file_changes()
     }
 
-    fn set_source_root_with_durability(
-        &mut self,
-        source_root_id: SourceRootId,
-        source_root: Arc<SourceRoot>,
-        durability: Durability,
-    ) {
-        let files = Arc::clone(&self.files);
-        files.set_source_root_with_durability(self, source_root_id, source_root, durability);
-    }
-
-    fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput {
-        self.files.file_source_root(self, id)
-    }
-
-    fn set_file_source_root_with_durability(
-        &mut self,
-        id: vfs::FileId,
-        source_root_id: SourceRootId,
-        durability: Durability,
-    ) {
-        let files = Arc::clone(&self.files);
-        files.set_file_source_root_with_durability(self, id, source_root_id, durability);
+    fn set_indexed_files(&mut self, files: Vec<FileRegistration>) {
+        let workspace_files = self.workspace_files();
+        workspace_files.replace(self, &self.files.clone(), files);
     }
 
     fn crates_map(&self) -> Arc<CratesMap> {
@@ -178,7 +174,7 @@ impl SourceDatabase for RootDatabase {
         (self.nonce, salsa::plumbing::ZalsaDatabase::zalsa(self).current_revision())
     }
 
-    fn line_column(&self, file: FileId, offset: syntax::TextSize) -> Result<(u32, u32), ()> {
+    fn line_column(&self, file: File, offset: syntax::TextSize) -> Result<(u32, u32), ()> {
         line_index(self, file).try_line_col(offset).map(|lc| (lc.line, lc.col)).ok_or(())
     }
 }
@@ -193,20 +189,17 @@ impl RootDatabase {
     pub fn new(lru_capacity: Option<u16>) -> RootDatabase {
         let mut db = RootDatabase {
             storage: ManuallyDrop::new(salsa::Storage::default()),
-            files: Default::default(),
+            files: Files::default(),
+            workspace_files: OnceLock::new(),
             crates_map: Default::default(),
             nonce: Nonce::new(),
         };
+        let workspace_files = WorkspaceFiles::new(&db, Vec::new().into(), Vec::new().into());
+        assert!(db.workspace_files.set(workspace_files).is_ok());
         // This needs to be here otherwise `CrateGraphBuilder` will panic.
         set_all_crates_with_durability(&mut db, std::iter::empty(), Durability::HIGH);
         CrateGraphBuilder::default().set_in_db(&mut db);
         hir::ProcMacros::init_default(&db, Durability::MEDIUM);
-        _ = base_db::LibraryRoots::builder(Default::default())
-            .durability(Durability::MEDIUM)
-            .new(&db);
-        _ = base_db::LocalRoots::builder(Default::default())
-            .durability(Durability::MEDIUM)
-            .new(&db);
         hir::db::set_expand_proc_attr_macros(&mut db, false);
         db.update_base_query_lru_capacities(lru_capacity);
         db
@@ -253,18 +246,18 @@ impl RootDatabase {
     }
 }
 
-pub fn line_index(db: &dyn SourceDatabase, file_id: FileId) -> &Arc<LineIndex> {
+pub fn line_index(db: &dyn SourceDatabase, file_id: File) -> &Arc<LineIndex> {
     #[salsa::interned]
     pub struct InternedFileId {
         #[returns(copy)]
-        id: FileId,
+        id: File,
     }
     #[salsa::tracked(returns(ref))]
     fn line_index<'db>(
         db: &'db dyn SourceDatabase,
         file_id: InternedFileId<'db>,
     ) -> Arc<LineIndex> {
-        let text = db.file_text(file_id.id(db)).text(db);
+        let text = db.file_data(file_id.id(db)).text(db);
         Arc::new(LineIndex::new(text))
     }
     line_index(db, InternedFileId::new(db, file_id))
@@ -421,5 +414,189 @@ impl<'a> Default for MiniCore<'a> {
     #[inline]
     fn default() -> Self {
         Self::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use base_db::{
+        File, FileChange, FileRegistration, FileRoot, FileRootId, FileRootKind, FileStatus,
+        FileVisibility, PendingFileChangeKind, SourceDatabase, VfsPath, library_file_roots,
+        local_files,
+    };
+
+    use crate::RootDatabase;
+
+    #[test]
+    fn file_roots_provide_file_id_and_path() {
+        let mut db = RootDatabase::new(None);
+        let path = VfsPath::new_virtual_path("/foo.rs".to_owned());
+        let file_id = File::new(&db, path.clone());
+
+        let mut change = FileChange::default();
+        change.set_indexed_files(vec![FileRegistration {
+            file: file_id,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        }]);
+        change.apply(&mut db);
+
+        assert_eq!(db.file_path(file_id), Some(path.clone()));
+        assert_eq!(db.file_for_indexed_path(&path), Some(file_id));
+        let missing = File::new(&db, VfsPath::new_virtual_path("/bar.rs".to_owned()));
+        assert_eq!(db.file_path(missing), None);
+        assert_eq!(db.file_for_indexed_path(missing.path(&db)), None);
+    }
+
+    #[test]
+    fn workspace_file_membership_invalidates_tracked_queries() {
+        let mut db = RootDatabase::new(None);
+        assert!(local_files(&db).is_empty());
+        assert!(library_file_roots(&db).is_empty());
+
+        let first = File::new(&db, VfsPath::new_virtual_path("/first.rs".to_owned()));
+        let mut change = FileChange::default();
+        change.set_indexed_files(vec![FileRegistration {
+            file: first,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        }]);
+        change.apply(&mut db);
+        assert_eq!(local_files(&db), &[first]);
+
+        let second = File::new(&db, VfsPath::new_virtual_path("/second.rs".to_owned()));
+        let mut change = FileChange::default();
+        change.set_indexed_files(vec![
+            FileRegistration {
+                file: first,
+                root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+            },
+            FileRegistration {
+                file: second,
+                root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+            },
+        ]);
+        change.apply(&mut db);
+        assert_eq!(local_files(&db), &[first, second]);
+
+        let library = File::new(&db, VfsPath::new_virtual_path("/library.rs".to_owned()));
+        let mut change = FileChange::default();
+        change.set_indexed_files(vec![
+            FileRegistration {
+                file: first,
+                root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+            },
+            FileRegistration {
+                file: second,
+                root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+            },
+            FileRegistration {
+                file: library,
+                root: FileRoot { id: FileRootId(1), kind: FileRootKind::Library },
+            },
+        ]);
+        change.apply(&mut db);
+        assert_eq!(local_files(&db), &[first, second]);
+        assert_eq!(library_file_roots(&db), &[FileRootId(1)]);
+    }
+
+    #[test]
+    fn removed_file_roots_mark_files_deleted() {
+        let mut db = RootDatabase::new(None);
+        let path = VfsPath::new_virtual_path("/foo.rs".to_owned());
+        let file_id = File::new(&db, path.clone());
+
+        let mut change = FileChange::default();
+        change.set_indexed_files(vec![FileRegistration {
+            file: file_id,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        }]);
+        change.apply(&mut db);
+
+        assert_eq!(db.file_path(file_id), Some(path.clone()));
+        assert_eq!(db.file_for_indexed_path(&path), Some(file_id));
+
+        let mut change = FileChange::default();
+        change.set_indexed_files(Vec::new());
+        change.apply(&mut db);
+
+        assert_eq!(db.file_for_path(&path).map(|file| file.status), Some(FileStatus::Deleted));
+        assert_eq!(db.file_path(file_id), None);
+        assert_eq!(db.file_for_indexed_path(&path), None);
+    }
+
+    #[test]
+    fn deleted_files_use_old_file_root_durability_while_roots_are_replaced() {
+        let mut db = RootDatabase::new(None);
+        let path = VfsPath::new_virtual_path("/foo.rs".to_owned());
+        let file_id = File::new(&db, path.clone());
+
+        let mut change = FileChange::default();
+        change.set_indexed_files(vec![FileRegistration {
+            file: file_id,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        }]);
+        change.change_file(file_id, Some("fn main() {}".to_owned()));
+        change.apply(&mut db);
+
+        let mut change = FileChange::default();
+        change.set_indexed_files(Vec::new());
+        change.change_file(file_id, None);
+        change.apply(&mut db);
+
+        assert_eq!(db.file_for_path(&path).map(|file| file.status), Some(FileStatus::Deleted));
+        assert_eq!(db.file_path(file_id), None);
+        assert_eq!(db.file_for_indexed_path(&path), None);
+    }
+
+    #[test]
+    fn excluded_files_have_ids_without_becoming_indexed() {
+        let mut db = RootDatabase::new(None);
+        let path = VfsPath::new_virtual_path("/excluded.rs".to_owned());
+
+        db.record_file_contents(
+            path.clone(),
+            Some(b"fn hidden() {}".to_vec()),
+            FileVisibility::Excluded,
+        );
+
+        let file = match db.file_for_path(&path) {
+            Some(file) => file,
+            status => panic!("unexpected file status: {status:?}"),
+        };
+        assert_eq!(file.status, FileStatus::Exists);
+        assert_eq!(db.file_for_indexed_path(&path), None);
+        assert!(db.take_file_changes().is_empty());
+
+        db.record_file_contents(path.clone(), None, FileVisibility::Excluded);
+
+        assert_eq!(db.file_for_path(&path).map(|file| file.status), Some(FileStatus::Deleted));
+        assert_eq!(db.file_path(file.file), None);
+    }
+
+    #[test]
+    fn pending_file_changes_are_merged_in_the_database() {
+        let mut db = RootDatabase::new(None);
+        let path = VfsPath::new_virtual_path("/new.rs".to_owned());
+
+        db.record_file_contents(
+            path.clone(),
+            Some(b"fn one() {}".to_vec()),
+            FileVisibility::Indexed,
+        );
+        db.record_file_contents(
+            path.clone(),
+            Some(b"fn two() {}".to_vec()),
+            FileVisibility::Indexed,
+        );
+
+        let changes = db.take_file_changes();
+        assert_eq!(changes.len(), 1);
+        let (&file, change) = changes.iter().next().expect("expected one pending change");
+        assert_eq!(file.path(&db), &path);
+        match change {
+            PendingFileChangeKind::Create(text) => assert_eq!(text, b"fn two() {}"),
+            kind => panic!("unexpected pending change kind: {kind:?}"),
+        }
+
+        assert!(db.take_file_changes().is_empty());
     }
 }

@@ -169,7 +169,7 @@ fn edit_struct_references(
         for r in refs {
             process_struct_name_reference(ctx, r, &editor, &source);
         }
-        builder.add_file_edits(file_id.file_id(ctx.db()), editor);
+        builder.add_file_edits(file_id.file(ctx.db()), editor);
     }
 }
 
@@ -310,7 +310,7 @@ fn edit_field_references(
                 }
             }
 
-            builder.add_file_edits(file_id.file_id(ctx.db()), editor);
+            builder.add_file_edits(file_id.file(ctx.db()), editor);
         }
     }
 }

@@ -79,7 +79,7 @@ fn g(baz: (), ba$0)
 fn trait_param() {
     check(
         r#"
-pub(crate) trait SourceRoot {
+pub(crate) trait FixtureTrait {
     pub fn contains(file_id: usize) -> bool;
     pub fn syntax(file$0)
 }

@@ -31,7 +31,7 @@ use either::Either;
 use hir::{FieldSource, FileRange, HasCrate, InFile, ModuleSource, Name, Semantics, sym};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
-use span::{Edition, FileId, SyntaxContext};
+use span::{Edition, File, SyntaxContext};
 use stdx::{TupleExt, never};
 use syntax::{
     AstNode, SyntaxKind, T, TextRange,
@@ -273,7 +273,8 @@ fn rename_mod(
         );
     }
     if let ModuleSource::SourceFile(..) = def_source {
-        let anchor = file_id.original_file(sema.db).file_id(sema.db);
+        let file = file_id.original_file(sema.db).file(sema.db);
+        let anchor = file.path(sema.db).clone();
 
         let is_mod_rs = module.is_mod_rs(sema.db);
         let has_detached_child = module.children(sema.db).any(|child| !child.is_inline(sema.db));
@@ -281,8 +282,8 @@ fn rename_mod(
         // Module exists in a named file
         if !is_mod_rs {
             let path = format!("{}.rs", new_name.as_str());
-            let dst = AnchoredPathBuf { anchor, path };
-            source_change.push_file_system_edit(FileSystemEdit::MoveFile { src: anchor, dst })
+            let dst = AnchoredPathBuf { anchor: anchor.clone(), path };
+            source_change.push_file_system_edit(FileSystemEdit::MoveFile { src: file, dst })
         }
 
         // Rename the dir if:
@@ -301,13 +302,9 @@ fn rename_mod(
         };
 
         if let Some((src, dst)) = dir_paths {
-            let src = AnchoredPathBuf { anchor, path: src };
+            let src = AnchoredPathBuf { anchor: anchor.clone(), path: src };
             let dst = AnchoredPathBuf { anchor, path: dst };
-            source_change.push_file_system_edit(FileSystemEdit::MoveDir {
-                src,
-                src_id: anchor,
-                dst,
-            })
+            source_change.push_file_system_edit(FileSystemEdit::MoveDir { src, src_id: file, dst })
         }
     }
 
@@ -322,7 +319,7 @@ fn rename_mod(
                 {
                     let new_name = new_name.display(sema.db, edition).to_string();
                     source_change.insert_source_edit(
-                        file_id.file_id(sema.db),
+                        file_id.file(sema.db),
                         TextEdit::replace(file_range.range, new_name),
                     )
                 };
@@ -336,7 +333,7 @@ fn rename_mod(
     let ref_edits = usages.iter().map(|(file_id, references)| {
         let edition = file_id.edition(sema.db);
         (
-            file_id.file_id(sema.db),
+            file_id.file(sema.db),
             source_edit_from_references(sema.db, references, def, &new_name, edition),
         )
     });
@@ -403,7 +400,7 @@ fn rename_reference<'db>(
     source_change.extend(usages.iter().map(|(file_id, references)| {
         let edition = file_id.edition(sema.db);
         (
-            file_id.file_id(sema.db),
+            file_id.file(sema.db),
             source_edit_from_references(sema.db, references, def, &new_name, edition),
         )
     }));
@@ -676,7 +673,7 @@ fn source_edit_from_def<'db>(
     def: Definition<'db>,
     new_name: &Name,
     source_change: &mut SourceChange,
-) -> Result<(FileId, TextEdit)> {
+) -> Result<(File, TextEdit)> {
     let mut edit = TextEdit::builder();
     if let Definition::Local(local) = def {
         let mut file_id = None;
@@ -788,7 +785,7 @@ fn source_edit_from_def<'db>(
         edit.set_annotation(conflict_annotation);
 
         let Some(file_id) = file_id else { bail!("No file available to rename") };
-        return Ok((file_id.file_id(sema.db), edit));
+        return Ok((file_id.file(sema.db), edit));
     }
     let FileRange { file_id, range } = def
         .range_for_rename(sema)
@@ -801,7 +798,7 @@ fn source_edit_from_def<'db>(
         _ => (range, new_name.display(sema.db, file_id.edition(sema.db)).to_string()),
     };
     edit.replace(range, new_name);
-    Ok((file_id.file_id(sema.db), edit.finish()))
+    Ok((file_id.file(sema.db), edit.finish()))
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

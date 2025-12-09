@@ -6,7 +6,10 @@ use rustc_hash::FxHashSet;
 
 use hir::{Crate, Module, db::HirDatabase, sym};
 use ide::{AnalysisHost, AssistResolveStrategy, Diagnostic, DiagnosticsConfig, Severity};
-use ide_db::{base_db::SourceDatabase, line_index};
+use ide_db::{
+    base_db::{FileRootKind, SourceDatabase},
+    line_index,
+};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 
 use crate::cli::{Verbosity, flags, progress_report::ProgressReport};
@@ -41,7 +44,7 @@ impl flags::Diagnostics {
             num_worker_threads: 1,
             proc_macro_processes: 1,
         };
-        let (db, _vfs, _proc_macro) =
+        let (db, _proc_macro) =
             load_workspace_at(&self.path, &cargo_config, &load_cargo_config, &|_| {})?;
         let host = AnalysisHost::with_database(db);
         let db = host.raw_database();
@@ -55,9 +58,10 @@ impl flags::Diagnostics {
             .into_iter()
             .filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
-                let source_root = db.source_root(source_root).source_root(db);
-                !source_root.is_library
+                let Some(root) = db.file_root(file_id.file(db)) else {
+                    return false;
+                };
+                root.kind == FileRootKind::Local
             })
             .collect::<Vec<_>>();
 
@@ -69,7 +73,12 @@ impl flags::Diagnostics {
         for module in work {
             let file_id = module.definition_source_file_id(db).original_file(db);
             if !visited_files.contains(&file_id) {
-                let message = format!("processing {}", _vfs.file_path(file_id.file_id(db)));
+                let message = format!(
+                    "processing {}",
+                    db.file_path(file_id.file(db))
+                        .map(|path| path.to_string())
+                        .unwrap_or_else(|| "<unknown file>".to_owned())
+                );
                 bar.set_message(move || message.clone());
                 let crate_name = module
                     .krate(db)
@@ -81,7 +90,7 @@ impl flags::Diagnostics {
                     .full_diagnostics(
                         &DiagnosticsConfig::test_sample(),
                         AssistResolveStrategy::None,
-                        file_id.file_id(db),
+                        file_id.file(db),
                     )
                     .unwrap()
                 {
@@ -105,7 +114,9 @@ impl flags::Diagnostics {
                     let end = line_index.line_col(range.range.end());
                     bar.println(format!(
                         "at crate {crate_name}, file {}: {severity:?} {code:?} from {start:?} to {end:?}: {message}",
-                        _vfs.file_path(file_id.file_id(db))
+                        db.file_path(file_id.file(db))
+                            .map(|path| path.to_string())
+                            .unwrap_or_else(|| "<unknown file>".to_owned())
                     ));
                 }
 

@@ -65,7 +65,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
         }
     });
 
-    let (editor, source_root) = SyntaxEditor::new(ctx.source_file().syntax().clone());
+    let (editor, syntax_root) = SyntaxEditor::new(ctx.source_file().syntax().clone());
     let make = editor.make();
 
     let module = ctx.sema.scope(closure.syntax())?.module();
@@ -193,7 +193,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
                     }
 
                     let capture_usage_source = capture_usage.source();
-                    let capture_usage_source = capture_usage_source.to_node(&source_root);
+                    let capture_usage_source = capture_usage_source.to_node(&syntax_root);
                     let mut expr = match capture_usage_source {
                         Either::Left(expr) => expr,
                         Either::Right(pat) => {
@@ -620,7 +620,7 @@ fn handle_call(
     let indent =
         if insert_newlines { first_arg_indent.unwrap().to_string() } else { String::new() };
     // FIXME: This text manipulation seems risky.
-    let text = ctx.db().file_text(file_id.file_id(ctx.db())).text(ctx.db());
+    let text = ctx.db().file_data(file_id.file(ctx.db())).text(ctx.db());
     let mut text = text[..u32::from(range.end()).try_into().unwrap()].trim_end();
     if !text.ends_with(')') {
         return None;
@@ -663,7 +663,7 @@ fn handle_call(
         to_insert.push(',');
     }
 
-    builder.edit_file(file_id.file_id(ctx.db()));
+    builder.edit_file(file_id.file(ctx.db()));
     builder.insert(offset, to_insert);
 
     Some(())

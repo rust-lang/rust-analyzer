@@ -430,9 +430,7 @@ impl AttrId {
             return derive_attr.syntax().text_range();
         };
         // Fake the span map, as we don't really need spans here, just the offsets of the node in the file.
-        let span_map = RealSpanMap::absolute(span::EditionedFileId::current_edition(
-            span::FileId::from_raw(0),
-        ));
+        let span_map = RealSpanMap::absolute(krate.root_file_id(db).span_file_id(db));
         let tt = syntax_bridge::syntax_node_to_token_tree(
             tt.syntax(),
             SpanMap::RealSpanMap(&span_map),

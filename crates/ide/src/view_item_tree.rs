@@ -1,5 +1,5 @@
 use hir::Semantics;
-use ide_db::{FileId, RootDatabase};
+use ide_db::{File, RootDatabase};
 
 // Feature: Debug ItemTree
 //
@@ -8,7 +8,7 @@ use ide_db::{FileId, RootDatabase};
 // | Editor  | Action Name |
 // |---------|-------------|
 // | VS Code | **rust-analyzer: Debug ItemTree** |
-pub(crate) fn view_item_tree(db: &RootDatabase, file_id: FileId) -> String {
+pub(crate) fn view_item_tree(db: &RootDatabase, file_id: File) -> String {
     let sema = Semantics::new(db);
     let Some(krate) = sema.first_crate(file_id) else {
         return String::new();

@@ -118,7 +118,7 @@ use std::sync::LazyLock;
 
 use hir::{Crate, DisplayTarget, InFile, MacroCallIdExt, Semantics, diagnostics::AnyDiagnostic};
 use ide_db::{
-    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, SnippetCap,
+    File, FileRange, FxHashMap, FxHashSet, RootDatabase, Severity, SnippetCap,
     assists::{Assist, AssistId, AssistResolveStrategy, ExprFillDefaultMode},
     base_db::{ReleaseChannel, all_crates, toolchain_channel},
     generated::lints::{CLIPPY_LINT_GROUPS, DEFAULT_LINT_GROUPS, DEFAULT_LINTS, Lint, LintGroup},
@@ -257,7 +257,7 @@ impl Diagnostic {
             sema.descend_into_macros(token).into_iter().find_map(|token| {
                 let node = sema.ancestors_with_macros(token.parent().unwrap()).find(|node| {
                     let original_range = sema.original_range(node);
-                    original_range.file_id.file_id(sema.db) == self.range.file_id
+                    original_range.file_id.file(sema.db) == self.range.file_id
                         && original_range.range.contains_range(self.range.range)
                 })?;
                 let file = sema.hir_file_for(&node);
@@ -336,11 +336,11 @@ impl<'db> DiagnosticsContext<'_, 'db> {
     }
 }
 
-/// Request parser level diagnostics for the given [`FileId`].
+/// Request parser level diagnostics for the given [`File`].
 pub fn syntax_diagnostics(
     db: &RootDatabase,
     config: &DiagnosticsConfig,
-    file_id: FileId,
+    file_id: File,
 ) -> Vec<Diagnostic> {
     let _p = tracing::info_span!("syntax_diagnostics").entered();
 
@@ -369,13 +369,13 @@ pub fn syntax_diagnostics(
         .collect()
 }
 
-/// Request semantic diagnostics for the given [`FileId`]. The produced diagnostics may point to other files
+/// Request semantic diagnostics for the given [`File`]. The produced diagnostics may point to other files
 /// due to macros.
 pub fn semantic_diagnostics(
     db: &RootDatabase,
     config: &DiagnosticsConfig,
     resolve: &AssistResolveStrategy,
-    file_id: FileId,
+    file_id: File,
 ) -> Vec<Diagnostic> {
     let _p = tracing::info_span!("semantic_diagnostics").entered();
     let sema = Semantics::new(db);
@@ -590,12 +590,12 @@ pub fn semantic_diagnostics(
     res
 }
 
-/// Request both syntax and semantic diagnostics for the given [`FileId`].
+/// Request both syntax and semantic diagnostics for the given [`File`].
 pub fn full_diagnostics(
     db: &RootDatabase,
     config: &DiagnosticsConfig,
     resolve: &AssistResolveStrategy,
-    file_id: FileId,
+    file_id: File,
 ) -> Vec<Diagnostic> {
     let mut res = syntax_diagnostics(db, config, file_id);
     let sema = semantic_diagnostics(db, config, resolve, file_id);
@@ -685,7 +685,7 @@ fn build_lints_map(
 
 fn handle_lints(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     krate: hir::Crate,
     diagnostics: &mut [(InFile<SyntaxNode>, &mut Diagnostic)],
     edition: Edition,
@@ -731,7 +731,7 @@ fn default_lint_severity(lint: &Lint, edition: Edition) -> Severity {
 
 fn find_outline_mod_lint_severity(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     krate: hir::Crate,
     node: &InFile<SyntaxNode>,
     diag: &Diagnostic,
@@ -757,7 +757,7 @@ fn find_outline_mod_lint_severity(
 
 fn lint_severity_at(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     krate: hir::Crate,
     node: &InFile<SyntaxNode>,
     lint_groups: &LintGroups,
@@ -783,7 +783,7 @@ fn lint_severity_at(
 // FIXME: Switch this to analysis' `expand_cfg_attr`.
 fn lint_attrs(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     krate: hir::Crate,
     ancestor: ast::AnyHasAttrs,
 ) -> impl Iterator<Item = (SmolStr, Severity)> {
@@ -857,5 +857,5 @@ fn adjusted_display_range<N: AstNode>(
     let hir::FileRange { file_id, range } = diag_ptr
         .with_value(adj(node).unwrap_or_else(|| diag_ptr.value.text_range()))
         .original_node_file_range_rooted(ctx.sema.db);
-    ide_db::FileRange { file_id: file_id.file_id(ctx.sema.db), range }
+    ide_db::FileRange { file_id: file_id.file(ctx.sema.db), range }
 }

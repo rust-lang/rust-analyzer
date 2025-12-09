@@ -46,7 +46,7 @@ impl flags::PrimeCaches {
         let root = ProjectManifest::discover_single(&root)?;
         let workspace = ProjectWorkspace::load(root, &cargo_config, &|_| {})?;
 
-        let (db, _, _) = load_workspace(workspace, &cargo_config.extra_env, &load_cargo_config)?;
+        let (db, _) = load_workspace(workspace, &cargo_config.extra_env, &load_cargo_config)?;
         let elapsed = stop_watch.elapsed();
         eprintln!(
             "Load time: {:?}ms, memory allocated: {}MB",

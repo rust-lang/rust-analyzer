@@ -3,16 +3,16 @@
 use std::{path::PathBuf, time::Instant};
 
 use ide::{
-    AnalysisHost, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
+    AnalysisHost, File, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
     RootDatabase, StaticIndex, StaticIndexedFile, SymbolInformationKind, TextRange, TokenId,
     TokenStaticData, VendoredLibrariesConfig,
 };
-use ide_db::line_index;
+use ide_db::{base_db::SourceDatabase, line_index};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scip::types::{self as scip_types, SymbolInformation};
 use tracing::error;
-use vfs::FileId;
+use vfs::AbsPathBuf;
 
 use crate::{
     cli::flags,
@@ -26,8 +26,7 @@ impl flags::Scip {
         let now = Instant::now();
 
         let no_progress = &|s| eprintln!("rust-analyzer: Loading {s}");
-        let root =
-            vfs::AbsPathBuf::assert_utf8(std::env::current_dir()?.join(&self.path)).normalize();
+        let root = AbsPathBuf::assert_utf8(std::env::current_dir()?.join(&self.path)).normalize();
 
         let mut config = crate::config::Config::new(
             root.clone(),
@@ -56,7 +55,7 @@ impl flags::Scip {
             proc_macro_processes: config.proc_macro_num_processes(),
         };
         let cargo_config = config.cargo(None);
-        let (db, vfs, _) = load_workspace_at(
+        let (db, _) = load_workspace_at(
             root.as_path().as_ref(),
             &cargo_config,
             &load_cargo_config,
@@ -95,7 +94,7 @@ impl flags::Scip {
         // All TokenIds where the SymbolInformation has been written to the document.
         let mut token_ids_emitted: FxHashSet<TokenId> = FxHashSet::default();
         // All FileIds emitted as documents.
-        let mut file_ids_emitted: FxHashSet<FileId> = FxHashSet::default();
+        let mut file_ids_emitted: FxHashSet<File> = FxHashSet::default();
 
         // All non-local symbols encountered, for detecting duplicate symbol errors.
         let mut nonlocal_symbols_emitted: FxHashSet<String> = FxHashSet::default();
@@ -135,7 +134,7 @@ impl flags::Scip {
         for StaticIndexedFile { file_id, tokens, .. } in si.files {
             symbol_generator.clear_document_local_state();
 
-            let Some(relative_path) = get_relative_filepath(&vfs, &root, file_id) else { continue };
+            let Some(relative_path) = get_relative_filepath(db, &root, file_id) else { continue };
             let line_index = get_line_index(db, file_id);
 
             let mut occurrences = Vec::new();
@@ -241,7 +240,7 @@ impl flags::Scip {
             };
 
             let file_id = definition.file_id;
-            let Some(relative_path) = get_relative_filepath(&vfs, &root, file_id) else { continue };
+            let Some(relative_path) = get_relative_filepath(db, &root, file_id) else { continue };
             let line_index = get_line_index(db, file_id);
             let text_range = definition.range;
             if file_ids_emitted.contains(&file_id) {
@@ -339,14 +338,14 @@ fn compute_symbol_info(
 }
 
 fn get_relative_filepath(
-    vfs: &vfs::Vfs,
-    rootpath: &vfs::AbsPathBuf,
-    file_id: ide::FileId,
+    db: &RootDatabase,
+    rootpath: &AbsPathBuf,
+    file_id: ide::File,
 ) -> Option<String> {
-    Some(vfs.file_path(file_id).as_path()?.strip_prefix(rootpath)?.as_str().to_owned())
+    Some(db.file_path(file_id)?.as_path()?.strip_prefix(rootpath)?.as_str().to_owned())
 }
 
-fn get_line_index(db: &RootDatabase, file_id: FileId) -> LineIndex {
+fn get_line_index(db: &RootDatabase, file_id: File) -> LineIndex {
     LineIndex {
         index: line_index(db, file_id).clone(),
         encoding: PositionEncoding::Utf8,
@@ -524,12 +523,12 @@ mod test {
 
     fn position(#[rust_analyzer::rust_fixture] ra_fixture: &str) -> (AnalysisHost, FilePosition) {
         let mut host = AnalysisHost::default();
-        let change_fixture = ChangeFixture::parse(ra_fixture);
+        let change_fixture = ChangeFixture::parse(host.raw_database(), ra_fixture);
         host.raw_database_mut().apply_change(change_fixture.change);
         let (file_id, range_or_offset) =
             change_fixture.file_position.expect("expected a marker ()");
         let offset = range_or_offset.expect_offset();
-        let position = FilePosition { file_id: file_id.file_id(), offset };
+        let position = FilePosition { file_id: file_id.file(), offset };
         (host, position)
     }
 
@@ -903,7 +902,7 @@ pub mod example_mod {
         let s = "/// foo\nfn bar() {}";
 
         let mut host = AnalysisHost::default();
-        let change_fixture = ChangeFixture::parse(s);
+        let change_fixture = ChangeFixture::parse(host.raw_database(), s);
         host.raw_database_mut().apply_change(change_fixture.change);
 
         let analysis = host.analysis();
@@ -926,7 +925,7 @@ pub mod example_mod {
         let s = "fn foo() {}";
 
         let mut host = AnalysisHost::default();
-        let change_fixture = ChangeFixture::parse(s);
+        let change_fixture = ChangeFixture::parse(host.raw_database(), s);
         host.raw_database_mut().apply_change(change_fixture.change);
 
         let analysis = host.analysis();
@@ -941,10 +940,8 @@ pub mod example_mod {
         let (_, token_id) = file.tokens.get(1).unwrap(); // first token is file module, second is `foo`
         let token = si.tokens.get(*token_id).unwrap();
 
-        let expected_range = FileRangeWrapper {
-            file_id: FileId::from_raw(0),
-            range: TextRange::new(0.into(), 11.into()),
-        };
+        let expected_range =
+            FileRangeWrapper { file_id: file.file_id, range: TextRange::new(0.into(), 11.into()) };
 
         assert_eq!(token.definition_body, Some(expected_range));
     }
@@ -954,7 +951,7 @@ pub mod example_mod {
         let s = "fn first() {}\n// belongs to first\n/// second docs\nfn second() {}";
 
         let mut host = AnalysisHost::default();
-        let change_fixture = ChangeFixture::parse(s);
+        let change_fixture = ChangeFixture::parse(host.raw_database(), s);
         host.raw_database_mut().apply_change(change_fixture.change);
 
         let analysis = host.analysis();
@@ -986,7 +983,7 @@ pub mod example_mod {
         let s = "const FOO_ONE: i32 = 123; // one\nconst FOO_TWO: i32 = 123; // two";
 
         let mut host = AnalysisHost::default();
-        let change_fixture = ChangeFixture::parse(s);
+        let change_fixture = ChangeFixture::parse(host.raw_database(), s);
         host.raw_database_mut().apply_change(change_fixture.change);
 
         let analysis = host.analysis();

@@ -24,7 +24,7 @@ use rustc_apfloat::Float;
 use rustc_hash::FxHashMap;
 use rustc_type_ir::inherent::{Const as _, GenericArgs as _, IntoKind, Ty as _};
 use salsa::SalsaValue;
-use span::{Edition, FileId};
+use span::{Edition, File};
 use syntax::TextRange;
 
 use crate::{
@@ -173,7 +173,7 @@ impl MirLowerError<'_> {
         &self,
         f: &mut String,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(FileId, TextRange) -> String,
+        span_formatter: impl Fn(File, TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
         match self {

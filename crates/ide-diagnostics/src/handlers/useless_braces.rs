@@ -40,13 +40,13 @@ pub(crate) fn useless_braces(
             Diagnostic::new(
                 DiagnosticCode::RustcLint("unused_braces"),
                 "Unnecessary braces in use statement".to_owned(),
-                FileRange { file_id: file_id.file_id(db), range: use_range },
+                FileRange { file_id: file_id.file(db), range: use_range },
             )
             .with_main_node(InFile::new(file_id.into(), SyntaxNodePtr::new(node)))
             .with_fixes(Some(vec![fix(
                 "remove_braces",
                 "Remove unnecessary braces",
-                SourceChange::from_text_edit(file_id.file_id(db), edit),
+                SourceChange::from_text_edit(file_id.file(db), edit),
                 use_range,
             )])),
         );

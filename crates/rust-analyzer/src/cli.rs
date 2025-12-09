@@ -25,7 +25,6 @@ use hir::{Module, Name};
 use hir_ty::db::HirDatabase;
 use ide::{AnalysisHost, Edition};
 use itertools::Itertools;
-use vfs::Vfs;
 
 #[derive(Clone, Copy)]
 pub enum Verbosity {
@@ -60,12 +59,8 @@ fn report_metric(metric: &str, value: u64, unit: &str) {
     println!("METRIC:{metric}:{value}:{unit}")
 }
 
-fn print_memory_usage(mut host: AnalysisHost, vfs: Vfs) {
+fn print_memory_usage(mut host: AnalysisHost) {
     let mem = host.per_query_memory_usage();
-
-    let before = profile::memory_usage();
-    drop(vfs);
-    let vfs = before.allocated - profile::memory_usage().allocated;
 
     let before = profile::memory_usage();
     drop(host);
@@ -76,7 +71,6 @@ fn print_memory_usage(mut host: AnalysisHost, vfs: Vfs) {
         // NOTE: Not a debug print, so avoid going through the `eprintln` defined above.
         eprintln!("{bytes:>8} {entries:>6} {name}");
     }
-    eprintln!("{vfs:>8}        VFS");
 
     eprintln!("{unaccounted:>8}        Unaccounted");
 

@@ -6,7 +6,8 @@ use crate::{
 };
 use hir::FileRange;
 use ide_db::{
-    FileId, FxHashSet, LocalRoots,
+    File, FxHashSet,
+    base_db::local_files,
     defs::Definition,
     search::{SearchScope, UsageSearchResult},
 };
@@ -131,8 +132,7 @@ impl<'db> MatchFinder<'db> {
     /// scope, since we don't want to find references in external dependencies.
     fn search_scope(&self) -> SearchScope {
         // FIXME: We should ideally have a test that checks that we edit local roots and not library
-        // roots. This probably would require some changes to fixtures, since currently everything
-        // seems to get put into a single source root.
+        // roots. This probably would require some changes to fixtures.
         let mut files = Vec::new();
         self.search_files_do(|file_id| {
             files.push(self.sema.attach_first_edition(file_id));
@@ -148,15 +148,11 @@ impl<'db> MatchFinder<'db> {
         })
     }
 
-    fn search_files_do(&self, mut callback: impl FnMut(FileId)) {
+    fn search_files_do(&self, mut callback: impl FnMut(File)) {
         if self.restrict_ranges.is_empty() {
             // Unrestricted search.
-            use ide_db::base_db::SourceDatabase;
-            for &root in LocalRoots::get(self.sema.db).roots(self.sema.db).iter() {
-                let sr = self.sema.db.source_root(root).source_root(self.sema.db);
-                for file_id in sr.iter() {
-                    callback(file_id);
-                }
+            for &file_id in local_files(self.sema.db).iter() {
+                callback(file_id);
             }
         } else {
             // Search is restricted, deduplicate file IDs (generally only one).
@@ -223,7 +219,7 @@ impl<'db> MatchFinder<'db> {
         }
         let Some(node_range) = self.sema.original_range_opt(code) else { return false };
         for range in &self.restrict_ranges {
-            if range.file_id == node_range.file_id.file_id(self.sema.db)
+            if range.file_id == node_range.file_id.file(self.sema.db)
                 && range.range.contains_range(node_range.range)
             {
                 return true;

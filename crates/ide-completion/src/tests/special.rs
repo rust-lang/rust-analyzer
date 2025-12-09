@@ -190,7 +190,7 @@ pub mod prelude {
 fn associated_item_visibility() {
     check_no_kw(
         r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct S;
 
 impl S {
@@ -202,7 +202,7 @@ impl S {
     const PRIVATE_CONST: u32 = 1;
 }
 
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo() { let _ = lib::S::$0 }
 "#,
         expect![[r#"

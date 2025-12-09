@@ -1,6 +1,6 @@
 //! This module resolves `mod foo;` declaration to file.
 use arrayvec::ArrayVec;
-use base_db::{AnchoredPath, SourceDatabase};
+use base_db::SourceDatabase;
 use hir_expand::{EditionedFileId, name::Name};
 
 use crate::HirFileId;
@@ -77,25 +77,25 @@ impl ModDir {
         };
 
         let orig_file_id = file_id.original_file_respecting_includes(db);
-        for candidate in candidate_files.iter() {
-            let path = AnchoredPath { anchor: orig_file_id.file_id(db), path: candidate.as_str() };
-            if let Some(file_id) = db.resolve_path(path) {
-                let is_mod_rs = candidate.ends_with("/mod.rs");
+        let resolved = {
+            let candidate_paths =
+                candidate_files.iter().map(String::as_str).collect::<ArrayVec<_, 2>>();
+            db.resolve_path(orig_file_id.file(db), candidate_paths.as_slice())
+        };
+        if let Some((file_id, candidate_idx)) = resolved {
+            let candidate = &candidate_files[candidate_idx];
+            let is_mod_rs = candidate.ends_with("/mod.rs");
 
-                let root_dir_owner = is_mod_rs || attr_path.is_some();
-                let dir_path = if root_dir_owner {
-                    DirPath::empty()
-                } else {
-                    DirPath::new(format!("{name}/"))
-                };
-                if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
-                    return Ok((
-                        // FIXME: Edition, is this rightr?
-                        EditionedFileId::new(db, file_id, orig_file_id.edition(db)),
-                        is_mod_rs,
-                        mod_dir,
-                    ));
-                }
+            let root_dir_owner = is_mod_rs || attr_path.is_some();
+            let dir_path =
+                if root_dir_owner { DirPath::empty() } else { DirPath::new(format!("{name}/")) };
+            if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
+                return Ok((
+                    // FIXME: Edition, is this rightr?
+                    EditionedFileId::new(db, file_id, orig_file_id.edition(db)),
+                    is_mod_rs,
+                    mod_dir,
+                ));
             }
         }
         Err(candidate_files.into_iter().collect())

@@ -7,7 +7,7 @@
 use std::mem;
 use std::{cell::LazyCell, cmp::Reverse};
 
-use base_db::{SourceDatabase, all_crates};
+use base_db::{FileRootKind, SourceDatabase, all_crates, file_root_files};
 use either::Either;
 use hir::{
     Adt, AsAssocItem, DefWithBody, EditionedFileId, ExpressionStoreOwner, FileRange,
@@ -164,12 +164,13 @@ impl SearchScope {
         let all_crates = all_crates(db);
         for &krate in all_crates.iter() {
             let crate_data = krate.data(db);
-            let source_root = db.file_source_root(crate_data.root_file_id).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
+            let Some(root) = db.file_root(crate_data.root_file_id) else {
+                continue;
+            };
             entries.extend(
-                source_root
+                file_root_files(db, root)
                     .iter()
-                    .map(|id| (EditionedFileId::new(db, id, crate_data.edition), None)),
+                    .map(|&id| (EditionedFileId::new(db, id, crate_data.edition), None)),
             );
         }
         SearchScope { entries }
@@ -181,12 +182,13 @@ impl SearchScope {
         for rev_dep in of.transitive_reverse_dependencies(db) {
             let root_file = rev_dep.root_file(db);
 
-            let source_root = db.file_source_root(root_file).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
+            let Some(root) = db.file_root(root_file) else {
+                continue;
+            };
             entries.extend(
-                source_root
+                file_root_files(db, root)
                     .iter()
-                    .map(|id| (EditionedFileId::new(db, id, rev_dep.edition(db)), None)),
+                    .map(|&id| (EditionedFileId::new(db, id, rev_dep.edition(db)), None)),
             );
         }
         SearchScope { entries }
@@ -196,12 +198,13 @@ impl SearchScope {
     fn krate(db: &RootDatabase, of: hir::Crate) -> SearchScope {
         let root_file = of.root_file(db);
 
-        let source_root_id = db.file_source_root(root_file).source_root_id(db);
-        let source_root = db.source_root(source_root_id).source_root(db);
+        let Some(root) = db.file_root(root_file) else {
+            return SearchScope { entries: FxHashMap::default() };
+        };
         SearchScope {
-            entries: source_root
+            entries: file_root_files(db, root)
                 .iter()
-                .map(|id| (EditionedFileId::new(db, id, of.edition(db)), None))
+                .map(|&id| (EditionedFileId::new(db, id, of.edition(db)), None))
                 .collect(),
         }
     }
@@ -451,7 +454,7 @@ pub struct FindUsages<'a, 'db> {
     search_self_mod: bool,
     /// categories to include while collecting usages
     included_categories: ReferenceCategory,
-    /// whether to skip files from library source roots
+    /// whether to skip files from library file roots
     exclude_library_files: bool,
 }
 
@@ -520,10 +523,10 @@ impl<'a, 'db> FindUsages<'a, 'db> {
             .entries
             .iter()
             .filter(move |(file_id, _)| {
-                !exclude_library_files || !is_library_file(db, file_id.file_id(db))
+                !exclude_library_files || !is_library_file(db, file_id.file(db))
             })
             .map(|(&file_id, &search_range)| {
-                let text = db.file_text(file_id.file_id(db)).text(db);
+                let text = db.file_data(file_id.file(db)).text(db);
                 let search_range =
                     search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&**text)));
 
@@ -1105,7 +1108,7 @@ impl<'a, 'db> FindUsages<'a, 'db> {
                     return;
                 };
 
-                let file_text = sema.db.file_text(file_id.file_id(self.sema.db));
+                let file_text = sema.db.file_data(file_id.file(self.sema.db));
                 let text = file_text.text(sema.db);
                 let search_range =
                     search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&**text)));
@@ -1446,7 +1449,9 @@ fn is_name_ref_in_test(sema: &Semantics<'_, RootDatabase>, name_ref: &ast::NameR
     })
 }
 
-fn is_library_file(db: &RootDatabase, file_id: span::FileId) -> bool {
-    let source_root = db.file_source_root(file_id).source_root_id(db);
-    db.source_root(source_root).source_root(db).is_library
+fn is_library_file(db: &RootDatabase, file_id: span::File) -> bool {
+    let Some(root) = db.file_root(file_id) else {
+        return false;
+    };
+    root.kind == FileRootKind::Library
 }

@@ -72,7 +72,7 @@ pub(super) fn hints(
                         },
                     }?;
                     sema.original_range_opt(name_syntax.syntax()).map(|frange| ide_db::FileRange {
-                        file_id: frange.file_id.file_id(sema.db),
+                        file_id: frange.file_id.file(sema.db),
                         range: frange.range,
                     })
                 }),
@@ -123,7 +123,7 @@ pub(super) fn hints(
                         }?;
                         sema.original_range_opt(name_syntax.syntax()).map(|frange| {
                             ide_db::FileRange {
-                                file_id: frange.file_id.file_id(sema.db),
+                                file_id: frange.file_id.file(sema.db),
                                 range: frange.range,
                             }
                         })
@@ -583,7 +583,7 @@ fn main() {
         check_params(
             r#"
 //- minicore: option
-struct FileId {}
+struct File {}
 struct SmolStr {}
 
 struct TextRange {}
@@ -596,7 +596,7 @@ impl Test {
     fn method(&self, mut param: i32) -> i32 { param * 2 }
 
     fn from_syntax(
-        file_id: FileId,
+        file_id: File,
         name: SmolStr,
         focus_range: Option<TextRange>,
         full_range: TextRange,
@@ -622,7 +622,8 @@ fn main() {
     Test::method(&t,      3456);
                //^^ self  ^^^^ param
     Test::from_syntax(
-        FileId {},
+        File {},
+      //^^^^^^^ file_id
         "impl".into(),
       //^^^^^^^^^^^^^ name
         None,

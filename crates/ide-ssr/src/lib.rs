@@ -85,9 +85,11 @@ pub use crate::{errors::SsrError, from_comment::ssr_from_comment, matching::Matc
 
 use crate::{errors::bail, matching::MatchFailureReason};
 use hir::{FileRange, Semantics};
-use ide_db::LocalRoots;
 use ide_db::text_edit::TextEdit;
-use ide_db::{EditionedFileId, FileId, FxHashMap, RootDatabase, base_db::SourceDatabase};
+use ide_db::{
+    EditionedFileId, File, FxHashMap, RootDatabase,
+    base_db::{SourceDatabase, local_files},
+};
 use resolving::ResolvedRule;
 use syntax::{AstNode, SyntaxNode, TextRange, ast};
 
@@ -141,12 +143,7 @@ impl<'db> MatchFinder<'db> {
 
     /// Constructs an instance using the start of the first file in `db` as the lookup context.
     pub fn at_first_file(db: &'db ide_db::RootDatabase) -> Result<MatchFinder<'db>, SsrError> {
-        if let Some(first_file_id) = LocalRoots::get(db)
-            .roots(db)
-            .iter()
-            .next()
-            .and_then(|root| db.source_root(*root).source_root(db).iter().next())
-        {
+        if let Some(first_file_id) = local_files(db).iter().next().copied() {
             MatchFinder::in_context(
                 db,
                 ide_db::FilePosition { file_id: first_file_id, offset: 0.into() },
@@ -172,11 +169,11 @@ impl<'db> MatchFinder<'db> {
     }
 
     /// Finds matches for all added rules and returns edits for all found matches.
-    pub fn edits(&self) -> FxHashMap<FileId, TextEdit> {
+    pub fn edits(&self) -> FxHashMap<File, TextEdit> {
         let mut matches_by_file = FxHashMap::default();
         for m in self.matches().matches {
             matches_by_file
-                .entry(m.range.file_id.file_id(self.sema.db))
+                .entry(m.range.file_id.file(self.sema.db))
                 .or_insert_with(SsrMatches::default)
                 .matches
                 .push(m);
@@ -189,7 +186,7 @@ impl<'db> MatchFinder<'db> {
                     replacing::matches_to_edit(
                         self.sema.db,
                         &matches,
-                        self.sema.db.file_text(file_id).text(self.sema.db),
+                        self.sema.db.file_data(file_id).text(self.sema.db),
                         &self.rules,
                     ),
                 )
@@ -230,7 +227,7 @@ impl<'db> MatchFinder<'db> {
     ) -> Vec<MatchDebugInfo> {
         let file = self.sema.parse(file_id);
         let mut res = Vec::new();
-        let file_text = self.sema.db.file_text(file_id.file_id(self.sema.db)).text(self.sema.db);
+        let file_text = self.sema.db.file_data(file_id.file(self.sema.db)).text(self.sema.db);
         let mut remaining_text = &**file_text;
         let mut base = 0;
         let len = snippet.len() as u32;

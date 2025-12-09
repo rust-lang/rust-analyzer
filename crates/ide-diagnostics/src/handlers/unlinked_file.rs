@@ -5,7 +5,7 @@ use std::iter;
 use hir::crate_def_map;
 use hir::{EditionedFileId, InFile, ModuleSource};
 use ide_db::text_edit::TextEdit;
-use ide_db::{FileId, FileRange, base_db::SourceDatabase, source_change::SourceChange};
+use ide_db::{File, FileRange, base_db::SourceDatabase, source_change::SourceChange};
 use ide_db::{base_db, line_index};
 use paths::Utf8Component;
 use syntax::{
@@ -25,7 +25,7 @@ pub(crate) fn unlinked_file(
     acc: &mut Vec<Diagnostic>,
     editioned_file_id: EditionedFileId,
 ) {
-    let file_id = editioned_file_id.file_id(ctx.sema.db);
+    let file_id = editioned_file_id.file(ctx.sema.db);
     let mut range = TextRange::up_to(line_index(ctx.sema.db, file_id).len());
     let fixes = fixes(ctx, editioned_file_id, range);
     // FIXME: This is a hack for the vscode extension to notice whether there is an autofix or not before having to resolve diagnostics.
@@ -49,7 +49,10 @@ pub(crate) fn unlinked_file(
         //
         // Only show this diagnostic on the first three characters of
         // the file, to avoid overwhelming the user during startup.
-        range = SourceDatabase::file_text(ctx.sema.db, file_id)
+        range = ctx
+            .sema
+            .db
+            .file_data(file_id)
             .text(ctx.sema.db)
             .char_indices()
             .take(3)
@@ -83,13 +86,10 @@ fn fixes(
     // suggest that as a fix.
 
     let db = ctx.sema.db;
-    let file_id = editioned_file_id.file_id(db);
+    let file_id = editioned_file_id.file(db);
     let edition = editioned_file_id.edition(db);
 
-    let source_root = ctx.sema.db.file_source_root(file_id).source_root_id(db);
-    let source_root = ctx.sema.db.source_root(source_root).source_root(db);
-
-    let our_path = source_root.path_for_file(&file_id)?;
+    let our_path = db.file_path(file_id)?;
     let parent = our_path.parent()?;
     let (module_name, _) = our_path.name_and_extension()?;
     let (parent, module_name) = match module_name {
@@ -110,8 +110,7 @@ fn fixes(
 
         let root_module = &crate_def_map[crate_def_map.root_module_id()];
         let Some(root_file_id) = root_module.origin.file_id() else { continue };
-        let Some(crate_root_path) = source_root.path_for_file(&root_file_id.file_id(ctx.sema.db))
-        else {
+        let Some(crate_root_path) = db.file_path(root_file_id.file(ctx.sema.db)) else {
             continue;
         };
         let Some(rel) = parent.strip_prefix(&crate_root_path.parent()?) else { continue };
@@ -138,7 +137,7 @@ fn fixes(
             current.definition_source(ctx.sema.db);
         let parent_file_id = parent_file_id.file_id()?;
         return make_fixes(
-            parent_file_id.file_id(ctx.sema.db),
+            parent_file_id.file(ctx.sema.db),
             source,
             edition,
             &module_name,
@@ -155,16 +154,16 @@ fn fixes(
         Some(([parent.join(&format!("{name}.rs"))?, path.join("mod.rs")?], name.to_owned()))
     });
     let mut stack = vec![];
-    let &parent_id =
+    let parent_id =
         paths.inspect(|(_, name)| stack.push(name.clone())).find_map(|(paths, _)| {
-            paths.into_iter().find_map(|path| source_root.file_for_path(&path))
+            paths.into_iter().find_map(|path| db.file_for_indexed_path(&path))
         })?;
     stack.pop();
     let relevant_crates = base_db::relevant_crates(db, parent_id);
     'crates: for &krate in relevant_crates.iter() {
         let crate_def_map = crate_def_map(ctx.sema.db, krate);
         let Some((_, module)) = crate_def_map.modules().find(|(_, module)| {
-            module.origin.file_id().map(|file_id| file_id.file_id(ctx.sema.db)) == Some(parent_id)
+            module.origin.file_id().map(|file_id| file_id.file(ctx.sema.db)) == Some(parent_id)
                 && !module.origin.is_inline()
         }) else {
             continue;
@@ -197,7 +196,7 @@ fn fixes(
                 current.definition_source(ctx.sema.db);
             let parent_file_id = parent_file_id.file_id()?;
             return make_fixes(
-                parent_file_id.file_id(ctx.sema.db),
+                parent_file_id.file(ctx.sema.db),
                 source,
                 edition,
                 &module_name,
@@ -226,7 +225,7 @@ fn format_mod_name(mod_name: &str, visibility_and_keyword: &str, edition: Editio
 }
 
 fn make_fixes(
-    parent_file_id: FileId,
+    parent_file_id: File,
     source: ModuleSource,
     edition: Edition,
     new_mod_name: &str,

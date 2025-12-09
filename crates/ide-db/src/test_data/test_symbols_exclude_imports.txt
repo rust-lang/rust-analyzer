@@ -11,9 +11,9 @@
             ),
         ),
         loc: DeclarationLocation {
-            hir_file_id: FileId(
+            hir_file_id: File(
                 EditionedFileId(
-                    Id(481),
+                    Id(381),
                 ),
             ),
             ptr: SyntaxNodePtr {

@@ -109,7 +109,7 @@ use rustc_type_ir::{
     AliasTyKind, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor, fast_reject,
     inherent::{AdtDef as _, GenericArgs as _, IntoKind, SliceLike, Term as _, Ty as _},
 };
-use span::{AstIdNode, Edition, FileId};
+use span::{AstIdNode, Edition, File};
 use stdx::{format_to, impl_from, never};
 use syntax::{
     AstNode, AstPtr, SmolStr, SyntaxNode, SyntaxNodePtr, TextRange, ToSmolStr,
@@ -310,7 +310,7 @@ impl Crate {
         def_map.modules().map(|(id, _)| id.into()).collect()
     }
 
-    pub fn root_file(self, db: &dyn HirDatabase) -> FileId {
+    pub fn root_file(self, db: &dyn HirDatabase) -> File {
         self.id.data(db).root_file_id
     }
 
@@ -2528,7 +2528,7 @@ impl Function {
     pub fn eval(
         self,
         db: &dyn HirDatabase,
-        span_formatter: impl Fn(FileId, TextRange) -> String,
+        span_formatter: impl Fn(File, TextRange) -> String,
     ) -> Result<String, ConstEvalError<'_>> {
         let AnyFunctionId::FunctionId(id) = self.id else {
             return Err(ConstEvalError::MirEvalError(MirEvalError::NotSupported(

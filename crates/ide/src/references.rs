@@ -19,8 +19,8 @@
 
 use hir::{PathResolution, Semantics};
 use ide_db::{
-    FileId, RootDatabase,
-    base_db::SourceDatabase,
+    File, RootDatabase,
+    base_db::{FileRootKind, SourceDatabase},
     defs::{Definition, NameClass, NameRefClass},
     helpers::pick_best_token,
     ra_fixture::{RaFixtureConfig, UpmapFromRaFixture},
@@ -56,7 +56,7 @@ pub struct ReferenceSearchResult {
     /// The map key is the file ID, and the value is a vector of (range, category) pairs.
     /// - range: The text range of the reference in the file
     /// - category: Metadata about how the reference is used (read/write/etc)
-    pub references: IntMap<FileId, Vec<(TextRange, ReferenceCategory)>>,
+    pub references: IntMap<File, Vec<(TextRange, ReferenceCategory)>>,
 }
 
 /// Information about the declaration site of a searched item.
@@ -149,11 +149,11 @@ pub(crate) fn find_all_refs<'db>(
                 retain_adt_literal_usages(&mut usages, def, sema);
             }
 
-            let mut references: IntMap<FileId, Vec<(TextRange, ReferenceCategory)>> = usages
+            let mut references: IntMap<File, Vec<(TextRange, ReferenceCategory)>> = usages
                 .into_iter()
                 .map(|(file_id, refs)| {
                     (
-                        file_id.file_id(sema.db),
+                        file_id.file(sema.db),
                         refs.into_iter()
                             .map(|file_ref| (file_ref.range, file_ref.category))
                             .unique()
@@ -223,9 +223,11 @@ pub(crate) fn find_all_refs<'db>(
     }
 }
 
-fn is_library_file(db: &RootDatabase, file_id: FileId) -> bool {
-    let source_root = db.file_source_root(file_id).source_root_id(db);
-    db.source_root(source_root).source_root(db).is_library
+fn is_library_file(db: &RootDatabase, file_id: File) -> bool {
+    let Some(root) = db.file_root(file_id) else {
+        return false;
+    };
+    root.kind == FileRootKind::Library
 }
 
 pub(crate) fn find_defs<'db>(
@@ -472,7 +474,7 @@ fn handle_control_flow_keywords(
             .into_iter()
             .map(|HighlightedRange { range, category }| (range, category))
             .collect();
-        (file_id.file_id(sema.db), ranges)
+        (file_id.file(sema.db), ranges)
     })
     .collect();
 
@@ -483,7 +485,11 @@ fn handle_control_flow_keywords(
 mod tests {
     use expect_test::{Expect, expect};
     use hir::EditionedFileId;
-    use ide_db::{FileId, RootDatabase, ra_fixture::RaFixtureConfig};
+    use ide_db::{
+        RootDatabase,
+        base_db::{SourceDatabase, VfsPath},
+        ra_fixture::RaFixtureConfig,
+    };
     use stdx::format_to;
 
     use crate::{SearchScope, fixture, references::FindAllRefsConfig};
@@ -506,10 +512,10 @@ fn test() {
             false,
             false,
             expect![[r#"
-                test_func Function FileId(0) 0..17 3..12
+                test_func Function File(512) 0..17 3..12
 
-                FileId(0) 35..44
-                FileId(0) 75..84 test
+                File(512) 35..44
+                File(512) 75..84 test
             "#]],
         );
 
@@ -529,10 +535,10 @@ fn test() {
             false,
             false,
             expect![[r#"
-                test_func Function FileId(0) 0..17 3..12
+                test_func Function File(512) 0..17 3..12
 
-                FileId(0) 35..44
-                FileId(0) 96..105 test
+                File(512) 35..44
+                File(512) 96..105 test
             "#]],
         );
 
@@ -552,9 +558,9 @@ fn test() {
             false,
             true,
             expect![[r#"
-                test_func Function FileId(0) 0..17 3..12
+                test_func Function File(512) 0..17 3..12
 
-                FileId(0) 35..44
+                File(512) 35..44
             "#]],
         );
     }
@@ -571,7 +577,7 @@ fn main() {
     foo$0();
 }
 
-//- /dep/lib.rs crate:dep new_source_root:library
+//- /dep/lib.rs crate:dep new_file_root:library
 pub fn foo() {}
 
 pub fn also_calls_foo() {
@@ -582,10 +588,10 @@ pub fn also_calls_foo() {
             false,
             // FIXME: The ranges here are volatile when minicore changes, that's not good.
             expect![[r#"
-                foo Function FileId(1) 0..15 7..10
+                foo Function File(513) 0..15 7..10
 
-                FileId(0) 9..12 import
-                FileId(0) 31..34
+                File(512) 9..12 import
+                File(512) 31..34
             "#]],
         );
 
@@ -600,9 +606,9 @@ fn main() {
             false,
             false,
             expect![[r#"
-                Some Variant FileId(1) 6735..6767 6760..6764
+                Some Variant File(513) 6735..6767 6760..6764
 
-                FileId(0) 46..50
+                File(512) 46..50
             "#]],
         );
 
@@ -626,11 +632,11 @@ pub fn also_calls_foo() {
             false,
             false,
             expect![[r#"
-                foo Function FileId(1) 0..15 7..10
+                foo Function File(513) 0..15 7..10
 
-                FileId(0) 9..12 import
-                FileId(0) 31..34
-                FileId(1) 47..50
+                File(512) 9..12 import
+                File(512) 31..34
+                File(513) 47..50
             "#]],
         );
     }
@@ -646,7 +652,7 @@ fn main() {
     foo();
 }
 
-//- /dep/lib.rs crate:dep new_source_root:library
+//- /dep/lib.rs crate:dep new_file_root:library
 pub fn foo$0() {}
 
 pub fn also_calls_foo() {
@@ -656,11 +662,11 @@ pub fn also_calls_foo() {
             false,
             false,
             expect![[r#"
-                foo Function FileId(1) 0..15 7..10
+                foo Function File(513) 0..15 7..10
 
-                FileId(0) 9..12 import
-                FileId(0) 31..34
-                FileId(1) 47..50
+                File(512) 9..12 import
+                File(512) 31..34
+                File(513) 47..50
             "#]],
         );
     }
@@ -685,10 +691,10 @@ fn t2() {
 }
 "#,
             expect![[r#"
-                foo Function FileId(0) 52..74 55..58
+                foo Function File(512) 52..74 55..58
 
-                FileId(0) 91..94
-                FileId(0) 133..136 test
+                File(512) 91..94
+                File(512) 133..136 test
             "#]],
         );
     }
@@ -708,9 +714,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..26 7..10
+                Foo Struct File(512) 0..26 7..10
 
-                FileId(0) 101..104
+                File(512) 101..104
             "#]],
         );
     }
@@ -726,10 +732,10 @@ struct Foo$0 {}
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..13 7..10
+                Foo Struct File(512) 0..13 7..10
 
-                FileId(0) 41..44
-                FileId(0) 54..57
+                File(512) 41..44
+                File(512) 54..57
             "#]],
         );
     }
@@ -745,9 +751,9 @@ struct Foo<T> $0{}
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..16 7..10
+                Foo Struct File(512) 0..16 7..10
 
-                FileId(0) 64..67
+                File(512) 64..67
             "#]],
         );
     }
@@ -764,9 +770,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..16 7..10
+                Foo Struct File(512) 0..16 7..10
 
-                FileId(0) 54..57
+                File(512) 54..57
             "#]],
         );
     }
@@ -785,9 +791,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Union FileId(0) 0..24 6..9
+                Foo Union File(512) 0..24 6..9
 
-                FileId(0) 62..65
+                File(512) 62..65
             "#]],
         );
     }
@@ -809,11 +815,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(0) 0..37 5..8
+                Foo Enum File(512) 0..37 5..8
 
-                FileId(0) 74..77
-                FileId(0) 90..93
-                FileId(0) 108..111
+                File(512) 74..77
+                File(512) 90..93
+                File(512) 108..111
             "#]],
         );
     }
@@ -833,9 +839,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                A Variant FileId(0) 15..27 15..16
+                A Variant File(512) 15..27 15..16
 
-                FileId(0) 95..96
+                File(512) 95..96
             "#]],
         );
     }
@@ -855,9 +861,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                A Variant FileId(0) 15..21 15..16
+                A Variant File(512) 15..21 15..16
 
-                FileId(0) 89..90
+                File(512) 89..90
             "#]],
         );
     }
@@ -876,10 +882,10 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(0) 0..26 5..8
+                Foo Enum File(512) 0..26 5..8
 
-                FileId(0) 50..53
-                FileId(0) 63..66
+                File(512) 50..53
+                File(512) 63..66
             "#]],
         );
     }
@@ -898,9 +904,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(0) 0..32 5..8
+                Foo Enum File(512) 0..32 5..8
 
-                FileId(0) 73..76
+                File(512) 73..76
             "#]],
         );
     }
@@ -919,9 +925,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                Foo Enum FileId(0) 0..33 5..8
+                Foo Enum File(512) 0..33 5..8
 
-                FileId(0) 70..73
+                File(512) 70..73
             "#]],
         );
     }
@@ -942,12 +948,12 @@ fn main() {
     i = 5;
 }"#,
             expect![[r#"
-                i Local FileId(0) 20..25 24..25 write
+                i Local File(512) 20..25 24..25 write
 
-                FileId(0) 50..51 write
-                FileId(0) 54..55 read
-                FileId(0) 76..77 write
-                FileId(0) 94..95 write
+                File(512) 50..51 write
+                File(512) 54..55 read
+                File(512) 76..77 write
+                File(512) 94..95 write
             "#]],
         );
     }
@@ -962,7 +968,7 @@ struct Foo;
 struct Bar;
 "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..11 7..10
+                Foo Struct File(512) 0..11 7..10
 
                 (no references)
             "#]],
@@ -983,10 +989,10 @@ fn bar() {
 }
 "#,
             expect![[r#"
-                spam Local FileId(0) 19..23 19..23
+                spam Local File(512) 19..23 19..23
 
-                FileId(0) 34..38 read
-                FileId(0) 41..45 read
+                File(512) 34..38 read
+                File(512) 41..45 read
             "#]],
         );
     }
@@ -998,9 +1004,9 @@ fn bar() {
 fn foo(i : u32) -> u32 { i$0 }
 "#,
             expect![[r#"
-                i ValueParam FileId(0) 7..8 7..8
+                i ValueParam File(512) 7..8 7..8
 
-                FileId(0) 25..26 read
+                File(512) 25..26 read
             "#]],
         );
     }
@@ -1012,9 +1018,9 @@ fn foo(i : u32) -> u32 { i$0 }
 fn foo(i$0 : u32) -> u32 { i }
 "#,
             expect![[r#"
-                i ValueParam FileId(0) 7..8 7..8
+                i ValueParam File(512) 7..8 7..8
 
-                FileId(0) 25..26 read
+                File(512) 25..26 read
             "#]],
         );
     }
@@ -1033,9 +1039,9 @@ fn main(s: Foo) {
 }
 "#,
             expect![[r#"
-                spam Field FileId(0) 17..30 21..25
+                spam Field File(512) 17..30 21..25
 
-                FileId(0) 67..71 read
+                File(512) 67..71 read
             "#]],
         );
     }
@@ -1050,7 +1056,7 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                f Function FileId(0) 27..43 30..31
+                f Function File(512) 27..43 30..31
 
                 (no references)
             "#]],
@@ -1068,7 +1074,7 @@ enum Foo {
 }
 "#,
             expect![[r#"
-                B Variant FileId(0) 22..23 22..23
+                B Variant File(512) 22..23 22..23
 
                 (no references)
             "#]],
@@ -1086,7 +1092,7 @@ enum Foo {
 }
 "#,
             expect![[r#"
-                field Field FileId(0) 26..35 26..31
+                field Field File(512) 26..35 26..31
 
                 (no references)
             "#]],
@@ -1110,11 +1116,11 @@ impl<T> S<T> {
 }
 "#,
             expect![[r#"
-            S Struct FileId(0) 0..38 7..8
+                S Struct File(512) 0..38 7..8
 
-            FileId(0) 48..49
-            FileId(0) 71..75
-            FileId(0) 86..90
+                File(512) 48..49
+                File(512) 71..75
+                File(512) 86..90
             "#]],
         )
     }
@@ -1136,9 +1142,9 @@ impl TestTrait for () {
 }
 "#,
             expect![[r#"
-                Assoc TypeAlias FileId(0) 92..108 97..102
+                Assoc TypeAlias File(512) 92..108 97..102
 
-                FileId(0) 31..36
+                File(512) 31..36
             "#]],
         )
     }
@@ -1178,10 +1184,10 @@ fn f() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(1) 17..51 28..31 foo
+                Foo Struct File(513) 17..51 28..31 foo
 
-                FileId(0) 53..56
-                FileId(2) 79..82
+                File(512) 53..56
+                File(514) 79..82
             "#]],
         );
     }
@@ -1205,9 +1211,9 @@ pub struct Foo {
 }
 "#,
             expect![[r#"
-                foo Module FileId(0) 0..8 4..7
+                foo Module File(512) 0..8 4..7
 
-                FileId(0) 14..17 import
+                File(512) 14..17 import
             "#]],
         );
     }
@@ -1223,9 +1229,9 @@ mod foo;
 use self$0;
 "#,
             expect![[r#"
-                foo Module FileId(0) 0..8 4..7
+                foo Module File(512) 0..8 4..7
 
-                FileId(1) 4..8 import
+                File(513) 4..8 import
             "#]],
         );
     }
@@ -1238,9 +1244,9 @@ use self$0;
 use self$0;
 "#,
             expect![[r#"
-                _ CrateRoot FileId(0) 0..10
+                _ CrateRoot File(512) 0..10
 
-                FileId(0) 4..8 import
+                File(512) 4..8 import
             "#]],
         );
     }
@@ -1266,10 +1272,10 @@ pub(super) struct Foo$0 {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(2) 0..41 18..21 some
+                Foo Struct File(514) 0..41 18..21 some
 
-                FileId(1) 20..23 import
-                FileId(1) 47..50
+                File(513) 20..23 import
+                File(513) 47..50
             "#]],
         );
     }
@@ -1294,22 +1300,25 @@ pub(super) struct Foo$0 {
             code,
             None,
             expect![[r#"
-                quux Function FileId(0) 19..35 26..30
+                quux Function File(512) 19..35 26..30
 
-                FileId(1) 16..20
-                FileId(2) 16..20
+                File(513) 16..20
+                File(514) 16..20
             "#]],
         );
 
         check_with_scope(
             code,
             Some(&mut |db| {
-                SearchScope::single_file(EditionedFileId::current_edition(db, FileId::from_raw(2)))
+                let file = db
+                    .file_for_indexed_path(&VfsPath::new_virtual_path("/bar.rs".to_owned()))
+                    .unwrap();
+                SearchScope::single_file(EditionedFileId::current_edition(db, file))
             }),
             expect![[r#"
-                quux Function FileId(0) 19..35 26..30
+                quux Function File(512) 19..35 26..30
 
-                FileId(2) 16..20
+                File(514) 16..20
             "#]],
         );
     }
@@ -1327,10 +1336,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                m1 Macro FileId(0) 0..46 29..31
+                m1 Macro File(512) 0..46 29..31
 
-                FileId(0) 63..65
-                FileId(0) 73..75
+                File(512) 63..65
+                File(512) 73..75
             "#]],
         );
     }
@@ -1345,10 +1354,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                i Local FileId(0) 19..24 23..24 write
+                i Local File(512) 19..24 23..24 write
 
-                FileId(0) 34..35 write
-                FileId(0) 38..39 read
+                File(512) 34..35 write
+                File(512) 38..39 read
             "#]],
         );
     }
@@ -1367,10 +1376,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                f Field FileId(0) 15..21 15..16
+                f Field File(512) 15..21 15..16
 
-                FileId(0) 55..56 read
-                FileId(0) 68..69 write
+                File(512) 55..56 read
+                File(512) 68..69 write
             "#]],
         );
     }
@@ -1385,9 +1394,9 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                i Local FileId(0) 19..20 19..20
+                i Local File(512) 19..20 19..20
 
-                FileId(0) 26..27 write
+                File(512) 26..27 write
             "#]],
         );
     }
@@ -1409,9 +1418,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                new Function FileId(0) 54..81 61..64
+                new Function File(512) 54..81 61..64
 
-                FileId(0) 126..129
+                File(512) 126..129
             "#]],
         );
     }
@@ -1431,10 +1440,10 @@ use crate::f;
 fn g() { f(); }
 "#,
             expect![[r#"
-                f Function FileId(0) 22..31 25..26
+                f Function File(512) 22..31 25..26
 
-                FileId(1) 11..12 import
-                FileId(1) 24..25
+                File(513) 11..12 import
+                File(513) 24..25
             "#]],
         );
     }
@@ -1454,9 +1463,9 @@ fn f(s: S) {
 }
 "#,
             expect![[r#"
-                field Field FileId(0) 15..24 15..20
+                field Field File(512) 15..24 15..20
 
-                FileId(0) 68..73 read
+                File(512) 68..73 read
             "#]],
         );
     }
@@ -1478,9 +1487,9 @@ fn f(e: En) {
 }
 "#,
             expect![[r#"
-                field Field FileId(0) 32..41 32..37
+                field Field File(512) 32..41 32..37
 
-                FileId(0) 102..107 read
+                File(512) 102..107 read
             "#]],
         );
     }
@@ -1502,9 +1511,9 @@ fn f() -> m::En {
 }
 "#,
             expect![[r#"
-                field Field FileId(0) 56..65 56..61
+                field Field File(512) 56..65 56..61
 
-                FileId(0) 125..130 read
+                File(512) 125..130 read
             "#]],
         );
     }
@@ -1527,10 +1536,10 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                self SelfParam FileId(0) 47..51 47..51
+                self SelfParam File(512) 47..51 47..51
 
-                FileId(0) 71..75 read
-                FileId(0) 152..156 read
+                File(512) 71..75 read
+                File(512) 152..156 read
             "#]],
         );
     }
@@ -1548,9 +1557,9 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                self SelfParam FileId(0) 47..51 47..51
+                self SelfParam File(512) 47..51 47..51
 
-                FileId(0) 63..67 read
+                File(512) 63..67 read
             "#]],
         );
     }
@@ -1572,11 +1581,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 24..26
-                FileId(0) 42..43
-                FileId(0) 55..57
-                FileId(0) 74..75
-                FileId(0) 97..98
+                File(512) 24..26
+                File(512) 42..43
+                File(512) 55..57
+                File(512) 74..75
+                File(512) 97..98
             "#]],
         );
     }
@@ -1595,11 +1604,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..21
-                FileId(0) 61..81
-                FileId(0) 102..118
-                FileId(0) 139..159
-                FileId(0) 177..193
+                File(512) 16..21
+                File(512) 61..81
+                File(512) 102..118
+                File(512) 139..159
+                File(512) 177..193
             "#]],
         );
     }
@@ -1618,8 +1627,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 58..60
-                FileId(0) 61..81
+                File(512) 58..60
+                File(512) 61..81
             "#]],
         );
     }
@@ -1646,11 +1655,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 24..26
-                FileId(0) 65..66
-                FileId(0) 140..141
-                FileId(0) 167..168
-                FileId(0) 215..216
+                File(512) 24..26
+                File(512) 65..66
+                File(512) 140..141
+                File(512) 167..168
+                File(512) 215..216
             "#]],
         );
     }
@@ -1671,11 +1680,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 24..29
-                FileId(0) 80..81
-                FileId(0) 124..125
-                FileId(0) 155..156
-                FileId(0) 171..172
+                File(512) 24..29
+                File(512) 80..81
+                File(512) 124..125
+                File(512) 155..156
+                File(512) 171..172
             "#]],
         );
     }
@@ -1698,12 +1707,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 24..26
-                FileId(0) 60..61
-                FileId(0) 73..75
-                FileId(0) 102..103
-                FileId(0) 153..154
-                FileId(0) 173..174
+                File(512) 24..26
+                File(512) 60..61
+                File(512) 73..75
+                File(512) 102..103
+                File(512) 153..154
+                File(512) 173..174
             "#]],
         );
     }
@@ -1787,13 +1796,13 @@ fn foo<'a, 'b: 'a>(x: &'a$0 ()) -> &'a () where &'a (): Foo<'a> {
 }
 "#,
             expect![[r#"
-                'a LifetimeParam FileId(0) 55..57
+                'a LifetimeParam File(512) 55..57
 
-                FileId(0) 63..65
-                FileId(0) 71..73
-                FileId(0) 82..84
-                FileId(0) 95..97
-                FileId(0) 106..108
+                File(512) 63..65
+                File(512) 71..73
+                File(512) 82..84
+                File(512) 95..97
+                File(512) 106..108
             "#]],
         );
     }
@@ -1805,10 +1814,10 @@ fn foo<'a, 'b: 'a>(x: &'a$0 ()) -> &'a () where &'a (): Foo<'a> {
 type Foo<'a, T> where T: 'a$0 = &'a T;
 "#,
             expect![[r#"
-                'a LifetimeParam FileId(0) 9..11
+                'a LifetimeParam File(512) 9..11
 
-                FileId(0) 25..27
-                FileId(0) 31..33
+                File(512) 25..27
+                File(512) 31..33
             "#]],
         );
     }
@@ -1827,11 +1836,11 @@ impl<'a> Foo<'a> for &'a () {
 }
 "#,
             expect![[r#"
-                'a LifetimeParam FileId(0) 47..49
+                'a LifetimeParam File(512) 47..49
 
-                FileId(0) 55..57
-                FileId(0) 64..66
-                FileId(0) 89..91
+                File(512) 55..57
+                File(512) 64..66
+                File(512) 89..91
             "#]],
         );
     }
@@ -1847,9 +1856,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                a Local FileId(0) 59..60 59..60
+                a Local File(512) 59..60 59..60
 
-                FileId(0) 80..81 read
+                File(512) 80..81 read
             "#]],
         );
     }
@@ -1865,9 +1874,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                a Local FileId(0) 59..60 59..60
+                a Local File(512) 59..60 59..60
 
-                FileId(0) 80..81 read
+                File(512) 80..81 read
             "#]],
         );
     }
@@ -1886,10 +1895,10 @@ fn foo<'a>() -> &'a () {
 }
 "#,
             expect![[r#"
-                'a Label FileId(0) 29..32 29..31
+                'a Label File(512) 29..32 29..31
 
-                FileId(0) 80..82
-                FileId(0) 108..110
+                File(512) 80..82
+                File(512) 108..110
             "#]],
         );
     }
@@ -1903,9 +1912,9 @@ fn foo<const FOO$0: usize>() -> usize {
 }
 "#,
             expect![[r#"
-                FOO ConstParam FileId(0) 7..23 13..16
+                FOO ConstParam File(512) 7..23 13..16
 
-                FileId(0) 42..45
+                File(512) 42..45
             "#]],
         );
     }
@@ -1919,9 +1928,9 @@ trait Foo$0 where Self: {}
 impl Foo for () {}
 "#,
             expect![[r#"
-                Foo Trait FileId(0) 0..24 6..9
+                Foo Trait File(512) 0..24 6..9
 
-                FileId(0) 31..34
+                File(512) 31..34
             "#]],
         );
     }
@@ -1937,10 +1946,10 @@ trait Foo where Self$0 {
 impl Foo for () {}
 "#,
             expect![[r#"
-                Self TypeParam FileId(0) 0..44 6..9
+                Self TypeParam File(512) 0..44 6..9
 
-                FileId(0) 16..20
-                FileId(0) 37..41
+                File(512) 16..20
+                File(512) 37..41
             "#]],
         );
     }
@@ -1956,11 +1965,11 @@ impl Foo for () {}
         }
         "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..11 7..10
+                Foo Struct File(512) 0..11 7..10
 
-                FileId(0) 18..21
-                FileId(0) 28..32
-                FileId(0) 50..54
+                File(512) 18..21
+                File(512) 28..32
+                File(512) 50..54
             "#]],
         );
         check(
@@ -1972,11 +1981,11 @@ impl Foo where Self: {
 }
 "#,
             expect![[r#"
-                impl Impl FileId(0) 13..57 18..21
+                impl Impl File(512) 13..57 18..21
 
-                FileId(0) 18..21
-                FileId(0) 28..32
-                FileId(0) 50..54
+                File(512) 18..21
+                File(512) 28..32
+                File(512) 50..54
             "#]],
         );
     }
@@ -1996,9 +2005,9 @@ impl Foo {
 
 "#,
             expect![[r#"
-                Bar Variant FileId(0) 11..16 11..14
+                Bar Variant File(512) 11..16 11..14
 
-                FileId(0) 89..92
+                File(512) 89..92
             "#]],
         );
     }
@@ -2012,11 +2021,11 @@ trait Bar$0 = Foo where Self: ;
 fn foo<T: Bar>(_: impl Bar, _: &dyn Bar) {}
 "#,
             expect![[r#"
-                Bar Trait FileId(0) 13..42 19..22
+                Bar Trait File(512) 13..42 19..22
 
-                FileId(0) 53..56
-                FileId(0) 66..69
-                FileId(0) 79..82
+                File(512) 53..56
+                File(512) 66..69
+                File(512) 79..82
             "#]],
         );
     }
@@ -2028,9 +2037,9 @@ fn foo<T: Bar>(_: impl Bar, _: &dyn Bar) {}
 trait Foo = where Self$0: ;
 "#,
             expect![[r#"
-                Self TypeParam FileId(0) 0..25 6..9
+                Self TypeParam File(512) 0..25 6..9
 
-                FileId(0) 18..22
+                File(512) 18..22
             "#]],
         );
     }
@@ -2045,9 +2054,9 @@ fn test$0() {
 }
 "#,
             expect![[r#"
-                test Function FileId(0) 0..33 11..15
+                test Function File(512) 0..33 11..15
 
-                FileId(0) 24..28 test
+                File(512) 24..28 test
             "#]],
         );
     }
@@ -2067,12 +2076,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                A Const FileId(0) 0..18 6..7
+                A Const File(512) 0..18 6..7
 
-                FileId(0) 42..43
-                FileId(0) 54..55
-                FileId(0) 97..98
-                FileId(0) 101..102
+                File(512) 42..43
+                File(512) 54..55
+                File(512) 97..98
+                File(512) 101..102
             "#]],
         );
     }
@@ -2084,8 +2093,8 @@ fn main() {
 fn foo(_: bool) -> bo$0ol { true }
 "#,
             expect![[r#"
-                FileId(0) 10..14
-                FileId(0) 19..23
+                File(512) 10..14
+                File(512) 19..23
             "#]],
         );
     }
@@ -2094,21 +2103,21 @@ fn foo(_: bool) -> bo$0ol { true }
     fn test_transitive() {
         check(
             r#"
-//- /level3.rs new_source_root:local crate:level3
+//- /level3.rs new_file_root:local crate:level3
 pub struct Fo$0o;
-//- /level2.rs new_source_root:local crate:level2 deps:level3
+//- /level2.rs new_file_root:local crate:level2 deps:level3
 pub use level3::Foo;
-//- /level1.rs new_source_root:local crate:level1 deps:level2
+//- /level1.rs new_file_root:local crate:level1 deps:level2
 pub use level2::Foo;
-//- /level0.rs new_source_root:local crate:level0 deps:level1
+//- /level0.rs new_file_root:local crate:level0 deps:level1
 pub use level1::Foo;
 "#,
             expect![[r#"
-                Foo Struct FileId(0) 0..15 11..14
+                Foo Struct File(512) 0..15 11..14
 
-                FileId(1) 16..19 import
-                FileId(2) 16..19 import
-                FileId(3) 16..19 import
+                File(513) 16..19 import
+                File(514) 16..19 import
+                File(515) 16..19 import
             "#]],
         );
     }
@@ -2130,15 +2139,15 @@ macro_rules! foo$0 {
 }
 //- /bar.rs
 foo!();
-//- /other.rs crate:other deps:lib new_source_root:local
+//- /other.rs crate:other deps:lib new_file_root:local
 lib::foo!();
 "#,
             expect![[r#"
-                foo Macro FileId(1) 0..61 29..32
+                foo Macro File(513) 0..61 29..32
 
-                FileId(0) 46..49 import
-                FileId(2) 0..3
-                FileId(3) 5..8
+                File(512) 46..49 import
+                File(514) 0..3
+                File(515) 5..8
             "#]],
         );
     }
@@ -2156,9 +2165,9 @@ m$0!();
 
 "#,
             expect![[r#"
-                m Macro FileId(0) 0..32 13..14
+                m Macro File(512) 0..32 13..14
 
-                FileId(0) 64..65
+                File(512) 64..65
             "#]],
         );
     }
@@ -2185,14 +2194,14 @@ fn f() {
 }
             "#,
             expect![[r#"
-                func Function FileId(0) 137..146 140..144 module
+                func Function File(512) 137..146 140..144 module
 
-                FileId(0) 181..185
+                File(512) 181..185
 
 
-                func Function FileId(0) 137..146 140..144
+                func Function File(512) 137..146 140..144
 
-                FileId(0) 161..165
+                File(512) 161..165
             "#]],
         )
     }
@@ -2208,9 +2217,9 @@ fn func$0() {
 }
 "#,
             expect![[r#"
-                func Function FileId(0) 25..50 28..32
+                func Function File(512) 25..50 28..32
 
-                FileId(0) 41..45
+                File(512) 41..45
             "#]],
         )
     }
@@ -2229,9 +2238,9 @@ trait Trait {
 }
 "#,
             expect![[r#"
-                func Function FileId(0) 48..87 51..55 Trait
+                func Function File(512) 48..87 51..55 Trait
 
-                FileId(0) 74..78
+                File(512) 74..78
             "#]],
         )
     }
@@ -2248,10 +2257,10 @@ use proc_macros::identity;
 fn func() {}
 "#,
             expect![[r#"
-                identity Attribute FileId(1) 1..107 32..40
+                identity Attribute File(513) 1..107 32..40
 
-                FileId(0) 17..25 import
-                FileId(0) 43..51
+                File(512) 17..25 import
+                File(512) 43..51
             "#]],
         );
         check(
@@ -2261,7 +2270,7 @@ fn func() {}
 fn func$0() {}
 "#,
             expect![[r#"
-                func Attribute FileId(0) 28..64 55..59
+                func Attribute File(512) 28..64 55..59
 
                 (no references)
             "#]],
@@ -2279,10 +2288,10 @@ use proc_macros::mirror;
 mirror$0! {}
 "#,
             expect![[r#"
-                mirror ProcMacro FileId(1) 1..77 22..28
+                mirror ProcMacro File(513) 1..77 22..28
 
-                FileId(0) 17..23 import
-                FileId(0) 26..32
+                File(512) 17..23 import
+                File(512) 26..32
             "#]],
         )
     }
@@ -2299,10 +2308,10 @@ use proc_macros::DeriveIdentity;
 struct Foo;
 "#,
             expect![[r#"
-                derive_identity Derive FileId(2) 1..107 45..60
+                derive_identity Derive File(514) 1..107 45..60
 
-                FileId(0) 17..31 import
-                FileId(0) 56..70
+                File(512) 17..31 import
+                File(512) 56..70
             "#]],
         );
         check(
@@ -2312,7 +2321,7 @@ struct Foo;
 pub fn deri$0ve(_stream: TokenStream) -> TokenStream {}
 "#,
             expect![[r#"
-                derive Derive FileId(0) 28..125 79..85
+                derive Derive File(512) 28..125 79..85
 
                 (no references)
             "#]],
@@ -2342,12 +2351,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                CONST Const FileId(0) 18..37 24..29 Trait
+                CONST Const File(512) 18..37 24..29 Trait
 
-                FileId(0) 71..76
-                FileId(0) 125..130
-                FileId(0) 183..188
-                FileId(0) 206..211
+                File(512) 71..76
+                File(512) 125..130
+                File(512) 183..188
+                File(512) 206..211
             "#]],
         );
         check(
@@ -2371,12 +2380,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                TypeAlias TypeAlias FileId(0) 18..33 23..32 Trait
+                TypeAlias TypeAlias File(512) 18..33 23..32 Trait
 
-                FileId(0) 66..75
-                FileId(0) 117..126
-                FileId(0) 181..190
-                FileId(0) 207..216
+                File(512) 66..75
+                File(512) 117..126
+                File(512) 181..190
+                File(512) 207..216
             "#]],
         );
         check(
@@ -2400,12 +2409,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                function Function FileId(0) 18..34 21..29 Trait
+                function Function File(512) 18..34 21..29 Trait
 
-                FileId(0) 65..73
-                FileId(0) 112..120
-                FileId(0) 166..174
-                FileId(0) 192..200
+                File(512) 65..73
+                File(512) 112..120
+                File(512) 166..174
+                File(512) 192..200
             "#]],
         );
     }
@@ -2433,9 +2442,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                CONST Const FileId(0) 65..88 71..76
+                CONST Const File(512) 65..88 71..76
 
-                FileId(0) 183..188
+                File(512) 183..188
             "#]],
         );
         check(
@@ -2459,12 +2468,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                TypeAlias TypeAlias FileId(0) 61..81 66..75
+                TypeAlias TypeAlias File(512) 61..81 66..75
 
-                FileId(0) 23..32
-                FileId(0) 117..126
-                FileId(0) 181..190
-                FileId(0) 207..216
+                File(512) 23..32
+                File(512) 117..126
+                File(512) 181..190
+                File(512) 207..216
             "#]],
         );
         check(
@@ -2488,9 +2497,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                function Function FileId(0) 62..78 65..73
+                function Function File(512) 62..78 65..73
 
-                FileId(0) 166..174
+                File(512) 166..174
             "#]],
         );
     }
@@ -2518,9 +2527,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                CONST Const FileId(0) 65..88 71..76
+                CONST Const File(512) 65..88 71..76
 
-                FileId(0) 183..188
+                File(512) 183..188
             "#]],
         );
         check(
@@ -2544,12 +2553,12 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                TypeAlias TypeAlias FileId(0) 18..33 23..32 Trait
+                TypeAlias TypeAlias File(512) 18..33 23..32 Trait
 
-                FileId(0) 66..75
-                FileId(0) 117..126
-                FileId(0) 181..190
-                FileId(0) 207..216
+                File(512) 66..75
+                File(512) 117..126
+                File(512) 181..190
+                File(512) 207..216
             "#]],
         );
         check(
@@ -2573,9 +2582,9 @@ fn f<T: Trait>() {
 }
 "#,
             expect![[r#"
-                function Function FileId(0) 62..78 65..73
+                function Function File(512) 62..78 65..73
 
-                FileId(0) 166..174
+                File(512) 166..174
             "#]],
         );
     }
@@ -2600,9 +2609,9 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Function FileId(0) 16..39 19..25 Foo
+                method Function File(512) 16..39 19..25 Foo
 
-                FileId(0) 101..107
+                File(512) 101..107
             "#]],
         );
         check(
@@ -2623,9 +2632,9 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Field FileId(0) 60..70 60..66
+                method Field File(512) 60..70 60..66
 
-                FileId(0) 136..142 read
+                File(512) 136..142 read
             "#]],
         );
         check(
@@ -2646,7 +2655,7 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Function FileId(0) 98..148 101..107
+                method Function File(512) 98..148 101..107
 
                 (no references)
             "#]],
@@ -2669,9 +2678,9 @@ impl Foo for Bar {
 fn method() {}
 "#,
             expect![[r#"
-                method Field FileId(0) 60..70 60..66
+                method Field File(512) 60..70 60..66
 
-                FileId(0) 136..142 read
+                File(512) 136..142 read
             "#]],
         );
         check(
@@ -2692,7 +2701,7 @@ impl Foo for Bar {
 fn method$0() {}
 "#,
             expect![[r#"
-                method Function FileId(0) 151..165 154..160
+                method Function File(512) 151..165 154..160
 
                 (no references)
             "#]],
@@ -2707,9 +2716,9 @@ fn r#fn$0() {}
 fn main() { r#fn(); }
 "#,
             expect![[r#"
-                fn Function FileId(0) 0..12 3..7
+                fn Function File(512) 0..12 3..7
 
-                FileId(0) 25..29
+                File(512) 25..29
             "#]],
         );
     }
@@ -2728,11 +2737,11 @@ fn test() {
 }
 "#,
             expect![[r#"
-                a Local FileId(0) 20..21 20..21
+                a Local File(512) 20..21 20..21
 
-                FileId(0) 56..57 read
-                FileId(0) 60..61 read
-                FileId(0) 68..69 read
+                File(512) 56..57 read
+                File(512) 60..61 read
+                File(512) 68..69 read
             "#]],
         );
     }
@@ -2768,9 +2777,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 136..138
-                FileId(0) 207..213
-                FileId(0) 264..270
+                File(512) 136..138
+                File(512) 207..213
+                File(512) 264..270
             "#]],
         )
     }
@@ -2789,10 +2798,10 @@ fn$0 foo() -> u32 {
 }
 "#,
             expect![[r#"
-                FileId(0) 0..2
-                FileId(0) 40..46
-                FileId(0) 62..63
-                FileId(0) 69..80
+                File(512) 0..2
+                File(512) 40..46
+                File(512) 62..63
+                File(512) 69..80
             "#]],
         );
     }
@@ -2810,10 +2819,10 @@ pub async$0 fn foo() {
 }
 "#,
             expect![[r#"
-                FileId(0) 4..9
-                FileId(0) 48..53
-                FileId(0) 63..68
-                FileId(0) 114..119
+                File(512) 4..9
+                File(512) 48..53
+                File(512) 63..68
+                File(512) 114..119
             "#]],
         );
     }
@@ -2830,9 +2839,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..19
-                FileId(0) 40..45
-                FileId(0) 55..63
+                File(512) 16..19
+                File(512) 40..45
+                File(512) 55..63
             "#]],
         )
     }
@@ -2849,8 +2858,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..19
-                FileId(0) 40..45
+                File(512) 16..19
+                File(512) 40..45
             "#]],
         )
     }
@@ -2866,8 +2875,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..19
-                FileId(0) 29..37
+                File(512) 16..19
+                File(512) 29..37
             "#]],
         )
     }
@@ -2890,10 +2899,10 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                FileId(0) 15..27
-                FileId(0) 39..44
-                FileId(0) 127..139
-                FileId(0) 178..183
+                File(512) 15..27
+                File(512) 39..44
+                File(512) 127..139
+                File(512) 178..183
             "#]],
         );
     }
@@ -2914,9 +2923,9 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..18
-                FileId(0) 51..57
-                FileId(0) 78..84
+                File(512) 16..18
+                File(512) 51..57
+                File(512) 78..84
             "#]],
         )
     }
@@ -2934,8 +2943,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..19
-                FileId(0) 84..89
+                File(512) 16..19
+                File(512) 84..89
             "#]],
         )
     }
@@ -2951,8 +2960,8 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 16..21
-                FileId(0) 32..38
+                File(512) 16..21
+                File(512) 32..38
             "#]],
         )
     }
@@ -2988,12 +2997,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 46..48
-                FileId(0) 106..108
-                FileId(0) 122..149
-                FileId(0) 135..141
-                FileId(0) 165..181
-                FileId(1) 6..12
+                File(512) 46..48
+                File(512) 106..108
+                File(512) 122..149
+                File(512) 135..141
+                File(512) 165..181
+                File(513) 6..12
             "#]],
         )
     }
@@ -3019,10 +3028,10 @@ fn baz() {
 }
         "#,
             expect![[r#"
-                new Function FileId(0) 27..38 30..33
+                new Function File(512) 27..38 30..33
 
-                FileId(0) 62..65
-                FileId(0) 91..94
+                File(512) 62..65
+                File(512) 91..94
             "#]],
         );
     }
@@ -3069,11 +3078,11 @@ type Itself<T> = T;
 pub(in super::super) type Baz = Itself<crate::Foo>;
         "#,
             expect![[r#"
-                new Function FileId(0) 42..53 45..48
+                new Function File(512) 42..53 45..48
 
-                FileId(0) 83..86
-                FileId(1) 40..43
-                FileId(1) 106..109
+                File(512) 83..86
+                File(513) 40..43
+                File(513) 106..109
             "#]],
         );
     }
@@ -3108,12 +3117,12 @@ impl super::Foo {
 fn foo() { <super::Foo as super::Trait>::Assoc::new(); }
                 "#,
             expect![[r#"
-                new Function FileId(0) 40..51 43..46
+                new Function File(512) 40..51 43..46
 
-                FileId(0) 73..76
-                FileId(0) 195..198
-                FileId(1) 40..43
-                FileId(1) 99..102
+                File(512) 73..76
+                File(512) 195..198
+                File(513) 40..43
+                File(513) 99..102
             "#]],
         );
     }
@@ -3134,10 +3143,10 @@ impl Foo {
 }
             "#,
             expect![[r#"
-                new Function FileId(0) 27..38 30..33
+                new Function File(512) 27..38 30..33
 
-                FileId(0) 68..71
-                FileId(0) 123..126
+                File(512) 68..71
+                File(512) 123..126
             "#]],
         );
     }
@@ -3165,10 +3174,10 @@ impl Foo {
 }
             "#,
             expect![[r#"
-                new Function FileId(0) 27..38 30..33
+                new Function File(512) 27..38 30..33
 
-                FileId(0) 188..191
-                FileId(0) 233..236
+                File(512) 188..191
+                File(512) 233..236
             "#]],
         );
     }
@@ -3205,7 +3214,7 @@ fn bar() {
 }
                 "#,
             expect![[r#"
-                new Function FileId(0) 27..38 30..33
+                new Function File(512) 27..38 30..33
 
                 (no references)
             "#]],
@@ -3231,9 +3240,9 @@ impl Foo {
 }
                 "#,
             expect![[r#"
-                new Function FileId(0) 27..38 30..33
+                new Function File(512) 27..38 30..33
 
-                FileId(0) 131..134
+                File(512) 131..134
             "#]],
         );
     }
@@ -3252,9 +3261,9 @@ fn howdy() {
 const FOO$0: i32 = 0;
 "#,
             expect![[r#"
-                FOO Const FileId(1) 0..19 6..9
+                FOO Const File(513) 0..19 6..9
 
-                FileId(0) 45..48
+                File(512) 45..48
             "#]],
         );
     }
@@ -3281,12 +3290,12 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 92..94
-                FileId(0) 128..129
-                FileId(0) 141..143
-                FileId(0) 177..178
-                FileId(0) 237..238
-                FileId(0) 257..258
+                File(512) 92..94
+                File(512) 128..129
+                File(512) 141..143
+                File(512) 177..178
+                File(512) 237..238
+                File(512) 257..258
             "#]],
         );
     }
@@ -3312,11 +3321,11 @@ fn main() {
 }
 "#,
             expect![[r#"
-                FileId(0) 108..113
-                FileId(0) 185..205
-                FileId(0) 243..279
-                FileId(0) 308..341
-                FileId(0) 374..394
+                File(512) 108..113
+                File(512) 185..205
+                File(512) 243..279
+                File(512) 308..341
+                File(512) 374..394
             "#]],
         );
     }
@@ -3334,9 +3343,9 @@ fn foo<'r#fn>(s: &'r#fn str) {
 }
         "#,
             expect![[r#"
-                'break Label FileId(0) 87..96 87..95
+                'break Label File(512) 87..96 87..95
 
-                FileId(0) 113..121
+                File(512) 113..121
             "#]],
         );
         check(
@@ -3350,11 +3359,11 @@ fn foo<'r#fn$0>(s: &'r#fn str) {
 }
         "#,
             expect![[r#"
-                'fn LifetimeParam FileId(0) 7..12
+                'fn LifetimeParam File(512) 7..12
 
-                FileId(0) 18..23
-                FileId(0) 44..49
-                FileId(0) 72..77
+                File(512) 18..23
+                File(512) 44..49
+                File(512) 72..77
             "#]],
         );
     }
@@ -3366,13 +3375,13 @@ fn foo<'r#fn$0>(s: &'r#fn str) {
 //- /foo.rs crate:foo
 pub macro m$0() {}
 
-//- /bar.rs new_source_root:local crate:bar deps:foo
+//- /bar.rs new_file_root:local crate:bar deps:foo
 foo::m!();
         "#,
             expect![[r#"
-                m Macro FileId(0) 0..16 10..11
+                m Macro File(512) 0..16 10..11
 
-                FileId(1) 5..6
+                File(513) 5..6
             "#]],
         );
     }

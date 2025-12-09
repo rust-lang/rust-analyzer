@@ -134,10 +134,10 @@ impl server::Server for RaSpanServer<'_> {
         format!("{:?}", span)
     }
     fn span_file(&mut self, span: Self::Span) -> String {
-        self.callback.as_mut().map(|cb| cb.file(span.anchor.file_id.file_id())).unwrap_or_default()
+        self.callback.as_mut().map(|cb| cb.file(span.anchor.file_id.file())).unwrap_or_default()
     }
     fn span_local_file(&mut self, span: Self::Span) -> Option<String> {
-        self.callback.as_mut().and_then(|cb| cb.local_file(span.anchor.file_id.file_id()))
+        self.callback.as_mut().and_then(|cb| cb.local_file(span.anchor.file_id.file()))
     }
     fn span_save_span(&mut self, _span: Self::Span) -> usize {
         // FIXME, quote is incompatible with third-party tools

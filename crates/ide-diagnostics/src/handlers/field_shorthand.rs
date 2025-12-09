@@ -52,7 +52,7 @@ fn check_expr_field_shorthand(
         let edit = edit_builder.finish();
 
         let field_range = record_field.syntax().text_range();
-        let vfs_file_id = file_id.file_id(db);
+        let vfs_file_id = file_id.file(db);
         acc.push(
             Diagnostic::new(
                 DiagnosticCode::Clippy("redundant_field_names"),
@@ -98,7 +98,7 @@ fn check_pat_field_shorthand(
         let edit = edit_builder.finish();
 
         let field_range = record_pat_field.syntax().text_range();
-        let vfs_file_id = file_id.file_id(db);
+        let vfs_file_id = file_id.file(db);
         acc.push(
             Diagnostic::new(
                 DiagnosticCode::Clippy("redundant_field_names"),

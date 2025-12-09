@@ -1,11 +1,15 @@
 //! Reports references in code that the IDE layer cannot resolve.
 use hir::{AnyDiagnostic, Crate, Module, Semantics, db::HirDatabase, sym};
-use ide::{AnalysisHost, RootDatabase, TextRange};
-use ide_db::{FxHashSet, base_db::SourceDatabase, defs::NameRefClass, line_index};
+use ide::{AnalysisHost, File, RootDatabase, TextRange};
+use ide_db::{
+    FxHashSet,
+    base_db::{FileRootKind, SourceDatabase},
+    defs::NameRefClass,
+    line_index,
+};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use parser::SyntaxKind;
 use syntax::{AstNode, WalkEvent, ast};
-use vfs::FileId;
 
 use crate::cli::flags;
 
@@ -44,7 +48,7 @@ impl flags::UnresolvedReferences {
             num_worker_threads: 1,
             proc_macro_processes: config.proc_macro_num_processes(),
         };
-        let (db, vfs, _proc_macro) =
+        let (db, _proc_macro) =
             load_workspace_at(&self.path, &cargo_config, &load_cargo_config, &|_| {})?;
         let host = AnalysisHost::with_database(db);
         let db = host.raw_database();
@@ -54,14 +58,15 @@ impl flags::UnresolvedReferences {
 
         let work = all_modules(db).into_iter().filter(|module| {
             let file_id = module.definition_source_file_id(db).original_file(db);
-            let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
-            !source_root.is_library
+            let Some(root) = db.file_root(file_id.file(db)) else {
+                return false;
+            };
+            root.kind == FileRootKind::Local
         });
 
         for module in work {
             let file_id = module.definition_source_file_id(db).original_file(db);
-            let file_id = file_id.file_id(db);
+            let file_id = file_id.file(db);
             if !visited_files.contains(&file_id) {
                 let crate_name = module
                     .krate(db)
@@ -69,11 +74,14 @@ impl flags::UnresolvedReferences {
                     .as_deref()
                     .unwrap_or(&sym::unknown)
                     .to_owned();
-                let file_path = vfs.file_path(file_id);
+                let file_path = db
+                    .file_path(file_id)
+                    .map(|path| path.to_string())
+                    .unwrap_or_else(|| "<unknown file>".to_owned());
                 eprintln!("processing crate: {crate_name}, module: {file_path}",);
 
                 let line_index = line_index(db, file_id);
-                let file_text = db.file_text(file_id);
+                let file_text = db.file_data(file_id);
 
                 for range in find_unresolved_references(db, &sema, file_id, &module) {
                     let line_col = line_index.line_col(range.start());
@@ -110,7 +118,7 @@ fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
 fn find_unresolved_references(
     db: &RootDatabase,
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     module: &Module,
 ) -> Vec<TextRange> {
     let mut unresolved_references = all_unresolved_references(sema, file_id);
@@ -126,7 +134,7 @@ fn find_unresolved_references(
         let node = inactive_code.node;
         let range = node.map(|it| it.text_range()).original_node_file_range_rooted(db);
 
-        if range.file_id.file_id(db) != file_id {
+        if range.file_id.file(db) != file_id {
             continue;
         }
 
@@ -136,10 +144,7 @@ fn find_unresolved_references(
     unresolved_references
 }
 
-fn all_unresolved_references(
-    sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
-) -> Vec<TextRange> {
+fn all_unresolved_references(sema: &Semantics<'_, RootDatabase>, file_id: File) -> Vec<TextRange> {
     let file_id = sema.attach_first_edition(file_id);
     let file = sema.parse(file_id);
     let root = file.syntax();

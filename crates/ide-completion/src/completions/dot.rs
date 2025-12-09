@@ -434,7 +434,7 @@ fn foo(a: A) { a.$0() }
     fn test_visibility_filtering() {
         check_no_kw(
             r#"
-//- /lib.rs crate:lib new_source_root:local
+//- /lib.rs crate:lib new_file_root:local
 pub mod m {
     pub struct A {
         private_field: u32,
@@ -443,7 +443,7 @@ pub mod m {
         pub(super) super_field: u32,
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::m::A) { a.$0 }
 "#,
             expect![[r#"
@@ -453,7 +453,7 @@ fn foo(a: lib::m::A) { a.$0 }
 
         check_no_kw(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub mod m {
     pub struct A {
         private_field: u32,
@@ -462,7 +462,7 @@ pub mod m {
         pub(super) super_field: u32,
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::m::A) { a.$0 }
 "#,
             expect![[r#"
@@ -472,14 +472,14 @@ fn foo(a: lib::m::A) { a.$0 }
 
         check_no_kw(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub mod m {
     pub struct A(
         i32,
         pub f64,
     );
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::m::A) { a.$0 }
 "#,
             expect![[r#"
@@ -489,7 +489,7 @@ fn foo(a: lib::m::A) { a.$0 }
 
         check_no_kw(
             r#"
-//- /lib.rs crate:lib new_source_root:local
+//- /lib.rs crate:lib new_file_root:local
 pub struct A {}
 mod m {
     impl super::A {
@@ -498,7 +498,7 @@ mod m {
         pub fn pub_method(&self) {}
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::A) { a.$0 }
 "#,
             expect![[r#"
@@ -507,7 +507,7 @@ fn foo(a: lib::A) { a.$0 }
         );
         check_no_kw(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct A {}
 mod m {
     impl super::A {
@@ -516,7 +516,7 @@ mod m {
         pub fn pub_method(&self) {}
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::A) { a.$0 }
 "#,
             expect![[r#"
@@ -529,7 +529,7 @@ fn foo(a: lib::A) { a.$0 }
     fn test_visibility_filtering_with_private_editable_enabled() {
         check_with_private_editable(
             r#"
-//- /lib.rs crate:lib new_source_root:local
+//- /lib.rs crate:lib new_file_root:local
 pub mod m {
     pub struct A {
         private_field: u32,
@@ -538,7 +538,7 @@ pub mod m {
         pub(super) super_field: u32,
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::m::A) { a.$0 }
 "#,
             expect![[r#"
@@ -551,7 +551,7 @@ fn foo(a: lib::m::A) { a.$0 }
 
         check_with_private_editable(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub mod m {
     pub struct A {
         private_field: u32,
@@ -560,7 +560,7 @@ pub mod m {
         pub(super) super_field: u32,
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::m::A) { a.$0 }
 "#,
             expect![[r#"
@@ -570,14 +570,14 @@ fn foo(a: lib::m::A) { a.$0 }
 
         check_with_private_editable(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub mod m {
     pub struct A(
         i32,
         pub f64,
     );
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::m::A) { a.$0 }
 "#,
             expect![[r#"
@@ -587,7 +587,7 @@ fn foo(a: lib::m::A) { a.$0 }
 
         check_with_private_editable(
             r#"
-//- /lib.rs crate:lib new_source_root:local
+//- /lib.rs crate:lib new_file_root:local
 pub struct A {}
 mod m {
     impl super::A {
@@ -596,7 +596,7 @@ mod m {
         pub fn pub_method(&self) {}
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::A) { a.$0 }
 "#,
             expect![[r#"
@@ -607,7 +607,7 @@ fn foo(a: lib::A) { a.$0 }
         );
         check_with_private_editable(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct A {}
 mod m {
     impl super::A {
@@ -616,7 +616,7 @@ mod m {
         pub fn pub_method(&self) {}
     }
 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn foo(a: lib::A) { a.$0 }
 "#,
             expect![[r#"

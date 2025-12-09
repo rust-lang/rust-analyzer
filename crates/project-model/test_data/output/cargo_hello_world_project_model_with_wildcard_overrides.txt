@@ -1,8 +1,8 @@
 {
     0: CrateBuilder {
         basic: CrateData {
-            root_file_id: FileId(
-                1,
+            root_file_id: File(
+                0,
             ),
             edition: Edition2018,
             dependencies: [
@@ -78,8 +78,8 @@
     },
     1: CrateBuilder {
         basic: CrateData {
-            root_file_id: FileId(
-                2,
+            root_file_id: File(
+                1,
             ),
             edition: Edition2018,
             dependencies: [
@@ -163,8 +163,8 @@
     },
     2: CrateBuilder {
         basic: CrateData {
-            root_file_id: FileId(
-                3,
+            root_file_id: File(
+                2,
             ),
             edition: Edition2018,
             dependencies: [
@@ -248,8 +248,8 @@
     },
     3: CrateBuilder {
         basic: CrateData {
-            root_file_id: FileId(
-                4,
+            root_file_id: File(
+                3,
             ),
             edition: Edition2018,
             dependencies: [
@@ -333,8 +333,8 @@
     },
     4: CrateBuilder {
         basic: CrateData {
-            root_file_id: FileId(
-                5,
+            root_file_id: File(
+                4,
             ),
             edition: Edition2015,
             dependencies: [],

@@ -1,15 +1,18 @@
 //! Database used for testing `hir_def`.
 
-use std::{fmt, panic, sync::Mutex};
+use std::{
+    fmt, panic,
+    sync::{Mutex, OnceLock},
+};
 
 use base_db::{
-    Crate, CrateGraphBuilder, CratesMap, FileSourceRootInput, FileText, Nonce, SourceDatabase,
-    SourceRoot, SourceRootId, SourceRootInput, all_crates, relevant_crates,
-    set_all_crates_with_durability,
+    Crate, CrateGraphBuilder, CratesMap, FileLookup, FileRegistration, FileVisibility, Files,
+    Nonce, PendingFileChangeKind, SourceDatabase, VfsPath, WorkspaceFiles, all_crates,
+    relevant_crates, set_all_crates_with_durability,
 };
 use hir_expand::{InFile, files::FilePosition};
 use salsa::Durability;
-use span::FileId;
+use span::File;
 use syntax::{AstNode, algo, ast};
 use triomphe::Arc;
 
@@ -23,7 +26,8 @@ use crate::{
 #[salsa::db]
 pub(crate) struct TestDB {
     storage: salsa::Storage<Self>,
-    files: Arc<base_db::Files>,
+    files: Files,
+    workspace_files: OnceLock<WorkspaceFiles>,
     crates_map: Arc<CratesMap>,
     events: Arc<Mutex<Option<Vec<salsa::Event>>>>,
     nonce: Nonce,
@@ -43,19 +47,16 @@ impl Default for TestDB {
                 }
             }))),
             events,
-            files: Default::default(),
+            files: Files::default(),
+            workspace_files: OnceLock::new(),
             crates_map: Default::default(),
             nonce: Nonce::new(),
         };
+        let workspace_files = WorkspaceFiles::new(&this, Vec::new().into(), Vec::new().into());
+        assert!(this.workspace_files.set(workspace_files).is_ok());
         crate::set_expand_proc_attr_macros(&mut this, true);
         // This needs to be here otherwise `CrateGraphBuilder` panics.
         set_all_crates_with_durability(&mut this, std::iter::empty(), Durability::HIGH);
-        _ = base_db::LibraryRoots::builder(Default::default())
-            .durability(Durability::MEDIUM)
-            .new(&this);
-        _ = base_db::LocalRoots::builder(Default::default())
-            .durability(Durability::MEDIUM)
-            .new(&this);
         CrateGraphBuilder::default().set_in_db(&mut this);
         this
     }
@@ -66,6 +67,7 @@ impl Clone for TestDB {
         Self {
             storage: self.storage.clone(),
             files: self.files.clone(),
+            workspace_files: self.workspace_files.clone(),
             crates_map: self.crates_map.clone(),
             events: self.events.clone(),
             nonce: self.nonce,
@@ -86,52 +88,46 @@ impl panic::RefUnwindSafe for TestDB {}
 
 #[salsa::db]
 impl SourceDatabase for TestDB {
-    fn file_text(&self, file_id: base_db::FileId) -> FileText {
-        self.files.file_text(file_id)
+    fn workspace_files(&self) -> WorkspaceFiles {
+        *self.workspace_files.get().expect("TestDB must initialize workspace files")
     }
 
-    fn set_file_text(&mut self, file_id: base_db::FileId, text: &str) {
-        let files = Arc::clone(&self.files);
-        files.set_file_text(self, file_id, text);
+    fn file_data(&self, file: File) -> base_db::FileData {
+        self.files.file_data(file)
     }
 
-    fn set_file_text_with_durability(
+    fn file_path(&self, file_id: File) -> Option<VfsPath> {
+        self.files.file_path(self, file_id)
+    }
+
+    fn file_for_path(&self, path: &VfsPath) -> Option<FileLookup> {
+        self.files.file_for_path(self, path)
+    }
+
+    fn intern_file_path(&self, path: VfsPath) -> File {
+        self.files.intern_file_path(self, path)
+    }
+
+    fn resolve_path(&self, anchor: File, paths: &[&str]) -> Option<(File, usize)> {
+        base_db::resolve_path(self, anchor, paths)
+    }
+
+    fn record_file_contents(
         &mut self,
-        file_id: base_db::FileId,
-        text: &str,
-        durability: Durability,
+        path: VfsPath,
+        contents: Option<Vec<u8>>,
+        visibility: FileVisibility,
     ) {
-        let files = Arc::clone(&self.files);
-        files.set_file_text_with_durability(self, file_id, text, durability);
+        self.files.clone().record_file_contents(self, path, contents, visibility);
     }
 
-    /// Source root of the file.
-    fn source_root(&self, source_root_id: SourceRootId) -> SourceRootInput {
-        self.files.source_root(source_root_id)
+    fn take_file_changes(&mut self) -> rustc_hash::FxHashMap<File, PendingFileChangeKind> {
+        self.files.take_file_changes()
     }
 
-    fn set_source_root_with_durability(
-        &mut self,
-        source_root_id: SourceRootId,
-        source_root: Arc<SourceRoot>,
-        durability: Durability,
-    ) {
-        let files = Arc::clone(&self.files);
-        files.set_source_root_with_durability(self, source_root_id, source_root, durability);
-    }
-
-    fn file_source_root(&self, id: base_db::FileId) -> FileSourceRootInput {
-        self.files.file_source_root(self, id)
-    }
-
-    fn set_file_source_root_with_durability(
-        &mut self,
-        id: base_db::FileId,
-        source_root_id: SourceRootId,
-        durability: Durability,
-    ) {
-        let files = Arc::clone(&self.files);
-        files.set_file_source_root_with_durability(self, id, source_root_id, durability);
+    fn set_indexed_files(&mut self, files: Vec<FileRegistration>) {
+        let workspace_files = self.workspace_files();
+        workspace_files.replace(self, &self.files.clone(), files);
     }
 
     fn crates_map(&self) -> Arc<CratesMap> {
@@ -142,7 +138,7 @@ impl SourceDatabase for TestDB {
         (self.nonce, salsa::plumbing::ZalsaDatabase::zalsa(self).current_revision())
     }
 
-    fn line_column(&self, _file: FileId, _offset: syntax::TextSize) -> Result<(u32, u32), ()> {
+    fn line_column(&self, _file: File, _offset: syntax::TextSize) -> Result<(u32, u32), ()> {
         Err(())
     }
 }
@@ -160,11 +156,11 @@ impl TestDB {
             .unwrap_or(*all_crates.last().unwrap())
     }
 
-    pub(crate) fn module_for_file(&self, file_id: FileId) -> ModuleId {
+    pub(crate) fn module_for_file(&self, file_id: File) -> ModuleId {
         for &krate in relevant_crates(self, file_id).iter() {
             let crate_def_map = crate_def_map(self, krate);
             for (local_id, data) in crate_def_map.modules() {
-                if data.origin.file_id().map(|file_id| file_id.file_id(self)) == Some(file_id) {
+                if data.origin.file_id().map(|file_id| file_id.file(self)) == Some(file_id) {
                     return local_id;
                 }
             }
@@ -173,7 +169,7 @@ impl TestDB {
     }
 
     pub(crate) fn module_at_position(&self, position: FilePosition) -> ModuleId {
-        let file_module = self.module_for_file(position.file_id.file_id(self));
+        let file_module = self.module_for_file(position.file_id.file(self));
         let mut def_map = file_module.def_map(self);
         let module = self.mod_at_position(def_map, position);
 
@@ -201,7 +197,7 @@ impl TestDB {
         let mut res = def_map.root;
         for (module, data) in def_map.modules() {
             let src = data.definition_source(self);
-            // We're not comparing the `base_db::EditionedFileId`, but rather the VFS `FileId`, because
+            // We're not comparing the `base_db::EditionedFileId`, but rather the VFS `File`, because
             // `position.file_id` is created before the def map, causing it to have to wrong crate
             // attached often, which means it won't compare equal. This should not be a problem in real
             // r-a session, only in tests, because in real r-a we only guess the crate on syntactic-only
@@ -209,7 +205,7 @@ impl TestDB {
             let Some(file_id) = src.file_id.file_id() else {
                 continue;
             };
-            if file_id.file_id(self) != position.file_id.file_id(self) {
+            if file_id.file(self) != position.file_id.file(self) {
                 continue;
             }
 
@@ -249,7 +245,7 @@ impl TestDB {
         let mut fn_def = None;
         for (_, module) in def_map.modules() {
             let file_id = module.definition_source(self).file_id;
-            // We're not comparing the `base_db::EditionedFileId`, but rather the VFS `FileId`, because
+            // We're not comparing the `base_db::EditionedFileId`, but rather the VFS `File`, because
             // `position.file_id` is created before the def map, causing it to have to wrong crate
             // attached often, which means it won't compare equal. This should not be a problem in real
             // r-a session, only in tests, because in real r-a we only guess the crate on syntactic-only
@@ -257,7 +253,7 @@ impl TestDB {
             let Some(file_id) = file_id.file_id() else {
                 continue;
             };
-            if file_id.file_id(self) != position.file_id.file_id(self) {
+            if file_id.file(self) != position.file_id.file(self) {
                 continue;
             }
             for decl in module.scope.declarations() {
@@ -322,19 +318,32 @@ impl TestDB {
     }
 
     pub(crate) fn log_executed(&self, f: impl FnOnce()) -> Vec<String> {
-        let events = self.log(f);
-        events
-            .into_iter()
-            .filter_map(|e| match e.kind {
-                // This is pretty horrible, but `Debug` is the only way to inspect
-                // QueryDescriptor at the moment.
-                salsa::EventKind::WillExecute { database_key } => {
-                    let ingredient = (self as &dyn salsa::Database)
-                        .ingredient_debug_name(database_key.ingredient_index());
-                    Some(ingredient.to_string())
-                }
-                _ => None,
-            })
-            .collect()
+        salsa::attach(self, || {
+            let events = self.log(f);
+            events
+                .into_iter()
+                .filter_map(|e| match e.kind {
+                    // This is pretty horrible, but `Debug` is the only way to inspect
+                    // QueryDescriptor at the moment.
+                    salsa::EventKind::WillExecute { database_key } => {
+                        let ingredient = (self as &dyn salsa::Database)
+                            .ingredient_debug_name(database_key.ingredient_index());
+                        let event = if ingredient == "lookup_resolve_path" {
+                            use salsa::plumbing::FromId;
+
+                            let path =
+                                base_db::InternedAnchoredPath::from_id(database_key.key_index());
+                            let anchor = path.anchor(self);
+                            let path = path.path(self);
+                            format!("lookup_resolve_path({anchor:?}, {path})")
+                        } else {
+                            ingredient.to_string()
+                        };
+                        Some(event)
+                    }
+                    _ => None,
+                })
+                .collect()
+        })
     }
 }

@@ -2,7 +2,7 @@
     (
         Module {
             id: ModuleIdLt {
-                [salsa id]: Id(500),
+                [salsa id]: Id(400),
             },
         },
         [
@@ -12,15 +12,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0601,
+                                0501,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -48,15 +48,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0600,
+                                0500,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -84,15 +84,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0600,
+                                0500,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -120,15 +120,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0600,
+                                0500,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -156,15 +156,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0600,
+                                0500,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -192,15 +192,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0601,
+                                0501,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {
@@ -228,15 +228,15 @@
                     Struct(
                         Struct {
                             id: StructId(
-                                0600,
+                                0500,
                             ),
                         },
                     ),
                 ),
                 loc: DeclarationLocation {
-                    hir_file_id: FileId(
+                    hir_file_id: File(
                         EditionedFileId(
-                            Id(480),
+                            Id(380),
                         ),
                     ),
                     ptr: SyntaxNodePtr {

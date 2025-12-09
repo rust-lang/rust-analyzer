@@ -148,8 +148,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 63..64,
                                         },
@@ -167,8 +167,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 7..8,
                                         },
@@ -231,8 +231,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 51..52,
                                         },
@@ -250,8 +250,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 29..30,
                                         },
@@ -298,8 +298,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 51..52,
                                         },
@@ -317,8 +317,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 29..30,
                                         },
@@ -366,8 +366,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 23..24,
                                         },
@@ -381,8 +381,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 55..56,
                                         },
@@ -401,8 +401,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 7..8,
                                         },
@@ -416,8 +416,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 55..56,
                                         },
@@ -469,8 +469,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 0..0,
                                         },
@@ -484,8 +484,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 0..0,
                                         },
@@ -505,8 +505,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 0..0,
                                         },
@@ -520,8 +520,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 0..0,
                                         },
@@ -541,8 +541,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 0..0,
                                         },
@@ -556,8 +556,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                1,
+                                            file_id: File(
+                                                513,
                                             ),
                                             range: 0..0,
                                         },
@@ -577,8 +577,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 0..0,
                                         },
@@ -625,8 +625,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 7..13,
                                         },
@@ -644,8 +644,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 7..13,
                                         },
@@ -663,8 +663,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 7..13,
                                         },
@@ -682,8 +682,8 @@ fn main() {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 42..46,
                                         },
@@ -739,8 +739,8 @@ fn make() -> Foo {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 96..99,
                                         },
@@ -758,8 +758,8 @@ fn make() -> Foo {
                                 linked_location: Some(
                                     Computed(
                                         FileRangeWrapper {
-                                            file_id: FileId(
-                                                0,
+                                            file_id: File(
+                                                512,
                                             ),
                                             range: 84..87,
                                         },

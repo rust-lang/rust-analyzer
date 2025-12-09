@@ -2457,11 +2457,11 @@ fn main() {
       //^ AtomicPtr<()>
 }
 
-//- /lib.rs crate:r#std deps:core
+//- /std/lib.rs crate:r#std deps:core
 #![no_std]
 pub use core::*;
 
-//- /lib.rs crate:r#core
+//- /core/lib.rs crate:r#core
 #![no_core]
 
 #[lang = "pointee_trait"]

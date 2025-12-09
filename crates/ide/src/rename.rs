@@ -6,7 +6,7 @@
 
 use hir::{AsAssocItem, FindPathConfig, HasContainer, HirDisplay, InFile, Name, Semantics, sym};
 use ide_db::{
-    FileId, FileRange, RootDatabase,
+    File, FileRange, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
     rename::{IdentifierKind, RenameDefinition, bail, format_err, source_edit_from_references},
     source_change::SourceChangeBuilder,
@@ -229,7 +229,7 @@ pub(crate) fn rename(
 /// Called by the client when it is about to rename a file.
 pub(crate) fn will_rename_file(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: File,
     new_name_stem: &str,
     config: &RenameConfig,
 ) -> Option<SourceChange> {
@@ -486,7 +486,7 @@ fn transform_assoc_fn_into_method_call(
             replacement.push('(');
 
             source_change.insert_source_edit(
-                replace_range.file_id.file_id(sema.db),
+                replace_range.file_id.file(sema.db),
                 TextEdit::replace(replace_range.range, replacement),
             );
         }
@@ -556,7 +556,7 @@ fn rename_to_self<'db>(
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
-            file_id.file_id(sema.db),
+            file_id.file(sema.db),
             source_edit_from_references(
                 sema.db,
                 references,
@@ -567,7 +567,7 @@ fn rename_to_self<'db>(
         )
     }));
     source_change.insert_source_edit(
-        file_id.original_file(sema.db).file_id(sema.db),
+        file_id.original_file(sema.db).file(sema.db),
         TextEdit::replace(param_source.syntax().text_range(), String::from(self_param)),
     );
     transform_assoc_fn_into_method_call(sema, &mut source_change, fn_def);
@@ -743,7 +743,7 @@ fn transform_method_call_into_assoc_fn(
             }
 
             source_change.insert_source_edit(
-                replace_range.file_id.file_id(sema.db),
+                replace_range.file_id.file(sema.db),
                 TextEdit::replace(replace_range.range, replacement),
             );
         }
@@ -783,10 +783,10 @@ fn rename_self_to_param<'db>(
         bail!("Cannot rename reference to `_` as it is being referenced multiple times");
     }
     let mut source_change = SourceChange::default();
-    source_change.insert_source_edit(file_id.original_file(sema.db).file_id(sema.db), edit);
+    source_change.insert_source_edit(file_id.original_file(sema.db).file(sema.db), edit);
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
-            file_id.file_id(sema.db),
+            file_id.file(sema.db),
             source_edit_from_references(
                 sema.db,
                 references,
@@ -1489,8 +1489,8 @@ mod foo$0;
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -1502,13 +1502,11 @@ mod foo$0;
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            2,
+                        src: File(
+                            514,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                2,
-                            ),
+                            anchor: "/bar/foo.rs",
                             path: "foo2.rs",
                         },
                     },
@@ -1536,8 +1534,8 @@ use crate::foo$0::FooContent;
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1547,8 +1545,8 @@ use crate::foo$0::FooContent;
                         ],
                     ),
                     (
-                        FileId(
-                            2,
+                        File(
+                            514,
                         ),
                         [
                             Indel {
@@ -1560,13 +1558,11 @@ use crate::foo$0::FooContent;
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            1,
+                        src: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "quux.rs",
                         },
                     },
@@ -1588,8 +1584,8 @@ mod fo$0o;
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1602,18 +1598,14 @@ mod fo$0o;
                 file_system_edits: [
                     MoveDir {
                         src: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo/mod.rs",
                             path: "../foo",
                         },
-                        src_id: FileId(
-                            1,
+                        src_id: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo/mod.rs",
                             path: "../foo2",
                         },
                     },
@@ -1636,8 +1628,8 @@ mod outer { mod fo$0o; }
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1649,13 +1641,11 @@ mod outer { mod fo$0o; }
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            1,
+                        src: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/outer/foo.rs",
                             path: "bar.rs",
                         },
                     },
@@ -1707,8 +1697,8 @@ pub mod foo$0;
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1718,8 +1708,8 @@ pub mod foo$0;
                         ],
                     ),
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -1731,13 +1721,11 @@ pub mod foo$0;
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            2,
+                        src: File(
+                            514,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                2,
-                            ),
+                            anchor: "/bar/foo.rs",
                             path: "foo2.rs",
                         },
                     },
@@ -1773,8 +1761,8 @@ mod quux;
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1786,30 +1774,24 @@ mod quux;
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            1,
+                        src: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "foo2.rs",
                         },
                     },
                     MoveDir {
                         src: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "foo",
                         },
-                        src_id: FileId(
-                            1,
+                        src_id: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "foo2",
                         },
                     },
@@ -1906,8 +1888,8 @@ pub fn baz() {}
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1923,30 +1905,24 @@ pub fn baz() {}
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            1,
+                        src: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "fn.rs",
                         },
                     },
                     MoveDir {
                         src: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "foo",
                         },
-                        src_id: FileId(
-                            1,
+                        src_id: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/foo.rs",
                             path: "fn",
                         },
                     },
@@ -1974,8 +1950,8 @@ pub fn baz() {}
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -1991,30 +1967,24 @@ pub fn baz() {}
                 ]
                 file_system_edits: [
                     MoveFile {
-                        src: FileId(
-                            1,
+                        src: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/fn.rs",
                             path: "foo.rs",
                         },
                     },
                     MoveDir {
                         src: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/fn.rs",
                             path: "fn",
                         },
-                        src_id: FileId(
-                            1,
+                        src_id: File(
+                            513,
                         ),
                         dst: AnchoredPathBuf {
-                            anchor: FileId(
-                                1,
-                            ),
+                            anchor: "/fn.rs",
                             path: "foo",
                         },
                     },
@@ -2031,7 +2001,7 @@ pub fn baz() {}
 //- /a.rs crate:a edition:2015
 pub fn foo() {}
 
-//- /b.rs crate:b edition:2018 deps:a new_source_root:local
+//- /b.rs crate:b edition:2018 deps:a new_file_root:local
 fn bar() {
     a::foo$0();
 }
@@ -2039,8 +2009,8 @@ fn bar() {
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -2050,8 +2020,8 @@ fn bar() {
                         ],
                     ),
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -2071,7 +2041,7 @@ fn bar() {
 //- /a.rs crate:a edition:2018
 pub fn foo() {}
 
-//- /b.rs crate:b edition:2015 deps:a new_source_root:local
+//- /b.rs crate:b edition:2015 deps:a new_file_root:local
 fn bar() {
     a::foo$0();
 }
@@ -2079,8 +2049,8 @@ fn bar() {
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -2090,8 +2060,8 @@ fn bar() {
                         ],
                     ),
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -2111,7 +2081,7 @@ fn bar() {
 //- /a.rs crate:a edition:2018
 pub fn foo$0() {}
 
-//- /b.rs crate:b edition:2015 deps:a new_source_root:local
+//- /b.rs crate:b edition:2015 deps:a new_file_root:local
 fn bar() {
     a::foo();
 }
@@ -2119,8 +2089,8 @@ fn bar() {
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -2130,8 +2100,8 @@ fn bar() {
                         ],
                     ),
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -2158,7 +2128,7 @@ fn foo() {
     dyn$0();
 }
 
-//- /b.rs crate:b edition:2018 deps:a new_source_root:local
+//- /b.rs crate:b edition:2018 deps:a new_file_root:local
 fn bar() {
     a::r#dyn();
 }
@@ -2166,8 +2136,8 @@ fn bar() {
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -2181,8 +2151,8 @@ fn bar() {
                         ],
                     ),
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -2206,7 +2176,7 @@ fn foo() {
     r#dyn$0();
 }
 
-//- /b.rs crate:b edition:2015 deps:a new_source_root:local
+//- /b.rs crate:b edition:2015 deps:a new_file_root:local
 fn bar() {
     a::dyn();
 }
@@ -2214,8 +2184,8 @@ fn bar() {
             expect![[r#"
                 source_file_edits: [
                     (
-                        FileId(
-                            0,
+                        File(
+                            512,
                         ),
                         [
                             Indel {
@@ -2229,8 +2199,8 @@ fn bar() {
                         ],
                     ),
                     (
-                        FileId(
-                            1,
+                        File(
+                            513,
                         ),
                         [
                             Indel {
@@ -3461,9 +3431,9 @@ use qux as frob;
         check(
             "Baz",
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct S;
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 use lib::S;
 fn main() { let _: S$0; }
 "#,
@@ -3615,9 +3585,9 @@ fn main() { let _: Baz; }
         check(
             "Baz",
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct S;
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 use lib::S$0;
 fn main() { let _: S; }
 "#,

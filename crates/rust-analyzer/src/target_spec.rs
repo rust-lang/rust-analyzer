@@ -5,7 +5,7 @@ use std::mem;
 use cargo_metadata::PackageId;
 use cfg::{CfgAtom, CfgExpr};
 use hir::sym;
-use ide::{Cancellable, Crate, FileId, RunnableKind, TestId};
+use ide::{Cancellable, Crate, File, RunnableKind, TestId};
 use project_model::project_json::{self, Runnable};
 use project_model::{CargoFeatures, ManifestPath, TargetKind};
 use rustc_hash::FxHashSet;
@@ -27,7 +27,7 @@ pub(crate) enum TargetSpec {
 impl TargetSpec {
     pub(crate) fn for_file(
         global_state_snapshot: &GlobalStateSnapshot,
-        file_id: FileId,
+        file_id: File,
     ) -> Cancellable<Option<Self>> {
         let crate_id = match &*global_state_snapshot.analysis.crates_for(file_id)? {
             &[crate_id, ..] => crate_id,

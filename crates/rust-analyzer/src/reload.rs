@@ -17,8 +17,8 @@ use std::{iter, mem, sync::atomic::AtomicUsize, time::Duration};
 
 use hir::{ChangeWithProcMacros, ProcMacrosBuilder};
 use ide_db::{
-    FxHashMap,
-    base_db::{CrateGraphBuilder, ProcMacroLoadingError, ProcMacroPaths},
+    File, FxHashMap,
+    base_db::{CrateGraphBuilder, ProcMacroLoadingError, ProcMacroPaths, SourceDatabase},
 };
 use itertools::Itertools;
 use load_cargo::{ProjectFolders, load_proc_macro};
@@ -739,8 +739,8 @@ impl GlobalState {
             watch,
             version: self.vfs_config_version,
         });
-        self.source_root_config = project_folders.source_root_config;
-        self.local_roots_parent_map = Arc::new(self.source_root_config.source_root_parent_map());
+        self.file_root_config = project_folders.file_root_config;
+        self.local_file_roots_parent_map = Arc::new(self.file_root_config.file_root_parent_map());
 
         info!(?cause, "recreating the crate graph");
         let cancellation_time = self.recreate_crate_graph(cause, switching_from_empty_workspace);
@@ -775,15 +775,12 @@ impl GlobalState {
         self.incomplete_crate_graph = false;
         let (crate_graph, proc_macro_paths) = {
             // Create crate graph from all the workspaces
-            let vfs = &self.vfs.read().0;
             let load = |path: &AbsPath| {
                 let vfs_path = vfs::VfsPath::from(path.to_path_buf());
                 self.crate_graph_file_dependencies.insert(vfs_path.clone());
-                let file_id = vfs.file_id(&vfs_path);
+                let file_id = self.analysis_host.raw_database().file_for_indexed_path(&vfs_path);
                 self.incomplete_crate_graph |= file_id.is_none();
-                file_id.and_then(|(file_id, excluded)| {
-                    (excluded == vfs::FileExcluded::No).then_some(file_id)
-                })
+                file_id
             };
 
             ws_to_crate_graph(&self.workspaces, self.config.extra_env(None), load)
@@ -982,7 +979,7 @@ impl GlobalState {
 pub fn ws_to_crate_graph(
     workspaces: &[ProjectWorkspace],
     extra_env: &FxHashMap<String, Option<String>>,
-    mut load: impl FnMut(&AbsPath) -> Option<vfs::FileId>,
+    mut load: impl FnMut(&AbsPath) -> Option<File>,
 ) -> (CrateGraphBuilder, Vec<ProcMacroPaths>) {
     let mut crate_graph = CrateGraphBuilder::default();
     let mut proc_macro_paths = Vec::default();

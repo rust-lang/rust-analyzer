@@ -160,7 +160,7 @@ fn add_or_fix_reference(
         && let Some(range) = ctx.sema.original_range_opt(assign.syntax())
     {
         let edit = TextEdit::insert(range.range.start(), "*".to_owned());
-        let source_change = SourceChange::from_text_edit(range.file_id.file_id(ctx.db()), edit);
+        let source_change = SourceChange::from_text_edit(range.file_id.file(ctx.db()), edit);
         acc.push(fix("add_deref_here", "Add deref here", source_change, range.range));
         return Some(());
     }
@@ -204,7 +204,7 @@ fn add_missing_ok_or_some(
         return None;
     }
 
-    let file_id = file_id.file_id(ctx.db());
+    let file_id = file_id.file(ctx.db());
 
     if d.actual.is_unit() {
         if let Expr::BlockExpr(block) = &expr {
@@ -304,7 +304,7 @@ fn remove_unnecessary_wrapper(
     let inner_arg = call_expr.arg_list()?.args().next()?;
 
     let file_id = expr_ptr.file_id.original_file(db);
-    let mut builder = SourceChangeBuilder::new(file_id.file_id(ctx.db()));
+    let mut builder = SourceChangeBuilder::new(file_id.file(ctx.db()));
     let editor;
     match inner_arg {
         // We're returning `()`
@@ -338,7 +338,7 @@ fn remove_unnecessary_wrapper(
         }
     }
 
-    builder.add_file_edits(file_id.file_id(ctx.db()), editor);
+    builder.add_file_edits(file_id.file(ctx.db()), editor);
     let name = format!("Remove unnecessary {}() wrapper", variant.name(db).as_str());
     acc.push(fix(
         "remove_unnecessary_wrapper",
@@ -371,10 +371,8 @@ fn remove_semicolon(
     let semicolon_range = expr_before_semi.semicolon_token()?.text_range();
 
     let edit = TextEdit::delete(semicolon_range);
-    let source_change = SourceChange::from_text_edit(
-        expr_ptr.file_id.original_file(ctx.db()).file_id(ctx.db()),
-        edit,
-    );
+    let source_change =
+        SourceChange::from_text_edit(expr_ptr.file_id.original_file(ctx.db()).file(ctx.db()), edit);
 
     acc.push(fix("remove_semicolon", "Remove this semicolon", source_change, semicolon_range));
     Some(())
@@ -398,7 +396,7 @@ fn str_ref_to_owned(
     let hir::FileRange { file_id, range } = ctx.sema.original_range_opt(expr.syntax())?;
 
     let edit = insert_postfix(&expr, range, ".to_owned()");
-    let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.db()), edit);
+    let source_change = SourceChange::from_text_edit(file_id.file(ctx.db()), edit);
     acc.push(fix("str_ref_to_owned", "Add .to_owned() here", source_change, range));
 
     Some(())
@@ -422,7 +420,7 @@ fn add_await(
     let hir::FileRange { file_id, range } = ctx.sema.original_range_opt(expr.syntax())?;
 
     let edit = insert_postfix(&expr, range, ".await");
-    let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.db()), edit);
+    let source_change = SourceChange::from_text_edit(file_id.file(ctx.db()), edit);
     acc.push(fix("add_await", "Add .await here", source_change, range));
 
     Some(())
@@ -458,7 +456,7 @@ fn array_length(
     let hir::FileRange { range, file_id } = ctx.sema.original_range_opt(&container)?;
 
     let edit = TextEdit::replace(len_range, actual.to_string());
-    let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.db()), edit);
+    let source_change = SourceChange::from_text_edit(file_id.file(ctx.db()), edit);
     let label = &format!("Change array length to {actual}");
     acc.push(fix("array_length", label, source_change, range));
 

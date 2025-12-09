@@ -26,7 +26,7 @@ impl flags::RunTests {
             num_worker_threads: 1,
             proc_macro_processes: 1,
         };
-        let (ref db, _vfs, _proc_macro) =
+        let (ref db, _proc_macro) =
             load_workspace_at(&self.path, &cargo_config, &load_cargo_config, &|_| {})?;
 
         let tests = all_modules(db)
@@ -42,10 +42,7 @@ impl flags::RunTests {
                 None => " (unknown line col)".to_owned(),
                 Some(x) => format!("#{}:{}", x.line + 1, x.col),
             };
-            let source_root = db.file_source_root(file_id).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
-
-            let path = source_root.path_for_file(&file_id).map(|x| x.to_string());
+            let path = db.file_path(file_id).map(|path| path.to_string());
             let path = path.as_deref().unwrap_or("<unknown file>");
             format!("file://{path}{line_col}")
         };

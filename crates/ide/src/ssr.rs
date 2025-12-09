@@ -58,7 +58,7 @@ pub(crate) fn ssr_assists(
 mod tests {
     use expect_test::expect;
     use ide_assists::{Assist, AssistResolveStrategy};
-    use ide_db::{FileRange, FxHashSet, LocalRoots, RootDatabase, base_db::salsa::Setter as _};
+    use ide_db::{FileRange, RootDatabase};
     use test_fixture::WithFixture;
 
     use super::ssr_assists;
@@ -67,14 +67,11 @@ mod tests {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
         resolve: AssistResolveStrategy,
     ) -> Vec<Assist> {
-        let (mut db, file_id, range_or_offset) = RootDatabase::with_range_or_offset(ra_fixture);
-        let mut local_roots = FxHashSet::default();
-        local_roots.insert(test_fixture::WORKSPACE);
-        LocalRoots::get(&db).set_roots(&mut db).to(local_roots);
+        let (db, file_id, range_or_offset) = RootDatabase::with_range_or_offset(ra_fixture);
         ssr_assists(
             &db,
             &resolve,
-            FileRange { file_id: file_id.file_id(&db), range: range_or_offset.into() },
+            FileRange { file_id: file_id.file(&db), range: range_or_offset.into() },
         )
     }
 
@@ -128,8 +125,8 @@ mod tests {
                 source_change: Some(
                     SourceChange {
                         source_file_edits: {
-                            FileId(
-                                0,
+                            File(
+                                512,
                             ): (
                                 TextEdit {
                                     indels: [
@@ -172,8 +169,8 @@ mod tests {
                 source_change: Some(
                     SourceChange {
                         source_file_edits: {
-                            FileId(
-                                0,
+                            File(
+                                512,
                             ): (
                                 TextEdit {
                                     indels: [
@@ -186,8 +183,8 @@ mod tests {
                                 },
                                 None,
                             ),
-                            FileId(
-                                1,
+                            File(
+                                513,
                             ): (
                                 TextEdit {
                                     indels: [

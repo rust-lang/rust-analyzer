@@ -4,9 +4,8 @@
 use std::hash::Hash;
 
 use salsa::Database;
-use span::Edition;
+use span::{Edition, File};
 use syntax::{SyntaxError, ast};
-use vfs::FileId;
 
 use crate::SourceDatabase;
 
@@ -22,8 +21,9 @@ impl EditionedFileId {
     #[salsa::tracked(lru = 128, returns(clone))]
     pub fn parse(self, db: &dyn SourceDatabase) -> syntax::Parse<ast::SourceFile> {
         let _p = tracing::info_span!("parse", ?self).entered();
-        let (file_id, edition) = self.unpack(db);
-        let text = db.file_text(file_id).text(db);
+        let (file, edition) = self.unpack(db);
+        let data = db.file_data(file);
+        let text = data.text(db);
         ast::SourceFile::parse(text, edition)
     }
 
@@ -40,18 +40,18 @@ impl EditionedFileId {
 
 impl EditionedFileId {
     #[inline]
-    pub fn new(db: &dyn Database, file_id: FileId, edition: Edition) -> Self {
-        Self::from_span_file_id(db, span::EditionedFileId::new(file_id, edition))
+    pub fn new(db: &dyn Database, file: File, edition: Edition) -> Self {
+        Self::from_span_file_id(db, span::EditionedFileId::new(file, edition))
     }
 
     #[inline]
-    pub fn current_edition(db: &dyn Database, file_id: FileId) -> Self {
-        Self::from_span_file_id(db, span::EditionedFileId::current_edition(file_id))
+    pub fn current_edition(db: &dyn Database, file: File) -> Self {
+        Self::from_span_file_id(db, span::EditionedFileId::current_edition(file))
     }
 
     #[inline]
-    pub fn file_id(self, db: &dyn Database) -> vfs::FileId {
-        self.field(db).file_id()
+    pub fn file(self, db: &dyn Database) -> File {
+        self.field(db).file()
     }
 
     #[inline]
@@ -60,7 +60,7 @@ impl EditionedFileId {
     }
 
     #[inline]
-    pub fn unpack(self, db: &dyn Database) -> (vfs::FileId, span::Edition) {
+    pub fn unpack(self, db: &dyn Database) -> (File, span::Edition) {
         self.field(db).unpack()
     }
 

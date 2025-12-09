@@ -98,7 +98,7 @@ pub(crate) fn extract_struct_from_enum_variant(
                         &file_editor,
                     )
                 });
-                builder.add_file_edits(file_id.file_id(ctx.db()), file_editor);
+                builder.add_file_edits(file_id.file(ctx.db()), file_editor);
             }
 
             if let Some(references) = def_file_references {

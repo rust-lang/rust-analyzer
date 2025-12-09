@@ -232,7 +232,7 @@ fn foo() {}
                 &db,
                 &DiagnosticsConfig::test_sample(),
                 &ide_db::assists::AssistResolveStrategy::All,
-                file_id.file_id(&db),
+                file_id.file(&db),
             )
         });
         let [inactive_code] = &*diagnostics else {
@@ -250,7 +250,7 @@ fn foo() {}
         let full_file_range = file_id.parse(&db).syntax_node().text_range();
         assert_eq!(
             inactive_code.range,
-            ide_db::FileRange { file_id: file_id.file_id(&db), range: full_file_range },
+            ide_db::FileRange { file_id: file_id.file(&db), range: full_file_range },
         );
     }
 

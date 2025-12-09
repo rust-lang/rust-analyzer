@@ -12,14 +12,14 @@ use hir::{
 use ide_db::ra_fixture::{RaFixtureConfig, UpmapFromRaFixture};
 use ide_db::{
     RootDatabase, SymbolKind,
-    base_db::{AnchoredPath, SourceDatabase},
+    base_db::SourceDatabase,
     defs::{Definition, IdentClass},
     famous_defs::FamousDefs,
     helpers::pick_best_token,
     syntax_helpers::node_ext::find_loops,
 };
 use itertools::Itertools;
-use span::FileId;
+use span::File;
 use syntax::{
     AstNode, AstToken, SyntaxKind::*, SyntaxNode, SyntaxToken, T, TextRange, ast, match_ast,
 };
@@ -343,7 +343,7 @@ fn find_definition_for_comparison_operators(
 fn try_lookup_include_path(
     sema: &Semantics<'_, RootDatabase>,
     token: InFile<ast::String>,
-    file_id: FileId,
+    file_id: File,
 ) -> Option<NavigationTarget> {
     let file = token.file_id.macro_file()?;
 
@@ -356,8 +356,8 @@ fn try_lookup_include_path(
     }
     let path = token.value.value().ok()?;
 
-    let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
-    let size = sema.db.file_text(file_id).text(sema.db).len().try_into().ok()?;
+    let (file_id, _) = sema.db.resolve_path(file_id, &[&path])?;
+    let size = sema.db.file_data(file_id).text(sema.db).len().try_into().ok()?;
     Some(NavigationTarget {
         file_id,
         full_range: TextRange::new(0.into(), size),
@@ -497,7 +497,7 @@ fn nav_for_exit_points(
 
                         if let Some(FileRange { file_id, range }) = focus_frange {
                             let contains_frange = |nav: &NavigationTarget| {
-                                nav.file_id == file_id.file_id(db) && nav.full_range.contains_range(range)
+                                nav.file_id == file_id.file(db) && nav.full_range.contains_range(range)
                             };
 
                             if let Some(def_site) = nav.def_site.as_mut() {

@@ -120,7 +120,7 @@ fn missing_record_expr_field_fixes(
         _ => (",", indent, String::new()),
     };
 
-    // FIXME: check submodule instead of FileId
+    // FIXME: check submodule instead of File
     let vis = if usage_file_id != file_id && !matches!(def_id, hir::Variant::EnumVariant(_)) {
         "pub(crate) "
     } else {
@@ -129,7 +129,7 @@ fn missing_record_expr_field_fixes(
     let new_field = format!("{comma}\n{indent}{vis}{new_field}{postfix}");
 
     let source_change = SourceChange::from_text_edit(
-        file_id.file_id(sema.db),
+        file_id.file(sema.db),
         TextEdit::insert(range.end(), new_field),
     );
 
@@ -527,9 +527,9 @@ macro_rules! make_items {
     fn no_such_field_no_fix_for_struct_in_library_crate() {
         check_no_fix(
             r#"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct S { pub a: i32 }
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn f() { let _ = lib::S { a: 1, b$0: false }; }
 "#,
         )
@@ -619,7 +619,7 @@ fn f() {
     fn test_struct_field_private_other_crate_fix() {
         check_fix(
             r#"
-//- /lib.rs crate:another_crate
+//- /another_crate/lib.rs crate:another_crate
 pub struct Struct {
     field: u32,
 }

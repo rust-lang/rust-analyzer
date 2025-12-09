@@ -415,7 +415,7 @@ fn add_assoc_type_bindings(
         return;
     }
 
-    let present_bindings = args
+    let mut present_bindings = args
         .generic_args()
         .filter_map(|arg| match arg {
             ast::GenericArg::AssocTypeArg(arg) => arg.name_ref().map(|n| n.to_string()),
@@ -430,10 +430,10 @@ fn add_assoc_type_bindings(
         res.push_generic_param(&buf);
     }
 
-    for item in tr.items_with_supertraits(db) {
+    for item in tr.items(db).into_iter().chain(tr.items_with_supertraits(db)) {
         if let AssocItem::TypeAlias(ty) = item {
             let name = ty.name(db).display_no_db(edition).to_smolstr();
-            if !present_bindings.contains(&*name) {
+            if present_bindings.insert(name.to_string()) {
                 buf.clear();
                 format_to!(buf, "{} = …", name);
                 res.push_generic_param(&buf);
@@ -750,12 +750,12 @@ mod tests {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) -> (RootDatabase, FilePosition) {
         let mut database = RootDatabase::default();
-        let change_fixture = ChangeFixture::parse(ra_fixture);
+        let change_fixture = ChangeFixture::parse(&database, ra_fixture);
         database.apply_change(change_fixture.change);
-        let (file_id, range_or_offset) =
-            change_fixture.file_position.expect("expected a marker ($0)");
+        let (file, range_or_offset) = change_fixture.file_position.expect("expected a marker ($0)");
+        let file_id = file.file();
         let offset = range_or_offset.expect_offset();
-        let position = FilePosition { file_id: file_id.file_id(), offset };
+        let position = FilePosition { file_id, offset };
         (database, position)
     }
 

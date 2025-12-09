@@ -160,7 +160,7 @@ fn edit_struct_references(
             process_struct_name_reference(ctx, r, &editor, &source, &strukt_def, names);
         }
 
-        edit.add_file_edits(file_id.file_id(ctx.db()), editor);
+        edit.add_file_edits(file_id.file(ctx.db()), editor);
     }
 }
 
@@ -364,7 +364,7 @@ fn edit_field_references(
                     );
                 }
             }
-            edit.add_file_edits(file_id.file_id(ctx.db()), editor);
+            edit.add_file_edits(file_id.file(ctx.db()), editor);
         }
     }
 }

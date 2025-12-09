@@ -145,7 +145,7 @@ impl<'a> PathTransform<'a> {
 
     fn prettify_target_node(&self, node: SyntaxNode) -> SyntaxNode {
         match self.target_scope.file_id() {
-            HirFileId::FileId(_) => node,
+            HirFileId::File(_) => node,
             HirFileId::MacroFile(file_id) => {
                 let db = self.target_scope.db;
                 prettify_macro_expansion(

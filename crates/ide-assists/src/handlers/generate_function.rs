@@ -3,7 +3,7 @@ use hir::{
     TypeInfo,
 };
 use ide_db::{
-    FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
+    File, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
     helpers::is_editable_crate,
@@ -89,7 +89,7 @@ struct TargetInfo {
     target_module: Option<Module>,
     adt_info: Option<AdtInfo>,
     target: GeneratedFunctionTarget,
-    file: FileId,
+    file: File,
 }
 
 impl TargetInfo {
@@ -97,7 +97,7 @@ impl TargetInfo {
         target_module: Option<Module>,
         adt_info: Option<AdtInfo>,
         target: GeneratedFunctionTarget,
-        file: FileId,
+        file: File,
     ) -> Self {
         Self { target_module, adt_info, target, file }
     }
@@ -185,7 +185,7 @@ fn add_func_to_accumulator(
     ctx: &AssistContext<'_, '_>,
     text_range: TextRange,
     function_builder: FunctionBuilder,
-    file: FileId,
+    file: File,
     adt_info: Option<AdtInfo>,
     label: String,
 ) -> Option<()> {
@@ -207,14 +207,14 @@ fn get_adt_source(
     ctx: &AssistContext<'_, '_>,
     adt: &hir::Adt,
     fn_name: &str,
-) -> Option<(Option<ast::Impl>, FileId)> {
+) -> Option<(Option<ast::Impl>, File)> {
     let range = adt.source(ctx.sema.db)?.syntax().original_file_range_rooted(ctx.sema.db);
 
     let file = ctx.sema.parse(range.file_id);
     let adt_source =
         ctx.sema.find_node_at_offset_with_macros(file.syntax(), range.range.start())?;
     find_struct_impl(ctx, &adt_source, &[fn_name.to_owned()])
-        .map(|impl_| (impl_, range.file_id.file_id(ctx.db())))
+        .map(|impl_| (impl_, range.file_id.file(ctx.db())))
 }
 
 struct FunctionBuilder {
@@ -487,7 +487,7 @@ fn get_fn_target(
     ctx: &AssistContext<'_, '_>,
     target_module: Option<Module>,
     call: CallExpr,
-) -> Option<(GeneratedFunctionTarget, FileId)> {
+) -> Option<(GeneratedFunctionTarget, File)> {
     let mut file = ctx.vfs_file_id();
     let target = match target_module {
         Some(target_module) => {
@@ -557,7 +557,7 @@ impl GeneratedFunctionTarget {
     fn insert_impl_at(
         &self,
         edit: &mut SourceChangeBuilder,
-        file: FileId,
+        file: File,
         ctx: &AssistContext<'_, '_>,
         function_builder: &FunctionBuilder,
         adt: Adt,
@@ -618,7 +618,7 @@ impl GeneratedFunctionTarget {
     fn insert_fn_at(
         &self,
         edit: &mut SourceChangeBuilder,
-        file: FileId,
+        file: File,
         function_builder: &FunctionBuilder,
         cap: Option<SnippetCap>,
     ) {
@@ -1310,7 +1310,7 @@ fn next_space_for_fn_after_call_site(expr: ast::CallableExpr) -> Option<Generate
 fn next_space_for_fn_in_module(
     db: &dyn hir::db::HirDatabase,
     target_module: hir::Module,
-) -> Option<(FileId, GeneratedFunctionTarget)> {
+) -> Option<(File, GeneratedFunctionTarget)> {
     let module_source = target_module.definition_source(db);
     let file = module_source.file_id.original_file(db);
     let assist_item = match &module_source.value {
@@ -1336,7 +1336,7 @@ fn next_space_for_fn_in_module(
         }
     };
 
-    Some((file.file_id(db), assist_item))
+    Some((file.file(db), assist_item))
 }
 
 #[derive(Clone, Copy)]
@@ -3077,9 +3077,9 @@ fn main() {
         check_assist(
             generate_function,
             r"
-//- /lib.rs crate:lib new_source_root:local
+//- /lib.rs crate:lib new_file_root:local
 fn dummy() {}
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn main() {
     lib::foo$0();
 }
@@ -3099,9 +3099,9 @@ pub fn foo() ${0:-> _} {
         check_assist(
             generate_function,
             r"
-//- /lib.rs crate:lib new_source_root:local
+//- /lib.rs crate:lib new_file_root:local
 pub struct S;
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn main() {
     lib::S.foo$0();
 }
@@ -3122,9 +3122,9 @@ impl S {
         check_assist_not_applicable(
             generate_function,
             r"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 fn dummy() {}
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn main() {
     lib::foo$0();
 }
@@ -3137,9 +3137,9 @@ fn main() {
         check_assist_not_applicable(
             generate_function,
             r"
-//- /lib.rs crate:lib new_source_root:library
+//- /lib.rs crate:lib new_file_root:library
 pub struct S;
-//- /main.rs crate:main deps:lib new_source_root:local
+//- /main.rs crate:main deps:lib new_file_root:local
 fn main() {
     lib::S.foo$0();
 }

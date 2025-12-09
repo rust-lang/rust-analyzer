@@ -23,7 +23,7 @@ use syntax::{
     format_smolstr, match_ast,
 };
 
-use crate::{FileId, navigation_target::TryToNav};
+use crate::{File, navigation_target::TryToNav};
 
 mod adjustment;
 mod bind_pat;
@@ -84,7 +84,7 @@ mod range_exclusive;
 // ![Inlay hints](https://user-images.githubusercontent.com/48062697/113020660-b5f98b80-917a-11eb-8d70-3be3fd558cdd.png)
 pub(crate) fn inlay_hints(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: File,
     range_limit: Option<TextRange>,
     config: &InlayHintsConfig<'_>,
 ) -> Vec<InlayHint> {
@@ -131,7 +131,7 @@ struct InlayHintCtx {
 
 pub(crate) fn inlay_hints_resolve(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: File,
     resolve_range: TextRange,
     hash: u64,
     config: &InlayHintsConfig<'_>,

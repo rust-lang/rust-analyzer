@@ -98,7 +98,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::MissingFields) -> Option<Vec
         Some(vec![fix(
             "fill_missing_fields",
             "Fill struct fields",
-            SourceChange::from_text_edit(range.file_id.file_id(ctx.sema.db), edit),
+            SourceChange::from_text_edit(range.file_id.file(ctx.sema.db), edit),
             range.range,
         )])
     };
@@ -240,7 +240,7 @@ fn get_default_constructor(
 
     let krate = ctx
         .sema
-        .file_to_module_def(d.file.original_file(ctx.sema.db).file_id(ctx.sema.db))?
+        .file_to_module_def(d.file.original_file(ctx.sema.db).file(ctx.sema.db))?
         .krate(ctx.sema.db);
     let module = krate.root_module(ctx.sema.db);
 

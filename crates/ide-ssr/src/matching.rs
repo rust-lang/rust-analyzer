@@ -801,7 +801,7 @@ mod tests {
         let (db, position, selections) = crate::tests::single_file(input);
         hir::attach_db(&db, || {
             let position = ide_db::FilePosition {
-                file_id: position.file_id.file_id(&db),
+                file_id: position.file_id.file(&db),
                 offset: position.offset,
             };
             let mut match_finder = MatchFinder::in_context(
@@ -810,7 +810,7 @@ mod tests {
                 selections
                     .into_iter()
                     .map(|frange| ide_db::FileRange {
-                        file_id: frange.file_id.file_id(&db),
+                        file_id: frange.file_id.file(&db),
                         range: frange.range,
                     })
                     .collect(),

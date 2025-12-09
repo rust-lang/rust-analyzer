@@ -3,7 +3,7 @@ use hir::ModuleDef;
 use ide_db::imports::insert_use::insert_use_with_editor;
 use ide_db::text_edit::TextRange;
 use ide_db::{
-    FileId, FxHashSet,
+    File, FxHashSet,
     assists::AssistId,
     defs::Definition,
     helpers::mod_path_to_ast_with_factory,
@@ -215,11 +215,11 @@ fn replace_usages(
     usages: UsageSearchResult,
     target_definition: Definition<'_>,
     target_module: &hir::Module,
-    delayed_mutations: &mut Vec<(FileId, ImportScope, ast::Path)>,
+    delayed_mutations: &mut Vec<(File, ImportScope, ast::Path)>,
     make: &SyntaxFactory,
 ) {
     for (file_id, references) in usages {
-        let vfs_file_id = file_id.file_id(ctx.db());
+        let vfs_file_id = file_id.file(ctx.db());
         edit.edit_file(vfs_file_id);
 
         let refs_with_imports =

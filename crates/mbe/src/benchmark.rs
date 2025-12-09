@@ -8,9 +8,8 @@ use syntax::{
     ast::{self, HasName},
 };
 use syntax_bridge::{
-    DocCommentDesugarMode,
-    dummy_test_span_utils::{DUMMY, DummyTestSpanMap},
-    syntax_node_to_token_tree,
+    DocCommentDesugarMode, syntax_node_to_token_tree,
+    test_span_utils::{TEST_SPAN, TestSpanMap},
 };
 use test_utils::{bench, bench_fixture, skip_slow_tests};
 
@@ -52,7 +51,7 @@ fn benchmark_expand_macro_rules() {
         invocations
             .into_iter()
             .map(|(id, tt)| {
-                let res = rules[&id].expand(&db, &tt, |_| (), MacroCallStyle::FnLike, DUMMY);
+                let res = rules[&id].expand(&db, &tt, |_| (), MacroCallStyle::FnLike, TEST_SPAN);
                 assert!(res.err.is_none());
                 res.value.0.as_token_trees().len()
             })
@@ -81,8 +80,8 @@ fn macro_rules_fixtures_tt() -> FxHashMap<String, tt::TopSubtree> {
             let id = rule.name().unwrap().to_string();
             let def_tt = syntax_node_to_token_tree(
                 rule.token_tree().unwrap().syntax(),
-                DummyTestSpanMap,
-                DUMMY,
+                TestSpanMap,
+                TEST_SPAN,
                 DocCommentDesugarMode::Mbe,
             );
             (id, def_tt)
@@ -115,8 +114,8 @@ fn invocation_fixtures(
                 let mut try_cnt = 0;
                 loop {
                     let mut builder = tt::TopSubtreeBuilder::new(tt::Delimiter {
-                        open: DUMMY,
-                        close: DUMMY,
+                        open: TEST_SPAN,
+                        close: TEST_SPAN,
                         kind: tt::DelimiterKind::Invisible,
                     });
                     for op in rule.lhs.iter() {
@@ -124,7 +123,10 @@ fn invocation_fixtures(
                     }
                     let subtree = builder.build();
 
-                    if it.expand(db, &subtree, |_| (), MacroCallStyle::FnLike, DUMMY).err.is_none()
+                    if it
+                        .expand(db, &subtree, |_| (), MacroCallStyle::FnLike, TEST_SPAN)
+                        .err
+                        .is_none()
                     {
                         res.push((name.clone(), subtree));
                         break;
@@ -227,20 +229,20 @@ fn invocation_fixtures(
         }
         fn make_ident(ident: &str) -> tt::Leaf {
             tt::Leaf::Ident(tt::Ident {
-                span: DUMMY,
+                span: TEST_SPAN,
                 sym: Symbol::intern(ident),
                 is_raw: tt::IdentIsRaw::No,
             })
         }
         fn make_punct(char: char) -> tt::Leaf {
-            tt::Leaf::Punct(tt::Punct { span: DUMMY, char, spacing: tt::Spacing::Alone })
+            tt::Leaf::Punct(tt::Punct { span: TEST_SPAN, char, spacing: tt::Spacing::Alone })
         }
         fn make_literal(lit: &str) -> tt::Leaf {
-            tt::Leaf::Literal(tt::Literal::new_no_suffix(lit, DUMMY, tt::LitKind::Str))
+            tt::Leaf::Literal(tt::Literal::new_no_suffix(lit, TEST_SPAN, tt::LitKind::Str))
         }
         fn make_subtree(kind: tt::DelimiterKind, builder: &mut tt::TopSubtreeBuilder) {
-            builder.open(kind, DUMMY);
-            builder.close(DUMMY);
+            builder.open(kind, TEST_SPAN);
+            builder.close(TEST_SPAN);
         }
     }
 }

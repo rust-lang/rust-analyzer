@@ -5,8 +5,8 @@ use arrayvec::ArrayVec;
 use either::Either;
 use hir::{Crate, Module, Semantics, db::HirDatabase};
 use ide_db::{
-    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
-    base_db::{SourceDatabase, VfsPath},
+    File, FileRange, FxHashMap, FxHashSet, RootDatabase,
+    base_db::{FileRootKind, SourceDatabase, VfsPath},
     defs::{Definition, IdentClass},
     documentation::Documentation,
     famous_defs::FamousDefs,
@@ -111,7 +111,7 @@ impl TokenStore {
 
 #[derive(Debug)]
 pub struct StaticIndexedFile {
-    pub file_id: FileId,
+    pub file_id: File,
     pub folds: Vec<Fold>,
     pub tokens: Vec<(TextRange, TokenId)>,
 }
@@ -165,7 +165,7 @@ pub enum VendoredLibrariesConfig<'a> {
 }
 
 impl<'a> StaticIndex<'a> {
-    fn add_file(&mut self, file_id: FileId) {
+    fn add_file(&mut self, file_id: File) {
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
         let folds = self.analysis.folding_ranges(file_id, true).unwrap();
         // hovers
@@ -273,17 +273,15 @@ impl<'a> StaticIndex<'a> {
         hir::attach_db(db, || {
             let work = all_modules(db).into_iter().filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
-                let source_root = db.source_root(source_root).source_root(db);
+                let root_kind = db.file_root(file_id.file(&analysis.db)).map(|root| root.kind);
                 let is_vendored = match vendored_libs_config {
-                    VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
+                    VendoredLibrariesConfig::Included { workspace_root } => db
+                        .file_path(file_id.file(&analysis.db))
                         .is_some_and(|module_path| module_path.starts_with(workspace_root)),
                     VendoredLibrariesConfig::Excluded => false,
                 };
 
-                !source_root.is_library || is_vendored
+                root_kind == Some(FileRootKind::Local) || is_vendored
             });
             let mut this = StaticIndex {
                 files: vec![],
@@ -295,7 +293,7 @@ impl<'a> StaticIndex<'a> {
             let mut visited_files = FxHashSet::default();
             for module in work {
                 let file_id =
-                    module.definition_source_file_id(db).original_file(db).file_id(&analysis.db);
+                    module.definition_source_file_id(db).original_file(db).file(&analysis.db);
                 if visited_files.contains(&file_id) {
                     continue;
                 }
@@ -309,7 +307,7 @@ impl<'a> StaticIndex<'a> {
 
 fn definition_range_excluding_trivia(
     sema: &Semantics<'_, RootDatabase>,
-    file_id: FileId,
+    file_id: File,
     range: TextRange,
 ) -> TextRange {
     let root = sema.parse_guess_edition(file_id).syntax().clone();
@@ -553,10 +551,10 @@ pub func() {
 struct Main(i32);
      //^^^^ ^^^
 
-//- /external/lib.rs new_source_root:library crate:external@0.1.0,https://a.b/foo.git library
+//- /external/lib.rs new_file_root:library crate:external@0.1.0,https://a.b/foo.git library
 struct ExternalLibrary(i32);
 
-//- /workspace/vendored/lib.rs new_source_root:library crate:vendored@0.1.0,https://a.b/bar.git library
+//- /workspace/vendored/lib.rs new_file_root:library crate:vendored@0.1.0,https://a.b/bar.git library
 struct VendoredLibrary(i32);
      //^^^^^^^^^^^^^^^ ^^^
 "#,
@@ -574,10 +572,10 @@ struct VendoredLibrary(i32);
 struct Main(i32);
      //^^^^ ^^^
 
-//- /external/lib.rs new_source_root:library crate:external@0.1.0,https://a.b/foo.git library
+//- /external/lib.rs new_file_root:library crate:external@0.1.0,https://a.b/foo.git library
 struct ExternalLibrary(i32);
 
-//- /workspace/vendored/lib.rs new_source_root:library crate:vendored@0.1.0,https://a.b/bar.git library
+//- /workspace/vendored/lib.rs new_file_root:library crate:vendored@0.1.0,https://a.b/bar.git library
 struct VendoredLibrary(i32);
 "#,
             VendoredLibrariesConfig::Excluded,

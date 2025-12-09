@@ -219,7 +219,7 @@ mod tests {
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
     ) -> (RootDatabase, FilePosition) {
         let mut database = RootDatabase::default();
-        let change_fixture = ChangeFixture::parse(ra_fixture);
+        let change_fixture = ChangeFixture::parse(&database, ra_fixture);
         database.apply_change(change_fixture.change);
         let (file_id, range_or_offset) =
             change_fixture.file_position.expect("expected a marker ($0)");

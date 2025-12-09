@@ -2224,7 +2224,7 @@ impl E$0q for Foo { /* $0 */ }
     //- /main.rs crate:a deps:b
     struct B;
     impl b::Exte$0rnTrait for B {}
-    //- /lib.rs crate:b new_source_root:library
+    //- /lib.rs crate:b new_file_root:library
     pub trait ExternTrait {
         #[doc(hidden)]
         fn hidden_default() -> Option<()> {
@@ -2297,7 +2297,7 @@ impl LocalTrait for B {
         check_assist(
             add_missing_default_members,
             r#"
-//- /lib.rs crate:b new_source_root:local
+//- /lib.rs crate:b new_file_root:local
 trait LocalTrait {
     #[doc(hidden)]
     fn no_skip_default() -> Option<()> {
@@ -2332,7 +2332,7 @@ impl b::LocalTrait for B {
         check_assist(
             add_missing_impl_members,
             r#"
-//- /lib.rs crate:b new_source_root:local
+//- /lib.rs crate:b new_file_root:local
 trait LocalTrait {
     #[doc(hidden)]
     fn no_skip_non_default() -> Option<()>;
@@ -2433,7 +2433,7 @@ impl other_file_2::Trait for MyStruct {
         check_assist(
             add_missing_default_members,
             r#"
-//- /lib.rs crate:b new_source_root:library
+//- /lib.rs crate:b new_file_root:library
 pub enum State {
     Active,
     Inactive,

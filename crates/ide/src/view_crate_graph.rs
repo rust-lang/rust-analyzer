@@ -2,8 +2,8 @@ use dot::{Id, LabelText};
 use ide_db::{
     FxHashMap, RootDatabase,
     base_db::{
-        BuiltCrateData, BuiltDependency, Crate, ExtraCrateData, SourceDatabase, all_crates,
-        salsa::plumbing::AsId,
+        BuiltCrateData, BuiltDependency, Crate, ExtraCrateData, FileRootKind, SourceDatabase,
+        all_crates, salsa::plumbing::AsId,
     },
 };
 
@@ -28,8 +28,10 @@ pub(crate) fn view_crate_graph(db: &RootDatabase, full: bool) -> String {
                 true
             } else {
                 // Only render workspace crates
-                let root_id = db.file_source_root(crate_data.root_file_id).source_root_id(db);
-                !db.source_root(root_id).source_root(db).is_library
+                let Some(root) = db.file_root(crate_data.root_file_id) else {
+                    return false;
+                };
+                root.kind == FileRootKind::Local
             }
         })
         .collect();

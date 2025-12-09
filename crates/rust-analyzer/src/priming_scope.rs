@@ -23,13 +23,13 @@ mod tests {
         RootDatabase,
         base_db::{
             CrateGraphBuilder, CrateName, CrateOrigin, CrateWorkspaceData, CratesIdMap,
-            DependencyBuilder, Env, LangCrateOrigin,
+            DependencyBuilder, Env, LangCrateOrigin, SourceDatabase,
         },
-        span::{Edition, FileId},
+        span::Edition,
     };
     use rustc_hash::FxHashMap;
     use triomphe::Arc as TriompheArc;
-    use vfs::AbsPathBuf;
+    use vfs::{AbsPathBuf, VfsPath};
 
     use super::*;
 
@@ -52,7 +52,7 @@ mod tests {
         let mut ids = Vec::with_capacity(crates.len());
         for (i, (name, origin, _)) in crates.iter().enumerate() {
             let id = graph.add_crate_root(
-                FileId::from_raw((i + 1) as u32),
+                db.intern_file_path(VfsPath::new_virtual_path(format!("/crate{i}/lib.rs"))),
                 Edition::Edition2021,
                 None,
                 None,

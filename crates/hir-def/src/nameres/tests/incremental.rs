@@ -1,6 +1,7 @@
 use base_db::{
     CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CrateWorkspaceData,
-    DependencyBuilder, Env, SourceDatabase, all_crates,
+    DependencyBuilder, Env, File, FileChange, FileRegistration, FileRoot, FileRootId, FileRootKind,
+    SourceDatabase, VfsPath, all_crates,
 };
 use expect_test::{Expect, expect};
 use intern::Symbol;
@@ -29,7 +30,7 @@ fn check_def_map_is_not_recomputed(
         &[],
         expecta,
     );
-    db.set_file_text(pos.file_id.file_id(&db), ra_fixture_change);
+    db.set_file_text(pos.file_id.file(&db), ra_fixture_change);
 
     execute_assert_events(
         &db,
@@ -38,6 +39,98 @@ fn check_def_map_is_not_recomputed(
         },
         &[("crate_local_def_map", 0)],
         expectb,
+    );
+}
+
+#[test]
+fn creating_a_file_resolves_a_previously_unresolved_module() {
+    // `resolve_path` must depend on the *absence* of the target file: a `mod foo;`
+    // that resolves to nothing must be recomputed once `foo.rs` is created.
+    let (mut db, pos) = TestDB::with_position(
+        r#"
+//- /lib.rs
+mod foo;$0
+"#,
+    );
+    let krate = db.fetch_test_crate();
+    let lib = pos.file_id.file(&db);
+    let foo = File::new(&db, VfsPath::new_virtual_path("/foo.rs".to_owned()));
+
+    let backed_by_foo = |db: &TestDB| {
+        crate_def_map(db, krate)
+            .modules()
+            .any(|(_, data)| data.origin.file_id().map(|f| f.file(db)) == Some(foo))
+    };
+
+    // `foo.rs` doesn't exist yet, so `mod foo;` is unresolved.
+    assert!(!backed_by_foo(&db));
+
+    // Create `/foo.rs` in the same file root.
+    let mut change = FileChange::default();
+    change.change_file(foo, Some("pub fn bar() {}".to_owned()));
+    change.set_indexed_files(vec![
+        FileRegistration {
+            file: lib,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        },
+        FileRegistration {
+            file: foo,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        },
+    ]);
+    change.apply(&mut db);
+
+    // Now `mod foo;` resolves to `foo.rs`.
+    assert!(backed_by_foo(&db), "creating foo.rs should resolve `mod foo;`");
+}
+
+#[test]
+fn creating_unrelated_file_does_not_reparse_existing_file() {
+    let (mut db, pos) = TestDB::with_position(
+        r#"
+//- /lib.rs
+pub fn existing() {$0}
+"#,
+    );
+    let existing_file = pos.file_id.file(&db);
+    let new_file = File::new(&db, VfsPath::new_virtual_path("/unrelated.rs".to_owned()));
+
+    execute_assert_events(
+        &db,
+        || {
+            pos.file_id.parse(&db);
+        },
+        &[("EditionedFileId::parse_", 1)],
+        expect![[r#"
+            [
+                "EditionedFileId::parse_",
+            ]
+        "#]],
+    );
+
+    let mut change = FileChange::default();
+    change.change_file(new_file, Some("pub fn unrelated() {}".to_owned()));
+    change.set_indexed_files(vec![
+        FileRegistration {
+            file: existing_file,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        },
+        FileRegistration {
+            file: new_file,
+            root: FileRoot { id: FileRootId(0), kind: FileRootKind::Local },
+        },
+    ]);
+    change.apply(&mut db);
+
+    execute_assert_events(
+        &db,
+        || {
+            pos.file_id.parse(&db);
+        },
+        &[("EditionedFileId::parse_", 0)],
+        expect![[r#"
+            []
+        "#]],
     );
 }
 
@@ -68,7 +161,7 @@ pub const BAZ: u32 = 0;
 
         let mut add_crate = |crate_name, root_file_idx: usize| {
             new_crate_graph.add_crate_root(
-                files[root_file_idx].file_id(&db),
+                files[root_file_idx].file(&db),
                 Edition::CURRENT,
                 Some(CrateDisplayName::from_canonical_name(crate_name)),
                 None,
@@ -169,10 +262,13 @@ fn no() {}
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo.rs)",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo/mod.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/foo/mod.rs\" }, bar.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
@@ -228,10 +324,13 @@ pub struct S {}
                 "EditionedFileId::parse_",
                 "real_span_map",
                 "AstId < ast :: Macro >::decl_macro_expander_",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo.rs)",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo/mod.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/foo/mod.rs\" }, bar.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
@@ -291,10 +390,13 @@ fn f() { foo }
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo.rs)",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo/mod.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/foo/mod.rs\" }, bar.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
@@ -416,10 +518,13 @@ pub struct S {}
                 "EditionedFileId::parse_",
                 "real_span_map",
                 "AstId < ast :: Macro >::decl_macro_expander_",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo.rs)",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo/mod.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/foo/mod.rs\" }, bar.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
@@ -515,7 +620,7 @@ m!(Z);
         || {
             let crate_def_map = crate_def_map(&db, krate);
             let module_data = &crate_def_map
-                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
+                [crate_def_map.modules_for_file(&db, pos.file_id.file(&db)).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 4);
         },
         &[("file_item_tree_query", 6), ("parse_macro_expansion", 3)],
@@ -527,10 +632,13 @@ m!(Z);
                 "EditionedFileId::parse_",
                 "real_span_map",
                 "AstId < ast :: Macro >::decl_macro_expander_",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo.rs)",
+                "lookup_resolve_path(File { path: \"/lib.rs\" }, foo/mod.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
                 "real_span_map",
+                "lookup_resolve_path(File { path: \"/foo/mod.rs\" }, bar.rs)",
                 "file_item_tree_query",
                 "HirFileId::ast_id_map_",
                 "EditionedFileId::parse_",
@@ -558,14 +666,14 @@ fn quux() { 92 }
 m!(Y);
 m!(Z);
 "#;
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file(&db), new_text);
 
     execute_assert_events(
         &db,
         || {
             let crate_def_map = crate_def_map(&db, krate);
             let module_data = &crate_def_map
-                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
+                [crate_def_map.modules_for_file(&db, pos.file_id.file(&db)).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 4);
         },
         &[("file_item_tree_query", 1), ("parse_macro_expansion", 0)],
@@ -606,7 +714,7 @@ pub type Ty = ();
         || {
             file_item_tree(&db, pos.file_id.into(), db.test_crate());
         },
-        &[("file_item_tree_query", 1), ("parse", 1)],
+        &[("file_item_tree_query", 1), ("EditionedFileId::parse_", 1)],
         expect![[r#"
             [
                 "file_item_tree_query",
@@ -617,8 +725,8 @@ pub type Ty = ();
         "#]],
     );
 
-    let file_id = pos.file_id.file_id(&db);
-    let file_text = db.file_text(file_id).text(&db);
+    let file_id = pos.file_id.file(&db);
+    let file_text = db.file_data(file_id).text(&db);
     db.set_file_text(file_id, &format!("{file_text}\n"));
 
     execute_assert_events(
@@ -626,7 +734,7 @@ pub type Ty = ();
         || {
             file_item_tree(&db, pos.file_id.into(), db.test_crate());
         },
-        &[("file_item_tree_query", 1), ("parse", 1)],
+        &[("file_item_tree_query", 1), ("EditionedFileId::parse_", 1)],
         expect![[r#"
             [
                 "EditionedFileId::parse_",

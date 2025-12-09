@@ -16,28 +16,33 @@ use crate::{
     documentation::Documentation, range_mapper::RangeMapper, search::ReferenceCategory,
 };
 
-pub use span::FileId;
+pub use span::File;
 
 impl RootDatabase {
     fn from_ra_fixture(
         text: &str,
         minicore: MiniCore<'_>,
-    ) -> Result<(RootDatabase, Vec<(FileId, usize)>, Vec<FileId>), ()> {
+    ) -> Result<(RootDatabase, Vec<(File, usize)>, Vec<File>), ()> {
         // We don't want a mistake in the fixture to crash r-a, so we wrap this in `catch_unwind()`.
         std::panic::catch_unwind(|| {
             let mut db = RootDatabase::default();
-            let fixture =
-                test_fixture::ChangeFixture::parse_with_proc_macros(text, minicore.0, Vec::new());
+            let fixture = test_fixture::ChangeFixture::parse_with_proc_macros(
+                &db,
+                text,
+                minicore.0,
+                Vec::new(),
+            );
             db.apply_change(fixture.change);
             let files = fixture
                 .files
                 .into_iter()
                 .zip(fixture.file_lines)
-                .map(|(file_id, range)| (file_id.file_id(), range))
+                .map(|(file, range)| (file.file(), range))
                 .collect();
-            (db, files, fixture.sysroot_files)
+            let sysroot_files = fixture.sysroot_files;
+            (db, files, sysroot_files)
         })
-        .map_err(|error| {
+        .map_err(|error: Box<dyn std::any::Any + Send>| {
             tracing::error!(
                 "cannot crate the crate graph: {}\nCrate graph:\n{}\n",
                 if let Some(&s) = error.downcast_ref::<&'static str>() {
@@ -67,13 +72,13 @@ impl<'a> RaFixtureConfig<'a> {
 
 pub struct RaFixtureAnalysis {
     pub db: RootDatabase,
-    tmp_file_ids: Vec<(FileId, usize)>,
+    tmp_file_ids: Vec<(File, usize)>,
     line_offsets: Vec<TextSize>,
     virtual_file_id_to_line: Vec<usize>,
     mapper: RangeMapper,
     literal: ast::String,
     // `minicore` etc..
-    sysroot_files: Vec<FileId>,
+    sysroot_files: Vec<File>,
     combined_len: TextSize,
 }
 
@@ -193,7 +198,7 @@ impl RaFixtureAnalysis {
         let (analysis, tmp_file_ids, sysroot_files) =
             RootDatabase::from_ra_fixture(&combined, minicore).ok()?;
 
-        // We use a `Vec` because we know the `FileId`s will always be close.
+        // We use a `Vec` because we know the `File`s will always be close.
         let mut virtual_file_id_to_line = Vec::new();
         for &(file_id, line) in &tmp_file_ids {
             virtual_file_id_to_line.resize(file_id.index() as usize + 1, usize::MAX);
@@ -212,12 +217,12 @@ impl RaFixtureAnalysis {
         })
     }
 
-    pub fn files(&self) -> impl Iterator<Item = FileId> {
+    pub fn files(&self) -> impl Iterator<Item = File> {
         self.tmp_file_ids.iter().map(|(file, _)| *file)
     }
 
     /// This returns `None` for minicore or other sysroot files.
-    fn virtual_file_id_to_line(&self, file_id: FileId) -> Option<usize> {
+    fn virtual_file_id_to_line(&self, file_id: File) -> Option<usize> {
         if self.is_sysroot_file(file_id) {
             None
         } else {
@@ -225,7 +230,7 @@ impl RaFixtureAnalysis {
         }
     }
 
-    pub fn map_offset_down(&self, offset: TextSize) -> Option<(FileId, TextSize)> {
+    pub fn map_offset_down(&self, offset: TextSize) -> Option<(File, TextSize)> {
         let inside_literal_range = self.literal.map_offset_down(offset)?;
         let combined_offset = self.mapper.map_offset_down(inside_literal_range)?;
         // There is usually a small number of files, so a linear search is smaller and faster.
@@ -244,7 +249,7 @@ impl RaFixtureAnalysis {
         Some((file_id, file_offset))
     }
 
-    pub fn map_range_down(&self, range: TextRange) -> Option<(FileId, TextRange)> {
+    pub fn map_range_down(&self, range: TextRange) -> Option<(File, TextRange)> {
         let (start_file_id, start_offset) = self.map_offset_down(range.start())?;
         let (end_file_id, end_offset) = self.map_offset_down(range.end())?;
         if start_file_id != end_file_id {
@@ -256,7 +261,7 @@ impl RaFixtureAnalysis {
 
     pub fn map_range_up(
         &self,
-        virtual_file: FileId,
+        virtual_file: File,
         range: TextRange,
     ) -> impl Iterator<Item = TextRange> {
         // This could be `None` if the file is empty.
@@ -273,11 +278,11 @@ impl RaFixtureAnalysis {
             .filter_map(|range| self.literal.map_range_up(range))
     }
 
-    pub fn map_offset_up(&self, virtual_file: FileId, offset: TextSize) -> Option<TextSize> {
+    pub fn map_offset_up(&self, virtual_file: File, offset: TextSize) -> Option<TextSize> {
         self.map_range_up(virtual_file, TextRange::empty(offset)).next().map(|range| range.start())
     }
 
-    pub fn is_sysroot_file(&self, file_id: FileId) -> bool {
+    pub fn is_sysroot_file(&self, file_id: File) -> bool {
         self.sysroot_files.contains(&file_id)
     }
 }
@@ -286,8 +291,8 @@ pub trait UpmapFromRaFixture: Sized {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        real_file_id: FileId,
+        virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()>;
 }
 
@@ -317,8 +322,8 @@ impl<K, V, S> IsEmpty for std::collections::HashMap<K, V, S> {
 fn upmap_collection<T, Collection>(
     collection: Collection,
     analysis: &RaFixtureAnalysis,
-    virtual_file_id: FileId,
-    real_file_id: FileId,
+    virtual_file_id: File,
+    real_file_id: File,
 ) -> Result<Collection, ()>
 where
     T: UpmapFromRaFixture,
@@ -344,8 +349,8 @@ impl<T: UpmapFromRaFixture> UpmapFromRaFixture for Option<T> {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        real_file_id: FileId,
+        virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         Ok(match self {
             Some(it) => Some(it.upmap_from_ra_fixture(analysis, virtual_file_id, real_file_id)?),
@@ -358,8 +363,8 @@ impl<T: UpmapFromRaFixture> UpmapFromRaFixture for Vec<T> {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        real_file_id: FileId,
+        virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         upmap_collection(self, analysis, virtual_file_id, real_file_id)
     }
@@ -369,8 +374,8 @@ impl<T: UpmapFromRaFixture, const N: usize> UpmapFromRaFixture for SmallVec<[T; 
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        real_file_id: FileId,
+        virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         upmap_collection(self, analysis, virtual_file_id, real_file_id)
     }
@@ -383,23 +388,23 @@ impl<K: UpmapFromRaFixture + Hash + Eq, V: UpmapFromRaFixture, S: BuildHasher + 
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        real_file_id: FileId,
+        virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         upmap_collection(self, analysis, virtual_file_id, real_file_id)
     }
 }
 
-// A map of `FileId`s is treated as associating the ranges in the values with the keys.
+// A map of `File`s is treated as associating the ranges in the values with the keys.
 #[allow(clippy::disallowed_types)]
 impl<V: UpmapFromRaFixture, S: BuildHasher + Default> UpmapFromRaFixture
-    for std::collections::HashMap<FileId, V, S>
+    for std::collections::HashMap<File, V, S>
 {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        _virtual_file_id: FileId,
-        real_file_id: FileId,
+        _virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         if self.is_empty() {
             return Ok(self);
@@ -427,8 +432,8 @@ macro_rules! impl_tuple {
             fn upmap_from_ra_fixture(
                 self,
                 analysis: &RaFixtureAnalysis,
-                virtual_file_id: FileId,
-                real_file_id: FileId,
+                virtual_file_id: File,
+                real_file_id: File,
             ) -> Result<Self, ()> {
                 #[allow(non_snake_case)]
                 let ( $first, $($rest,)* ) = self;
@@ -448,8 +453,8 @@ impl UpmapFromRaFixture for TextSize {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        _real_file_id: FileId,
+        virtual_file_id: File,
+        _real_file_id: File,
     ) -> Result<Self, ()> {
         analysis.map_offset_up(virtual_file_id, self).ok_or(())
     }
@@ -459,32 +464,32 @@ impl UpmapFromRaFixture for TextRange {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        virtual_file_id: FileId,
-        _real_file_id: FileId,
+        virtual_file_id: File,
+        _real_file_id: File,
     ) -> Result<Self, ()> {
         analysis.map_range_up(virtual_file_id, self).next().ok_or(())
     }
 }
 
-// Deliberately do not implement that, as it's easy to get things misbehave and be treated with the wrong FileId:
+// Deliberately do not implement that, as it's easy to get things misbehave and be treated with the wrong File:
 //
-// impl UpmapFromRaFixture for FileId {
+// impl UpmapFromRaFixture for File {
 //     fn upmap_from_ra_fixture(
 //         self,
 //         _analysis: &RaFixtureAnalysis,
-//         _virtual_file_id: FileId,
-//         real_file_id: FileId,
+//         _virtual_file_id: File,
+//         real_file_id: File,
 //     ) -> Result<Self, ()> {
 //         Ok(real_file_id)
 //     }
 // }
 
-impl UpmapFromRaFixture for FilePositionWrapper<FileId> {
+impl UpmapFromRaFixture for FilePositionWrapper<File> {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        _virtual_file_id: FileId,
-        real_file_id: FileId,
+        _virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         Ok(FilePositionWrapper {
             file_id: real_file_id,
@@ -493,12 +498,12 @@ impl UpmapFromRaFixture for FilePositionWrapper<FileId> {
     }
 }
 
-impl UpmapFromRaFixture for FileRangeWrapper<FileId> {
+impl UpmapFromRaFixture for FileRangeWrapper<File> {
     fn upmap_from_ra_fixture(
         self,
         analysis: &RaFixtureAnalysis,
-        _virtual_file_id: FileId,
-        real_file_id: FileId,
+        _virtual_file_id: File,
+        real_file_id: File,
     ) -> Result<Self, ()> {
         Ok(FileRangeWrapper {
             file_id: real_file_id,
@@ -515,8 +520,8 @@ macro_rules! impl_empty_upmap_from_ra_fixture {
                 fn upmap_from_ra_fixture(
                     self,
                     _analysis: &$crate::ra_fixture::RaFixtureAnalysis,
-                    _virtual_file_id: $crate::ra_fixture::FileId,
-                    _real_file_id: $crate::ra_fixture::FileId,
+                    _virtual_file_id: $crate::ra_fixture::File,
+                    _real_file_id: $crate::ra_fixture::File,
                 ) -> Result<Self, ()> {
                     Ok(self)
                 }

@@ -6,11 +6,11 @@ use ide_assists::utils::test_related_attribute_syn;
 use ide_db::RootDatabase;
 use syntax::{AstNode, SyntaxNode, TextRange, ast, ast::HasName};
 
-use crate::FileId;
+use crate::File;
 
 pub(super) fn find_all_methods(
     db: &RootDatabase,
-    file_id: FileId,
+    file_id: File,
 ) -> Vec<(TextRange, Option<TextRange>)> {
     let sema = Semantics::new(db);
     let source_file = sema.parse_guess_edition(file_id);

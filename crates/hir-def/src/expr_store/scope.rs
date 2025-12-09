@@ -402,7 +402,7 @@ impl StoreVisitor for ExprScopeVisitor<'_> {
 #[cfg(test)]
 mod tests {
     use hir_expand::{InFile, name::AsName};
-    use span::FileId;
+    use span::File;
     use syntax::{AstNode, algo::find_node_at_offset, ast};
     use test_fixture::WithFixture;
     use test_utils::{assert_eq_text, extract_offset};
@@ -414,7 +414,7 @@ mod tests {
         test_db::TestDB,
     };
 
-    fn find_function(db: &TestDB, file_id: FileId) -> FunctionId {
+    fn find_function(db: &TestDB, file_id: File) -> FunctionId {
         let krate = db.test_crate();
         let crate_def_map = crate_def_map(db, krate);
 

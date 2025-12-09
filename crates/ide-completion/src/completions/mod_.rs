@@ -42,15 +42,12 @@ pub(crate) fn complete_mod(
 
     let module_definition_file =
         current_module.definition_source_file_id(ctx.db).original_file(ctx.db);
-    let source_root_id =
-        ctx.db.file_source_root(module_definition_file.file_id(ctx.db)).source_root_id(ctx.db);
-    let source_root = ctx.db.source_root(source_root_id).source_root(ctx.db);
+    let module_definition_file_id = module_definition_file.file(ctx.db);
+    let module_definition_root = ctx.db.file_root(module_definition_file_id)?;
+    let module_definition_path = ctx.db.file_path(module_definition_file_id)?;
 
-    let directory_to_look_for_submodules = directory_to_look_for_submodules(
-        current_module,
-        ctx.db,
-        source_root.path_for_file(&module_definition_file.file_id(ctx.db))?,
-    )?;
+    let directory_to_look_for_submodules =
+        directory_to_look_for_submodules(current_module, ctx.db, &module_definition_path)?;
 
     let existing_mod_declarations = current_module
         .children(ctx.db)
@@ -63,16 +60,21 @@ pub(crate) fn complete_mod(
             module_declaration_source_file.file_id.original_file(ctx.db)
         });
 
-    source_root
-        .iter()
+    ctx.db
+        .files()
+        .into_iter()
+        .filter(|&submodule_candidate_file| submodule_candidate_file != module_definition_file_id)
         .filter(|&submodule_candidate_file| {
-            submodule_candidate_file != module_definition_file.file_id(ctx.db)
+            module_declaration_file.is_none_or(|it| it.file(ctx.db) != submodule_candidate_file)
         })
         .filter(|&submodule_candidate_file| {
-            module_declaration_file.is_none_or(|it| it.file_id(ctx.db) != submodule_candidate_file)
+            let Some(root) = ctx.db.file_root(submodule_candidate_file) else {
+                return false;
+            };
+            root.id == module_definition_root.id
         })
-        .filter_map(|submodule_file| {
-            let submodule_path = source_root.path_for_file(&submodule_file)?;
+        .filter_map(|submodule_candidate_file| {
+            let submodule_path = ctx.db.file_path(submodule_candidate_file)?;
             let directory_with_submodule = submodule_path.parent()?;
             let (name, ext) = submodule_path.name_and_extension()?;
             if ext != Some("rs") {

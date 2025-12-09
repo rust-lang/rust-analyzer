@@ -1,6 +1,6 @@
 use hir::{ExpandResult, InFile, Semantics};
 use ide_db::{
-    FileId, RootDatabase, base_db::Crate, helpers::pick_best_token,
+    File, RootDatabase, base_db::Crate, helpers::pick_best_token,
     syntax_helpers::prettify_macro_expansion,
 };
 use span::{SpanMap, TextRange, TextSize};
@@ -28,7 +28,7 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
     let sema = Semantics::new(db);
     let file_id = sema.attach_first_edition(position.file_id);
     let file = sema.parse(file_id);
-    let krate = sema.file_to_module_def(file_id.file_id(db))?.krate(db).into();
+    let krate = sema.file_to_module_def(file_id.file(db))?.krate(db).into();
 
     let tok = pick_best_token(file.syntax().token_at_offset(position.offset), |kind| match kind {
         SyntaxKind::IDENT => 1,
@@ -207,7 +207,7 @@ fn expand(
 fn format(
     db: &RootDatabase,
     kind: SyntaxKind,
-    file_id: FileId,
+    file_id: File,
     expanded: SyntaxNode,
     span_map: &SpanMap,
     krate: Crate,
@@ -221,7 +221,7 @@ fn format(
 fn _format(
     _db: &RootDatabase,
     _kind: SyntaxKind,
-    _file_id: FileId,
+    _file_id: File,
     expansion: &str,
 ) -> Option<String> {
     // remove trailing spaces for test
@@ -230,12 +230,7 @@ fn _format(
 }
 
 #[cfg(not(any(test, target_arch = "wasm32", target_os = "emscripten")))]
-fn _format(
-    db: &RootDatabase,
-    kind: SyntaxKind,
-    file_id: FileId,
-    expansion: &str,
-) -> Option<String> {
+fn _format(db: &RootDatabase, kind: SyntaxKind, file_id: File, expansion: &str) -> Option<String> {
     use ide_db::base_db::relevant_crates;
 
     // hack until we get hygiene working (same character amount to preserve formatting as much as possible)

@@ -42,7 +42,7 @@ impl HirFileId {
     #[inline]
     pub fn span_map<'db>(self, db: &'db dyn SourceDatabase) -> SpanMap<'db> {
         match self {
-            HirFileId::FileId(file_id) => SpanMap::RealSpanMap(real_span_map(db, file_id)),
+            HirFileId::File(file_id) => SpanMap::RealSpanMap(real_span_map(db, file_id)),
             HirFileId::MacroFile(m) => SpanMap::ExpansionSpanMap(m.expansion_span_map(db)),
         }
     }

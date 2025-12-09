@@ -7,14 +7,14 @@ use stdx::format_to;
 use syntax::AstNode;
 
 use crate::{
-    FileId, RootDatabase,
+    File, RootDatabase,
     syntax_highlighting::{HighlightConfig, highlight},
 };
 
 pub(crate) fn highlight_as_html_with_config(
     db: &RootDatabase,
     config: &HighlightConfig<'_>,
-    file_id: FileId,
+    file_id: File,
     rainbow: bool,
 ) -> String {
     let sema = Semantics::new(db);
@@ -31,7 +31,7 @@ pub(crate) fn highlight_as_html_with_config(
         )
     }
 
-    let hl_ranges = highlight(db, config, file_id.file_id(db), None);
+    let hl_ranges = highlight(db, config, file_id.file(db), None);
     let text = file.to_string();
     let mut buf = String::new();
     buf.push_str(STYLE);
@@ -56,7 +56,7 @@ pub(crate) fn highlight_as_html_with_config(
     buf
 }
 
-pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: bool) -> String {
+pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: File, rainbow: bool) -> String {
     highlight_as_html_with_config(
         db,
         &HighlightConfig {

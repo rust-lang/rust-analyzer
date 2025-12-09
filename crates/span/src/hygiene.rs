@@ -371,7 +371,7 @@ impl<'db> SyntaxContext {
         }
     }
 
-    /// The root context, which is the parent of all other contexts. All `FileId`s have this context.
+    /// The root context, which is the parent of all other contexts. All `File`s have this context.
     #[inline]
     pub const fn root(edition: Edition) -> Self {
         let edition = edition as u32;

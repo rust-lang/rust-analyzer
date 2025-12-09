@@ -397,7 +397,7 @@ fn reverse_fixups_(tt: &mut TopSubtree, undo_info: &[TopSubtree]) {
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
-    use span::{Edition, EditionedFileId, FileId};
+    use span::{Edition, EditionedFileId, File};
     use syntax::TextRange;
     use syntax_bridge::DocCommentDesugarMode;
 
@@ -440,7 +440,7 @@ mod tests {
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, mut expect: Expect) {
         let parsed = syntax::SourceFile::parse(ra_fixture, span::Edition::CURRENT);
         let span_map = SpanMap::RealSpanMap(&RealSpanMap::absolute(EditionedFileId::new(
-            FileId::from_raw(0),
+            File::MACRO,
             Edition::CURRENT,
         )));
         let fixups = super::fixup_syntax(

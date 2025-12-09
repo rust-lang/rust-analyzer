@@ -13,10 +13,11 @@
 use hir::ChangeWithProcMacros;
 use ide::{
     AnalysisHost, CallableSnippets, CompletionConfig, CompletionFieldsToResolve, DiagnosticsConfig,
-    FilePosition, RaFixtureConfig, TextSize,
+    FilePosition, RaFixtureConfig, RootDatabase, TextSize,
 };
 use ide_db::{
     SnippetCap,
+    base_db::SourceDatabase,
     imports::insert_use::{ImportGranularity, InsertUseConfig},
 };
 use project_model::CargoConfig;
@@ -26,11 +27,10 @@ use vfs::{AbsPathBuf, VfsPath};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 
 #[track_caller]
-fn file_id(vfs: &vfs::Vfs, path: &VfsPath) -> vfs::FileId {
-    match vfs.file_id(path) {
-        Some((file_id, vfs::FileExcluded::No)) => file_id,
-        None | Some((_, vfs::FileExcluded::Yes)) => panic!("can't find virtual file for {path}"),
-    }
+fn file_id(db: &RootDatabase, path: &VfsPath) -> ide::File {
+    db.file_for_indexed_path(path).unwrap_or_else(|| {
+        panic!("can't find virtual file for {path}");
+    })
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn integrated_highlighting_benchmark() {
         proc_macro_processes: 1,
     };
 
-    let (db, vfs, _proc_macro) = {
+    let (db, _proc_macro) = {
         let _it = stdx::timeit("workspace loading");
         load_workspace_at(
             workspace_to_load.as_std_path(),
@@ -72,7 +72,7 @@ fn integrated_highlighting_benchmark() {
     let file_id = {
         let file = workspace_to_load.join(file);
         let path = VfsPath::from(AbsPathBuf::assert(file));
-        file_id(&vfs, &path)
+        file_id(host.raw_database(), &path)
     };
 
     {
@@ -127,7 +127,7 @@ fn integrated_completion_benchmark() {
         proc_macro_processes: 1,
     };
 
-    let (db, vfs, _proc_macro) = {
+    let (db, _proc_macro) = {
         let _it = stdx::timeit("workspace loading");
         load_workspace_at(
             workspace_to_load.as_std_path(),
@@ -142,7 +142,7 @@ fn integrated_completion_benchmark() {
     let file_id = {
         let file = workspace_to_load.join(file);
         let path = VfsPath::from(AbsPathBuf::assert(file));
-        file_id(&vfs, &path)
+        file_id(host.raw_database(), &path)
     };
 
     // kick off parsing and index population
@@ -243,7 +243,7 @@ fn integrated_diagnostics_benchmark() {
         proc_macro_processes: 1,
     };
 
-    let (db, vfs, _proc_macro) = {
+    let (db, _proc_macro) = {
         let _it = stdx::timeit("workspace loading");
         load_workspace_at(
             workspace_to_load.as_std_path(),
@@ -258,7 +258,7 @@ fn integrated_diagnostics_benchmark() {
     let file_id = {
         let file = workspace_to_load.join(file);
         let path = VfsPath::from(AbsPathBuf::assert(file));
-        file_id(&vfs, &path)
+        file_id(host.raw_database(), &path)
     };
 
     let diagnostics_config = DiagnosticsConfig {

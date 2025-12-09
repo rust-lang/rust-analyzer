@@ -1,7 +1,7 @@
 //! `hir_expand` deals with macro expansion.
 //!
 //! Specifically, it implements a concept of `MacroFile` -- a file whose syntax
-//! tree originates not from the text of some `FileId`, but from some macro
+//! tree originates not from the text of some `File`, but from some macro
 //! expansion.
 #![cfg_attr(feature = "in-rust-tree", feature(rustc_private))]
 // It's useful to refer to code that is private in doc comments.
@@ -423,7 +423,7 @@ impl MacroCallId {
 
             level += 1;
             macro_file = match loc.kind.file_id() {
-                HirFileId::FileId(_) => break level,
+                HirFileId::File(_) => break level,
                 HirFileId::MacroFile(it) => it,
             };
         }
@@ -1213,7 +1213,7 @@ impl MacroCallKind {
                     ast_id = get_range(kind);
                     file_id = kind.file_id();
                 }
-                HirFileId::FileId(file_id) => break file_id,
+                HirFileId::File(file_id) => break file_id,
             }
         };
 
@@ -1254,7 +1254,7 @@ impl MacroCallKind {
                     range = get_range(kind);
                     file_id = kind.file_id();
                 }
-                HirFileId::FileId(file_id) => break file_id,
+                HirFileId::File(file_id) => break file_id,
             }
         };
 
@@ -1573,14 +1573,14 @@ impl From<MacroCallId> for span::MacroCallId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Supertype)]
 pub enum HirFileId {
-    FileId(EditionedFileId),
+    File(EditionedFileId),
     MacroFile(MacroCallId),
 }
 
 impl From<EditionedFileId> for HirFileId {
     #[inline]
     fn from(file_id: EditionedFileId) -> Self {
-        HirFileId::FileId(file_id)
+        HirFileId::File(file_id)
     }
 }
 
@@ -1606,7 +1606,7 @@ impl HirFileId {
     #[inline]
     pub fn macro_file(self) -> Option<MacroCallId> {
         match self {
-            HirFileId::FileId(_) => None,
+            HirFileId::File(_) => None,
             HirFileId::MacroFile(it) => Some(it),
         }
     }
@@ -1619,14 +1619,14 @@ impl HirFileId {
     #[inline]
     pub fn file_id(self) -> Option<EditionedFileId> {
         match self {
-            HirFileId::FileId(it) => Some(it),
+            HirFileId::File(it) => Some(it),
             HirFileId::MacroFile(_) => None,
         }
     }
 
     pub fn syntax_context(self, db: &dyn SourceDatabase, edition: Edition) -> SyntaxContext {
         match self {
-            HirFileId::FileId(_) => SyntaxContext::root(edition),
+            HirFileId::File(_) => SyntaxContext::root(edition),
             HirFileId::MacroFile(m) => {
                 let kind = &m.loc(db).kind;
                 m.macro_arg_considering_derives(db, kind).2.ctx
@@ -1636,7 +1636,7 @@ impl HirFileId {
 
     pub fn edition(self, db: &dyn SourceDatabase) -> Edition {
         match self {
-            HirFileId::FileId(file_id) => file_id.edition(db),
+            HirFileId::File(file_id) => file_id.edition(db),
             HirFileId::MacroFile(m) => m.loc(db).def.edition,
         }
     }
@@ -1645,7 +1645,7 @@ impl HirFileId {
         let mut file_id = self;
         loop {
             match file_id {
-                HirFileId::FileId(id) => break id,
+                HirFileId::File(id) => break id,
                 HirFileId::MacroFile(macro_call_id) => {
                     file_id = macro_call_id.loc(db).kind.file_id()
                 }
@@ -1656,7 +1656,7 @@ impl HirFileId {
     pub fn original_file_respecting_includes(mut self, db: &dyn SourceDatabase) -> EditionedFileId {
         loop {
             match self {
-                HirFileId::FileId(id) => break id,
+                HirFileId::File(id) => break id,
                 HirFileId::MacroFile(file) => {
                     let loc = file.loc(db);
                     if loc.def.is_include()
@@ -1675,7 +1675,7 @@ impl HirFileId {
         let mut call = self.macro_file()?.loc(db).to_node(db);
         loop {
             match call.file_id {
-                HirFileId::FileId(file_id) => {
+                HirFileId::File(file_id) => {
                     break Some(InRealFile { file_id, value: call.value });
                 }
                 HirFileId::MacroFile(macro_call_id) => {
@@ -1706,7 +1706,7 @@ impl HirFileId {
     /// file or a macro expansion.
     pub fn parse_or_expand(self, db: &dyn SourceDatabase) -> SyntaxNode {
         match self {
-            HirFileId::FileId(file_id) => file_id.parse(db).syntax_node(),
+            HirFileId::File(file_id) => file_id.parse(db).syntax_node(),
             HirFileId::MacroFile(macro_file) => {
                 macro_file.parse_macro_expansion(db).value.0.syntax_node()
             }
@@ -1718,7 +1718,7 @@ impl HirFileId {
         db: &dyn SourceDatabase,
     ) -> (Parse<SyntaxNode>, SpanMap<'_>) {
         match self {
-            HirFileId::FileId(file_id) => (
+            HirFileId::File(file_id) => (
                 file_id.parse(db).to_syntax(),
                 SpanMap::RealSpanMap(crate::span_map::real_span_map(db, file_id)),
             ),
@@ -1743,7 +1743,7 @@ impl HirFileId {
     pub fn macro_expansion_depth(self, db: &dyn SourceDatabase) -> u32 {
         match self {
             HirFileId::MacroFile(macro_call) => macro_call.loc(db).macro_depth,
-            HirFileId::FileId(_) => 0,
+            HirFileId::File(_) => 0,
         }
     }
 }

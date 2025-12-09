@@ -1,5 +1,5 @@
 use hir::{ModPath, ModuleDef};
-use ide_db::{FileId, RootDatabase, famous_defs::FamousDefs};
+use ide_db::{File, RootDatabase, famous_defs::FamousDefs};
 use syntax::{
     Edition,
     ast::{self, AstNode, HasName, edit::AstNodeEdit},
@@ -130,7 +130,7 @@ fn generate_tuple_deref(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Optio
 fn generate_edit(
     db: &RootDatabase,
     edit: &mut SourceChangeBuilder,
-    file_id: FileId,
+    file_id: File,
     strukt: ast::Struct,
     field_type: ast::Type,
     field_name: &str,

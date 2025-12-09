@@ -2039,12 +2039,12 @@ fn main() {
 #[test]
 fn trait_method_import_across_multiple_crates() {
     let fixture = r#"
-        //- /lib.rs crate:test-trait
+        //- /test-trait/lib.rs crate:test-trait
         pub trait TestTrait {
             fn test_function(&self) -> u32;
         }
 
-        //- /lib.rs crate:test-implementation deps:test-trait
+        //- /test-implementation/lib.rs crate:test-implementation deps:test-trait
         pub struct TestStruct(pub usize);
 
         impl test_trait::TestTrait for TestStruct {

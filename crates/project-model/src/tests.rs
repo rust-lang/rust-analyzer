@@ -1,14 +1,15 @@
 use std::env::temp_dir;
 
-use base_db::{CrateGraphBuilder, ProcMacroPaths};
+use base_db::{CrateGraphBuilder, ProcMacroPaths, VfsPath};
 use cargo_metadata::Metadata;
 use cfg::{CfgAtom, CfgDiff};
 use expect_test::{ExpectFile, expect_file};
 use intern::sym;
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
 use rustc_hash::FxHashMap;
+use salsa::DatabaseImpl;
 use serde::de::DeserializeOwned;
-use span::FileId;
+use span::File;
 
 use crate::{
     CargoWorkspace, CfgOverrides, ManifestPath, ProjectJson, ProjectJsonData, ProjectWorkspace,
@@ -17,17 +18,19 @@ use crate::{
 };
 
 fn load_cargo(file: &str) -> (CrateGraphBuilder, ProcMacroPaths) {
+    let db = DatabaseImpl::default();
     let project_workspace = load_workspace_from_metadata(file);
-    to_crate_graph(project_workspace, &mut Default::default())
+    to_crate_graph(&db, project_workspace, &mut Default::default())
 }
 
 fn load_cargo_with_overrides(
     file: &str,
     cfg_overrides: CfgOverrides,
 ) -> (CrateGraphBuilder, ProcMacroPaths) {
+    let db = DatabaseImpl::default();
     let project_workspace =
         ProjectWorkspace { cfg_overrides, ..load_workspace_from_metadata(file) };
-    to_crate_graph(project_workspace, &mut Default::default())
+    to_crate_graph(&db, project_workspace, &mut Default::default())
 }
 
 fn load_workspace_from_metadata(file: &str) -> ProjectWorkspace {
@@ -53,6 +56,7 @@ fn load_workspace_from_metadata(file: &str) -> ProjectWorkspace {
 }
 
 fn load_rust_project(file: &str) -> (CrateGraphBuilder, ProcMacroPaths) {
+    let db = DatabaseImpl::default();
     let data = get_test_json_file(file);
     let project = rooted_project_json(data);
     let sysroot = Sysroot::empty();
@@ -66,7 +70,7 @@ fn load_rust_project(file: &str) -> (CrateGraphBuilder, ProcMacroPaths) {
         extra_includes: Vec::new(),
         set_test: true,
     };
-    to_crate_graph(project_workspace, &mut Default::default())
+    to_crate_graph(&db, project_workspace, &mut Default::default())
 }
 
 fn get_test_json_file<T: DeserializeOwned>(file: &str) -> T {
@@ -116,14 +120,18 @@ fn rooted_project_json(data: ProjectJsonData) -> ProjectJson {
 }
 
 fn to_crate_graph(
+    db: &DatabaseImpl,
     project_workspace: ProjectWorkspace,
-    file_map: &mut FxHashMap<AbsPathBuf, FileId>,
+    file_map: &mut FxHashMap<AbsPathBuf, File>,
 ) -> (CrateGraphBuilder, ProcMacroPaths) {
     project_workspace.to_crate_graph(
         &mut {
             |path| {
-                let len = file_map.len() + 1;
-                Some(*file_map.entry(path.to_path_buf()).or_insert(FileId::from_raw(len as u32)))
+                Some(
+                    *file_map
+                        .entry(path.to_path_buf())
+                        .or_insert_with(|| File::new(db, VfsPath::from(path.to_path_buf()))),
+                )
             }
         },
         &Default::default(),
@@ -226,14 +234,16 @@ fn crate_graph_dedup_identical() {
 
 #[test]
 fn crate_graph_dedup() {
+    let db = DatabaseImpl::default();
     let mut file_map = Default::default();
 
     let ripgrep_workspace = load_workspace_from_metadata("ripgrep-metadata.json");
-    let (mut crate_graph, _proc_macros) = to_crate_graph(ripgrep_workspace, &mut file_map);
+    let (mut crate_graph, _proc_macros) = to_crate_graph(&db, ripgrep_workspace, &mut file_map);
     assert_eq!(crate_graph.iter().count(), 71);
 
     let regex_workspace = load_workspace_from_metadata("regex-metadata.json");
-    let (regex_crate_graph, mut regex_proc_macros) = to_crate_graph(regex_workspace, &mut file_map);
+    let (regex_crate_graph, mut regex_proc_macros) =
+        to_crate_graph(&db, regex_workspace, &mut file_map);
     assert_eq!(regex_crate_graph.iter().count(), 50);
 
     crate_graph.extend(regex_crate_graph, &mut regex_proc_macros);
@@ -242,7 +252,8 @@ fn crate_graph_dedup() {
 
 #[test]
 fn smoke_test_real_sysroot_cargo() {
-    let file_map = &mut FxHashMap::<AbsPathBuf, FileId>::default();
+    let db = DatabaseImpl::default();
+    let file_map = &mut FxHashMap::<AbsPathBuf, File>::default();
     let meta: Metadata = get_test_json_file("hello-world-metadata.json");
     let manifest_path =
         ManifestPath::try_from(AbsPathBuf::try_from(meta.workspace_root.clone()).unwrap()).unwrap();
@@ -281,8 +292,11 @@ fn smoke_test_real_sysroot_cargo() {
     project_workspace.to_crate_graph(
         &mut {
             |path| {
-                let len = file_map.len();
-                Some(*file_map.entry(path.to_path_buf()).or_insert(FileId::from_raw(len as u32)))
+                Some(
+                    *file_map
+                        .entry(path.to_path_buf())
+                        .or_insert_with(|| File::new(&db, VfsPath::from(path.to_path_buf()))),
+                )
             }
         },
         &Default::default(),

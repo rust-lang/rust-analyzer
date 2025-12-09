@@ -210,10 +210,7 @@ mod tests {
 
     fn fixture_token_tree_top_many_none() -> TopSubtree {
         let anchor = SpanAnchor {
-            file_id: span::EditionedFileId::new(
-                span::FileId::from_raw(0xe4e4e),
-                span::Edition::CURRENT,
-            ),
+            file_id: span::EditionedFileId::new(span::File::MACRO, span::Edition::CURRENT),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         };
 
@@ -308,10 +305,7 @@ mod tests {
 
     fn fixture_token_tree_top_empty_none() -> TopSubtree {
         let anchor = SpanAnchor {
-            file_id: span::EditionedFileId::new(
-                span::FileId::from_raw(0xe4e4e),
-                span::Edition::CURRENT,
-            ),
+            file_id: span::EditionedFileId::new(span::File::MACRO, span::Edition::CURRENT),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         };
 
@@ -326,10 +320,7 @@ mod tests {
 
     fn fixture_token_tree_top_empty_brace() -> TopSubtree {
         let anchor = SpanAnchor {
-            file_id: span::EditionedFileId::new(
-                span::FileId::from_raw(0xe4e4e),
-                span::Edition::CURRENT,
-            ),
+            file_id: span::EditionedFileId::new(span::File::MACRO, span::Edition::CURRENT),
             ast_id: ROOT_ERASED_FILE_AST_ID,
         };
 

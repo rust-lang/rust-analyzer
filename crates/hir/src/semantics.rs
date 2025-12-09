@@ -44,7 +44,7 @@ use intern::{Interned, Symbol, sym};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{SmallVec, smallvec};
-use span::{FileId, SyntaxContext};
+use span::{File, SyntaxContext};
 use stdx::{TupleExt, always};
 use syntax::{
     AstNode, AstPtr, AstToken, Direction, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind,
@@ -282,7 +282,7 @@ impl<DB: HirDatabase + ?Sized> Semantics<'_, DB> {
 
     pub fn lint_attrs(
         &self,
-        file_id: FileId,
+        file_id: File,
         krate: Crate,
         item: ast::AnyHasAttrs,
     ) -> impl DoubleEndedIterator<Item = (LintAttr, SmolStr)> {
@@ -379,11 +379,11 @@ impl<DB: HirDatabase + ?Sized> Semantics<'_, DB> {
         self.imp.resolve_variant(record_lit).map(Variant::from)
     }
 
-    pub fn file_to_module_def(&self, file: impl Into<FileId>) -> Option<Module> {
+    pub fn file_to_module_def(&self, file: impl Into<File>) -> Option<Module> {
         self.imp.file_to_module_defs(file.into()).next()
     }
 
-    pub fn file_to_module_defs(&self, file: impl Into<FileId>) -> impl Iterator<Item = Module> {
+    pub fn file_to_module_defs(&self, file: impl Into<File>) -> impl Iterator<Item = Module> {
         self.imp.file_to_module_defs(file.into())
     }
 
@@ -476,24 +476,24 @@ impl<'db> SemanticsImpl<'db> {
     }
 
     /// If not crate is found for the file, try to return the last crate in topological order.
-    pub fn first_crate(&self, file: FileId) -> Option<Crate> {
+    pub fn first_crate(&self, file: File) -> Option<Crate> {
         match self.file_to_module_defs(file).next() {
             Some(module) => Some(module.krate(self.db)),
             None => all_crates(self.db).last().copied().map(Into::into),
         }
     }
 
-    pub fn attach_first_edition_opt(&self, file: FileId) -> Option<EditionedFileId> {
+    pub fn attach_first_edition_opt(&self, file: File) -> Option<EditionedFileId> {
         let krate = self.file_to_module_defs(file).next()?.krate(self.db);
         Some(EditionedFileId::new(self.db, file, krate.edition(self.db)))
     }
 
-    pub fn attach_first_edition(&self, file: FileId) -> EditionedFileId {
+    pub fn attach_first_edition(&self, file: File) -> EditionedFileId {
         self.attach_first_edition_opt(file)
             .unwrap_or_else(|| EditionedFileId::current_edition(self.db, file))
     }
 
-    pub fn parse_guess_edition(&self, file_id: FileId) -> ast::SourceFile {
+    pub fn parse_guess_edition(&self, file_id: File) -> ast::SourceFile {
         let file_id = self.attach_first_edition(file_id);
 
         let tree = file_id.parse(self.db).tree();
@@ -503,7 +503,7 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn adjust_edition(&self, file_id: HirFileId) -> HirFileId {
         if let Some(editioned_file_id) = file_id.file_id() {
-            self.attach_first_edition_opt(editioned_file_id.file_id(self.db))
+            self.attach_first_edition_opt(editioned_file_id.file(self.db))
                 .map_or(file_id, Into::into)
         } else {
             file_id
@@ -512,8 +512,8 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn find_parent_file(&self, file_id: HirFileId) -> Option<InFile<SyntaxNode>> {
         match file_id {
-            HirFileId::FileId(file_id) => {
-                let module = self.file_to_module_defs(file_id.file_id(self.db)).next()?;
+            HirFileId::File(file_id) => {
+                let module = self.file_to_module_defs(file_id.file(self.db)).next()?;
                 let def_map = crate_def_map(self.db, module.krate(self.db).id);
                 match def_map[module.id].origin {
                     ModuleOrigin::CrateRoot { .. } => None,
@@ -525,7 +525,7 @@ impl<'db> SemanticsImpl<'db> {
                         self.cache(root, file_id);
                         Some(in_file.with_value(node.syntax().clone()))
                     }
-                    _ => unreachable!("FileId can only belong to a file module"),
+                    _ => unreachable!("File can only belong to a file module"),
                 }
             }
             HirFileId::MacroFile(macro_file) => {
@@ -1585,22 +1585,19 @@ impl<'db> SemanticsImpl<'db> {
         )
     }
 
-    pub fn diagnostics_display_range(
-        &self,
-        src: InFile<SyntaxNodePtr>,
-    ) -> FileRangeWrapper<FileId> {
+    pub fn diagnostics_display_range(&self, src: InFile<SyntaxNodePtr>) -> FileRangeWrapper<File> {
         let root = self.parse_or_expand(src.file_id);
         let node = src.map(|it| it.to_node(&root));
         let FileRange { file_id, range } = node.as_ref().original_file_range_rooted(self.db);
-        FileRangeWrapper { file_id: file_id.file_id(self.db), range }
+        FileRangeWrapper { file_id: file_id.file(self.db), range }
     }
 
     pub fn diagnostics_display_range_for_range(
         &self,
         src: InFile<TextRange>,
-    ) -> FileRangeWrapper<FileId> {
+    ) -> FileRangeWrapper<File> {
         let FileRange { file_id, range } = src.original_node_file_range_rooted(self.db);
-        FileRangeWrapper { file_id: file_id.file_id(self.db), range }
+        FileRangeWrapper { file_id: file_id.file(self.db), range }
     }
 
     fn token_ancestors_with_macros(
@@ -2124,13 +2121,13 @@ impl<'db> SemanticsImpl<'db> {
         T::to_def(self, src)
     }
 
-    fn file_to_module_defs(&self, file: FileId) -> impl Iterator<Item = Module> {
+    fn file_to_module_defs(&self, file: File) -> impl Iterator<Item = Module> {
         self.with_ctx(|ctx| ctx.file_to_def(file).to_owned()).into_iter().map(Module::from)
     }
 
     fn hir_file_to_module_defs(&self, file: HirFileId) -> impl Iterator<Item = Module> {
         // FIXME: Do we need to care about inline modules for macro expansions?
-        self.file_to_module_defs(file.original_file_respecting_includes(self.db).file_id(self.db))
+        self.file_to_module_defs(file.original_file_respecting_includes(self.db).file(self.db))
     }
 
     pub fn scope(&self, node: &SyntaxNode) -> Option<SemanticsScope<'db>> {
@@ -2616,9 +2613,7 @@ fn macro_call_to_macro_id(
     match loc.def.ast_id() {
         Either::Left(it) => {
             let node = match it.file_id {
-                HirFileId::FileId(file_id) => {
-                    it.to_ptr(db).to_node(&file_id.parse(db).syntax_node())
-                }
+                HirFileId::File(file_id) => it.to_ptr(db).to_node(&file_id.parse(db).syntax_node()),
                 HirFileId::MacroFile(macro_file) => {
                     let expansion_info = ctx.cache.get_or_insert_expansion(ctx.db, macro_file);
                     it.to_ptr(db).to_node(&expansion_info.expanded().value)
@@ -2628,9 +2623,7 @@ fn macro_call_to_macro_id(
         }
         Either::Right(it) => {
             let node = match it.file_id {
-                HirFileId::FileId(file_id) => {
-                    it.to_ptr(db).to_node(&file_id.parse(db).syntax_node())
-                }
+                HirFileId::File(file_id) => it.to_ptr(db).to_node(&file_id.parse(db).syntax_node()),
                 HirFileId::MacroFile(macro_file) => {
                     let expansion_info = ctx.cache.get_or_insert_expansion(ctx.db, macro_file);
                     it.to_ptr(db).to_node(&expansion_info.expanded().value)

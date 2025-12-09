@@ -2,7 +2,7 @@
 
 use hir::{Crate, Module, ModuleDef, Semantics};
 use ide_db::base_db::{self, all_crates};
-use ide_db::{FileId, RootDatabase};
+use ide_db::{File, RootDatabase};
 use syntax::TextRange;
 
 use crate::{NavigationTarget, Runnable, TryToNav, runnables::runnable_fn};
@@ -20,7 +20,7 @@ pub struct TestItem {
     pub kind: TestItemKind,
     pub label: String,
     pub parent: Option<String>,
-    pub file: Option<FileId>,
+    pub file: Option<File>,
     pub text_range: Option<TextRange>,
     pub runnable: Option<Runnable>,
 }
@@ -119,7 +119,7 @@ pub(crate) fn discover_tests_in_crate_by_test_id(
     discover_tests_in_crate(db, crate_id)
 }
 
-pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: FileId) -> Vec<TestItem> {
+pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: File) -> Vec<TestItem> {
     let sema = Semantics::new(db);
 
     let Some(module) = sema.file_to_module_def(file_id) else { return vec![] };

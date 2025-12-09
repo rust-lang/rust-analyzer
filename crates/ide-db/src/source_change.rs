@@ -1,7 +1,7 @@
 //! This module defines types that represent changes to source code flowing from
 //! the server to the client.
 //!
-//! It can be viewed as a dual for [`Change`][vfs::Change].
+//! It can be viewed as a dual for changes applied to the analysis database.
 
 use std::{collections::hash_map::Entry, fmt, iter, mem};
 
@@ -12,7 +12,7 @@ use itertools::Itertools;
 use macros::UpmapFromRaFixture;
 use nohash_hasher::IntMap;
 use rustc_hash::FxHashMap;
-use span::FileId;
+use span::File;
 use stdx::never;
 use syntax::{
     AstNode, SyntaxNode, TextRange, TextSize,
@@ -38,7 +38,7 @@ pub struct ChangeAnnotation {
 
 #[derive(Default, Debug, Clone)]
 pub struct SourceChange {
-    pub source_file_edits: IntMap<FileId, (TextEdit, Option<SnippetEdit>)>,
+    pub source_file_edits: IntMap<File, (TextEdit, Option<SnippetEdit>)>,
     pub file_system_edits: Vec<FileSystemEdit>,
     pub is_snippet: bool,
     pub annotations: FxHashMap<ChangeAnnotationId, ChangeAnnotation>,
@@ -46,7 +46,7 @@ pub struct SourceChange {
 }
 
 impl SourceChange {
-    pub fn from_text_edit(file_id: impl Into<FileId>, edit: TextEdit) -> Self {
+    pub fn from_text_edit(file_id: impl Into<File>, edit: TextEdit) -> Self {
         SourceChange {
             source_file_edits: iter::once((file_id.into(), (edit, None))).collect(),
             ..Default::default()
@@ -60,17 +60,17 @@ impl SourceChange {
         id
     }
 
-    /// Inserts a [`TextEdit`] for the given [`FileId`]. This properly handles merging existing
+    /// Inserts a [`TextEdit`] for the given [`File`]. This properly handles merging existing
     /// edits for a file if some already exist.
-    pub fn insert_source_edit(&mut self, file_id: impl Into<FileId>, edit: TextEdit) {
+    pub fn insert_source_edit(&mut self, file_id: impl Into<File>, edit: TextEdit) {
         self.insert_source_and_snippet_edit(file_id.into(), edit, None)
     }
 
-    /// Inserts a [`TextEdit`] and potentially a [`SnippetEdit`] for the given [`FileId`].
+    /// Inserts a [`TextEdit`] and potentially a [`SnippetEdit`] for the given [`File`].
     /// This properly handles merging existing edits for a file if some already exist.
     fn insert_source_and_snippet_edit(
         &mut self,
-        file_id: impl Into<FileId>,
+        file_id: impl Into<File>,
         edit: TextEdit,
         snippet_edit: Option<SnippetEdit>,
     ) {
@@ -98,7 +98,7 @@ impl SourceChange {
 
     pub fn get_source_and_snippet_edit(
         &self,
-        file_id: FileId,
+        file_id: File,
     ) -> Option<&(TextEdit, Option<SnippetEdit>)> {
         self.source_file_edits.get(&file_id)
     }
@@ -111,25 +111,22 @@ impl SourceChange {
     }
 }
 
-impl Extend<(FileId, TextEdit)> for SourceChange {
-    fn extend<T: IntoIterator<Item = (FileId, TextEdit)>>(&mut self, iter: T) {
+impl Extend<(File, TextEdit)> for SourceChange {
+    fn extend<T: IntoIterator<Item = (File, TextEdit)>>(&mut self, iter: T) {
         self.extend(iter.into_iter().map(|(file_id, edit)| (file_id, (edit, None))))
     }
 }
 
-impl Extend<(FileId, (TextEdit, Option<SnippetEdit>))> for SourceChange {
-    fn extend<T: IntoIterator<Item = (FileId, (TextEdit, Option<SnippetEdit>))>>(
-        &mut self,
-        iter: T,
-    ) {
+impl Extend<(File, (TextEdit, Option<SnippetEdit>))> for SourceChange {
+    fn extend<T: IntoIterator<Item = (File, (TextEdit, Option<SnippetEdit>))>>(&mut self, iter: T) {
         iter.into_iter().for_each(|(file_id, (edit, snippet_edit))| {
             self.insert_source_and_snippet_edit(file_id, edit, snippet_edit)
         });
     }
 }
 
-impl FromIterator<(FileId, TextEdit)> for SourceChange {
-    fn from_iter<T: IntoIterator<Item = (FileId, TextEdit)>>(iter: T) -> Self {
+impl FromIterator<(File, TextEdit)> for SourceChange {
+    fn from_iter<T: IntoIterator<Item = (File, TextEdit)>>(iter: T) -> Self {
         let mut this = SourceChange::default();
         this.extend(iter);
         this
@@ -204,18 +201,18 @@ impl SnippetEdit {
 
 pub struct SourceChangeBuilder {
     edit: TextEditBuilder,
-    pub file_id: FileId,
+    pub file_id: File,
     pub source_change: SourceChange,
     pub command: Option<Command>,
 
     /// Keeps track of all edits performed on each file
-    file_editors: FxHashMap<FileId, SyntaxEditor>,
+    file_editors: FxHashMap<File, SyntaxEditor>,
     /// Keeps track of which annotations correspond to which snippets
     snippet_annotations: Vec<(AnnotationSnippet, SyntaxAnnotation)>,
 }
 
 impl SourceChangeBuilder {
-    pub fn new(file_id: impl Into<FileId>) -> SourceChangeBuilder {
+    pub fn new(file_id: impl Into<File>) -> SourceChangeBuilder {
         SourceChangeBuilder {
             edit: TextEdit::builder(),
             file_id: file_id.into(),
@@ -226,7 +223,7 @@ impl SourceChangeBuilder {
         }
     }
 
-    pub fn edit_file(&mut self, file_id: impl Into<FileId>) {
+    pub fn edit_file(&mut self, file_id: impl Into<File>) {
         self.commit();
         self.file_id = file_id.into();
     }
@@ -235,7 +232,7 @@ impl SourceChangeBuilder {
         SyntaxEditor::new(node.tree_top()).0
     }
 
-    pub fn add_file_edits(&mut self, file_id: impl Into<FileId>, editor: SyntaxEditor) {
+    pub fn add_file_edits(&mut self, file_id: impl Into<File>, editor: SyntaxEditor) {
         match self.file_editors.entry(file_id.into()) {
             Entry::Occupied(mut entry) => entry.get_mut().merge(editor),
             Entry::Vacant(entry) => {
@@ -325,7 +322,7 @@ impl SourceChangeBuilder {
         let file_system_edit = FileSystemEdit::CreateFile { dst, initial_contents: content.into() };
         self.source_change.push_file_system_edit(file_system_edit);
     }
-    pub fn move_file(&mut self, src: impl Into<FileId>, dst: AnchoredPathBuf) {
+    pub fn move_file(&mut self, src: impl Into<File>, dst: AnchoredPathBuf) {
         let file_system_edit = FileSystemEdit::MoveFile { src: src.into(), dst };
         self.source_change.push_file_system_edit(file_system_edit);
     }
@@ -367,8 +364,8 @@ impl SourceChangeBuilder {
 #[derive(Debug, Clone)]
 pub enum FileSystemEdit {
     CreateFile { dst: AnchoredPathBuf, initial_contents: String },
-    MoveFile { src: FileId, dst: AnchoredPathBuf },
-    MoveDir { src: AnchoredPathBuf, src_id: FileId, dst: AnchoredPathBuf },
+    MoveFile { src: File, dst: AnchoredPathBuf },
+    MoveDir { src: AnchoredPathBuf, src_id: File, dst: AnchoredPathBuf },
 }
 
 impl From<FileSystemEdit> for SourceChange {

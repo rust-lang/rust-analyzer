@@ -106,7 +106,7 @@ use hir_expand::{
 };
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use span::FileId;
+use span::File;
 use stdx::impl_from;
 use syntax::{
     AstNode, AstPtr, SyntaxNode,
@@ -123,7 +123,7 @@ use crate::{
 pub(super) struct SourceToDefCache<'db> {
     pub(super) dynmap_cache: FxHashMap<(ChildContainer, HirFileId), DynMap>,
     expansion_info_cache: FxHashMap<MacroCallId, ExpansionInfo<'db>>,
-    pub(super) file_to_def_cache: FxHashMap<FileId, SmallVec<[ModuleId; 1]>>,
+    pub(super) file_to_def_cache: FxHashMap<File, SmallVec<[ModuleId; 1]>>,
     pub(super) included_file_cache: FxHashMap<EditionedFileId, Option<MacroCallId>>,
     /// Rootnode to HirFileId cache
     pub(super) root_to_file_cache: FxHashMap<SyntaxNode, HirFileId>,
@@ -149,7 +149,7 @@ impl<'db> SourceToDefCache<'db> {
             return m;
         }
         self.included_file_cache.insert(file, None);
-        for &crate_id in relevant_crates(db, file.file_id(db)) {
+        for &crate_id in relevant_crates(db, file.file(db)) {
             for &(macro_call_id, file_id) in hir_def::include_macro_invoc(db, crate_id) {
                 self.included_file_cache.insert(file_id, Some(macro_call_id));
             }
@@ -191,7 +191,7 @@ pub(super) struct SourceToDefCtx<'db, 'cache> {
 }
 
 impl<'db> SourceToDefCtx<'db, '_> {
-    pub(super) fn file_to_def(&mut self, file: FileId) -> &SmallVec<[ModuleId; 1]> {
+    pub(super) fn file_to_def(&mut self, file: File) -> &SmallVec<[ModuleId; 1]> {
         let _p = tracing::info_span!("SourceToDefCtx::file_to_def").entered();
         self.cache.file_to_def_cache.entry(file).or_insert_with(|| {
             let mut mods = SmallVec::new();
@@ -206,7 +206,7 @@ impl<'db> SourceToDefCtx<'db, '_> {
                     mods.extend(
                         hir_def::include_macro_invoc(self.db, crate_id)
                             .iter()
-                            .filter(|&&(_, file_id)| file_id.file_id(self.db) == file)
+                            .filter(|&&(_, file_id)| file_id.file(self.db) == file)
                             .flat_map(|&(macro_call_id, file_id)| {
                                 self.cache.included_file_cache.insert(file_id, Some(macro_call_id));
                                 modules(
@@ -215,7 +215,7 @@ impl<'db> SourceToDefCtx<'db, '_> {
                                         .kind
                                         .file_id()
                                         .original_file(self.db)
-                                        .file_id(self.db),
+                                        .file(self.db),
                                 )
                             }),
                     );
@@ -245,7 +245,7 @@ impl<'db> SourceToDefCtx<'db, '_> {
             }
             None => {
                 let file_id = src.file_id.original_file(self.db);
-                self.file_to_def(file_id.file_id(self.db)).first().copied()
+                self.file_to_def(file_id.file(self.db)).first().copied()
             }
         }?;
 
@@ -258,7 +258,7 @@ impl<'db> SourceToDefCtx<'db, '_> {
     pub(super) fn source_file_to_def(&mut self, src: InFile<&ast::SourceFile>) -> Option<ModuleId> {
         let _p = tracing::info_span!("source_file_to_def").entered();
         let file_id = src.file_id.original_file(self.db);
-        self.file_to_def(file_id.file_id(self.db)).first().copied()
+        self.file_to_def(file_id.file(self.db)).first().copied()
     }
 
     pub(super) fn trait_to_def(&mut self, src: InFile<&ast::Trait>) -> Option<TraitId> {
@@ -555,10 +555,8 @@ impl<'db> SourceToDefCtx<'db, '_> {
             return Some(def);
         }
 
-        let def = self
-            .file_to_def(src.file_id.original_file(self.db).file_id(self.db))
-            .first()
-            .copied()?;
+        let def =
+            self.file_to_def(src.file_id.original_file(self.db).file(self.db)).first().copied()?;
         Some(def.into())
     }
 

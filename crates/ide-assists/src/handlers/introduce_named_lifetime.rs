@@ -1,4 +1,4 @@
-use ide_db::{FileId, FxHashSet};
+use ide_db::{File, FxHashSet};
 use syntax::{
     AstNode, SmolStr, T, TextRange, ToSmolStr,
     ast::{self, HasGenericParams, HasName},
@@ -72,7 +72,7 @@ fn generate_fn_def_assist(
     fn_def: ast::Fn,
     lifetime_loc: TextRange,
     lifetime: ast::Lifetime,
-    file_id: FileId,
+    file_id: File,
 ) -> Option<()> {
     let param_list = fn_def.param_list()?;
     let new_lifetime_name = generate_unique_lifetime_param_name(fn_def.generic_param_list())?;
@@ -164,7 +164,7 @@ fn generate_impl_def_assist(
     impl_def: ast::Impl,
     lifetime_loc: TextRange,
     lifetime: ast::Lifetime,
-    file_id: FileId,
+    file_id: File,
 ) -> Option<()> {
     let new_lifetime_name = generate_unique_lifetime_param_name(impl_def.generic_param_list())?;
 

@@ -13,7 +13,7 @@ use proc_macro_api::{
     },
     legacy_protocol::msg::{FlatTree, Message, Request, Response, SpanDataIndexMap},
 };
-use span::{Edition, EditionedFileId, FileId, Span, SpanAnchor, SyntaxContext, TextRange};
+use span::{Edition, EditionedFileId, File, Span, SpanAnchor, SyntaxContext, TextRange};
 use tt::{Delimiter, DelimiterKind, TopSubtreeBuilder};
 
 /// Shared state for an in-memory byte channel.
@@ -146,7 +146,9 @@ pub(crate) fn create_empty_token_tree(
     span_data_table: &mut SpanDataIndexMap,
 ) -> FlatTree {
     let anchor = SpanAnchor {
-        file_id: EditionedFileId::new(FileId::from_raw(0), Edition::CURRENT),
+        // SAFETY: This models a file interned by the remote rust-analyzer process. The server only
+        // transports the ID and never uses it for a Salsa lookup.
+        file_id: EditionedFileId::new(unsafe { File::from_raw(0) }, Edition::CURRENT),
         ast_id: span::ROOT_ERASED_FILE_AST_ID,
     };
     let span = Span { range: TextRange::empty(0.into()), anchor, ctx: make_ctx() };

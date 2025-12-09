@@ -3,29 +3,23 @@
 
 use std::fmt;
 
-use rustc_hash::FxHashSet;
-use salsa::{Durability, Setter as _};
-use triomphe::Arc;
-use vfs::FileId;
+use rustc_hash::FxHashMap;
 
-use crate::{
-    CrateGraphBuilder, CratesIdMap, LibraryRoots, LocalRoots, SourceDatabase, SourceRoot,
-    SourceRootId,
-};
+use crate::{CrateGraphBuilder, CratesIdMap, File, FileRegistration, LineEndings, SourceDatabase};
 
 /// Encapsulate a bunch of raw `.set` calls on the database.
 #[derive(Default)]
 pub struct FileChange {
-    pub roots: Option<Vec<SourceRoot>>,
-    pub files_changed: Vec<(FileId, Option<String>)>,
+    pub indexed_files: Option<Vec<FileRegistration>>,
+    pub files_changed: Vec<(File, Option<String>)>,
     pub crate_graph: Option<CrateGraphBuilder>,
 }
 
 impl fmt::Debug for FileChange {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = fmt.debug_struct("Change");
-        if let Some(roots) = &self.roots {
-            d.field("roots", roots);
+        if let Some(indexed_files) = &self.indexed_files {
+            d.field("indexed_files", indexed_files);
         }
         if !self.files_changed.is_empty() {
             d.field("files_changed", &self.files_changed.len());
@@ -38,12 +32,12 @@ impl fmt::Debug for FileChange {
 }
 
 impl FileChange {
-    pub fn set_roots(&mut self, roots: Vec<SourceRoot>) {
-        self.roots = Some(roots);
+    pub fn set_indexed_files(&mut self, files: Vec<FileRegistration>) {
+        self.indexed_files = Some(files);
     }
 
-    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>) {
-        self.files_changed.push((file_id, new_text))
+    pub fn change_file(&mut self, file: File, new_text: Option<String>) {
+        self.files_changed.push((file, new_text))
     }
 
     pub fn set_crate_graph(&mut self, graph: CrateGraphBuilder) {
@@ -52,48 +46,42 @@ impl FileChange {
 
     pub fn apply(self, db: &mut dyn SourceDatabase) -> Option<CratesIdMap> {
         let _p = tracing::info_span!("FileChange::apply").entered();
-        if let Some(roots) = self.roots {
-            let mut local_roots = FxHashSet::default();
-            let mut library_roots = FxHashSet::default();
-            for (idx, root) in roots.into_iter().enumerate() {
-                let root_id = SourceRootId(idx as u32);
-                if root.is_library {
-                    library_roots.insert(root_id);
-                } else {
-                    local_roots.insert(root_id);
-                }
-                let durability = source_root_durability(&root);
-                for file_id in root.iter() {
-                    db.set_file_source_root_with_durability(file_id, root_id, durability);
-                }
-
-                db.set_source_root_with_durability(root_id, Arc::new(root), durability);
+        let FileChange { indexed_files, files_changed, crate_graph } = self;
+        let mut file_durability = FxHashMap::default();
+        if let Some(indexed_files) = &indexed_files {
+            for registration in indexed_files {
+                file_durability.insert(registration.file, registration.root.kind.text_durability());
             }
-            LocalRoots::get(db).set_roots(db).to(local_roots);
-            LibraryRoots::get(db).set_roots(db).to(library_roots);
+        }
+        for (file, _) in &files_changed {
+            if file_durability.contains_key(file) {
+                continue;
+            }
+            if let Some(root) = db.file_root(*file) {
+                file_durability.insert(*file, root.kind.text_durability());
+            }
+        }
+        if let Some(indexed_files) = indexed_files {
+            db.set_indexed_files(indexed_files);
         }
 
-        for (file_id, text) in self.files_changed {
-            let source_root_id = db.file_source_root(file_id);
-            let source_root = db.source_root(source_root_id.source_root_id(db));
-
-            let durability = file_text_durability(&source_root.source_root(db));
-            // XXX: can't actually remove the file, just reset the text
-            let text = text.unwrap_or_default();
-            db.set_file_text_with_durability(file_id, &text, durability)
+        for (file, text) in files_changed {
+            let durability = file_durability.get(&file).copied().unwrap_or_else(|| {
+                let Some(root) = db.file_root(file) else {
+                    panic!("Unable to fetch file root for {file:?}; this is a bug")
+                };
+                root.kind.text_durability()
+            });
+            let (text, line_endings) = match text {
+                Some(text) => LineEndings::normalize(text),
+                None => (String::new(), LineEndings::Unix),
+            };
+            db.set_file_text_with_line_endings_and_durability(file, &text, line_endings, durability)
         }
 
-        if let Some(crate_graph) = self.crate_graph {
+        if let Some(crate_graph) = crate_graph {
             return Some(crate_graph.set_in_db(db));
         }
         None
     }
-}
-
-fn source_root_durability(source_root: &SourceRoot) -> Durability {
-    if source_root.is_library { Durability::MEDIUM } else { Durability::LOW }
-}
-
-fn file_text_durability(source_root: &SourceRoot) -> Durability {
-    if source_root.is_library { Durability::HIGH } else { Durability::LOW }
 }

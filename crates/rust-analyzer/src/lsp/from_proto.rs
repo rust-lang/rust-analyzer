@@ -2,7 +2,7 @@
 
 use anyhow::format_err;
 use ide::{Annotation, AnnotationKind, AssistKind, LineCol};
-use ide_db::{FileId, FilePosition, FileRange, line_index::WideLineCol};
+use ide_db::{File, FilePosition, FileRange, line_index::WideLineCol};
 use paths::Utf8PathBuf;
 use syntax::{TextRange, TextSize};
 use vfs::AbsPathBuf;
@@ -67,7 +67,7 @@ pub(crate) fn text_range(
 pub(crate) fn file_id(
     snap: &GlobalStateSnapshot,
     url: &lsp_types::Uri,
-) -> anyhow::Result<Option<FileId>> {
+) -> anyhow::Result<Option<File>> {
     snap.url_to_file_id(url)
 }
 

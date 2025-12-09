@@ -30,7 +30,7 @@ use serde_json::json;
 use stdx::{format_to, never};
 use syntax::{TextRange, TextSize};
 use triomphe::Arc;
-use vfs::{AbsPath, AbsPathBuf, FileId, VfsPath};
+use vfs::{AbsPath, AbsPathBuf, VfsPath};
 
 use crate::{
     config::{
@@ -38,7 +38,6 @@ use crate::{
     },
     diagnostics::convert_diagnostic,
     global_state::{FetchWorkspaceRequest, GlobalState, GlobalStateSnapshot},
-    line_index::LineEndings,
     lsp::{
         LspError, completion_item_hash,
         ext::{
@@ -525,12 +524,12 @@ pub(crate) fn handle_document_diagnostics(
         Some(it) => it,
         None => return Ok(empty_diagnostic_report()),
     };
-    let source_root = snap.analysis.source_root_id(file_id)?;
-    if !snap.analysis.is_local_source_root(source_root)? {
+    let file_root = snap.analysis.file_root_id(file_id)?;
+    if !snap.analysis.is_local_file_root(file_root)? {
         return Ok(empty_diagnostic_report());
     }
-    let source_root = snap.analysis.source_root_id(file_id)?;
-    let config = snap.config.diagnostics(Some(source_root));
+    let file_root = snap.analysis.file_root_id(file_id)?;
+    let config = snap.config.diagnostics(Some(file_root));
     if !config.enabled {
         return Ok(empty_diagnostic_report());
     }
@@ -815,9 +814,9 @@ pub(crate) fn handle_will_rename_files(
         })
         .filter_map(|(file_id, new_name)| {
             let file_id = file_id?;
-            let source_root = snap.analysis.source_root_id(file_id).ok();
+            let file_root = snap.analysis.file_root_id(file_id).ok();
             snap.analysis
-                .will_rename_file(file_id, &new_name, &snap.config.rename(source_root))
+                .will_rename_file(file_id, &new_name, &snap.config.rename(file_root))
                 .ok()?
         })
         .collect();
@@ -1019,7 +1018,7 @@ pub(crate) fn handle_runnables(
 ) -> anyhow::Result<Vec<lsp_ext::Runnable>> {
     let _p = tracing::info_span!("handle_runnables").entered();
     let file_id = try_default!(from_proto::file_id(&snap, &params.text_document.uri)?);
-    let source_root = snap.analysis.source_root_id(file_id).ok();
+    let file_root = snap.analysis.file_root_id(file_id).ok();
     let line_index = snap.file_line_index(file_id)?;
     let offset = params.position.and_then(|it| from_proto::offset(&line_index, it).ok());
     let target_spec = TargetSpec::for_file(&snap, file_id)?;
@@ -1052,7 +1051,7 @@ pub(crate) fn handle_runnables(
     }
 
     // Add `cargo check` and `cargo test` for all targets of the whole package
-    let config = snap.config.runnables(source_root);
+    let config = snap.config.runnables(file_root);
     match target_spec {
         Some(TargetSpec::Cargo(spec)) => {
             let is_crate_no_std = snap.analysis.is_crate_no_std(spec.crate_id)?;
@@ -1169,8 +1168,8 @@ pub(crate) fn handle_completion(
     let completion_trigger_character =
         context.and_then(|ctx| ctx.trigger_character).and_then(|s| s.chars().next());
 
-    let source_root = snap.analysis.source_root_id(position.file_id)?;
-    let completion_config = &snap.config.completion(Some(source_root), snap.minicore());
+    let file_root = snap.analysis.file_root_id(position.file_id)?;
+    let completion_config = &snap.config.completion(Some(file_root), snap.minicore());
     // FIXME: We should fix up the position when retrying the cancelled request instead
     position.offset = position.offset.min(line_index.index.len());
     let items = match snap.analysis.completions(
@@ -1227,10 +1226,10 @@ pub(crate) fn handle_completion_resolve(
     let Ok(offset) = from_proto::offset(&line_index, resolve_data.position.position) else {
         return Ok(original_completion);
     };
-    let source_root = snap.analysis.source_root_id(file_id)?;
+    let file_root = snap.analysis.file_root_id(file_id)?;
 
     let mut forced_resolve_completions_config =
-        snap.config.completion(Some(source_root), snap.minicore());
+        snap.config.completion(Some(file_root), snap.minicore());
     forced_resolve_completions_config.fields_to_resolve = CompletionFieldsToResolve::empty();
 
     let position = FilePosition { file_id, offset };
@@ -1401,8 +1400,8 @@ pub(crate) fn handle_rename(
     let position =
         try_default!(from_proto::file_position(&snap, &params.text_document_position_params)?);
 
-    let source_root = snap.analysis.source_root_id(position.file_id).ok();
-    let config = snap.config.rename(source_root);
+    let file_root = snap.analysis.file_root_id(position.file_id).ok();
+    let config = snap.config.rename(file_root);
     let mut change = snap
         .analysis
         .rename(position, &params.new_name, &config)?
@@ -1512,9 +1511,9 @@ pub(crate) fn handle_code_action(
     let file_id = try_default!(from_proto::file_id(&snap, &params.text_document.uri)?);
     let line_index = snap.file_line_index(file_id)?;
     let frange = try_default!(from_proto::file_range(&snap, &params.text_document, params.range)?);
-    let source_root = snap.analysis.source_root_id(file_id)?;
+    let file_root = snap.analysis.file_root_id(file_id)?;
 
-    let mut assists_config = snap.config.assist(Some(source_root));
+    let mut assists_config = snap.config.assist(Some(file_root));
     assists_config.allowed = params
         .context
         .only
@@ -1531,7 +1530,7 @@ pub(crate) fn handle_code_action(
     };
     let assists = snap.analysis.assists_with_fixes(
         &assists_config,
-        &snap.config.diagnostic_fixes(Some(source_root)),
+        &snap.config.diagnostic_fixes(Some(file_root)),
         resolve,
         frange,
     )?;
@@ -1599,9 +1598,9 @@ pub(crate) fn handle_code_action_resolve(
     let line_index = snap.file_line_index(file_id)?;
     let range = from_proto::text_range(&line_index, params.code_action_params.range)?;
     let frange = FileRange { file_id, range };
-    let source_root = snap.analysis.source_root_id(file_id)?;
+    let file_root = snap.analysis.file_root_id(file_id)?;
 
-    let mut assists_config = snap.config.assist(Some(source_root));
+    let mut assists_config = snap.config.assist(Some(file_root));
     assists_config.allowed = params
         .code_action_params
         .context
@@ -1624,7 +1623,7 @@ pub(crate) fn handle_code_action_resolve(
 
     let assists = snap.analysis.assists_with_fixes(
         &assists_config,
-        &snap.config.diagnostic_fixes(Some(source_root)),
+        &snap.config.diagnostic_fixes(Some(file_root)),
         AssistResolveStrategy::Single(assist_resolve),
         frange,
     )?;
@@ -1762,11 +1761,11 @@ pub(crate) fn handle_document_highlight(
     let position =
         try_default!(from_proto::file_position(&snap, &params.text_document_position_params)?);
     let line_index = snap.file_line_index(position.file_id)?;
-    let source_root = snap.analysis.source_root_id(position.file_id)?;
+    let file_root = snap.analysis.file_root_id(position.file_id)?;
 
     let refs = match snap
         .analysis
-        .highlight_related(snap.config.highlight_related(Some(source_root)), position)?
+        .highlight_related(snap.config.highlight_related(Some(file_root)), position)?
     {
         None => return Ok(None),
         Some(refs) => refs,
@@ -1848,7 +1847,8 @@ pub(crate) fn handle_inlay_hints_resolve(
         return Ok(original_hint);
     };
     let resolve_data: lsp_ext::InlayHintResolveData = serde_json::from_value(data)?;
-    let file_id = FileId::from_raw(resolve_data.file_id);
+    // SAFETY: The file_id was stored from a valid span::File::index() call.
+    let file_id = unsafe { ide_db::span::File::from_raw(resolve_data.file_id) };
     if resolve_data.version != snap.file_version(file_id) {
         tracing::warn!("Inlay hint resolve data is outdated");
         return Ok(original_hint);
@@ -2411,7 +2411,7 @@ fn run_rustfmt(
     let file = snap.analysis.file_text(file_id)?;
 
     let line_index = snap.file_line_index(file_id)?;
-    let source_root_id = snap.analysis.source_root_id(file_id).ok();
+    let file_root_id = snap.analysis.file_root_id(file_id).ok();
     let crates = snap.analysis.relevant_crates_for(file_id)?;
 
     // try to chdir to the file so we can respect `rustfmt.toml`
@@ -2431,7 +2431,7 @@ fn run_rustfmt(
         }
     };
 
-    let mut command = match snap.config.rustfmt(source_root_id) {
+    let mut command = match snap.config.rustfmt(file_root_id) {
         RustfmtConfig::Rustfmt { extra_args, enable_range_formatting } => {
             // Determine the edition of the crate the file belongs to (if there's multiple, we pick the
             // highest edition).
@@ -2448,7 +2448,7 @@ fn run_rustfmt(
             let mut cmd = toolchain::command(
                 toolchain::Tool::Rustfmt.path(),
                 current_dir,
-                snap.config.extra_env(source_root_id),
+                snap.config.extra_env(file_root_id),
             );
             cmd.args(extra_args);
 
@@ -2491,7 +2491,7 @@ fn run_rustfmt(
         RustfmtConfig::CustomCommand { command, args } => {
             let cmd = Utf8PathBuf::from(&command);
             let target_spec = TargetSpec::for_file(snap, file_id).ok().flatten();
-            let extra_env = snap.config.extra_env(source_root_id);
+            let extra_env = snap.config.extra_env(file_root_id);
             let mut cmd = match target_spec {
                 Some(TargetSpec::Cargo(_)) => {
                     // approach: if the command name contains a path separator, join it with the project root.
@@ -2579,7 +2579,7 @@ fn run_rustfmt(
         };
     }
 
-    let (new_text, new_line_endings) = LineEndings::normalize(captured_stdout);
+    let (new_text, new_line_endings) = crate::line_index::normalize(captured_stdout);
 
     if line_index.endings != new_line_endings {
         // If line endings are different, send the entire file.
@@ -2620,11 +2620,11 @@ pub(crate) fn internal_testing_fetch_config(
     state: GlobalStateSnapshot,
     params: InternalTestingFetchConfigParams,
 ) -> anyhow::Result<Option<InternalTestingFetchConfigResponse>> {
-    let source_root = match params.text_document {
+    let file_root = match params.text_document {
         Some(it) => Some(
             state
                 .analysis
-                .source_root_id(try_default!(from_proto::file_id(&state, &it.uri)?))
+                .file_root_id(try_default!(from_proto::file_id(&state, &it.uri)?))
                 .map_err(anyhow::Error::from)?,
         ),
         None => None,
@@ -2632,12 +2632,12 @@ pub(crate) fn internal_testing_fetch_config(
     Ok(Some(match params.config {
         InternalTestingFetchConfigOption::AssistEmitMustUse => {
             InternalTestingFetchConfigResponse::AssistEmitMustUse(
-                state.config.assist(source_root).assist_emit_must_use,
+                state.config.assist(file_root).assist_emit_must_use,
             )
         }
         InternalTestingFetchConfigOption::CheckWorkspace => {
             InternalTestingFetchConfigResponse::CheckWorkspace(
-                state.config.flycheck_workspace(source_root),
+                state.config.flycheck_workspace(file_root),
             )
         }
     }))

@@ -26,7 +26,7 @@ use syntax::{
 };
 
 use crate::{
-    FileId, HlMod, HlOperator, HlPunct, HlTag,
+    File, HlMod, HlOperator, HlPunct, HlTag,
     syntax_highlighting::{
         escape::{highlight_escape_byte, highlight_escape_char, highlight_escape_string},
         format::highlight_format_string,
@@ -194,7 +194,7 @@ pub struct HighlightConfig<'a> {
 pub(crate) fn highlight(
     db: &RootDatabase,
     config: &HighlightConfig<'_>,
-    file_id: FileId,
+    file_id: File,
     range_to_highlight: Option<TextRange>,
 ) -> Vec<HlRange> {
     let _p = tracing::info_span!("highlight").entered();
@@ -231,7 +231,7 @@ fn traverse(
     krate: Option<hir::Crate>,
     range_to_highlight: TextRange,
 ) {
-    let is_unlinked = sema.file_to_module_def(file_id.file_id(sema.db)).is_none();
+    let is_unlinked = sema.file_to_module_def(file_id.file(sema.db)).is_none();
 
     enum AttrOrDerive {
         Attr(ast::Item),

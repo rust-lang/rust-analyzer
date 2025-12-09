@@ -2,7 +2,7 @@ use std::{iter::once, ops::RangeInclusive};
 
 use hir::{HasSource, ModuleSource};
 use ide_db::{
-    FileId, FxHashMap, FxHashSet,
+    File, FxHashMap, FxHashSet,
     assists::AssistId,
     defs::{Definition, NameClass, NameRefClass},
     search::{FileReference, SearchScope},
@@ -277,10 +277,10 @@ impl Module {
         &self,
         ctx: &AssistContext<'_, '_>,
         replace_range: TextRange,
-    ) -> (FxHashMap<FileId, Vec<(TextRange, String)>>, Vec<SyntaxNode>, FxHashMap<TextSize, ast::Use>)
+    ) -> (FxHashMap<File, Vec<(TextRange, String)>>, Vec<SyntaxNode>, FxHashMap<TextSize, ast::Use>)
     {
         let mut adt_fields = Vec::new();
-        let mut refs: FxHashMap<FileId, Vec<(TextRange, String)>> = FxHashMap::default();
+        let mut refs: FxHashMap<File, Vec<(TextRange, String)>> = FxHashMap::default();
         // use `TextSize` as key to avoid repeated use stmts
         let mut use_stmts_to_be_inserted = FxHashMap::default();
 
@@ -367,7 +367,7 @@ impl Module {
         ctx: &AssistContext<'_, 'db>,
         replace_range: TextRange,
         node_def: Definition<'db>,
-        refs_in_files: &mut FxHashMap<FileId, Vec<(TextRange, String)>>,
+        refs_in_files: &mut FxHashMap<File, Vec<(TextRange, String)>>,
         use_stmts_to_be_inserted: &mut FxHashMap<TextSize, ast::Use>,
     ) {
         let mod_name = self.name;
@@ -423,7 +423,7 @@ impl Module {
 
                 None
             });
-            refs_in_files.entry(file_id.file_id(ctx.db())).or_default().extend(usages);
+            refs_in_files.entry(file_id.file(ctx.db())).or_default().extend(usages);
         }
     }
 
@@ -574,7 +574,7 @@ impl Module {
             ctx,
             curr_parent_module,
             selection_range,
-            file_id.file_id(ctx.db()),
+            file_id.file(ctx.db()),
         );
 
         // Find use stmt that use def in current file
@@ -742,7 +742,7 @@ fn check_def_in_mod_and_out_sel(
     ctx: &AssistContext<'_, '_>,
     curr_parent_module: &Option<ast::Module>,
     selection_range: TextRange,
-    curr_file_id: FileId,
+    curr_file_id: File,
 ) -> (bool, bool) {
     macro_rules! check_item {
         ($x:ident) => {
@@ -750,7 +750,7 @@ fn check_def_in_mod_and_out_sel(
                 let have_same_parent = if let Some(ast_module) = &curr_parent_module {
                     ctx.sema.to_module_def(ast_module).is_some_and(|it| it == $x.module(ctx.db()))
                 } else {
-                    source.file_id.original_file(ctx.db()).file_id(ctx.db()) == curr_file_id
+                    source.file_id.original_file(ctx.db()).file(ctx.db()) == curr_file_id
                 };
 
                 let in_sel = !selection_range.contains_range(source.value.syntax().text_range());
@@ -766,7 +766,7 @@ fn check_def_in_mod_and_out_sel(
                 (Some(ast_module), Some(hir_module)) => {
                     ctx.sema.to_module_def(ast_module).is_some_and(|it| it == hir_module)
                 }
-                _ => source.file_id.original_file(ctx.db()).file_id(ctx.db()) == curr_file_id,
+                _ => source.file_id.original_file(ctx.db()).file(ctx.db()) == curr_file_id,
             };
 
             if have_same_parent && let ModuleSource::Module(module_) = source.value {

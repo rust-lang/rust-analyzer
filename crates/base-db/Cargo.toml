@@ -21,6 +21,7 @@ triomphe.workspace = true
 semver.workspace = true
 tracing.workspace = true
 indexmap.workspace = true
+memchr.workspace = true
 
 # local deps
 cfg.workspace = true

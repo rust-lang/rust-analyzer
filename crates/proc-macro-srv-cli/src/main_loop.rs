@@ -224,7 +224,7 @@ fn handle_failure(failure: Result<bidirectional::SubResponse, ProcMacroClientErr
 }
 
 impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
-    fn file(&mut self, file_id: proc_macro_srv::span::FileId) -> String {
+    fn file(&mut self, file_id: proc_macro_srv::span::File) -> String {
         match self.roundtrip(bidirectional::SubRequest::FilePath { file_id: file_id.index() }) {
             Ok(bidirectional::SubResponse::FilePathResult { name }) => name,
             other => handle_failure(other),
@@ -246,7 +246,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
         }
     }
 
-    fn local_file(&mut self, file_id: proc_macro_srv::span::FileId) -> Option<String> {
+    fn local_file(&mut self, file_id: proc_macro_srv::span::File) -> Option<String> {
         match self.roundtrip(bidirectional::SubRequest::LocalFilePath { file_id: file_id.index() })
         {
             Ok(bidirectional::SubResponse::LocalFilePathResult { name }) => name,

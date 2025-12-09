@@ -153,7 +153,7 @@ macro_rules! vec {
 }
 mod m {
     fn outer() {
-        let _ = vec![FileSet::default(); self.len()];
+        let _ = vec![Widget::default(); self.len()];
     }
 }
 "#,

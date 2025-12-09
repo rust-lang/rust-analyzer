@@ -102,9 +102,9 @@ pub enum ProcMacroPanicMarker {
 pub type ProcMacroClientHandle<'a> = &'a mut (dyn ProcMacroClientInterface + Sync + Send);
 
 pub trait ProcMacroClientInterface {
-    fn file(&mut self, file_id: span::FileId) -> String;
+    fn file(&mut self, file_id: span::File) -> String;
     fn source_text(&mut self, span: Span) -> Option<String>;
-    fn local_file(&mut self, file_id: span::FileId) -> Option<String>;
+    fn local_file(&mut self, file_id: span::File) -> Option<String>;
     /// Line and column are 1-based.
     fn line_column(&mut self, span: Span) -> Option<(u32, u32)>;
 

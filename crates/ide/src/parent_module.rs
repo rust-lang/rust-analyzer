@@ -1,6 +1,6 @@
 use hir::{Semantics, crate_def_map};
 use ide_db::{
-    FileId, FilePosition, RootDatabase,
+    File, FilePosition, RootDatabase,
     base_db::{Crate, relevant_crates},
 };
 use itertools::Itertools;
@@ -52,7 +52,7 @@ pub(crate) fn parent_module(db: &RootDatabase, position: FilePosition) -> Vec<Na
 }
 
 /// This returns `Vec` because a module may be included from several places.
-pub(crate) fn crates_for(db: &RootDatabase, file_id: FileId) -> Vec<Crate> {
+pub(crate) fn crates_for(db: &RootDatabase, file_id: File) -> Vec<Crate> {
     relevant_crates(db, file_id)
         .iter()
         .copied()

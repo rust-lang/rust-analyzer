@@ -112,24 +112,24 @@ pub struct Fixture {
     ///
     /// Syntax: `crate-attr:no_std crate-attr:features(f16,f128) crate-attr:cfg(target_arch="x86")`
     pub crate_attrs: Vec<String>,
-    /// Introduces a new source root. This file **and the following
-    /// files** will belong the new source root. This must be used
+    /// Introduces a new file root. This file **and the following
+    /// files** will belong the new file root. This must be used
     /// with `crate` meta.
     ///
-    /// Use this if you want to test something that uses `SourceRoot::is_library()`
-    /// to check editability.
+    /// Use this if you want to test something that uses file-root kind to check
+    /// editability.
     ///
-    /// Note that files before the first fixture with `new_source_root` meta will
-    /// belong to an implicitly defined local source root.
+    /// Note that files before the first fixture with `new_file_root` meta will
+    /// belong to an implicitly defined local file root.
     ///
     /// Syntax:
-    /// - `new_source_root:library`
-    /// - `new_source_root:local`
-    pub introduce_new_source_root: Option<String>,
+    /// - `new_file_root:library`
+    /// - `new_file_root:local`
+    pub introduce_new_file_root: Option<String>,
     /// Explicitly declares this crate as a library outside current workspace. This
     /// must be used with `crate` meta.
     ///
-    /// This is implied if this file belongs to a library source root.
+    /// This is implied if this file belongs to a library file root.
     ///
     /// Use this if you want to test something that checks if a crate is a workspace
     /// member via `CrateOrigin`.
@@ -285,7 +285,7 @@ impl FixtureWithProjectMeta {
         let mut edition = None;
         let mut cfgs = Vec::new();
         let mut env = FxHashMap::default();
-        let mut introduce_new_source_root = None;
+        let mut introduce_new_file_root = None;
         let mut library = false;
         for component in components {
             if component == "library" {
@@ -323,7 +323,7 @@ impl FixtureWithProjectMeta {
                         }
                     }
                 }
-                "new_source_root" => introduce_new_source_root = Some(value.to_owned()),
+                "new_file_root" => introduce_new_file_root = Some(value.to_owned()),
                 _ => panic!("bad component: {component:?}"),
             }
         }
@@ -346,7 +346,7 @@ impl FixtureWithProjectMeta {
             cfgs,
             edition,
             env,
-            introduce_new_source_root,
+            introduce_new_file_root,
             library,
         }
     }

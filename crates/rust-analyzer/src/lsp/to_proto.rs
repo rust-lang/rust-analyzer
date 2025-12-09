@@ -9,7 +9,7 @@ use std::{
 use base64::{Engine, prelude::BASE64_STANDARD};
 use ide::{
     Annotation, AnnotationKind, Assist, AssistKind, Cancellable, CompletionFieldsToResolve,
-    CompletionItem, CompletionItemKind, CompletionRelevance, Documentation, FileId, FileRange,
+    CompletionItem, CompletionItemKind, CompletionRelevance, Documentation, File, FileRange,
     FileSystemEdit, Fold, FoldKind, Highlight, HlMod, HlOperator, HlPunct, HlRange, HlTag, Indel,
     InlayFieldsToResolve, InlayHint, InlayHintLabel, InlayHintLabelPart, InlayKind, LazyProperty,
     Markup, NavigationTarget, ReferenceCategory, RenameError, Runnable, Severity, SignatureHelp,
@@ -585,7 +585,7 @@ pub(crate) fn inlay_hint(
     snap: &GlobalStateSnapshot,
     fields_to_resolve: &InlayFieldsToResolve,
     line_index: &LineIndex,
-    file_id: FileId,
+    file_id: File,
     mut inlay_hint: InlayHint,
 ) -> Cancellable<lsp_types::InlayHint> {
     let hint_needs_resolve = |hint: &InlayHint| -> Option<TextRange> {
@@ -994,7 +994,7 @@ pub(crate) fn folding_range(
     }
 }
 
-pub(crate) fn url(snap: &GlobalStateSnapshot, file_id: FileId) -> lsp_types::Uri {
+pub(crate) fn url(snap: &GlobalStateSnapshot, file_id: File) -> lsp_types::Uri {
     snap.file_id_to_url(file_id)
 }
 
@@ -1032,7 +1032,7 @@ pub(crate) fn url_from_abs_path(path: &AbsPath) -> lsp_types::Uri {
 
 pub(crate) fn optional_versioned_text_document_identifier(
     snap: &GlobalStateSnapshot,
-    file_id: FileId,
+    file_id: File,
 ) -> lsp_types::OptionalVersionedTextDocumentIdentifier {
     let uri = url(snap, file_id);
     let version = snap.url_file_version(&uri);
@@ -1167,7 +1167,7 @@ pub(crate) fn goto_type_definition_response(
 
 fn targets_to_links(
     snap: &GlobalStateSnapshot,
-    src: Option<hir::FileRangeWrapper<FileId>>,
+    src: Option<hir::FileRangeWrapper<File>>,
     targets: Vec<NavigationTarget>,
 ) -> Result<Vec<lsp_types::LocationLink>, ide_db::base_db::salsa::Cancelled> {
     targets
@@ -1357,7 +1357,7 @@ fn merge_text_and_snippet_edits(
 pub(crate) fn snippet_text_document_edit(
     snap: &GlobalStateSnapshot,
     is_snippet: bool,
-    file_id: FileId,
+    file_id: File,
     edit: TextEdit,
     snippet_edit: Option<SnippetEdit>,
 ) -> Cancellable<lsp_ext::SnippetTextDocumentEdit> {
@@ -1647,8 +1647,8 @@ pub(crate) fn runnable(
     runnable: Runnable,
 ) -> Cancellable<Option<lsp_ext::Runnable>> {
     let target_spec = TargetSpec::for_file(snap, runnable.nav.file_id)?;
-    let source_root = snap.analysis.source_root_id(runnable.nav.file_id).ok();
-    let config = snap.config.runnables(source_root);
+    let file_root = snap.analysis.file_root_id(runnable.nav.file_id).ok();
+    let config = snap.config.runnables(file_root);
 
     match target_spec {
         Some(TargetSpec::Cargo(spec)) => {

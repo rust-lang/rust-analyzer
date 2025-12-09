@@ -66,7 +66,7 @@ fn fix_method_call(
     // -- but we don't bother to deal with that case.
     let recv = mcall.receiver()?;
 
-    let mut builder = SourceChangeBuilder::new(file_id.original_file(db).file_id(db));
+    let mut builder = SourceChangeBuilder::new(file_id.original_file(db).file(db));
     let editor = builder.make_editor(mcall.syntax());
     let make = editor.make();
     let new_call =
@@ -104,7 +104,7 @@ fn fix_path(
 
         let range = call.syntax().text_range();
 
-        let mut builder = SourceChangeBuilder::new(file_id.original_file(db).file_id(db));
+        let mut builder = SourceChangeBuilder::new(file_id.original_file(db).file(db));
         let editor = builder.make_editor(call.syntax());
         let make = editor.make();
         let new_call =
@@ -120,7 +120,7 @@ fn fix_path(
             .original_node_file_range_rooted_opt(db)?;
 
         let edit = TextEdit::replace(range.range, "drop".to_owned());
-        let source_change = SourceChange::from_text_edit(range.file_id.file_id(db), edit);
+        let source_change = SourceChange::from_text_edit(range.file_id.file(db), edit);
         Some(vec![fix("use-drop-function", "Use `drop` function", source_change, range.range)])
     }
 }

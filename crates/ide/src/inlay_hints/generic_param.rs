@@ -103,7 +103,7 @@ pub(crate) fn hints(
                 };
                 let linked_location = source_syntax.and_then(|it| sema.original_range_opt(&it));
                 linked_location.map(|frange| ide_db::FileRange {
-                    file_id: frange.file_id.file_id(sema.db),
+                    file_id: frange.file_id.file(sema.db),
                     range: frange.range,
                 })
             }),

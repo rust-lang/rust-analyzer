@@ -787,7 +787,7 @@ enum Value {
 }
 
 #[test]
-fn ratoml_multiple_ratoml_in_single_source_root() {
+fn ratoml_multiple_ratoml_in_single_file_root() {
     if skip_slow_tests() {
         return;
     }

@@ -3,12 +3,10 @@ use std::fmt;
 
 use paths::{AbsPath, AbsPathBuf, RelPath};
 
-/// Path in [`Vfs`].
+/// Path used by the loader and Salsa file inputs.
 ///
 /// Long-term, we want to support files which do not reside in the file-system,
 /// so we treat `VfsPath`s as opaque identifiers.
-///
-/// [`Vfs`]: crate::Vfs
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct VfsPath(VfsPathRepr);
 

@@ -6,6 +6,7 @@ use std::{
     panic::UnwindSafe,
 };
 
+use ide_db::base_db::{FileVisibility, SourceDatabase};
 use itertools::Itertools;
 use lsp_types::{
     CancelParams, DidChangeConfigurationParams, DidChangeTextDocumentParams,
@@ -76,21 +77,20 @@ pub(crate) fn handle_did_open_text_document(
             tracing::error!("duplicate DidOpenTextDocument: {}", path);
         }
 
-        if let Some(abs_path) = path.as_path()
-            && state.config.excluded().any(|excluded| abs_path.starts_with(&excluded))
-        {
-            tracing::trace!("opened excluded file {abs_path}");
-            state.vfs.write().0.insert_excluded_file(path);
-            return Ok(());
+        let excluded = path
+            .as_path()
+            .is_some_and(|abs_path| state.config.excluded().any(|it| abs_path.starts_with(&it)));
+        if excluded {
+            tracing::trace!(%path, "opened excluded file");
         }
 
         // Library files are immutable: the client never becomes authoritative over their
         // contents, disk is the truth.
-        if !state.source_root_config.path_is_library(&path) {
+        if !state.file_root_config.path_is_library(&path) {
             let contents = params.text_document.text.into_bytes();
-            state.vfs.write().0.set_file_contents(path, Some(contents));
+            state.set_file_contents(path, Some(contents));
         }
-        if state.config.discover_workspace_config().is_some() {
+        if !excluded && state.config.discover_workspace_config().is_some() {
             tracing::debug!("queuing task");
             let _ = state
                 .deferred_task_queue
@@ -125,8 +125,8 @@ pub(crate) fn handle_did_change_text_document(
         if *data != new_contents {
             data.clone_from(&new_contents);
             // Library files are immutable, changes to them are ignored.
-            if !state.source_root_config.path_is_library(&path) {
-                state.vfs.write().0.set_file_contents(path, Some(new_contents));
+            if !state.file_root_config.path_is_library(&path) {
+                state.set_file_contents(path, Some(new_contents));
             }
         }
     }
@@ -144,9 +144,18 @@ pub(crate) fn handle_did_close_text_document(
             tracing::error!("orphan DidCloseTextDocument: {}", path);
         }
 
-        // Clear diagnostics also for excluded files, just in case.
-        if let Some((file_id, _)) = state.vfs.read().0.file_id(&path) {
-            state.diagnostics.clear_native_for(file_id);
+        if let Some(file) = state.analysis_host.raw_database().file_for_path(&path) {
+            state.diagnostics.clear_native_for(file.file);
+        }
+
+        if let Some(abs_path) = path.as_path()
+            && state.config.excluded().any(|excluded| abs_path.starts_with(&excluded))
+        {
+            state.analysis_host.raw_database_mut().record_file_contents(
+                path.clone(),
+                None,
+                FileVisibility::Excluded,
+            );
         }
 
         state.semantic_tokens_cache.lock().remove(&params.text_document.uri);
@@ -165,7 +174,7 @@ pub(crate) fn handle_did_save_text_document(
     if let Ok(vfs_path) = from_proto::vfs_path(&params.text_document.uri) {
         // Library files are immutable and not watched, so the save is the only chance to
         // pick up the changed disk contents.
-        if state.source_root_config.path_is_library(&vfs_path)
+        if state.file_root_config.path_is_library(&vfs_path)
             && let Some(path) = vfs_path.as_path()
         {
             state.loader.handle.invalidate(path.to_path_buf());
@@ -173,9 +182,9 @@ pub(crate) fn handle_did_save_text_document(
 
         let snap = state.snapshot();
         let file_id = try_default!(snap.vfs_path_to_file_id(&vfs_path)?);
-        let sr = snap.analysis.source_root_id(file_id)?;
+        let file_root_id = snap.analysis.file_root_id(file_id)?;
 
-        if state.config.script_rebuild_on_save(Some(sr)) && state.build_deps_changed {
+        if state.config.script_rebuild_on_save(Some(file_root_id)) && state.build_deps_changed {
             state.build_deps_changed = false;
             state
                 .fetch_build_data_queue
@@ -211,7 +220,7 @@ pub(crate) fn handle_did_save_text_document(
             }
         }
 
-        if !state.config.check_on_save(Some(sr)) || run_flycheck(state, vfs_path) {
+        if !state.config.check_on_save(Some(file_root_id)) || run_flycheck(state, vfs_path) {
             return Ok(());
         }
     } else if state.config.check_on_save(None) && state.config.flycheck_workspace(None) {
@@ -329,8 +338,8 @@ pub(crate) fn handle_did_change_watched_files(
 fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
     let _p = tracing::info_span!("run_flycheck").entered();
 
-    let file_id = state.vfs.read().0.file_id(&vfs_path);
-    if let Some((file_id, vfs::FileExcluded::No)) = file_id {
+    let file_id = state.analysis_host.raw_database().file_for_indexed_path(&vfs_path);
+    if let Some(file_id) = file_id {
         let world = state.snapshot();
         let invocation_strategy = state.config.flycheck(None).invocation_strategy();
         let may_flycheck_workspace = state.config.flycheck_workspace(None);
