@@ -159,9 +159,10 @@ struct BindingsBuilder<'a> {
 impl<'a> BindingsBuilder<'a> {
     fn alloc(&mut self) -> BindingsIdx {
         let idx = self.nodes.len();
-        self.nodes.push(Vec::new());
+        // allocate with a small default cap, reduce # of resizes
+        self.nodes.push(Vec::with_capacity(4));
         let nidx = self.nested.len();
-        self.nested.push(Vec::new());
+        self.nested.push(Vec::with_capacity(4));
         BindingsIdx(idx, nidx)
     }
 
@@ -220,7 +221,9 @@ impl<'a> BindingsBuilder<'a> {
 
     fn build_inner(&self, link_nodes: &[LinkNode<Rc<BindingKind<'a>>>]) -> Bindings<'a> {
         let mut bindings = Bindings::default();
-        let mut nodes = Vec::new();
+
+        // small optimisation: pre-allocate the space for collected nodes
+        let mut nodes = Vec::with_capacity(link_nodes.len());
         self.collect_nodes(link_nodes, &mut nodes);
 
         for cmd in nodes {
@@ -278,7 +281,9 @@ impl<'a> BindingsBuilder<'a> {
 
     fn collect_nested(&self, idx: usize, nested_idx: usize, nested: &mut Vec<Bindings<'a>>) {
         let last = &self.nodes[idx];
-        let mut nested_refs: Vec<&[_]> = Vec::new();
+
+        // small optimisation: pre-allocate nested_refs with a lower bound on capacity, to reduce realloc's
+        let mut nested_refs: Vec<&[_]> = Vec::with_capacity(self.nested[nested_idx].len() + 1);
         self.nested[nested_idx].iter().for_each(|it| match *it {
             LinkNode::Node(idx) => nested_refs.push(&self.nodes[idx]),
             LinkNode::Parent { idx, len } => self.collect_nested_ref(idx, len, &mut nested_refs),
