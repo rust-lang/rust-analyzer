@@ -377,7 +377,7 @@ fn match_loop_inner<'t>(
     bindings_builder: &mut BindingsBuilder<'t>,
     cur_items: &mut SmallVec<[MatchState<'t>; 1]>,
     bb_items: &mut SmallVec<[MatchState<'t>; 1]>,
-    next_items: &mut Vec<MatchState<'t>>,
+    next_items: &mut SmallVec<[MatchState<'t>; 4]>,
     eof_items: &mut SmallVec<[MatchState<'t>; 1]>,
     error_items: &mut SmallVec<[MatchState<'t>; 1]>,
     delim_span: tt::DelimSpan<Span>,
@@ -650,7 +650,7 @@ fn match_loop<'t>(
         meta_result: None,
     }];
 
-    let mut next_items = vec![];
+    let mut next_items: SmallVec<[MatchState<'t>; 4]> = SmallVec::new();
 
     loop {
         let mut bb_items = SmallVec::new();
