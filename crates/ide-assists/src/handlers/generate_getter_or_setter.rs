@@ -2,13 +2,16 @@ use ide_db::{famous_defs::FamousDefs, source_change::SourceChangeBuilder};
 use stdx::{format_to, to_lower_snake_case};
 use syntax::{
     TextRange,
-    ast::{self, AstNode, HasName, HasVisibility, edit_in_place::Indent, make},
-    ted,
+    ast::{
+        self, AstNode, HasGenericParams, HasName, HasVisibility, edit_in_place::Indent,
+        syntax_factory::SyntaxFactory,
+    },
+    syntax_editor::Position,
 };
 
 use crate::{
     AssistContext, AssistId, Assists, GroupLabel,
-    utils::{convert_reference_type, find_struct_impl, generate_impl},
+    utils::{convert_reference_type, find_struct_impl},
 };
 
 // Assist: generate_setter
@@ -216,11 +219,14 @@ fn generate_getter_from_info(
     info: &AssistInfo,
     record_field_info: &RecordFieldInfo,
 ) -> ast::Fn {
+    let make = SyntaxFactory::without_mappings();
+
     let (ty, body) = if matches!(info.assist_type, AssistType::MutGet) {
+        let self_expr = make.expr_path(make.ident_path("self"));
         (
-            make::ty_ref(record_field_info.field_ty.clone(), true),
-            make::expr_ref(
-                make::expr_field(make::ext::expr_self(), &record_field_info.field_name.text()),
+            make.ty_ref(record_field_info.field_ty.clone(), true),
+            make.expr_ref(
+                make.expr_field(self_expr, &record_field_info.field_name.text()).into(),
                 true,
             ),
         )
@@ -240,10 +246,11 @@ fn generate_getter_from_info(
                 })
         })()
         .unwrap_or_else(|| {
+            let self_expr = make.expr_path(make.ident_path("self"));
             (
-                make::ty_ref(record_field_info.field_ty.clone(), false),
-                make::expr_ref(
-                    make::expr_field(make::ext::expr_self(), &record_field_info.field_name.text()),
+                make.ty_ref(record_field_info.field_ty.clone(), false),
+                make.expr_ref(
+                    make.expr_field(self_expr, &record_field_info.field_name.text()).into(),
                     false,
                 ),
             )
@@ -251,18 +258,18 @@ fn generate_getter_from_info(
     };
 
     let self_param = if matches!(info.assist_type, AssistType::MutGet) {
-        make::mut_self_param()
+        make.mut_self_param()
     } else {
-        make::self_param()
+        make.self_param()
     };
 
     let strukt = &info.strukt;
-    let fn_name = make::name(&record_field_info.fn_name);
-    let params = make::param_list(Some(self_param), []);
-    let ret_type = Some(make::ret_type(ty));
-    let body = make::block_expr([], Some(body));
+    let fn_name = make.name(&record_field_info.fn_name);
+    let params = make.param_list(Some(self_param), []);
+    let ret_type = Some(make.ret_type(ty));
+    let body = make.block_expr([], Some(body));
 
-    make::fn_(
+    make.fn_(
         None,
         strukt.visibility(),
         fn_name,
@@ -277,29 +284,30 @@ fn generate_getter_from_info(
         false,
     )
 }
-
 fn generate_setter_from_info(info: &AssistInfo, record_field_info: &RecordFieldInfo) -> ast::Fn {
+    let make = SyntaxFactory::without_mappings();
+
     let strukt = &info.strukt;
     let field_name = &record_field_info.fn_name;
-    let fn_name = make::name(&format!("set_{field_name}"));
+    let fn_name = make.name(&format!("set_{field_name}"));
     let field_ty = &record_field_info.field_ty;
 
     // Make the param list
     // `(&mut self, $field_name: $field_ty)`
     let field_param =
-        make::param(make::ident_pat(false, false, make::name(field_name)).into(), field_ty.clone());
-    let params = make::param_list(Some(make::mut_self_param()), [field_param]);
+        make.param(make.ident_pat(false, false, make.name(field_name)).into(), field_ty.clone());
+    let params = make.param_list(Some(make.mut_self_param()), [field_param]);
 
     // Make the assignment body
     // `self.$field_name = $field_name`
-    let self_expr = make::ext::expr_self();
-    let lhs = make::expr_field(self_expr, field_name);
-    let rhs = make::expr_path(make::ext::ident_path(field_name));
-    let assign_stmt = make::expr_stmt(make::expr_assignment(lhs, rhs).into());
-    let body = make::block_expr([assign_stmt.into()], None);
+    let self_expr = make.expr_path(make.ident_path("self"));
+    let lhs = make.expr_field(self_expr, field_name);
+    let rhs = make.expr_path(make.ident_path(field_name));
+    let assign_stmt = make.expr_stmt(make.expr_assignment(lhs.into(), rhs).into());
+    let body = make.block_expr([assign_stmt.into()], None);
 
     // Make the setter fn
-    make::fn_(
+    make.fn_(
         None,
         strukt.visibility(),
         fn_name,
@@ -403,46 +411,70 @@ fn build_source_change(
     info_of_record_fields: Vec<RecordFieldInfo>,
     assist_info: AssistInfo,
 ) {
-    let record_fields_count = info_of_record_fields.len();
+    let items: Vec<ast::AssocItem> = info_of_record_fields
+        .iter()
+        .map(|record_field_info| {
+            let method = match assist_info.assist_type {
+                AssistType::Set => generate_setter_from_info(&assist_info, record_field_info),
+                _ => generate_getter_from_info(ctx, &assist_info, record_field_info),
+            };
+            let new_fn = method.clone_for_update();
+            new_fn.indent(1.into());
+            new_fn.into()
+        })
+        .collect();
 
-    let impl_def = if let Some(impl_def) = &assist_info.impl_def {
+    if let Some(impl_def) = &assist_info.impl_def {
         // We have an existing impl to add to
-        builder.make_mut(impl_def.clone())
+        let mut editor = builder.make_editor(impl_def.syntax());
+
+        let assoc_item_list = impl_def.assoc_item_list().unwrap();
+        assoc_item_list.add_items(&mut editor, items.clone());
+
+        // Add tabstop for last method
+        if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(ast::AssocItem::Fn(fn_)) = items.last() {
+                if let Some(name) = fn_.name() {
+                    let tabstop = builder.make_tabstop_before(cap);
+                    editor.add_annotation(name.syntax().clone(), tabstop);
+                }
+            }
+        }
+
+        builder.add_file_edits(ctx.vfs_file_id(), editor);
     } else {
-        // Generate a new impl to add the methods to
-        let impl_def = generate_impl(&ast::Adt::Struct(assist_info.strukt.clone()));
-
-        // Insert it after the adt
-        let strukt = builder.make_mut(assist_info.strukt.clone());
-
-        ted::insert_all_raw(
-            ted::Position::after(strukt.syntax()),
-            vec![make::tokens::blank_line().into(), impl_def.syntax().clone().into()],
+        let make = SyntaxFactory::without_mappings();
+        let ty_params = assist_info.strukt.generic_param_list();
+        let ty_args = ty_params.as_ref().map(|it| it.to_generic_args());
+        let impl_def = make.impl_(
+            None,
+            ty_params,
+            ty_args,
+            make.ty_path(make.ident_path(&assist_info.strukt.name().unwrap().to_string())).into(),
+            None,
+            Some(make.assoc_item_list(items)),
         );
 
-        impl_def
-    };
+        let mut editor = builder.make_editor(assist_info.strukt.syntax());
+        // Insert impl after the struct
+        editor.insert_all(
+            Position::after(assist_info.strukt.syntax()),
+            vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
+        );
 
-    let assoc_item_list = impl_def.get_or_create_assoc_item_list();
-
-    for (i, record_field_info) in info_of_record_fields.iter().enumerate() {
-        // Make the new getter or setter fn
-        let new_fn = match assist_info.assist_type {
-            AssistType::Set => generate_setter_from_info(&assist_info, record_field_info),
-            _ => generate_getter_from_info(ctx, &assist_info, record_field_info),
-        }
-        .clone_for_update();
-        new_fn.indent(1.into());
-
-        // Insert a tabstop only for last method we generate
-        if i == record_fields_count - 1
-            && let Some(cap) = ctx.config.snippet_cap
-            && let Some(name) = new_fn.name()
-        {
-            builder.add_tabstop_before(cap, name);
+        // Add tabstop for last method
+        if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(assoc_list) = impl_def.assoc_item_list() {
+                if let Some(ast::AssocItem::Fn(fn_)) = assoc_list.assoc_items().last() {
+                    if let Some(name) = fn_.name() {
+                        let tabstop = builder.make_tabstop_before(cap);
+                        editor.add_annotation(name.syntax().clone(), tabstop);
+                    }
+                }
+            }
         }
 
-        assoc_item_list.add_item(new_fn.clone().into());
+        builder.add_file_edits(ctx.vfs_file_id(), editor);
     }
 }
 
