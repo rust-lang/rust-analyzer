@@ -715,7 +715,9 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            6402,
+                            FunctionId(
+                                6402,
+                            ),
                         ),
                     },
                 ),
@@ -749,7 +751,9 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            6401,
+                            FunctionId(
+                                6401,
+                            ),
                         ),
                     },
                 ),
@@ -817,7 +821,9 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            6400,
+                            FunctionId(
+                                6400,
+                            ),
                         ),
                     },
                 ),
@@ -883,7 +889,9 @@
                 def: Function(
                     Function {
                         id: FunctionId(
-                            6403,
+                            FunctionId(
+                                6403,
+                            ),
                         ),
                     },
                 ),
