@@ -432,13 +432,12 @@ fn build_source_change(
         assoc_item_list.add_items(&mut editor, items.clone());
 
         // Add tabstop for last method
-        if let Some(cap) = ctx.config.snippet_cap {
-            if let Some(ast::AssocItem::Fn(fn_)) = items.last() {
-                if let Some(name) = fn_.name() {
-                    let tabstop = builder.make_tabstop_before(cap);
-                    editor.add_annotation(name.syntax().clone(), tabstop);
-                }
-            }
+        if let Some(cap) = ctx.config.snippet_cap
+            && let Some(ast::AssocItem::Fn(fn_)) = items.last()
+            && let Some(name) = fn_.name()
+        {
+            let tabstop = builder.make_tabstop_before(cap);
+            editor.add_annotation(name.syntax().clone(), tabstop);
         }
 
         builder.add_file_edits(ctx.vfs_file_id(), editor);
@@ -463,15 +462,13 @@ fn build_source_change(
         );
 
         // Add tabstop for last method
-        if let Some(cap) = ctx.config.snippet_cap {
-            if let Some(assoc_list) = impl_def.assoc_item_list() {
-                if let Some(ast::AssocItem::Fn(fn_)) = assoc_list.assoc_items().last() {
-                    if let Some(name) = fn_.name() {
-                        let tabstop = builder.make_tabstop_before(cap);
-                        editor.add_annotation(name.syntax().clone(), tabstop);
-                    }
-                }
-            }
+        if let Some(cap) = ctx.config.snippet_cap
+            && let Some(assoc_list) = impl_def.assoc_item_list()
+            && let Some(ast::AssocItem::Fn(fn_)) = assoc_list.assoc_items().last()
+            && let Some(name) = fn_.name()
+        {
+            let tabstop = builder.make_tabstop_before(cap);
+            editor.add_annotation(name.syntax().clone(), tabstop);
         }
 
         builder.add_file_edits(ctx.vfs_file_id(), editor);
