@@ -695,10 +695,24 @@ impl FunctionBody {
                     .statements()
                     .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
                     .filter_map(|stmt| match stmt {
-                        ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr(),
+                        ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr().map(|e| vec![e]),
                         ast::Stmt::Item(_) => None,
-                        ast::Stmt::LetStmt(stmt) => stmt.initializer(),
+                        ast::Stmt::LetStmt(stmt) => {
+                            let init = stmt.initializer();
+                            let let_else = stmt
+                                .let_else()
+                                .and_then(|le| le.block_expr())
+                                .map(ast::Expr::BlockExpr);
+
+                            match (init, let_else) {
+                                (Some(i), Some(le)) => Some(vec![i, le]),
+                                (Some(i), _) => Some(vec![i]),
+                                (_, Some(le)) => Some(vec![le]),
+                                _ => None,
+                            }
+                        }
                     })
+                    .flatten()
                     .for_each(|expr| preorder_expr(&expr, cb));
                 if let Some(expr) = parent
                     .tail_expr()
