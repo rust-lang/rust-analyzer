@@ -771,6 +771,14 @@ impl<'db> NameRefClass<'db> {
                 if let Some(macro_def) = sema.resolve_macro_call(&macro_call) {
                     return Some(NameRefClass::Definition(Definition::Macro(macro_def), None));
                 }
+
+                // When in a macro call context, prefer macro namespace resolution over type/value
+                // namespaces. This ensures that if a macro and a module have the same name,
+                // we correctly classify the path as a macro when used in a macro invocation.
+                if let Some(res) = sema.resolve_path_per_ns(&path).and_then(|res| res.macro_ns) {
+                    return Some(NameRefClass::Definition(res.into(), None));
+                }
+                // Fallback to normal path resolution.
             }
             return sema
                 .resolve_path_with_subst(&path)
