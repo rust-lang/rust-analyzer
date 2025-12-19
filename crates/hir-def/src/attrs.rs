@@ -398,7 +398,7 @@ fn collect_attrs<BreakValue>(
 fn collect_field_attrs<T>(
     db: &dyn DefDatabase,
     variant: VariantId,
-    mut field_attrs: impl FnMut(&CfgOptions, InFile<ast::AnyHasAttrs>, Crate) -> T,
+    mut field_attrs: impl FnMut(&CfgOptions, InFile<ast::AnyHasAttrs>) -> T,
 ) -> ArenaMap<LocalFieldId, T> {
     let (variant_syntax, krate) = match variant {
         VariantId::EnumVariantId(it) => attrs_from_ast_id_loc(db, it),
@@ -425,7 +425,7 @@ fn collect_field_attrs<T>(
                 if AttrFlags::is_cfg_enabled_for(&field, cfg_options).is_ok() {
                     result.insert(
                         la_arena::Idx::from_raw(la_arena::RawIdx::from_u32(idx)),
-                        field_attrs(cfg_options, variant_syntax.with_value(field.into()), krate),
+                        field_attrs(cfg_options, variant_syntax.with_value(field.into())),
                     );
                     idx += 1;
                 }
@@ -436,7 +436,7 @@ fn collect_field_attrs<T>(
                 if AttrFlags::is_cfg_enabled_for(&field, cfg_options).is_ok() {
                     result.insert(
                         la_arena::Idx::from_raw(la_arena::RawIdx::from_u32(idx)),
-                        field_attrs(cfg_options, variant_syntax.with_value(field.into()), krate),
+                        field_attrs(cfg_options, variant_syntax.with_value(field.into())),
                     );
                     idx += 1;
                 }
@@ -940,7 +940,7 @@ impl AttrFlags {
             db: &dyn DefDatabase,
             variant: VariantId,
         ) -> ArenaMap<LocalFieldId, AttrFlags> {
-            collect_field_attrs(db, variant, |cfg_options, field, _| {
+            collect_field_attrs(db, variant, |cfg_options, field| {
                 let mut attr_flags = AttrFlags::empty();
                 expand_cfg_attr(
                     field.value.attrs(),
@@ -1267,7 +1267,7 @@ impl AttrFlags {
             db: &dyn DefDatabase,
             variant: VariantId,
         ) -> ArenaMap<LocalFieldId, Box<[Symbol]>> {
-            collect_field_attrs(db, variant, |cfg_options, field, _| {
+            collect_field_attrs(db, variant, |cfg_options, field| {
                 let mut result = Vec::new();
                 expand_cfg_attr(
                     field.value.attrs(),
@@ -1309,7 +1309,7 @@ impl AttrFlags {
             db: &dyn DefDatabase,
             variant: VariantId,
         ) -> ArenaMap<LocalFieldId, Option<CfgExpr>> {
-            collect_field_attrs(db, variant, |cfg_options, field, _| {
+            collect_field_attrs(db, variant, |cfg_options, field| {
                 let mut result = Vec::new();
                 expand_cfg_attr(
                     field.value.attrs(),
@@ -1372,7 +1372,8 @@ impl AttrFlags {
             db: &dyn DefDatabase,
             variant: VariantId,
         ) -> ArenaMap<LocalFieldId, Option<Box<Docs>>> {
-            collect_field_attrs(db, variant, |cfg_options, field, krate| {
+            let krate = variant.krate(db);
+            collect_field_attrs(db, variant, |cfg_options, field| {
                 extract_docs(db, krate, &|| cfg_options, field, None, None)
             })
         }
