@@ -1352,6 +1352,20 @@ Default: `false`
 Exclude tests from find-all-references and call-hierarchy.
 
 
+## rust-analyzer.runnables.bench.command {#runnables.bench.command}
+
+Default: `"bench"`
+
+Subcommand used for bench runnables instead of `bench`.
+
+
+## rust-analyzer.runnables.bench.overrideCommand {#runnables.bench.overrideCommand}
+
+Default: `null`
+
+Override the subcommand used for bench runnables.
+
+
 ## rust-analyzer.runnables.command {#runnables.command}
 
 Default: `null`
@@ -1383,6 +1397,20 @@ Unless the launched target uses a
 [custom test harness](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#the-harness-field),
 they will end up being interpreted as options to
 [`rustc`’s built-in test harness (“libtest”)](https://doc.rust-lang.org/rustc/tests/index.html#cli-arguments).
+
+
+## rust-analyzer.runnables.test.command {#runnables.test.command}
+
+Default: `"test"`
+
+Subcommand used for test runnables instead of `test`.
+
+
+## rust-analyzer.runnables.test.overrideCommand {#runnables.test.overrideCommand}
+
+Default: `null`
+
+Override the subcommand used for test runnables.
 
 
 ## rust-analyzer.rustc.source {#rustc.source}

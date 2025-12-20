@@ -123,7 +123,9 @@ impl CargoTargetSpec {
 
         match kind {
             RunnableKind::Test { test_id, attr } => {
-                cargo_args.push("test".to_owned());
+                let subcommand =
+                    config.test_override_command.unwrap_or_else(|| vec![config.test_command]);
+                cargo_args.extend(subcommand);
                 executable_args.push(test_id.to_string());
                 if let TestId::Path(_) = test_id {
                     executable_args.push("--exact".to_owned());
@@ -134,12 +136,16 @@ impl CargoTargetSpec {
                 }
             }
             RunnableKind::TestMod { path } => {
-                cargo_args.push("test".to_owned());
+                let subcommand =
+                    config.test_override_command.unwrap_or_else(|| vec![config.test_command]);
+                cargo_args.extend(subcommand);
                 executable_args.push(path.clone());
                 executable_args.extend(extra_test_binary_args);
             }
             RunnableKind::Bench { test_id } => {
-                cargo_args.push("bench".to_owned());
+                let subcommand =
+                    config.bench_override_command.unwrap_or_else(|| vec![config.bench_command]);
+                cargo_args.extend(subcommand);
                 executable_args.push(test_id.to_string());
                 if let TestId::Path(_) = test_id {
                     executable_args.push("--exact".to_owned());
@@ -154,10 +160,12 @@ impl CargoTargetSpec {
             }
             RunnableKind::Bin => {
                 let subcommand = match spec {
-                    Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }) => "test",
-                    _ => "run",
+                    Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }) => {
+                        config.test_override_command.unwrap_or_else(|| vec![config.test_command])
+                    }
+                    _ => vec!["run".to_owned()],
                 };
-                cargo_args.push(subcommand.to_owned());
+                cargo_args.extend(subcommand);
             }
         }
 
