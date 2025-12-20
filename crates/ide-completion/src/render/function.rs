@@ -180,7 +180,9 @@ fn render(
         .detail(detail)
         .lookup_by(name.as_str().to_smolstr());
 
-    if let Some(data) = &ufcs_data {
+    if complete_call_parens.is_none()
+        && let Some(data) = &ufcs_data
+    {
         let insert_text = format!("{}{}", data.prefix, escaped_call);
         item.text_edit(TextEdit::replace(data.replacement_range, insert_text));
     }
@@ -474,7 +476,7 @@ fn qualifier_text_and_range(
         .as_ref()
         .and_then(|path| path.qualifier())
         .or_else(|| path_ctx.path.qualifier())?;
-    let qualifier_syntax = qualifier.syntax().clone();
+    let qualifier_syntax = qualifier.syntax();
     let text = qualifier_syntax.text().to_string();
     if text.is_empty() {
         return None;
