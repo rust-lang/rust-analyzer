@@ -57,7 +57,7 @@ pub enum RunnableKind {
     TestMod { path: String },
     Test { test_id: TestId, attr: TestAttr },
     Bench { test_id: TestId },
-    DocTest { test_id: TestId },
+    DocTest { test_id: TestId, has_compile_fail: bool },
     Bin,
 }
 
@@ -404,9 +404,7 @@ pub(crate) fn runnable_impl(
     let display_target = def.module(sema.db).krate(sema.db).to_display_target(sema.db);
     let edition = display_target.edition;
     let attrs = def.attrs(sema.db);
-    if !has_runnable_doc_test(sema.db, &attrs) {
-        return None;
-    }
+    let doc_test_info = runnable_doc_test_info(sema.db, &attrs)?;
     let cfg = attrs.cfgs(sema.db).cloned();
     let nav = def.try_to_nav(sema)?.call_site();
     let ty = def.self_ty(sema.db);
@@ -429,7 +427,7 @@ pub(crate) fn runnable_impl(
     Some(Runnable {
         use_name_in_title: false,
         nav,
-        kind: RunnableKind::DocTest { test_id },
+        kind: RunnableKind::DocTest { test_id, has_compile_fail: doc_test_info.has_compile_fail },
         cfg,
         update_test,
     })
@@ -508,9 +506,7 @@ fn module_def_doctest(sema: &Semantics<'_, RootDatabase>, def: Definition) -> Op
     let display_target = krate
         .unwrap_or_else(|| (*db.all_crates().last().expect("no crate graph present")).into())
         .to_display_target(db);
-    if !has_runnable_doc_test(db, &attrs) {
-        return None;
-    }
+    let doc_test_info = runnable_doc_test_info(db, &attrs)?;
     let def_name = def.name(db)?;
     let path = (|| {
         let mut path = String::new();
@@ -551,7 +547,7 @@ fn module_def_doctest(sema: &Semantics<'_, RootDatabase>, def: Definition) -> Op
     let res = Runnable {
         use_name_in_title: false,
         nav,
-        kind: RunnableKind::DocTest { test_id },
+        kind: RunnableKind::DocTest { test_id, has_compile_fail: doc_test_info.has_compile_fail },
         cfg: attrs.cfgs(db).cloned(),
         update_test: UpdateTest::default(),
     };
@@ -569,32 +565,64 @@ impl TestAttr {
     }
 }
 
-fn has_runnable_doc_test(db: &RootDatabase, attrs: &hir::AttrsWithOwner) -> bool {
+#[derive(Default, Clone, Copy)]
+struct RunnableDocTestInfo {
+    has_compile_fail: bool,
+}
+
+fn runnable_doc_test_info(
+    db: &RootDatabase,
+    attrs: &hir::AttrsWithOwner,
+) -> Option<RunnableDocTestInfo> {
     const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
     const RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE: &[&str] =
-        &["", "rust", "should_panic", "edition2015", "edition2018", "edition2021"];
+        &["", "rust", "should_panic", "edition2015", "edition2018", "edition2021", "edition2024"];
 
-    attrs.hir_docs(db).is_some_and(|doc| {
-        let mut in_code_block = false;
+    let doc = attrs.hir_docs(db)?;
+    let mut info = RunnableDocTestInfo::default();
+    let mut in_code_block = false;
+    let mut runnable_found = false;
 
-        for line in doc.docs().lines() {
-            if let Some(header) =
-                RUSTDOC_FENCES.into_iter().find_map(|fence| line.strip_prefix(fence))
+    for line in doc.docs().lines() {
+        let trimmed_line = line.trim_start();
+        if let Some(header) =
+            RUSTDOC_FENCES.into_iter().find_map(|fence| trimmed_line.strip_prefix(fence))
+        {
+            if in_code_block {
+                in_code_block = false;
+                continue;
+            }
+
+            in_code_block = true;
+            let mut block_has_compile_fail = false;
+            let mut block_runnable = true;
+
+            for attr in header
+                .split(',')
+                .flat_map(|segment| segment.split_ascii_whitespace())
+                .map(str::trim)
+                .filter(|attr| !attr.is_empty())
             {
-                in_code_block = !in_code_block;
+                if attr.eq_ignore_ascii_case("compile_fail") {
+                    block_has_compile_fail = true;
+                    block_runnable = false;
+                    continue;
+                }
 
-                if in_code_block
-                    && header
-                        .split(',')
-                        .all(|sub| RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE.contains(&sub.trim()))
+                if !RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE
+                    .iter()
+                    .any(|allowed| allowed.eq_ignore_ascii_case(attr))
                 {
-                    return true;
+                    block_runnable = false;
                 }
             }
-        }
 
-        false
-    })
+            info.has_compile_fail |= block_has_compile_fail;
+            runnable_found |= block_runnable;
+        }
+    }
+
+    runnable_found.then_some(info)
 }
 
 // We could create runnables for modules with number_of_test_submodules > 0,
@@ -752,6 +780,7 @@ impl UpdateTest {
 mod tests {
     use expect_test::{Expect, expect};
 
+    use super::RunnableKind;
     use crate::fixture;
 
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
@@ -938,6 +967,39 @@ impl Test for StructWithRunnable {}
                 ]
             "#]],
         );
+    }
+
+    #[test]
+    fn doc_test_runnable_tracks_compile_fail_blocks() {
+        let (analysis, position) = fixture::position(
+            r#"
+//- /lib.rs
+$0
+/// ```compile_fail
+/// let x = 5;
+/// x += 1;
+/// ```
+///
+/// ```
+/// let x = 5;
+/// x + 1;
+/// ```
+fn add(left: u64, right: u64) -> u64 {
+    left + right
+}
+"#,
+        );
+
+        let runnables = analysis.runnables(position.file_id).unwrap();
+        let doc_test = runnables
+            .into_iter()
+            .find(|runnable| matches!(runnable.kind, RunnableKind::DocTest { .. }))
+            .expect("expected doctest runnable");
+
+        match doc_test.kind {
+            RunnableKind::DocTest { has_compile_fail, .. } => assert!(has_compile_fail),
+            _ => panic!("expected doctest runnable"),
+        }
     }
 
     #[test]

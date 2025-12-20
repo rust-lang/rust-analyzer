@@ -116,7 +116,7 @@ impl CargoTargetSpec {
         cfg: &Option<CfgExpr>,
     ) -> (Vec<String>, Vec<String>) {
         let config = snap.config.runnables(None);
-        let extra_test_binary_args = config.extra_test_binary_args;
+        let mut extra_test_binary_args = config.extra_test_binary_args;
 
         let mut cargo_args = Vec::new();
         let mut executable_args = Vec::new();
@@ -146,10 +146,13 @@ impl CargoTargetSpec {
                 }
                 executable_args.extend(extra_test_binary_args);
             }
-            RunnableKind::DocTest { test_id } => {
+            RunnableKind::DocTest { test_id, has_compile_fail } => {
                 cargo_args.push("test".to_owned());
                 cargo_args.push("--doc".to_owned());
                 executable_args.push(test_id.to_string());
+                if *has_compile_fail {
+                    extra_test_binary_args.retain(|arg| arg != "--nocapture");
+                }
                 executable_args.extend(extra_test_binary_args);
             }
             RunnableKind::Bin => {
