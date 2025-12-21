@@ -1262,6 +1262,25 @@ fn main() {
 }
 
 #[test]
+fn doctest_extract_string() {
+    check_doc_test(
+        "extract_string",
+        r#####"
+//- minicore: fmt
+fn main() {
+    let out = format_args!("foo$0bar$0");
+}
+"#####,
+        r#####"
+fn main() {
+    let new_str = "bar";
+    let out = format_args!("foo{new_str}");
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_extract_struct_from_enum_variant() {
     check_doc_test(
         "extract_struct_from_enum_variant",
