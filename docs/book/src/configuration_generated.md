@@ -338,6 +338,16 @@ Note: The option must be specified as an array of command line arguments, with
 the first argument being the name of the command to run.
 
 
+## rust-analyzer.check.priority {#check.priority}
+
+Default: `"normal"`
+
+Set the priority of the check command.
+
+On Unix, this will use `nice` to set the priority.
+On Windows, this will use `BELOW_NORMAL_PRIORITY_CLASS`.
+
+
 ## rust-analyzer.check.targets {#check.targets}
 
 Default: `null`

@@ -36,6 +36,13 @@ pub(crate) enum InvocationStrategy {
     PerWorkspace,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ProcessPriority {
+    Normal,
+    Low,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CargoOptions {
     pub(crate) target_tuples: Vec<String>,
@@ -48,6 +55,7 @@ pub(crate) struct CargoOptions {
     pub(crate) extra_test_bin_args: Vec<String>,
     pub(crate) extra_env: FxHashMap<String, Option<String>>,
     pub(crate) target_dir_config: TargetDirectoryConfig,
+    pub(crate) priority: ProcessPriority,
 }
 
 #[derive(Clone, Debug)]
@@ -101,6 +109,7 @@ pub(crate) enum FlycheckConfig {
         args: Vec<String>,
         extra_env: FxHashMap<String, Option<String>>,
         invocation_strategy: InvocationStrategy,
+        priority: ProcessPriority,
     },
 }
 
@@ -700,9 +709,16 @@ impl FlycheckActor {
                     self.ws_target_dir.as_ref().map(Utf8PathBuf::as_path),
                 );
                 cmd.args(&options.extra_args);
+                set_priority(&mut cmd, options.priority);
                 Some(cmd)
             }
-            FlycheckConfig::CustomCommand { command, args, extra_env, invocation_strategy } => {
+            FlycheckConfig::CustomCommand {
+                command,
+                args,
+                extra_env,
+                invocation_strategy,
+                priority,
+            } => {
                 let root = match invocation_strategy {
                     InvocationStrategy::Once => &*self.root,
                     InvocationStrategy::PerWorkspace => {
@@ -734,6 +750,7 @@ impl FlycheckActor {
                     }
                 }
 
+                set_priority(&mut cmd, *priority);
                 Some(cmd)
             }
         }
@@ -742,6 +759,33 @@ impl FlycheckActor {
     #[track_caller]
     fn send(&self, check_task: FlycheckMessage) {
         self.sender.send(check_task).unwrap();
+    }
+}
+
+fn set_priority(cmd: &mut Command, priority: ProcessPriority) {
+    match priority {
+        ProcessPriority::Normal => (),
+        ProcessPriority::Low => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::CommandExt;
+                unsafe {
+                    cmd.pre_exec(|| {
+                        if libc::setpriority(libc::PRIO_PROCESS, 0, 10) != 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                        Ok(())
+                    });
+                }
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(
+                    windows_sys::Win32::System::Threading::BELOW_NORMAL_PRIORITY_CLASS,
+                );
+            }
+        }
     }
 }
 

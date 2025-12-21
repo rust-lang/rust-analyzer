@@ -888,6 +888,11 @@ config_data! {
         /// Note: The option must be specified as an array of command line arguments, with
         /// the first argument being the name of the command to run.
         check_overrideCommand | checkOnSave_overrideCommand: Option<Vec<String>>             = None,
+        /// Set the priority of the check command.
+        ///
+        /// On Unix, this will use `nice` to set the priority.
+        /// On Windows, this will use `BELOW_NORMAL_PRIORITY_CLASS`.
+        check_priority | checkOnSave_priority: ProcessPriority = ProcessPriority::Normal,
         /// Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.
         ///
         /// Can be a single target, e.g. `"x86_64-unknown-linux-gnu"` or a list of targets, e.g.
@@ -2414,6 +2419,7 @@ impl Config {
             extra_env: self.extra_env(source_root).clone(),
             target_dir_config: self.target_dir_from_config(source_root),
             set_test: true,
+            priority: crate::flycheck::ProcessPriority::Normal,
         }
     }
 
@@ -2431,6 +2437,10 @@ impl Config {
                         InvocationStrategy::PerWorkspace => {
                             crate::flycheck::InvocationStrategy::PerWorkspace
                         }
+                    },
+                    priority: match self.check_priority(source_root) {
+                        ProcessPriority::Normal => crate::flycheck::ProcessPriority::Normal,
+                        ProcessPriority::Low => crate::flycheck::ProcessPriority::Low,
                     },
                 }
             }
@@ -2472,6 +2482,10 @@ impl Config {
                     extra_env: self.check_extra_env(source_root),
                     target_dir_config: self.target_dir_from_config(source_root),
                     set_test: *self.cfg_setTest(source_root),
+                    priority: match self.check_priority(source_root) {
+                        ProcessPriority::Normal => crate::flycheck::ProcessPriority::Normal,
+                        ProcessPriority::Low => crate::flycheck::ProcessPriority::Low,
+                    },
                 },
                 ansi_color_output: self.color_diagnostic_output(),
             },
@@ -2863,6 +2877,13 @@ enum CargoFeaturesDef {
     All,
     #[serde(untagged)]
     Selected(Vec<String>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ProcessPriority {
+    Normal,
+    Low,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -3785,6 +3806,14 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
             "enumDescriptions": [
                 "The command will be executed for each Rust workspace with the workspace as the working directory.",
                 "The command will be executed once with the opened project as the working directory."
+            ],
+        },
+        "ProcessPriority" => set! {
+            "type": "string",
+            "enum": ["normal", "low"],
+            "enumDescriptions": [
+                "Run with normal priority.",
+                "Run with low priority (e.g., nice on Unix)."
             ],
         },
         "Option<CheckOnSaveTargets>" => set! {

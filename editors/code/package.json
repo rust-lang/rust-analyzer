@@ -1228,6 +1228,24 @@
             {
                 "title": "Check",
                 "properties": {
+                    "rust-analyzer.check.priority": {
+                        "markdownDescription": "Set the priority of the check command.\n\nOn Unix, this will use `nice` to set the priority.\nOn Windows, this will use `BELOW_NORMAL_PRIORITY_CLASS`.",
+                        "default": "normal",
+                        "type": "string",
+                        "enum": [
+                            "normal",
+                            "low"
+                        ],
+                        "enumDescriptions": [
+                            "Run with normal priority.",
+                            "Run with low priority (e.g., nice on Unix)."
+                        ]
+                    }
+                }
+            },
+            {
+                "title": "Check",
+                "properties": {
                     "rust-analyzer.check.targets": {
                         "markdownDescription": "Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.\n\nCan be a single target, e.g. `\"x86_64-unknown-linux-gnu\"` or a list of targets, e.g.\n`[\"aarch64-apple-darwin\", \"x86_64-apple-darwin\"]`.\n\nAliased as `\"checkOnSave.targets\"`.",
                         "default": null,
