@@ -106,12 +106,21 @@ trait Merge: AstNode + Clone {
     ) -> Option<Vec<Edit>> {
         let mut edits = Vec::new();
         let mut merged = self.clone();
+        let mut replace = self;
+        let mut update_replace = |item: Self| {
+            if item.syntax().text_range().start() < replace.syntax().text_range().start() {
+                std::mem::replace(&mut replace, item)
+            } else {
+                item
+            }
+        };
+
         for item in items {
             merged = merged.try_merge(&item, cfg)?;
-            edits.push(Edit::Remove(item.into_either()));
+            edits.push(Edit::Remove(update_replace(item).into_either()));
         }
         if !edits.is_empty() {
-            edits.push(Edit::replace(self, merged));
+            edits.push(Edit::replace(replace, merged));
             Some(edits)
         } else {
             None
@@ -559,6 +568,62 @@ use foo::baz;
 use foo::{bar, baz};
 
 /// Doc comment
+",
+        );
+    }
+
+    #[test]
+    fn mod_indent_whitespace() {
+        check_assist(
+            merge_imports,
+            r"
+mod tests {
+    use foo$0::bar;
+    use foo::baz;
+    fn feature() {}
+}
+",
+            r"
+mod tests {
+    use foo::{bar, baz};
+    fn feature() {}
+}
+",
+        );
+        check_assist(
+            merge_imports,
+            r"
+mod tests {
+    use foo$0::bar;
+    use foo::baz;
+
+    fn feature() {}
+}
+",
+            r"
+mod tests {
+    use foo::{bar, baz};
+
+    fn feature() {}
+}
+",
+        );
+        check_assist(
+            merge_imports,
+            r"
+mod tests {
+    use foo::bar;
+    use foo$0::baz;
+
+    fn feature() {}
+}
+",
+            r"
+mod tests {
+    use foo::{bar, baz};
+
+    fn feature() {}
+}
 ",
         );
     }
