@@ -3609,7 +3609,7 @@ fn main() {
     );
 }
 #[test]
-fn complete_interger_methods_unsuffixed() {
+fn complete_integer_methods_unsuffixed() {
     check(
         r#"
 trait Trait {
