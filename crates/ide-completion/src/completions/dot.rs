@@ -82,9 +82,71 @@ pub(crate) fn complete_dot(
         |acc, field, ty| acc.add_tuple_field(ctx, None, field, &ty),
         has_parens,
     );
-    complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
-        acc.add_method(ctx, dot_access, func, None, None)
-    });
+
+    // If the receiver is an ambiguous float literal (e.g., `23.`), collect methods from all
+    // integer types, deduplicating by function ID to avoid showing the same method multiple times.
+    if let DotAccessKind::Field { receiver_is_ambiguous_float_literal: true } = dot_access.kind {
+        let mut seen_methods = FxHashSet::default();
+
+        // Collect methods from the default inferred type (i32)
+        complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
+            if seen_methods.insert(func) {
+                acc.add_method(ctx, dot_access, func, None, None)
+            }
+        });
+
+        // Collect methods from all other integer types (not float types, since
+        // `23.` is an integer literal followed by a dot, not a float literal)
+        let numeric_types = [
+            hir::BuiltinType::i8(),
+            hir::BuiltinType::i16(),
+            hir::BuiltinType::i64(),
+            hir::BuiltinType::i128(),
+            hir::BuiltinType::isize(),
+            hir::BuiltinType::u8(),
+            hir::BuiltinType::u16(),
+            hir::BuiltinType::u32(),
+            hir::BuiltinType::u64(),
+            hir::BuiltinType::u128(),
+            hir::BuiltinType::usize(),
+        ];
+
+        for builtin_ty in numeric_types {
+            let ty = builtin_ty.ty(ctx.db);
+            complete_methods(ctx, &ty, &traits_in_scope, |func| {
+                if seen_methods.insert(func) {
+                    acc.add_method(ctx, dot_access, func, None, None)
+                }
+            });
+        }
+    } else if receiver_ty.is_float() && !matches!(dot_access.kind, DotAccessKind::Method) {
+        // For unsuffixed float literals like `2.0`, also complete methods from f32
+        // since the literal could be either f32 or f64 (defaults to f64)
+        let mut seen_methods = FxHashSet::default();
+
+        // Collect methods from the default inferred type (f64)
+        complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
+            if seen_methods.insert(func) {
+                acc.add_method(ctx, dot_access, func, None, None)
+            }
+        });
+
+        // Also collect methods from f16, f32, f128
+        let numeric_types =
+            [hir::BuiltinType::f16(), hir::BuiltinType::f32(), hir::BuiltinType::f128()];
+        for builtin_ty in numeric_types {
+            let ty = builtin_ty.ty(ctx.db);
+            complete_methods(ctx, &ty, &traits_in_scope, |func| {
+                if seen_methods.insert(func) {
+                    acc.add_method(ctx, dot_access, func, None, None)
+                }
+            });
+        }
+    } else {
+        complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
+            acc.add_method(ctx, dot_access, func, None, None)
+        });
+    }
 
     if ctx.config.enable_auto_iter && !receiver_ty.strip_references().impls_iterator(ctx.db) {
         // FIXME:

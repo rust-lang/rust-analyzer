@@ -3608,3 +3608,78 @@ fn main() {
         "#]],
     );
 }
+#[test]
+fn complete_interger_methods_unsuffixed() {
+    check(
+        r#"
+trait Trait {
+    fn method(&self) {}
+}
+
+macro_rules! impl_trait {
+    ($($ty:ty), *) => {
+        $(impl Trait for $ty),*
+    };
+}
+
+impl_trait!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize)
+
+fn main() {
+    2.$0
+}
+        "#,
+        expect![[r#"
+            me method() (as Trait) fn(&self)
+            sn box            Box::new(expr)
+            sn call           function(expr)
+            sn const                const {}
+            sn dbg                dbg!(expr)
+            sn dbgr              dbg!(&expr)
+            sn deref                   *expr
+            sn match           match expr {}
+            sn ref                     &expr
+            sn refm                &mut expr
+            sn return            return expr
+            sn unsafe              unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn complete_f32_methods_unsuffixed() {
+    check(
+        r#"
+trait Trait {
+    fn method(&self) {}
+}
+
+macro_rules! impl_trait {
+    ($($ty:ty), *) => {
+        $(impl Trait for $ty),*
+    };
+}
+
+impl_trait!(f16, f32, f64, f128)
+
+fn main() {
+    2.0.$0
+}
+        "#,
+        expect![[r#"
+            me method() (as Trait) fn(&self)
+            sn box            Box::new(expr)
+            sn call           function(expr)
+            sn const                const {}
+            sn dbg                dbg!(expr)
+            sn dbgr              dbg!(&expr)
+            sn deref                   *expr
+            sn let                       let
+            sn letm                  let mut
+            sn match           match expr {}
+            sn ref                     &expr
+            sn refm                &mut expr
+            sn return            return expr
+            sn unsafe              unsafe {}
+        "#]],
+    );
+}

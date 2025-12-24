@@ -3005,9 +3005,99 @@ impl BuiltinType {
         BuiltinType { inner: hir_def::builtin_type::BuiltinType::Str }
     }
 
+    pub fn i8() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::I8),
+        }
+    }
+
+    pub fn i16() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::I16),
+        }
+    }
+
     pub fn i32() -> BuiltinType {
         BuiltinType {
             inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::I32),
+        }
+    }
+
+    pub fn i64() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::I64),
+        }
+    }
+
+    pub fn i128() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::I128),
+        }
+    }
+
+    pub fn isize() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::Isize),
+        }
+    }
+
+    pub fn u8() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Uint(hir_ty::primitive::BuiltinUint::U8),
+        }
+    }
+
+    pub fn u16() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Uint(hir_ty::primitive::BuiltinUint::U16),
+        }
+    }
+
+    pub fn u32() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Uint(hir_ty::primitive::BuiltinUint::U32),
+        }
+    }
+
+    pub fn u64() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Uint(hir_ty::primitive::BuiltinUint::U64),
+        }
+    }
+
+    pub fn u128() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Uint(hir_ty::primitive::BuiltinUint::U128),
+        }
+    }
+
+    pub fn usize() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Uint(hir_ty::primitive::BuiltinUint::Usize),
+        }
+    }
+
+    pub fn f16() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Float(hir_ty::primitive::BuiltinFloat::F16),
+        }
+    }
+
+    pub fn f32() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Float(hir_ty::primitive::BuiltinFloat::F32),
+        }
+    }
+
+    pub fn f64() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Float(hir_ty::primitive::BuiltinFloat::F64),
+        }
+    }
+
+    pub fn f128() -> BuiltinType {
+        BuiltinType {
+            inner: hir_def::builtin_type::BuiltinType::Float(hir_ty::primitive::BuiltinFloat::F128),
         }
     }
 
