@@ -402,8 +402,8 @@ pub(crate) struct DotAccess<'db> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum FieldKind {
-    /// Normal case
-    None,
+    /// Normal field access
+    Normal,
     /// if the receiver is an integer and there is no ident in the original file after it yet
     /// like `0.$0`
     AmbiguousFloatLiteral,

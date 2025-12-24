@@ -44,7 +44,7 @@ pub(crate) fn complete_dot(
         if ctx.config.enable_auto_await {
             // Completions that skip `.await`, e.g. `.await.foo()`.
             let dot_access_kind = match &dot_access.kind {
-                DotAccessKind::Field(_) => DotAccessKind::Field(FieldKind::None),
+                DotAccessKind::Field(_) => DotAccessKind::Field(FieldKind::Normal),
                 it @ DotAccessKind::Method => *it,
             };
             let dot_access = DotAccess {
@@ -145,7 +145,7 @@ pub(crate) fn complete_dot(
                 });
             }
         }
-        DotAccessKind::Field(FieldKind::None) | DotAccessKind::Method => {
+        DotAccessKind::Field(FieldKind::Normal) | DotAccessKind::Method => {
             complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
                 acc.add_method(ctx, dot_access, func, None, None)
             })
@@ -172,7 +172,7 @@ pub(crate) fn complete_dot(
         if let Some((iter, iter_sym)) = iter.or_else(into_iter) {
             // Skip iterators, e.g. complete `.iter().filter_map()`.
             let dot_access_kind = match &dot_access.kind {
-                DotAccessKind::Field(_) => DotAccessKind::Field(FieldKind::None),
+                DotAccessKind::Field(_) => DotAccessKind::Field(FieldKind::Normal),
                 it @ DotAccessKind::Method => *it,
             };
             let dot_access = DotAccess {
@@ -225,7 +225,7 @@ pub(crate) fn complete_undotted_self(
                 &DotAccess {
                     receiver: None,
                     receiver_ty: None,
-                    kind: DotAccessKind::Field(FieldKind::None),
+                    kind: DotAccessKind::Field(FieldKind::Normal),
                     ctx: DotAccessExprCtx {
                         in_block_expr: expr_ctx.in_block_expr,
                         in_breakable: expr_ctx.in_breakable,
@@ -247,7 +247,7 @@ pub(crate) fn complete_undotted_self(
             &DotAccess {
                 receiver: None,
                 receiver_ty: None,
-                kind: DotAccessKind::Field(FieldKind::None),
+                kind: DotAccessKind::Field(FieldKind::Normal),
                 ctx: DotAccessExprCtx {
                     in_block_expr: expr_ctx.in_block_expr,
                     in_breakable: expr_ctx.in_breakable,

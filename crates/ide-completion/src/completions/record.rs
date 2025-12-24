@@ -134,7 +134,7 @@ fn complete_fields(
             &DotAccess {
                 receiver: None,
                 receiver_ty: None,
-                kind: DotAccessKind::Field(FieldKind::None),
+                kind: DotAccessKind::Field(FieldKind::Normal),
                 ctx: DotAccessExprCtx { in_block_expr: false, in_breakable: None },
             },
             None,

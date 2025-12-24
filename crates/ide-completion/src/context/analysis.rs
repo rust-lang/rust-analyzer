@@ -940,7 +940,7 @@ fn classify_name_ref<'db>(
             Some(ast::Expr::Literal(l)) if matches!(l.kind(), ast::LiteralKind::FloatNumber(f) if f.suffix().is_none()) => {
                 DotAccessKind::Field(FieldKind::UnsuffixedFloatLiteral)
             }
-            _ => DotAccessKind::Field(FieldKind::None),
+            _ => DotAccessKind::Field(FieldKind::Normal),
         };
 
         let receiver_is_part_of_indivisible_expression = match &receiver {
