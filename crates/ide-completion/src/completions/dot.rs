@@ -10,8 +10,8 @@ use syntax::SmolStr;
 use crate::{
     CompletionItem, CompletionItemKind, Completions,
     context::{
-        CompletionContext, DotAccess, DotAccessExprCtx, DotAccessKind, PathCompletionCtx,
-        PathExprCtx, Qualified,
+        CompletionContext, DotAccess, DotAccessExprCtx, DotAccessKind, FieldKind,
+        PathCompletionCtx, PathExprCtx, Qualified,
     },
 };
 
@@ -44,9 +44,7 @@ pub(crate) fn complete_dot(
         if ctx.config.enable_auto_await {
             // Completions that skip `.await`, e.g. `.await.foo()`.
             let dot_access_kind = match &dot_access.kind {
-                DotAccessKind::Field { receiver_is_ambiguous_float_literal: _ } => {
-                    DotAccessKind::Field { receiver_is_ambiguous_float_literal: false }
-                }
+                DotAccessKind::Field(_) => DotAccessKind::Field(FieldKind::None),
                 it @ DotAccessKind::Method => *it,
             };
             let dot_access = DotAccess {
@@ -83,70 +81,75 @@ pub(crate) fn complete_dot(
         has_parens,
     );
 
-    // If the receiver is an ambiguous integer literal, i.e. an integer literal followed by a
-    // dot (e.g., `23.`), collect methods from all integer types, deduplicating by function ID
-    // to avoid showing the same method multiple times.
-    if let DotAccessKind::Field { receiver_is_ambiguous_float_literal: true } = dot_access.kind {
-        let mut seen_methods = FxHashSet::default();
+    match dot_access.kind {
+        // If the receiver is an ambiguous integer literal, i.e. an integer literal followed by a
+        // dot (e.g., `23.`), collect methods from all integer types, deduplicating by function ID
+        // to avoid showing the same method multiple times.
+        DotAccessKind::Field(FieldKind::AmbiguousFloatLiteral) => {
+            let mut seen_methods = FxHashSet::default();
 
-        // Collect methods from the default inferred type (i32)
-        complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
-            if seen_methods.insert(func) {
-                acc.add_method(ctx, dot_access, func, None, None)
-            }
-        });
-
-        // Collect methods from all other integer types (not float types, since
-        // `23.` is an integer literal followed by a dot, not a float literal)
-        let numeric_types = [
-            hir::BuiltinType::i8(),
-            hir::BuiltinType::i16(),
-            hir::BuiltinType::i64(),
-            hir::BuiltinType::i128(),
-            hir::BuiltinType::isize(),
-            hir::BuiltinType::u8(),
-            hir::BuiltinType::u16(),
-            hir::BuiltinType::u32(),
-            hir::BuiltinType::u64(),
-            hir::BuiltinType::u128(),
-            hir::BuiltinType::usize(),
-        ];
-
-        for builtin_ty in numeric_types {
-            let ty = builtin_ty.ty(ctx.db);
-            complete_methods(ctx, &ty, &traits_in_scope, |func| {
+            // Collect methods from the default inferred type (i32)
+            complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
                 if seen_methods.insert(func) {
                     acc.add_method(ctx, dot_access, func, None, None)
                 }
             });
-        }
-    } else if receiver_ty.is_float() && !matches!(dot_access.kind, DotAccessKind::Method) {
-        // For unsuffixed float literals like `2.0`, also complete methods from f32
-        // since the literal could be either f32 or f64 (defaults to f64)
-        let mut seen_methods = FxHashSet::default();
 
-        // Collect methods from the default inferred type (f64)
-        complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
-            if seen_methods.insert(func) {
-                acc.add_method(ctx, dot_access, func, None, None)
+            // Collect methods from all other integer types (not float types, since
+            // `23.` is an integer literal followed by a dot, not a float literal)
+            let numeric_types = [
+                hir::BuiltinType::i8(),
+                hir::BuiltinType::i16(),
+                hir::BuiltinType::i64(),
+                hir::BuiltinType::i128(),
+                hir::BuiltinType::isize(),
+                hir::BuiltinType::u8(),
+                hir::BuiltinType::u16(),
+                hir::BuiltinType::u32(),
+                hir::BuiltinType::u64(),
+                hir::BuiltinType::u128(),
+                hir::BuiltinType::usize(),
+            ];
+
+            for builtin_ty in numeric_types {
+                let ty = builtin_ty.ty(ctx.db);
+                complete_methods(ctx, &ty, &traits_in_scope, |func| {
+                    if seen_methods.insert(func) {
+                        acc.add_method(ctx, dot_access, func, None, None)
+                    }
+                });
             }
-        });
+        }
 
-        // Also collect methods from f16, f32, f128
-        let numeric_types =
-            [hir::BuiltinType::f16(), hir::BuiltinType::f32(), hir::BuiltinType::f128()];
-        for builtin_ty in numeric_types {
-            let ty = builtin_ty.ty(ctx.db);
-            complete_methods(ctx, &ty, &traits_in_scope, |func| {
+        // For unsuffixed float literals like `2.0`, also complete methods from other float types
+        // since the literal could be f16, f32, f64, or f128 (defaults to f64)
+        DotAccessKind::Field(FieldKind::UnsuffixedFloatLiteral) => {
+            let mut seen_methods = FxHashSet::default();
+
+            // Collect methods from the default inferred type (f64)
+            complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
                 if seen_methods.insert(func) {
                     acc.add_method(ctx, dot_access, func, None, None)
                 }
             });
+
+            // Also collect methods from f16, f32, f128
+            let numeric_types =
+                [hir::BuiltinType::f16(), hir::BuiltinType::f32(), hir::BuiltinType::f128()];
+            for builtin_ty in numeric_types {
+                let ty = builtin_ty.ty(ctx.db);
+                complete_methods(ctx, &ty, &traits_in_scope, |func| {
+                    if seen_methods.insert(func) {
+                        acc.add_method(ctx, dot_access, func, None, None)
+                    }
+                });
+            }
         }
-    } else {
-        complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
-            acc.add_method(ctx, dot_access, func, None, None)
-        });
+        DotAccessKind::Field(FieldKind::None) | DotAccessKind::Method => {
+            complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
+                acc.add_method(ctx, dot_access, func, None, None)
+            })
+        }
     }
 
     if ctx.config.enable_auto_iter && !receiver_ty.strip_references().impls_iterator(ctx.db) {
@@ -169,9 +172,7 @@ pub(crate) fn complete_dot(
         if let Some((iter, iter_sym)) = iter.or_else(into_iter) {
             // Skip iterators, e.g. complete `.iter().filter_map()`.
             let dot_access_kind = match &dot_access.kind {
-                DotAccessKind::Field { receiver_is_ambiguous_float_literal: _ } => {
-                    DotAccessKind::Field { receiver_is_ambiguous_float_literal: false }
-                }
+                DotAccessKind::Field(_) => DotAccessKind::Field(FieldKind::None),
                 it @ DotAccessKind::Method => *it,
             };
             let dot_access = DotAccess {
@@ -224,7 +225,7 @@ pub(crate) fn complete_undotted_self(
                 &DotAccess {
                     receiver: None,
                     receiver_ty: None,
-                    kind: DotAccessKind::Field { receiver_is_ambiguous_float_literal: false },
+                    kind: DotAccessKind::Field(FieldKind::None),
                     ctx: DotAccessExprCtx {
                         in_block_expr: expr_ctx.in_block_expr,
                         in_breakable: expr_ctx.in_breakable,
@@ -246,7 +247,7 @@ pub(crate) fn complete_undotted_self(
             &DotAccess {
                 receiver: None,
                 receiver_ty: None,
-                kind: DotAccessKind::Field { receiver_is_ambiguous_float_literal: false },
+                kind: DotAccessKind::Field(FieldKind::None),
                 ctx: DotAccessExprCtx {
                     in_block_expr: expr_ctx.in_block_expr,
                     in_breakable: expr_ctx.in_breakable,

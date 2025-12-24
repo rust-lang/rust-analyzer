@@ -401,12 +401,19 @@ pub(crate) struct DotAccess<'db> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) enum FieldKind {
+    /// Normal case
+    None,
+    /// if the receiver is an integer and there is no ident in the original file after it yet
+    /// like `0.$0`
+    AmbiguousFloatLiteral,
+    /// The receiver is an unsuffixed float literal like `0.0.$0`
+    UnsuffixedFloatLiteral,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum DotAccessKind {
-    Field {
-        /// True if the receiver is an integer and there is no ident in the original file after it yet
-        /// like `0.$0`
-        receiver_is_ambiguous_float_literal: bool,
-    },
+    Field(FieldKind),
     Method,
 }
 

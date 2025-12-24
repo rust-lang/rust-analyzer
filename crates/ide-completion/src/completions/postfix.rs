@@ -25,7 +25,7 @@ use syntax::{
 use crate::{
     CompletionItem, CompletionItemKind, CompletionRelevance, Completions, SnippetScope,
     completions::postfix::format_like::add_format_like_completions,
-    context::{BreakableKind, CompletionContext, DotAccess, DotAccessKind},
+    context::{BreakableKind, CompletionContext, DotAccess, DotAccessKind, FieldKind},
     item::{Builder, CompletionRelevancePostfixMatch},
 };
 
@@ -42,12 +42,7 @@ pub(crate) fn complete_postfix(
         DotAccess { receiver_ty: Some(ty), receiver: Some(it), kind, .. } => (
             it,
             &ty.original,
-            match *kind {
-                DotAccessKind::Field { receiver_is_ambiguous_float_literal } => {
-                    receiver_is_ambiguous_float_literal
-                }
-                DotAccessKind::Method => false,
-            },
+            matches!(*kind, DotAccessKind::Field(FieldKind::AmbiguousFloatLiteral)),
         ),
         _ => return,
     };

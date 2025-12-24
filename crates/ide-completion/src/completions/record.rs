@@ -8,7 +8,7 @@ use syntax::{
 use crate::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionRelevance,
     CompletionRelevancePostfixMatch, Completions,
-    context::{DotAccess, DotAccessExprCtx, DotAccessKind, PatternContext},
+    context::{DotAccess, DotAccessExprCtx, DotAccessKind, FieldKind, PatternContext},
 };
 
 pub(crate) fn complete_record_pattern_fields(
@@ -134,7 +134,7 @@ fn complete_fields(
             &DotAccess {
                 receiver: None,
                 receiver_ty: None,
-                kind: DotAccessKind::Field { receiver_is_ambiguous_float_literal: false },
+                kind: DotAccessKind::Field(FieldKind::None),
                 ctx: DotAccessExprCtx { in_block_expr: false, in_breakable: None },
             },
             None,

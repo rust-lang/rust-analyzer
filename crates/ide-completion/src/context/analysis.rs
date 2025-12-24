@@ -25,9 +25,9 @@ use crate::{
     completions::postfix::is_in_condition,
     context::{
         AttrCtx, BreakableKind, COMPLETION_MARKER, CompletionAnalysis, DotAccess, DotAccessExprCtx,
-        DotAccessKind, ItemListKind, LifetimeContext, LifetimeKind, NameContext, NameKind,
-        NameRefContext, NameRefKind, ParamContext, ParamKind, PathCompletionCtx, PathExprCtx,
-        PathKind, PatternContext, PatternRefutability, Qualified, QualifierCtx,
+        DotAccessKind, FieldKind, ItemListKind, LifetimeContext, LifetimeKind, NameContext,
+        NameKind, NameRefContext, NameRefKind, ParamContext, ParamKind, PathCompletionCtx,
+        PathExprCtx, PathKind, PatternContext, PatternRefutability, Qualified, QualifierCtx,
         TypeAscriptionTarget, TypeLocation,
     },
 };
@@ -928,12 +928,19 @@ fn classify_name_ref<'db>(
 
     let field_expr_handle = |receiver, node| {
         let receiver = find_opt_node_in_file(original_file, receiver);
-        let receiver_is_ambiguous_float_literal = match &receiver {
-            Some(ast::Expr::Literal(l)) => matches! {
-                l.kind(),
-                ast::LiteralKind::FloatNumber { .. } if l.syntax().last_token().is_some_and(|it| it.text().ends_with('.'))
-            },
-            _ => false,
+        let kind = match &receiver {
+            Some(ast::Expr::Literal(l))
+                if matches! {
+                    l.kind(),
+                    ast::LiteralKind::FloatNumber { .. } if l.syntax().last_token().is_some_and(|it| it.text().ends_with('.'))
+                } =>
+            {
+                DotAccessKind::Field(FieldKind::AmbiguousFloatLiteral)
+            }
+            Some(ast::Expr::Literal(l)) if matches!(l.kind(), ast::LiteralKind::FloatNumber(f) if f.suffix().is_none()) => {
+                DotAccessKind::Field(FieldKind::UnsuffixedFloatLiteral)
+            }
+            _ => DotAccessKind::Field(FieldKind::None),
         };
 
         let receiver_is_part_of_indivisible_expression = match &receiver {
@@ -949,7 +956,7 @@ fn classify_name_ref<'db>(
         }
 
         let mut receiver_ty = receiver.as_ref().and_then(|it| sema.type_of_expr(it));
-        if receiver_is_ambiguous_float_literal {
+        if matches!(kind, DotAccessKind::Field(FieldKind::AmbiguousFloatLiteral)) {
             // `123.|` is parsed as a float but should actually be an integer.
             always!(receiver_ty.as_ref().is_none_or(|receiver_ty| receiver_ty.original.is_float()));
             receiver_ty =
@@ -958,7 +965,7 @@ fn classify_name_ref<'db>(
 
         let kind = NameRefKind::DotAccess(DotAccess {
             receiver_ty,
-            kind: DotAccessKind::Field { receiver_is_ambiguous_float_literal },
+            kind,
             receiver,
             ctx: DotAccessExprCtx {
                 in_block_expr: is_in_block(node),
