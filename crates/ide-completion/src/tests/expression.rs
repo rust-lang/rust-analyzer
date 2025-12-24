@@ -3683,3 +3683,41 @@ fn main() {
         "#]],
     );
 }
+
+#[test]
+fn complete_float_methods_suffixed() {
+    check(
+        r#"
+trait F32 {
+    fn call_f32(&self) {}
+}
+
+trait F64 {
+    fn call_f64(&self) {}
+}
+
+impl F64 for f64 {}
+impl F32 for f32 {}
+
+fn main() {
+    2.0f32.$0
+}
+        "#,
+        expect![[r#"
+            me call_f32() (as F32) fn(&self)
+            sn box            Box::new(expr)
+            sn call           function(expr)
+            sn const                const {}
+            sn dbg                dbg!(expr)
+            sn dbgr              dbg!(&expr)
+            sn deref                   *expr
+            sn let                       let
+            sn letm                  let mut
+            sn match           match expr {}
+            sn ref                     &expr
+            sn refm                &mut expr
+            sn return            return expr
+            sn unsafe              unsafe {}
+        "#]],
+    );
+}
