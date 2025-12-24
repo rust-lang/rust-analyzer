@@ -83,8 +83,9 @@ pub(crate) fn complete_dot(
         has_parens,
     );
 
-    // If the receiver is an ambiguous float literal (e.g., `23.`), collect methods from all
-    // integer types, deduplicating by function ID to avoid showing the same method multiple times.
+    // If the receiver is an ambiguous integer literal, i.e. an integer literal followed by a
+    // dot (e.g., `23.`), collect methods from all integer types, deduplicating by function ID
+    // to avoid showing the same method multiple times.
     if let DotAccessKind::Field { receiver_is_ambiguous_float_literal: true } = dot_access.kind {
         let mut seen_methods = FxHashSet::default();
 
