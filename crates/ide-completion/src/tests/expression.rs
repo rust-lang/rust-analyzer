@@ -3618,7 +3618,7 @@ trait Trait {
 
 macro_rules! impl_trait {
     ($($ty:ty), *) => {
-        $(impl Trait for $ty),*
+        $(impl Trait for $ty {})*
     };
 }
 
