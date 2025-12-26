@@ -4949,6 +4949,39 @@ mod Foo$0 {
 }
 
 #[test]
+fn hover_doc_include_str() {
+    check(
+        r#"
+//- /lib.rs
+#[doc = include_str!("docs.md")]
+struct Foo$0;
+
+//- /docs.md
+Hello docs from include.
+"#,
+        expect![[r#"
+            *Foo*
+
+            ```rust
+            ra_test_fixture
+            ```
+
+            ```rust
+            struct Foo
+            ```
+
+            ---
+
+            size = 0, align = 1, no Drop
+
+            ---
+
+            Hello docs from include.
+        "#]],
+    );
+}
+
+#[test]
 fn hover_doc_block_style_indent_end() {
     check(
         r#"
