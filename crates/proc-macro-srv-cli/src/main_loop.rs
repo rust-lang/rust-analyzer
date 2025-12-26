@@ -170,6 +170,35 @@ fn handle_expand_id<W: std::io::Write, C: Codec>(
     send_response::<_, C>(stdout, bidirectional::Response::ExpandMacro(res))
 }
 
+struct BidirectionalStruct<'a, W: io::Write, R: io::BufRead, C: Codec> {
+    stdin: &'a mut R,
+    stdout: &'a mut W,
+    buf: &'a mut C::Buf,
+}
+
+impl<W: io::Write, R: io::BufRead, C: Codec> proc_macro_srv::BidirectionalHandler
+    for BidirectionalStruct<'_, W, R, C>
+{
+    fn source_text(&mut self, file_id: u32, start: u32, end: u32) -> Option<String> {
+        let subrequest = bidirectional::SubRequest::SourceText { file_id, start, end };
+        bidirectional::BidirectionalMessage::SubRequest(subrequest)
+            .write::<_, C>(self.stdout)
+            .unwrap();
+        let resp = bidirectional::BidirectionalMessage::read::<_, C>(self.stdin, self.buf)
+            .unwrap()
+            .expect("client closed connection");
+
+        match resp {
+            bidirectional::BidirectionalMessage::SubResponse(api_resp) => match api_resp {
+                bidirectional::SubResponse::SourceTextResult { text } => {
+                    return text;
+                }
+            },
+            other => panic!("expected SubResponse, got {other:?}"),
+        }
+    }
+}
+
 fn handle_expand_ra<W: io::Write, R: io::BufRead, C: Codec>(
     srv: &proc_macro_srv::ProcMacroSrv<'_>,
     stdin: &mut R,
@@ -207,80 +236,36 @@ fn handle_expand_ra<W: io::Write, R: io::BufRead, C: Codec>(
         })
     });
 
-    let (subreq_tx, subreq_rx) = crossbeam_channel::unbounded();
-    let (subresp_tx, subresp_rx) = crossbeam_channel::unbounded();
-    let (result_tx, result_rx) = crossbeam_channel::bounded(1);
+    let bidirectional_struct = BidirectionalStruct { stdin, stdout, buf };
 
-    std::thread::scope(|scope| {
-        scope.spawn(|| {
-            let callback = Box::new(move |req: proc_macro_srv::SubRequest| {
-                subreq_tx.send(req).unwrap();
-                subresp_rx.recv().unwrap()
-            });
-
-            let res = srv
-                .expand(
-                    lib,
-                    &env,
-                    current_dir,
-                    &macro_name,
-                    macro_body,
-                    attributes,
-                    def_site,
+    let res = srv
+        .expand(
+            lib,
+            &env,
+            current_dir,
+            &macro_name,
+            macro_body,
+            attributes,
+            def_site,
+            call_site,
+            mixed_site,
+            Some(bidirectional_struct),
+        )
+        .map(|it| {
+            (
+                legacy::FlatTree::from_tokenstream(
+                    it,
+                    CURRENT_API_VERSION,
                     call_site,
-                    mixed_site,
-                    Some(callback),
-                )
-                .map(|it| {
-                    (
-                        legacy::FlatTree::from_tokenstream(
-                            it,
-                            CURRENT_API_VERSION,
-                            call_site,
-                            &mut span_data_table,
-                        ),
-                        legacy::serialize_span_data_index_map(&span_data_table),
-                    )
-                })
-                .map(|(tree, span_data_table)| bidirectional::ExpandMacroExtended {
-                    tree,
-                    span_data_table,
-                })
-                .map_err(|e| legacy::PanicMessage(e.into_string().unwrap_or_default()));
+                    &mut span_data_table,
+                ),
+                legacy::serialize_span_data_index_map(&span_data_table),
+            )
+        })
+        .map(|(tree, span_data_table)| bidirectional::ExpandMacroExtended { tree, span_data_table })
+        .map_err(|e| legacy::PanicMessage(e.into_string().unwrap_or_default()));
 
-            let _ = result_tx.send(res);
-        });
-
-        loop {
-            if let Ok(res) = result_rx.try_recv() {
-                send_response::<_, C>(stdout, bidirectional::Response::ExpandMacroExtended(res))
-                    .unwrap();
-                break;
-            }
-
-            let subreq = match subreq_rx.recv() {
-                Ok(r) => r,
-                Err(_) => break,
-            };
-
-            let api_req = from_srv_req(subreq);
-            bidirectional::BidirectionalMessage::SubRequest(api_req).write::<_, C>(stdout).unwrap();
-
-            let resp = bidirectional::BidirectionalMessage::read::<_, C>(stdin, buf)
-                .unwrap()
-                .expect("client closed connection");
-
-            match resp {
-                bidirectional::BidirectionalMessage::SubResponse(api_resp) => {
-                    let srv_resp = from_client_res(api_resp);
-                    subresp_tx.send(srv_resp).unwrap();
-                }
-                other => panic!("expected SubResponse, got {other:?}"),
-            }
-        }
-    });
-
-    Ok(())
+    send_response::<_, C>(stdout, bidirectional::Response::ExpandMacroExtended(res))
 }
 
 fn run_<C: Codec>() -> io::Result<()> {
@@ -423,22 +408,6 @@ fn run_<C: Codec>() -> io::Result<()> {
     }
 
     Ok(())
-}
-
-fn from_srv_req(value: proc_macro_srv::SubRequest) -> bidirectional::SubRequest {
-    match value {
-        proc_macro_srv::SubRequest::SourceText { file_id, start, end } => {
-            bidirectional::SubRequest::SourceText { file_id: file_id.file_id().index(), start, end }
-        }
-    }
-}
-
-fn from_client_res(value: bidirectional::SubResponse) -> proc_macro_srv::SubResponse {
-    match value {
-        bidirectional::SubResponse::SourceTextResult { text } => {
-            proc_macro_srv::SubResponse::SourceTextResult { text }
-        }
-    }
 }
 
 fn send_response<W: std::io::Write, C: Codec>(
