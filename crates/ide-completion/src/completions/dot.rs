@@ -83,20 +83,22 @@ pub(crate) fn complete_dot(
 
     match dot_access.kind {
         // If the receiver is an ambiguous integer literal, i.e. an integer literal followed by a
-        // dot (e.g., `23.`), collect methods from all integer types, deduplicating by function ID
-        // to avoid showing the same method multiple times.
+        // dot (e.g., `23.`), collect methods from all integer types.
+        // To avoid duplicating inherent methods (like abs, pow, etc. which exist on all integer types),
+        // we only collect inherent methods from the default type (i32), but collect trait methods
+        // from all integer types (since a trait might only be implemented for specific types like i64).
         DotAccessKind::Field(FieldKind::AmbiguousFloatLiteral) => {
             let mut seen_methods = FxHashSet::default();
 
-            // Collect methods from the default inferred type (i32)
+            // Collect all methods (inherent + trait) from the default inferred type (i32)
             complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
                 if seen_methods.insert(func) {
                     acc.add_method(ctx, dot_access, func, None, None)
                 }
             });
 
-            // Collect methods from all other integer types (not float types, since
-            // `23.` is an integer literal followed by a dot, not a float literal)
+            // Collect only trait methods from all other integer types to discover
+            // traits that are only implemented for non-default types
             let numeric_types = [
                 hir::BuiltinType::i8(),
                 hir::BuiltinType::i16(),
@@ -113,7 +115,7 @@ pub(crate) fn complete_dot(
 
             for builtin_ty in numeric_types {
                 let ty = builtin_ty.ty(ctx.db);
-                complete_methods(ctx, &ty, &traits_in_scope, |func| {
+                complete_trait_methods_only(ctx, &ty, &traits_in_scope, |func| {
                     if seen_methods.insert(func) {
                         acc.add_method(ctx, dot_access, func, None, None)
                     }
@@ -121,24 +123,25 @@ pub(crate) fn complete_dot(
             }
         }
 
-        // For unsuffixed float literals like `2.0`, also complete methods from other float types
-        // since the literal could be f16, f32, f64, or f128 (defaults to f64)
+        // For unsuffixed float literals like `2.0`, also complete methods from other float types.
+        // Similar to integer literals, we collect all methods from the default type (f64),
+        // but only trait methods from other float types to avoid duplicating inherent methods.
         DotAccessKind::Field(FieldKind::UnsuffixedFloatLiteral) => {
             let mut seen_methods = FxHashSet::default();
 
-            // Collect methods from the default inferred type (f64)
+            // Collect all methods (inherent + trait) from the default inferred type (f64)
             complete_methods(ctx, receiver_ty, &traits_in_scope, |func| {
                 if seen_methods.insert(func) {
                     acc.add_method(ctx, dot_access, func, None, None)
                 }
             });
 
-            // Also collect methods from f16, f32, f128
+            // Collect only trait methods from f16, f32, f128
             let numeric_types =
                 [hir::BuiltinType::f16(), hir::BuiltinType::f32(), hir::BuiltinType::f128()];
             for builtin_ty in numeric_types {
                 let ty = builtin_ty.ty(ctx.db);
-                complete_methods(ctx, &ty, &traits_in_scope, |func| {
+                complete_trait_methods_only(ctx, &ty, &traits_in_scope, |func| {
                     if seen_methods.insert(func) {
                         acc.add_method(ctx, dot_access, func, None, None)
                     }
@@ -321,6 +324,52 @@ fn complete_methods(
         fn on_trait_method(&mut self, func: hir::Function) -> ControlFlow<()> {
             // This needs to come before the `seen_methods` test, so that if we see the same method twice,
             // once as inherent and once not, we will include it.
+            if let ItemContainer::Trait(trait_) = func.container(self.ctx.db)
+                && (self.ctx.exclude_traits.contains(&trait_)
+                    || trait_.complete(self.ctx.db) == Complete::IgnoreMethods)
+            {
+                return ControlFlow::Continue(());
+            }
+
+            if func.self_param(self.ctx.db).is_some() && self.seen_methods.insert(func) {
+                (self.f)(func);
+            }
+
+            ControlFlow::Continue(())
+        }
+    }
+
+    receiver.iterate_method_candidates_split_inherent(
+        ctx.db,
+        &ctx.scope,
+        traits_in_scope,
+        None,
+        Callback { ctx, f, seen_methods: FxHashSet::default() },
+    );
+}
+
+fn complete_trait_methods_only(
+    ctx: &CompletionContext<'_>,
+    receiver: &hir::Type<'_>,
+    traits_in_scope: &FxHashSet<hir::TraitId>,
+    f: impl FnMut(hir::Function),
+) {
+    struct Callback<'a, F> {
+        ctx: &'a CompletionContext<'a>,
+        f: F,
+        seen_methods: FxHashSet<Function>,
+    }
+
+    impl<F> MethodCandidateCallback for Callback<'_, F>
+    where
+        F: FnMut(hir::Function),
+    {
+        fn on_inherent_method(&mut self, _func: hir::Function) -> ControlFlow<()> {
+            // Skip inherent methods - we only want trait methods
+            ControlFlow::Continue(())
+        }
+
+        fn on_trait_method(&mut self, func: hir::Function) -> ControlFlow<()> {
             if let ItemContainer::Trait(trait_) = func.container(self.ctx.db)
                 && (self.ctx.exclude_traits.contains(&trait_)
                     || trait_.complete(self.ctx.db) == Complete::IgnoreMethods)
