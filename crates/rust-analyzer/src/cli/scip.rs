@@ -189,9 +189,9 @@ impl flags::Scip {
                     symbol_roles |= scip_types::SymbolRole::Definition as i32;
                 }
 
-                let enclosing_range = match token.definition_body {
-                    Some(def_body) if def_body.file_id == file_id => {
-                        text_range_to_scip_range(&line_index, def_body.range)
+                let enclosing_range = match token.enclosing_range {
+                    Some(range) if range.file_id == file_id => {
+                        text_range_to_scip_range(&line_index, range.range)
                     }
                     _ => Vec::new(),
                 };
@@ -944,6 +944,70 @@ pub mod example_mod {
             range: TextRange::new(0.into(), 11.into()),
         };
 
-        assert_eq!(token.definition_body, Some(expected_range));
+        assert_eq!(token.enclosing_range, Some(expected_range));
+    }
+
+    #[test]
+    fn method_in_impl_has_enclosing_range() {
+        let s = r#"
+struct Foo;
+impl Foo {
+    fn method(&self) {}
+}
+"#;
+
+        let mut host = AnalysisHost::default();
+        let change_fixture = ChangeFixture::parse(s);
+        host.raw_database_mut().apply_change(change_fixture.change);
+
+        let analysis = host.analysis();
+        let si = StaticIndex::compute(
+            &analysis,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
+
+        let file = si.files.first().unwrap();
+        // Find the definition token for `method` - it should have a enclosing_range
+        let method_token = file
+            .tokens
+            .iter()
+            .find_map(|(_range, id)| {
+                let token = si.tokens.get(*id).unwrap();
+                // Check if this is the method definition by looking at the display name and kind
+                if token.display_name.as_deref() == Some("method")
+                    && token.kind == SymbolInformationKind::Method
+                {
+                    Some(id)
+                } else {
+                    None
+                }
+            })
+            .expect("Should find method token");
+
+        let token = si.tokens.get(*method_token).unwrap();
+
+        // The enclosing_range should exist and should be just the method, not the entire impl block
+        let def_body = token.enclosing_range.expect("Method should have a enclosing_range");
+
+        // The enclosing_range should cover just the method
+        // Based on the test output, we can see the actual range is 27..46
+        // Let's verify it's not the entire impl block (which would be larger)
+        let impl_start = s.find("impl Foo").unwrap();
+        let impl_end = s.rfind('}').unwrap() + 1;
+        let impl_range = TextRange::new((impl_start as u32).into(), (impl_end as u32).into());
+
+        // The method body should NOT be the same as the entire impl block
+        assert_ne!(
+            def_body.range, impl_range,
+            "Method enclosing range should not be the entire impl block"
+        );
+
+        // The method body should be smaller than the impl block
+        assert!(
+            def_body.range.len() < impl_range.len(),
+            "Method enclosing range should be smaller than the impl block"
+        );
     }
 }

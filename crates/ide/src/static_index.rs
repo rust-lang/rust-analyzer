@@ -44,15 +44,14 @@ pub struct TokenStaticData {
     // FIXME: Make this have the lifetime of the database.
     pub documentation: Option<Documentation<'static>>,
     pub hover: Option<HoverResult>,
-    /// The position of the token itself.
-    ///
-    /// For example, in `fn foo() {}` this is the position of `foo`.
+    /// Position that a go-to-def operation on this token would jump to.
+    /// This means that if we have `fn foo() {}` and the token is `foo`, then this is the
+    /// position of the `foo` name in the function definition
+    /// (and not the range of the whole definition).
+    /// If the token is a definition name, then that's the position of the token itself.
     pub definition: Option<FileRange>,
-    /// The position of the entire definition that this token belongs to.
-    ///
-    /// For example, in `fn foo() {}` this is the position from `fn`
-    /// to the closing brace.
-    pub definition_body: Option<FileRange>,
+    /// The range of the parent token in the syntax tree.
+    pub enclosing_range: Option<FileRange>,
     pub references: Vec<ReferenceData>,
     pub moniker: Option<MonikerResult>,
     pub display_name: Option<String>,
@@ -250,10 +249,13 @@ impl StaticIndex<'_> {
                     definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
                         FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
                     }),
-                    definition_body: def
-                        .try_to_nav(&sema)
-                        .map(UpmappingResult::call_site)
-                        .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
+                    enclosing_range: {
+                        let parent = scope_node.ancestors().find(|ancestor| {
+                            let ancestor_range = ancestor.text_range();
+                            ancestor_range.contains_range(range) && ancestor_range != range
+                        });
+                        parent.map(|p| FileRange { file_id, range: p.text_range() })
+                    },
                     references: vec![],
                     moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
                     display_name: def
