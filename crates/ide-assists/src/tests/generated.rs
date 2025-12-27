@@ -396,6 +396,28 @@ fn doctest_comment_to_doc() {
 }
 
 #[test]
+fn doctest_convert_attr_cfg_to_if() {
+    check_doc_test(
+        "convert_attr_cfg_to_if",
+        r#####"
+fn foo() {
+    $0#[cfg(feature = "foo")]
+    {
+        let _x = 2;
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    if cfg!(feature = "foo") {
+        let _x = 2;
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_bool_then_to_if() {
     check_doc_test(
         "convert_bool_then_to_if",
@@ -563,6 +585,28 @@ impl TryFrom<usize> for Thing {
             b: val.to_string(),
             a: val
         })
+    }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_convert_if_cfg_to_attr() {
+    check_doc_test(
+        "convert_if_cfg_to_attr",
+        r#####"
+fn foo() {
+    if $0cfg!(feature = "foo") {
+        let _x = 2;
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    #[cfg(feature = "foo")]
+    {
+        let _x = 2;
     }
 }
 "#####,
