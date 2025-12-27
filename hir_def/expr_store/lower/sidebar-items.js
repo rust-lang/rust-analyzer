@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["hir_assoc_type_binding_to_ast","hir_generic_arg_to_ast","hir_segment_to_ast_segment"],"struct":["ExprCollector"]};

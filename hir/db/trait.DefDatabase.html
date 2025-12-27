@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `DefDatabase` trait in crate `hir`."><title>DefDatabase in hir::db - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hir" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">DefDatabase</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../hir/index.html">hir</a><span class="version">0.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">DefDatabase</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.assoc_visibility" title="assoc_visibility">assoc_visibility</a></li><li><a href="#tymethod.body" title="body">body</a></li><li><a href="#tymethod.body_with_source_map" title="body_with_source_map">body_with_source_map</a></li><li><a href="#tymethod.const_signature" title="const_signature">const_signature</a></li><li><a href="#tymethod.const_signature_with_source_map" title="const_signature_with_source_map">const_signature_with_source_map</a></li><li><a href="#tymethod.crate_notable_traits" title="crate_notable_traits">crate_notable_traits</a></li><li><a href="#tymethod.crate_supports_no_std" title="crate_supports_no_std">crate_supports_no_std</a></li><li><a href="#tymethod.enum_signature" title="enum_signature">enum_signature</a></li><li><a href="#tymethod.enum_signature_with_source_map" title="enum_signature_with_source_map">enum_signature_with_source_map</a></li><li><a href="#tymethod.expand_proc_attr_macros" title="expand_proc_attr_macros">expand_proc_attr_macros</a></li><li><a href="#tymethod.expr_scopes" title="expr_scopes">expr_scopes</a></li><li><a href="#tymethod.field_visibilities" title="field_visibilities">field_visibilities</a></li><li><a href="#tymethod.file_item_tree" title="file_item_tree">file_item_tree</a></li><li><a href="#tymethod.function_signature" title="function_signature">function_signature</a></li><li><a href="#tymethod.function_signature_with_source_map" title="function_signature_with_source_map">function_signature_with_source_map</a></li><li><a href="#tymethod.generic_params" title="generic_params">generic_params</a></li><li><a href="#tymethod.generic_params_and_store" title="generic_params_and_store">generic_params_and_store</a></li><li><a href="#tymethod.generic_params_and_store_and_source_map" title="generic_params_and_store_and_source_map">generic_params_and_store_and_source_map</a></li><li><a href="#tymethod.impl_signature" title="impl_signature">impl_signature</a></li><li><a href="#tymethod.impl_signature_with_source_map" title="impl_signature_with_source_map">impl_signature_with_source_map</a></li><li><a href="#tymethod.import_map" title="import_map">import_map</a></li><li><a href="#tymethod.include_macro_invoc" title="include_macro_invoc">include_macro_invoc</a></li><li><a href="#tymethod.macro_def" title="macro_def">macro_def</a></li><li><a href="#tymethod.set_expand_proc_attr_macros" title="set_expand_proc_attr_macros">set_expand_proc_attr_macros</a></li><li><a href="#tymethod.set_expand_proc_attr_macros_with_durability" title="set_expand_proc_attr_macros_with_durability">set_expand_proc_attr_macros_with_durability</a></li><li><a href="#tymethod.static_signature" title="static_signature">static_signature</a></li><li><a href="#tymethod.static_signature_with_source_map" title="static_signature_with_source_map">static_signature_with_source_map</a></li><li><a href="#tymethod.struct_signature" title="struct_signature">struct_signature</a></li><li><a href="#tymethod.struct_signature_with_source_map" title="struct_signature_with_source_map">struct_signature_with_source_map</a></li><li><a href="#tymethod.trait_signature" title="trait_signature">trait_signature</a></li><li><a href="#tymethod.trait_signature_with_source_map" title="trait_signature_with_source_map">trait_signature_with_source_map</a></li><li><a href="#tymethod.type_alias_signature" title="type_alias_signature">type_alias_signature</a></li><li><a href="#tymethod.type_alias_signature_with_source_map" title="type_alias_signature_with_source_map">type_alias_signature_with_source_map</a></li><li><a href="#tymethod.union_signature" title="union_signature">union_signature</a></li><li><a href="#tymethod.union_signature_with_source_map" title="union_signature_with_source_map">union_signature_with_source_map</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In hir::db</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">hir</a>::<wbr><a href="index.html">db</a></div><h1>Trait <span class="trait">DefDatabase</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><pre class="rust item-decl"><code>pub trait DefDatabase:
+    InternDatabase
+    + <a class="trait" href="trait.ExpandDatabase.html" title="trait hir::db::ExpandDatabase">ExpandDatabase</a>
+    + SourceDatabase {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 35 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.expand_proc_attr_macros" class="fn">expand_proc_attr_macros</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.file_item_tree" class="fn">file_item_tree</a>(&amp;self, file_id: <a class="enum" href="../enum.HirFileId.html" title="enum hir::HirFileId">HirFileId</a>) -&gt; &amp;ItemTree;
+<span class="item-spacer"></span>    fn <a href="#tymethod.macro_def" class="fn">macro_def</a>(&amp;self, m: MacroId) -&gt; MacroDefId;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_signature" class="fn">trait_signature</a>(&amp;self, trait_: <a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>) -&gt; Arc&lt;TraitSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_signature" class="fn">impl_signature</a>(&amp;self, impl_: ImplId) -&gt; Arc&lt;ImplSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.struct_signature" class="fn">struct_signature</a>(&amp;self, struct_: StructId) -&gt; Arc&lt;StructSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.union_signature" class="fn">union_signature</a>(&amp;self, union_: UnionId) -&gt; Arc&lt;UnionSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.enum_signature" class="fn">enum_signature</a>(&amp;self, e: EnumId) -&gt; Arc&lt;EnumSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_signature" class="fn">const_signature</a>(&amp;self, e: ConstId) -&gt; Arc&lt;ConstSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.static_signature" class="fn">static_signature</a>(&amp;self, e: StaticId) -&gt; Arc&lt;StaticSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.function_signature" class="fn">function_signature</a>(&amp;self, e: FunctionId) -&gt; Arc&lt;FunctionSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.type_alias_signature" class="fn">type_alias_signature</a>(&amp;self, e: TypeAliasId) -&gt; Arc&lt;TypeAliasSignature&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.trait_signature_with_source_map" class="fn">trait_signature_with_source_map</a>(
+        &amp;self,
+        trait_: <a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>,
+    ) -&gt; (Arc&lt;TraitSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.impl_signature_with_source_map" class="fn">impl_signature_with_source_map</a>(
+        &amp;self,
+        impl_: ImplId,
+    ) -&gt; (Arc&lt;ImplSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.struct_signature_with_source_map" class="fn">struct_signature_with_source_map</a>(
+        &amp;self,
+        struct_: StructId,
+    ) -&gt; (Arc&lt;StructSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.union_signature_with_source_map" class="fn">union_signature_with_source_map</a>(
+        &amp;self,
+        union_: UnionId,
+    ) -&gt; (Arc&lt;UnionSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.enum_signature_with_source_map" class="fn">enum_signature_with_source_map</a>(
+        &amp;self,
+        e: EnumId,
+    ) -&gt; (Arc&lt;EnumSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.const_signature_with_source_map" class="fn">const_signature_with_source_map</a>(
+        &amp;self,
+        e: ConstId,
+    ) -&gt; (Arc&lt;ConstSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.static_signature_with_source_map" class="fn">static_signature_with_source_map</a>(
+        &amp;self,
+        e: StaticId,
+    ) -&gt; (Arc&lt;StaticSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.function_signature_with_source_map" class="fn">function_signature_with_source_map</a>(
+        &amp;self,
+        e: FunctionId,
+    ) -&gt; (Arc&lt;FunctionSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.type_alias_signature_with_source_map" class="fn">type_alias_signature_with_source_map</a>(
+        &amp;self,
+        e: TypeAliasId,
+    ) -&gt; (Arc&lt;TypeAliasSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.body_with_source_map" class="fn">body_with_source_map</a>(
+        &amp;self,
+        def: DefWithBodyId,
+    ) -&gt; (Arc&lt;Body&gt;, Arc&lt;BodySourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.body" class="fn">body</a>(&amp;self, def: DefWithBodyId) -&gt; Arc&lt;Body&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.expr_scopes" class="fn">expr_scopes</a>(&amp;self, def: DefWithBodyId) -&gt; Arc&lt;ExprScopes&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_params" class="fn">generic_params</a>(&amp;self, def: GenericDefId) -&gt; Arc&lt;GenericParams&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_params_and_store" class="fn">generic_params_and_store</a>(
+        &amp;self,
+        def: GenericDefId,
+    ) -&gt; (Arc&lt;GenericParams&gt;, Arc&lt;ExpressionStore&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.generic_params_and_store_and_source_map" class="fn">generic_params_and_store_and_source_map</a>(
+        &amp;self,
+        def: GenericDefId,
+    ) -&gt; (Arc&lt;GenericParams&gt;, Arc&lt;ExpressionStore&gt;, Arc&lt;ExpressionStoreSourceMap&gt;);
+<span class="item-spacer"></span>    fn <a href="#tymethod.import_map" class="fn">import_map</a>(&amp;self, krate: Crate) -&gt; Arc&lt;<a class="struct" href="../import_map/struct.ImportMap.html" title="struct hir::import_map::ImportMap">ImportMap</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.field_visibilities" class="fn">field_visibilities</a>(
+        &amp;self,
+        var: <a class="enum" href="../diagnostics/enum.VariantId.html" title="enum hir::diagnostics::VariantId">VariantId</a>,
+    ) -&gt; Arc&lt;ArenaMap&lt;Idx&lt;FieldData&gt;, <a class="enum" href="../enum.Visibility.html" title="enum hir::Visibility">Visibility</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.assoc_visibility" class="fn">assoc_visibility</a>(&amp;self, def: AssocItemId) -&gt; <a class="enum" href="../enum.Visibility.html" title="enum hir::Visibility">Visibility</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.crate_notable_traits" class="fn">crate_notable_traits</a>(&amp;self, krate: Crate) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.92.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;[<a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>]&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.crate_supports_no_std" class="fn">crate_supports_no_std</a>(&amp;self, crate_id: Crate) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.include_macro_invoc" class="fn">include_macro_invoc</a>(
+        &amp;self,
+        crate_id: Crate,
+    ) -&gt; Arc&lt;[(<a class="struct" href="../struct.MacroCallId.html" title="struct hir::MacroCallId">MacroCallId</a>, <a class="struct" href="../struct.EditionedFileId.html" title="struct hir::EditionedFileId">EditionedFileId</a>)]&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_expand_proc_attr_macros" class="fn">set_expand_proc_attr_macros</a>(&amp;mut self, __value: <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.set_expand_proc_attr_macros_with_durability" class="fn">set_expand_proc_attr_macros_with_durability</a>(
+        &amp;mut self,
+        __value: <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a>,
+        durability: Durability,
+    );
+</details>}</code></pre><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.expand_proc_attr_macros" class="method"><h4 class="code-header">fn <a href="#tymethod.expand_proc_attr_macros" class="fn">expand_proc_attr_macros</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a></h4></section><section id="tymethod.file_item_tree" class="method"><h4 class="code-header">fn <a href="#tymethod.file_item_tree" class="fn">file_item_tree</a>(&amp;self, file_id: <a class="enum" href="../enum.HirFileId.html" title="enum hir::HirFileId">HirFileId</a>) -&gt; &amp;ItemTree</h4></section><section id="tymethod.macro_def" class="method"><h4 class="code-header">fn <a href="#tymethod.macro_def" class="fn">macro_def</a>(&amp;self, m: MacroId) -&gt; MacroDefId</h4></section><section id="tymethod.trait_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_signature" class="fn">trait_signature</a>(&amp;self, trait_: <a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>) -&gt; Arc&lt;TraitSignature&gt;</h4></section><section id="tymethod.impl_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_signature" class="fn">impl_signature</a>(&amp;self, impl_: ImplId) -&gt; Arc&lt;ImplSignature&gt;</h4></section><section id="tymethod.struct_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.struct_signature" class="fn">struct_signature</a>(&amp;self, struct_: StructId) -&gt; Arc&lt;StructSignature&gt;</h4></section><section id="tymethod.union_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.union_signature" class="fn">union_signature</a>(&amp;self, union_: UnionId) -&gt; Arc&lt;UnionSignature&gt;</h4></section><section id="tymethod.enum_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.enum_signature" class="fn">enum_signature</a>(&amp;self, e: EnumId) -&gt; Arc&lt;EnumSignature&gt;</h4></section><section id="tymethod.const_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.const_signature" class="fn">const_signature</a>(&amp;self, e: ConstId) -&gt; Arc&lt;ConstSignature&gt;</h4></section><section id="tymethod.static_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.static_signature" class="fn">static_signature</a>(&amp;self, e: StaticId) -&gt; Arc&lt;StaticSignature&gt;</h4></section><section id="tymethod.function_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.function_signature" class="fn">function_signature</a>(&amp;self, e: FunctionId) -&gt; Arc&lt;FunctionSignature&gt;</h4></section><section id="tymethod.type_alias_signature" class="method"><h4 class="code-header">fn <a href="#tymethod.type_alias_signature" class="fn">type_alias_signature</a>(&amp;self, e: TypeAliasId) -&gt; Arc&lt;TypeAliasSignature&gt;</h4></section><section id="tymethod.trait_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.trait_signature_with_source_map" class="fn">trait_signature_with_source_map</a>(
+    &amp;self,
+    trait_: <a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>,
+) -&gt; (Arc&lt;TraitSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.impl_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.impl_signature_with_source_map" class="fn">impl_signature_with_source_map</a>(
+    &amp;self,
+    impl_: ImplId,
+) -&gt; (Arc&lt;ImplSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.struct_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.struct_signature_with_source_map" class="fn">struct_signature_with_source_map</a>(
+    &amp;self,
+    struct_: StructId,
+) -&gt; (Arc&lt;StructSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.union_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.union_signature_with_source_map" class="fn">union_signature_with_source_map</a>(
+    &amp;self,
+    union_: UnionId,
+) -&gt; (Arc&lt;UnionSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.enum_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.enum_signature_with_source_map" class="fn">enum_signature_with_source_map</a>(
+    &amp;self,
+    e: EnumId,
+) -&gt; (Arc&lt;EnumSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.const_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.const_signature_with_source_map" class="fn">const_signature_with_source_map</a>(
+    &amp;self,
+    e: ConstId,
+) -&gt; (Arc&lt;ConstSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.static_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.static_signature_with_source_map" class="fn">static_signature_with_source_map</a>(
+    &amp;self,
+    e: StaticId,
+) -&gt; (Arc&lt;StaticSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.function_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.function_signature_with_source_map" class="fn">function_signature_with_source_map</a>(
+    &amp;self,
+    e: FunctionId,
+) -&gt; (Arc&lt;FunctionSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.type_alias_signature_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.type_alias_signature_with_source_map" class="fn">type_alias_signature_with_source_map</a>(
+    &amp;self,
+    e: TypeAliasId,
+) -&gt; (Arc&lt;TypeAliasSignature&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.body_with_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.body_with_source_map" class="fn">body_with_source_map</a>(
+    &amp;self,
+    def: DefWithBodyId,
+) -&gt; (Arc&lt;Body&gt;, Arc&lt;BodySourceMap&gt;)</h4></section><section id="tymethod.body" class="method"><h4 class="code-header">fn <a href="#tymethod.body" class="fn">body</a>(&amp;self, def: DefWithBodyId) -&gt; Arc&lt;Body&gt;</h4></section><section id="tymethod.expr_scopes" class="method"><h4 class="code-header">fn <a href="#tymethod.expr_scopes" class="fn">expr_scopes</a>(&amp;self, def: DefWithBodyId) -&gt; Arc&lt;ExprScopes&gt;</h4></section><section id="tymethod.generic_params" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_params" class="fn">generic_params</a>(&amp;self, def: GenericDefId) -&gt; Arc&lt;GenericParams&gt;</h4></section><section id="tymethod.generic_params_and_store" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_params_and_store" class="fn">generic_params_and_store</a>(
+    &amp;self,
+    def: GenericDefId,
+) -&gt; (Arc&lt;GenericParams&gt;, Arc&lt;ExpressionStore&gt;)</h4></section><section id="tymethod.generic_params_and_store_and_source_map" class="method"><h4 class="code-header">fn <a href="#tymethod.generic_params_and_store_and_source_map" class="fn">generic_params_and_store_and_source_map</a>(
+    &amp;self,
+    def: GenericDefId,
+) -&gt; (Arc&lt;GenericParams&gt;, Arc&lt;ExpressionStore&gt;, Arc&lt;ExpressionStoreSourceMap&gt;)</h4></section><section id="tymethod.import_map" class="method"><h4 class="code-header">fn <a href="#tymethod.import_map" class="fn">import_map</a>(&amp;self, krate: Crate) -&gt; Arc&lt;<a class="struct" href="../import_map/struct.ImportMap.html" title="struct hir::import_map::ImportMap">ImportMap</a>&gt;</h4></section><section id="tymethod.field_visibilities" class="method"><h4 class="code-header">fn <a href="#tymethod.field_visibilities" class="fn">field_visibilities</a>(
+    &amp;self,
+    var: <a class="enum" href="../diagnostics/enum.VariantId.html" title="enum hir::diagnostics::VariantId">VariantId</a>,
+) -&gt; Arc&lt;ArenaMap&lt;Idx&lt;FieldData&gt;, <a class="enum" href="../enum.Visibility.html" title="enum hir::Visibility">Visibility</a>&gt;&gt;</h4></section><section id="tymethod.assoc_visibility" class="method"><h4 class="code-header">fn <a href="#tymethod.assoc_visibility" class="fn">assoc_visibility</a>(&amp;self, def: AssocItemId) -&gt; <a class="enum" href="../enum.Visibility.html" title="enum hir::Visibility">Visibility</a></h4></section><section id="tymethod.crate_notable_traits" class="method"><h4 class="code-header">fn <a href="#tymethod.crate_notable_traits" class="fn">crate_notable_traits</a>(&amp;self, krate: Crate) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.92.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;[<a class="struct" href="../struct.TraitId.html" title="struct hir::TraitId">TraitId</a>]&gt;</h4></section><section id="tymethod.crate_supports_no_std" class="method"><h4 class="code-header">fn <a href="#tymethod.crate_supports_no_std" class="fn">crate_supports_no_std</a>(&amp;self, crate_id: Crate) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a></h4></section><section id="tymethod.include_macro_invoc" class="method"><h4 class="code-header">fn <a href="#tymethod.include_macro_invoc" class="fn">include_macro_invoc</a>(
+    &amp;self,
+    crate_id: Crate,
+) -&gt; Arc&lt;[(<a class="struct" href="../struct.MacroCallId.html" title="struct hir::MacroCallId">MacroCallId</a>, <a class="struct" href="../struct.EditionedFileId.html" title="struct hir::EditionedFileId">EditionedFileId</a>)]&gt;</h4></section><section id="tymethod.set_expand_proc_attr_macros" class="method"><h4 class="code-header">fn <a href="#tymethod.set_expand_proc_attr_macros" class="fn">set_expand_proc_attr_macros</a>(&amp;mut self, __value: <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a>)</h4></section><section id="tymethod.set_expand_proc_attr_macros_with_durability" class="method"><h4 class="code-header">fn <a href="#tymethod.set_expand_proc_attr_macros_with_durability" class="fn">set_expand_proc_attr_macros_with_durability</a>(
+    &amp;mut self,
+    __value: <a class="primitive" href="https://doc.rust-lang.org/1.92.0/std/primitive.bool.html">bool</a>,
+    durability: Durability,
+)</h4></section></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-DefDatabase-for-DB" class="impl"><a href="#impl-DefDatabase-for-DB" class="anchor">§</a><h3 class="code-header">impl&lt;DB&gt; <a class="trait" href="trait.DefDatabase.html" title="trait hir::db::DefDatabase">DefDatabase</a> for DB<div class="where">where
+    DB: InternDatabase + <a class="trait" href="trait.ExpandDatabase.html" title="trait hir::db::ExpandDatabase">ExpandDatabase</a> + SourceDatabase,</div></h3></section></div><script src="../../trait.impl/hir_def/db/trait.DefDatabase.js" async></script></section></div></main></body></html>

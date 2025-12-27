@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["sym"],"struct":["GarbageCollector","InternSliceStorage","InternStorage","Interned","InternedRef","InternedSlice","InternedSliceRef","Symbol"],"trait":["GcInternedSliceVisit","GcInternedVisit","Internable","SliceInternable"]};
