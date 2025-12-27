@@ -2,12 +2,13 @@ use hir::Type;
 use ide_db::FxHashMap;
 use std::iter::successors;
 use syntax::{
-    Direction,
+    Direction, SyntaxKind,
     algo::neighbor,
-    ast::{self, AstNode, HasName},
+    ast::{self, AstNode, HasName, syntax_factory::SyntaxFactory},
+    syntax_editor::Position,
 };
 
-use crate::{AssistContext, AssistId, Assists, TextRange};
+use crate::{AssistContext, AssistId, Assists, TextRange, utils};
 
 // Assist: merge_match_arms
 //
@@ -96,6 +97,90 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
 
                 edit.replace(TextRange::new(start, end), arm);
             }
+        },
+    )
+}
+
+// Assist: merge_other_match_arms
+//
+// Merge other arms, can be used after fill match arms.
+//
+// ```
+// enum Action { A, B, C, D, E }
+//
+// fn handle(action: Action) {
+//     match action {
+//         A => todo!(),
+//         $0B => foo(),
+//         C$0 => bar(),
+//         D => todo!(),
+//         E => todo!(),
+//     }
+// }
+// ```
+// ->
+// ```
+// enum Action { A, B, C, D, E }
+//
+// fn handle(action: Action) {
+//     match action {
+//         B => foo(),
+//         C => bar(),
+//         _ => todo!(),
+//     }
+// }
+// ```
+pub(crate) fn merge_other_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    if ctx.has_empty_selection() {
+        return None;
+    }
+    let arm_list = ctx.find_node_at_trimmed_offset::<ast::MatchArmList>()?;
+    let (current_arms, other_arms) = arm_list
+        .arms()
+        .partition::<Vec<_>, _>(|arm| utils::is_selected(arm, ctx.selection_trimmed(), false));
+    let other_expr = other_arms.first()?.expr()?;
+    let current_first_arm = current_arms.first()?;
+    let current_last_arm = current_arms.last()?;
+
+    for other_arm in &other_arms {
+        if other_arm.expr()?.syntax().text() != other_expr.syntax().text() {
+            return None;
+        }
+    }
+    if current_first_arm.expr()?.syntax().text_range().contains_range(ctx.selection_trimmed()) {
+        return None;
+    }
+
+    let target =
+        current_first_arm.syntax().text_range().cover(current_last_arm.syntax().text_range());
+    acc.add(
+        AssistId::refactor_rewrite("merge_other_match_arms"),
+        "Merge other arms to `_ => ...`",
+        target,
+        |builder| {
+            let mut edit = builder.make_editor(current_first_arm.syntax());
+            let make = SyntaxFactory::with_mappings();
+
+            for other_arm in other_arms {
+                if let Some(prev) = other_arm.syntax().prev_sibling_or_token()
+                    && prev.kind() == SyntaxKind::WHITESPACE
+                {
+                    edit.delete(prev);
+                }
+                edit.delete(other_arm.syntax());
+            }
+            let merged_arm = make.match_arm(make.wildcard_pat().into(), None, other_expr);
+            edit.insert(Position::after(current_last_arm.syntax()), merged_arm.syntax());
+
+            if let Some(prev) = current_first_arm.syntax().prev_sibling_or_token()
+                && prev.kind() == SyntaxKind::WHITESPACE
+            {
+                let ws = make.whitespace(&prev.to_string());
+                edit.insert(Position::after(current_last_arm.syntax()), ws);
+            }
+
+            edit.add_mappings(make.finish_with_mappings());
+            builder.add_file_edits(ctx.vfs_file_id(), edit);
         },
     )
 }
@@ -918,5 +1003,206 @@ fn func(binary: &[u8]) {
 }
         "#,
         )
+    }
+
+    #[test]
+    fn merge_other_match_arms_basic() {
+        check_assist(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        $00 $0=> code(),
+        1 => else_code(),
+        2 => else_code(),
+        3 => else_code(),
+    };
+}
+        "#,
+            r#"
+fn func() {
+    match 3 {
+        0 => code(),
+        _ => else_code(),
+    };
+}
+        "#,
+        );
+
+        check_assist(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        1 => else_code(),
+        2 => else_code(),
+        3 => else_code(),
+        $00 $0=> code(),
+    };
+}
+        "#,
+            r#"
+fn func() {
+    match 3 {
+        0 => code(),
+        _ => else_code(),
+    };
+}
+        "#,
+        );
+
+        check_assist(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        1 => else_code(),
+        2 => else_code(),
+        $00 $0=> code(),
+        3 => else_code(),
+    };
+}
+        "#,
+            r#"
+fn func() {
+    match 3 {
+        0 => code(),
+        _ => else_code(),
+    };
+}
+        "#,
+        );
+    }
+
+    #[test]
+    fn merge_other_match_arms_multiple_arms() {
+        check_assist(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        $0-2 => code1(),
+        -1 => code2(),
+        0 $0=> code3(),
+        1 => else_code(),
+        2 => else_code(),
+        3 => else_code(),
+    };
+}
+        "#,
+            r#"
+fn func() {
+    match 3 {
+        -2 => code1(),
+        -1 => code2(),
+        0 => code3(),
+        _ => else_code(),
+    };
+}
+        "#,
+        );
+
+        check_assist(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        1 => else_code(),
+        2 => else_code(),
+        3 => else_code(),
+        $0-2 => code1(),
+        -1 => code2(),
+        0 $0=> code3(),
+    };
+}
+        "#,
+            r#"
+fn func() {
+    match 3 {
+        -2 => code1(),
+        -1 => code2(),
+        0 => code3(),
+        _ => else_code(),
+    };
+}
+        "#,
+        );
+
+        check_assist(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        1 => else_code(),
+        2 => else_code(),
+        $0-2 => code1(),
+        -1 => code2(),
+        0 $0=> code3(),
+        3 => else_code(),
+    };
+}
+        "#,
+            r#"
+fn func() {
+    match 3 {
+        -2 => code1(),
+        -1 => code2(),
+        0 => code3(),
+        _ => else_code(),
+    };
+}
+        "#,
+        );
+    }
+
+    #[test]
+    fn merge_other_match_arms_not_selected() {
+        check_assist_not_applicable(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        0$0 => code(),
+        1 => else_code(),
+        2 => else_code(),
+        3 => else_code(),
+    };
+}
+        "#,
+        );
+    }
+
+    #[test]
+    fn merge_other_match_arms_in_expr() {
+        check_assist_not_applicable(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        0 => $0code$0(),
+        1 => else_code(),
+        2 => else_code(),
+        3 => else_code(),
+    };
+}
+        "#,
+        );
+    }
+
+    #[test]
+    fn merge_other_match_arms_in_cannot_merge_other() {
+        check_assist_not_applicable(
+            merge_other_match_arms,
+            r#"
+fn func() {
+    match 3 {
+        $00 =>$0 code(),
+        1 => else_code1(),
+        2 => else_code2(),
+        3 => else_code3(),
+    };
+}
+        "#,
+        );
     }
 }
