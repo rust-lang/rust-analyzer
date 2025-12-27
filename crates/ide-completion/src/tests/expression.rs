@@ -3608,3 +3608,383 @@ fn main() {
         "#]],
     );
 }
+#[test]
+fn complete_integer_methods_unsuffixed() {
+    check(
+        r#"
+trait Trait {
+    fn method(&self) {}
+}
+
+macro_rules! impl_trait {
+    ($($ty:ty), *) => {
+        $(impl Trait for $ty {})*
+    };
+}
+
+impl_trait!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize)
+
+fn main() {
+    2.$0
+}
+        "#,
+        expect![[r#"
+            me method() (as Trait) fn(&self)
+            sn box            Box::new(expr)
+            sn call           function(expr)
+            sn const                const {}
+            sn dbg                dbg!(expr)
+            sn dbgr              dbg!(&expr)
+            sn deref                   *expr
+            sn match           match expr {}
+            sn ref                     &expr
+            sn refm                &mut expr
+            sn return            return expr
+            sn unsafe              unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn complete_f32_methods_unsuffixed() {
+    check(
+        r#"
+trait Trait {
+    fn method(&self) {}
+}
+
+macro_rules! impl_trait {
+    ($($ty:ty), *) => {
+        $(impl Trait for $ty {})*
+    };
+}
+
+impl_trait!(f16, f32, f64, f128)
+
+fn main() {
+    2.0.$0
+}
+        "#,
+        expect![[r#"
+            me method() (as Trait) fn(&self)
+            sn box            Box::new(expr)
+            sn call           function(expr)
+            sn const                const {}
+            sn dbg                dbg!(expr)
+            sn dbgr              dbg!(&expr)
+            sn deref                   *expr
+            sn let                       let
+            sn letm                  let mut
+            sn match           match expr {}
+            sn ref                     &expr
+            sn refm                &mut expr
+            sn return            return expr
+            sn unsafe              unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn complete_float_methods_suffixed() {
+    check(
+        r#"
+trait F32 {
+    fn call_f32(&self) {}
+}
+
+trait F64 {
+    fn call_f64(&self) {}
+}
+
+impl F64 for f64 {}
+impl F32 for f32 {}
+
+fn main() {
+    2.0f32.$0
+}
+        "#,
+        expect![[r#"
+            me call_f32() (as F32) fn(&self)
+            sn box            Box::new(expr)
+            sn call           function(expr)
+            sn const                const {}
+            sn dbg                dbg!(expr)
+            sn dbgr              dbg!(&expr)
+            sn deref                   *expr
+            sn let                       let
+            sn letm                  let mut
+            sn match           match expr {}
+            sn ref                     &expr
+            sn refm                &mut expr
+            sn return            return expr
+            sn unsafe              unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn complete_methods_on_single_trait_impl_for_non_default_numeric_type() {
+    // When a trait is implemented for only one numeric type (not the default),
+    // Rust's type inference can deduce the correct type, so the code compiles.
+    // IDE should show this method in completion.
+    check(
+        r#"
+//- /core.rs crate:core
+#![rustc_coherence_is_core]
+
+trait MyTrait {
+    fn my_method(&self) -> i32;
+}
+
+// Only implemented for i64, not i32 (the default)
+impl MyTrait for i64 {
+    fn my_method(&self) -> i32 {
+        42
+    }
+}
+
+fn foo() {
+    23.$0
+}
+    "#,
+        expect![[r#"
+            me my_method() (as MyTrait) fn(&self) -> i32
+            sn box                        Box::new(expr)
+            sn call                       function(expr)
+            sn const                            const {}
+            sn dbg                            dbg!(expr)
+            sn dbgr                          dbg!(&expr)
+            sn deref                               *expr
+            sn match                       match expr {}
+            sn ref                                 &expr
+            sn refm                            &mut expr
+            sn return                        return expr
+            sn unsafe                          unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn complete_methods_on_unsuffixed_float_for_non_default_float_type() {
+    // Similar to integers, when a trait is only implemented for f32 (not f64),
+    // the method should be available in completion
+    check(
+        r#"
+//- /core.rs crate:core
+#![rustc_coherence_is_core]
+
+trait FloatTrait {
+    fn float_method(&self) -> f32;
+}
+
+// Only implemented for f32, not f64 (the default)
+impl FloatTrait for f32 {
+    fn float_method(&self) -> f32 {
+        3.14
+    }
+}
+
+fn foo() {
+    2.0.$0
+}
+    "#,
+        expect![[r#"
+            me float_method() (as FloatTrait) fn(&self) -> f32
+            sn box                              Box::new(expr)
+            sn call                             function(expr)
+            sn const                                  const {}
+            sn dbg                                  dbg!(expr)
+            sn dbgr                                dbg!(&expr)
+            sn deref                                     *expr
+            sn let                                         let
+            sn letm                                    let mut
+            sn match                             match expr {}
+            sn ref                                       &expr
+            sn refm                                  &mut expr
+            sn return                              return expr
+            sn unsafe                                unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn test_inherent_methods_on_different_integer_types() {
+    // Test that inherent methods are only shown from the default type (i32).
+    // We don't show inherent methods from other types to avoid duplication,
+    // but trait methods from all types are still discovered.
+    check(
+        r#"
+//- /core.rs crate:core
+#![rustc_coherence_is_core]
+
+impl i32 {
+    pub fn my_i32_method(self) -> i32 { self }
+}
+
+impl i64 {
+    pub fn my_i64_method(self) -> i64 { self }
+}
+
+impl u32 {
+    pub fn my_u32_method(self) -> u32 { self }
+}
+
+fn main() {
+    23.$0
+}
+        "#,
+        expect![[r#"
+            me my_i32_method() fn(self) -> i32
+            sn box              Box::new(expr)
+            sn call             function(expr)
+            sn const                  const {}
+            sn dbg                  dbg!(expr)
+            sn dbgr                dbg!(&expr)
+            sn deref                     *expr
+            sn match             match expr {}
+            sn ref                       &expr
+            sn refm                  &mut expr
+            sn return              return expr
+            sn unsafe                unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn test_same_named_inherent_methods_on_different_types() {
+    // Test that same-named inherent methods are NOT duplicated
+    // We only show inherent methods from the default type (i32)
+    check(
+        r#"
+//- /core.rs crate:core
+#![rustc_coherence_is_core]
+
+impl i32 {
+    pub fn abs(self) -> i32 { self }
+}
+
+impl i64 {
+    pub fn abs(self) -> i64 { self }
+}
+
+impl u32 {
+    pub fn abs(self) -> u32 { self }
+}
+
+fn main() {
+    23.$0
+}
+        "#,
+        expect![[r#"
+            me abs() fn(self) -> i32
+            sn box    Box::new(expr)
+            sn call   function(expr)
+            sn const        const {}
+            sn dbg        dbg!(expr)
+            sn dbgr      dbg!(&expr)
+            sn deref           *expr
+            sn match   match expr {}
+            sn ref             &expr
+            sn refm        &mut expr
+            sn return    return expr
+            sn unsafe      unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn test_inherent_methods_on_different_float_types() {
+    // Test that inherent methods are only shown from the default type (f64).
+    // We don't show inherent methods from other float types to avoid duplication,
+    // but trait methods from all types are still discovered.
+    check(
+        r#"
+//- /core.rs crate:core
+#![rustc_coherence_is_core]
+
+impl f64 {
+    pub fn my_f64_method(self) -> f64 { self }
+}
+
+impl f32 {
+    pub fn my_f32_method(self) -> f32 { self }
+}
+
+impl f16 {
+    pub fn my_f16_method(self) -> f16 { self }
+}
+
+impl f128 {
+    pub fn my_f128_method(self) -> f128 { self }
+}
+
+fn main() {
+    2.0.$0
+}
+        "#,
+        expect![[r#"
+            me my_f64_method() fn(self) -> f64
+            sn box              Box::new(expr)
+            sn call             function(expr)
+            sn const                  const {}
+            sn dbg                  dbg!(expr)
+            sn dbgr                dbg!(&expr)
+            sn deref                     *expr
+            sn let                         let
+            sn letm                    let mut
+            sn match             match expr {}
+            sn ref                       &expr
+            sn refm                  &mut expr
+            sn return              return expr
+            sn unsafe                unsafe {}
+        "#]],
+    );
+}
+
+#[test]
+fn test_same_named_inherent_methods_on_different_float_types() {
+    // Test that same-named inherent methods are NOT duplicated across float types
+    // We only show inherent methods from the default type (f64)
+    check(
+        r#"
+//- /core.rs crate:core
+#![rustc_coherence_is_core]
+
+impl f64 {
+    pub fn abs(self) -> f64 { self }
+}
+
+impl f32 {
+    pub fn abs(self) -> f32 { self }
+}
+
+impl f16 {
+    pub fn abs(self) -> f16 { self }
+}
+
+impl f128 {
+    pub fn abs(self) -> f128 { self }
+}
+
+fn main() {
+    2.0.$0
+}
+        "#,
+        expect![[r#"
+            me abs() fn(self) -> f64
+            sn box    Box::new(expr)
+            sn call   function(expr)
+            sn const        const {}
+            sn dbg        dbg!(expr)
+            sn dbgr      dbg!(&expr)
+            sn deref           *expr
+            sn let               let
+            sn letm          let mut
+            sn match   match expr {}
+            sn ref             &expr
+            sn refm        &mut expr
+            sn return    return expr
+            sn unsafe      unsafe {}
+        "#]],
+    );
+}
