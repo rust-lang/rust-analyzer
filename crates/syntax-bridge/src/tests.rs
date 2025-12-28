@@ -1,8 +1,7 @@
 use rustc_hash::FxHashMap;
-use span::Span;
 use syntax::{AstNode, ast};
 use test_utils::extract_annotations;
-use tt::{Leaf, Punct, Spacing, buffer::Cursor};
+use tt::{Punct, Spacing, buffer::Cursor};
 
 use crate::{
     DocCommentDesugarMode,
@@ -30,13 +29,13 @@ fn check_punct_spacing(fixture: &str) {
         })
         .collect();
 
-    let mut cursor = Cursor::new(&subtree.0);
+    let mut cursor = Cursor::new(subtree.as_token_trees());
     while !cursor.eof() {
         while let Some(token_tree) = cursor.token_tree() {
-            if let tt::TokenTree::Leaf(Leaf::Punct(Punct {
-                spacing, span: Span { range, .. }, ..
-            })) = token_tree
-                && let Some(expected) = annotations.remove(range)
+            if let tt::SpannedTokenTree::Leaf(tt::SpannedLeafKind::Punct(leaf)) = token_tree
+                && let Punct { spacing, .. } = *leaf
+                && let range = leaf.span().range
+                && let Some(expected) = annotations.remove(&range)
             {
                 assert_eq!(expected, *spacing);
             }

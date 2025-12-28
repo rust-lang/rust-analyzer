@@ -277,7 +277,7 @@ impl DeclarativeMacro {
         &self,
         db: &dyn salsa::Database,
         tt: &tt::TopSubtree,
-        marker: impl Fn(&mut Span) + Copy,
+        marker: impl Fn(Span) -> Span + Copy,
         call_style: MacroCallStyle,
         call_site: Span,
     ) -> ExpandResult<(tt::TopSubtree, MatchedArmIndex)> {

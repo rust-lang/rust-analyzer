@@ -48,9 +48,10 @@ impl DeclarativeMacroExpander {
                 .expand(
                     db,
                     &tt,
-                    |s| {
+                    |mut s| {
                         s.ctx =
-                            apply_mark(db, s.ctx, call_id.into(), self.transparency, self.edition)
+                            apply_mark(db, s.ctx, call_id.into(), self.transparency, self.edition);
+                        s
                     },
                     loc.kind.call_style(),
                     span,
@@ -73,7 +74,7 @@ impl DeclarativeMacroExpander {
             ),
             None => self
                 .mac
-                .expand(db, &tt, |_| (), call_style, call_site)
+                .expand(db, &tt, |span| span, call_style, call_site)
                 .map(TupleExt::head)
                 .map_err(Into::into),
         }

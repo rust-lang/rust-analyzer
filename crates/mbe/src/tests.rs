@@ -52,7 +52,7 @@ fn check_(
     let res = mac.expand(
         &db,
         &arg_tt,
-        |_| (),
+        |span| span,
         crate::MacroCallStyle::FnLike,
         Span {
             range: TextRange::up_to(TextSize::of(arg)),

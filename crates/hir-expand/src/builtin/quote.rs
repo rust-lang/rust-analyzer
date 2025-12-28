@@ -8,8 +8,8 @@ use tt::IdentIsRaw;
 
 use crate::{name::Name, tt::TopSubtreeBuilder};
 
-pub(crate) fn dollar_crate(span: Span) -> tt::Ident {
-    tt::Ident { sym: sym::dollar_crate, span, is_raw: tt::IdentIsRaw::No }
+pub(crate) fn dollar_crate(span: Span) -> tt::SpannedLeaf<tt::Ident> {
+    tt::Ident::new_sym(sym::dollar_crate, tt::IdentIsRaw::No, span)
 }
 
 // A helper macro quote macro
@@ -31,27 +31,27 @@ macro_rules! quote_impl__ {
     };
 
     ( @PUNCT($span:ident $builder:ident) $first:literal ) => {
-        $builder.push(
-            $crate::tt::Leaf::Punct($crate::tt::Punct {
-                char: $first,
-                spacing: $crate::tt::Spacing::Alone,
-                span: $span,
-            })
-        );
+        $builder.push($crate::tt::Punct::new(
+            $first,
+            $crate::tt::Spacing::Alone,
+            $span,
+        ));
     };
 
     ( @PUNCT($span:ident $builder:ident) $first:literal, $sec:literal ) => {
         $builder.extend([
-            $crate::tt::Leaf::Punct($crate::tt::Punct {
-                char: $first,
-                spacing: $crate::tt::Spacing::Joint,
-                span: $span,
-            }),
-            $crate::tt::Leaf::Punct($crate::tt::Punct {
-                char: $sec,
-                spacing: $crate::tt::Spacing::Alone,
-                span: $span,
-            })
+            $crate::tt::Punct::new(
+                $first,
+                $crate::tt::Spacing::Joint,
+                $span,
+            )
+            .map($crate::tt::Leaf::Punct),
+            $crate::tt::Punct::new(
+                $sec,
+                $crate::tt::Spacing::Alone,
+                $span,
+            )
+            .map($crate::tt::Leaf::Punct),
         ]);
     };
 
@@ -77,13 +77,11 @@ macro_rules! quote_impl__ {
     ($span:ident $builder:ident $tt:literal ) => { $crate::builtin::quote::ToTokenTree::to_tokens($tt, $span, $builder) };
     // Ident
     ($span:ident $builder:ident $tt:ident ) => {
-        $builder.push(
-            $crate::tt::Leaf::Ident($crate::tt::Ident {
-                sym: intern::Symbol::intern(stringify!($tt)),
-                span: $span,
-                is_raw: tt::IdentIsRaw::No,
-            })
-        );
+        $builder.push($crate::tt::Ident::new_sym(
+            intern::Symbol::intern(stringify!($tt)),
+            tt::IdentIsRaw::No,
+            $span,
+        ));
     };
 
     // Puncts
@@ -117,11 +115,13 @@ pub use quote_impl__ as __quote;
 macro_rules! quote {
     ($span:ident=> $($tt:tt)* ) => {
         {
-            let mut builder = $crate::tt::TopSubtreeBuilder::new($crate::tt::Delimiter {
-                kind: $crate::tt::DelimiterKind::Invisible,
-                open: $span,
-                close: $span,
-            });
+            let mut builder = $crate::tt::TopSubtreeBuilder::new(
+                $crate::tt::DelimiterKind::Invisible,
+                $crate::tt::DelimSpan {
+                    open: $span,
+                    close: $span,
+                },
+            );
             #[allow(unused)]
             let builder_ref = &mut builder;
             $crate::builtin::quote::__quote!($span builder_ref $($tt)*);
@@ -137,7 +137,7 @@ pub trait ToTokenTree {
 
 /// Wraps `TokenTreesView` with a delimiter (a subtree, but without allocating).
 pub struct WithDelimiter<'a> {
-    pub delimiter: crate::tt::Delimiter,
+    pub delimiter: crate::tt::SpannedDelimiter,
     pub token_trees: crate::tt::TokenTreesView<'a>,
 }
 
@@ -163,19 +163,22 @@ impl ToTokenTree for crate::tt::SubtreeView<'_> {
 
 impl ToTokenTree for crate::tt::TopSubtree {
     fn to_tokens(self, _: Span, builder: &mut TopSubtreeBuilder) {
-        builder.extend_tt_dangerous(self.0);
+        builder.extend_with_tt(self.as_token_trees());
     }
 }
 
 impl ToTokenTree for crate::tt::TtElement<'_> {
     fn to_tokens(self, _: Span, builder: &mut TopSubtreeBuilder) {
         match self {
-            crate::tt::TtElement::Leaf(leaf) => builder.push(leaf.clone()),
+            crate::tt::TtElement::Leaf(leaf) => match leaf {
+                tt::SpannedLeafKind::Literal(leaf) => builder.push(leaf.cloned()),
+                tt::SpannedLeafKind::Punct(leaf) => builder.push(leaf.cloned()),
+                tt::SpannedLeafKind::Ident(leaf) => builder.push(leaf.cloned()),
+            },
             crate::tt::TtElement::Subtree(subtree, subtree_iter) => {
-                builder.extend_tt_dangerous(
-                    std::iter::once(crate::tt::TokenTree::Subtree(subtree.clone()))
-                        .chain(subtree_iter.remaining().flat_tokens().iter().cloned()),
-                );
+                builder.open(subtree.delimiter.kind, subtree.open_span());
+                builder.extend_with_tt(subtree_iter.remaining());
+                builder.close(subtree.close_span());
             }
         }
     }
@@ -186,7 +189,7 @@ macro_rules! impl_to_to_tokentrees {
         $(
             impl ToTokenTree for $ty {
                 fn to_tokens($this, $span: Span, builder: &mut TopSubtreeBuilder) {
-                    let leaf: crate::tt::Leaf = $im.into();
+                    let leaf: crate::tt::SpannedLeaf<crate::tt::Leaf> = $im.into();
                     builder.push(leaf);
                 }
             }
@@ -200,23 +203,23 @@ impl<T: ToTokenTree + Clone> ToTokenTree for &T {
 }
 
 impl_to_to_tokentrees! {
-    span: u32 => self { crate::tt::Literal{symbol: Symbol::integer(self as _), span, kind: tt::LitKind::Integer, suffix: None } };
-    span: usize => self { crate::tt::Literal{symbol: Symbol::integer(self as _), span, kind: tt::LitKind::Integer, suffix: None } };
-    span: i32 => self { crate::tt::Literal{symbol: Symbol::integer(self as _), span, kind: tt::LitKind::Integer, suffix: None } };
-    span: bool => self { crate::tt::Ident{sym: if self { sym::true_ } else { sym::false_ }, span, is_raw: tt::IdentIsRaw::No } };
-    _span: crate::tt::Leaf => self { self };
-    _span: crate::tt::Literal => self { self };
-    _span: crate::tt::Ident => self { self };
-    _span: crate::tt::Punct => self { self };
-    span: &str => self { crate::tt::Literal{symbol: Symbol::intern(&self.escape_default().to_smolstr()), span, kind: tt::LitKind::Str, suffix: None }};
-    span: String => self { crate::tt::Literal{symbol: Symbol::intern(&self.escape_default().to_smolstr()), span, kind: tt::LitKind::Str, suffix: None }};
+    span: u32 => self { crate::tt::Literal::new(Symbol::integer(self as _), span, tt::LitKind::Integer, None) };
+    span: usize => self { crate::tt::Literal::new(Symbol::integer(self as _), span, tt::LitKind::Integer, None) };
+    span: i32 => self { crate::tt::Literal::new(Symbol::integer(self as _), span, tt::LitKind::Integer, None) };
+    span: bool => self { crate::tt::Ident::new_sym(if self { sym::true_ } else { sym::false_ }, tt::IdentIsRaw::No, span) };
+    _span: crate::tt::SpannedLeaf<crate::tt::Leaf> => self { self };
+    _span: crate::tt::SpannedLeaf<crate::tt::Literal> => self { self };
+    _span: crate::tt::SpannedLeaf<crate::tt::Ident> => self { self };
+    _span: crate::tt::SpannedLeaf<crate::tt::Punct> => self { self };
+    span: &str => self { crate::tt::Literal::new(Symbol::intern(&self.escape_default().to_smolstr()), span, tt::LitKind::Str, None) };
+    span: String => self { crate::tt::Literal::new(Symbol::intern(&self.escape_default().to_smolstr()), span, tt::LitKind::Str, None) };
     span: Name => self {
         let (is_raw, s) = IdentIsRaw::split_from_symbol(self.as_str());
-        crate::tt::Ident{sym: Symbol::intern(s), span, is_raw }
+        crate::tt::Ident::new_sym(Symbol::intern(s), is_raw, span)
     };
     span: Symbol => self {
         let (is_raw, s) = IdentIsRaw::split_from_symbol(self.as_str());
-        crate::tt::Ident{sym: Symbol::intern(s), span, is_raw }
+        crate::tt::Ident::new_sym(Symbol::intern(s), is_raw, span)
     };
 }
 
@@ -262,9 +265,9 @@ mod tests {
         assert_eq!(quote!(DUMMY =>#s).to_string(), "\"hello\"");
     }
 
-    fn mk_ident(name: &str) -> crate::tt::Ident {
+    fn mk_ident(name: &str) -> tt::SpannedLeaf<tt::Ident> {
         let (is_raw, s) = IdentIsRaw::split_from_symbol(name);
-        crate::tt::Ident { sym: Symbol::intern(s), span: DUMMY, is_raw }
+        tt::Ident::new_sym(Symbol::intern(s), is_raw, DUMMY)
     }
 
     #[test]
@@ -306,11 +309,10 @@ mod tests {
         let fields = [mk_ident("name"), mk_ident("id")];
         let fields = fields.iter().map(|it| quote!(DUMMY =>#it: self.#it.clone(), ));
 
-        let mut builder = tt::TopSubtreeBuilder::new(crate::tt::Delimiter {
-            kind: crate::tt::DelimiterKind::Brace,
-            open: DUMMY,
-            close: DUMMY,
-        });
+        let mut builder = tt::TopSubtreeBuilder::new(
+            tt::DelimiterKind::Brace,
+            crate::tt::DelimSpan { open: DUMMY, close: DUMMY },
+        );
         fields.for_each(|field| builder.extend_with_tt(field.view().as_token_trees()));
         let list = builder.build();
 

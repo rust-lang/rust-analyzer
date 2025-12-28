@@ -351,36 +351,38 @@ fn convert_path_tt(db: &dyn ExpandDatabase, tt: tt::TokenTreesView<'_>) -> Optio
     });
     let mut segments = smallvec::smallvec![];
     let kind = match leaves.next()? {
-        tt::Leaf::Punct(tt::Punct { char: ':', .. }) => match leaves.next()? {
-            tt::Leaf::Punct(tt::Punct { char: ':', .. }) => PathKind::Abs,
+        tt::SpannedLeafKind::Punct(colon1) if colon1.char == ':' => match leaves.next()? {
+            tt::SpannedLeafKind::Punct(colon2) if colon2.char == ':' => PathKind::Abs,
             _ => return None,
         },
-        tt::Leaf::Ident(tt::Ident { sym: text, span, .. }) if *text == sym::dollar_crate => {
-            resolve_crate_root(db, span.ctx).map(PathKind::DollarCrate).unwrap_or(PathKind::Crate)
+        tt::SpannedLeafKind::Ident(ident) if ident.sym == sym::dollar_crate => {
+            resolve_crate_root(db, ident.span().ctx)
+                .map(PathKind::DollarCrate)
+                .unwrap_or(PathKind::Crate)
         }
-        tt::Leaf::Ident(tt::Ident { sym: text, .. }) if *text == sym::self_ => PathKind::SELF,
-        tt::Leaf::Ident(tt::Ident { sym: text, .. }) if *text == sym::super_ => {
+        tt::SpannedLeafKind::Ident(ident) if ident.sym == sym::self_ => PathKind::SELF,
+        tt::SpannedLeafKind::Ident(ident) if ident.sym == sym::super_ => {
             let mut deg = 1;
-            while let Some(tt::Leaf::Ident(tt::Ident { sym: text, span, is_raw: _ })) =
-                leaves.next()
-            {
-                if *text != sym::super_ {
-                    segments.push(Name::new_symbol(text.clone(), span.ctx));
+            while let Some(tt::SpannedLeafKind::Ident(ident)) = leaves.next() {
+                if ident.sym != sym::super_ {
+                    segments.push(Name::new_symbol(ident.sym.clone(), ident.span().ctx));
                     break;
                 }
                 deg += 1;
             }
             PathKind::Super(deg)
         }
-        tt::Leaf::Ident(tt::Ident { sym: text, .. }) if *text == sym::crate_ => PathKind::Crate,
-        tt::Leaf::Ident(ident) => {
-            segments.push(Name::new_symbol(ident.sym.clone(), ident.span.ctx));
+        tt::SpannedLeafKind::Ident(ident) if ident.sym == sym::crate_ => PathKind::Crate,
+        tt::SpannedLeafKind::Ident(ident) => {
+            segments.push(Name::new_symbol(ident.sym.clone(), ident.span().ctx));
             PathKind::Plain
         }
         _ => return None,
     };
     segments.extend(leaves.filter_map(|leaf| match leaf {
-        ::tt::Leaf::Ident(ident) => Some(Name::new_symbol(ident.sym.clone(), ident.span.ctx)),
+        ::tt::SpannedLeafKind::Ident(ident) => {
+            Some(Name::new_symbol(ident.sym.clone(), ident.span().ctx))
+        }
         _ => None,
     }));
     Some(ModPath { kind, segments })

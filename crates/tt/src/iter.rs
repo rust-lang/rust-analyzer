@@ -7,7 +7,10 @@ use arrayvec::ArrayVec;
 use intern::sym;
 use span::Span;
 
-use crate::{Ident, Leaf, MAX_GLUED_PUNCT_LEN, Punct, Spacing, Subtree, TokenTree, TokenTreesView};
+use crate::{
+    Ident, Leaf, MAX_GLUED_PUNCT_LEN, Punct, Spacing, SpannedLeaf, SpannedLeafKind, SpannedSubtree,
+    TokenTree, TokenTreesView,
+};
 
 #[derive(Clone)]
 pub struct TtIter<'a> {
@@ -36,28 +39,32 @@ impl<'a> TtIter<'a> {
 
     pub fn expect_char(&mut self, char: char) -> Result<(), ()> {
         match self.next() {
-            Some(TtElement::Leaf(&Leaf::Punct(Punct { char: c, .. }))) if c == char => Ok(()),
+            Some(TtElement::Leaf(SpannedLeafKind::Punct(SpannedLeaf {
+                leaf: &Punct { char: c, .. },
+                ..
+            }))) if c == char => Ok(()),
             _ => Err(()),
         }
     }
 
     pub fn expect_any_char(&mut self, chars: &[char]) -> Result<(), ()> {
         match self.next() {
-            Some(TtElement::Leaf(Leaf::Punct(Punct { char: c, .. }))) if chars.contains(c) => {
-                Ok(())
-            }
+            Some(TtElement::Leaf(SpannedLeafKind::Punct(SpannedLeaf {
+                leaf: Punct { char: c, .. },
+                ..
+            }))) if chars.contains(c) => Ok(()),
             _ => Err(()),
         }
     }
 
-    pub fn expect_subtree(&mut self) -> Result<(&'a Subtree, TtIter<'a>), ()> {
+    pub fn expect_subtree(&mut self) -> Result<(SpannedSubtree<'a>, TtIter<'a>), ()> {
         match self.next() {
             Some(TtElement::Subtree(subtree, iter)) => Ok((subtree, iter)),
             _ => Err(()),
         }
     }
 
-    pub fn expect_leaf(&mut self) -> Result<&'a Leaf, ()> {
+    pub fn expect_leaf(&mut self) -> Result<SpannedLeafKind<'a>, ()> {
         match self.next() {
             Some(TtElement::Leaf(it)) => Ok(it),
             _ => Err(()),
@@ -66,44 +73,48 @@ impl<'a> TtIter<'a> {
 
     pub fn expect_dollar(&mut self) -> Result<(), ()> {
         match self.expect_leaf()? {
-            Leaf::Punct(Punct { char: '$', .. }) => Ok(()),
+            SpannedLeafKind::Punct(SpannedLeaf { leaf: Punct { char: '$', .. }, .. }) => Ok(()),
             _ => Err(()),
         }
     }
 
     pub fn expect_comma(&mut self) -> Result<(), ()> {
         match self.expect_leaf()? {
-            Leaf::Punct(Punct { char: ',', .. }) => Ok(()),
+            SpannedLeafKind::Punct(SpannedLeaf { leaf: Punct { char: ',', .. }, .. }) => Ok(()),
             _ => Err(()),
         }
     }
 
-    pub fn expect_ident(&mut self) -> Result<&'a Ident, ()> {
+    pub fn expect_ident(&mut self) -> Result<SpannedLeaf<&'a Ident>, ()> {
         match self.expect_leaf()? {
-            Leaf::Ident(it) if it.sym != sym::underscore => Ok(it),
+            SpannedLeafKind::Ident(it) if it.sym != sym::underscore => Ok(it),
             _ => Err(()),
         }
     }
 
-    pub fn expect_ident_or_underscore(&mut self) -> Result<&'a Ident, ()> {
+    pub fn expect_ident_or_underscore(&mut self) -> Result<SpannedLeaf<&'a Ident>, ()> {
         match self.expect_leaf()? {
-            Leaf::Ident(it) => Ok(it),
+            SpannedLeafKind::Ident(it) => Ok(it),
             _ => Err(()),
         }
     }
 
-    pub fn expect_literal(&mut self) -> Result<&'a Leaf, ()> {
-        let it = self.expect_leaf()?;
-        match it {
-            Leaf::Literal(_) => Ok(it),
-            Leaf::Ident(ident) if ident.sym == sym::true_ || ident.sym == sym::false_ => Ok(it),
+    pub fn expect_literal(&mut self) -> Result<SpannedLeafKind<'a>, ()> {
+        let leaf = self.expect_leaf()?;
+        match leaf {
+            SpannedLeafKind::Literal(_) => Ok(leaf),
+            SpannedLeafKind::Ident(ident)
+                if ident.sym == sym::true_ || ident.sym == sym::false_ =>
+            {
+                Ok(leaf)
+            }
             _ => Err(()),
         }
     }
 
-    pub fn expect_single_punct(&mut self) -> Result<&'a Punct, ()> {
+    pub fn expect_single_punct(&mut self) -> Result<SpannedLeaf<&'a Punct>, ()> {
         match self.expect_leaf()? {
-            Leaf::Punct(it) => Ok(it),
+            SpannedLeafKind::Punct(it) => Ok(it),
             _ => Err(()),
         }
     }
@@ -112,10 +123,13 @@ impl<'a> TtIter<'a> {
     ///
     /// This method currently may return a single quotation, which is part of lifetime ident and
     /// conceptually not a punct in the context of mbe. Callers should handle this.
-    pub fn expect_glued_punct(&mut self) -> Result<ArrayVec<Punct, MAX_GLUED_PUNCT_LEN>, ()> {
-        let TtElement::Leaf(&Leaf::Punct(first)) = self.next().ok_or(())? else {
+    pub fn expect_glued_punct(
+        &mut self,
+    ) -> Result<ArrayVec<SpannedLeaf<Punct>, MAX_GLUED_PUNCT_LEN>, ()> {
+        let TtElement::Leaf(SpannedLeafKind::Punct(first)) = self.next().ok_or(())? else {
             return Err(());
         };
+        let first = first.cloned();
 
         let mut res = ArrayVec::new();
         if first.spacing == Spacing::Alone {
@@ -141,8 +155,8 @@ impl<'a> TtIter<'a> {
                 let _ = self.next().unwrap();
                 let _ = self.next().unwrap();
                 res.push(first);
-                res.push(*second);
-                res.push(*third.unwrap());
+                res.push(SpannedLeaf { leaf: *second, _span: () });
+                res.push(SpannedLeaf { leaf: *third.unwrap(), _span: () });
             }
             ('-' | '!' | '*' | '/' | '&' | '%' | '^' | '+' | '<' | '=' | '>' | '|', '=', _)
             | ('-' | '=' | '>', '>', _)
@@ -154,7 +168,7 @@ impl<'a> TtIter<'a> {
             | ('|', '|', _) => {
                 let _ = self.next().unwrap();
                 res.push(first);
-                res.push(*second);
+                res.push(SpannedLeaf { leaf: *second, _span: () });
             }
             _ => res.push(first),
         }
@@ -168,11 +182,14 @@ impl<'a> TtIter<'a> {
 
     pub fn peek(&self) -> Option<TtElement<'a>> {
         match self.inner.as_slice().first()? {
-            TokenTree::Leaf(leaf) => Some(TtElement::Leaf(leaf)),
+            TokenTree::Leaf(leaf) => Some(TtElement::Leaf(SpannedLeaf { _span: (), leaf }.kind())),
             TokenTree::Subtree(subtree) => {
                 let nested_iter =
                     TtIter { inner: self.inner.as_slice()[1..][..subtree.usize_len()].iter() };
-                Some(TtElement::Subtree(subtree, nested_iter))
+                Some(TtElement::Subtree(
+                    SpannedSubtree { _open_span: (), _close_span: (), subtree },
+                    nested_iter,
+                ))
             }
         }
     }
@@ -183,7 +200,10 @@ impl<'a> TtIter<'a> {
     }
 
     pub fn next_span(&self) -> Option<Span> {
-        Some(self.inner.as_slice().first()?.first_span())
+        Some(match self.peek()? {
+            TtElement::Leaf(it) => it.span(),
+            TtElement::Subtree(it, _) => it.open_span(),
+        })
     }
 
     pub fn remaining(&self) -> TokenTreesView<'a> {
@@ -214,8 +234,8 @@ impl<'a> TtIter<'a> {
 
 #[derive(Clone)]
 pub enum TtElement<'a> {
-    Leaf(&'a Leaf),
-    Subtree(&'a Subtree, TtIter<'a>),
+    Leaf(SpannedLeafKind<'a>),
+    Subtree(SpannedSubtree<'a>, TtIter<'a>),
 }
 
 impl fmt::Debug for TtElement<'_> {
@@ -233,7 +253,7 @@ impl TtElement<'_> {
     #[inline]
     pub fn first_span(&self) -> Span {
         match self {
-            TtElement::Leaf(it) => *it.span(),
+            TtElement::Leaf(it) => it.span(),
             TtElement::Subtree(it, _) => it.delimiter.open,
         }
     }
@@ -243,12 +263,15 @@ impl<'a> Iterator for TtIter<'a> {
     type Item = TtElement<'a>;
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next()? {
-            TokenTree::Leaf(leaf) => Some(TtElement::Leaf(leaf)),
+            TokenTree::Leaf(leaf) => Some(TtElement::Leaf(SpannedLeaf { _span: (), leaf }.kind())),
             TokenTree::Subtree(subtree) => {
                 let nested_iter =
                     TtIter { inner: self.inner.as_slice()[..subtree.usize_len()].iter() };
                 self.inner = self.inner.as_slice()[subtree.usize_len()..].iter();
-                Some(TtElement::Subtree(subtree, nested_iter))
+                Some(TtElement::Subtree(
+                    SpannedSubtree { _open_span: (), _close_span: (), subtree },
+                    nested_iter,
+                ))
             }
         }
     }

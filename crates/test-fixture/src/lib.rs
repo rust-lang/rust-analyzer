@@ -770,8 +770,13 @@ impl ProcMacroExpander for Issue18089ProcMacroExpander {
         _: Span,
         _: String,
     ) -> Result<TopSubtree, ProcMacroExpansionError> {
-        let tt::TokenTree::Leaf(macro_name) = &subtree.0[2] else {
+        let Some(tt::TtElement::Leaf(macro_name)) = subtree.iter().nth(1) else {
             return Err(ProcMacroExpansionError::Panic("incorrect input".to_owned()));
+        };
+        let macro_name = match macro_name {
+            tt::SpannedLeafKind::Literal(leaf) => leaf.cloned().map(tt::Leaf::Literal),
+            tt::SpannedLeafKind::Punct(leaf) => leaf.cloned().into(),
+            tt::SpannedLeafKind::Ident(leaf) => leaf.cloned().into(),
         };
         Ok(quote! { call_site =>
             #[macro_export]
@@ -837,13 +842,17 @@ impl ProcMacroExpander for Issue18840ProcMacroExpander {
         // ```
 
         // The span that was created by the fixup infra.
-        let fixed_up_span = fn_.token_trees().flat_tokens()[5].first_span();
+        let mut iter = fn_.iter();
+        iter.nth(2);
+        let (_, mut fn_body) = iter.expect_subtree().unwrap();
+        let fixed_up_span = fn_body.nth(1).unwrap().first_span();
         let mut result =
             quote! {fixed_up_span => ::core::compile_error! { "my cool compile_error!" } };
         // Make it so we won't remove the top subtree when reversing fixups.
-        let top_subtree_delimiter_mut = result.top_subtree_delimiter_mut();
-        top_subtree_delimiter_mut.open = def_site;
-        top_subtree_delimiter_mut.close = def_site;
+        result.set_top_subtree_delimiter(
+            result.top_subtree().delimiter.kind,
+            tt::DelimSpan::from_single(def_site),
+        );
         Ok(result)
     }
 
@@ -869,16 +878,23 @@ impl ProcMacroExpander for MirrorProcMacroExpander {
         fn traverse(builder: &mut TopSubtreeBuilder, iter: TtIter<'_>) {
             for tt in iter.collect_vec().into_iter().rev() {
                 match tt {
-                    TtElement::Leaf(leaf) => builder.push(leaf.clone()),
+                    TtElement::Leaf(leaf) => match leaf {
+                        tt::SpannedLeafKind::Literal(leaf) => builder.push(leaf.cloned()),
+                        tt::SpannedLeafKind::Punct(leaf) => builder.push(leaf.cloned()),
+                        tt::SpannedLeafKind::Ident(leaf) => builder.push(leaf.cloned()),
+                    },
                     TtElement::Subtree(subtree, subtree_iter) => {
-                        builder.open(subtree.delimiter.kind, subtree.delimiter.open);
+                        builder.open(subtree.delimiter.kind, subtree.open_span());
                         traverse(builder, subtree_iter);
-                        builder.close(subtree.delimiter.close);
+                        builder.close(subtree.close_span());
                     }
                 }
             }
         }
-        let mut builder = TopSubtreeBuilder::new(input.top_subtree().delimiter);
+        let mut builder = TopSubtreeBuilder::new(
+            input.top_subtree().delimiter.kind,
+            input.top_subtree().delim_span(),
+        );
         traverse(&mut builder, input.iter());
         Ok(builder.build())
     }
@@ -905,13 +921,13 @@ impl ProcMacroExpander for ShortenProcMacroExpander {
         _: Span,
         _: String,
     ) -> Result<TopSubtree, ProcMacroExpansionError> {
-        let mut result = input.0.clone();
-        for it in &mut result {
+        let mut result = input.clone();
+        for it in result.iter_mut_dangerous() {
             if let TokenTree::Leaf(leaf) = it {
                 modify_leaf(leaf)
             }
         }
-        return Ok(tt::TopSubtree(result));
+        return Ok(result);
 
         fn modify_leaf(leaf: &mut Leaf) {
             match leaf {
@@ -948,11 +964,12 @@ impl ProcMacroExpander for Issue17479ProcMacroExpander {
         _: Span,
         _: String,
     ) -> Result<TopSubtree, ProcMacroExpansionError> {
-        let TokenTree::Leaf(Leaf::Literal(lit)) = &subtree.0[1] else {
+        let mut iter = subtree.iter();
+        let Some(TtElement::Leaf(tt::SpannedLeafKind::Literal(lit))) = iter.next() else {
             return Err(ProcMacroExpansionError::Panic("incorrect Input".into()));
         };
         let symbol = &lit.symbol;
-        let span = lit.span;
+        let span = lit.span();
         Ok(quote! { span =>
             #symbol()
         })
@@ -979,11 +996,9 @@ impl ProcMacroExpander for Issue18898ProcMacroExpander {
         _: String,
     ) -> Result<TopSubtree, ProcMacroExpansionError> {
         let span = subtree
-            .token_trees()
-            .flat_tokens()
-            .last()
-            .ok_or_else(|| ProcMacroExpansionError::Panic("malformed input".to_owned()))?
-            .first_span();
+            .as_token_trees()
+            .last_span()
+            .ok_or_else(|| ProcMacroExpansionError::Panic("malformed input".to_owned()))?;
         let overly_long_subtree = quote! {span =>
             {
                 let a = 5;
@@ -1066,20 +1081,23 @@ impl ProcMacroExpander for GenerateSuffixedTypeProcMacroExpander {
         _mixed_site: Span,
         _current_dir: String,
     ) -> Result<TopSubtree, ProcMacroExpansionError> {
-        let TokenTree::Leaf(Leaf::Ident(ident)) = &subtree.0[1] else {
+        let mut iter = subtree.iter();
+        let Some(TtElement::Leaf(tt::SpannedLeafKind::Ident(ident))) = iter.next() else {
             return Err(ProcMacroExpansionError::Panic("incorrect Input".into()));
         };
 
         let ident = match ident.sym.as_str() {
             "struct" => {
-                let TokenTree::Leaf(Leaf::Ident(ident)) = &subtree.0[2] else {
+                let Some(TtElement::Leaf(tt::SpannedLeafKind::Ident(ident))) = iter.next() else {
                     return Err(ProcMacroExpansionError::Panic("incorrect Input".into()));
                 };
                 ident
             }
 
             "enum" => {
-                let TokenTree::Leaf(Leaf::Ident(ident)) = &subtree.0[4] else {
+                iter.next();
+                let (_, mut iter) = iter.expect_subtree().unwrap();
+                let Some(TtElement::Leaf(tt::SpannedLeafKind::Ident(ident))) = iter.next() else {
                     return Err(ProcMacroExpansionError::Panic("incorrect Input".into()));
                 };
                 ident
@@ -1090,11 +1108,11 @@ impl ProcMacroExpander for GenerateSuffixedTypeProcMacroExpander {
             }
         };
 
-        let generated_ident = tt::Ident {
-            sym: Symbol::intern(&format!("{}Suffix", ident.sym)),
-            span: ident.span,
-            is_raw: tt::IdentIsRaw::No,
-        };
+        let generated_ident = tt::Ident::new_sym(
+            Symbol::intern(&format!("{}Suffix", ident.sym)),
+            tt::IdentIsRaw::No,
+            ident.span(),
+        );
 
         let ret = quote! { call_site =>
             #subtree

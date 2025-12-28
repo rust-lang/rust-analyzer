@@ -3,7 +3,7 @@
 
 use intern::{Symbol, sym};
 use span::{Edition, Span};
-use tt::{Delimiter, TopSubtreeBuilder, iter::TtElement};
+use tt::{SpannedDelimiter, TopSubtreeBuilder, iter::TtElement};
 
 use super::TokensOrigin;
 use crate::{
@@ -28,7 +28,7 @@ impl<'t> Bindings<'t> {
         name: &Symbol,
         mut span: Span,
         nesting: &mut [NestingState],
-        marker: impl Fn(&mut Span),
+        marker: impl Fn(Span) -> Span + Copy,
     ) -> Result<Fragment<'t>, ExpandError> {
         macro_rules! binding_err {
             ($($arg:tt)*) => { ExpandError::binding_error(span, format!($($arg)*)) };
@@ -58,15 +58,14 @@ impl<'t> Bindings<'t> {
             // emit some reasonable default expansion for missing bindings,
             // this gives better recovery than emitting the `$fragment-name` verbatim
             Binding::Missing(it) => Ok({
-                marker(&mut span);
-                let mut builder = TopSubtreeBuilder::new(tt::Delimiter::invisible_spanned(span));
+                span = marker(span);
+                let mut builder = TopSubtreeBuilder::new(
+                    tt::DelimiterKind::Invisible,
+                    tt::DelimSpan::from_single(span),
+                );
                 match it {
                     MetaVarKind::Stmt => {
-                        builder.push(tt::Leaf::Punct(tt::Punct {
-                            span,
-                            char: ';',
-                            spacing: tt::Spacing::Alone,
-                        }));
+                        builder.push(tt::Punct::new(';', tt::Spacing::Alone, span));
                     }
                     MetaVarKind::Block => {
                         builder.open(tt::DelimiterKind::Brace, span);
@@ -80,32 +79,16 @@ impl<'t> Bindings<'t> {
                     | MetaVarKind::PatParam
                     | MetaVarKind::Expr(_)
                     | MetaVarKind::Ident => {
-                        builder.push(tt::Leaf::Ident(tt::Ident {
-                            sym: sym::missing,
-                            span,
-                            is_raw: tt::IdentIsRaw::No,
-                        }));
+                        builder.push(tt::Ident::new_sym(sym::missing, tt::IdentIsRaw::No, span));
                     }
                     MetaVarKind::Lifetime => {
                         builder.extend([
-                            tt::Leaf::Punct(tt::Punct {
-                                char: '\'',
-                                span,
-                                spacing: tt::Spacing::Joint,
-                            }),
-                            tt::Leaf::Ident(tt::Ident {
-                                sym: sym::missing,
-                                span,
-                                is_raw: tt::IdentIsRaw::No,
-                            }),
+                            tt::Punct::new('\'', tt::Spacing::Joint, span).map(tt::Leaf::Punct),
+                            tt::Ident::new_sym(sym::missing, tt::IdentIsRaw::No, span).into(),
                         ]);
                     }
                     MetaVarKind::Literal => {
-                        builder.push(tt::Leaf::Ident(tt::Ident {
-                            sym: sym::missing,
-                            span,
-                            is_raw: tt::IdentIsRaw::No,
-                        }));
+                        builder.push(tt::Ident::new_sym(sym::missing, tt::IdentIsRaw::No, span));
                     }
                 }
                 Fragment::TokensOwned(builder.build())
@@ -123,11 +106,14 @@ impl<'t> Bindings<'t> {
 pub(super) fn transcribe(
     template: &MetaTemplate,
     bindings: &Bindings<'_>,
-    marker: impl Fn(&mut Span) + Copy,
+    marker: impl Fn(Span) -> Span + Copy,
     call_site: Span,
 ) -> ExpandResult<tt::TopSubtree> {
     let mut ctx = ExpandCtx { bindings, nesting: Vec::new(), call_site };
-    let mut builder = tt::TopSubtreeBuilder::new(tt::Delimiter::invisible_spanned(ctx.call_site));
+    let mut builder = tt::TopSubtreeBuilder::new(
+        tt::DelimiterKind::Invisible,
+        tt::DelimSpan::from_single(ctx.call_site),
+    );
     expand_subtree(&mut ctx, template, &mut builder, marker).map(|()| builder.build())
 }
 
@@ -153,10 +139,10 @@ fn expand_subtree_with_delimiter(
     ctx: &mut ExpandCtx<'_>,
     template: &MetaTemplate,
     builder: &mut tt::TopSubtreeBuilder,
-    delimiter: Option<Delimiter>,
-    marker: impl Fn(&mut Span) + Copy,
+    delimiter: Option<SpannedDelimiter>,
+    marker: impl Fn(Span) -> Span + Copy,
 ) -> ExpandResult<()> {
-    let delimiter = delimiter.unwrap_or_else(|| tt::Delimiter::invisible_spanned(ctx.call_site));
+    let delimiter = delimiter.unwrap_or_else(|| SpannedDelimiter::invisible_spanned(ctx.call_site));
     builder.open(delimiter.kind, delimiter.open);
     let result = expand_subtree(ctx, template, builder, marker);
     builder.close(delimiter.close);
@@ -167,34 +153,32 @@ fn expand_subtree(
     ctx: &mut ExpandCtx<'_>,
     template: &MetaTemplate,
     builder: &mut tt::TopSubtreeBuilder,
-    marker: impl Fn(&mut Span) + Copy,
+    marker: impl Fn(Span) -> Span + Copy,
 ) -> ExpandResult<()> {
     let mut err = None;
     'ops: for op in template.iter() {
         match op {
-            Op::Literal(it) => builder.push(tt::Leaf::from({
+            Op::Literal(it) => builder.push({
                 let mut it = it.clone();
-                marker(&mut it.span);
+                it.set_span(marker(it.span()));
                 it
-            })),
-            Op::Ident(it) => builder.push(tt::Leaf::from({
+            }),
+            Op::Ident(it) => builder.push({
                 let mut it = it.clone();
-                marker(&mut it.span);
+                it.set_span(marker(it.span()));
                 it
-            })),
+            }),
             Op::Punct(puncts) => {
                 builder.extend(puncts.iter().map(|punct| {
-                    tt::Leaf::from({
-                        let mut it = *punct;
-                        marker(&mut it.span);
-                        it
-                    })
+                    let mut it = *punct;
+                    it.set_span(marker(it.span()));
+                    it
                 }));
             }
             Op::Subtree { tokens, delimiter } => {
                 let mut delimiter = *delimiter;
-                marker(&mut delimiter.open);
-                marker(&mut delimiter.close);
+                delimiter.open = marker(delimiter.open);
+                delimiter.close = marker(delimiter.close);
                 let ExpandResult { value: (), err: e } =
                     expand_subtree_with_delimiter(ctx, tokens, builder, Some(delimiter), marker);
                 err = err.or(e);
@@ -220,24 +204,24 @@ fn expand_subtree(
             Op::Index { depth } => {
                 let index =
                     ctx.nesting.get(ctx.nesting.len() - 1 - depth).map_or(0, |nest| nest.idx);
-                builder.push(tt::Leaf::Literal(tt::Literal {
-                    symbol: Symbol::integer(index),
-                    span: ctx.call_site,
-                    kind: tt::LitKind::Integer,
-                    suffix: None,
-                }));
+                builder.push(tt::Literal::new(
+                    Symbol::integer(index),
+                    ctx.call_site,
+                    tt::LitKind::Integer,
+                    None,
+                ));
             }
             Op::Len { depth } => {
                 let length = ctx.nesting.get(ctx.nesting.len() - 1 - depth).map_or(0, |_nest| {
                     // FIXME: to be implemented
                     0
                 });
-                builder.push(tt::Leaf::Literal(tt::Literal {
-                    symbol: Symbol::integer(length),
-                    span: ctx.call_site,
-                    kind: tt::LitKind::Integer,
-                    suffix: None,
-                }));
+                builder.push(tt::Literal::new(
+                    Symbol::integer(length),
+                    ctx.call_site,
+                    tt::LitKind::Integer,
+                    None,
+                ));
             }
             Op::Count { name, depth } => {
                 let mut binding = match ctx.bindings.get(name, ctx.call_site) {
@@ -276,12 +260,12 @@ fn expand_subtree(
 
                 let res = count(binding, 0, depth.unwrap_or(0));
 
-                builder.push(tt::Leaf::Literal(tt::Literal {
-                    symbol: Symbol::integer(res),
-                    span: ctx.call_site,
-                    suffix: None,
-                    kind: tt::LitKind::Integer,
-                }));
+                builder.push(tt::Literal::new(
+                    Symbol::integer(res),
+                    ctx.call_site,
+                    tt::LitKind::Integer,
+                    None,
+                ));
             }
             Op::Concat { elements, span: concat_span } => {
                 let mut concatenated = String::new();
@@ -301,7 +285,7 @@ fn expand_subtree(
                             // FIXME: Do what rustc does for repetitions.
                             let var_value = match ctx.bindings.get_fragment(
                                 &var.sym,
-                                var.span,
+                                var.span(),
                                 &mut ctx.nesting,
                                 marker,
                             ) {
@@ -325,16 +309,18 @@ fn expand_subtree(
                                 _ => (None, None),
                             };
                             let value = match values {
-                                (Some(TtElement::Leaf(tt::Leaf::Ident(ident))), None) => {
-                                    ident.sym.as_str()
-                                }
-                                (Some(TtElement::Leaf(tt::Leaf::Literal(lit))), None) => {
-                                    lit.symbol.as_str()
-                                }
+                                (
+                                    Some(TtElement::Leaf(tt::SpannedLeafKind::Ident(ident))),
+                                    None,
+                                ) => ident.sym.as_str(),
+                                (
+                                    Some(TtElement::Leaf(tt::SpannedLeafKind::Literal(lit))),
+                                    None,
+                                ) => lit.symbol.as_str(),
                                 _ => {
                                     if err.is_none() {
                                         err = Some(ExpandError::binding_error(
-                                            var.span,
+                                            var.span(),
                                             "metavariables of `${concat(..)}` must be of type `ident`, `literal` or `tt`",
                                         ))
                                     }
@@ -349,7 +335,7 @@ fn expand_subtree(
                 // `${concat}` span comes from the macro (at least for now).
                 // See https://github.com/rust-lang/rust/blob/b0af276da341/compiler/rustc_expand/src/mbe/transcribe.rs#L724-L726.
                 let mut result_span = *concat_span;
-                marker(&mut result_span);
+                result_span = marker(result_span);
 
                 // FIXME: NFC normalize the result.
                 if !rustc_lexer::is_ident(&concatenated) {
@@ -367,11 +353,11 @@ fn expand_subtree(
                 let needs_raw =
                     parser::SyntaxKind::from_keyword(&concatenated, Edition::LATEST).is_some();
                 let is_raw = if needs_raw { tt::IdentIsRaw::Yes } else { tt::IdentIsRaw::No };
-                builder.push(tt::Leaf::Ident(tt::Ident {
+                builder.push(tt::Ident::new_sym(
+                    Symbol::intern(&concatenated),
                     is_raw,
-                    span: result_span,
-                    sym: Symbol::intern(&concatenated),
-                }));
+                    result_span,
+                ));
             }
         }
     }
@@ -383,7 +369,7 @@ fn expand_var(
     v: &Symbol,
     id: Span,
     builder: &mut tt::TopSubtreeBuilder,
-    marker: impl Fn(&mut Span) + Copy,
+    marker: impl Fn(Span) -> Span + Copy,
 ) -> ExpandResult<()> {
     // We already handle $crate case in mbe parser
     debug_assert!(*v != sym::crate_);
@@ -407,7 +393,7 @@ fn expand_var(
                 Fragment::Expr(sub) => {
                     let sub = sub.strip_invisible();
                     let mut span = id;
-                    marker(&mut span);
+                    span = marker(span);
 
                     // Check if this is a simple negative literal (MINUS + LITERAL)
                     // that should not be wrapped in parentheses
@@ -452,8 +438,8 @@ fn expand_var(
             // ```
             // We just treat it a normal tokens
             builder.extend([
-                tt::Leaf::from(tt::Punct { char: '$', spacing: tt::Spacing::Alone, span: id }),
-                tt::Leaf::from(tt::Ident { sym: v.clone(), span: id, is_raw: tt::IdentIsRaw::No }),
+                tt::Punct::new('$', tt::Spacing::Alone, id).map(tt::Leaf::Punct),
+                tt::Ident::new_sym(v.clone(), tt::IdentIsRaw::No, id).into(),
             ]);
             ExpandResult::ok(())
         }
@@ -467,7 +453,7 @@ fn expand_repeat(
     kind: RepeatKind,
     separator: Option<&Separator>,
     builder: &mut tt::TopSubtreeBuilder,
-    marker: impl Fn(&mut Span) + Copy,
+    marker: impl Fn(Span) -> Span + Copy,
 ) -> ExpandResult<()> {
     ctx.nesting.push(NestingState { idx: 0, at_end: false, hit: false });
     // Dirty hack to make macro-expansion terminate.
@@ -509,16 +495,16 @@ fn expand_repeat(
 
         if let Some(sep) = separator {
             match sep {
-                Separator::Ident(ident) => builder.push(tt::Leaf::from(ident.clone())),
-                Separator::Literal(lit) => builder.push(tt::Leaf::from(lit.clone())),
+                Separator::Ident(ident) => builder.push(ident.clone()),
+                Separator::Literal(lit) => builder.push(lit.clone()),
                 Separator::Puncts(puncts) => {
                     for &punct in puncts {
-                        builder.push(tt::Leaf::from(punct));
+                        builder.push(punct);
                     }
                 }
                 Separator::Lifetime(punct, ident) => {
-                    builder.push(tt::Leaf::from(*punct));
-                    builder.push(tt::Leaf::from(ident.clone()));
+                    builder.push(*punct);
+                    builder.push(ident.clone());
                 }
             };
         }
@@ -564,16 +550,8 @@ fn fix_up_and_push_path_tt(
                 tt.flat_tokens()
             {
                 builder.extend([
-                    tt::Leaf::Punct(tt::Punct {
-                        char: ':',
-                        spacing: tt::Spacing::Joint,
-                        span: ctx.call_site,
-                    }),
-                    tt::Leaf::Punct(tt::Punct {
-                        char: ':',
-                        spacing: tt::Spacing::Alone,
-                        span: ctx.call_site,
-                    }),
+                    tt::Punct::new(':', tt::Spacing::Joint, ctx.call_site),
+                    tt::Punct::new(':', tt::Spacing::Alone, ctx.call_site),
                 ]);
             }
         }

@@ -52,7 +52,10 @@ fn macro_input_callback(
     krate: Crate,
     default_span: Span,
     span_map: SpanMapRef<'_>,
-) -> impl FnMut(&mut PreorderWithTokens, &WalkEvent<SyntaxElement>) -> (bool, Vec<tt::Leaf>) {
+) -> impl FnMut(
+    &mut PreorderWithTokens,
+    &WalkEvent<SyntaxElement>,
+) -> (bool, Vec<tt::SpannedLeaf<tt::Leaf>>) {
     let cfg_options = OnceCell::new();
     let cfg_options = move || *cfg_options.get_or_init(|| krate.cfg_options(db));
 
@@ -251,23 +254,21 @@ fn macro_input_callback(
                         if token_range.start() >= expanded_attr.range.start() {
                             // We started the next attribute.
                             let mut insert_tokens = Vec::with_capacity(3);
-                            insert_tokens.push(tt::Leaf::Punct(tt::Punct {
-                                char: '#',
-                                spacing: tt::Spacing::Alone,
-                                span: ast_attr.pound_span,
-                            }));
+                            insert_tokens.push(
+                                tt::Punct::new('#', tt::Spacing::Alone, ast_attr.pound_span).into(),
+                            );
                             if let Some(span) = ast_attr.excl_span {
-                                insert_tokens.push(tt::Leaf::Punct(tt::Punct {
-                                    char: '!',
-                                    spacing: tt::Spacing::Alone,
-                                    span,
-                                }));
+                                insert_tokens
+                                    .push(tt::Punct::new('!', tt::Spacing::Alone, span).into());
                             }
-                            insert_tokens.push(tt::Leaf::Punct(tt::Punct {
-                                char: '[',
-                                spacing: tt::Spacing::Alone,
-                                span: ast_attr.brackets_span.open,
-                            }));
+                            insert_tokens.push(
+                                tt::Punct::new(
+                                    '[',
+                                    tt::Spacing::Alone,
+                                    ast_attr.brackets_span.open,
+                                )
+                                .into(),
+                            );
 
                             ast_attr.next_expanded_attr = NextExpandedAttrState::InTheMiddle;
 
@@ -280,11 +281,14 @@ fn macro_input_callback(
                     NextExpandedAttrState::InTheMiddle => {
                         if token_range.start() >= expanded_attr.range.end() {
                             // Finished the current attribute.
-                            let insert_tokens = vec![tt::Leaf::Punct(tt::Punct {
-                                char: ']',
-                                spacing: tt::Spacing::Alone,
-                                span: ast_attr.brackets_span.close,
-                            })];
+                            let insert_tokens = vec![
+                                tt::Punct::new(
+                                    ']',
+                                    tt::Spacing::Alone,
+                                    ast_attr.brackets_span.close,
+                                )
+                                .into(),
+                            ];
 
                             ast_attr.next_expanded_attr = NextExpandedAttrState::NotStarted;
                             ast_attr.expanded_attrs_idx += 1;

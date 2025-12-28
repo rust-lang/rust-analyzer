@@ -15,7 +15,7 @@ use syntax::{
 };
 use syntax_bridge::DocCommentDesugarMode;
 use triomphe::Arc;
-use tt::Spacing;
+use tt::{Spacing, TransformTtAction};
 
 use crate::{
     span_map::SpanMapRef,
@@ -27,7 +27,7 @@ use crate::{
 /// reverse those changes afterwards, and a token map.
 #[derive(Debug, Default)]
 pub(crate) struct SyntaxFixups {
-    pub(crate) append: FxHashMap<SyntaxElement, Vec<Leaf>>,
+    pub(crate) append: FxHashMap<SyntaxElement, Vec<tt::SpannedLeaf<Leaf>>>,
     pub(crate) remove: FxHashSet<SyntaxElement>,
     pub(crate) undo_info: SyntaxFixupUndoInfo,
 }
@@ -81,15 +81,16 @@ pub(crate) fn fixup_syntax(
             let idx = original.len() as u32;
             original.push(original_tree);
             let span = span_map.span_for_range(node_range);
-            let replacement = Leaf::Ident(Ident {
-                sym: sym::__ra_fixup,
-                span: Span {
+            let replacement = Ident::new_sym(
+                sym::__ra_fixup,
+                tt::IdentIsRaw::No,
+                Span {
                     range: TextRange::new(TextSize::new(idx), FIXUP_DUMMY_RANGE_END),
                     anchor: SpanAnchor { ast_id: FIXUP_DUMMY_AST_ID, ..span.anchor },
                     ctx: span.ctx,
                 },
-                is_raw: tt::IdentIsRaw::No,
-            });
+            )
+            .into();
             append.insert(node.clone().into(), vec![replacement]);
             preorder.skip_subtree();
             continue;
@@ -101,11 +102,11 @@ pub(crate) fn fixup_syntax(
                     if it.name_ref().is_none() {
                         // incomplete field access: some_expr.|
                         append.insert(node.clone().into(), vec![
-                            Leaf::Ident(Ident {
-                                sym: sym::__ra_fixup,
-                                span: fake_span(node_range),
-                                is_raw: tt::IdentIsRaw::No
-                            }),
+                            Ident::new_sym(
+                                sym::__ra_fixup,
+                                tt::IdentIsRaw::No,
+                                fake_span(node_range),
+                            ).into(),
                         ]);
                     }
                 },
@@ -113,22 +114,22 @@ pub(crate) fn fixup_syntax(
                     let needs_semi = it.semicolon_token().is_none() && it.expr().is_some_and(|e| e.syntax().kind() != SyntaxKind::BLOCK_EXPR);
                     if needs_semi {
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: ';',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range),
-                            }),
+                            Punct::new(
+                                ';',
+                                Spacing::Alone,
+                                fake_span(node_range),
+                            ).into(),
                         ]);
                     }
                 },
                 ast::LetStmt(it) => {
                     if it.semicolon_token().is_none() {
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: ';',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
+                            Punct::new(
+                                ';',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
                         ]);
                     }
                 },
@@ -140,25 +141,25 @@ pub(crate) fn fixup_syntax(
                             None => continue,
                         };
                         append.insert(if_token.into(), vec![
-                            Leaf::Ident(Ident {
-                                sym: sym::__ra_fixup,
-                                span: fake_span(node_range),
-                                is_raw: tt::IdentIsRaw::No
-                            }),
+                            Ident::new_sym(
+                                sym::__ra_fixup,
+                                tt::IdentIsRaw::No,
+                                fake_span(node_range),
+                            ).into(),
                         ]);
                     }
                     if it.then_branch().is_none() {
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: '{',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
-                            Leaf::Punct(Punct {
-                                char: '}',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
+                            Punct::new(
+                                '{',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
+                            Punct::new(
+                                '}',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
                         ]);
                     }
                 },
@@ -170,41 +171,41 @@ pub(crate) fn fixup_syntax(
                             None => continue,
                         };
                         append.insert(while_token.into(), vec![
-                            Leaf::Ident(Ident {
-                                sym: sym::__ra_fixup,
-                                span: fake_span(node_range),
-                                is_raw: tt::IdentIsRaw::No
-                            }),
+                            Ident::new_sym(
+                                sym::__ra_fixup,
+                                tt::IdentIsRaw::No,
+                                fake_span(node_range),
+                            ).into(),
                         ]);
                     }
                     if it.loop_body().is_none() {
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: '{',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
-                            Leaf::Punct(Punct {
-                                char: '}',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
+                            Punct::new(
+                                '{',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
+                            Punct::new(
+                                '}',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
                         ]);
                     }
                 },
                 ast::LoopExpr(it) => {
                     if it.loop_body().is_none() {
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: '{',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
-                            Leaf::Punct(Punct {
-                                char: '}',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
+                            Punct::new(
+                                '{',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
+                            Punct::new(
+                                '}',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
                         ]);
                     }
                 },
@@ -216,26 +217,26 @@ pub(crate) fn fixup_syntax(
                             None => continue
                         };
                         append.insert(match_token.into(), vec![
-                            Leaf::Ident(Ident {
-                                sym: sym::__ra_fixup,
-                                span: fake_span(node_range),
-                                is_raw: tt::IdentIsRaw::No
-                            }),
+                            Ident::new_sym(
+                                sym::__ra_fixup,
+                                tt::IdentIsRaw::No,
+                                fake_span(node_range),
+                            ).into(),
                         ]);
                     }
                     if it.match_arm_list().is_none() {
                         // No match arms
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: '{',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
-                            Leaf::Punct(Punct {
-                                char: '}',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
+                            Punct::new(
+                                '{',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
+                            Punct::new(
+                                '}',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
                         ]);
                     }
                 },
@@ -250,11 +251,11 @@ pub(crate) fn fixup_syntax(
                          sym::in_,
                          sym::__ra_fixup,
                     ].map(|sym|
-                        Leaf::Ident(Ident {
+                        Ident::new_sym(
                             sym,
-                            span: fake_span(node_range),
-                            is_raw: tt::IdentIsRaw::No
-                        }),
+                            tt::IdentIsRaw::No,
+                            fake_span(node_range),
+                        ).into(),
                     );
 
                     if it.pat().is_none() && it.in_token().is_none() && it.iterable().is_none() {
@@ -266,16 +267,16 @@ pub(crate) fn fixup_syntax(
 
                     if it.loop_body().is_none() {
                         append.insert(node.clone().into(), vec![
-                            Leaf::Punct(Punct {
-                                char: '{',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
-                            Leaf::Punct(Punct {
-                                char: '}',
-                                spacing: Spacing::Alone,
-                                span: fake_span(node_range)
-                            }),
+                            Punct::new(
+                                '{',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
+                            Punct::new(
+                                '}',
+                                Spacing::Alone,
+                                fake_span(node_range)
+                            ).into(),
                         ]);
                     }
                 },
@@ -283,11 +284,11 @@ pub(crate) fn fixup_syntax(
                     if let Some(colon) = it.colon_token()
                         && it.name_ref().is_some() && it.expr().is_none() {
                             append.insert(colon.into(), vec![
-                                Leaf::Ident(Ident {
-                                    sym: sym::__ra_fixup,
-                                    span: fake_span(node_range),
-                                    is_raw: tt::IdentIsRaw::No
-                                })
+                                Ident::new_sym(
+                                    sym::__ra_fixup,
+                                    tt::IdentIsRaw::No,
+                                    fake_span(node_range),
+                                ).into()
                             ]);
                         }
                 },
@@ -295,22 +296,22 @@ pub(crate) fn fixup_syntax(
                     if let Some(colon) = it.coloncolon_token()
                         && it.segment().is_none() {
                             append.insert(colon.into(), vec![
-                                Leaf::Ident(Ident {
-                                    sym: sym::__ra_fixup,
-                                    span: fake_span(node_range),
-                                    is_raw: tt::IdentIsRaw::No
-                                })
+                                Ident::new_sym(
+                                    sym::__ra_fixup,
+                                    tt::IdentIsRaw::No,
+                                    fake_span(node_range),
+                                ).into()
                             ]);
                         }
                 },
                 ast::ClosureExpr(it) => {
                     if it.body().is_none() {
                         append.insert(node.into(), vec![
-                            Leaf::Ident(Ident {
-                                sym: sym::__ra_fixup,
-                                span: fake_span(node_range),
-                                is_raw: tt::IdentIsRaw::No
-                            })
+                            Ident::new_sym(
+                                sym::__ra_fixup,
+                                tt::IdentIsRaw::No,
+                                fake_span(node_range),
+                            ).into()
                         ]);
                     }
                 },
@@ -343,94 +344,33 @@ fn has_error_to_handle(node: &SyntaxNode) -> bool {
 pub(crate) fn reverse_fixups(tt: &mut TopSubtree, undo_info: &SyntaxFixupUndoInfo) {
     let Some(undo_info) = undo_info.original.as_deref() else { return };
     let undo_info = &**undo_info;
-    let delimiter = tt.top_subtree_delimiter_mut();
+    let delimiter_kind = tt.top_subtree().delimiter.kind;
+    let open_span = tt.top_subtree().open_span();
+    let close_span = tt.top_subtree().close_span();
     #[allow(deprecated)]
     if never!(
-        delimiter.close.anchor.ast_id == FIXUP_DUMMY_AST_ID
-            || delimiter.open.anchor.ast_id == FIXUP_DUMMY_AST_ID
+        close_span.anchor.ast_id == FIXUP_DUMMY_AST_ID
+            || open_span.anchor.ast_id == FIXUP_DUMMY_AST_ID
     ) {
         let span = |file_id| Span {
             range: TextRange::empty(TextSize::new(0)),
             anchor: SpanAnchor { file_id, ast_id: ROOT_ERASED_FILE_AST_ID },
             ctx: SyntaxContext::root(span::Edition::Edition2015),
         };
-        delimiter.open = span(delimiter.open.anchor.file_id);
-        delimiter.close = span(delimiter.close.anchor.file_id);
+        tt.set_top_subtree_delimiter(
+            delimiter_kind,
+            tt::DelimSpan {
+                open: span(open_span.anchor.file_id),
+                close: span(close_span.anchor.file_id),
+            },
+        );
     }
     reverse_fixups_(tt, undo_info);
 }
 
-#[derive(Debug)]
-enum TransformTtAction<'a> {
-    Keep,
-    ReplaceWith(tt::TokenTreesView<'a>),
-}
-
-impl TransformTtAction<'_> {
-    fn remove() -> Self {
-        Self::ReplaceWith(tt::TokenTreesView::new(&[]))
-    }
-}
-
-/// This function takes a token tree, and calls `callback` with each token tree in it.
-/// Then it does what the callback says: keeps the tt or replaces it with a (possibly empty)
-/// tts view.
-fn transform_tt<'a, 'b>(
-    tt: &'a mut Vec<tt::TokenTree>,
-    mut callback: impl FnMut(&mut tt::TokenTree) -> TransformTtAction<'b>,
-) {
-    // We need to keep a stack of the currently open subtrees, because we need to update
-    // them if we change the number of items in them.
-    let mut subtrees_stack = Vec::new();
-    let mut i = 0;
-    while i < tt.len() {
-        'pop_finished_subtrees: while let Some(&subtree_idx) = subtrees_stack.last() {
-            let tt::TokenTree::Subtree(subtree) = &tt[subtree_idx] else {
-                unreachable!("non-subtree on subtrees stack");
-            };
-            if i >= subtree_idx + 1 + subtree.usize_len() {
-                subtrees_stack.pop();
-            } else {
-                break 'pop_finished_subtrees;
-            }
-        }
-
-        let action = callback(&mut tt[i]);
-        match action {
-            TransformTtAction::Keep => {
-                // This cannot be shared with the replaced case, because then we may push the same subtree
-                // twice, and will update it twice which will lead to errors.
-                if let tt::TokenTree::Subtree(_) = &tt[i] {
-                    subtrees_stack.push(i);
-                }
-
-                i += 1;
-            }
-            TransformTtAction::ReplaceWith(replacement) => {
-                let old_len = 1 + match &tt[i] {
-                    tt::TokenTree::Leaf(_) => 0,
-                    tt::TokenTree::Subtree(subtree) => subtree.usize_len(),
-                };
-                let len_diff = replacement.len() as i64 - old_len as i64;
-                tt.splice(i..i + old_len, replacement.flat_tokens().iter().cloned());
-                // Skip the newly inserted replacement, we don't want to visit it.
-                i += replacement.len();
-
-                for &subtree_idx in &subtrees_stack {
-                    let tt::TokenTree::Subtree(subtree) = &mut tt[subtree_idx] else {
-                        unreachable!("non-subtree on subtrees stack");
-                    };
-                    subtree.len = (i64::from(subtree.len) + len_diff).try_into().unwrap();
-                }
-            }
-        }
-    }
-}
-
 fn reverse_fixups_(tt: &mut TopSubtree, undo_info: &[TopSubtree]) {
-    let mut tts = std::mem::take(&mut tt.0).into_vec();
-    transform_tt(&mut tts, |tt| match tt {
-        tt::TokenTree::Leaf(leaf) => {
+    tt::transform_tt(tt, |tt| match tt {
+        tt::SpannedTokenTree::Leaf(leaf) => {
             let span = leaf.span();
             let is_real_leaf = span.anchor.ast_id != FIXUP_DUMMY_AST_ID;
             let is_replaced_node = span.range.end() == FIXUP_DUMMY_RANGE_END;
@@ -447,19 +387,18 @@ fn reverse_fixups_(tt: &mut TopSubtree, undo_info: &[TopSubtree]) {
                 TransformTtAction::Keep
             }
         }
-        tt::TokenTree::Subtree(tt) => {
+        tt::SpannedTokenTree::Subtree(tt) => {
             // fixup should only create matching delimiters, but proc macros
             // could just copy the span to one of the delimiters. We don't want
             // to leak the dummy ID, so we remove both.
-            if tt.delimiter.close.anchor.ast_id == FIXUP_DUMMY_AST_ID
-                || tt.delimiter.open.anchor.ast_id == FIXUP_DUMMY_AST_ID
+            if tt.close_span().anchor.ast_id == FIXUP_DUMMY_AST_ID
+                || tt.open_span().anchor.ast_id == FIXUP_DUMMY_AST_ID
             {
                 return TransformTtAction::remove();
             }
             TransformTtAction::Keep
         }
     });
-    tt.0 = tts.into_boxed_slice();
 }
 
 #[cfg(test)]

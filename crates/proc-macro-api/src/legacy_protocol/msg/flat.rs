@@ -36,6 +36,7 @@
 
 #[cfg(feature = "sysroot-abi")]
 use proc_macro_srv::TokenStream;
+use tt::SpannedSubtree;
 
 use std::collections::VecDeque;
 
@@ -508,9 +509,9 @@ impl<'a, T: SpanTransformer<Span = span::Span>> Writer<'a, '_, T, tt::iter::TtIt
                     idx << 2
                 }
                 tt::iter::TtElement::Leaf(leaf) => match leaf {
-                    tt::Leaf::Literal(lit) => {
+                    tt::SpannedLeafKind::Literal(lit) => {
                         let idx = self.literal.len() as u32;
-                        let id = self.token_id_of(lit.span);
+                        let id = self.token_id_of(lit.span());
                         let (text, suffix) = if self.version >= EXTENDED_LEAF_DATA {
                             (
                                 self.intern(lit.symbol.as_str()),
@@ -539,15 +540,15 @@ impl<'a, T: SpanTransformer<Span = span::Span>> Writer<'a, '_, T, tt::iter::TtIt
                         });
                         (idx << 2) | 0b01
                     }
-                    tt::Leaf::Punct(punct) => {
+                    tt::SpannedLeafKind::Punct(punct) => {
                         let idx = self.punct.len() as u32;
-                        let id = self.token_id_of(punct.span);
+                        let id = self.token_id_of(punct.span());
                         self.punct.push(PunctRepr { char: punct.char, spacing: punct.spacing, id });
                         (idx << 2) | 0b10
                     }
-                    tt::Leaf::Ident(ident) => {
+                    tt::SpannedLeafKind::Ident(ident) => {
                         let idx = self.ident.len() as u32;
-                        let id = self.token_id_of(ident.span);
+                        let id = self.token_id_of(ident.span());
                         let text = if self.version >= EXTENDED_LEAF_DATA {
                             self.intern(ident.sym.as_str())
                         } else if ident.is_raw.yes() {
@@ -565,10 +566,10 @@ impl<'a, T: SpanTransformer<Span = span::Span>> Writer<'a, '_, T, tt::iter::TtIt
         }
     }
 
-    fn enqueue(&mut self, subtree: &'a tt::Subtree, contents: tt::iter::TtIter<'a>) -> u32 {
+    fn enqueue(&mut self, subtree: SpannedSubtree<'a>, contents: tt::iter::TtIter<'a>) -> u32 {
         let idx = self.subtree.len();
-        let open = self.token_id_of(subtree.delimiter.open);
-        let close = self.token_id_of(subtree.delimiter.close);
+        let open = self.token_id_of(subtree.open_span());
+        let close = self.token_id_of(subtree.close_span());
         let delimiter_kind = subtree.delimiter.kind;
         self.subtree.push(SubtreeRepr { open, close, kind: delimiter_kind, tt: [!0, !0] });
         // FIXME: `count()` walks over the entire iterator.
@@ -737,13 +738,13 @@ struct Reader<'span, S: SpanTransformer> {
 
 impl<T: SpanTransformer<Span = span::Span>> Reader<'_, T> {
     pub(crate) fn read_subtree(self) -> tt::TopSubtree {
-        let mut res: Vec<Option<(tt::Delimiter, Vec<tt::TokenTree>)>> =
+        let mut res: Vec<Option<(tt::SpannedDelimiter, Vec<tt::SerializedTokenTree>)>> =
             vec![None; self.subtree.len()];
         let read_span = |id| T::span_for_token_id(self.span_data_table, id);
         for i in (0..self.subtree.len()).rev() {
             let repr = &self.subtree[i];
             let token_trees = &self.token_tree[repr.tt[0] as usize..repr.tt[1] as usize];
-            let delimiter = tt::Delimiter {
+            let delimiter = tt::SpannedDelimiter {
                 open: read_span(repr.open),
                 close: read_span(repr.close),
                 kind: repr.kind,
@@ -757,10 +758,10 @@ impl<T: SpanTransformer<Span = span::Span>> Reader<'_, T> {
                     // that this unwrap doesn't fire.
                     0b00 => {
                         let (delimiter, subtree) = res[idx].take().unwrap();
-                        s.push(tt::TokenTree::Subtree(tt::Subtree {
+                        s.push(tt::SerializedTokenTree::Subtree {
                             delimiter,
                             len: subtree.len() as u32,
-                        }));
+                        });
                         s.extend(subtree)
                     }
                     0b01 => {
@@ -768,12 +769,12 @@ impl<T: SpanTransformer<Span = span::Span>> Reader<'_, T> {
                         let repr = &self.literal[idx];
                         let text = self.text[repr.text as usize].as_str();
                         let span = read_span(repr.id);
-                        s.push(
-                            tt::Leaf::Literal(if self.version >= EXTENDED_LEAF_DATA {
-                                tt::Literal {
-                                    symbol: Symbol::intern(text),
+                        s.push(tt::SerializedTokenTree::Leaf(
+                            if self.version >= EXTENDED_LEAF_DATA {
+                                tt::Literal::new(
+                                    Symbol::intern(text),
                                     span,
-                                    kind: match u16::to_le_bytes(repr.kind) {
+                                    match u16::to_le_bytes(repr.kind) {
                                         [0, _] => Err(()),
                                         [1, _] => Byte,
                                         [2, _] => Char,
@@ -787,30 +788,26 @@ impl<T: SpanTransformer<Span = span::Span>> Reader<'_, T> {
                                         [10, r] => CStrRaw(r),
                                         _ => unreachable!(),
                                     },
-                                    suffix: if repr.suffix != !0 {
+                                    if repr.suffix != !0 {
                                         Some(Symbol::intern(
                                             self.text[repr.suffix as usize].as_str(),
                                         ))
                                     } else {
                                         None
                                     },
-                                }
+                                )
                             } else {
                                 tt::token_to_literal(text, span)
-                            })
-                            .into(),
-                        )
+                            }
+                            .map(tt::Leaf::Literal),
+                        ));
                     }
                     0b10 => {
                         let repr = &self.punct[idx];
-                        s.push(
-                            tt::Leaf::Punct(tt::Punct {
-                                char: repr.char,
-                                spacing: repr.spacing,
-                                span: read_span(repr.id),
-                            })
-                            .into(),
-                        )
+                        s.push(tt::SerializedTokenTree::Leaf(
+                            tt::Punct::new(repr.char, repr.spacing, read_span(repr.id))
+                                .map(tt::Leaf::Punct),
+                        ));
                     }
                     0b11 => {
                         let repr = &self.ident[idx];
@@ -823,14 +820,10 @@ impl<T: SpanTransformer<Span = span::Span>> Reader<'_, T> {
                         } else {
                             tt::IdentIsRaw::split_from_symbol(text)
                         };
-                        s.push(
-                            tt::Leaf::Ident(tt::Ident {
-                                sym: Symbol::intern(text),
-                                span: read_span(repr.id),
-                                is_raw,
-                            })
-                            .into(),
-                        )
+                        s.push(tt::SerializedTokenTree::Leaf(
+                            tt::Ident::new_sym(Symbol::intern(text), is_raw, read_span(repr.id))
+                                .map(tt::Leaf::Ident),
+                        ))
                     }
                     other => panic!("bad tag: {other}"),
                 }
@@ -839,8 +832,8 @@ impl<T: SpanTransformer<Span = span::Span>> Reader<'_, T> {
         }
 
         let (delimiter, mut res) = res[0].take().unwrap();
-        res.insert(0, tt::TokenTree::Subtree(tt::Subtree { delimiter, len: res.len() as u32 }));
-        tt::TopSubtree(res.into_boxed_slice())
+        res.insert(0, tt::SerializedTokenTree::Subtree { delimiter, len: res.len() as u32 });
+        tt::TopSubtree::from_serialized(res)
     }
 }
 

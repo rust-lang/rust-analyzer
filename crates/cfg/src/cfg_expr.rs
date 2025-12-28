@@ -157,7 +157,7 @@ fn next_cfg_expr_from_ast(
                     },
                     ctx: span::SyntaxContext::root(span::Edition::Edition2015),
                 };
-                let literal = tt::token_to_literal(literal.text(), dummy_span).symbol;
+                let literal = tt::token_to_literal(literal.text(), dummy_span).leaf.symbol;
                 it.next();
                 CfgAtom::KeyValue { key: name, value: literal.clone() }.into()
             } else {
@@ -193,12 +193,12 @@ fn next_cfg_expr(it: &mut tt::iter::TtIter<'_>) -> Option<CfgExpr> {
 
     let name = match it.next() {
         None => return None,
-        Some(TtElement::Leaf(tt::Leaf::Ident(ident))) => ident.sym.clone(),
+        Some(TtElement::Leaf(tt::SpannedLeafKind::Ident(ident))) => ident.sym.clone(),
         Some(_) => return Some(CfgExpr::Invalid),
     };
 
     let ret = match it.peek() {
-        Some(TtElement::Leaf(tt::Leaf::Punct(punct)))
+        Some(TtElement::Leaf(tt::SpannedLeafKind::Punct(punct)))
             // Don't consume on e.g. `=>`.
             if punct.char == '='
                 && (punct.spacing == tt::Spacing::Alone
@@ -231,7 +231,7 @@ fn next_cfg_expr(it: &mut tt::iter::TtIter<'_>) -> Option<CfgExpr> {
     };
 
     // Eat comma separator
-    if let Some(TtElement::Leaf(tt::Leaf::Punct(punct))) = it.peek()
+    if let Some(TtElement::Leaf(tt::SpannedLeafKind::Punct(punct))) = it.peek()
         && punct.char == ','
     {
         it.next();

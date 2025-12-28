@@ -142,13 +142,15 @@ pub fn pseudo_derive_attr_expansion(
     args: &tt::TopSubtree,
     call_site: Span,
 ) -> ExpandResult<tt::TopSubtree> {
-    let mk_leaf =
-        |char| tt::Leaf::Punct(tt::Punct { char, spacing: tt::Spacing::Alone, span: call_site });
+    let mk_leaf = |char| tt::Punct::new(char, tt::Spacing::Alone, call_site).map(tt::Leaf::Punct);
 
-    let mut token_trees = tt::TopSubtreeBuilder::new(args.top_subtree().delimiter);
-    let iter = args.token_trees().split(|tt| {
-        matches!(tt, tt::TtElement::Leaf(tt::Leaf::Punct(tt::Punct { char: ',', .. })))
-    });
+    let mut token_trees = tt::TopSubtreeBuilder::new(
+        args.top_subtree().delimiter.kind,
+        args.top_subtree().delim_span(),
+    );
+    let iter = args.token_trees().split(
+        |tt| matches!(tt, tt::TtElement::Leaf(tt::SpannedLeafKind::Punct(p)) if p.char == ','),
+    );
     for tts in iter {
         token_trees.extend([mk_leaf('#'), mk_leaf('!')]);
         token_trees.open(tt::DelimiterKind::Bracket, call_site);

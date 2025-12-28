@@ -20,13 +20,13 @@ pub fn to_parser_input(
         let tt = current.token_tree();
 
         // Check if it is lifetime
-        if let Some(tt::TokenTree::Leaf(tt::Leaf::Punct(punct))) = tt
+        if let Some(tt::SpannedTokenTree::Leaf(tt::SpannedLeafKind::Punct(punct))) = tt
             && punct.char == '\''
         {
             current.bump();
             match current.token_tree() {
-                Some(tt::TokenTree::Leaf(tt::Leaf::Ident(ident))) => {
-                    res.push(LIFETIME_IDENT, ctx_edition(ident.span.ctx));
+                Some(tt::SpannedTokenTree::Leaf(tt::SpannedLeafKind::Ident(ident))) => {
+                    res.push(LIFETIME_IDENT, ctx_edition(ident.span().ctx));
                     current.bump();
                     continue;
                 }
@@ -35,9 +35,9 @@ pub fn to_parser_input(
         }
 
         match tt {
-            Some(tt::TokenTree::Leaf(leaf)) => {
+            Some(tt::SpannedTokenTree::Leaf(leaf)) => {
                 match leaf {
-                    tt::Leaf::Literal(lit) => {
+                    tt::SpannedLeafKind::Literal(lit) => {
                         let kind = match lit.kind {
                             tt::LitKind::Byte => SyntaxKind::BYTE,
                             tt::LitKind::Char => SyntaxKind::CHAR,
@@ -50,7 +50,7 @@ pub fn to_parser_input(
                             tt::LitKind::CStr | tt::LitKind::CStrRaw(_) => SyntaxKind::C_STRING,
                             tt::LitKind::Err(_) => SyntaxKind::ERROR,
                         };
-                        res.push(kind, ctx_edition(lit.span.ctx));
+                        res.push(kind, ctx_edition(lit.span().ctx));
 
                         if kind == FLOAT_NUMBER && !lit.symbol.as_str().ends_with('.') {
                             // Tag the token as joint if it is float with a fractional part
@@ -59,8 +59,8 @@ pub fn to_parser_input(
                             res.was_joint();
                         }
                     }
-                    tt::Leaf::Ident(ident) => {
-                        let edition = ctx_edition(ident.span.ctx);
+                    tt::SpannedLeafKind::Ident(ident) => {
+                        let edition = ctx_edition(ident.span().ctx);
                         match ident.sym.as_str() {
                             "_" => res.push(T![_], edition),
                             i if i.starts_with('\'') => res.push(LIFETIME_IDENT, edition),
@@ -76,10 +76,10 @@ pub fn to_parser_input(
                             },
                         }
                     }
-                    tt::Leaf::Punct(punct) => {
+                    tt::SpannedLeafKind::Punct(punct) => {
                         let kind = SyntaxKind::from_char(punct.char)
                             .unwrap_or_else(|| panic!("{punct:#?} is not a valid punct"));
-                        res.push(kind, ctx_edition(punct.span.ctx));
+                        res.push(kind, ctx_edition(punct.span().ctx));
                         if punct.spacing == tt::Spacing::Joint {
                             res.was_joint();
                         }
@@ -87,14 +87,14 @@ pub fn to_parser_input(
                 }
                 current.bump();
             }
-            Some(tt::TokenTree::Subtree(subtree)) => {
+            Some(tt::SpannedTokenTree::Subtree(subtree)) => {
                 if let Some(kind) = match subtree.delimiter.kind {
                     tt::DelimiterKind::Parenthesis => Some(T!['(']),
                     tt::DelimiterKind::Brace => Some(T!['{']),
                     tt::DelimiterKind::Bracket => Some(T!['[']),
                     tt::DelimiterKind::Invisible => None,
                 } {
-                    res.push(kind, ctx_edition(subtree.delimiter.open.ctx));
+                    res.push(kind, ctx_edition(subtree.open_span().ctx));
                 }
                 current.bump();
             }
@@ -106,7 +106,7 @@ pub fn to_parser_input(
                     tt::DelimiterKind::Bracket => Some(T![']']),
                     tt::DelimiterKind::Invisible => None,
                 } {
-                    res.push(kind, ctx_edition(subtree.delimiter.close.ctx));
+                    res.push(kind, ctx_edition(subtree.close_span().ctx));
                 }
             }
         };

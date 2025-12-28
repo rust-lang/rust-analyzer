@@ -1,7 +1,9 @@
 //! Stateful iteration over token trees.
 //!
 //! We use this as the source of tokens for parser.
-use crate::{Leaf, Subtree, TokenTree, TokenTreesView};
+use crate::{
+    Leaf, SpannedLeaf, SpannedSubtree, SpannedTokenTree, Subtree, TokenTree, TokenTreesView,
+};
 
 pub struct Cursor<'a> {
     buffer: &'a [TokenTree],
@@ -10,8 +12,8 @@ pub struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
-    pub fn new(buffer: &'a [TokenTree]) -> Self {
-        Self { buffer, index: 0, subtrees_stack: Vec::new() }
+    pub fn new(buffer: TokenTreesView<'a>) -> Self {
+        Self { buffer: buffer.0, index: 0, subtrees_stack: Vec::new() }
     }
 
     /// Check whether it is eof
@@ -32,7 +34,7 @@ impl<'a> Cursor<'a> {
         })
     }
 
-    pub fn end(&mut self) -> &'a Subtree {
+    pub fn end(&mut self) -> SpannedSubtree<'a> {
         let (last_subtree_idx, last_subtree) =
             self.last_subtree().expect("called `Cursor::end()` without an open subtree");
         // +1 because `Subtree.len` excludes the subtree itself.
@@ -42,18 +44,25 @@ impl<'a> Cursor<'a> {
             "called `Cursor::end()` without finishing a subtree"
         );
         self.subtrees_stack.pop();
-        last_subtree
+        SpannedSubtree { _open_span: (), _close_span: (), subtree: last_subtree }
     }
 
     /// Returns the `TokenTree` at the cursor if it is not at the end of a subtree.
-    pub fn token_tree(&self) -> Option<&'a TokenTree> {
+    pub fn token_tree(&self) -> Option<SpannedTokenTree<'a>> {
         if let Some((last_subtree_idx, last_subtree)) = self.last_subtree() {
             // +1 because `Subtree.len` excludes the subtree itself.
             if last_subtree_idx + last_subtree.usize_len() + 1 == self.index {
                 return None;
             }
         }
-        self.buffer.get(self.index)
+        Some(match self.buffer.get(self.index)? {
+            TokenTree::Leaf(leaf) => SpannedTokenTree::Leaf(SpannedLeaf { _span: (), leaf }.kind()),
+            TokenTree::Subtree(subtree) => SpannedTokenTree::Subtree(SpannedSubtree {
+                _open_span: (),
+                _close_span: (),
+                subtree,
+            }),
+        })
     }
 
     /// Bump the cursor, and enters a subtree if it is on one.
@@ -87,7 +96,7 @@ impl<'a> Cursor<'a> {
         self.index += 1;
     }
 
-    pub fn peek_two_leaves(&self) -> Option<[&'a Leaf; 2]> {
+    pub fn peek_two_leaves(&self) -> Option<[SpannedLeaf<&'a Leaf>; 2]> {
         if let Some((last_subtree_idx, last_subtree)) = self.last_subtree() {
             // +1 because `Subtree.len` excludes the subtree itself.
             let last_end = last_subtree_idx + last_subtree.usize_len() + 1;
@@ -96,7 +105,9 @@ impl<'a> Cursor<'a> {
             }
         }
         self.buffer.get(self.index..self.index + 2).and_then(|it| match it {
-            [TokenTree::Leaf(a), TokenTree::Leaf(b)] => Some([a, b]),
+            [TokenTree::Leaf(a), TokenTree::Leaf(b)] => {
+                Some([SpannedLeaf { _span: (), leaf: a }, SpannedLeaf { _span: (), leaf: b }])
+            }
             _ => None,
         })
     }

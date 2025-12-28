@@ -424,9 +424,9 @@ fn regression_20171() {
         },
         ctx: SyntaxContext::root(Edition::CURRENT),
     };
-    let close_brace = tt::Punct { char: '}', spacing: tt::Spacing::Alone, span };
-    let dotdot1 = tt::Punct { char: '.', spacing: tt::Spacing::Joint, span };
-    let dotdot2 = tt::Punct { char: '.', spacing: tt::Spacing::Alone, span };
+    let close_brace = tt::Punct::new('}', tt::Spacing::Alone, span);
+    let dotdot1 = tt::Punct::new('.', tt::Spacing::Joint, span);
+    let dotdot2 = tt::Punct::new('.', tt::Spacing::Alone, span);
     let dollar_crate = sym::dollar_crate;
     let tt = quote! {
             span => {

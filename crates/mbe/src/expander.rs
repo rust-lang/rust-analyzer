@@ -18,7 +18,7 @@ pub(crate) fn expand_rules(
     db: &dyn salsa::Database,
     rules: &[crate::Rule],
     input: &tt::TopSubtree,
-    marker: impl Fn(&mut Span) + Copy,
+    marker: impl Fn(Span) -> Span + Copy,
     call_style: MacroCallStyle,
     call_site: Span,
 ) -> ExpandResult<(tt::TopSubtree, MatchedArmIndex)> {
@@ -162,7 +162,7 @@ impl Fragment<'_> {
             Fragment::Tokens { tree, .. } => tree.len() == 0,
             Fragment::Expr(it) => it.len() == 0,
             Fragment::Path(it) => it.len() == 0,
-            Fragment::TokensOwned(it) => it.0.is_empty(),
+            Fragment::TokensOwned(_) => false, // A `TopSubtree` is never empty
         }
     }
 }

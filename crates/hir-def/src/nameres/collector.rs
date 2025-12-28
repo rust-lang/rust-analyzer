@@ -2447,7 +2447,9 @@ impl ModCollector<'_, '_> {
         let is_export = export_attr().exists();
         let local_inner = if is_export {
             export_attr().tt_values().flat_map(|it| it.iter()).any(|it| match it {
-                tt::TtElement::Leaf(tt::Leaf::Ident(ident)) => ident.sym == sym::local_inner_macros,
+                tt::TtElement::Leaf(tt::SpannedLeafKind::Ident(ident)) => {
+                    ident.sym == sym::local_inner_macros
+                }
                 _ => false,
             })
         } else {

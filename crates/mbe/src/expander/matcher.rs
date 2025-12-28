@@ -462,7 +462,7 @@ fn match_loop_inner<'t>(
                     cur_items.push(new_item);
                 }
                 cur_items.push(MatchState {
-                    dot: tokens.iter_delimited(delim_span),
+                    dot: tokens.iter_delimited(),
                     stack: Default::default(),
                     up: Some(Box::new(item)),
                     sep: separator.clone(),
@@ -517,13 +517,10 @@ fn match_loop_inner<'t>(
             }
             OpDelimited::Op(Op::Literal(lhs)) => {
                 if let Ok(rhs) = src.clone().expect_leaf() {
-                    if matches!(rhs, tt::Leaf::Literal(it) if it.symbol == lhs.symbol) {
+                    if matches!(rhs, tt::SpannedLeafKind::Literal(it) if it.symbol == lhs.symbol) {
                         item.dot.next();
                     } else {
-                        res.add_err(ExpandError::new(
-                            *rhs.span(),
-                            ExpandErrorKind::UnexpectedToken,
-                        ));
+                        res.add_err(ExpandError::new(rhs.span(), ExpandErrorKind::UnexpectedToken));
                         item.is_error = true;
                     }
                 } else {
@@ -537,13 +534,10 @@ fn match_loop_inner<'t>(
             }
             OpDelimited::Op(Op::Ident(lhs)) => {
                 if let Ok(rhs) = src.clone().expect_leaf() {
-                    if matches!(rhs, tt::Leaf::Ident(it) if it.sym == lhs.sym) {
+                    if matches!(rhs, tt::SpannedLeafKind::Ident(it) if it.sym == lhs.sym) {
                         item.dot.next();
                     } else {
-                        res.add_err(ExpandError::new(
-                            *rhs.span(),
-                            ExpandErrorKind::UnexpectedToken,
-                        ));
+                        res.add_err(ExpandError::new(rhs.span(), ExpandErrorKind::UnexpectedToken));
                         item.is_error = true;
                     }
                 } else {
@@ -575,12 +569,15 @@ fn match_loop_inner<'t>(
                         // If the first punct token is a single quote, that's a part of a lifetime
                         // ident, not a punct.
                         ExpandError::new(
-                            rhs.get(1).map_or(rhs[0].span, |it| it.span),
+                            rhs.get(1).map_or(rhs[0].span(), |it| it.span()),
                             ExpandErrorKind::UnexpectedToken,
                         )
                     } else {
                         let lhs = lhs.collect::<String>();
-                        ExpandError::binding_error(rhs[0].span, format!("expected punct: `{lhs}`"))
+                        ExpandError::binding_error(
+                            rhs[0].span(),
+                            format!("expected punct: `{lhs}`"),
+                        )
                     }
                 } else {
                     ExpandError::new(
@@ -624,7 +621,7 @@ fn match_loop<'t>(
     pattern: &'t MetaTemplate,
     src: &'t tt::TopSubtree,
 ) -> Match<'t> {
-    let span = src.top_subtree().delimiter.delim_span();
+    let span = src.top_subtree().delim_span();
     let mut src = src.iter();
     let mut stack: SmallVec<[TtIter<'_>; 1]> = SmallVec::new();
     let mut res = Match::default();
@@ -633,7 +630,7 @@ fn match_loop<'t>(
     let mut bindings_builder = BindingsBuilder::default();
 
     let mut cur_items = smallvec![MatchState {
-        dot: pattern.iter_delimited(span),
+        dot: pattern.iter_delimited(),
         stack: Default::default(),
         up: None,
         sep: None,
@@ -791,7 +788,7 @@ fn match_meta_var<'t>(
             // [0]: https://github.com/rust-lang/rust/issues/86730
             // [1]: https://github.com/rust-lang/rust/blob/f0c4da499/compiler/rustc_expand/src/mbe/macro_parser.rs#L576
             match input.peek() {
-                Some(TtElement::Leaf(tt::Leaf::Ident(it))) => {
+                Some(TtElement::Leaf(tt::SpannedLeafKind::Ident(it))) => {
                     let is_err = if it.is_raw.no() && matches!(expr, ExprKind::Expr2021) {
                         it.sym == sym::underscore || it.sym == sym::let_ || it.sym == sym::const_
                     } else {
@@ -799,7 +796,7 @@ fn match_meta_var<'t>(
                     };
                     if is_err {
                         return ExpandResult::only_err(ExpandError::new(
-                            it.span,
+                            it.span(),
                             ExpandErrorKind::NoMatchingRule,
                         ));
                     }
@@ -878,15 +875,11 @@ fn collect_vars(collector_fun: &mut impl FnMut(Symbol), pattern: &MetaTemplate) 
     }
 }
 impl MetaTemplate {
-    fn iter_delimited_with(&self, delimiter: tt::Delimiter) -> OpDelimitedIter<'_> {
-        OpDelimitedIter { inner: &self.0, idx: 0, delimited: delimiter }
+    fn iter_delimited_with(&self, delimiter: tt::SpannedDelimiter) -> OpDelimitedIter<'_> {
+        OpDelimitedIter { inner: &self.0, idx: 0, delimited: delimiter.kind }
     }
-    fn iter_delimited(&self, span: tt::DelimSpan) -> OpDelimitedIter<'_> {
-        OpDelimitedIter {
-            inner: &self.0,
-            idx: 0,
-            delimited: tt::Delimiter::invisible_delim_spanned(span),
-        }
+    fn iter_delimited(&self) -> OpDelimitedIter<'_> {
+        OpDelimitedIter { inner: &self.0, idx: 0, delimited: tt::DelimiterKind::Invisible }
     }
 }
 
@@ -900,19 +893,19 @@ enum OpDelimited<'a> {
 #[derive(Debug, Clone, Copy)]
 struct OpDelimitedIter<'a> {
     inner: &'a [Op],
-    delimited: tt::Delimiter,
+    delimited: tt::DelimiterKind,
     idx: usize,
 }
 
 impl<'a> OpDelimitedIter<'a> {
     fn is_eof(&self) -> bool {
-        let len = self.inner.len()
-            + if self.delimited.kind != tt::DelimiterKind::Invisible { 2 } else { 0 };
+        let len =
+            self.inner.len() + if self.delimited != tt::DelimiterKind::Invisible { 2 } else { 0 };
         self.idx >= len
     }
 
     fn peek(&self) -> Option<OpDelimited<'a>> {
-        match self.delimited.kind {
+        match self.delimited {
             tt::DelimiterKind::Invisible => self.inner.get(self.idx).map(OpDelimited::Op),
             _ => match self.idx {
                 0 => Some(OpDelimited::Open),
@@ -937,8 +930,8 @@ impl<'a> Iterator for OpDelimitedIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len()
-            + if self.delimited.kind != tt::DelimiterKind::Invisible { 2 } else { 0 };
+        let len =
+            self.inner.len() + if self.delimited != tt::DelimiterKind::Invisible { 2 } else { 0 };
         let remain = len.saturating_sub(self.idx);
         (remain, Some(remain))
     }
@@ -953,9 +946,9 @@ fn expect_separator(iter: &mut TtIter<'_>, separator: &Separator) -> bool {
         },
         Separator::Literal(lhs) => match fork.expect_literal() {
             Ok(rhs) => match rhs {
-                tt::Leaf::Literal(rhs) => rhs.symbol == lhs.symbol,
-                tt::Leaf::Ident(rhs) => rhs.sym == lhs.symbol,
-                tt::Leaf::Punct(_) => false,
+                tt::SpannedLeafKind::Literal(rhs) => rhs.symbol == lhs.symbol,
+                tt::SpannedLeafKind::Ident(rhs) => rhs.sym == lhs.symbol,
+                tt::SpannedLeafKind::Punct(_) => false,
             },
             Err(_) => false,
         },
@@ -979,7 +972,7 @@ fn expect_separator(iter: &mut TtIter<'_>, separator: &Separator) -> bool {
 }
 
 fn expect_tt(iter: &mut TtIter<'_>) -> Result<(), ()> {
-    if let Some(TtElement::Leaf(tt::Leaf::Punct(punct))) = iter.peek() {
+    if let Some(TtElement::Leaf(tt::SpannedLeafKind::Punct(punct))) = iter.peek() {
         if punct.char == '\'' {
             expect_lifetime(iter)?;
         } else {
@@ -991,7 +984,7 @@ fn expect_tt(iter: &mut TtIter<'_>) -> Result<(), ()> {
     Ok(())
 }
 
-fn expect_lifetime<'a>(iter: &mut TtIter<'a>) -> Result<&'a tt::Ident, ()> {
+fn expect_lifetime<'a>(iter: &mut TtIter<'a>) -> Result<tt::SpannedLeaf<&'a tt::Ident>, ()> {
     let punct = iter.expect_single_punct()?;
     if punct.char != '\'' {
         return Err(());
@@ -1000,8 +993,7 @@ fn expect_lifetime<'a>(iter: &mut TtIter<'a>) -> Result<&'a tt::Ident, ()> {
 }
 
 fn eat_char(iter: &mut TtIter<'_>, c: char) {
-    if matches!(iter.peek(), Some(TtElement::Leaf(tt::Leaf::Punct(tt::Punct { char, .. }))) if *char == c)
-    {
+    if matches!(iter.peek(), Some(TtElement::Leaf(tt::SpannedLeafKind::Punct(p))) if p.char == c) {
         iter.next().expect("already peeked");
     }
 }

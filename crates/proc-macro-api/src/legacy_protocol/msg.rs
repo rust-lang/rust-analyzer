@@ -176,10 +176,7 @@ mod tests {
     use span::{
         Edition, ROOT_ERASED_FILE_AST_ID, Span, SpanAnchor, SyntaxContext, TextRange, TextSize,
     };
-    use tt::{
-        Delimiter, DelimiterKind, Ident, Leaf, Literal, Punct, Spacing, TopSubtree,
-        TopSubtreeBuilder,
-    };
+    use tt::{DelimiterKind, Ident, Literal, Punct, Spacing, TopSubtree, TopSubtreeBuilder};
 
     use crate::version;
 
@@ -194,63 +191,59 @@ mod tests {
             ast_id: ROOT_ERASED_FILE_AST_ID,
         };
 
-        let mut builder = TopSubtreeBuilder::new(Delimiter {
-            open: Span {
-                range: TextRange::empty(TextSize::new(0)),
-                anchor,
-                ctx: SyntaxContext::root(Edition::CURRENT),
+        let mut builder = TopSubtreeBuilder::new(
+            DelimiterKind::Invisible,
+            tt::DelimSpan {
+                open: Span {
+                    range: TextRange::empty(TextSize::new(0)),
+                    anchor,
+                    ctx: SyntaxContext::root(Edition::CURRENT),
+                },
+                close: Span {
+                    range: TextRange::empty(TextSize::new(0)),
+                    anchor,
+                    ctx: SyntaxContext::root(Edition::CURRENT),
+                },
             },
-            close: Span {
-                range: TextRange::empty(TextSize::new(0)),
-                anchor,
-                ctx: SyntaxContext::root(Edition::CURRENT),
-            },
-            kind: DelimiterKind::Invisible,
-        });
+        );
 
-        builder.push(
-            Ident {
-                sym: Symbol::intern("struct"),
-                span: Span {
-                    range: TextRange::at(TextSize::new(0), TextSize::of("struct")),
-                    anchor,
-                    ctx: SyntaxContext::root(Edition::CURRENT),
-                },
-                is_raw: tt::IdentIsRaw::No,
-            }
-            .into(),
-        );
-        builder.push(
-            Ident {
-                sym: Symbol::intern("Foo"),
-                span: Span {
-                    range: TextRange::at(TextSize::new(5), TextSize::of("r#Foo")),
-                    anchor,
-                    ctx: SyntaxContext::root(Edition::CURRENT),
-                },
-                is_raw: tt::IdentIsRaw::Yes,
-            }
-            .into(),
-        );
-        builder.push(Leaf::Literal(Literal {
-            symbol: Symbol::intern("Foo"),
-            span: Span {
+        builder.push(Ident::new_sym(
+            Symbol::intern("struct"),
+            tt::IdentIsRaw::No,
+            Span {
+                range: TextRange::at(TextSize::new(0), TextSize::of("struct")),
+                anchor,
+                ctx: SyntaxContext::root(Edition::CURRENT),
+            },
+        ));
+        builder.push(Ident::new_sym(
+            Symbol::intern("Foo"),
+            tt::IdentIsRaw::Yes,
+            Span {
+                range: TextRange::at(TextSize::new(5), TextSize::of("r#Foo")),
+                anchor,
+                ctx: SyntaxContext::root(Edition::CURRENT),
+            },
+        ));
+        builder.push(Literal::new(
+            Symbol::intern("Foo"),
+            Span {
                 range: TextRange::at(TextSize::new(10), TextSize::of("\"Foo\"")),
                 anchor,
                 ctx: SyntaxContext::root(Edition::CURRENT),
             },
-            kind: tt::LitKind::Str,
-            suffix: None,
-        }));
-        builder.push(Leaf::Punct(Punct {
-            char: '@',
-            span: Span {
+            tt::LitKind::Str,
+            None,
+        ));
+        builder.push(Punct::new(
+            '@',
+            Spacing::Joint,
+            Span {
                 range: TextRange::at(TextSize::new(13), TextSize::of('@')),
                 anchor,
                 ctx: SyntaxContext::root(Edition::CURRENT),
             },
-            spacing: Spacing::Joint,
-        }));
+        ));
         builder.open(
             DelimiterKind::Brace,
             Span {
@@ -267,16 +260,16 @@ mod tests {
                 ctx: SyntaxContext::root(Edition::CURRENT),
             },
         );
-        builder.push(Leaf::Literal(Literal {
-            symbol: sym::INTEGER_0,
-            span: Span {
+        builder.push(Literal::new(
+            sym::INTEGER_0,
+            Span {
                 range: TextRange::at(TextSize::new(16), TextSize::of("0u32")),
                 anchor,
                 ctx: SyntaxContext::root(Edition::CURRENT),
             },
-            kind: tt::LitKind::Integer,
-            suffix: Some(sym::u32),
-        }));
+            tt::LitKind::Integer,
+            Some(sym::u32),
+        ));
         builder.close(Span {
             range: TextRange::at(TextSize::new(20), TextSize::of(']')),
             anchor,
@@ -301,19 +294,21 @@ mod tests {
             ast_id: ROOT_ERASED_FILE_AST_ID,
         };
 
-        let builder = TopSubtreeBuilder::new(Delimiter {
-            open: Span {
-                range: TextRange::empty(TextSize::new(0)),
-                anchor,
-                ctx: SyntaxContext::root(Edition::CURRENT),
+        let builder = TopSubtreeBuilder::new(
+            DelimiterKind::Invisible,
+            tt::DelimSpan {
+                open: Span {
+                    range: TextRange::empty(TextSize::new(0)),
+                    anchor,
+                    ctx: SyntaxContext::root(Edition::CURRENT),
+                },
+                close: Span {
+                    range: TextRange::empty(TextSize::new(0)),
+                    anchor,
+                    ctx: SyntaxContext::root(Edition::CURRENT),
+                },
             },
-            close: Span {
-                range: TextRange::empty(TextSize::new(0)),
-                anchor,
-                ctx: SyntaxContext::root(Edition::CURRENT),
-            },
-            kind: DelimiterKind::Invisible,
-        });
+        );
 
         builder.build()
     }
@@ -327,19 +322,21 @@ mod tests {
             ast_id: ROOT_ERASED_FILE_AST_ID,
         };
 
-        let builder = TopSubtreeBuilder::new(Delimiter {
-            open: Span {
-                range: TextRange::empty(TextSize::new(0)),
-                anchor,
-                ctx: SyntaxContext::root(Edition::CURRENT),
+        let builder = TopSubtreeBuilder::new(
+            DelimiterKind::Brace,
+            tt::DelimSpan {
+                open: Span {
+                    range: TextRange::empty(TextSize::new(0)),
+                    anchor,
+                    ctx: SyntaxContext::root(Edition::CURRENT),
+                },
+                close: Span {
+                    range: TextRange::empty(TextSize::new(0)),
+                    anchor,
+                    ctx: SyntaxContext::root(Edition::CURRENT),
+                },
             },
-            close: Span {
-                range: TextRange::empty(TextSize::new(0)),
-                anchor,
-                ctx: SyntaxContext::root(Edition::CURRENT),
-            },
-            kind: DelimiterKind::Brace,
-        });
+        );
 
         builder.build()
     }

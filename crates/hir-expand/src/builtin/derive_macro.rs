@@ -83,12 +83,12 @@ pub fn find_builtin_derive(ident: &name::Name) -> Option<BuiltinDeriveExpander> 
 
 #[derive(Clone)]
 enum VariantShape {
-    Struct(Vec<tt::Ident>),
+    Struct(Vec<tt::SpannedLeaf<tt::Ident>>),
     Tuple(usize),
     Unit,
 }
 
-fn tuple_field_iterator(span: Span, n: usize) -> impl Iterator<Item = tt::Ident> {
+fn tuple_field_iterator(span: Span, n: usize) -> impl Iterator<Item = tt::SpannedLeaf<tt::Ident>> {
     (0..n).map(move |it| tt::Ident::new(&format!("f{it}"), span))
 }
 
@@ -97,7 +97,7 @@ impl VariantShape {
         self.as_pattern_map(path, span, |it| quote!(span => #it))
     }
 
-    fn field_names(&self, span: Span) -> Vec<tt::Ident> {
+    fn field_names(&self, span: Span) -> Vec<tt::SpannedLeaf<tt::Ident>> {
         match self {
             VariantShape::Struct(s) => s.clone(),
             VariantShape::Tuple(n) => tuple_field_iterator(span, *n).collect(),
@@ -109,7 +109,7 @@ impl VariantShape {
         &self,
         path: tt::TopSubtree,
         span: Span,
-        field_map: impl Fn(&tt::Ident) -> tt::TopSubtree,
+        field_map: impl Fn(&tt::SpannedLeaf<tt::Ident>) -> tt::TopSubtree,
     ) -> tt::TopSubtree {
         match self {
             VariantShape::Struct(fields) => {
@@ -158,16 +158,19 @@ impl VariantShape {
 #[derive(Clone)]
 enum AdtShape {
     Struct(VariantShape),
-    Enum { variants: Vec<(tt::Ident, VariantShape)>, default_variant: Option<usize> },
+    Enum {
+        variants: Vec<(tt::SpannedLeaf<tt::Ident>, VariantShape)>,
+        default_variant: Option<usize>,
+    },
     Union,
 }
 
 impl AdtShape {
-    fn as_pattern(&self, span: Span, name: &tt::Ident) -> Vec<tt::TopSubtree> {
+    fn as_pattern(&self, span: Span, name: &tt::SpannedLeaf<tt::Ident>) -> Vec<tt::TopSubtree> {
         self.as_pattern_map(name, |it| quote!(span =>#it), span)
     }
 
-    fn field_names(&self, span: Span) -> Vec<Vec<tt::Ident>> {
+    fn field_names(&self, span: Span) -> Vec<Vec<tt::SpannedLeaf<tt::Ident>>> {
         match self {
             AdtShape::Struct(s) => {
                 vec![s.field_names(span)]
@@ -184,8 +187,8 @@ impl AdtShape {
 
     fn as_pattern_map(
         &self,
-        name: &tt::Ident,
-        field_map: impl Fn(&tt::Ident) -> tt::TopSubtree,
+        name: &tt::SpannedLeaf<tt::Ident>,
+        field_map: impl Fn(&tt::SpannedLeaf<tt::Ident>) -> tt::TopSubtree,
         span: Span,
     ) -> Vec<tt::TopSubtree> {
         match self {
@@ -208,7 +211,7 @@ impl AdtShape {
 
 #[derive(Clone)]
 struct BasicAdtInfo {
-    name: tt::Ident,
+    name: tt::SpannedLeaf<tt::Ident>,
     shape: AdtShape,
     /// first field is the name, and
     /// second field is `Some(ty)` if it's a const param of type `ty`, `None` if it's a type param.
@@ -405,7 +408,7 @@ fn name_to_token(
     call_site: Span,
     token_map: &ExpansionSpanMap,
     name: Option<ast::Name>,
-) -> Result<tt::Ident, ExpandError> {
+) -> Result<tt::SpannedLeaf<tt::Ident>, ExpandError> {
     let name = name.ok_or_else(|| {
         debug!("parsed item has no name");
         ExpandError::other(call_site, "missing name")
@@ -554,7 +557,7 @@ fn clone_expand(
     let krate = dollar_crate(span);
     expand_simple_derive(db, span, tt, quote! {span => #krate::clone::Clone }, true, |adt| {
         if matches!(adt.shape, AdtShape::Union) {
-            let star = tt::Punct { char: '*', spacing: ::tt::Spacing::Alone, span };
+            let star = tt::Punct::new('*', ::tt::Spacing::Alone, span);
             return quote! {span =>
                 fn clone(&self) -> Self {
                     #star self
@@ -562,7 +565,7 @@ fn clone_expand(
             };
         }
         if matches!(&adt.shape, AdtShape::Enum { variants, .. } if variants.is_empty()) {
-            let star = tt::Punct { char: '*', spacing: ::tt::Spacing::Alone, span };
+            let star = tt::Punct::new('*', ::tt::Spacing::Alone, span);
             return quote! {span =>
                 fn clone(&self) -> Self {
                     match #star self {}
@@ -591,13 +594,13 @@ fn clone_expand(
 
 /// This function exists since `quote! {span => => }` doesn't work.
 fn fat_arrow(span: Span) -> tt::TopSubtree {
-    let eq = tt::Punct { char: '=', spacing: ::tt::Spacing::Joint, span };
+    let eq = tt::Punct::new('=', ::tt::Spacing::Joint, span);
     quote! {span => #eq> }
 }
 
 /// This function exists since `quote! {span => && }` doesn't work.
 fn and_and(span: Span) -> tt::TopSubtree {
-    let and = tt::Punct { char: '&', spacing: ::tt::Spacing::Joint, span };
+    let and = tt::Punct::new('&', ::tt::Spacing::Joint, span);
     quote! {span => #and& }
 }
 
@@ -700,7 +703,7 @@ fn debug_expand(
             },
         };
         if matches!(&adt.shape, AdtShape::Enum { variants, .. } if variants.is_empty()) {
-            let star = tt::Punct { char: '*', spacing: ::tt::Spacing::Alone, span };
+            let star = tt::Punct::new('*', ::tt::Spacing::Alone, span);
             return quote! {span =>
                 fn fmt(&self, f: &mut #krate::fmt::Formatter) -> #krate::fmt::Result {
                     match #star self {}
@@ -747,7 +750,7 @@ fn hash_expand(
     let krate = &dollar_crate(span);
     expand_simple_derive(db, span, tt, quote! {span => #krate::hash::Hash }, false, |adt| {
         if matches!(&adt.shape, AdtShape::Enum { variants, .. } if variants.is_empty()) {
-            let star = tt::Punct { char: '*', spacing: ::tt::Spacing::Alone, span };
+            let star = tt::Punct::new('*', ::tt::Spacing::Alone, span);
             return quote! {span =>
                 fn hash<H: #krate::hash::Hasher>(&self, ra_expand_state: &mut H) {
                     match #star self {}
@@ -821,14 +824,14 @@ fn partial_eq_expand(
                     }
                     [first, rest @ ..] => {
                         let rest = rest.iter().map(|it| {
-                            let t1 = tt::Ident::new(&format!("{}_self", it.sym), it.span);
-                            let t2 = tt::Ident::new(&format!("{}_other", it.sym), it.span);
+                            let t1 = tt::Ident::new(&format!("{}_self", it.sym), it.span());
+                            let t2 = tt::Ident::new(&format!("{}_other", it.sym), it.span());
                             let and_and = and_and(span);
                             quote!(span =>#and_and #t1 .eq( #t2 ))
                         });
                         let first = {
-                            let t1 = tt::Ident::new(&format!("{}_self", first.sym), first.span);
-                            let t2 = tt::Ident::new(&format!("{}_other", first.sym), first.span);
+                            let t1 = tt::Ident::new(&format!("{}_self", first.sym), first.span());
+                            let t2 = tt::Ident::new(&format!("{}_other", first.sym), first.span());
                             quote!(span =>#t1 .eq( #t2 ))
                         };
                         quote!(span =>#first # #rest)
@@ -852,13 +855,13 @@ fn partial_eq_expand(
 
 fn self_and_other_patterns(
     adt: &BasicAdtInfo,
-    name: &tt::Ident,
+    name: &tt::SpannedLeaf<tt::Ident>,
     span: Span,
 ) -> (Vec<tt::TopSubtree>, Vec<tt::TopSubtree>) {
     let self_patterns = adt.shape.as_pattern_map(
         name,
         |it| {
-            let t = tt::Ident::new(&format!("{}_self", it.sym), it.span);
+            let t = tt::Ident::new(&format!("{}_self", it.sym), it.span());
             quote!(span =>#t)
         },
         span,
@@ -866,7 +869,7 @@ fn self_and_other_patterns(
     let other_patterns = adt.shape.as_pattern_map(
         name,
         |it| {
-            let t = tt::Ident::new(&format!("{}_other", it.sym), it.span);
+            let t = tt::Ident::new(&format!("{}_other", it.sym), it.span());
             quote!(span =>#t)
         },
         span,
@@ -882,7 +885,7 @@ fn ord_expand(
     let krate = &dollar_crate(span);
     expand_simple_derive(db, span, tt, quote! {span => #krate::cmp::Ord }, false, |adt| {
         fn compare(
-            krate: &tt::Ident,
+            krate: &tt::SpannedLeaf<tt::Ident>,
             left: tt::TopSubtree,
             right: tt::TopSubtree,
             rest: tt::TopSubtree,
@@ -904,8 +907,8 @@ fn ord_expand(
             |(pat1, pat2, fields)| {
                 let mut body = quote!(span =>#krate::cmp::Ordering::Equal);
                 for f in fields.into_iter().rev() {
-                    let t1 = tt::Ident::new(&format!("{}_self", f.sym), f.span);
-                    let t2 = tt::Ident::new(&format!("{}_other", f.sym), f.span);
+                    let t1 = tt::Ident::new(&format!("{}_self", f.sym), f.span());
+                    let t2 = tt::Ident::new(&format!("{}_other", f.sym), f.span());
                     body = compare(krate, quote!(span =>#t1), quote!(span =>#t2), body, span);
                 }
                 let fat_arrow = fat_arrow(span);
@@ -940,7 +943,7 @@ fn partial_ord_expand(
     let krate = &dollar_crate(span);
     expand_simple_derive(db, span, tt, quote! {span => #krate::cmp::PartialOrd }, false, |adt| {
         fn compare(
-            krate: &tt::Ident,
+            krate: &tt::SpannedLeaf<tt::Ident>,
             left: tt::TopSubtree,
             right: tt::TopSubtree,
             rest: tt::TopSubtree,
@@ -966,8 +969,8 @@ fn partial_ord_expand(
                 let mut body =
                     quote!(span =>#krate::option::Option::Some(#krate::cmp::Ordering::Equal));
                 for f in fields.into_iter().rev() {
-                    let t1 = tt::Ident::new(&format!("{}_self", f.sym), f.span);
-                    let t2 = tt::Ident::new(&format!("{}_other", f.sym), f.span);
+                    let t1 = tt::Ident::new(&format!("{}_self", f.sym), f.span());
+                    let t2 = tt::Ident::new(&format!("{}_other", f.sym), f.span());
                     body = compare(krate, quote!(span =>#t1), quote!(span =>#t2), body, span);
                 }
                 let fat_arrow = fat_arrow(span);

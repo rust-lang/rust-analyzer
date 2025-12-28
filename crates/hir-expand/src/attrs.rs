@@ -36,7 +36,7 @@ use base_db::Crate;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use intern::{Interned, Symbol};
-use mbe::{DelimiterKind, Punct};
+use mbe::DelimiterKind;
 use parser::T;
 use smallvec::SmallVec;
 use span::{RealSpanMap, Span, SyntaxContext};
@@ -400,7 +400,7 @@ pub struct Attr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AttrInput {
     /// `#[attr = "string"]`
-    Literal(tt::Literal),
+    Literal(tt::SpannedLeaf<tt::Literal>),
     /// `#[attr(subtree)]`
     TokenTree(tt::TopSubtree),
 }
@@ -418,11 +418,11 @@ impl Attr {
     /// #[path = "string"]
     pub fn string_value(&self) -> Option<&Symbol> {
         match self.input.as_deref()? {
-            AttrInput::Literal(tt::Literal {
-                symbol: text,
-                kind: tt::LitKind::Str | tt::LitKind::StrRaw(_),
-                ..
-            }) => Some(text),
+            AttrInput::Literal(lit)
+                if matches!(lit.kind, tt::LitKind::Str | tt::LitKind::StrRaw(_)) =>
+            {
+                Some(&lit.symbol)
+            }
             _ => None,
         }
     }
@@ -430,23 +430,22 @@ impl Attr {
     /// #[path = "string"]
     pub fn string_value_with_span(&self) -> Option<(&Symbol, span::Span)> {
         match self.input.as_deref()? {
-            AttrInput::Literal(tt::Literal {
-                symbol: text,
-                kind: tt::LitKind::Str | tt::LitKind::StrRaw(_),
-                span,
-                suffix: _,
-            }) => Some((text, *span)),
+            AttrInput::Literal(lit)
+                if matches!(lit.kind, tt::LitKind::Str | tt::LitKind::StrRaw(_)) =>
+            {
+                Some((&lit.symbol, lit.span()))
+            }
             _ => None,
         }
     }
 
     pub fn string_value_unescape(&self) -> Option<Cow<'_, str>> {
         match self.input.as_deref()? {
-            AttrInput::Literal(tt::Literal {
-                symbol: text, kind: tt::LitKind::StrRaw(_), ..
-            }) => Some(Cow::Borrowed(text.as_str())),
-            AttrInput::Literal(tt::Literal { symbol: text, kind: tt::LitKind::Str, .. }) => {
-                unescape(text.as_str())
+            AttrInput::Literal(lit) if matches!(lit.kind, tt::LitKind::StrRaw(_)) => {
+                Some(Cow::Borrowed(lit.symbol.as_str()))
+            }
+            AttrInput::Literal(lit) if matches!(lit.kind, tt::LitKind::Str) => {
+                unescape(lit.symbol.as_str())
             }
             _ => None,
         }
@@ -490,9 +489,11 @@ fn parse_path_comma_token_tree<'a>(
     args: &'a tt::TopSubtree,
 ) -> impl Iterator<Item = (ModPath, Span, tt::TokenTreesView<'a>)> {
     args.token_trees()
-        .split(|tt| matches!(tt, tt::TtElement::Leaf(tt::Leaf::Punct(Punct { char: ',', .. }))))
+        .split(
+            |tt| matches!(tt, tt::TtElement::Leaf(tt::SpannedLeafKind::Punct(p)) if p.char == ','),
+        )
         .filter_map(move |tts| {
-            let span = tts.flat_tokens().first()?.first_span();
+            let span = tts.first_span()?;
             Some((ModPath::from_tt(db, tts)?, span, tts))
         })
 }
@@ -611,16 +612,12 @@ impl AttrId {
         else {
             return derive_attr_range;
         };
-        let (Some(first_tt), Some(last_tt)) =
-            (derive_tts.flat_tokens().first(), derive_tts.flat_tokens().last())
+        let (Some(first_span), Some(last_span)) = (derive_tts.first_span(), derive_tts.last_span())
         else {
             return derive_attr_range;
         };
-        let start = first_tt.first_span().range.start();
-        let end = match last_tt {
-            tt::TokenTree::Leaf(it) => it.span().range.end(),
-            tt::TokenTree::Subtree(it) => it.delimiter.close.range.end(),
-        };
+        let start = first_span.range.start();
+        let end = last_span.range.end();
         TextRange::new(start, end)
     }
 }

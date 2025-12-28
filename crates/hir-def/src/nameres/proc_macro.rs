@@ -78,11 +78,13 @@ pub(crate) fn parse_macro_name_and_helper_attrs(tt: &TopSubtree) -> Option<(Name
             ..
         ] if comma.char == ',' && attributes.sym == sym::attributes =>
         {
-            let helpers = tt::TokenTreesView::new(&tt.token_trees().flat_tokens()[3..]).try_into_subtree()?;
+            let mut iter = tt.iter();
+            iter.nth(2);
+            let helpers = iter.remaining().try_into_subtree()?;
             let helpers = helpers
                 .iter()
                 .filter_map(|tt| match tt {
-                    TtElement::Leaf(Leaf::Ident(helper)) => Some(helper.as_name()),
+                    TtElement::Leaf(tt::SpannedLeafKind::Ident(helper)) => Some(helper.as_name()),
                     _ => None,
                 })
                 .collect::<Box<[_]>>();

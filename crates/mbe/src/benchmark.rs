@@ -52,9 +52,9 @@ fn benchmark_expand_macro_rules() {
         invocations
             .into_iter()
             .map(|(id, tt)| {
-                let res = rules[&id].expand(&db, &tt, |_| (), MacroCallStyle::FnLike, DUMMY);
+                let res = rules[&id].expand(&db, &tt, |span| span, MacroCallStyle::FnLike, DUMMY);
                 assert!(res.err.is_none());
-                res.value.0.0.len()
+                res.value.0.len()
             })
             .sum()
     };
@@ -114,17 +114,19 @@ fn invocation_fixtures(
                 // So we just skip any error cases and try again
                 let mut try_cnt = 0;
                 loop {
-                    let mut builder = tt::TopSubtreeBuilder::new(tt::Delimiter {
-                        open: DUMMY,
-                        close: DUMMY,
-                        kind: tt::DelimiterKind::Invisible,
-                    });
+                    let mut builder = tt::TopSubtreeBuilder::new(
+                        tt::DelimiterKind::Invisible,
+                        tt::DelimSpan { open: DUMMY, close: DUMMY },
+                    );
                     for op in rule.lhs.iter() {
                         collect_from_op(op, &mut builder, &mut seed);
                     }
                     let subtree = builder.build();
 
-                    if it.expand(db, &subtree, |_| (), MacroCallStyle::FnLike, DUMMY).err.is_none()
+                    if it
+                        .expand(db, &subtree, |span| span, MacroCallStyle::FnLike, DUMMY)
+                        .err
+                        .is_none()
                     {
                         res.push((name.clone(), subtree));
                         break;
@@ -169,11 +171,11 @@ fn invocation_fixtures(
                 None => (),
                 Some(kind) => panic!("Unhandled kind {kind:?}"),
             },
-            Op::Literal(it) => builder.push(tt::Leaf::from(it.clone())),
-            Op::Ident(it) => builder.push(tt::Leaf::from(it.clone())),
+            Op::Literal(it) => builder.push(it.clone()),
+            Op::Ident(it) => builder.push(it.clone()),
             Op::Punct(puncts) => {
                 for punct in puncts.as_slice() {
-                    builder.push(tt::Leaf::from(*punct));
+                    builder.push(*punct);
                 }
             }
             Op::Repeat { tokens, kind, separator } => {
@@ -191,16 +193,16 @@ fn invocation_fixtures(
                         && let Some(sep) = separator
                     {
                         match &**sep {
-                            Separator::Literal(it) => builder.push(tt::Leaf::Literal(it.clone())),
-                            Separator::Ident(it) => builder.push(tt::Leaf::Ident(it.clone())),
+                            Separator::Literal(it) => builder.push(it.clone()),
+                            Separator::Ident(it) => builder.push(it.clone()),
                             Separator::Puncts(puncts) => {
                                 for it in puncts {
-                                    builder.push(tt::Leaf::Punct(*it))
+                                    builder.push(*it)
                                 }
                             }
                             Separator::Lifetime(punct, ident) => {
-                                builder.push(tt::Leaf::Punct(*punct));
-                                builder.push(tt::Leaf::Ident(ident.clone()));
+                                builder.push(*punct);
+                                builder.push(ident.clone());
                             }
                         };
                     }
@@ -225,23 +227,14 @@ fn invocation_fixtures(
             *seed = usize::wrapping_add(usize::wrapping_mul(*seed, a), c);
             *seed
         }
-        fn make_ident(ident: &str) -> tt::Leaf {
-            tt::Leaf::Ident(tt::Ident {
-                span: DUMMY,
-                sym: Symbol::intern(ident),
-                is_raw: tt::IdentIsRaw::No,
-            })
+        fn make_ident(ident: &str) -> tt::SpannedLeaf<tt::Ident> {
+            tt::Ident::new_sym(Symbol::intern(ident), tt::IdentIsRaw::No, DUMMY)
         }
-        fn make_punct(char: char) -> tt::Leaf {
-            tt::Leaf::Punct(tt::Punct { span: DUMMY, char, spacing: tt::Spacing::Alone })
+        fn make_punct(char: char) -> tt::SpannedLeaf<tt::Punct> {
+            tt::Punct::new(char, tt::Spacing::Alone, DUMMY)
         }
-        fn make_literal(lit: &str) -> tt::Leaf {
-            tt::Leaf::Literal(tt::Literal {
-                span: DUMMY,
-                symbol: Symbol::intern(lit),
-                kind: tt::LitKind::Str,
-                suffix: None,
-            })
+        fn make_literal(lit: &str) -> tt::SpannedLeaf<tt::Literal> {
+            tt::Literal::new(Symbol::intern(lit), DUMMY, tt::LitKind::Str, None)
         }
         fn make_subtree(kind: tt::DelimiterKind, builder: &mut tt::TopSubtreeBuilder) {
             builder.open(kind, DUMMY);
