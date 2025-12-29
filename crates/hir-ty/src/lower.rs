@@ -1649,11 +1649,7 @@ pub(crate) fn generic_predicates_for_param<'db>(
                         return false;
                     };
 
-                    rustc_type_ir::elaborate::supertrait_def_ids(interner, tr.into()).any(|tr| {
-                        tr.0.trait_items(db).items.iter().any(|(name, item)| {
-                            matches!(item, AssocItemId::TypeAliasId(_)) && name == assoc_name
-                        })
-                    })
+                    trait_or_supertrait_has_assoc_type(db, tr, assoc_name)
                 }
                 TypeBound::Use(_) | TypeBound::Lifetime(_) | TypeBound::Error => false,
             }
@@ -1701,6 +1697,52 @@ pub(crate) fn generic_predicates_for_param_cycle_result(
     _assoc_name: Option<Name>,
 ) -> StoredEarlyBinder<StoredClauses> {
     StoredEarlyBinder::bind(Clauses::empty(DbInterner::new_no_crate(db)).store())
+}
+
+/// Check if a trait or any of its supertraits define an associated
+/// type with the given name.
+fn trait_or_supertrait_has_assoc_type(
+    db: &dyn HirDatabase,
+    tr: TraitId,
+    assoc_name: &Name,
+) -> bool {
+    let mut visited = FxHashSet::default();
+    let mut stack = vec![tr];
+
+    // In valid Rust code, there should never be a cycle. However, the
+    // user may write erroneous code that contains a cycle, so be
+    // defensive against that.
+    while let Some(trait_id) = stack.pop() {
+        if !visited.insert(trait_id) {
+            continue;
+        }
+
+        // Check if this trait has the associated type.
+        if trait_id
+            .trait_items(db)
+            .items
+            .iter()
+            .any(|(name, item)| matches!(item, AssocItemId::TypeAliasId(_)) && name == assoc_name)
+        {
+            return true;
+        }
+
+        // Walk supertraits.
+        let params = db.generic_params(trait_id.into());
+        if let Some(self_param) = params.trait_self_param() {
+            let self_param_id =
+                TypeOrConstParamId { parent: trait_id.into(), local_id: self_param };
+
+            let predicates = generic_predicates_for_param(db, trait_id.into(), self_param_id, None);
+            for pred in predicates.get().iter_identity() {
+                if let rustc_type_ir::ClauseKind::Trait(trait_pred) = pred.kind().skip_binder() {
+                    stack.push(trait_pred.trait_ref.def_id.0);
+                }
+            }
+        }
+    }
+
+    false
 }
 
 #[inline]
