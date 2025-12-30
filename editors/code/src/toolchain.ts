@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import * as readline from "readline";
 import * as vscode from "vscode";
+import { type Config } from "./config";
 import { Env, log, memoizeAsync, unwrapUndefinable } from "./util";
 import type { CargoRunnableArgs } from "./lsp_ext";
 
@@ -36,6 +37,7 @@ interface CompilerMessage {
 
 export class Cargo {
     constructor(
+        readonly config: Config,
         readonly rootFolder: string,
         readonly env: Env,
     ) {}
@@ -128,7 +130,7 @@ export class Cargo {
         onStderrString: (data: string) => void,
         env?: Record<string, string>,
     ): Promise<number> {
-        const path = await cargoPath(env);
+        const path = await cargoPath(this.config, env);
         return await new Promise((resolve, reject) => {
             const cargo = cp.spawn(path, cargoArgs, {
                 stdio: ["ignore", "pipe", "pipe"],
@@ -156,15 +158,20 @@ export class Cargo {
 
 /** Mirrors `toolchain::cargo()` implementation */
 // FIXME: The server should provide this
-export function cargoPath(env?: Env): Promise<string> {
+export function cargoPath(config: Config, env?: Env): Promise<string> {
     if (env?.["RUSTC_TOOLCHAIN"]) {
         return Promise.resolve("cargo");
     }
-    return getPathForExecutable("cargo");
+    return getPathForExecutable(config, "cargo");
 }
 
 /** Mirrors `toolchain::get_path_for_executable()` implementation */
-const getPathForExecutable = memoizeAsync(
+async function getPathForExecutable(config: Config, executableName: "cargo" | "rustc" | "rustup") {
+    const configuredPath = config.configuredExecutablePath(executableName);
+    if (configuredPath) return configuredPath;
+    return resolvePathForExecutable(executableName);
+}
+const resolvePathForExecutable = memoizeAsync(
     // We apply caching to decrease file-system interactions
     async (executableName: "cargo" | "rustc" | "rustup"): Promise<string> => {
         {

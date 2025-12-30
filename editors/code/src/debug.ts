@@ -145,6 +145,7 @@ async function getDebugConfiguration(
     }
 
     const executable = await getDebugExecutable(
+        config,
         runnableArgs,
         prepareEnv(true, {}, config.runnablesExtraEnv(runnable.label)),
     );
@@ -308,8 +309,8 @@ const knownEngines: {
     },
 };
 
-async function getDebugExecutable(runnableArgs: ra.CargoRunnableArgs, env: Env): Promise<string> {
-    const cargo = new Cargo(runnableArgs.workspaceRoot || ".", env);
+async function getDebugExecutable(config: Config, runnableArgs: ra.CargoRunnableArgs, env: Env): Promise<string> {
+    const cargo = new Cargo(config, runnableArgs.workspaceRoot || ".", env);
     const executable = await cargo.executableFromArgs(runnableArgs);
 
     // if we are here, there were no compilation errors.

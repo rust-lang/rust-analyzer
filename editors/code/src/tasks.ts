@@ -52,7 +52,7 @@ class RustTaskProvider implements vscode.TaskProvider {
         ];
 
         // FIXME: The server should provide this
-        const cargo = await toolchain.cargoPath();
+        const cargo = await toolchain.cargoPath(this.config);
 
         const tasks: vscode.Task[] = [];
         for (const workspaceTarget of vscode.workspace.workspaceFolders) {
@@ -126,7 +126,7 @@ export async function targetToExecution(
     let command, args;
     if (isCargoTask(definition)) {
         // FIXME: The server should provide cargo
-        command = cargo || (await toolchain.cargoPath(options?.env));
+        command = cargo || (await toolchain.cargoPath(this.config, options?.env));
         args = [definition.command].concat(definition.args || []);
     } else {
         command = definition.command;

@@ -1602,6 +1602,66 @@
                 }
             },
             {
+                "title": "Environment",
+                "properties": {
+                    "rust-analyzer.environment.cargoPath": {
+                        "markdownDescription": "The absolute path to the `cargo` binary. Leave null to search the PATH.",
+                        "default": null,
+                        "anyOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "string"
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                "title": "Environment",
+                "properties": {
+                    "rust-analyzer.environment.rustcPath": {
+                        "markdownDescription": "The absolute path to the `rustc` binary. Leave null to search the PATH.",
+                        "default": null,
+                        "anyOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "string"
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                "title": "Environment",
+                "properties": {
+                    "rust-analyzer.environment.rustupPath": {
+                        "markdownDescription": "The absolute path to the `rustup` binary. Leave null to search the PATH.",
+                        "default": null,
+                        "anyOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "string"
+                            }
+                        ]
+                    }
+                }
+            },
+            {
                 "title": "Files",
                 "properties": {
                     "rust-analyzer.files.exclude": {

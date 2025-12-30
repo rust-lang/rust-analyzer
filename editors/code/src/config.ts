@@ -302,6 +302,10 @@ export class Config {
         return this.get<boolean>("checkOnSave") ?? false;
     }
 
+    configuredExecutablePath(executableName: "cargo" | "rustc" | "rustup"): null | string {
+        return this.get<null | string>(`environment.${executableName}Path`);
+    }
+
     async toggleCheckOnSave() {
         const config = this.rawCfg.inspect<boolean>("checkOnSave") ?? { key: "checkOnSave" };
         let overrideInLanguage;
