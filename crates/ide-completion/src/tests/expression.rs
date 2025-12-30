@@ -5,8 +5,8 @@ use crate::{
     CompletionConfig,
     config::AutoImportExclusionType,
     tests::{
-        BASE_ITEMS_FIXTURE, TEST_CONFIG, check, check_edit, check_with_base_items,
-        completion_list_with_config,
+        BASE_ITEMS_FIXTURE, TEST_CONFIG, check, check_edit, check_edit_with_config,
+        check_with_base_items, completion_list_with_config,
     },
 };
 
@@ -1077,6 +1077,12 @@ fn return_value_block() {
         r#"fn f() -> i32 { if true { $0 } }"#,
         r#"fn f() -> i32 { if true { return $0; } }"#,
     );
+    check_edit_with_config(
+        CompletionConfig { add_semicolon_to_jumps: false, ..TEST_CONFIG },
+        "return",
+        r#"fn f() -> i32 { if true { $0 } }"#,
+        r#"fn f() -> i32 { if true { return $0 } }"#,
+    );
 }
 
 #[test]
@@ -1093,6 +1099,12 @@ fn return_value_no_block() {
 fn break_unit_block() {
     check_edit("break", r#"fn f() { loop { break; $0 } }"#, r#"fn f() { loop { break; break; } }"#);
     check_edit("break", r#"fn f() { loop { $0 } }"#, r#"fn f() { loop { break; } }"#);
+    check_edit_with_config(
+        CompletionConfig { add_semicolon_to_jumps: false, ..TEST_CONFIG },
+        "break",
+        r#"fn f() { loop { $0 } }"#,
+        r#"fn f() { loop { break } }"#,
+    );
 }
 
 #[test]
