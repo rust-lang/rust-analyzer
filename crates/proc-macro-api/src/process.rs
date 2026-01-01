@@ -30,6 +30,7 @@ pub(crate) struct ProcMacroServerProcess {
     protocol: Protocol,
     /// Populated when the server exits.
     exited: OnceLock<AssertUnwindSafe<ServerError>>,
+    single_use: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +77,10 @@ pub(crate) trait ProcMacroWorker: Send + Sync + Debug + RefUnwindSafe {
     fn state(&self) -> &Mutex<ProcessSrvState>;
 
     fn get_exited(&self) -> &OnceLock<AssertUnwindSafe<ServerError>>;
+
+    fn is_reusable(&self) -> bool {
+        true
+    }
 }
 
 /// Maintains the state of the proc-macro server process.
@@ -151,16 +156,42 @@ impl ProcMacroWorker for ProcMacroServerProcess {
     fn get_exited(&self) -> &OnceLock<AssertUnwindSafe<ServerError>> {
         &self.exited
     }
+
+    fn is_reusable(&self) -> bool {
+        !self.single_use
+    }
 }
 
 impl ProcMacroServerProcess {
-    /// Starts the proc-macro server and performs a version check
+    #[allow(dead_code)]
     pub(crate) fn run<'a>(
         process_path: &AbsPath,
         env: impl IntoIterator<
             Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
         > + Clone,
         version: Option<&Version>,
+    ) -> io::Result<ProcMacroServerProcess> {
+        Self::run_inner(process_path, env, version, false)
+    }
+
+    pub(crate) fn run_single_use<'a>(
+        process_path: &AbsPath,
+        env: impl IntoIterator<
+            Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
+        > + Clone,
+        version: Option<&Version>,
+    ) -> io::Result<ProcMacroServerProcess> {
+        Self::run_inner(process_path, env, version, true)
+    }
+
+    /// Starts the proc-macro server and performs a version check
+    pub(crate) fn run_inner<'a>(
+        process_path: &AbsPath,
+        env: impl IntoIterator<
+            Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
+        > + Clone,
+        version: Option<&Version>,
+        single_use: bool,
     ) -> io::Result<ProcMacroServerProcess> {
         const VERSION: Version = Version::new(1, 93, 0);
         // we do `>` for nightly as this started working in the middle of the 1.93 nightly release, so we dont want to break on half of the nightlies
@@ -194,6 +225,7 @@ impl ProcMacroServerProcess {
                     version: 0,
                     protocol: protocol.clone(),
                     exited: OnceLock::new(),
+                    single_use,
                 })
             };
             let mut srv = create_srv()?;
@@ -320,7 +352,7 @@ impl ProcMacroServerProcess {
         current_dir: String,
         callback: Option<SubCallback<'_>>,
     ) -> Result<Result<tt::TopSubtree, String>, ServerError> {
-        match self.protocol {
+        let result = match self.protocol {
             Protocol::LegacyJson { .. } | Protocol::LegacyPostcard { .. } => {
                 legacy_protocol::expand(
                     proc_macro,
@@ -344,6 +376,18 @@ impl ProcMacroServerProcess {
                 current_dir,
                 callback.expect("callback required for bidirectional protocol"),
             ),
+        };
+
+        if self.is_reusable() {
+            self.terminate();
+        }
+
+        result
+    }
+
+    fn terminate(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            let _ = state.process.child.kill();
         }
     }
 }

@@ -135,7 +135,7 @@ impl ProcMacroClient {
         > + Clone,
         version: Option<&Version>,
     ) -> io::Result<ProcMacroClient> {
-        let process = ProcMacroServerProcess::run(process_path, env, version)?;
+        let process = ProcMacroServerProcess::run_single_use(process_path, env, version)?;
         Ok(ProcMacroClient { worker: Arc::new(process), path: process_path.to_owned() })
     }
 
