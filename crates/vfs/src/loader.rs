@@ -110,11 +110,11 @@ impl Entry {
     /// Entry::Directories(Directories {
     ///     extensions: ["rs"],
     ///     include: [base],
-    ///     exclude: [base/.git, base/target],
+    ///     exclude: [base/.git],
     /// })
     /// ```
     pub fn local_cargo_package(base: AbsPathBuf) -> Entry {
-        Entry::Directories(dirs(base, &[".git", "target"]))
+        Entry::Directories(dirs(base, &[".git"]))
     }
 
     /// Returns:
