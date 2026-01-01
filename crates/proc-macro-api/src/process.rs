@@ -1,8 +1,9 @@
 //! Handle process life-time and message passing for proc-macro client
 
 use std::{
+    fmt::Debug,
     io::{self, BufRead, BufReader, Read, Write},
-    panic::AssertUnwindSafe,
+    panic::{AssertUnwindSafe, RefUnwindSafe},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex, OnceLock},
 };
@@ -38,12 +39,118 @@ pub(crate) enum Protocol {
     BidirectionalPostcardPrototype { mode: SpanMode },
 }
 
+pub(crate) trait ProcMacroWorker: Send + Sync + Debug + RefUnwindSafe {
+    fn find_proc_macros(
+        &self,
+        dylib_path: &AbsPath,
+        callback: Option<SubCallback<'_>>,
+    ) -> Result<Result<Vec<(String, ProcMacroKind)>, String>, ServerError>;
+
+    fn expand(
+        &self,
+        proc_macro: &ProcMacro,
+        subtree: tt::SubtreeView<'_>,
+        attr: Option<tt::SubtreeView<'_>>,
+        env: Vec<(String, String)>,
+        def_site: Span,
+        call_site: Span,
+        mixed_site: Span,
+        current_dir: String,
+        callback: Option<SubCallback<'_>>,
+    ) -> Result<Result<tt::TopSubtree, String>, ServerError>;
+
+    fn exited(&self) -> Option<&ServerError>;
+
+    fn version(&self) -> u32;
+
+    fn rust_analyzer_spans(&self) -> bool;
+
+    #[allow(dead_code)]
+    fn enable_rust_analyzer_spans(
+        &self,
+        callback: Option<SubCallback<'_>>,
+    ) -> Result<SpanMode, ServerError>;
+
+    fn use_postcard(&self) -> bool;
+
+    fn state(&self) -> &Mutex<ProcessSrvState>;
+
+    fn get_exited(&self) -> &OnceLock<AssertUnwindSafe<ServerError>>;
+}
+
 /// Maintains the state of the proc-macro server process.
 #[derive(Debug)]
-struct ProcessSrvState {
+pub(crate) struct ProcessSrvState {
     process: Process,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+}
+
+impl ProcMacroWorker for ProcMacroServerProcess {
+    fn find_proc_macros(
+        &self,
+        dylib_path: &AbsPath,
+        callback: Option<SubCallback<'_>>,
+    ) -> Result<Result<Vec<(String, ProcMacroKind)>, String>, ServerError> {
+        ProcMacroServerProcess::find_proc_macros(self, dylib_path, callback)
+    }
+
+    fn expand(
+        &self,
+        proc_macro: &ProcMacro,
+        subtree: tt::SubtreeView<'_>,
+        attr: Option<tt::SubtreeView<'_>>,
+        env: Vec<(String, String)>,
+        def_site: Span,
+        call_site: Span,
+        mixed_site: Span,
+        current_dir: String,
+        callback: Option<SubCallback<'_>>,
+    ) -> Result<Result<tt::TopSubtree, String>, ServerError> {
+        ProcMacroServerProcess::expand(
+            self,
+            proc_macro,
+            subtree,
+            attr,
+            env,
+            def_site,
+            call_site,
+            mixed_site,
+            current_dir,
+            callback,
+        )
+    }
+
+    fn exited(&self) -> Option<&ServerError> {
+        ProcMacroServerProcess::exited(self)
+    }
+
+    fn version(&self) -> u32 {
+        ProcMacroServerProcess::version(self)
+    }
+
+    fn rust_analyzer_spans(&self) -> bool {
+        ProcMacroServerProcess::rust_analyzer_spans(self)
+    }
+
+    fn enable_rust_analyzer_spans(
+        &self,
+        callback: Option<SubCallback<'_>>,
+    ) -> Result<SpanMode, ServerError> {
+        ProcMacroServerProcess::enable_rust_analyzer_spans(self, callback)
+    }
+
+    fn use_postcard(&self) -> bool {
+        ProcMacroServerProcess::use_postcard(self)
+    }
+
+    fn state(&self) -> &Mutex<ProcessSrvState> {
+        &self.state
+    }
+
+    fn get_exited(&self) -> &OnceLock<AssertUnwindSafe<ServerError>> {
+        &self.exited
+    }
 }
 
 impl ProcMacroServerProcess {
@@ -239,9 +346,13 @@ impl ProcMacroServerProcess {
             ),
         }
     }
+}
 
+pub(crate) struct SynIO;
+
+impl SynIO {
     pub(crate) fn send_task<Request, Response, C: Codec>(
-        &self,
+        proc_macro_worker: &dyn ProcMacroWorker,
         send: impl FnOnce(
             &mut dyn Write,
             &mut dyn BufRead,
@@ -250,7 +361,7 @@ impl ProcMacroServerProcess {
         ) -> Result<Option<Response>, ServerError>,
         req: Request,
     ) -> Result<Response, ServerError> {
-        self.with_locked_io::<C, _>(|writer, reader, buf| {
+        SynIO::with_locked_io::<C, _>(proc_macro_worker, |writer, reader, buf| {
             send(writer, reader, req, buf).and_then(|res| {
                 res.ok_or_else(|| {
                     let message = "proc-macro server did not respond with data".to_owned();
@@ -267,10 +378,10 @@ impl ProcMacroServerProcess {
     }
 
     pub(crate) fn with_locked_io<C: Codec, R>(
-        &self,
+        proc_macro_worker: &dyn ProcMacroWorker,
         f: impl FnOnce(&mut dyn Write, &mut dyn BufRead, &mut C::Buf) -> Result<R, ServerError>,
     ) -> Result<R, ServerError> {
-        let state = &mut *self.state.lock().unwrap();
+        let state = &mut *proc_macro_worker.state().lock().unwrap();
         let mut buf = C::Buf::default();
 
         f(&mut state.stdin, &mut state.stdout, &mut buf).map_err(|e| {
@@ -291,7 +402,11 @@ impl ProcMacroServerProcess {
                             ),
                             io: None,
                         };
-                        self.exited.get_or_init(|| AssertUnwindSafe(server_error)).0.clone()
+                        proc_macro_worker
+                            .get_exited()
+                            .get_or_init(|| AssertUnwindSafe(server_error))
+                            .0
+                            .clone()
                     }
                 }
             } else {
@@ -301,11 +416,11 @@ impl ProcMacroServerProcess {
     }
 
     pub(crate) fn run_bidirectional<C: Codec>(
-        &self,
+        proc_macro_worker: &dyn ProcMacroWorker,
         initial: BidirectionalMessage,
         callback: SubCallback<'_>,
     ) -> Result<BidirectionalMessage, ServerError> {
-        self.with_locked_io::<C, _>(|writer, reader, buf| {
+        SynIO::with_locked_io::<C, _>(proc_macro_worker, |writer, reader, buf| {
             bidirectional_protocol::run_conversation::<C>(writer, reader, buf, initial, callback)
         })
     }

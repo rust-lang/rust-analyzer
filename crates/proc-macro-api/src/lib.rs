@@ -27,7 +27,10 @@ use span::{ErasedFileAstId, FIXUP_ERASED_FILE_AST_ID_MARKER, Span};
 use std::{fmt, io, sync::Arc, time::SystemTime};
 
 pub use crate::transport::codec::Codec;
-use crate::{bidirectional_protocol::SubCallback, process::ProcMacroServerProcess};
+use crate::{
+    bidirectional_protocol::SubCallback,
+    process::{ProcMacroServerProcess, ProcMacroWorker},
+};
 
 /// The versions of the server protocol
 pub mod version {
@@ -65,7 +68,7 @@ pub struct ProcMacroClient {
     ///
     /// That means that concurrent salsa requests may block each other when expanding proc macros,
     /// which is unfortunate, but simple and good enough for the time being.
-    process: Arc<ProcMacroServerProcess>,
+    worker: Arc<dyn ProcMacroWorker>,
     path: AbsPathBuf,
 }
 
@@ -87,7 +90,7 @@ impl MacroDylib {
 /// we share a single expander process for all macros within a workspace.
 #[derive(Debug, Clone)]
 pub struct ProcMacro {
-    process: Arc<ProcMacroServerProcess>,
+    process: Arc<dyn ProcMacroWorker>,
     dylib_path: Arc<AbsPathBuf>,
     name: Box<str>,
     kind: ProcMacroKind,
@@ -133,7 +136,7 @@ impl ProcMacroClient {
         version: Option<&Version>,
     ) -> io::Result<ProcMacroClient> {
         let process = ProcMacroServerProcess::run(process_path, env, version)?;
-        Ok(ProcMacroClient { process: Arc::new(process), path: process_path.to_owned() })
+        Ok(ProcMacroClient { worker: Arc::new(process), path: process_path.to_owned() })
     }
 
     /// Returns the absolute path to the proc-macro server.
@@ -148,7 +151,7 @@ impl ProcMacroClient {
         callback: Option<SubCallback<'_>>,
     ) -> Result<Vec<ProcMacro>, ServerError> {
         let _p = tracing::info_span!("ProcMacroServer::load_dylib").entered();
-        let macros = self.process.find_proc_macros(&dylib.path, callback)?;
+        let macros = self.worker.find_proc_macros(&dylib.path, callback)?;
 
         let dylib_path = Arc::new(dylib.path);
         let dylib_last_modified = std::fs::metadata(dylib_path.as_path())
@@ -158,7 +161,7 @@ impl ProcMacroClient {
             Ok(macros) => Ok(macros
                 .into_iter()
                 .map(|(name, kind)| ProcMacro {
-                    process: self.process.clone(),
+                    process: self.worker.clone(),
                     name: name.into(),
                     kind,
                     dylib_path: dylib_path.clone(),
@@ -171,7 +174,7 @@ impl ProcMacroClient {
 
     /// Checks if the proc-macro server has exited.
     pub fn exited(&self) -> Option<&ServerError> {
-        self.process.exited()
+        self.worker.exited()
     }
 }
 

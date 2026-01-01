@@ -17,9 +17,8 @@ use crate::{
         ServerConfig, SpanDataIndexMap, deserialize_span_data_index_map,
         flat::serialize_span_data_index_map,
     },
-    process::ProcMacroServerProcess,
-    transport::codec::Codec,
-    transport::codec::{json::JsonProtocol, postcard::PostcardProtocol},
+    process::{ProcMacroServerProcess, ProcMacroWorker, SynIO},
+    transport::codec::{Codec, json::JsonProtocol, postcard::PostcardProtocol},
     version,
 };
 
@@ -113,7 +112,7 @@ pub(crate) fn expand(
         current_dir: Some(current_dir),
     };
 
-    let response = send_task(&proc_macro.process, Request::ExpandMacro(Box::new(task)))?;
+    let response = send_task(proc_macro.process.as_ref(), Request::ExpandMacro(Box::new(task)))?;
 
     match response {
         Response::ExpandMacro(it) => Ok(it
@@ -143,15 +142,15 @@ pub(crate) fn expand(
 }
 
 /// Sends a request to the proc-macro server and waits for a response.
-fn send_task(srv: &ProcMacroServerProcess, req: Request) -> Result<Response, ServerError> {
+fn send_task(srv: &dyn ProcMacroWorker, req: Request) -> Result<Response, ServerError> {
     if let Some(server_error) = srv.exited() {
         return Err(server_error.clone());
     }
 
     if srv.use_postcard() {
-        srv.send_task::<_, _, PostcardProtocol>(send_request::<PostcardProtocol>, req)
+        SynIO::send_task::<_, _, PostcardProtocol>(srv, send_request::<PostcardProtocol>, req)
     } else {
-        srv.send_task::<_, _, JsonProtocol>(send_request::<JsonProtocol>, req)
+        SynIO::send_task::<_, _, JsonProtocol>(srv, send_request::<JsonProtocol>, req)
     }
 }
 
