@@ -61,7 +61,7 @@ pub(crate) fn desugar_try_expr(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
     let expr = try_expr.expr()?;
     let expr_type_info = ctx.sema.type_of_expr(&expr)?;
 
-    let try_enum = TryEnum::from_ty(&ctx.sema, &expr_type_info.original)?;
+    let try_enum = TryEnum::from_ty_without_strip(&ctx.sema, &expr_type_info.original)?;
 
     let target = try_expr.syntax().text_range();
     acc.add(
