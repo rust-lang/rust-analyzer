@@ -5,7 +5,10 @@ use std::{
     io::{self, BufRead, BufReader, Read, Write},
     panic::AssertUnwindSafe,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use paths::AbsPath;
@@ -30,7 +33,7 @@ pub(crate) struct ProcMacroServerProcess {
     protocol: Protocol,
     /// Populated when the server exits.
     exited: OnceLock<AssertUnwindSafe<ServerError>>,
-    single_use: bool,
+    can_use: AtomicBool,
 }
 
 #[derive(Debug, Clone)]
@@ -49,36 +52,13 @@ pub(crate) struct ProcessSrvState {
 }
 
 impl ProcMacroServerProcess {
-    #[allow(dead_code)]
+    /// Starts the proc-macro server and performs a version check
     pub(crate) fn run<'a>(
         process_path: &AbsPath,
         env: impl IntoIterator<
             Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
         > + Clone,
         version: Option<&Version>,
-    ) -> io::Result<ProcMacroServerProcess> {
-        Self::run_inner(process_path, env, version, false)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn run_single_use<'a>(
-        process_path: &AbsPath,
-        env: impl IntoIterator<
-            Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
-        > + Clone,
-        version: Option<&Version>,
-    ) -> io::Result<ProcMacroServerProcess> {
-        Self::run_inner(process_path, env, version, true)
-    }
-
-    /// Starts the proc-macro server and performs a version check
-    pub(crate) fn run_inner<'a>(
-        process_path: &AbsPath,
-        env: impl IntoIterator<
-            Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
-        > + Clone,
-        version: Option<&Version>,
-        single_use: bool,
     ) -> io::Result<ProcMacroServerProcess> {
         const VERSION: Version = Version::new(1, 93, 0);
         // we do `>` for nightly as this started working in the middle of the 1.93 nightly release, so we dont want to break on half of the nightlies
@@ -108,15 +88,11 @@ impl ProcMacroServerProcess {
                 let (stdin, stdout) = process.stdio().expect("couldn't access child stdio");
 
                 io::Result::Ok(ProcMacroServerProcess {
-                    state: Mutex::new(ProcessSrvState {
-                        process,
-                        stdin,
-                        stdout,
-                    }),
+                    state: Mutex::new(ProcessSrvState { process, stdin, stdout }),
                     version: 0,
                     protocol: protocol.clone(),
                     exited: OnceLock::new(),
-                    single_use,
+                    can_use: AtomicBool::new(true),
                 })
             };
             let mut srv = create_srv()?;
@@ -162,34 +138,20 @@ impl ProcMacroServerProcess {
         Err(err.unwrap())
     }
 
-    pub(crate) fn load_dylib(
+    /// Finds proc-macros in a given dynamic library.
+    pub(crate) fn find_proc_macros(
         &self,
         dylib_path: &AbsPath,
         callback: Option<SubCallback<'_>>,
-    ) -> Result<Vec<(String, ProcMacroKind)>, ServerError> {
-        let _state = self.state.lock().unwrap();
-
-        // if state.loaded_dylibs.contains(dylib_path) {
-        //     // Already loaded in this worker
-        //     return Ok(Vec::new());
-        // }
-
-        let result = match self.protocol {
+    ) -> Result<Result<Vec<(String, ProcMacroKind)>, String>, ServerError> {
+        match self.protocol {
             Protocol::LegacyJson { .. } | Protocol::LegacyPostcard { .. } => {
-                legacy_protocol::find_proc_macros(self, dylib_path)?
+                legacy_protocol::find_proc_macros(self, dylib_path)
             }
             Protocol::BidirectionalPostcardPrototype { .. } => {
-                let cb = callback.expect("callback required");
-                bidirectional_protocol::find_proc_macros(self, dylib_path, cb)?
+                let cb = callback.expect("callback required for bidirectional protocol");
+                bidirectional_protocol::find_proc_macros(self, dylib_path, cb)
             }
-        };
-
-        match result {
-            Ok(macros) => {
-                // state.loaded_dylibs.insert(dylib_path.to_owned());
-                Ok(macros)
-            }
-            Err(message) => Err(ServerError { message, io: None }),
         }
     }
 
@@ -257,10 +219,12 @@ impl ProcMacroServerProcess {
         current_dir: String,
         callback: Option<SubCallback<'_>>,
     ) -> Result<Result<tt::TopSubtree, String>, ServerError> {
+        self.can_use.store(false, Ordering::Release);
         let result = match self.protocol {
             Protocol::LegacyJson { .. } | Protocol::LegacyPostcard { .. } => {
                 legacy_protocol::expand(
                     proc_macro,
+                    self,
                     subtree,
                     attr,
                     env,
@@ -272,6 +236,7 @@ impl ProcMacroServerProcess {
             }
             Protocol::BidirectionalPostcardPrototype { .. } => bidirectional_protocol::expand(
                 proc_macro,
+                self,
                 subtree,
                 attr,
                 env,
@@ -283,21 +248,8 @@ impl ProcMacroServerProcess {
             ),
         };
 
-        if !self.is_reusable() {
-            self.terminate();
-        }
-
+        self.can_use.store(true, Ordering::Release);
         result
-    }
-
-    fn is_reusable(&self) -> bool {
-        self.single_use
-    }
-
-    fn terminate(&self) {
-        if let Ok(mut state) = self.state.lock() {
-            let _ = state.process.child.kill();
-        }
     }
 
     pub(crate) fn send_task<Request, Response, C: Codec>(
@@ -368,6 +320,10 @@ impl ProcMacroServerProcess {
         self.with_locked_io::<C, _>(|writer, reader, buf| {
             bidirectional_protocol::run_conversation::<C>(writer, reader, buf, initial, callback)
         })
+    }
+
+    pub(crate) fn can_use(&self) -> bool {
+        self.can_use.load(Ordering::Acquire)
     }
 }
 

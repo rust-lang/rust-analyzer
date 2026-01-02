@@ -92,7 +92,7 @@ impl MacroDylib {
 /// we share a single expander process for all macros within a workspace.
 #[derive(Debug, Clone)]
 pub struct ProcMacro {
-    process: Arc<ProcMacroServerProcess>,
+    process: ProcMacroServerPool,
     dylib_path: Arc<AbsPathBuf>,
     name: Box<str>,
     kind: ProcMacroKind,
@@ -106,7 +106,6 @@ impl PartialEq for ProcMacro {
             && self.kind == other.kind
             && self.dylib_path == other.dylib_path
             && self.dylib_last_modified == other.dylib_last_modified
-            && Arc::ptr_eq(&self.process, &other.process)
     }
 }
 
@@ -141,7 +140,7 @@ impl ProcMacroClient {
         let mut workers = Vec::with_capacity(pool_size);
         for _ in 0..pool_size {
             let worker = ProcMacroServerProcess::run(process_path, env.clone(), version)?;
-            workers.push(Arc::new(worker));
+            workers.push(worker);
         }
 
         let pool = ProcMacroServerPool::new(workers);
@@ -179,8 +178,8 @@ impl ProcMacro {
         self.kind
     }
 
-    fn needs_fixup_change(&self) -> bool {
-        let version = self.process.version();
+    fn needs_fixup_change(&self, process: &ProcMacroServerProcess) -> bool {
+        let version = process.version();
         (version::RUST_ANALYZER_SPAN_SUPPORT..version::HASHED_AST_ID).contains(&version)
     }
 
@@ -210,20 +209,6 @@ impl ProcMacro {
         current_dir: String,
         callback: Option<SubCallback<'_>>,
     ) -> Result<Result<tt::TopSubtree, String>, ServerError> {
-        let (mut subtree, mut attr) = (subtree, attr);
-        let (mut subtree_changed, mut attr_changed);
-        if self.needs_fixup_change() {
-            subtree_changed = tt::TopSubtree::from_subtree(subtree);
-            self.change_fixup_to_match_old_server(&mut subtree_changed);
-            subtree = subtree_changed.view();
-
-            if let Some(attr) = &mut attr {
-                attr_changed = tt::TopSubtree::from_subtree(*attr);
-                self.change_fixup_to_match_old_server(&mut attr_changed);
-                *attr = attr_changed.view();
-            }
-        }
-
         self.process.expand(
             self,
             subtree,
