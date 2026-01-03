@@ -433,7 +433,7 @@ pub fn load_proc_macro(
 ) -> ProcMacroLoadResult {
     let res: Result<Vec<_>, _> = (|| {
         let dylib = MacroDylib::new(path.to_path_buf());
-        let vec = server.load_dylib(dylib, Some(&mut reject_subrequests)).map_err(|e| {
+        let vec = server.load_dylib(dylib, Some(&reject_subrequests)).map_err(|e| {
             ProcMacroLoadingError::ProcMacroSrvError(format!("{e}").into_boxed_str())
         })?;
         if vec.is_empty() {
@@ -539,7 +539,7 @@ impl ProcMacroExpander for Expander {
         mixed_site: Span,
         current_dir: String,
     ) -> Result<tt::TopSubtree, ProcMacroExpansionError> {
-        let mut cb = |req| match req {
+        let cb = |req| match req {
             SubRequest::SourceText { file_id, start, end } => {
                 let file = FileId::from_raw(file_id);
                 let text = db.file_text(file).text(db);
@@ -555,7 +555,7 @@ impl ProcMacroExpander for Expander {
             call_site,
             mixed_site,
             current_dir,
-            Some(&mut cb),
+            Some(&cb),
         ) {
             Ok(Ok(subtree)) => Ok(subtree),
             Ok(Err(err)) => Err(ProcMacroExpansionError::Panic(err)),
