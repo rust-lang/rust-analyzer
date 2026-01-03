@@ -160,7 +160,7 @@ fn make_else_arm(
             [(Some(pat), _, _)] => match ctx
                 .sema
                 .type_of_pat(pat)
-                .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted()))
+                .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted().strip_references()))
             {
                 Some(it) => {
                     if does_pat_match_variant(pat, &it.sad_pattern()) {
@@ -384,7 +384,7 @@ fn binds_name(sema: &hir::Semantics<'_, RootDatabase>, pat: &ast::Pat) -> bool {
 
 fn is_sad_pat(sema: &hir::Semantics<'_, RootDatabase>, pat: &ast::Pat) -> bool {
     sema.type_of_pat(pat)
-        .and_then(|ty| TryEnum::from_ty(sema, &ty.adjusted()))
+        .and_then(|ty| TryEnum::from_ty(sema, &ty.adjusted().strip_references()))
         .is_some_and(|it| does_pat_match_variant(pat, &it.sad_pattern()))
 }
 
@@ -838,6 +838,31 @@ fn foo(x: Option<i32>) {
 "#,
             r#"
 fn foo(x: Option<i32>) {
+    match x {
+        Some(x) => println!("{}", x),
+        None => println!("none"),
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn special_case_option_ref() {
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+//- minicore: option
+fn foo(x: &Option<i32>) {
+    $0if let Some(x) = x {
+        println!("{}", x)
+    } else {
+        println!("none")
+    }
+}
+"#,
+            r#"
+fn foo(x: &Option<i32>) {
     match x {
         Some(x) => println!("{}", x),
         None => println!("none"),

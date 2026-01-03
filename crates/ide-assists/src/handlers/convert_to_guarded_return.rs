@@ -193,8 +193,10 @@ fn let_stmt_to_guarded_return(
         return None;
     }
 
-    let try_enum =
-        ctx.sema.type_of_expr(&expr).and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted()))?;
+    let try_enum = ctx
+        .sema
+        .type_of_expr(&expr)
+        .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted().strip_references()))?;
 
     let happy_pattern = try_enum.happy_pattern(pat);
     let target = let_stmt.syntax().text_range();
@@ -241,13 +243,14 @@ fn early_expression(
     };
     if let Some(fn_) = ast::Fn::cast(parent_container.clone())
         && let Some(fn_def) = sema.to_def(&fn_)
-        && let Some(TryEnum::Option) = TryEnum::from_ty(sema, &fn_def.ret_type(sema.db))
+        && let Some(TryEnum::Option) =
+            TryEnum::from_ty(sema, &fn_def.ret_type(sema.db).strip_references())
     {
         return Some(return_none_expr());
     }
     if let Some(body) = ast::ClosureExpr::cast(parent_container.clone()).and_then(|it| it.body())
         && let Some(ret_ty) = sema.type_of_expr(&body).map(TypeInfo::original)
-        && let Some(TryEnum::Option) = TryEnum::from_ty(sema, &ret_ty)
+        && let Some(TryEnum::Option) = TryEnum::from_ty(sema, &ret_ty.strip_references())
     {
         return Some(return_none_expr());
     }
@@ -900,6 +903,32 @@ fn main() {
             r#"
 fn foo() -> Option<i32> {
     None
+}
+
+fn main() {
+    let Some(x) = foo() else { return };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn convert_let_ref_stmt_inside_fn() {
+        check_assist(
+            convert_to_guarded_return,
+            r#"
+//- minicore: option
+fn foo() -> &'static Option<i32> {
+    &None
+}
+
+fn main() {
+    let x$0 = foo();
+}
+"#,
+            r#"
+fn foo() -> &'static Option<i32> {
+    &None
 }
 
 fn main() {
