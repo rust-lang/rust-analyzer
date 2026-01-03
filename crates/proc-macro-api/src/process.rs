@@ -97,7 +97,7 @@ impl ProcMacroServerProcess {
             };
             let mut srv = create_srv()?;
             tracing::info!("sending proc-macro server version check");
-            match srv.version_check(Some(&mut reject_subrequests)) {
+            match srv.version_check(Some(&reject_subrequests)) {
                 Ok(v) if v > version::CURRENT_API_VERSION => {
                     #[allow(clippy::disallowed_methods)]
                     let process_version = Command::new(process_path)
@@ -116,7 +116,7 @@ impl ProcMacroServerProcess {
                     srv.version = v;
                     if srv.version >= version::RUST_ANALYZER_SPAN_SUPPORT
                         && let Ok(new_mode) =
-                            srv.enable_rust_analyzer_spans(Some(&mut reject_subrequests))
+                            srv.enable_rust_analyzer_spans(Some(&reject_subrequests))
                     {
                         match &mut srv.protocol {
                             Protocol::LegacyJson { mode }
