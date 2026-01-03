@@ -44,9 +44,9 @@ debug = 2
 
 # ungrammar = { path = "lin/ungrammar" }
 
-# salsa = { path = "../salsa" }
-# salsa-macros = { path = "../salsa/components/salsa-macros" }
-# salsa-macro-rules = { path = "../salsa/components/salsa-macro-rules" }
+salsa = { path = "../salsa" }
+salsa-macros = { path = "../salsa/components/salsa-macros" }
+salsa-macro-rules = { path = "../salsa/components/salsa-macro-rules" }
 
 [workspace.dependencies]
 # local crates
