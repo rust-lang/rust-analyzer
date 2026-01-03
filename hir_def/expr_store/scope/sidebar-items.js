@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ExprScopes","ScopeData","ScopeEntry"],"type":["ScopeId"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TokenExpander"],"fn":["expand_speculative"],"struct":["SyntaxContextWrapper"],"trait":["ExpandDatabase"]};

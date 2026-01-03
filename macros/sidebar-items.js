@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"derive":["GenericTypeVisitable","TypeFoldable","TypeVisitable","UpmapFromRaFixture"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["IsInnerDoc"],"fn":["parse_extra_crate_attrs"],"struct":["AttrFlags","DeriveInfo","Docs","RustcLayoutScalarValidRange"]};
