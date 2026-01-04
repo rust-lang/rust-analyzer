@@ -381,18 +381,12 @@ pub struct TopSubtree {
 
 impl TopSubtree {
     pub fn empty(span: DelimSpan) -> Self {
-        Self {
-            repr: TopSubtreeRepr::SpanStorage96(Box::new([TokenTree::Subtree {
-                len: 0,
-                delim_kind: DelimiterKind::Invisible,
-                open_span: SpanStorage96::new(span.open.range, 0),
-                close_span: SpanStorage96::new(span.close.range, 1),
-            }])),
-            span_parts: Box::new([
-                CompressedSpanPart::from_span(&span.open),
-                CompressedSpanPart::from_span(&span.close),
-            ]),
-        }
+        TopSubtreeBuilder::new(crate::Delimiter {
+            kind: DelimiterKind::Invisible,
+            open: span.open,
+            close: span.close,
+        })
+        .build()
     }
 
     pub fn invisible_from_leaves<const N: usize>(
