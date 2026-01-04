@@ -95,21 +95,6 @@ pub struct FlatTree {
     text: Vec<String>,
 }
 
-impl FlatTree {
-    /// Creates an empty FlatTree for testing purposes
-    #[cfg(test)]
-    pub(crate) fn new_raw(subtree: Vec<u32>, literal: Vec<u32>) -> Self {
-        FlatTree {
-            subtree,
-            literal,
-            punct: Vec::new(),
-            ident: Vec::new(),
-            token_tree: Vec::new(),
-            text: Vec::new(),
-        }
-    }
-}
-
 struct SubtreeRepr {
     open: SpanId,
     close: SpanId,
@@ -986,5 +971,791 @@ impl<T: SpanTransformer> Reader<'_, T> {
         } else {
             TokenStream::new(vec![proc_macro_srv::TokenTree::Group(group)])
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use span::{Edition, EditionedFileId, FileId, SpanAnchor, SyntaxContext, TextRange, TextSize};
+
+    fn make_test_span(start: u32, end: u32) -> Span {
+        Span {
+            anchor: SpanAnchor {
+                file_id: EditionedFileId::new(FileId::from_raw(42), Edition::CURRENT),
+                ast_id: ErasedFileAstId::from_raw(1),
+            },
+            range: TextRange::new(TextSize::new(start), TextSize::new(end)),
+            ctx: SyntaxContext::root(Edition::CURRENT),
+        }
+    }
+
+    // ==================== SpanDataIndexMap Tests ====================
+
+    #[test]
+    fn test_serialize_deserialize_span_data_index_map_empty() {
+        let map: SpanDataIndexMap = SpanDataIndexMap::default();
+        let serialized = serialize_span_data_index_map(&map);
+        assert!(serialized.is_empty());
+        let deserialized = deserialize_span_data_index_map(&serialized);
+        assert!(deserialized.is_empty());
+    }
+
+    #[test]
+    fn test_serialize_deserialize_span_data_index_map_single() {
+        let mut map: SpanDataIndexMap = SpanDataIndexMap::default();
+        let span = make_test_span(10, 20);
+        map.insert(span);
+
+        let serialized = serialize_span_data_index_map(&map);
+        assert_eq!(serialized.len(), 5); // 5 u32s per span
+
+        let deserialized = deserialize_span_data_index_map(&serialized);
+        assert_eq!(deserialized.len(), 1);
+        assert_eq!(*deserialized.get_index(0).unwrap(), span);
+    }
+
+    #[test]
+    fn test_serialize_deserialize_span_data_index_map_multiple() {
+        let mut map: SpanDataIndexMap = SpanDataIndexMap::default();
+        let span1 = make_test_span(0, 10);
+        let span2 = make_test_span(15, 25);
+        let span3 = make_test_span(30, 50);
+        map.insert(span1);
+        map.insert(span2);
+        map.insert(span3);
+
+        let serialized = serialize_span_data_index_map(&map);
+        assert_eq!(serialized.len(), 15); // 5 u32s * 3 spans
+
+        let deserialized = deserialize_span_data_index_map(&serialized);
+        assert_eq!(deserialized.len(), 3);
+        assert_eq!(*deserialized.get_index(0).unwrap(), span1);
+        assert_eq!(*deserialized.get_index(1).unwrap(), span2);
+        assert_eq!(*deserialized.get_index(2).unwrap(), span3);
+    }
+
+    // ==================== SubtreeRepr Tests ====================
+
+    #[test]
+    fn test_subtree_repr_write_read_roundtrip() {
+        for kind in [
+            tt::DelimiterKind::Invisible,
+            tt::DelimiterKind::Parenthesis,
+            tt::DelimiterKind::Brace,
+            tt::DelimiterKind::Bracket,
+        ] {
+            let repr = SubtreeRepr { open: SpanId(42), close: SpanId(99), kind, tt: [10, 20] };
+            let written = repr.write();
+            let read = SubtreeRepr::read(written);
+
+            assert_eq!(read.open, SpanId(42));
+            // Note: close is not preserved in basic write/read
+            assert_eq!(read.close, SpanId(!0));
+            assert_eq!(read.kind, kind);
+            assert_eq!(read.tt, [10, 20]);
+        }
+    }
+
+    #[test]
+    fn test_subtree_repr_write_read_with_close_span_roundtrip() {
+        for kind in [
+            tt::DelimiterKind::Invisible,
+            tt::DelimiterKind::Parenthesis,
+            tt::DelimiterKind::Brace,
+            tt::DelimiterKind::Bracket,
+        ] {
+            let repr = SubtreeRepr { open: SpanId(42), close: SpanId(99), kind, tt: [10, 20] };
+            let written = repr.write_with_close_span();
+            let read = SubtreeRepr::read_with_close_span(written);
+
+            assert_eq!(read.open, SpanId(42));
+            assert_eq!(read.close, SpanId(99));
+            assert_eq!(read.kind, kind);
+            assert_eq!(read.tt, [10, 20]);
+        }
+    }
+
+    #[test]
+    fn test_subtree_repr_edge_values() {
+        let repr = SubtreeRepr {
+            open: SpanId(0),
+            close: SpanId(u32::MAX),
+            kind: tt::DelimiterKind::Invisible,
+            tt: [0, u32::MAX],
+        };
+        let written = repr.write_with_close_span();
+        let read = SubtreeRepr::read_with_close_span(written);
+
+        assert_eq!(read.open, SpanId(0));
+        assert_eq!(read.close, SpanId(u32::MAX));
+        assert_eq!(read.tt, [0, u32::MAX]);
+    }
+
+    // ==================== LiteralRepr Tests ====================
+
+    #[test]
+    fn test_literal_repr_write_read_roundtrip() {
+        let repr = LiteralRepr { id: SpanId(123), text: 456, suffix: 789, kind: 5 };
+        let written = repr.write();
+        let read = LiteralRepr::read(written);
+
+        assert_eq!(read.id, SpanId(123));
+        assert_eq!(read.text, 456);
+        // Note: suffix and kind are not preserved in basic write/read
+        assert_eq!(read.suffix, !0);
+        assert_eq!(read.kind, 0);
+    }
+
+    #[test]
+    fn test_literal_repr_write_read_with_kind_roundtrip() {
+        let repr = LiteralRepr { id: SpanId(123), text: 456, suffix: 789, kind: 5 };
+        let written = repr.write_with_kind();
+        let read = LiteralRepr::read_with_kind(written);
+
+        assert_eq!(read.id, SpanId(123));
+        assert_eq!(read.text, 456);
+        assert_eq!(read.suffix, 789);
+        assert_eq!(read.kind, 5);
+    }
+
+    #[test]
+    fn test_literal_repr_all_lit_kinds() {
+        // Test all literal kind encodings
+        let kinds: [(u16, &str); 11] = [
+            (u16::from_le_bytes([0, 0]), "Err"),
+            (u16::from_le_bytes([1, 0]), "Byte"),
+            (u16::from_le_bytes([2, 0]), "Char"),
+            (u16::from_le_bytes([3, 0]), "Integer"),
+            (u16::from_le_bytes([4, 0]), "Float"),
+            (u16::from_le_bytes([5, 0]), "Str"),
+            (u16::from_le_bytes([6, 3]), "StrRaw(3)"),
+            (u16::from_le_bytes([7, 0]), "ByteStr"),
+            (u16::from_le_bytes([8, 5]), "ByteStrRaw(5)"),
+            (u16::from_le_bytes([9, 0]), "CStr"),
+            (u16::from_le_bytes([10, 7]), "CStrRaw(7)"),
+        ];
+
+        for (kind, _name) in kinds {
+            let repr = LiteralRepr { id: SpanId(1), text: 2, suffix: 3, kind };
+            let written = repr.write_with_kind();
+            let read = LiteralRepr::read_with_kind(written);
+            assert_eq!(read.kind, kind);
+        }
+    }
+
+    // ==================== PunctRepr Tests ====================
+
+    #[test]
+    fn test_punct_repr_write_read_roundtrip() {
+        for spacing in [tt::Spacing::Alone, tt::Spacing::Joint] {
+            let repr = PunctRepr { id: SpanId(42), char: '@', spacing };
+            let written = repr.write();
+            let read = PunctRepr::read(written);
+
+            assert_eq!(read.id, SpanId(42));
+            assert_eq!(read.char, '@');
+            assert_eq!(read.spacing, spacing);
+        }
+    }
+
+    #[test]
+    fn test_punct_repr_joint_hidden_becomes_alone() {
+        let repr = PunctRepr { id: SpanId(1), char: '+', spacing: tt::Spacing::JointHidden };
+        let written = repr.write();
+        let read = PunctRepr::read(written);
+
+        // JointHidden is serialized as Alone
+        assert_eq!(read.spacing, tt::Spacing::Alone);
+    }
+
+    #[test]
+    fn test_punct_repr_various_chars() {
+        let chars = ['@', '#', '$', '%', '^', '&', '*', '!', '?', ':', ';', ',', '.'];
+        for ch in chars {
+            let repr = PunctRepr { id: SpanId(0), char: ch, spacing: tt::Spacing::Alone };
+            let written = repr.write();
+            let read = PunctRepr::read(written);
+            assert_eq!(read.char, ch);
+        }
+    }
+
+    // ==================== IdentRepr Tests ====================
+
+    #[test]
+    fn test_ident_repr_write_read_roundtrip() {
+        let repr = IdentRepr { id: SpanId(77), text: 88, is_raw: true };
+        let written = repr.write();
+        let read = IdentRepr::read(written);
+
+        assert_eq!(read.id, SpanId(77));
+        assert_eq!(read.text, 88);
+        // Note: is_raw is not preserved in basic write/read
+        assert!(!read.is_raw);
+    }
+
+    #[test]
+    fn test_ident_repr_write_read_with_rawness_roundtrip() {
+        for is_raw in [true, false] {
+            let repr = IdentRepr { id: SpanId(77), text: 88, is_raw };
+            let written = repr.write_with_rawness();
+            let read = IdentRepr::read_with_rawness(written);
+
+            assert_eq!(read.id, SpanId(77));
+            assert_eq!(read.text, 88);
+            assert_eq!(read.is_raw, is_raw);
+        }
+    }
+
+    // ==================== read_vec / write_vec Tests ====================
+
+    #[test]
+    fn test_read_write_vec_empty() {
+        let input: Vec<SubtreeRepr> = vec![];
+        let written = write_vec(input, SubtreeRepr::write);
+        assert!(written.is_empty());
+
+        let read: Vec<SubtreeRepr> = read_vec(written, SubtreeRepr::read);
+        assert!(read.is_empty());
+    }
+
+    #[test]
+    fn test_read_write_vec_single() {
+        let input = vec![SubtreeRepr {
+            open: SpanId(1),
+            close: SpanId(2),
+            kind: tt::DelimiterKind::Brace,
+            tt: [3, 4],
+        }];
+        let written = write_vec(input, SubtreeRepr::write);
+        assert_eq!(written.len(), 4); // 4 u32s per subtree
+
+        let read: Vec<SubtreeRepr> = read_vec(written, SubtreeRepr::read);
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].open, SpanId(1));
+        assert_eq!(read[0].kind, tt::DelimiterKind::Brace);
+    }
+
+    #[test]
+    fn test_read_write_vec_multiple() {
+        let input = vec![
+            PunctRepr { id: SpanId(1), char: '@', spacing: tt::Spacing::Alone },
+            PunctRepr { id: SpanId(2), char: '#', spacing: tt::Spacing::Joint },
+            PunctRepr { id: SpanId(3), char: '$', spacing: tt::Spacing::Alone },
+        ];
+        let written = write_vec(input, PunctRepr::write);
+        assert_eq!(written.len(), 9); // 3 u32s * 3 puncts
+
+        let read: Vec<PunctRepr> = read_vec(written, PunctRepr::read);
+        assert_eq!(read.len(), 3);
+        assert_eq!(read[0].char, '@');
+        assert_eq!(read[1].char, '#');
+        assert_eq!(read[2].char, '$');
+    }
+
+    // ==================== SpanTransformer Tests ====================
+
+    #[test]
+    fn test_span_id_transformer_roundtrip() {
+        let span_id = SpanId(12345);
+        let result = SpanId::token_id_of(&mut (), span_id);
+        assert_eq!(result, SpanId(12345));
+
+        let back = SpanId::span_for_token_id(&(), result);
+        assert_eq!(back, span_id);
+    }
+
+    #[test]
+    fn test_span_transformer_roundtrip() {
+        let mut table: SpanDataIndexMap = SpanDataIndexMap::default();
+        let span = make_test_span(100, 200);
+
+        let id = Span::token_id_of(&mut table, span);
+        assert_eq!(id, SpanId(0)); // First inserted span gets id 0
+
+        let back = Span::span_for_token_id(&table, id);
+        assert_eq!(back, span);
+    }
+
+    #[test]
+    fn test_span_transformer_multiple_spans() {
+        let mut table: SpanDataIndexMap = SpanDataIndexMap::default();
+        let span1 = make_test_span(0, 10);
+        let span2 = make_test_span(20, 30);
+        let span3 = make_test_span(40, 50);
+
+        let id1 = Span::token_id_of(&mut table, span1);
+        let id2 = Span::token_id_of(&mut table, span2);
+        let id3 = Span::token_id_of(&mut table, span3);
+
+        assert_eq!(id1, SpanId(0));
+        assert_eq!(id2, SpanId(1));
+        assert_eq!(id3, SpanId(2));
+
+        assert_eq!(Span::span_for_token_id(&table, id1), span1);
+        assert_eq!(Span::span_for_token_id(&table, id2), span2);
+        assert_eq!(Span::span_for_token_id(&table, id3), span3);
+    }
+
+    #[test]
+    fn test_span_transformer_duplicate_span() {
+        let mut table: SpanDataIndexMap = SpanDataIndexMap::default();
+        let span = make_test_span(10, 20);
+
+        let id1 = Span::token_id_of(&mut table, span);
+        let id2 = Span::token_id_of(&mut table, span);
+
+        // Same span should get same id
+        assert_eq!(id1, id2);
+        assert_eq!(table.len(), 1);
+    }
+
+    #[test]
+    fn test_span_transformer_invalid_id_fallback() {
+        let mut table: SpanDataIndexMap = SpanDataIndexMap::default();
+        let span = make_test_span(0, 10);
+        Span::token_id_of(&mut table, span);
+
+        // Invalid id falls back to first span
+        let invalid_id = SpanId(999);
+        let result = Span::span_for_token_id(&table, invalid_id);
+        assert_eq!(result, span);
+    }
+
+    // ==================== Token Tag Encoding Tests ====================
+
+    #[test]
+    fn test_token_tree_tag_encoding() {
+        // Verify tag encoding scheme: index << 2 | tag
+        // tag 0b00 = subtree
+        // tag 0b01 = literal
+        // tag 0b10 = punct
+        // tag 0b11 = ident
+
+        let subtree_idx_5 = (5u32 << 2) | 0b00;
+        assert_eq!(subtree_idx_5 & 0b11, 0b00);
+        assert_eq!(subtree_idx_5 >> 2, 5);
+
+        let literal_idx_3 = (3u32 << 2) | 0b01;
+        assert_eq!(literal_idx_3 & 0b11, 0b01);
+        assert_eq!(literal_idx_3 >> 2, 3);
+
+        let punct_idx_7 = (7u32 << 2) | 0b10;
+        assert_eq!(punct_idx_7 & 0b11, 0b10);
+        assert_eq!(punct_idx_7 >> 2, 7);
+
+        let ident_idx_2 = (2u32 << 2) | 0b11;
+        assert_eq!(ident_idx_2 & 0b11, 0b11);
+        assert_eq!(ident_idx_2 >> 2, 2);
+    }
+
+    // ==================== Delimiter Kind Encoding Tests ====================
+
+    #[test]
+    fn test_delimiter_kind_encoding() {
+        // Verify delimiter kind encoding
+        let test_cases = [
+            (tt::DelimiterKind::Invisible, 0u32),
+            (tt::DelimiterKind::Parenthesis, 1u32),
+            (tt::DelimiterKind::Brace, 2u32),
+            (tt::DelimiterKind::Bracket, 3u32),
+        ];
+
+        for (kind, expected_code) in test_cases {
+            let repr = SubtreeRepr { open: SpanId(0), close: SpanId(0), kind, tt: [0, 0] };
+            let written = repr.write();
+            assert_eq!(written[1], expected_code);
+        }
+    }
+
+    // ==================== Spacing Encoding Tests ====================
+
+    #[test]
+    fn test_spacing_encoding() {
+        let alone = PunctRepr { id: SpanId(0), char: '+', spacing: tt::Spacing::Alone };
+        let joint = PunctRepr { id: SpanId(0), char: '+', spacing: tt::Spacing::Joint };
+
+        let alone_written = alone.write();
+        let joint_written = joint.write();
+
+        assert_eq!(alone_written[2], 0);
+        assert_eq!(joint_written[2], 1);
+    }
+
+    // ==================== Edge Case Tests ====================
+
+    #[test]
+    fn test_max_span_id_values() {
+        let repr = SubtreeRepr {
+            open: SpanId(u32::MAX),
+            close: SpanId(u32::MAX),
+            kind: tt::DelimiterKind::Invisible,
+            tt: [u32::MAX, u32::MAX],
+        };
+
+        let written = repr.write_with_close_span();
+        let read = SubtreeRepr::read_with_close_span(written);
+
+        assert_eq!(read.open, SpanId(u32::MAX));
+        assert_eq!(read.close, SpanId(u32::MAX));
+        assert_eq!(read.tt, [u32::MAX, u32::MAX]);
+    }
+
+    // ==================== FlatTree from_subtree / to_subtree_resolved Tests ====================
+
+    fn build_complex_subtree(span: Span) -> tt::TopSubtree {
+        // Build: { foo(123u32, "hello") -> r#type }
+        let delimiter = tt::Delimiter { kind: tt::DelimiterKind::Brace, open: span, close: span };
+        let mut builder = tt::TopSubtreeBuilder::new(delimiter);
+
+        // Add ident "foo"
+        builder.push(tt::Leaf::Ident(tt::Ident {
+            sym: intern::Symbol::intern("foo"),
+            span,
+            is_raw: tt::IdentIsRaw::No,
+        }));
+
+        // Add nested parentheses with contents
+        builder.open(tt::DelimiterKind::Parenthesis, span);
+        builder.push(tt::Leaf::Literal(tt::Literal::new("123", span, tt::LitKind::Integer, "u32")));
+        builder.push(tt::Leaf::Punct(tt::Punct { char: ',', spacing: tt::Spacing::Alone, span }));
+        builder.push(tt::Leaf::Literal(tt::Literal::new("hello", span, tt::LitKind::Str, "")));
+        builder.close(span);
+        builder.push(tt::Leaf::Punct(tt::Punct { char: '-', spacing: tt::Spacing::Joint, span }));
+        builder.push(tt::Leaf::Punct(tt::Punct { char: '>', spacing: tt::Spacing::Alone, span }));
+        builder.push(tt::Leaf::Ident(tt::Ident {
+            sym: intern::Symbol::intern("type"),
+            span,
+            is_raw: tt::IdentIsRaw::Yes,
+        }));
+
+        builder.build()
+    }
+
+    #[test]
+    fn test_flattree_from_subtree_empty() {
+        let span = make_test_span(0, 10);
+        let subtree = tt::TopSubtree::empty(tt::DelimSpan { open: span, close: span });
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat = FlatTree::from_subtree(subtree.view(), version, &mut span_data_table);
+
+        // Should have one subtree (the root) with no children
+        assert_eq!(flat.subtree.len(), 5);
+        assert!(flat.literal.is_empty());
+        assert!(flat.punct.is_empty());
+        assert!(flat.ident.is_empty());
+
+        let restored = flat.to_subtree_resolved(version, &span_data_table);
+        assert_eq!(subtree, restored);
+    }
+
+    #[test]
+    fn test_flattree_from_subtree_complex_roundtrip() {
+        let span = make_test_span(5, 15);
+        let subtree = build_complex_subtree(span);
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat = FlatTree::from_subtree(subtree.view(), version, &mut span_data_table);
+
+        // Verify FlatTree has nested subtrees
+        // Root subtree + nested parentheses = 2 subtrees (encoded as 5 u32s each with close span)
+        assert_eq!(flat.subtree.len(), 10);
+        assert!(!flat.literal.is_empty());
+        assert!(!flat.punct.is_empty());
+        assert!(!flat.ident.is_empty());
+
+        // Should not contain the r#
+        assert_eq!(flat.text, &["foo", "type", "123", "u32", "hello"]);
+
+        // Roundtrip
+        let restored = flat.to_subtree_resolved(version, &span_data_table);
+        assert_eq!(subtree, restored);
+    }
+
+    #[test]
+    fn test_flattree_from_subtree_raw_ident_legacy_version() {
+        let span = make_test_span(5, 15);
+        let subtree = build_complex_subtree(span);
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::ENCODE_CLOSE_SPAN_VERSION;
+        let flat = FlatTree::from_subtree(subtree.view(), version, &mut span_data_table);
+
+        // Verify FlatTree has nested subtrees
+        // Root subtree + nested parentheses = 2 subtrees (encoded as 5 u32s each with close span)
+        assert_eq!(flat.subtree.len(), 10);
+        assert!(!flat.literal.is_empty());
+        assert!(!flat.punct.is_empty());
+        assert!(!flat.ident.is_empty());
+
+        // Should contain the r#
+        assert_eq!(flat.text, &["foo", "r#type", "123u32", "\"hello\""]);
+
+        // Roundtrip
+        let restored = flat.to_subtree_resolved(version, &span_data_table);
+        assert_eq!(subtree, restored);
+    }
+
+    #[test]
+    fn test_flattree_from_subtree_deeply_nested() {
+        let span = make_test_span(0, 10);
+        let delimiter = tt::Delimiter { kind: tt::DelimiterKind::Brace, open: span, close: span };
+        let mut builder = tt::TopSubtreeBuilder::new(delimiter);
+
+        // Create deeply nested structure: { ( [ a ] ) }
+        builder.open(tt::DelimiterKind::Parenthesis, span);
+        builder.open(tt::DelimiterKind::Bracket, span);
+        builder.push(tt::Leaf::Ident(tt::Ident {
+            sym: intern::Symbol::intern("a"),
+            span,
+            is_raw: tt::IdentIsRaw::No,
+        }));
+        builder.close(span);
+        builder.close(span);
+
+        let subtree = builder.build();
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat = FlatTree::from_subtree(subtree.view(), version, &mut span_data_table);
+
+        let restored = flat.to_subtree_resolved(version, &span_data_table);
+        assert_eq!(subtree, restored);
+    }
+
+    #[test]
+    fn test_flattree_from_subtree_multiple_spans() {
+        let span1 = make_test_span(0, 10);
+        let span2 = make_test_span(15, 25);
+        let span3 = make_test_span(30, 40);
+
+        let delimiter = tt::Delimiter { kind: tt::DelimiterKind::Brace, open: span1, close: span3 };
+        let mut builder = tt::TopSubtreeBuilder::new(delimiter);
+        builder.push(tt::Leaf::Ident(tt::Ident {
+            sym: intern::Symbol::intern("x"),
+            span: span2,
+            is_raw: tt::IdentIsRaw::No,
+        }));
+
+        let subtree = builder.build();
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat = FlatTree::from_subtree(subtree.view(), version, &mut span_data_table);
+
+        // All three different spans should be in the table
+        assert!(span_data_table.len() >= 2); // At least 2 unique spans (open/close may be same)
+
+        let restored = flat.to_subtree_resolved(version, &span_data_table);
+        assert_eq!(subtree, restored);
+    }
+
+    // ==================== FlatTree TokenStream Tests ====================
+
+    #[cfg(feature = "sysroot-abi")]
+    fn build_complex_tokenstream(span: Span) -> proc_macro_srv::TokenStream<Span> {
+        use proc_macro_srv::{DelimSpan, Group, Ident, Literal, Punct, TokenTree};
+
+        // Build: { foo(123u32, "hello") -> r#type }
+        let delim_span = DelimSpan { open: span, close: span, entire: span };
+
+        // Inner parentheses content
+        let inner_stream = proc_macro_srv::TokenStream::new(vec![
+            TokenTree::Literal(Literal {
+                symbol: intern::Symbol::intern("123"),
+                span,
+                kind: proc_macro_srv::LitKind::Integer,
+                suffix: Some(intern::Symbol::intern("u32")),
+            }),
+            TokenTree::Punct(Punct { ch: b',', joint: false, span }),
+            TokenTree::Literal(Literal {
+                symbol: intern::Symbol::intern("hello"),
+                span,
+                kind: proc_macro_srv::LitKind::Str,
+                suffix: None,
+            }),
+        ]);
+
+        // Build outer brace content
+        let outer_stream = proc_macro_srv::TokenStream::new(vec![
+            TokenTree::Ident(Ident { sym: intern::Symbol::intern("foo"), span, is_raw: false }),
+            TokenTree::Group(Group {
+                delimiter: proc_macro_srv::Delimiter::Parenthesis,
+                stream: Some(inner_stream),
+                span: delim_span,
+            }),
+            TokenTree::Punct(Punct { ch: b'-', joint: true, span }),
+            TokenTree::Punct(Punct { ch: b'>', joint: false, span }),
+            TokenTree::Ident(Ident { sym: intern::Symbol::intern("type"), span, is_raw: true }),
+        ]);
+
+        proc_macro_srv::TokenStream::new(vec![TokenTree::Group(Group {
+            delimiter: proc_macro_srv::Delimiter::Brace,
+            stream: Some(outer_stream),
+            span: delim_span,
+        })])
+    }
+
+    #[cfg(feature = "sysroot-abi")]
+    #[test]
+    fn test_flattree_from_tokenstream_empty() {
+        use proc_macro_srv::{DelimSpan, Group, TokenTree};
+
+        let span = make_test_span(0, 10);
+        let delim_span = DelimSpan { open: span, close: span, entire: span };
+        let tokenstream = proc_macro_srv::TokenStream::new(vec![TokenTree::Group(Group {
+            delimiter: proc_macro_srv::Delimiter::Brace,
+            stream: None,
+            span: delim_span,
+        })]);
+
+        let mut span_data_table = SpanDataIndexMap::default();
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat =
+            FlatTree::from_tokenstream(tokenstream.clone(), version, span, &mut span_data_table);
+
+        // Should have one subtree (the root group) with no children
+        assert_eq!(flat.subtree.len(), 5);
+        assert!(flat.literal.is_empty());
+        assert!(flat.punct.is_empty());
+        assert!(flat.ident.is_empty());
+
+        // Roundtrip
+        let restored = flat.to_tokenstream_resolved(version, &span_data_table, |a, _| a);
+        assert_eq!(tokenstream.to_string(), restored.to_string());
+    }
+
+    #[cfg(feature = "sysroot-abi")]
+    #[test]
+    fn test_flattree_from_tokenstream_complex_roundtrip() {
+        let span = make_test_span(5, 15);
+        let tokenstream = build_complex_tokenstream(span);
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat =
+            FlatTree::from_tokenstream(tokenstream.clone(), version, span, &mut span_data_table);
+
+        // Verify FlatTree has content
+        assert_eq!(flat.subtree.len(), 10);
+        assert!(!flat.literal.is_empty());
+        assert!(!flat.punct.is_empty());
+        assert!(!flat.ident.is_empty());
+
+        // Should not contain the r#
+        assert_eq!(flat.text, &["foo", "type", "123", "u32", "hello"]);
+
+        // Roundtrip
+        let restored = flat.to_tokenstream_resolved(version, &span_data_table, |a, _| a);
+        assert_eq!(tokenstream.to_string(), restored.to_string());
+    }
+
+    #[cfg(feature = "sysroot-abi")]
+    #[test]
+    fn test_flattree_from_tokenstream_legacy_version() {
+        let span = make_test_span(5, 15);
+        let tokenstream = build_complex_tokenstream(span);
+        let mut span_data_table = SpanDataIndexMap::default();
+
+        let version = crate::version::ENCODE_CLOSE_SPAN_VERSION;
+        let flat =
+            FlatTree::from_tokenstream(tokenstream.clone(), version, span, &mut span_data_table);
+
+        // Verify FlatTree has content
+        assert_eq!(flat.subtree.len(), 10);
+        assert!(!flat.literal.is_empty());
+        assert!(!flat.punct.is_empty());
+        assert!(!flat.ident.is_empty());
+
+        // Should contain the r#
+        assert_eq!(flat.text, &["foo", "r#type", "123u32", "\"hello\""]);
+
+        // Roundtrip
+        let restored = flat.to_tokenstream_resolved(version, &span_data_table, |a, _| a);
+        assert_eq!(tokenstream.to_string(), restored.to_string());
+    }
+
+    #[cfg(feature = "sysroot-abi")]
+    #[test]
+    fn test_flattree_from_tokenstream_multiple_spans() {
+        use proc_macro_srv::{DelimSpan, Group, Ident, Punct, TokenTree};
+
+        let span1 = make_test_span(0, 10);
+        let span2 = make_test_span(15, 25);
+        let span3 = make_test_span(30, 40);
+
+        let delim_span = DelimSpan { open: span1, close: span3, entire: span1 };
+        let inner_stream = proc_macro_srv::TokenStream::new(vec![
+            TokenTree::Ident(Ident {
+                sym: intern::Symbol::intern("x"),
+                span: span2,
+                is_raw: false,
+            }),
+            TokenTree::Punct(Punct { ch: b'+', joint: false, span: span3 }),
+        ]);
+
+        let tokenstream = proc_macro_srv::TokenStream::new(vec![TokenTree::Group(Group {
+            delimiter: proc_macro_srv::Delimiter::Brace,
+            stream: Some(inner_stream),
+            span: delim_span,
+        })]);
+
+        let mut span_data_table = SpanDataIndexMap::default();
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat =
+            FlatTree::from_tokenstream(tokenstream.clone(), version, span1, &mut span_data_table);
+
+        // Multiple different spans should be in the table
+        assert!(span_data_table.len() >= 2);
+
+        // Roundtrip
+        let restored = flat.to_tokenstream_resolved(version, &span_data_table, |a, _| a);
+        assert_eq!(tokenstream.to_string(), restored.to_string());
+    }
+
+    #[cfg(feature = "sysroot-abi")]
+    #[test]
+    fn test_flattree_from_tokenstream_deeply_nested() {
+        use proc_macro_srv::{DelimSpan, Group, Ident, TokenTree};
+
+        let span = make_test_span(0, 10);
+        let delim_span = DelimSpan { open: span, close: span, entire: span };
+
+        // Create deeply nested structure: { ( [ a ] ) }
+        let innermost = proc_macro_srv::TokenStream::new(vec![TokenTree::Ident(Ident {
+            sym: intern::Symbol::intern("a"),
+            span,
+            is_raw: false,
+        })]);
+
+        let bracket = proc_macro_srv::TokenStream::new(vec![TokenTree::Group(Group {
+            delimiter: proc_macro_srv::Delimiter::Bracket,
+            stream: Some(innermost),
+            span: delim_span,
+        })]);
+
+        let paren = proc_macro_srv::TokenStream::new(vec![TokenTree::Group(Group {
+            delimiter: proc_macro_srv::Delimiter::Parenthesis,
+            stream: Some(bracket),
+            span: delim_span,
+        })]);
+
+        let tokenstream = proc_macro_srv::TokenStream::new(vec![TokenTree::Group(Group {
+            delimiter: proc_macro_srv::Delimiter::Brace,
+            stream: Some(paren),
+            span: delim_span,
+        })]);
+
+        let mut span_data_table = SpanDataIndexMap::default();
+        let version = crate::version::CURRENT_API_VERSION;
+        let flat =
+            FlatTree::from_tokenstream(tokenstream.clone(), version, span, &mut span_data_table);
+
+        // Roundtrip
+        let restored = flat.to_tokenstream_resolved(version, &span_data_table, |a, _| a);
+        assert_eq!(tokenstream.to_string(), restored.to_string());
     }
 }
