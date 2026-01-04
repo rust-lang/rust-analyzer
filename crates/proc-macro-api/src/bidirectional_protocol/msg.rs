@@ -8,21 +8,21 @@ use crate::{
     legacy_protocol::msg::{FlatTree, Message, PanicMessage, ServerConfig},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SubRequest {
     FilePath { file_id: u32 },
     SourceText { file_id: u32, ast_id: u32, start: u32, end: u32 },
     LocalFilePath { file_id: u32 },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SubResponse {
     FilePathResult { name: String },
     SourceTextResult { text: Option<String> },
     LocalFilePathResult { name: Option<String> },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BidirectionalMessage {
     Request(Request),
     Response(Response),
@@ -30,7 +30,7 @@ pub enum BidirectionalMessage {
     SubResponse(SubResponse),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Request {
     ListMacros { dylib_path: Utf8PathBuf },
     ExpandMacro(Box<ExpandMacro>),
@@ -38,7 +38,7 @@ pub enum Request {
     SetConfig(ServerConfig),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Response {
     ListMacros(Result<Vec<(String, ProcMacroKind)>, String>),
     ExpandMacro(Result<FlatTree, PanicMessage>),
@@ -47,7 +47,7 @@ pub enum Response {
     ExpandMacroExtended(Result<ExpandMacroExtended, PanicMessage>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandMacro {
     pub lib: Utf8PathBuf,
     pub env: Vec<(String, String)>,
@@ -56,13 +56,13 @@ pub struct ExpandMacro {
     pub data: ExpandMacroData,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandMacroExtended {
     pub tree: FlatTree,
     pub span_data_table: Vec<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandMacroData {
     pub macro_body: FlatTree,
     pub macro_name: String,
@@ -76,7 +76,7 @@ pub struct ExpandMacroData {
     pub span_data_table: Vec<u32>,
 }
 
-#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpnGlobals {
     #[serde(skip_serializing)]
     #[serde(default)]

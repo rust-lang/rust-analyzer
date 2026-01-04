@@ -85,7 +85,7 @@ pub fn deserialize_span_data_index_map(map: &[u32]) -> SpanDataIndexMap {
         .collect()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub struct FlatTree {
     subtree: Vec<u32>,
     literal: Vec<u32>,
@@ -93,6 +93,21 @@ pub struct FlatTree {
     ident: Vec<u32>,
     token_tree: Vec<u32>,
     text: Vec<String>,
+}
+
+impl FlatTree {
+    /// Creates an empty FlatTree for testing purposes
+    #[cfg(test)]
+    pub(crate) fn new_raw(subtree: Vec<u32>, literal: Vec<u32>) -> Self {
+        FlatTree {
+            subtree,
+            literal,
+            punct: Vec::new(),
+            ident: Vec::new(),
+            token_tree: Vec::new(),
+            text: Vec::new(),
+        }
+    }
 }
 
 struct SubtreeRepr {
