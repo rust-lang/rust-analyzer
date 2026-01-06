@@ -104,6 +104,11 @@ pub enum ProcMacroClientError {
     Eof,
 }
 
+#[derive(Debug)]
+pub struct ProcMacroCancelMarker {
+    pub reason: String,
+}
+
 pub type ProcMacroClientHandle<'a> = &'a mut (dyn ProcMacroClientInterface + Sync + Send);
 
 pub trait ProcMacroClientInterface {
@@ -153,7 +158,13 @@ impl ProcMacroSrv<'_> {
                 });
             match thread.unwrap().join() {
                 Ok(res) => res,
-                Err(e) => std::panic::resume_unwind(e),
+
+                Err(payload) => {
+                    if let Some(cancel) = payload.downcast_ref::<ProcMacroCancelMarker>() {
+                        return Err(PanicMessage { message: Some(cancel.reason.clone()) });
+                    }
+                    std::panic::resume_unwind(payload)
+                }
             }
         });
         prev_env.rollback();

@@ -7,10 +7,11 @@ use std::{
     io::{self, BufRead, Write},
     ops::Range,
 };
+use std::panic::panic_any;
 
 use legacy::Message;
 
-use proc_macro_srv::{EnvSnapshot, ProcMacroClientError, SpanId};
+use proc_macro_srv::{EnvSnapshot, ProcMacroCancelMarker, ProcMacroClientError, SpanId};
 
 struct SpanTrans;
 
@@ -201,7 +202,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
         match self.roundtrip(bidirectional::SubRequest::FilePath { file_id: file_id.index() }) {
             Ok(bidirectional::SubResponse::FilePathResult { name }) => name,
             Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic!("proc-macro expansion cancelled by client: {reason}");
+                panic_any(ProcMacroCancelMarker { reason });
             }
             Err(err) => {
                 panic!("proc-macro IPC failed: {err:?}");
@@ -224,7 +225,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
         }) {
             Ok(bidirectional::SubResponse::SourceTextResult { text }) => text,
             Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic!("proc-macro expansion cancelled by client: {reason}");
+                panic_any(ProcMacroCancelMarker { reason });
             }
             Err(err) => {
                 panic!("proc-macro IPC failed: {err:?}");
@@ -240,7 +241,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
         {
             Ok(bidirectional::SubResponse::LocalFilePathResult { name }) => name,
             Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic!("proc-macro expansion cancelled by client: {reason}");
+                panic_any(ProcMacroCancelMarker { reason });
             }
             Err(err) => {
                 panic!("proc-macro IPC failed: {err:?}");
@@ -262,7 +263,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
                 Some((line, column))
             }
             Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic!("proc-macro expansion cancelled by client: {reason}");
+                panic_any(ProcMacroCancelMarker { reason });
             }
             Err(err) => {
                 panic!("proc-macro IPC failed: {err:?}");
