@@ -93,6 +93,14 @@ impl<'env> ProcMacroSrv<'env> {
     }
 }
 
+#[derive(Debug)]
+pub enum ProcMacroClientError {
+    Cancelled { reason: String },
+    Io(std::io::Error),
+    Protocol(String),
+    Eof,
+}
+
 pub type ProcMacroClientHandle<'a> = &'a mut (dyn ProcMacroClientInterface + Sync + Send);
 
 pub trait ProcMacroClientInterface {
