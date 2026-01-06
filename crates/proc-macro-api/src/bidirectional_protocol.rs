@@ -2,6 +2,7 @@
 
 use std::{
     io::{self, BufRead, Write},
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::Arc,
 };
 
@@ -55,9 +56,17 @@ pub fn run_conversation(
                 return Ok(BidirectionalMessage::Response(response));
             }
             BidirectionalMessage::SubRequest(sr) => {
-                let resp = callback(sr)?;
-                let reply = BidirectionalMessage::SubResponse(resp);
-                let encoded = postcard::encode(&reply).map_err(wrap_encode)?;
+                let resp = match catch_unwind(AssertUnwindSafe(|| callback(sr))) {
+                    Ok(Ok(resp)) => BidirectionalMessage::SubResponse(resp),
+                    Ok(Err(err)) => BidirectionalMessage::SubResponse(SubResponse::Cancel {
+                        reason: err.to_string(),
+                    }),
+                    Err(_) => BidirectionalMessage::SubResponse(SubResponse::Cancel {
+                        reason: "callback panicked or was cancelled".into(),
+                    }),
+                };
+
+                let encoded = postcard::encode(&resp).map_err(wrap_encode)?;
                 postcard::write(writer, &encoded)
                     .map_err(wrap_io("failed to write sub-response"))?;
             }
