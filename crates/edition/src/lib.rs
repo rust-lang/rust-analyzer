@@ -10,6 +10,8 @@ pub enum Edition {
     Edition2018,
     Edition2021,
     Edition2024,
+    /// For forwards-compatibility, i.e. old rust-analyzer with newer rustc
+    EditionFuture,
 }
 
 impl Edition {
@@ -21,10 +23,12 @@ impl Edition {
 
     pub fn from_u32(u32: u32) -> Edition {
         match u32 {
+            // Match enum order. EditionFuture should stay at the bottom and be updated to latest+1.
             0 => Edition::Edition2015,
             1 => Edition::Edition2018,
             2 => Edition::Edition2021,
             3 => Edition::Edition2024,
+            4 => Edition::EditionFuture,
             _ => panic!("invalid edition"),
         }
     }
@@ -41,15 +45,25 @@ impl Edition {
         self >= Edition::Edition2018
     }
 
+    /// Replaces EditionFuture with the latest known edition.
+    pub fn or_latest(self) -> Edition {
+        match self {
+            Edition::EditionFuture => Edition::LATEST,
+            _ => self,
+        }
+    }
+
     pub fn number(&self) -> usize {
         match self {
             Edition::Edition2015 => 2015,
             Edition::Edition2018 => 2018,
             Edition::Edition2021 => 2021,
             Edition::Edition2024 => 2024,
+            Edition::EditionFuture => 9999,
         }
     }
 
+    /// Iterate the known editions. Excludes EditionFuture
     pub fn iter() -> impl Iterator<Item = Edition> {
         [Edition::Edition2015, Edition::Edition2018, Edition::Edition2021, Edition::Edition2024]
             .iter()
@@ -91,6 +105,7 @@ impl fmt::Display for Edition {
             Edition::Edition2018 => "2018",
             Edition::Edition2021 => "2021",
             Edition::Edition2024 => "2024",
+            Edition::EditionFuture => "future",
         })
     }
 }
