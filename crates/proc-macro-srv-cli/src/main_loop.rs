@@ -6,11 +6,11 @@ use proc_macro_api::{
     transport::codec::{json::JsonProtocol, postcard::PostcardProtocol},
     version::CURRENT_API_VERSION,
 };
+use std::panic::panic_any;
 use std::{
     io::{self, BufRead, Write},
     ops::Range,
 };
-use std::panic::panic_any;
 
 use legacy::Message;
 
@@ -185,10 +185,9 @@ impl<'a, C: Codec> ProcMacroClientHandle<'a, C> {
 
         msg.write::<C>(&mut *self.stdout).map_err(ProcMacroClientError::Io)?;
 
-        let msg =
-            bidirectional::BidirectionalMessage::read::<C>(&mut *self.stdin, self.buf)
-                .map_err(ProcMacroClientError::Io)?
-                .ok_or(ProcMacroClientError::Eof)?;
+        let msg = bidirectional::BidirectionalMessage::read::<C>(&mut *self.stdin, self.buf)
+            .map_err(ProcMacroClientError::Io)?
+            .ok_or(ProcMacroClientError::Eof)?;
 
         match msg {
             bidirectional::BidirectionalMessage::SubResponse(resp) => match resp {
