@@ -197,19 +197,25 @@ impl<'a> ProcMacroClientHandle<'a> {
     }
 }
 
-impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
+fn handle_failure(failure: Result<bidirectional::SubResponse, ProcMacroClientError>) -> ! {
+    match failure {
+        Err(ProcMacroClientError::Cancelled { reason }) => {
+            panic_any(ProcMacroCancelMarker { reason });
+        }
+        Err(err) => {
+            panic!("proc-macro IPC failed: {err:?}");
+        }
+        Ok(other) => {
+            panic!("unexpected SubResponse {other:?}");
+        }
+    }
+}
+
+impl<C: Codec> proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_, C> {
     fn file(&mut self, file_id: proc_macro_srv::span::FileId) -> String {
         match self.roundtrip(bidirectional::SubRequest::FilePath { file_id: file_id.index() }) {
             Ok(bidirectional::SubResponse::FilePathResult { name }) => name,
-            Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic_any(ProcMacroCancelMarker { reason });
-            }
-            Err(err) => {
-                panic!("proc-macro IPC failed: {err:?}");
-            }
-            Ok(other) => {
-                panic!("unexpected SubResponse in file(): {other:?}");
-            }
+            other => handle_failure(other),
         }
     }
 
@@ -224,15 +230,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
             end: range.end().into(),
         }) {
             Ok(bidirectional::SubResponse::SourceTextResult { text }) => text,
-            Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic_any(ProcMacroCancelMarker { reason });
-            }
-            Err(err) => {
-                panic!("proc-macro IPC failed: {err:?}");
-            }
-            Ok(other) => {
-                panic!("unexpected SubResponse in source_text: {other:?}");
-            }
+            other => handle_failure(other),
         }
     }
 
@@ -240,15 +238,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
         match self.roundtrip(bidirectional::SubRequest::LocalFilePath { file_id: file_id.index() })
         {
             Ok(bidirectional::SubResponse::LocalFilePathResult { name }) => name,
-            Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic_any(ProcMacroCancelMarker { reason });
-            }
-            Err(err) => {
-                panic!("proc-macro IPC failed: {err:?}");
-            }
-            Ok(other) => {
-                panic!("unexpected SubResponse in local_file(): {other:?}");
-            }
+            other => handle_failure(other),
         }
     }
 
@@ -262,15 +252,7 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
             Ok(bidirectional::SubResponse::LineColumnResult { line, column }) => {
                 Some((line, column))
             }
-            Err(ProcMacroClientError::Cancelled { reason }) => {
-                panic_any(ProcMacroCancelMarker { reason });
-            }
-            Err(err) => {
-                panic!("proc-macro IPC failed: {err:?}");
-            }
-            Ok(other) => {
-                panic!("unexpected SubResponse in local_file(): {other:?}");
-            }
+            other => handle_failure(other),
         }
     }
 
