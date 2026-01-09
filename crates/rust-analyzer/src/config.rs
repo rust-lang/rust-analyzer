@@ -415,6 +415,11 @@ config_data! {
         /// doc links.
         semanticHighlighting_doc_comment_inject_enable: bool = true,
 
+        /// Use semantic tokens for keywords.
+        ///
+        /// When enabled, rust-analyzer will emit semantic tokens for keyword tokens.
+        semanticHighlighting_keywords_enable: bool = true,
+
         /// Emit non-standard tokens and modifiers
         ///
         /// When enabled, rust-analyzer will emit tokens and modifiers that are not part of the
@@ -2093,6 +2098,7 @@ impl Config {
                 .semanticHighlighting_punctuation_specialization_enable()
                 .to_owned(),
             macro_bang: self.semanticHighlighting_punctuation_separate_macro_bang().to_owned(),
+            keywords: self.semanticHighlighting_keywords_enable().to_owned(),
             operator: self.semanticHighlighting_operator_enable().to_owned(),
             specialize_operator: self
                 .semanticHighlighting_operator_specialization_enable()

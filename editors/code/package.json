@@ -3010,6 +3010,16 @@
             {
                 "title": "Semantic Highlighting",
                 "properties": {
+                    "rust-analyzer.semanticHighlighting.keywords.enable": {
+                        "markdownDescription": "Use semantic tokens for keywords.\n\nWhen enabled, rust-analyzer will emit semantic tokens for keyword tokens.",
+                        "default": true,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "Semantic Highlighting",
+                "properties": {
                     "rust-analyzer.semanticHighlighting.nonStandardTokens": {
                         "markdownDescription": "Emit non-standard tokens and modifiers\n\nWhen enabled, rust-analyzer will emit tokens and modifiers that are not part of the\nstandard set of semantic tokens.",
                         "default": true,
