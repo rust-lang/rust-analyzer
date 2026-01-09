@@ -3,11 +3,11 @@ use proc_macro_api::{
     ProtocolFormat, bidirectional_protocol::msg as bidirectional, legacy_protocol::msg as legacy,
     version::CURRENT_API_VERSION,
 };
+use std::panic::panic_any;
 use std::{
     io::{self, BufRead, Write},
     ops::Range,
 };
-use std::panic::panic_any;
 
 use legacy::Message;
 
@@ -178,10 +178,9 @@ impl<'a> ProcMacroClientHandle<'a> {
 
         msg.write(&mut *self.stdout).map_err(ProcMacroClientError::Io)?;
 
-        let msg =
-            bidirectional::BidirectionalMessage::read(&mut *self.stdin, self.buf)
-                .map_err(ProcMacroClientError::Io)?
-                .ok_or(ProcMacroClientError::Eof)?;
+        let msg = bidirectional::BidirectionalMessage::read(&mut *self.stdin, self.buf)
+            .map_err(ProcMacroClientError::Io)?
+            .ok_or(ProcMacroClientError::Eof)?;
 
         match msg {
             bidirectional::BidirectionalMessage::SubResponse(resp) => match resp {

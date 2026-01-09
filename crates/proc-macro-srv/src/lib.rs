@@ -123,6 +123,20 @@ pub trait ProcMacroClientInterface {
 
 const EXPANDER_STACK_SIZE: usize = 8 * 1024 * 1024;
 
+pub enum ExpandError {
+    Panic(PanicMessage),
+    Cancelled { reason: Option<String> },
+}
+
+impl ExpandError {
+    pub fn into_string(self) -> Option<String> {
+        match self {
+            ExpandError::Panic(panic_message) => panic_message.into_string(),
+            ExpandError::Cancelled { reason } => reason,
+        }
+    }
+}
+
 impl ProcMacroSrv<'_> {
     pub fn expand<S: ProcMacroSrvSpan>(
         &self,
@@ -136,10 +150,12 @@ impl ProcMacroSrv<'_> {
         call_site: S,
         mixed_site: S,
         callback: Option<ProcMacroClientHandle<'_>>,
-    ) -> Result<token_stream::TokenStream<S>, PanicMessage> {
+    ) -> Result<token_stream::TokenStream<S>, ExpandError> {
         let snapped_env = self.env;
-        let expander = self.expander(lib.as_ref()).map_err(|err| PanicMessage {
-            message: Some(format!("failed to load macro: {err}")),
+        let expander = self.expander(lib.as_ref()).map_err(|err| {
+            ExpandError::Panic(PanicMessage {
+                message: Some(format!("failed to load macro: {err}")),
+            })
         })?;
 
         let prev_env = EnvChange::apply(snapped_env, env, current_dir.as_ref().map(<_>::as_ref));
@@ -157,11 +173,11 @@ impl ProcMacroSrv<'_> {
                     )
                 });
             match thread.unwrap().join() {
-                Ok(res) => res,
+                Ok(res) => res.map_err(ExpandError::Panic),
 
                 Err(payload) => {
                     if let Some(cancel) = payload.downcast_ref::<ProcMacroCancelMarker>() {
-                        return Err(PanicMessage { message: Some(cancel.reason.clone()) });
+                        return Err(ExpandError::Cancelled { reason: Some(cancel.reason.clone()) });
                     }
                     std::panic::resume_unwind(payload)
                 }
