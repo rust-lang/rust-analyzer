@@ -265,10 +265,8 @@ impl<C: Codec> proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandl
             start: range.start().into(),
             end: range.end().into(),
         }) {
-            Some(bidirectional::BidirectionalMessage::SubResponse(
-                bidirectional::SubResponse::ByteRangeResult { range },
-            )) => range,
-            _ => Range { start: range.start().into(), end: range.end().into() },
+            Ok(bidirectional::SubResponse::ByteRangeResult { range }) => range,
+            other => handle_failure(other),
         }
     }
 }
