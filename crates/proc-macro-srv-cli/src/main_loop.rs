@@ -14,7 +14,7 @@ use std::{
 
 use legacy::Message;
 
-use proc_macro_srv::{EnvSnapshot, ProcMacroCancelMarker, ProcMacroClientError, SpanId};
+use proc_macro_srv::{EnvSnapshot, ProcMacroClientError, ProcMacroPanicMarker, SpanId};
 
 use crate::ProtocolFormat;
 struct SpanTrans;
@@ -206,13 +206,17 @@ impl<'a, C: Codec> ProcMacroClientHandle<'a, C> {
 fn handle_failure(failure: Result<bidirectional::SubResponse, ProcMacroClientError>) -> ! {
     match failure {
         Err(ProcMacroClientError::Cancelled { reason }) => {
-            panic_any(ProcMacroCancelMarker { reason });
+            panic_any(ProcMacroPanicMarker::Cancelled { reason });
         }
         Err(err) => {
-            panic!("proc-macro IPC failed: {err:?}");
+            panic_any(ProcMacroPanicMarker::Internal {
+                reason: format!("proc-macro IPC error: {err:?}"),
+            });
         }
         Ok(other) => {
-            panic!("unexpected SubResponse {other:?}");
+            panic_any(ProcMacroPanicMarker::Internal {
+                reason: format!("unexpected SubResponse {other:?}"),
+            });
         }
     }
 }
