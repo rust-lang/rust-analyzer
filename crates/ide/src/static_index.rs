@@ -37,6 +37,7 @@ pub struct StaticIndex<'a> {
 pub struct ReferenceData {
     pub range: FileRange,
     pub is_definition: bool,
+    pub enclosing_range: Option<FileRange>,
 }
 
 #[derive(Debug)]
@@ -45,14 +46,8 @@ pub struct TokenStaticData {
     pub documentation: Option<Documentation<'static>>,
     pub hover: Option<HoverResult>,
     /// The position of the token itself.
-    ///
     /// For example, in `fn foo() {}` this is the position of `foo`.
     pub definition: Option<FileRange>,
-    /// The position of the entire definition that this token belongs to.
-    ///
-    /// For example, in `fn foo() {}` this is the position from `fn`
-    /// to the closing brace.
-    pub definition_body: Option<FileRange>,
     pub references: Vec<ReferenceData>,
     pub moniker: Option<MonikerResult>,
     pub display_name: Option<String>,
@@ -250,10 +245,6 @@ impl StaticIndex<'_> {
                     definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
                         FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
                     }),
-                    definition_body: def
-                        .try_to_nav(&sema)
-                        .map(UpmappingResult::call_site)
-                        .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
                     references: vec![],
                     moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
                     display_name: def
@@ -272,6 +263,13 @@ impl StaticIndex<'_> {
                     Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
                     None => false,
                 },
+                enclosing_range: scope_node
+                    .ancestors()
+                    .find(|ancestor| {
+                        let ancestor_range = ancestor.text_range();
+                        ancestor_range.contains_range(range) && ancestor_range != range
+                    })
+                    .map(|p| FileRange { file_id, range: p.text_range() }),
             });
             result.tokens.push((range, id));
         };
