@@ -6,7 +6,7 @@ use proc_macro_api::{
     transport::codec::{json::JsonProtocol, postcard::PostcardProtocol},
     version::CURRENT_API_VERSION,
 };
-use std::panic::panic_any;
+use std::panic::{panic_any, resume_unwind};
 use std::{
     io::{self, BufRead, Write},
     ops::Range,
@@ -206,7 +206,7 @@ impl<'a, C: Codec> ProcMacroClientHandle<'a, C> {
 fn handle_failure(failure: Result<bidirectional::SubResponse, ProcMacroClientError>) -> ! {
     match failure {
         Err(ProcMacroClientError::Cancelled { reason }) => {
-            panic_any(ProcMacroPanicMarker::Cancelled { reason });
+            resume_unwind(Box::new(ProcMacroPanicMarker::Cancelled { reason }));
         }
         Err(err) => {
             panic_any(ProcMacroPanicMarker::Internal {
