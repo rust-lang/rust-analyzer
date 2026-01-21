@@ -702,6 +702,7 @@ impl<'db> HirDisplay<'db> for Const<'db> {
                 &const_bytes.value.inner().memory,
                 &const_bytes.value.inner().memory_map,
                 const_bytes.ty,
+                CONST_SCALAR_RENDER_DEPTH_LIMIT,
             ),
             ConstKind::Unevaluated(unev) => {
                 let c = unev.def.0;
@@ -715,16 +716,24 @@ impl<'db> HirDisplay<'db> for Const<'db> {
     }
 }
 
+/// Maximum recursion depth for rendering const scalars.
+/// This prevents stack overflow with self-referential data structures.
+const CONST_SCALAR_RENDER_DEPTH_LIMIT: usize = 20;
+
 fn render_const_scalar<'db>(
     f: &mut HirFormatter<'_, 'db>,
     b: &[u8],
     memory_map: &MemoryMap<'db>,
     ty: Ty<'db>,
+    depth: usize,
 ) -> Result {
+    if depth == 0 {
+        return f.write_str("<recursion-limit>");
+    }
     let param_env = ParamEnv::empty();
     let infcx = f.interner.infer_ctxt().build(TypingMode::PostAnalysis);
     let ty = infcx.at(&ObligationCause::new(), param_env).deeply_normalize(ty).unwrap_or(ty);
-    render_const_scalar_inner(f, b, memory_map, ty, param_env)
+    render_const_scalar_inner(f, b, memory_map, ty, param_env, depth)
 }
 
 fn render_const_scalar_inner<'db>(
@@ -733,6 +742,7 @@ fn render_const_scalar_inner<'db>(
     memory_map: &MemoryMap<'db>,
     ty: Ty<'db>,
     param_env: ParamEnv<'db>,
+    depth: usize,
 ) -> Result {
     use TyKind;
     let param_env = ParamEnvAndCrate { param_env, krate: f.krate() };
@@ -822,7 +832,13 @@ fn render_const_scalar_inner<'db>(
                         f.write_str(", ")?;
                     }
                     let offset = size_one * i;
-                    render_const_scalar(f, &bytes[offset..offset + size_one], memory_map, ty)?;
+                    render_const_scalar(
+                        f,
+                        &bytes[offset..offset + size_one],
+                        memory_map,
+                        ty,
+                        depth - 1,
+                    )?;
                 }
                 f.write_str("]")
             }
@@ -840,7 +856,7 @@ fn render_const_scalar_inner<'db>(
                     return f.write_str("<ref-data-not-available>");
                 };
                 f.write_str("&")?;
-                render_const_scalar(f, bytes, memory_map, t)
+                render_const_scalar(f, bytes, memory_map, t, depth - 1)
             }
             TyKind::Adt(adt, _) if b.len() == 2 * size_of::<usize>() => match adt.def_id().0 {
                 hir_def::AdtId::StructId(s) => {
@@ -870,7 +886,7 @@ fn render_const_scalar_inner<'db>(
                     return f.write_str("<ref-data-not-available>");
                 };
                 f.write_str("&")?;
-                render_const_scalar(f, bytes, memory_map, t)
+                render_const_scalar(f, bytes, memory_map, t, depth - 1)
             }
         },
         TyKind::Tuple(tys) => {
@@ -891,7 +907,7 @@ fn render_const_scalar_inner<'db>(
                     continue;
                 };
                 let size = layout.size.bytes_usize();
-                render_const_scalar(f, &b[offset..offset + size], memory_map, ty)?;
+                render_const_scalar(f, &b[offset..offset + size], memory_map, ty, depth - 1)?;
             }
             f.write_str(")")
         }
@@ -914,6 +930,7 @@ fn render_const_scalar_inner<'db>(
                         args,
                         b,
                         memory_map,
+                        depth,
                     )
                 }
                 hir_def::AdtId::UnionId(u) => {
@@ -946,6 +963,7 @@ fn render_const_scalar_inner<'db>(
                         args,
                         b,
                         memory_map,
+                        depth,
                     )
                 }
             }
@@ -973,7 +991,7 @@ fn render_const_scalar_inner<'db>(
                     f.write_str(", ")?;
                 }
                 let offset = size_one * i;
-                render_const_scalar(f, &b[offset..offset + size_one], memory_map, ty)?;
+                render_const_scalar(f, &b[offset..offset + size_one], memory_map, ty, depth - 1)?;
             }
             f.write_str("]")
         }
@@ -1006,6 +1024,7 @@ fn render_variant_after_name<'db>(
     args: GenericArgs<'db>,
     b: &[u8],
     memory_map: &MemoryMap<'db>,
+    depth: usize,
 ) -> Result {
     let param_env = ParamEnvAndCrate { param_env, krate: f.krate() };
     match data.shape {
@@ -1017,7 +1036,7 @@ fn render_variant_after_name<'db>(
                     return f.write_str("<layout-error>");
                 };
                 let size = layout.size.bytes_usize();
-                render_const_scalar(f, &b[offset..offset + size], memory_map, ty)
+                render_const_scalar(f, &b[offset..offset + size], memory_map, ty, depth - 1)
             };
             let mut it = data.fields().iter();
             if matches!(data.shape, FieldsShape::Record) {

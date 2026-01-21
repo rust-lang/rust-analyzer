@@ -11311,3 +11311,55 @@ pub trait MyTrait {
         "#]],
     );
 }
+
+#[test]
+fn hover_recursive_const_fn() {
+    check(
+        r#"
+//- minicore: option
+enum Child {
+    Static { child: &'static MyEnum },
+}
+
+enum MyEnum {
+    Unit,
+    Array(Child),
+}
+
+impl MyEnum {
+    pub const fn static_array(child: &'static MyEnum) -> Self {
+        MyEnum::Array(Child::Static { child })
+    }
+}
+
+pub trait MyTrait {
+    const MY_CONST: &'static MyEnum;
+}
+
+impl<T> MyTrait for Option<T> where T: MyTrait {
+    const MY_CONST: &'static MyEnum = &MyEnum::static_array(T::MY_CONST);
+}
+
+impl MyTrait for () {
+    const MY_CONST: &'static MyEnum = &MyEnum::Unit;
+}
+
+pub struct Address;
+
+impl MyTrait for Address {
+    const MY_CONST$0: &'static MyEnum = (<Option<()> as MyTrait>::MY_CONST);
+}
+    "#,
+        expect![[r#"
+            *MY_CONST*
+
+            ```rust
+            ra_test_fixture::Address
+            ```
+
+            ```rust
+            const MY_CONST: &'static MyEnum = &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(<recursion-limit>) }) }) }) }) }) })
+            ```
+        "#]],
+    );
+}
