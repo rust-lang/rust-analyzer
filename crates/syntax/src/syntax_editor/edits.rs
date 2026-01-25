@@ -214,18 +214,18 @@ impl Removable for ast::Use {
     fn remove(&self, editor: &mut SyntaxEditor) {
         let make = SyntaxFactory::without_mappings();
 
-        let next_ws = self
+        let prev_ws = self
             .syntax()
-            .next_sibling_or_token()
+            .prev_sibling_or_token()
             .and_then(|it| it.into_token())
             .and_then(ast::Whitespace::cast);
-        if let Some(next_ws) = next_ws {
-            let ws_text = next_ws.syntax().text();
-            if let Some(rest) = ws_text.strip_prefix('\n') {
+        if let Some(prev_ws) = prev_ws {
+            let ws_text = prev_ws.syntax().text();
+            if let Some(rest) = ws_text.trim_end_matches(' ').strip_suffix('\n') {
                 if rest.is_empty() {
-                    editor.delete(next_ws.syntax());
+                    editor.delete(prev_ws.syntax());
                 } else {
-                    editor.replace(next_ws.syntax(), make.whitespace(rest));
+                    editor.replace(prev_ws.syntax(), make.whitespace(rest));
                 }
             }
         }
