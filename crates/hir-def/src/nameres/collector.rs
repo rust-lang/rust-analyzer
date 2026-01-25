@@ -545,14 +545,16 @@ impl<'db> DefCollector<'db> {
             Name::new_symbol_root(sym::core)
         };
 
-        let edition = match self.def_map.data.edition {
+        let edition_or_latest = self.def_map.data.edition.or_latest();
+        let edition = match edition_or_latest {
             Edition::Edition2015 => Name::new_symbol_root(sym::rust_2015),
             Edition::Edition2018 => Name::new_symbol_root(sym::rust_2018),
             Edition::Edition2021 => Name::new_symbol_root(sym::rust_2021),
             Edition::Edition2024 => Name::new_symbol_root(sym::rust_2024),
+            Edition::EditionFuture => unreachable!("Replaced with latest"),
         };
 
-        let path_kind = match self.def_map.data.edition {
+        let path_kind = match edition_or_latest {
             Edition::Edition2015 => PathKind::Plain,
             _ => PathKind::Abs,
         };

@@ -454,6 +454,8 @@ enum EditionData {
     Edition2021,
     #[serde(rename = "2024")]
     Edition2024,
+    #[serde(other)]
+    EditionFuture,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -529,6 +531,7 @@ impl From<EditionData> for Edition {
             EditionData::Edition2018 => Edition::Edition2018,
             EditionData::Edition2021 => Edition::Edition2021,
             EditionData::Edition2024 => Edition::Edition2024,
+            EditionData::EditionFuture => Edition::EditionFuture,
         }
     }
 }
