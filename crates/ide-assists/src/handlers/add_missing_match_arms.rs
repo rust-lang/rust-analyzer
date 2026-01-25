@@ -388,20 +388,20 @@ fn does_pat_match_variant(pat: &Pat, var: &Pat) -> bool {
 }
 
 #[derive(Eq, PartialEq, Clone)]
-enum ExtendedEnum {
+pub(crate) enum ExtendedEnum {
     Bool,
     Enum { enum_: hir::Enum, use_self: bool },
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-enum ExtendedVariant {
+pub(crate) enum ExtendedVariant {
     True,
     False,
     Variant { variant: hir::Variant, use_self: bool },
 }
 
 impl ExtendedVariant {
-    fn should_be_hidden(self, db: &RootDatabase, krate: Crate) -> bool {
+    pub(crate) fn should_be_hidden(self, db: &RootDatabase, krate: Crate) -> bool {
         match self {
             ExtendedVariant::Variant { variant: var, .. } => {
                 var.attrs(db).is_doc_hidden() && var.module(db).krate(db) != krate
@@ -412,7 +412,7 @@ impl ExtendedVariant {
 }
 
 impl ExtendedEnum {
-    fn enum_(
+    pub(crate) fn enum_(
         db: &RootDatabase,
         enum_: hir::Enum,
         enum_ty: &hir::Type<'_>,
@@ -424,7 +424,7 @@ impl ExtendedEnum {
         }
     }
 
-    fn is_non_exhaustive(&self, db: &RootDatabase, krate: Crate) -> bool {
+    pub(crate) fn is_non_exhaustive(&self, db: &RootDatabase, krate: Crate) -> bool {
         match self {
             ExtendedEnum::Enum { enum_: e, .. } => {
                 e.attrs(db).is_non_exhaustive() && e.module(db).krate(db) != krate
@@ -433,7 +433,7 @@ impl ExtendedEnum {
         }
     }
 
-    fn variants(&self, db: &RootDatabase) -> Vec<ExtendedVariant> {
+    pub(crate) fn variants(&self, db: &RootDatabase) -> Vec<ExtendedVariant> {
         match *self {
             ExtendedEnum::Enum { enum_: e, use_self } => e
                 .variants(db)
@@ -447,7 +447,7 @@ impl ExtendedEnum {
     }
 }
 
-fn resolve_enum_def(
+pub(crate) fn resolve_enum_def(
     sema: &Semantics<'_, RootDatabase>,
     expr: &ast::Expr,
     self_ty: Option<&hir::Type<'_>>,
@@ -495,7 +495,7 @@ fn resolve_array_of_enum_def(
     })
 }
 
-fn build_pat(
+pub(crate) fn build_pat(
     ctx: &AssistContext<'_>,
     make: &SyntaxFactory,
     module: hir::Module,
