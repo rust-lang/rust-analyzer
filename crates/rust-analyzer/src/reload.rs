@@ -975,19 +975,6 @@ impl GlobalState {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::should_warn_missing_workspace;
-
-    #[test]
-    fn missing_workspace_warning_is_gated_by_fetch_completion() {
-        assert!(!should_warn_missing_workspace(false, false, false));
-        assert!(should_warn_missing_workspace(false, false, true));
-        assert!(!should_warn_missing_workspace(true, false, true));
-        assert!(!should_warn_missing_workspace(false, true, true));
-    }
-}
-
 // FIXME: Move this into load-cargo?
 pub fn ws_to_crate_graph(
     workspaces: &[ProjectWorkspace],
@@ -1075,4 +1062,17 @@ fn eq_ignore_underscore(s1: &str, s2: &str) -> bool {
 
         c1 == c2 || (c1_underscore && c2_underscore)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_warn_missing_workspace;
+
+    #[test]
+    fn missing_workspace_warning_is_gated_by_fetch_completion() {
+        assert!(!should_warn_missing_workspace(false, false, false));
+        assert!(should_warn_missing_workspace(false, false, true));
+        assert!(!should_warn_missing_workspace(true, false, true));
+        assert!(!should_warn_missing_workspace(false, true, true));
+    }
 }
