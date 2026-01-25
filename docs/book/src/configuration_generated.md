@@ -367,6 +367,13 @@ If false, `-p <package>` will be passed instead if applicable. In case it is not
 check will be performed.
 
 
+## rust-analyzer.completion.addSemicolonToJumps {#completion.addSemicolonToJumps}
+
+Default: `true`
+
+Automatically add a semicolon when completing break, continue and return.
+
+
 ## rust-analyzer.completion.addSemicolonToUnit {#completion.addSemicolonToUnit}
 
 Default: `true`
