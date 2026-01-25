@@ -583,6 +583,184 @@ fn main() {
     }
 
     #[test]
+    fn shorten_iterator_chaining_hints_truncated() {
+        check_expect_clear_loc(
+            InlayHintsConfig { chaining_hints: true, max_length: Some(10), ..DISABLED_CONFIG },
+            r#"
+//- minicore: iterators
+use core::iter;
+
+struct MyIter;
+
+impl Iterator for MyIter {
+    type Item = i32;
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(42)
+    }
+}
+
+fn main() {
+    let _x = MyIter.by_ref()
+        .take(5)
+        .by_ref()
+        .take(5)
+        .by_ref();
+}
+"#,
+            expect![[r#"
+                [
+                    (
+                        179..246,
+                        [
+                            "impl ",
+                            InlayHintLabelPart {
+                                text: "Iterator",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                1,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            "<",
+                            InlayHintLabelPart {
+                                text: "Item",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                1,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            " = ",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\ni32\n```",
+                            },
+                            ">",
+                        ],
+                    ),
+                    (
+                        179..229,
+                        [
+                            "impl ",
+                            InlayHintLabelPart {
+                                text: "Iterator",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                1,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            "<",
+                            InlayHintLabelPart {
+                                text: "Item",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                1,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            " = ",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\ni32\n```",
+                            },
+                            ">",
+                        ],
+                    ),
+                    (
+                        179..211,
+                        [
+                            "impl ",
+                            InlayHintLabelPart {
+                                text: "Iterator",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                1,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            "<",
+                            InlayHintLabelPart {
+                                text: "Item",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                1,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            " = ",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\ni32\n```",
+                            },
+                            ">",
+                        ],
+                    ),
+                    (
+                        179..194,
+                        [
+                            "&mut ",
+                            InlayHintLabelPart {
+                                text: "MyIter",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                0,
+                                            ),
+                                            range: 0..0,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                        ],
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
     fn hints_in_attr_call() {
         check_expect(
             TEST_CONFIG,

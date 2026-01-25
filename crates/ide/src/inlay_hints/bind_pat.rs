@@ -183,8 +183,8 @@ mod tests {
     use crate::{ClosureReturnTypeHints, fixture, inlay_hints::InlayHintsConfig};
 
     use crate::inlay_hints::tests::{
-        DISABLED_CONFIG, TEST_CONFIG, check, check_edit, check_expect, check_no_edit,
-        check_with_config,
+        DISABLED_CONFIG, TEST_CONFIG, TEST_CONFIG_WITH_TRUNCATION, check, check_edit, check_expect,
+        check_no_edit, check_with_config,
     };
 
     #[track_caller]
@@ -1381,5 +1381,125 @@ fn f<'a>() {
                 ]
             "#]],
         );
+    }
+
+    #[test]
+    fn hint_truncation_in_type_hint() {
+        check_expect(
+            TEST_CONFIG_WITH_TRUNCATION,
+            r#"
+#[derive(Copy)]
+struct SSSSSSSSS<T: Copy, T2: Copy> {
+    a: T,
+    b: T2,
+}
+
+fn main() {
+    let s1 = SSSSSSSSS { a: 1, b: 2.0 };
+    let s2 = SSSSSSSSS { a: s1, b: s1 };
+    let s3 = SSSSSSSSS { a: s2, b: s2 };
+}
+            "#,
+            expect![[r#"
+                [
+                    (
+                        98..100,
+                        [
+                            InlayHintLabelPart {
+                                text: "SSSSSSSSS",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                0,
+                                            ),
+                                            range: 23..32,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            "<",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\ni32\n```",
+                            },
+                            ", ",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\nf64\n```",
+                            },
+                            ">",
+                        ],
+                    ),
+                    (
+                        139..141,
+                        [
+                            InlayHintLabelPart {
+                                text: "SSSSSSSSS",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                0,
+                                            ),
+                                            range: 23..32,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            "<",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\nSSSSSSSSS<i32, f64>\n```",
+                            },
+                            ", ",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\nSSSSSSSSS<i32, f64>\n```",
+                            },
+                            ">",
+                        ],
+                    ),
+                    (
+                        180..182,
+                        [
+                            InlayHintLabelPart {
+                                text: "SSSSSSSSS",
+                                linked_location: Some(
+                                    Computed(
+                                        FileRangeWrapper {
+                                            file_id: FileId(
+                                                0,
+                                            ),
+                                            range: 23..32,
+                                        },
+                                    ),
+                                ),
+                                tooltip: "",
+                            },
+                            "<",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\nSSSSSSSSS<SSSSSSSSS<i32, f64>, SSSSSSSSS<i32, f64>>\n```",
+                            },
+                            ", ",
+                            InlayHintLabelPart {
+                                text: "…",
+                                linked_location: None,
+                                tooltip: "```rust\nSSSSSSSSS<SSSSSSSSS<i32, f64>, SSSSSSSSS<i32, f64>>\n```",
+                            },
+                            ">",
+                        ],
+                    ),
+                ]
+            "#]],
+        )
     }
 }
