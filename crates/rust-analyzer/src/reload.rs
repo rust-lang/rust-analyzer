@@ -44,11 +44,19 @@ use crate::{
 };
 use tracing::{debug, info};
 
+fn should_warn_missing_workspace(
+    has_projects: bool,
+    has_detached_files: bool,
+    fetch_done_for_current_config: bool,
+) -> bool {
+    fetch_done_for_current_config && !has_projects && !has_detached_files
+}
+
 #[derive(Debug)]
 pub(crate) enum ProjectWorkspaceProgress {
     Begin,
     Report(String),
-    End(Vec<anyhow::Result<ProjectWorkspace>>, bool),
+    End(Vec<anyhow::Result<ProjectWorkspace>>, bool, u64),
 }
 
 #[derive(Debug)]
@@ -91,6 +99,7 @@ impl GlobalState {
 
     pub(crate) fn update_configuration(&mut self, config: Config) {
         let _p = tracing::info_span!("GlobalState::update_configuration").entered();
+        self.config_generation = self.config_generation.wrapping_add(1);
         let old_config = mem::replace(&mut self.config, Arc::new(config));
         if self.config.lru_parse_query_capacity() != old_config.lru_parse_query_capacity() {
             self.analysis_host.update_lru_capacity(self.config.lru_parse_query_capacity());
@@ -103,7 +112,11 @@ impl GlobalState {
 
         if self.config.linked_or_discovered_projects() != old_config.linked_or_discovered_projects()
         {
-            let req = FetchWorkspaceRequest { path: None, force_crate_graph_reload: false };
+            let req = FetchWorkspaceRequest {
+                path: None,
+                force_crate_graph_reload: false,
+                config_generation: self.config_generation,
+            };
             self.fetch_workspaces_queue.request_op("discovered projects changed".to_owned(), req)
         } else if self.config.flycheck(None) != old_config.flycheck(None) {
             self.reload_flycheck();
@@ -119,12 +132,20 @@ impl GlobalState {
         }
 
         if self.config.cargo(None) != old_config.cargo(None) {
-            let req = FetchWorkspaceRequest { path: None, force_crate_graph_reload: false };
+            let req = FetchWorkspaceRequest {
+                path: None,
+                force_crate_graph_reload: false,
+                config_generation: self.config_generation,
+            };
             self.fetch_workspaces_queue.request_op("cargo config changed".to_owned(), req)
         }
 
         if self.config.cfg_set_test(None) != old_config.cfg_set_test(None) {
-            let req = FetchWorkspaceRequest { path: None, force_crate_graph_reload: false };
+            let req = FetchWorkspaceRequest {
+                path: None,
+                force_crate_graph_reload: false,
+                config_generation: self.config_generation,
+            };
             self.fetch_workspaces_queue.request_op("cfg_set_test config changed".to_owned(), req)
         }
     }
@@ -169,9 +190,11 @@ impl GlobalState {
             message.push('\n');
         }
 
-        if self.config.linked_or_discovered_projects().is_empty()
-            && self.config.detached_files().is_empty()
-        {
+        if should_warn_missing_workspace(
+            self.config.linked_or_discovered_projects().is_empty(),
+            self.config.detached_files().is_empty(),
+            self.last_workspace_fetch_generation == Some(self.config_generation),
+        ) {
             status.health |= lsp_ext::Health::Warning;
             message.push_str("Failed to discover workspace.\n");
             message.push_str("Consider adding the `Cargo.toml` of the workspace to the [`linkedProjects`](https://rust-analyzer.github.io/book/configuration.html#linkedProjects) setting.\n\n");
@@ -284,6 +307,7 @@ impl GlobalState {
         cause: Cause,
         path: Option<AbsPathBuf>,
         force_crate_graph_reload: bool,
+        config_generation: u64,
     ) {
         info!(%cause, "will fetch workspaces");
 
@@ -380,6 +404,7 @@ impl GlobalState {
                     .send(Task::FetchWorkspace(ProjectWorkspaceProgress::End(
                         workspaces,
                         force_crate_graph_reload,
+                        config_generation,
                     )))
                     .unwrap();
             }
@@ -472,7 +497,7 @@ impl GlobalState {
         let _p = tracing::info_span!("GlobalState::switch_workspaces").entered();
         tracing::info!(%cause, "will switch workspaces");
 
-        let Some(FetchWorkspaceResponse { workspaces, force_crate_graph_reload }) =
+        let Some(FetchWorkspaceResponse { workspaces, force_crate_graph_reload, .. }) =
             self.fetch_workspaces_queue.last_op_result()
         else {
             return;
@@ -947,6 +972,19 @@ impl GlobalState {
         }
         .into();
         self.flycheck_formatted_commands = vec![];
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_warn_missing_workspace;
+
+    #[test]
+    fn missing_workspace_warning_is_gated_by_fetch_completion() {
+        assert!(!should_warn_missing_workspace(false, false, false));
+        assert!(should_warn_missing_workspace(false, false, true));
+        assert!(!should_warn_missing_workspace(true, false, true));
+        assert!(!should_warn_missing_workspace(false, true, true));
     }
 }
 

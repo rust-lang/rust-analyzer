@@ -52,6 +52,7 @@ use crate::{
 pub(crate) struct FetchWorkspaceRequest {
     pub(crate) path: Option<AbsPathBuf>,
     pub(crate) force_crate_graph_reload: bool,
+    pub(crate) config_generation: u64,
 }
 
 pub(crate) struct FetchWorkspaceResponse {
@@ -102,6 +103,8 @@ pub(crate) struct GlobalState {
     // status
     pub(crate) shutdown_requested: bool,
     pub(crate) last_reported_status: lsp_ext::ServerStatusParams,
+    pub(crate) config_generation: u64,
+    pub(crate) last_workspace_fetch_generation: Option<u64>,
 
     // proc macros
     pub(crate) proc_macro_clients: Arc<[Option<anyhow::Result<ProcMacroClient>>]>,
@@ -277,6 +280,8 @@ impl GlobalState {
                 quiescent: true,
                 message: None,
             },
+            config_generation: 0,
+            last_workspace_fetch_generation: None,
             source_root_config: SourceRootConfig::default(),
             local_roots_parent_map: Arc::new(FxHashMap::default()),
             config_errors: Default::default(),
@@ -721,7 +726,11 @@ impl GlobalState {
 
         self.fetch_ws_receiver = Some((
             crossbeam_channel::after(Duration::from_millis(100)),
-            FetchWorkspaceRequest { path: Some(path), force_crate_graph_reload },
+            FetchWorkspaceRequest {
+                path: Some(path),
+                force_crate_graph_reload,
+                config_generation: self.config_generation,
+            },
         ));
     }
 

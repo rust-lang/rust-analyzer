@@ -183,6 +183,7 @@ pub(crate) fn handle_did_save_text_document(
                     FetchWorkspaceRequest {
                         path: Some(path.to_owned()),
                         force_crate_graph_reload: false,
+                        config_generation: state.config_generation,
                     },
                 );
             } else if state.detached_files.contains(path) {
@@ -191,6 +192,7 @@ pub(crate) fn handle_did_save_text_document(
                     FetchWorkspaceRequest {
                         path: Some(path.to_owned()),
                         force_crate_graph_reload: false,
+                        config_generation: state.config_generation,
                     },
                 );
             }
@@ -278,7 +280,11 @@ pub(crate) fn handle_did_change_workspace_folders(
     if !config.has_linked_projects() && config.detached_files().is_empty() {
         config.rediscover_workspaces();
 
-        let req = FetchWorkspaceRequest { path: None, force_crate_graph_reload: false };
+        let req = FetchWorkspaceRequest {
+            path: None,
+            force_crate_graph_reload: false,
+            config_generation: state.config_generation,
+        };
         state.fetch_workspaces_queue.request_op("client workspaces changed".to_owned(), req);
     }
 
