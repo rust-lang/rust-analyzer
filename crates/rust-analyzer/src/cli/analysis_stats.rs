@@ -1211,6 +1211,7 @@ impl flags::AnalysisStats {
                 &InlayHintsConfig {
                     render_colons: false,
                     type_hints: true,
+                    type_hints_placement: ide::TypeHintsPlacement::Inline,
                     sized_bound: false,
                     discriminant_hints: ide::DiscriminantHints::Always,
                     parameter_hints: true,
