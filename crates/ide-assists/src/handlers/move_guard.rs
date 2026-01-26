@@ -440,6 +440,32 @@ fn main() {
             r#"
 fn main() {
     match 92 {
+        x @ 0..30 if x % 3 == 0 => false,
+        x @ 0..30 $0if x % 2 == 0$0 => true,
+        x @ 0..30 => false,
+        _ => true
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 92 {
+        x @ 0..30 if x % 3 == 0 => false,
+        x @ 0..30 => if x % 2 == 0 {
+            true
+        },
+        x @ 0..30 => false,
+        _ => true
+    }
+}
+"#,
+        );
+
+        check_assist(
+            move_guard_to_arm_body,
+            r#"
+fn main() {
+    match 92 {
         x @ 0..30 $0if x % 3 == 0 => false,
         x @ 0..30 $0if x % 2 == 0 => true,
         x @ 0..30 => false,
