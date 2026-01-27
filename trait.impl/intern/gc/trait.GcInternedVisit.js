@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["hir_ty",[["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/consts/struct.ConstInterned.html\" title=\"struct hir_ty::next_solver::consts::ConstInterned\">ConstInterned</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/consts/struct.ValtreeInterned.html\" title=\"struct hir_ty::next_solver::consts::ValtreeInterned\">ValtreeInterned</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/interner/struct.PatternInterned.html\" title=\"struct hir_ty::next_solver::interner::PatternInterned\">PatternInterned</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/opaques/struct.ExternalConstraintsInterned.html\" title=\"struct hir_ty::next_solver::opaques::ExternalConstraintsInterned\">ExternalConstraintsInterned</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/predicate/struct.ClausesCachedTypeInfo.html\" title=\"struct hir_ty::next_solver::predicate::ClausesCachedTypeInfo\">ClausesCachedTypeInfo</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/predicate/struct.PredicateInterned.html\" title=\"struct hir_ty::next_solver::predicate::PredicateInterned\">PredicateInterned</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/region/struct.RegionInterned.html\" title=\"struct hir_ty::next_solver::region::RegionInterned\">RegionInterned</a>"],["impl GcInternedVisit for <a class=\"struct\" href=\"hir_ty/next_solver/ty/struct.TyInterned.html\" title=\"struct hir_ty::next_solver::ty::TyInterned\">TyInterned</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1610]}

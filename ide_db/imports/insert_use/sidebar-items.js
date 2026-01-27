@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ImportGranularity","ImportGranularityGuess","ImportGroup","ImportScopeKind","PrefixKind"],"fn":["ast_to_remove_for_path_in_use_stmt","guess_granularity_from_scope","insert_use","insert_use_","insert_use_as_alias","insert_use_with_alias_option","is_inner_attribute","remove_path_if_in_use_stmt"],"struct":["ImportScope","InsertUseConfig"]};
