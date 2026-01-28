@@ -18,7 +18,7 @@ use syntax::{
 };
 
 use crate::{
-    Highlight, HlMod, HlTag,
+    Highlight, HighlightConfig, HlMod, HlTag,
     syntax_highlighting::tags::{HlOperator, HlPunct},
 };
 
@@ -28,6 +28,7 @@ pub(super) fn token(
     edition: Edition,
     is_unsafe_node: &impl Fn(AstPtr<Either<ast::Expr, ast::Pat>>) -> bool,
     in_tt: bool,
+    config: &HighlightConfig<'_>,
 ) -> Option<Highlight> {
     if let Some(comment) = ast::Comment::cast(token.clone()) {
         let h = HlTag::Comment;
@@ -52,8 +53,10 @@ pub(super) fn token(
             if in_tt && token.prev_token().is_some_and(|t| t.kind() == T![$]) {
                 // we are likely within a macro definition where our keyword is a fragment name
                 HlTag::None.into()
-            } else {
+            } else if config.keywords {
                 keyword(token, k)
+            } else {
+                HlTag::None.into()
             }
         }
         _ => return None,
