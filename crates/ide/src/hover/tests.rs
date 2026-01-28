@@ -11239,3 +11239,55 @@ impl<T> Foo<i32, u64> for T {
         "#]],
     );
 }
+
+#[test]
+fn hover_recursive_const_fn() {
+    check(
+        r#"
+//- minicore: option
+enum Child {
+    Static { child: &'static Signature },
+}
+
+enum Signature {
+    Unit,
+    Array(Child),
+}
+
+impl Signature {
+    pub const fn static_array(child: &'static Signature) -> Self {
+        Signature::Array(Child::Static { child })
+    }
+}
+
+pub trait Type {
+    const SIGNATURE: &'static Signature;
+}
+
+impl<T> Type for Option<T> where T: Type {
+    const SIGNATURE: &'static Signature = &Signature::static_array(T::SIGNATURE);
+}
+
+impl Type for () {
+    const SIGNATURE: &'static Signature = &Signature::Unit;
+}
+
+pub struct Address;
+
+impl Type for Address {
+    const SIGNATURE$0: &'static Signature = (<Option<()> as Type>::SIGNATURE);
+}
+    "#,
+        expect![[r#"
+            *SIGNATURE*
+
+            ```rust
+            ra_test_fixture::Address
+            ```
+
+            ```rust
+            const SIGNATURE: &'static Signature = &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(Static { child: &Array(<recursion-limit>) }) }) }) }) }) })
+            ```
+        "#]],
+    );
+}
