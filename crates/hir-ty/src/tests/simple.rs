@@ -64,20 +64,37 @@ fn type_alias_in_struct_lit() {
 
 #[test]
 fn infer_ranges() {
-    check_types(
+    check_no_mismatches(
         r#"
-//- minicore: range
-fn test() {
-    let a = ..;
-    let b = 1..;
-    let c = ..2u32;
-    let d = 1..2usize;
-    let e = ..=10;
-    let f = 'a'..='z';
+//- minicore: range, new_range
 
-    let t = (a, b, c, d, e, f);
-    t;
-} //^ (RangeFull, RangeFrom<i32>, RangeTo<u32>, Range<usize>, RangeToInclusive<i32>, RangeInclusive<char>)
+fn test() {
+    let _: core::ops::RangeFull = ..;
+    let _: core::ops::RangeFrom<i32> = 1..;
+    let _: core::ops::RangeTo<u32> = ..2u32;
+    let _: core::ops::Range<usize> = 1..2usize;
+    let _: core::ops::RangeToInclusive<i32> = ..=10;
+    let _: core::ops::RangeInclusive<char> = 'a'..='z';
+}
+"#,
+    );
+}
+
+#[test]
+fn infer_ranges_new_range() {
+    check_no_mismatches(
+        r#"
+//- minicore: range, new_range
+#![feature(new_range)]
+
+fn test() {
+    let _: core::ops::RangeFull = ..;
+    let _: core::range::RangeFrom<i32> = 1..;
+    let _: core::ops::RangeTo<u32> = ..2u32;
+    let _: core::range::Range<usize> = 1..2usize;
+    let _: core::range::RangeToInclusive<i32> = ..=10;
+    let _: core::range::RangeInclusive<char> = 'a'..='z';
+}
 "#,
     );
 }

@@ -532,18 +532,12 @@ impl<'db> SourceAnalyzer<'db> {
         db: &'db dyn HirDatabase,
         range_pat: &ast::RangePat,
     ) -> Option<StructId> {
-        let path: ModPath = match (range_pat.op_kind()?, range_pat.start(), range_pat.end()) {
-            (RangeOp::Exclusive, None, Some(_)) => path![core::ops::RangeTo],
-            (RangeOp::Exclusive, Some(_), None) => path![core::ops::RangeFrom],
-            (RangeOp::Exclusive, Some(_), Some(_)) => path![core::ops::Range],
-            (RangeOp::Inclusive, None, Some(_)) => path![core::ops::RangeToInclusive],
-            (RangeOp::Inclusive, Some(_), Some(_)) => path![core::ops::RangeInclusive],
-
-            (RangeOp::Exclusive, None, None) => return None,
-            (RangeOp::Inclusive, None, None) => return None,
-            (RangeOp::Inclusive, Some(_), None) => return None,
-        };
-        self.resolver.resolve_known_struct(db, &path)
+        self.resolve_range_struct(
+            db,
+            range_pat.op_kind()?,
+            range_pat.start().is_some(),
+            range_pat.end().is_some(),
+        )
     }
 
     pub(crate) fn resolve_range_expr(
@@ -551,19 +545,59 @@ impl<'db> SourceAnalyzer<'db> {
         db: &'db dyn HirDatabase,
         range_expr: &ast::RangeExpr,
     ) -> Option<StructId> {
-        let path: ModPath = match (range_expr.op_kind()?, range_expr.start(), range_expr.end()) {
-            (RangeOp::Exclusive, None, None) => path![core::ops::RangeFull],
-            (RangeOp::Exclusive, None, Some(_)) => path![core::ops::RangeTo],
-            (RangeOp::Exclusive, Some(_), None) => path![core::ops::RangeFrom],
-            (RangeOp::Exclusive, Some(_), Some(_)) => path![core::ops::Range],
-            (RangeOp::Inclusive, None, Some(_)) => path![core::ops::RangeToInclusive],
-            (RangeOp::Inclusive, Some(_), Some(_)) => path![core::ops::RangeInclusive],
+        self.resolve_range_struct(
+            db,
+            range_expr.op_kind()?,
+            range_expr.start().is_some(),
+            range_expr.end().is_some(),
+        )
+    }
 
+    fn resolve_range_struct(
+        &self,
+        db: &'db dyn HirDatabase,
+        op_kind: RangeOp,
+        has_start: bool,
+        has_end: bool,
+    ) -> Option<StructId> {
+        let has_new_range =
+            self.resolver.top_level_def_map().is_unstable_feature_enabled(&sym::new_range);
+        let lang_items = self.lang_items(db);
+        match (op_kind, has_start, has_end) {
+            (RangeOp::Exclusive, false, false) => lang_items.RangeFull,
+            (RangeOp::Exclusive, false, true) => lang_items.RangeTo,
+            (RangeOp::Exclusive, true, false) => {
+                if has_new_range {
+                    lang_items.RangeFromCopy
+                } else {
+                    lang_items.RangeFrom
+                }
+            }
+            (RangeOp::Exclusive, true, true) => {
+                if has_new_range {
+                    lang_items.RangeCopy
+                } else {
+                    lang_items.Range
+                }
+            }
+            (RangeOp::Inclusive, false, true) => {
+                if has_new_range {
+                    lang_items.RangeToInclusiveCopy
+                } else {
+                    lang_items.RangeToInclusive
+                }
+            }
+            (RangeOp::Inclusive, true, true) => {
+                if has_new_range {
+                    lang_items.RangeInclusiveCopy
+                } else {
+                    lang_items.RangeInclusiveStruct
+                }
+            }
             // [E0586] inclusive ranges must be bounded at the end
-            (RangeOp::Inclusive, None, None) => return None,
-            (RangeOp::Inclusive, Some(_), None) => return None,
-        };
-        self.resolver.resolve_known_struct(db, &path)
+            (RangeOp::Inclusive, false, false) => None,
+            (RangeOp::Inclusive, true, false) => None,
+        }
     }
 
     pub(crate) fn resolve_await_to_poll(
