@@ -51,7 +51,7 @@ pub(crate) fn replace_let_with_if_let(acc: &mut Assists, ctx: &AssistContext<'_>
                 original_pat
             } else {
                 let happy_variant = ty
-                    .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted()))
+                    .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted().strip_references()))
                     .map(|it| it.happy_case());
                 match happy_variant {
                     None => original_pat,
@@ -96,6 +96,29 @@ mod tests {
     use crate::tests::check_assist;
 
     use super::*;
+
+    #[test]
+    fn replace_let_try_enum_ref() {
+        check_assist(
+            replace_let_with_if_let,
+            r"
+//- minicore: option
+fn main(action: Action) {
+    $0let x = compute();
+}
+
+fn compute() -> &'static Option<i32> { &None }
+            ",
+            r"
+fn main(action: Action) {
+    if let Some(x) = compute() {
+    }
+}
+
+fn compute() -> &'static Option<i32> { &None }
+            ",
+        )
+    }
 
     #[test]
     fn replace_let_unknown_enum() {
