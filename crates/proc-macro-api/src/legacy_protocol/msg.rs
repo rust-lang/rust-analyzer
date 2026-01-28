@@ -72,7 +72,7 @@ pub enum Response {
 }
 
 /// Configuration settings for the proc-macro-srv.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct ServerConfig {
     /// Defines how span data should be handled.
@@ -80,7 +80,7 @@ pub struct ServerConfig {
 }
 
 /// Represents an extended macro expansion response, including span data mappings.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandMacroExtended {
     /// The expanded syntax tree.
     pub tree: FlatTree,
@@ -89,11 +89,11 @@ pub struct ExpandMacroExtended {
 }
 
 /// Represents an error message when a macro expansion results in a panic.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PanicMessage(pub String);
 
 /// Represents a macro expansion request sent from the client.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandMacro {
     /// The path to the dynamic library containing the macro.
     pub lib: Utf8PathBuf,
@@ -107,7 +107,7 @@ pub struct ExpandMacro {
 }
 
 /// Represents the input data required for expanding a macro.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandMacroData {
     /// Argument of macro call.
     ///
@@ -134,7 +134,7 @@ pub struct ExpandMacroData {
 }
 
 /// Represents global expansion settings, including span resolution.
-#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpnGlobals {
     /// Determines whether to serialize the expansion settings.
     #[serde(skip_serializing)]
