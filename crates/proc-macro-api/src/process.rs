@@ -17,7 +17,7 @@ use span::Span;
 use stdx::JodChild;
 
 use crate::{
-    Codec, ProcMacro, ProcMacroKind, ProtocolFormat, ServerError,
+    ProcMacro, ProcMacroKind, ProtocolFormat, ServerError,
     bidirectional_protocol::{self, SubCallback, msg::BidirectionalMessage, reject_subrequests},
     legacy_protocol::{self, SpanMode},
     version,
@@ -305,17 +305,17 @@ impl ProcMacroServerProcess {
         result
     }
 
-    pub(crate) fn send_task<Request, Response, C: Codec>(
+    pub(crate) fn send_task_legacy<Request, Response>(
         &self,
         send: impl FnOnce(
             &mut dyn Write,
             &mut dyn BufRead,
             Request,
-            &mut C::Buf,
+            &mut String,
         ) -> Result<Option<Response>, ServerError>,
         req: Request,
     ) -> Result<Response, ServerError> {
-        self.with_locked_io::<C, _>(|writer, reader, buf| {
+        self.with_locked_io_legacy::<_>(|writer, reader, buf| {
             send(writer, reader, req, buf).and_then(|res| {
                 res.ok_or_else(|| {
                     let message = "proc-macro server did not respond with data".to_owned();
@@ -331,12 +331,12 @@ impl ProcMacroServerProcess {
         })
     }
 
-    pub(crate) fn with_locked_io<C: Codec, R>(
+    pub(crate) fn with_locked_io_bidirectional<R>(
         &self,
-        f: impl FnOnce(&mut dyn Write, &mut dyn BufRead, &mut C::Buf) -> Result<R, ServerError>,
+        f: impl FnOnce(&mut dyn Write, &mut dyn BufRead, &mut Vec<u8>) -> Result<R, ServerError>,
     ) -> Result<R, ServerError> {
         let state = &mut *self.state.lock().unwrap();
-        let mut buf = C::Buf::default();
+        let mut buf = Vec::default();
 
         f(&mut state.stdin, &mut state.stdout, &mut buf).map_err(|e| {
             if e.io.as_ref().map(|it| it.kind()) == Some(io::ErrorKind::BrokenPipe) {
@@ -352,13 +352,34 @@ impl ProcMacroServerProcess {
         })
     }
 
-    pub(crate) fn run_bidirectional<C: Codec>(
+    pub(crate) fn with_locked_io_legacy<R>(
+        &self,
+        f: impl FnOnce(&mut dyn Write, &mut dyn BufRead, &mut String) -> Result<R, ServerError>,
+    ) -> Result<R, ServerError> {
+        let state = &mut *self.state.lock().unwrap();
+        let mut buf = String::default();
+
+        f(&mut state.stdin, &mut state.stdout, &mut buf).map_err(|e| {
+            if e.io.as_ref().map(|it| it.kind()) == Some(io::ErrorKind::BrokenPipe) {
+                match state.process.exit_err() {
+                    None => e,
+                    Some(server_error) => {
+                        self.exited.get_or_init(|| AssertUnwindSafe(server_error)).0.clone()
+                    }
+                }
+            } else {
+                e
+            }
+        })
+    }
+
+    pub(crate) fn run_bidirectional(
         &self,
         initial: BidirectionalMessage,
         callback: SubCallback<'_>,
     ) -> Result<BidirectionalMessage, ServerError> {
-        self.with_locked_io::<C, _>(|writer, reader, buf| {
-            bidirectional_protocol::run_conversation::<C>(writer, reader, buf, initial, callback)
+        self.with_locked_io_bidirectional::<_>(|writer, reader, buf| {
+            bidirectional_protocol::run_conversation(writer, reader, buf, initial, callback)
         })
     }
 

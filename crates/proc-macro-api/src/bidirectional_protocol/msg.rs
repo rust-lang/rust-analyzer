@@ -1,6 +1,9 @@
 //! Bidirectional protocol messages
 
-use std::ops::Range;
+use std::{
+    io::{self, BufRead, Write},
+    ops::Range,
+};
 
 use paths::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
@@ -8,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ProcMacroKind,
     legacy_protocol::msg::{FlatTree, Message, PanicMessage, ServerConfig},
+    transport::postcard,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,4 +101,17 @@ pub struct ExpnGlobals {
     pub mixed_site: usize,
 }
 
-impl Message for BidirectionalMessage {}
+impl Message for BidirectionalMessage {
+    type Buf = Vec<u8>;
+
+    fn read(inp: &mut dyn BufRead, buf: &mut Self::Buf) -> io::Result<Option<Self>> {
+        Ok(match postcard::read(inp, buf)? {
+            None => None,
+            Some(buf) => Some(postcard::decode(buf)?),
+        })
+    }
+    fn write(self, out: &mut dyn Write) -> io::Result<()> {
+        let value = postcard::encode(&self)?;
+        postcard::write(out, &value)
+    }
+}

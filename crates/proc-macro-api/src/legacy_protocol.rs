@@ -18,8 +18,6 @@ use crate::{
         flat::serialize_span_data_index_map,
     },
     process::ProcMacroServerProcess,
-    transport::codec::Codec,
-    transport::codec::json::JsonProtocol,
     version,
 };
 
@@ -149,21 +147,21 @@ fn send_task(srv: &ProcMacroServerProcess, req: Request) -> Result<Response, Ser
         return Err(server_error.clone());
     }
 
-    srv.send_task::<_, _, JsonProtocol>(send_request::<JsonProtocol>, req)
+    srv.send_task_legacy::<_, _>(send_request, req)
 }
 
 /// Sends a request to the server and reads the response.
-fn send_request<P: Codec>(
+fn send_request(
     mut writer: &mut dyn Write,
     mut reader: &mut dyn BufRead,
     req: Request,
-    buf: &mut P::Buf,
+    buf: &mut String,
 ) -> Result<Option<Response>, ServerError> {
-    req.write::<P>(&mut writer).map_err(|err| ServerError {
+    req.write(&mut writer).map_err(|err| ServerError {
         message: "failed to write request".into(),
         io: Some(Arc::new(err)),
     })?;
-    let res = Response::read::<P>(&mut reader, buf).map_err(|err| ServerError {
+    let res = Response::read(&mut reader, buf).map_err(|err| ServerError {
         message: "failed to read response".into(),
         io: Some(Arc::new(err)),
     })?;

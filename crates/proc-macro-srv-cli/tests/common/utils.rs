@@ -12,7 +12,6 @@ use proc_macro_api::{
         BidirectionalMessage, Request as BiRequest, Response as BiResponse, SubRequest, SubResponse,
     },
     legacy_protocol::msg::{FlatTree, Message, Request, Response, SpanDataIndexMap},
-    transport::codec::{json::JsonProtocol, postcard::PostcardProtocol},
 };
 use span::{Edition, EditionedFileId, FileId, Span, SpanAnchor, SyntaxContext, TextRange};
 use tt::{Delimiter, DelimiterKind, TopSubtreeBuilder};
@@ -210,12 +209,12 @@ impl TestProtocol for JsonLegacy {
     type Response = Response;
 
     fn request(&self, writer: &mut dyn Write, req: Request) {
-        req.write::<JsonProtocol>(writer).expect("failed to write request");
+        req.write(writer).expect("failed to write request");
     }
 
     fn receive(&self, reader: &mut dyn BufRead, _writer: &mut dyn Write) -> Response {
         let mut buf = String::new();
-        Response::read::<JsonProtocol>(reader, &mut buf)
+        Response::read(reader, &mut buf)
             .expect("failed to read response")
             .expect("no response received")
     }
@@ -238,14 +237,14 @@ where
 
     fn request(&self, writer: &mut dyn Write, req: BiRequest) {
         let msg = BidirectionalMessage::Request(req);
-        msg.write::<PostcardProtocol>(writer).expect("failed to write request");
+        msg.write(writer).expect("failed to write request");
     }
 
     fn receive(&self, reader: &mut dyn BufRead, writer: &mut dyn Write) -> BiResponse {
         let mut buf = Vec::new();
 
         loop {
-            let msg = BidirectionalMessage::read::<PostcardProtocol>(reader, &mut buf)
+            let msg = BidirectionalMessage::read(reader, &mut buf)
                 .expect("failed to read message")
                 .expect("no message received");
 
@@ -254,7 +253,7 @@ where
                 BidirectionalMessage::SubRequest(sr) => {
                     let reply = (self.callback)(sr).expect("subrequest callback failed");
                     let msg = BidirectionalMessage::SubResponse(reply);
-                    msg.write::<PostcardProtocol>(writer).expect("failed to write subresponse");
+                    msg.write(writer).expect("failed to write subresponse");
                 }
                 other => panic!("unexpected message: {other:?}"),
             }
