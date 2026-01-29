@@ -128,12 +128,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Sync + Send>> {
         document_formatting_provider: Some(OneOf::Left(true)),
         ..Default::default()
     };
-    let init_value = serde_json::json!({
-        "capabilities": caps,
-        "offsetEncoding": ["utf-8"],
-    });
-
-    let init_params = connection.initialize(init_value)?;
+    let init_params = connection.initialize(serde_json::to_value(caps)?)?;
     main_loop(connection, init_params)?;
     io_thread.join()?;
     log::error!("shutting down server");
