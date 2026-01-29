@@ -101,6 +101,52 @@ fn main() {
 }
 
 #[test]
+fn macro_flyimport_with_bang_typed() {
+    // Regression test for https://github.com/rust-lang/rust-analyzer/issues/20898
+    // When the user has already typed `!`, the import should still be added
+    check(
+        r#"
+//- /lib.rs crate:dep
+#[macro_export]
+macro_rules! macro_with_curlies {
+    () => {}
+}
+
+//- /main.rs crate:main deps:dep
+fn main() {
+    macro_with_curlies!$0
+}
+"#,
+        expect![[r#"
+            ma macro_with_curlies!(…) (use dep::macro_with_curlies) macro_rules! macro_with_curlies
+        "#]],
+    );
+    // Also test that the import is added with check_edit
+    check_edit(
+        "macro_with_curlies!",
+        r#"
+//- /lib.rs crate:dep
+#[macro_export]
+macro_rules! macro_with_curlies {
+    () => {}
+}
+
+//- /main.rs crate:main deps:dep
+fn main() {
+    macro_with_curlies!$0
+}
+"#,
+        r#"
+use dep::macro_with_curlies;
+
+fn main() {
+    macro_with_curlies!($0)
+}
+"#,
+    );
+}
+
+#[test]
 fn struct_fuzzy_completion() {
     check_edit(
         "ThirdStruct",

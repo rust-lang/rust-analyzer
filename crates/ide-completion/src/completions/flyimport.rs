@@ -130,7 +130,15 @@ pub(crate) fn import_on_the_fly_path(
         } => qualified,
         _ => return None,
     };
-    let potential_import_name = import_name(ctx);
+    let mut potential_import_name = import_name(ctx);
+    // When the user has already typed `!` for a macro call (e.g., `warn!`),
+    // the token is `!` which is not an identifier, so we need to extract
+    // the name from the macro call in the original file.
+    if potential_import_name.is_empty() {
+        if let Some(name) = import_name_from_macro_call(ctx) {
+            potential_import_name = name;
+        }
+    }
     let qualifier = match qualified {
         Qualified::With { path, .. } => Some(path.clone()),
         _ => None,
@@ -398,6 +406,21 @@ fn import_name(ctx: &CompletionContext<'_>) -> String {
     let token_kind = ctx.token.kind();
 
     if token_kind.is_any_identifier() { ctx.token.to_string() } else { String::new() }
+}
+
+fn import_name_from_macro_call(ctx: &CompletionContext<'_>) -> Option<String> {
+    // When the user types `macro_name!` and the cursor is right after the `!`,
+    // the token is `!` and its parent is a MACRO_CALL. Extract the macro name
+    // from the macro call's path.
+    use syntax::SyntaxKind;
+    if ctx.token.kind() == SyntaxKind::BANG {
+        let parent = ctx.token.parent()?;
+        if parent.kind() == SyntaxKind::MACRO_CALL {
+            let macro_call = ast::MacroCall::cast(parent)?;
+            return macro_call.path()?.segment()?.name_ref().map(|n| n.to_string());
+        }
+    }
+    None
 }
 
 fn import_assets_for_path<'db>(
