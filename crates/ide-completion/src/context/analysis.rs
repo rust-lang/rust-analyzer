@@ -1250,6 +1250,11 @@ fn classify_name_ref<'db>(
                     let original = ast::Const::cast(name.syntax().parent()?)?;
                     TypeLocation::TypeAscription(TypeAscriptionTarget::Const(original.body()))
                 },
+                ast::Static(it) => {
+                    let name = find_opt_node_in_file(original_file, it.name())?;
+                    let original = ast::Static::cast(name.syntax().parent()?)?;
+                    TypeLocation::TypeAscription(TypeAscriptionTarget::Const(original.body()))
+                },
                 ast::RetType(it) => {
                     it.thin_arrow_token()?;
                     let parent = match ast::Fn::cast(parent.parent()?) {
