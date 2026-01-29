@@ -1145,8 +1145,16 @@ fn fn_arg_type(
         generic_params.extend(ty.generic_params(ctx.db()));
 
         if ty.is_reference() || ty.is_mutable_reference() {
+            let stripped = ty.strip_references();
+            // For closures passed by reference, use the closure type directly since
+            // closures implement Fn traits and are typically passed by value.
+            // This handles cases like `bar(&|x| true)` generating `impl Fn(_) -> bool`
+            // instead of `&impl Fn(_) -> bool`.
+            if stripped.is_closure() {
+                return stripped.display_source_code(ctx.db(), target_module.into(), true).ok();
+            }
             let famous_defs = &FamousDefs(&ctx.sema, ctx.sema.scope(fn_arg.syntax())?.krate());
-            convert_reference_type(ty.strip_references(), ctx.db(), famous_defs)
+            convert_reference_type(stripped, ctx.db(), famous_defs)
                 .map(|conversion| {
                     conversion
                         .convert_type(
@@ -2084,6 +2092,58 @@ fn foo() {
 }
 
 fn bar(closure: impl Fn(i64) -> i64) {
+    ${0:todo!()}
+}
+",
+        )
+    }
+
+    #[test]
+    fn add_function_with_closure_ref_arg() {
+        // Regression test for https://github.com/rust-lang/rust-analyzer/issues/21288
+        // When generating a function with a closure reference argument,
+        // the closure type should be rendered as `impl Fn(_) -> bool` (without the `&`)
+        // since closures implement Fn traits and are typically passed by value.
+        check_assist(
+            generate_function,
+            r"
+fn foo() {
+    $0bar(&|x| true)
+}
+",
+            r"
+fn foo() {
+    bar(&|x| true)
+}
+
+fn bar(arg: impl Fn(_) -> bool) {
+    ${0:todo!()}
+}
+",
+        )
+    }
+
+    #[test]
+    fn add_function_with_closure_mut_ref_arg() {
+        // Regression test for https://github.com/rust-lang/rust-analyzer/issues/21288
+        // Mutable references to closures should also generate the closure type directly.
+        // Note: The closure type (Fn/FnMut/FnOnce) is determined by what the closure captures,
+        // not by how it's passed.
+        check_assist(
+            generate_function,
+            r"
+fn foo() {
+    let mut closure = |x: i32| x + 1;
+    $0bar(&mut closure)
+}
+",
+            r"
+fn foo() {
+    let mut closure = |x: i32| x + 1;
+    bar(&mut closure)
+}
+
+fn bar(closure: impl Fn(i32) -> i32) {
     ${0:todo!()}
 }
 ",
