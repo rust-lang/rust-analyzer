@@ -27,7 +27,6 @@ use semver::Version;
 use span::{ErasedFileAstId, FIXUP_ERASED_FILE_AST_ID_MARKER, Span};
 use std::{fmt, io, sync::Arc, time::SystemTime};
 
-pub use crate::transport::codec::Codec;
 use crate::{
     bidirectional_protocol::SubCallback, pool::ProcMacroServerPool, process::ProcMacroServerProcess,
 };
