@@ -1,3 +1,3 @@
 //! Contains construct for transport of messages.
-pub mod json;
-pub mod postcard;
+pub(crate) mod json;
+pub(crate) mod postcard;

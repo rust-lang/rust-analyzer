@@ -3,7 +3,7 @@ use std::io::{self, BufRead, Write};
 
 use serde::{Serialize, de::DeserializeOwned};
 
-pub fn read<'a, R: BufRead + ?Sized>(
+pub(crate) fn read<'a, R: BufRead + ?Sized>(
     inp: &mut R,
     buf: &'a mut String,
 ) -> io::Result<Option<&'a mut String>> {
@@ -28,18 +28,18 @@ pub fn read<'a, R: BufRead + ?Sized>(
     }
 }
 
-pub fn write<W: Write + ?Sized>(out: &mut W, buf: &String) -> io::Result<()> {
+pub(crate) fn write<W: Write + ?Sized>(out: &mut W, buf: &String) -> io::Result<()> {
     tracing::debug!("> {}", buf);
     out.write_all(buf.as_bytes())?;
     out.write_all(b"\n")?;
     out.flush()
 }
 
-pub fn encode<T: Serialize>(msg: &T) -> io::Result<String> {
+pub(crate) fn encode<T: Serialize>(msg: &T) -> io::Result<String> {
     Ok(serde_json::to_string(msg)?)
 }
 
-pub fn decode<T: DeserializeOwned>(buf: &mut str) -> io::Result<T> {
+pub(crate) fn decode<T: DeserializeOwned>(buf: &mut str) -> io::Result<T> {
     let mut deserializer = serde_json::Deserializer::from_str(buf);
     // Note that some proc-macro generate very deep syntax tree
     // We have to disable the current limit of serde here
