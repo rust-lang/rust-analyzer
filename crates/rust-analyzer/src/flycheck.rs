@@ -410,11 +410,17 @@ struct FlycheckActor {
     diagnostics_received: DiagnosticsReceived,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum DiagnosticsReceived {
-    Yes,
-    No,
-    YesAndClearedForAll,
+    /// We started a flycheck, but we haven't seen any diagnostics yet.
+    NotYet,
+    /// We received a non-zero number of diagnostics from rustc or clippy (via
+    /// cargo or custom check command). This means there were errors or
+    /// warnings.
+    AtLeastOne,
+    /// We received a non-zero number of diagnostics, and the scope is
+    /// workspace, so we've discarded the previous workspace diagnostics.
+    AtLeastOneAndClearedWorkspace,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -511,7 +517,7 @@ impl FlycheckActor {
             command_handle: None,
             command_receiver: None,
             diagnostics_cleared_for: Default::default(),
-            diagnostics_received: DiagnosticsReceived::No,
+            diagnostics_received: DiagnosticsReceived::NotYet,
         }
     }
 
@@ -640,7 +646,7 @@ impl FlycheckActor {
                             error
                         );
                     }
-                    if self.diagnostics_received == DiagnosticsReceived::No {
+                    if self.diagnostics_received == DiagnosticsReceived::NotYet {
                         tracing::trace!(flycheck_id = self.id, "clearing diagnostics");
                         // We finished without receiving any diagnostics.
                         // Clear everything for good measure
@@ -736,8 +742,8 @@ impl FlycheckActor {
                             package_id = package_id.as_ref().map(|it| it.as_str()),
                             "diagnostic received"
                         );
-                        if self.diagnostics_received == DiagnosticsReceived::No {
-                            self.diagnostics_received = DiagnosticsReceived::Yes;
+                        if self.diagnostics_received == DiagnosticsReceived::NotYet {
+                            self.diagnostics_received = DiagnosticsReceived::AtLeastOne;
                         }
                         if let Some(package_id) = &package_id {
                             if self.diagnostics_cleared_for.insert(package_id.clone()) {
@@ -754,9 +760,10 @@ impl FlycheckActor {
                                 });
                             }
                         } else if self.diagnostics_received
-                            != DiagnosticsReceived::YesAndClearedForAll
+                            != DiagnosticsReceived::AtLeastOneAndClearedWorkspace
                         {
-                            self.diagnostics_received = DiagnosticsReceived::YesAndClearedForAll;
+                            self.diagnostics_received =
+                                DiagnosticsReceived::AtLeastOneAndClearedWorkspace;
                             self.send(FlycheckMessage::ClearDiagnostics {
                                 id: self.id,
                                 kind: ClearDiagnosticsKind::All(ClearScope::Workspace),
@@ -792,7 +799,7 @@ impl FlycheckActor {
 
     fn clear_diagnostics_state(&mut self) {
         self.diagnostics_cleared_for.clear();
-        self.diagnostics_received = DiagnosticsReceived::No;
+        self.diagnostics_received = DiagnosticsReceived::NotYet;
     }
 
     fn explicit_check_command(
