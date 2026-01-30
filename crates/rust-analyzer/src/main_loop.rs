@@ -666,31 +666,33 @@ impl GlobalState {
                 move |sender| {
                     // We aren't observing the semantics token cache here
                     let snapshot = AssertUnwindSafe(&snapshot);
-                    let Ok(diags) = std::panic::catch_unwind(|| {
+                    let diags = std::panic::catch_unwind(|| {
                         fetch_native_diagnostics(
                             &snapshot,
                             subscriptions.clone(),
                             slice.clone(),
                             NativeDiagnosticsFetchKind::Syntax,
                         )
-                    }) else {
-                        return;
-                    };
+                    })
+                    .unwrap_or_else(|_| {
+                        subscriptions.iter().map(|&id| (id, Vec::new())).collect::<Vec<_>>()
+                    });
                     sender
                         .send(Task::Diagnostics(DiagnosticsTaskKind::Syntax(generation, diags)))
                         .unwrap();
 
                     if fetch_semantic {
-                        let Ok(diags) = std::panic::catch_unwind(|| {
+                        let diags = std::panic::catch_unwind(|| {
                             fetch_native_diagnostics(
                                 &snapshot,
                                 subscriptions.clone(),
                                 slice.clone(),
                                 NativeDiagnosticsFetchKind::Semantic,
                             )
-                        }) else {
-                            return;
-                        };
+                        })
+                        .unwrap_or_else(|_| {
+                            subscriptions.iter().map(|&id| (id, Vec::new())).collect::<Vec<_>>()
+                        });
                         sender
                             .send(Task::Diagnostics(DiagnosticsTaskKind::Semantic(
                                 generation, diags,
