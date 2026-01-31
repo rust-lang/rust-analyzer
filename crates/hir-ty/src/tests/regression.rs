@@ -2645,3 +2645,32 @@ where
         "#,
     );
 }
+
+#[test]
+fn issue_21560() {
+    check_no_mismatches(
+        r#"
+mod bindings {
+    use super::*;
+    pub type HRESULT = i32;
+}
+use bindings::*;
+
+
+mod error {
+    use super::*;
+    pub fn nonzero_hresult(hr: HRESULT) -> crate::HRESULT {
+        hr
+    }
+}
+pub use error::*;
+
+mod hresult {
+    use super::*;
+    pub struct HRESULT(pub i32);
+}
+pub use hresult::HRESULT;
+
+        "#,
+    );
+}
