@@ -9,7 +9,7 @@ use paths::AbsPath;
 use span::Span;
 
 use crate::{
-    Codec, ProcMacro, ProcMacroKind, ServerError,
+    ProcMacro, ProcMacroKind, ServerError,
     bidirectional_protocol::msg::{
         BidirectionalMessage, ExpandMacro, ExpandMacroData, ExpnGlobals, Request, Response,
         SubRequest, SubResponse,
@@ -22,25 +22,25 @@ use crate::{
         },
     },
     process::ProcMacroServerProcess,
-    transport::codec::postcard::PostcardProtocol,
+    transport::postcard,
 };
 
 pub mod msg;
 
 pub type SubCallback<'a> = &'a dyn Fn(SubRequest) -> Result<SubResponse, ServerError>;
 
-pub fn run_conversation<C: Codec>(
+pub fn run_conversation(
     writer: &mut dyn Write,
     reader: &mut dyn BufRead,
-    buf: &mut C::Buf,
+    buf: &mut Vec<u8>,
     msg: BidirectionalMessage,
     callback: SubCallback<'_>,
 ) -> Result<BidirectionalMessage, ServerError> {
-    let encoded = C::encode(&msg).map_err(wrap_encode)?;
-    C::write(writer, &encoded).map_err(wrap_io("failed to write initial request"))?;
+    let encoded = postcard::encode(&msg).map_err(wrap_encode)?;
+    postcard::write(writer, &encoded).map_err(wrap_io("failed to write initial request"))?;
 
     loop {
-        let maybe_buf = C::read(reader, buf).map_err(wrap_io("failed to read message"))?;
+        let maybe_buf = postcard::read(reader, buf).map_err(wrap_io("failed to read message"))?;
         let Some(b) = maybe_buf else {
             return Err(ServerError {
                 message: "proc-macro server closed the stream".into(),
@@ -48,7 +48,7 @@ pub fn run_conversation<C: Codec>(
             });
         };
 
-        let msg: BidirectionalMessage = C::decode(b).map_err(wrap_decode)?;
+        let msg: BidirectionalMessage = postcard::decode(b).map_err(wrap_decode)?;
 
         match msg {
             BidirectionalMessage::Response(response) => {
@@ -57,8 +57,9 @@ pub fn run_conversation<C: Codec>(
             BidirectionalMessage::SubRequest(sr) => {
                 let resp = callback(sr)?;
                 let reply = BidirectionalMessage::SubResponse(resp);
-                let encoded = C::encode(&reply).map_err(wrap_encode)?;
-                C::write(writer, &encoded).map_err(wrap_io("failed to write sub-response"))?;
+                let encoded = postcard::encode(&reply).map_err(wrap_encode)?;
+                postcard::write(writer, &encoded)
+                    .map_err(wrap_io("failed to write sub-response"))?;
             }
             _ => {
                 return Err(ServerError {
@@ -207,7 +208,7 @@ fn run_request(
     if let Some(err) = srv.exited() {
         return Err(err.clone());
     }
-    srv.run_bidirectional::<PostcardProtocol>(msg, callback)
+    srv.run_bidirectional(msg, callback)
 }
 
 pub fn reject_subrequests(req: SubRequest) -> Result<SubResponse, ServerError> {
