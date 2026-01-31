@@ -27,8 +27,8 @@ use hir_def::{
     resolver::{HasResolver, LifetimeNs, Resolver, TypeNs, ValueNs},
     signatures::{FunctionSignature, TraitFlags, TypeAliasFlags},
     type_ref::{
-        ConstRef, LifetimeRefId, LiteralConstRef, PathId, TraitBoundModifier,
-        TraitRef as HirTraitRef, TypeBound, TypeRef, TypeRefId,
+        ConstRef, LifetimeRefId, PathId, TraitBoundModifier, TraitRef as HirTraitRef, TypeBound,
+        TypeRef, TypeRefId,
     },
 };
 use hir_expand::name::Name;
@@ -281,21 +281,9 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             hir_def::hir::Expr::Path(path) => {
                 self.path_to_const(path).unwrap_or_else(|| unknown_const(const_type))
             }
-            hir_def::hir::Expr::Literal(literal) => intern_const_ref(
-                self.db,
-                &match *literal {
-                    hir_def::hir::Literal::Float(_, _)
-                    | hir_def::hir::Literal::String(_)
-                    | hir_def::hir::Literal::ByteString(_)
-                    | hir_def::hir::Literal::CString(_) => LiteralConstRef::Unknown,
-                    hir_def::hir::Literal::Char(c) => LiteralConstRef::Char(c),
-                    hir_def::hir::Literal::Bool(b) => LiteralConstRef::Bool(b),
-                    hir_def::hir::Literal::Int(val, _) => LiteralConstRef::Int(val),
-                    hir_def::hir::Literal::Uint(val, _) => LiteralConstRef::UInt(val),
-                },
-                const_type,
-                self.resolver.krate(),
-            ),
+            hir_def::hir::Expr::Literal(literal) => {
+                intern_const_ref(self.db, literal, const_type, self.resolver.krate())
+            }
             hir_def::hir::Expr::UnaryOp { expr: inner_expr, op: hir_def::hir::UnaryOp::Neg } => {
                 if let hir_def::hir::Expr::Literal(literal) = &self.store[*inner_expr] {
                     // Only handle negation for signed integers and floats
@@ -304,7 +292,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                             if let Some(negated_literal) = literal.clone().negate() {
                                 intern_const_ref(
                                     self.db,
-                                    &negated_literal.into(),
+                                    &negated_literal,
                                     const_type,
                                     self.resolver.krate(),
                                 )
@@ -862,7 +850,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                                 TermKind::Ty(ty) => {
                                     ty.walk().any(|arg| arg == dummy_self_ty.into())
                                 }
-                                // FIXME(associated_const_equality): We should walk the const instead of not doing anything
+                                // FIXME(mgca): We should walk the const instead of not doing anything
                                 TermKind::Const(_) => false,
                             };
 
@@ -1319,7 +1307,7 @@ fn type_for_struct_constructor(
     db: &dyn HirDatabase,
     def: StructId,
 ) -> Option<StoredEarlyBinder<StoredTy>> {
-    let struct_data = def.fields(db);
+    let struct_data = db.struct_signature(def);
     match struct_data.shape {
         FieldsShape::Record => None,
         FieldsShape::Unit => Some(type_for_adt(db, def.into())),
@@ -1791,6 +1779,13 @@ impl<'db> GenericPredicates {
 
 impl GenericPredicates {
     #[inline]
+    pub(crate) fn from_explicit_own_predicates(
+        predicates: StoredEarlyBinder<StoredClauses>,
+    ) -> Self {
+        Self { predicates, own_predicates_start: 0, is_trait: false, parent_is_trait: false }
+    }
+
+    #[inline]
     pub fn query(db: &dyn HirDatabase, def: GenericDefId) -> &GenericPredicates {
         &Self::query_with_diagnostics(db, def).0
     }
@@ -1848,6 +1843,20 @@ pub(crate) fn trait_environment_for_body_query(
     db.trait_environment(def)
 }
 
+pub(crate) fn param_env_from_predicates<'db>(
+    interner: DbInterner<'db>,
+    predicates: &'db GenericPredicates,
+) -> ParamEnv<'db> {
+    let clauses = rustc_type_ir::elaborate::elaborate(
+        interner,
+        predicates.all_predicates().iter_identity_copied(),
+    );
+    let clauses = Clauses::new_from_iter(interner, clauses);
+
+    // FIXME: We should normalize projections here, like rustc does.
+    ParamEnv { clauses }
+}
+
 pub(crate) fn trait_environment<'db>(db: &'db dyn HirDatabase, def: GenericDefId) -> ParamEnv<'db> {
     return ParamEnv { clauses: trait_environment_query(db, def).as_ref() };
 
@@ -1858,13 +1867,8 @@ pub(crate) fn trait_environment<'db>(db: &'db dyn HirDatabase, def: GenericDefId
     ) -> StoredClauses {
         let module = def.module(db);
         let interner = DbInterner::new_with(db, module.krate(db));
-        let predicates = GenericPredicates::query_all(db, def);
-        let clauses =
-            rustc_type_ir::elaborate::elaborate(interner, predicates.iter_identity_copied());
-        let clauses = Clauses::new_from_iter(interner, clauses);
-
-        // FIXME: We should normalize projections here, like rustc does.
-        clauses.store()
+        let predicates = GenericPredicates::query(db, def);
+        param_env_from_predicates(interner, predicates).clauses.store()
     }
 }
 

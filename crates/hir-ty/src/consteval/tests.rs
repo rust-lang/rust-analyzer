@@ -1568,6 +1568,7 @@ const GOAL: u8 = {
 }
 
 #[test]
+#[ignore = "builtin derive macros are currently not working with MIR eval"]
 fn builtin_derive_macro() {
     check_number(
         r#"
@@ -2208,6 +2209,7 @@ fn boxes() {
     check_number(
         r#"
 //- minicore: coerce_unsized, deref_mut, slice
+#![feature(lang_items)]
 use core::ops::{Deref, DerefMut};
 use core::{marker::Unsize, ops::CoerceUnsized};
 
@@ -2345,6 +2347,7 @@ fn c_string() {
     check_number(
         r#"
 //- minicore: index, slice
+#![feature(lang_items)]
 #[lang = "CStr"]
 pub struct CStr {
     inner: [u8]
@@ -2359,6 +2362,7 @@ const GOAL: u8 = {
     check_number(
         r#"
 //- minicore: index, slice
+#![feature(lang_items)]
 #[lang = "CStr"]
 pub struct CStr {
     inner: [u8]

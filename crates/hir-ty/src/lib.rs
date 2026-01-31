@@ -25,6 +25,7 @@ extern crate ra_ap_rustc_next_trait_solver as rustc_next_trait_solver;
 
 extern crate self as hir_ty;
 
+pub mod builtin_derive;
 mod infer;
 mod inhabitedness;
 mod lower;
@@ -49,6 +50,7 @@ pub mod method_resolution;
 pub mod mir;
 pub mod primitive;
 pub mod traits;
+pub mod upvars;
 
 #[cfg(test)]
 mod test_db;
@@ -228,6 +230,7 @@ pub enum FnAbi {
     Win64,
     Win64Unwind,
     X86Interrupt,
+    RustPreserveNone,
     Unknown,
 }
 
@@ -269,6 +272,7 @@ impl FnAbi {
             s if *s == sym::riscv_dash_interrupt_dash_s => FnAbi::RiscvInterruptS,
             s if *s == sym::rust_dash_call => FnAbi::RustCall,
             s if *s == sym::rust_dash_cold => FnAbi::RustCold,
+            s if *s == sym::rust_dash_preserve_dash_none => FnAbi::RustPreserveNone,
             s if *s == sym::rust_dash_intrinsic => FnAbi::RustIntrinsic,
             s if *s == sym::Rust => FnAbi::Rust,
             s if *s == sym::stdcall_dash_unwind => FnAbi::StdcallUnwind,
@@ -312,6 +316,7 @@ impl FnAbi {
             FnAbi::Rust => "Rust",
             FnAbi::RustCall => "rust-call",
             FnAbi::RustCold => "rust-cold",
+            FnAbi::RustPreserveNone => "rust-preserve-none",
             FnAbi::RustIntrinsic => "rust-intrinsic",
             FnAbi::Stdcall => "stdcall",
             FnAbi::StdcallUnwind => "stdcall-unwind",

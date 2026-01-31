@@ -5,8 +5,8 @@ use std::{
 
 use either::Either;
 use hir::{
-    ClosureStyle, DisplayTarget, EditionedFileId, HasVisibility, HirDisplay, HirDisplayError,
-    HirWrite, InRealFile, ModuleDef, ModuleDefId, Semantics, sym,
+    ClosureStyle, DisplayTarget, EditionedFileId, GenericParam, GenericParamId, HasVisibility,
+    HirDisplay, HirDisplayError, HirWrite, InRealFile, ModuleDef, ModuleDefId, Semantics, sym,
 };
 use ide_db::{
     FileRange, MiniCore, RootDatabase, famous_defs::FamousDefs, text_edit::TextEditBuilder,
@@ -709,6 +709,21 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
         });
     }
 
+    fn start_location_link_generic(&mut self, def: GenericParamId) {
+        never!(self.location.is_some(), "location link is already started");
+        self.make_new_part();
+
+        self.location = Some(if self.resolve {
+            LazyProperty::Lazy
+        } else {
+            LazyProperty::Computed({
+                let Some(location) = GenericParam::from(def).try_to_nav(self.sema) else { return };
+                let location = location.call_site();
+                FileRange { file_id: location.file_id, range: location.focus_or_full_range() }
+            })
+        });
+    }
+
     fn end_location_link(&mut self) {
         self.make_new_part();
     }
@@ -767,14 +782,30 @@ fn label_of_ty(
                     )
                 });
 
+                let module_def_location = |label_builder: &mut InlayHintLabelBuilder<'_>,
+                                           def: ModuleDef,
+                                           name| {
+                    let def = def.try_into();
+                    if let Ok(def) = def {
+                        label_builder.start_location_link(def);
+                    }
+                    #[expect(
+                        clippy::question_mark,
+                        reason = "false positive; replacing with `?` leads to 'type annotations needed' error"
+                    )]
+                    if let Err(err) = label_builder.write_str(name) {
+                        return Err(err);
+                    }
+                    if def.is_ok() {
+                        label_builder.end_location_link();
+                    }
+                    Ok(())
+                };
+
                 label_builder.write_str(LABEL_START)?;
-                label_builder.start_location_link(ModuleDef::from(iter_trait).into());
-                label_builder.write_str(LABEL_ITERATOR)?;
-                label_builder.end_location_link();
+                module_def_location(label_builder, ModuleDef::from(iter_trait), LABEL_ITERATOR)?;
                 label_builder.write_str(LABEL_MIDDLE)?;
-                label_builder.start_location_link(ModuleDef::from(item).into());
-                label_builder.write_str(LABEL_ITEM)?;
-                label_builder.end_location_link();
+                module_def_location(label_builder, ModuleDef::from(item), LABEL_ITEM)?;
                 label_builder.write_str(LABEL_MIDDLE2)?;
                 rec(sema, famous_defs, max_length, &ty, label_builder, config, display_target)?;
                 label_builder.write_str(LABEL_END)?;

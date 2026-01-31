@@ -79,6 +79,7 @@ fn macro_fuzzy_completion() {
         r#"
 //- /lib.rs crate:dep
 /// Please call me as macro_with_curlies! {}
+#[rust_analyzer::macro_style(braces)]
 #[macro_export]
 macro_rules! macro_with_curlies {
     () => {}
@@ -780,8 +781,8 @@ fn main() {
 }
 "#,
         expect![[r#"
-            fn weird_function() (use dep::test_mod::TestTrait)      fn() DEPRECATED
             ct SPECIAL_CONST (use dep::test_mod::TestTrait)           u8 DEPRECATED
+            fn weird_function() (use dep::test_mod::TestTrait)      fn() DEPRECATED
             me random_method(…) (use dep::test_mod::TestTrait) fn(&self) DEPRECATED
         "#]],
     );
