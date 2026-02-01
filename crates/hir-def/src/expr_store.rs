@@ -474,8 +474,8 @@ impl ExpressionStore {
         match expr_only.binding_owners.get(&binding) {
             Some(it) => {
                 // We assign expression ids in a way that outer closures will receive
-                // a lower id
-                it.into_raw() < relative_to.into_raw()
+                // a higher id (allocated after their body is collected)
+                it.into_raw() > relative_to.into_raw()
             }
             None => true,
         }
