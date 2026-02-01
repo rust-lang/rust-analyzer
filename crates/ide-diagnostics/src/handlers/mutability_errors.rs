@@ -1,5 +1,3 @@
-#![expect(unused, reason = "diagnostics is temporarily disabled due to too many false positives")]
-
 use hir::db::ExpandDatabase;
 use ide_db::source_change::SourceChange;
 use ide_db::text_edit::TextEdit;
@@ -90,17 +88,16 @@ pub(crate) fn unused_mut(ctx: &DiagnosticsContext<'_>, d: &hir::UnusedMut) -> Op
         )])
     })();
     let ast = d.local.primary_source(ctx.sema.db).syntax_ptr();
-    // Some(
-    //     Diagnostic::new_with_syntax_node_ptr(
-    //         ctx,
-    //         DiagnosticCode::RustcLint("unused_mut"),
-    //         "variable does not need to be mutable",
-    //         ast,
-    //     )
-    //     // Not supporting `#[allow(unused_mut)]` in proc macros leads to false positive, hence not stable.
-    //     .with_fixes(fixes),
-    // )
-    None
+    Some(
+        Diagnostic::new_with_syntax_node_ptr(
+            ctx,
+            DiagnosticCode::RustcLint("unused_mut"),
+            "variable does not need to be mutable",
+            ast,
+        )
+        // Not supporting `#[allow(unused_mut)]` in proc macros leads to false positive, hence not stable.
+        .with_fixes(fixes),
+    )
 }
 
 pub(super) fn token(parent: &SyntaxNode, kind: SyntaxKind) -> Option<SyntaxToken> {
@@ -108,7 +105,6 @@ pub(super) fn token(parent: &SyntaxNode, kind: SyntaxKind) -> Option<SyntaxToken
 }
 
 #[cfg(test)]
-#[cfg(false)] // Diagnostic temporarily disabled
 mod tests {
     use crate::tests::{check_diagnostics, check_diagnostics_with_disabled, check_fix};
 
@@ -999,10 +995,6 @@ fn fn_once(mut x: impl FnOnce(u8) -> u8) -> u8 {
         }
                     "#,
         );
-        // FIXME: There should be no "unused variable" here, and there should be a mutability error,
-        // but our MIR infra is horribly broken and due to the order in which expressions are lowered
-        // there is no `StorageLive` for `x` in the closure (in fact, `x` should not even be a variable
-        // of the closure, the environment should be, but as I said, our MIR infra is horribly broken).
         check_diagnostics(
             r#"
 //- minicore: copy, fn
@@ -1011,8 +1003,8 @@ fn f() {
         || {
             || {
                 let x = 2;
-                 // ^ 💡 warn: unused variable
                 || { || { x = 5; } }
+                        //^^^^^ 💡 error: cannot mutate immutable variable `x`
             }
         }
     };
