@@ -3,6 +3,7 @@ use proc_macro_api::{
     ProtocolFormat, bidirectional_protocol::msg as bidirectional, legacy_protocol::msg as legacy,
     version::CURRENT_API_VERSION,
 };
+use std::panic::{panic_any, resume_unwind};
 use std::{
     io::{self, BufRead, Write},
     ops::Range,
@@ -10,7 +11,7 @@ use std::{
 
 use legacy::Message;
 
-use proc_macro_srv::{EnvSnapshot, SpanId};
+use proc_macro_srv::{EnvSnapshot, ProcMacroClientError, ProcMacroPanicMarker, SpanId};
 
 struct SpanTrans;
 
@@ -172,16 +173,43 @@ impl<'a> ProcMacroClientHandle<'a> {
     fn roundtrip(
         &mut self,
         req: bidirectional::SubRequest,
-    ) -> Option<bidirectional::BidirectionalMessage> {
+    ) -> Result<bidirectional::SubResponse, ProcMacroClientError> {
         let msg = bidirectional::BidirectionalMessage::SubRequest(req);
 
-        if msg.write(&mut *self.stdout).is_err() {
-            return None;
-        }
+        msg.write(&mut *self.stdout).map_err(ProcMacroClientError::Io)?;
 
-        match bidirectional::BidirectionalMessage::read(&mut *self.stdin, self.buf) {
-            Ok(Some(msg)) => Some(msg),
-            _ => None,
+        let msg = bidirectional::BidirectionalMessage::read(&mut *self.stdin, self.buf)
+            .map_err(ProcMacroClientError::Io)?
+            .ok_or(ProcMacroClientError::Eof)?;
+
+        match msg {
+            bidirectional::BidirectionalMessage::SubResponse(resp) => match resp {
+                bidirectional::SubResponse::Cancel { reason } => {
+                    Err(ProcMacroClientError::Cancelled { reason })
+                }
+                other => Ok(other),
+            },
+            other => {
+                Err(ProcMacroClientError::Protocol(format!("expected SubResponse, got {other:?}")))
+            }
+        }
+    }
+}
+
+fn handle_failure(failure: Result<bidirectional::SubResponse, ProcMacroClientError>) -> ! {
+    match failure {
+        Err(ProcMacroClientError::Cancelled { reason }) => {
+            resume_unwind(Box::new(ProcMacroPanicMarker::Cancelled { reason }));
+        }
+        Err(err) => {
+            panic_any(ProcMacroPanicMarker::Internal {
+                reason: format!("proc-macro IPC error: {err:?}"),
+            });
+        }
+        Ok(other) => {
+            panic_any(ProcMacroPanicMarker::Internal {
+                reason: format!("unexpected SubResponse {other:?}"),
+            });
         }
     }
 }
@@ -189,10 +217,8 @@ impl<'a> ProcMacroClientHandle<'a> {
 impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
     fn file(&mut self, file_id: proc_macro_srv::span::FileId) -> String {
         match self.roundtrip(bidirectional::SubRequest::FilePath { file_id: file_id.index() }) {
-            Some(bidirectional::BidirectionalMessage::SubResponse(
-                bidirectional::SubResponse::FilePathResult { name },
-            )) => name,
-            _ => String::new(),
+            Ok(bidirectional::SubResponse::FilePathResult { name }) => name,
+            other => handle_failure(other),
         }
     }
 
@@ -206,20 +232,16 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
             start: range.start().into(),
             end: range.end().into(),
         }) {
-            Some(bidirectional::BidirectionalMessage::SubResponse(
-                bidirectional::SubResponse::SourceTextResult { text },
-            )) => text,
-            _ => None,
+            Ok(bidirectional::SubResponse::SourceTextResult { text }) => text,
+            other => handle_failure(other),
         }
     }
 
     fn local_file(&mut self, file_id: proc_macro_srv::span::FileId) -> Option<String> {
         match self.roundtrip(bidirectional::SubRequest::LocalFilePath { file_id: file_id.index() })
         {
-            Some(bidirectional::BidirectionalMessage::SubResponse(
-                bidirectional::SubResponse::LocalFilePathResult { name },
-            )) => name,
-            _ => None,
+            Ok(bidirectional::SubResponse::LocalFilePathResult { name }) => name,
+            other => handle_failure(other),
         }
     }
 
@@ -230,10 +252,10 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
             ast_id: anchor.ast_id.into_raw(),
             offset: range.start().into(),
         }) {
-            Some(bidirectional::BidirectionalMessage::SubResponse(
-                bidirectional::SubResponse::LineColumnResult { line, column },
-            )) => Some((line, column)),
-            _ => None,
+            Ok(bidirectional::SubResponse::LineColumnResult { line, column }) => {
+                Some((line, column))
+            }
+            other => handle_failure(other),
         }
     }
 
@@ -247,10 +269,8 @@ impl proc_macro_srv::ProcMacroClientInterface for ProcMacroClientHandle<'_> {
             start: range.start().into(),
             end: range.end().into(),
         }) {
-            Some(bidirectional::BidirectionalMessage::SubResponse(
-                bidirectional::SubResponse::ByteRangeResult { range },
-            )) => range,
-            _ => Range { start: range.start().into(), end: range.end().into() },
+            Ok(bidirectional::SubResponse::ByteRangeResult { range }) => range,
+            other => handle_failure(other),
         }
     }
 }

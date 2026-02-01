@@ -96,6 +96,20 @@ impl<'env> ProcMacroSrv<'env> {
     }
 }
 
+#[derive(Debug)]
+pub enum ProcMacroClientError {
+    Cancelled { reason: String },
+    Io(std::io::Error),
+    Protocol(String),
+    Eof,
+}
+
+#[derive(Debug)]
+pub enum ProcMacroPanicMarker {
+    Cancelled { reason: String },
+    Internal { reason: String },
+}
+
 pub type ProcMacroClientHandle<'a> = &'a mut (dyn ProcMacroClientInterface + Sync + Send);
 
 pub trait ProcMacroClientInterface {
@@ -110,6 +124,22 @@ pub trait ProcMacroClientInterface {
 
 const EXPANDER_STACK_SIZE: usize = 8 * 1024 * 1024;
 
+pub enum ExpandError {
+    Panic(PanicMessage),
+    Cancelled { reason: Option<String> },
+    Internal { reason: Option<String> },
+}
+
+impl ExpandError {
+    pub fn into_string(self) -> Option<String> {
+        match self {
+            ExpandError::Panic(panic_message) => panic_message.into_string(),
+            ExpandError::Cancelled { reason } => reason,
+            ExpandError::Internal { reason } => reason,
+        }
+    }
+}
+
 impl ProcMacroSrv<'_> {
     pub fn expand<S: ProcMacroSrvSpan>(
         &self,
@@ -123,10 +153,10 @@ impl ProcMacroSrv<'_> {
         call_site: S,
         mixed_site: S,
         callback: Option<ProcMacroClientHandle<'_>>,
-    ) -> Result<token_stream::TokenStream<S>, PanicMessage> {
+    ) -> Result<token_stream::TokenStream<S>, ExpandError> {
         let snapped_env = self.env;
-        let expander = self.expander(lib.as_ref()).map_err(|err| PanicMessage {
-            message: Some(format!("failed to load macro: {err}")),
+        let expander = self.expander(lib.as_ref()).map_err(|err| ExpandError::Internal {
+            reason: Some(format!("failed to load macro: {err}")),
         })?;
 
         let prev_env = EnvChange::apply(snapped_env, env, current_dir.as_ref().map(<_>::as_ref));
@@ -144,8 +174,22 @@ impl ProcMacroSrv<'_> {
                     )
                 });
             match thread.unwrap().join() {
-                Ok(res) => res,
-                Err(e) => std::panic::resume_unwind(e),
+                Ok(res) => res.map_err(ExpandError::Panic),
+
+                Err(payload) => {
+                    if let Some(marker) = payload.downcast_ref::<ProcMacroPanicMarker>() {
+                        return match marker {
+                            ProcMacroPanicMarker::Cancelled { reason } => {
+                                Err(ExpandError::Cancelled { reason: Some(reason.clone()) })
+                            }
+                            ProcMacroPanicMarker::Internal { reason } => {
+                                Err(ExpandError::Internal { reason: Some(reason.clone()) })
+                            }
+                        };
+                    }
+
+                    std::panic::resume_unwind(payload)
+                }
             }
         });
         prev_env.rollback();

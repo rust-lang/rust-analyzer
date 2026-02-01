@@ -42,6 +42,9 @@ pub enum SubResponse {
     ByteRangeResult {
         range: Range<usize>,
     },
+    Cancel {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
