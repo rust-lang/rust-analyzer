@@ -740,42 +740,70 @@ impl FlycheckActor {
                             flycheck_id = self.id,
                             message = diagnostic.message,
                             package_id = package_id.as_ref().map(|it| it.as_str()),
+                            scope = ?self.scope,
                             "diagnostic received"
                         );
-                        if self.diagnostics_received == DiagnosticsReceived::NotYet {
-                            self.diagnostics_received = DiagnosticsReceived::AtLeastOne;
-                        }
-                        if let Some(package_id) = &package_id {
-                            if self.diagnostics_cleared_for.insert(package_id.clone()) {
-                                tracing::trace!(
-                                    flycheck_id = self.id,
-                                    package_id = package_id.as_str(),
-                                    "clearing diagnostics"
-                                );
-                                self.send(FlycheckMessage::ClearDiagnostics {
+
+                        match &self.scope {
+                            FlycheckScope::Workspace => {
+                                if self.diagnostics_received == DiagnosticsReceived::NotYet {
+                                    self.send(FlycheckMessage::ClearDiagnostics {
+                                        id: self.id,
+                                        kind: ClearDiagnosticsKind::All(ClearScope::Workspace),
+                                    });
+
+                                    self.diagnostics_received =
+                                        DiagnosticsReceived::AtLeastOneAndClearedWorkspace;
+                                }
+
+                                if let Some(package_id) = package_id {
+                                    tracing::warn!(
+                                        "Ignoring package label {:?} and applying diagnostics to the whole workspace",
+                                        package_id
+                                    );
+                                }
+
+                                self.send(FlycheckMessage::AddDiagnostic {
                                     id: self.id,
-                                    kind: ClearDiagnosticsKind::All(ClearScope::Package(
-                                        package_id.clone(),
-                                    )),
+                                    generation: self.generation,
+                                    package_id: None,
+                                    workspace_root: self.root.clone(),
+                                    diagnostic,
                                 });
                             }
-                        } else if self.diagnostics_received
-                            != DiagnosticsReceived::AtLeastOneAndClearedWorkspace
-                        {
-                            self.diagnostics_received =
-                                DiagnosticsReceived::AtLeastOneAndClearedWorkspace;
-                            self.send(FlycheckMessage::ClearDiagnostics {
-                                id: self.id,
-                                kind: ClearDiagnosticsKind::All(ClearScope::Workspace),
-                            });
+                            FlycheckScope::Package { package: flycheck_package, .. } => {
+                                if self.diagnostics_received == DiagnosticsReceived::NotYet {
+                                    self.diagnostics_received = DiagnosticsReceived::AtLeastOne;
+                                }
+
+                                // If the package has been set in the diagnostic JSON, respect that. Otherwise, use the
+                                // package that the current flycheck is scoped to. This is useful when a project is
+                                // directly using rustc for its checks (e.g. custom check commands in rust-project.json).
+                                let package_id = package_id.unwrap_or(flycheck_package.clone());
+
+                                if self.diagnostics_cleared_for.insert(package_id.clone()) {
+                                    tracing::trace!(
+                                        flycheck_id = self.id,
+                                        package_id = package_id.as_str(),
+                                        "clearing diagnostics"
+                                    );
+                                    self.send(FlycheckMessage::ClearDiagnostics {
+                                        id: self.id,
+                                        kind: ClearDiagnosticsKind::All(ClearScope::Package(
+                                            package_id.clone(),
+                                        )),
+                                    });
+                                }
+
+                                self.send(FlycheckMessage::AddDiagnostic {
+                                    id: self.id,
+                                    generation: self.generation,
+                                    package_id: Some(package_id),
+                                    workspace_root: self.root.clone(),
+                                    diagnostic,
+                                });
+                            }
                         }
-                        self.send(FlycheckMessage::AddDiagnostic {
-                            id: self.id,
-                            generation: self.generation,
-                            package_id,
-                            workspace_root: self.root.clone(),
-                            diagnostic,
-                        });
                     }
                 },
             }
