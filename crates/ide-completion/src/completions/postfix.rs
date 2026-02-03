@@ -151,6 +151,10 @@ pub(crate) fn complete_postfix(
                     .add_to(acc, ctx.db);
                 }
             },
+            _ if is_in_cond => {
+                postfix_snippet("let", "let", &format!("let $1 = {receiver_text}"))
+                    .add_to(acc, ctx.db);
+            }
             _ if matches!(second_ancestor.kind(), STMT_LIST | EXPR_STMT) => {
                 postfix_snippet("let", "let", &format!("let $0 = {receiver_text};"))
                     .add_to(acc, ctx.db);
@@ -739,6 +743,25 @@ fn main() {
 fn main() {
     let bar = Some(true);
     if true && true && let Some(${0:bar}) = bar
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn iflet_fallback_cond() {
+        check_edit(
+            "let",
+            r#"
+fn main() {
+    let bar = 2;
+    if bar.$0
+}
+"#,
+            r#"
+fn main() {
+    let bar = 2;
+    if let $1 = bar
 }
 "#,
         );
