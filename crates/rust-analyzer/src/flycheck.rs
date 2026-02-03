@@ -22,7 +22,6 @@ use serde_derive::Deserialize;
 pub(crate) use cargo_metadata::diagnostic::{
     Applicability, Diagnostic, DiagnosticCode, DiagnosticLevel, DiagnosticSpan,
 };
-use toolchain::DISPLAY_COMMAND_IGNORE_ENVS;
 use toolchain::Tool;
 use triomphe::Arc;
 
@@ -144,6 +143,7 @@ impl FlycheckConfig {
 }
 
 impl fmt::Display for FlycheckConfig {
+    /// Show a shortened version of the check command.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FlycheckConfig::Automatic { cargo_options, .. } => {
@@ -153,12 +153,23 @@ impl fmt::Display for FlycheckConfig {
                 // Don't show `my_custom_check --foo $saved_file` literally to the user, as it
                 // looks like we've forgotten to substitute $saved_file.
                 //
+                // `my_custom_check --foo /home/user/project/src/dir/foo.rs` is too verbose.
+                //
                 // Instead, show `my_custom_check --foo ...`. The
                 // actual path is often too long to be worth showing
                 // in the IDE (e.g. in the VS Code status bar).
                 let display_args = args
                     .iter()
-                    .map(|arg| if arg == SAVED_FILE_PLACEHOLDER_DOLLAR { "..." } else { arg })
+                    .map(|arg| {
+                        if (arg == SAVED_FILE_PLACEHOLDER_DOLLAR)
+                            || (arg == SAVED_FILE_INLINE)
+                            || arg.ends_with(".rs")
+                        {
+                            "..."
+                        } else {
+                            arg
+                        }
+                    })
                     .collect::<Vec<_>>();
 
                 write!(f, "{command} {}", display_args.join(" "))
@@ -563,17 +574,7 @@ impl FlycheckActor {
                     };
 
                     let debug_command = format!("{command:?}");
-                    let user_facing_command = match origin {
-                        // Don't show all the --format=json-with-blah-blah args, just the simple
-                        // version
-                        FlycheckCommandOrigin::Cargo => self.config.to_string(),
-                        // show them the full command but pretty printed. advanced user
-                        FlycheckCommandOrigin::ProjectJsonRunnable
-                        | FlycheckCommandOrigin::CheckOverrideCommand => display_command(
-                            &command,
-                            Some(std::path::Path::new(self.root.as_path())),
-                        ),
-                    };
+                    let user_facing_command = self.config.to_string();
 
                     tracing::debug!(?origin, ?command, "will restart flycheck");
                     let (sender, receiver) = unbounded();
@@ -993,63 +994,13 @@ enum JsonMessage {
     Rustc(Diagnostic),
 }
 
-/// Not good enough to execute in a shell, but good enough to show the user without all the noisy
-/// quotes
-///
-/// Pass implicit_cwd if there is one regarded as the obvious by the user, so we can skip showing it.
-/// Compactness is the aim of the game, the output typically gets truncated quite a lot.
-fn display_command(c: &Command, implicit_cwd: Option<&std::path::Path>) -> String {
-    let mut o = String::new();
-    use std::fmt::Write;
-    let lossy = std::ffi::OsStr::to_string_lossy;
-    if let Some(dir) = c.get_current_dir() {
-        if Some(dir) == implicit_cwd.map(std::path::Path::new) {
-            // pass
-        } else if dir.to_string_lossy().contains(" ") {
-            write!(o, "cd {:?} && ", dir).unwrap();
-        } else {
-            write!(o, "cd {} && ", dir.display()).unwrap();
-        }
-    }
-    for (env, val) in c.get_envs() {
-        let (env, val) = (lossy(env), val.map(lossy).unwrap_or(std::borrow::Cow::Borrowed("")));
-        if DISPLAY_COMMAND_IGNORE_ENVS.contains(&env.as_ref()) {
-            continue;
-        }
-        if env.contains(" ") {
-            write!(o, "\"{}={}\" ", env, val).unwrap();
-        } else if val.contains(" ") {
-            write!(o, "{}=\"{}\" ", env, val).unwrap();
-        } else {
-            write!(o, "{}={} ", env, val).unwrap();
-        }
-    }
-    let prog = lossy(c.get_program());
-    if prog.contains(" ") {
-        write!(o, "{:?}", prog).unwrap();
-    } else {
-        write!(o, "{}", prog).unwrap();
-    }
-    for arg in c.get_args() {
-        let arg = lossy(arg);
-        if arg.contains(" ") {
-            write!(o, " \"{}\"", arg).unwrap();
-        } else {
-            write!(o, " {}", arg).unwrap();
-        }
-    }
-    o
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     use ide_db::FxHashMap;
     use itertools::Itertools;
     use paths::Utf8Path;
     use project_model::project_json;
-
-    use crate::flycheck::Substitutions;
-    use crate::flycheck::display_command;
 
     #[test]
     fn test_substitutions() {
@@ -1139,34 +1090,47 @@ mod tests {
     }
 
     #[test]
-    fn test_display_command() {
-        use std::path::Path;
-        let workdir = Path::new("workdir");
-        let mut cmd = toolchain::command("command", workdir, &FxHashMap::default());
-        assert_eq!(display_command(cmd.arg("--arg"), Some(workdir)), "command --arg");
-        assert_eq!(
-            display_command(cmd.arg("spaced arg"), Some(workdir)),
-            "command --arg \"spaced arg\""
-        );
-        assert_eq!(
-            display_command(cmd.env("ENVIRON", "yeah"), Some(workdir)),
-            "ENVIRON=yeah command --arg \"spaced arg\""
-        );
-        assert_eq!(
-            display_command(cmd.env("OTHER", "spaced env"), Some(workdir)),
-            "ENVIRON=yeah OTHER=\"spaced env\" command --arg \"spaced arg\""
-        );
-        assert_eq!(
-            display_command(cmd.current_dir("/tmp"), Some(workdir)),
-            "cd /tmp && ENVIRON=yeah OTHER=\"spaced env\" command --arg \"spaced arg\""
-        );
-        assert_eq!(
-            display_command(cmd.current_dir("/tmp and/thing"), Some(workdir)),
-            "cd \"/tmp and/thing\" && ENVIRON=yeah OTHER=\"spaced env\" command --arg \"spaced arg\""
-        );
-        assert_eq!(
-            display_command(cmd.current_dir("/tmp and/thing"), Some(Path::new("/tmp and/thing"))),
-            "ENVIRON=yeah OTHER=\"spaced env\" command --arg \"spaced arg\""
-        );
+    fn test_flycheck_config_display() {
+        let clippy = FlycheckConfig::Automatic {
+            cargo_options: CargoOptions {
+                subcommand: "clippy".to_owned(),
+                target_tuples: vec![],
+                all_targets: false,
+                set_test: false,
+                no_default_features: false,
+                all_features: false,
+                features: vec![],
+                extra_args: vec![],
+                extra_test_bin_args: vec![],
+                extra_env: FxHashMap::default(),
+                target_dir_config: TargetDirectoryConfig::default(),
+            },
+            ansi_color_output: true,
+        };
+        assert_eq!(clippy.to_string(), "cargo clippy");
+
+        let custom_dollar = FlycheckConfig::CustomCommand {
+            command: "check".to_owned(),
+            args: vec!["--input".to_owned(), "$saved_file".to_owned()],
+            extra_env: FxHashMap::default(),
+            invocation_strategy: InvocationStrategy::Once,
+        };
+        assert_eq!(custom_dollar.to_string(), "check --input ...");
+
+        let custom_inline = FlycheckConfig::CustomCommand {
+            command: "check".to_owned(),
+            args: vec!["--input".to_owned(), "{saved_file}".to_owned()],
+            extra_env: FxHashMap::default(),
+            invocation_strategy: InvocationStrategy::Once,
+        };
+        assert_eq!(custom_inline.to_string(), "check --input ...");
+
+        let custom_rs = FlycheckConfig::CustomCommand {
+            command: "check".to_owned(),
+            args: vec!["--input".to_owned(), "/path/to/file.rs".to_owned()],
+            extra_env: FxHashMap::default(),
+            invocation_strategy: InvocationStrategy::Once,
+        };
+        assert_eq!(custom_rs.to_string(), "check --input ...");
     }
 }
