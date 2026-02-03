@@ -6064,11 +6064,7 @@ impl<'db> Type<'db> {
 
             match name {
                 Some(name) => {
-                    match ctx.probe_for_name(
-                        method_resolution::Mode::MethodCall,
-                        name.clone(),
-                        self_ty,
-                    ) {
+                    match ctx.probe_for_name(method_resolution::Mode::Path, name.clone(), self_ty) {
                         Ok(candidate)
                         | Err(method_resolution::MethodError::PrivateMatch(candidate)) => {
                             let id = candidate.item.into();
