@@ -26,8 +26,10 @@ or `/usr/local/bin` will work just as well.
 Alternatively, you can install it from source using the command below.
 You’ll need the latest stable version of the Rust toolchain.
 
-    git clone https://github.com/rust-lang/rust-analyzer.git && cd rust-analyzer
-    cargo xtask install --server
+```bash
+git clone https://github.com/rust-lang/rust-analyzer.git && cd rust-analyzer
+cargo xtask install --server
+```
 
 If your editor can’t find the binary even though the binary is on your
 `$PATH`, the likely explanation is that it doesn’t see the same `$PATH`
