@@ -59,7 +59,9 @@ User Repository):
 
 Install it with pacman, for example:
 
-    pacman -S rust-analyzer
+```bash
+pacman -S rust-analyzer
+```
 
 ### Gentoo Linux
 
