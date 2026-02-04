@@ -257,7 +257,6 @@ pub(crate) fn complete_postfix(
                 &format!("while {receiver_text} {{\n    $0\n}}"),
             )
             .add_to(acc, ctx.db);
-            postfix_snippet("not", "!expr", &format!("!{receiver_text}")).add_to(acc, ctx.db);
         } else if let Some(trait_) = ctx.famous_defs().core_iter_IntoIterator()
             && receiver_ty.impls_trait(ctx.db, trait_, &[])
         {
@@ -268,6 +267,10 @@ pub(crate) fn complete_postfix(
             )
             .add_to(acc, ctx.db);
         }
+    }
+
+    if receiver_ty.is_bool() || receiver_ty.is_unknown() {
+        postfix_snippet("not", "!expr", &format!("!{receiver_text}")).add_to(acc, ctx.db);
     }
 
     let block_should_be_wrapped = if let ast::Expr::BlockExpr(block) = dot_receiver {
@@ -585,6 +588,31 @@ fn main() {
                 sn return  return expr
                 sn unsafe    unsafe {}
                 sn while while expr {}
+            "#]],
+        );
+    }
+
+    #[test]
+    fn postfix_completion_works_in_if_condition() {
+        check(
+            r#"
+fn foo(cond: bool) {
+    if cond.$0
+}
+"#,
+            expect![[r#"
+                sn box  Box::new(expr)
+                sn call function(expr)
+                sn const      const {}
+                sn dbg      dbg!(expr)
+                sn dbgr    dbg!(&expr)
+                sn deref         *expr
+                sn let             let
+                sn not           !expr
+                sn ref           &expr
+                sn refm      &mut expr
+                sn return  return expr
+                sn unsafe    unsafe {}
             "#]],
         );
     }
