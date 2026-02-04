@@ -163,16 +163,16 @@ impl ExprCollector<'_> {
                                 fn extract_path(expr: ast::Expr) -> Option<ast::Path> {
                                     match expr {
                                         ast::Expr::PathExpr(p) => p.path(),
-                                        ast::Expr::ParenExpr(p) => p.expr().and_then(extract_path)
+                                        ast::Expr::ParenExpr(p) => p.expr().and_then(extract_path),
                                         _ => None,
                                     }
                                 }
                                 let Some(path) = s.expr().and_then(extract_path).and_then(|p| {
-                                        self.lower_path(
-                                            p,
-                                            &mut ExprCollector::impl_trait_error_allocator,
-                                        )
-                                    }) else {
+                                    self.lower_path(
+                                        p,
+                                        &mut ExprCollector::impl_trait_error_allocator,
+                                    )
+                                }) else {
                                     continue;
                                 };
                                 AsmOperand::Sym(path)
