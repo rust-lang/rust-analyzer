@@ -15,7 +15,7 @@ use ide_db::{FxHashSet, text_edit::TextEdit};
 use itertools::Itertools;
 use macros::UpmapFromRaFixture;
 use smallvec::{SmallVec, smallvec};
-use stdx::never;
+use stdx::{always, never};
 use syntax::{
     SmolStr, SyntaxNode, TextRange, TextSize, WalkEvent,
     ast::{self, AstNode, HasGenericParams},
@@ -683,8 +683,11 @@ struct InlayHintLabelBuilder<'a> {
     sema: &'a Semantics<'a, RootDatabase>,
     result: InlayHintLabel,
     last_part: String,
-    resolve: bool,
+    resolve_location: bool,
+    resolve_tooltip: bool,
     location: Option<LazyProperty<FileRange>>,
+    tooltip: Option<LazyProperty<InlayTooltip>>,
+    in_truncated_part: bool,
 }
 
 impl fmt::Write for InlayHintLabelBuilder<'_> {
@@ -695,10 +698,14 @@ impl fmt::Write for InlayHintLabelBuilder<'_> {
 
 impl HirWrite for InlayHintLabelBuilder<'_> {
     fn start_location_link(&mut self, def: ModuleDefId) {
+        // If the label is truncated, we do not need to add the location link.
+        if self.in_truncated_part {
+            return;
+        }
         never!(self.location.is_some(), "location link is already started");
         self.make_new_part();
 
-        self.location = Some(if self.resolve {
+        self.location = Some(if self.resolve_location {
             LazyProperty::Lazy
         } else {
             LazyProperty::Computed({
@@ -710,10 +717,13 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
     }
 
     fn start_location_link_generic(&mut self, def: GenericParamId) {
+        if self.in_truncated_part {
+            return;
+        }
         never!(self.location.is_some(), "location link is already started");
         self.make_new_part();
 
-        self.location = Some(if self.resolve {
+        self.location = Some(if self.resolve_location {
             LazyProperty::Lazy
         } else {
             LazyProperty::Computed({
@@ -725,7 +735,40 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
     }
 
     fn end_location_link(&mut self) {
+        if self.in_truncated_part {
+            return;
+        }
         self.make_new_part();
+    }
+
+    fn start_truncated(&mut self) -> bool {
+        never!(self.location.is_some(), "location link is already started");
+        // If currently in the truncated part, do not create a new part and continue writing into
+        // the `last_part`.
+        if self.in_truncated_part {
+            return false;
+        }
+
+        self.make_new_part();
+        self.last_part.push_str("```rust\n");
+        self.in_truncated_part = true;
+        true
+    }
+
+    fn end_truncated(&mut self, placeholder: &str) {
+        always!(self.in_truncated_part, "truncated is not started");
+
+        if self.resolve_tooltip {
+            self.last_part = placeholder.to_owned();
+            self.tooltip = Some(LazyProperty::Lazy);
+        } else {
+            let mut tooltip = mem::replace(&mut self.last_part, placeholder.to_owned());
+            tooltip.push_str("\n```");
+            self.tooltip = Some(LazyProperty::Computed(InlayTooltip::Markdown(tooltip)));
+        }
+
+        self.make_new_part();
+        self.in_truncated_part = false;
     }
 }
 
@@ -736,7 +779,7 @@ impl InlayHintLabelBuilder<'_> {
             self.result.parts.push(InlayHintLabelPart {
                 text,
                 linked_location: self.location.take(),
-                tooltip: None,
+                tooltip: self.tooltip.take(),
             });
         }
     }
@@ -822,8 +865,11 @@ fn label_of_ty(
         sema,
         last_part: String::new(),
         location: None,
+        tooltip: None,
+        in_truncated_part: false,
         result: InlayHintLabel::default(),
-        resolve: config.fields_to_resolve.resolve_label_location,
+        resolve_location: config.fields_to_resolve.resolve_label_location,
+        resolve_tooltip: config.fields_to_resolve.resolve_label_tooltip,
     };
     let _ =
         rec(sema, famous_defs, config.max_length, ty, &mut label_builder, config, display_target);
@@ -953,6 +999,8 @@ mod tests {
         lifetime_elision_hints: LifetimeElisionHints::Always,
         ..DISABLED_CONFIG
     };
+    pub(super) const TEST_CONFIG_WITH_TRUNCATION: InlayHintsConfig<'_> =
+        InlayHintsConfig { max_length: Some(10), ..TEST_CONFIG };
 
     #[track_caller]
     pub(super) fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
