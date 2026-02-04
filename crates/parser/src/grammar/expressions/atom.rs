@@ -408,7 +408,7 @@ pub(crate) fn parse_asm_expr(p: &mut Parser<'_>, m: Marker) -> Option<CompletedM
             op_n.complete(p, ASM_OPERAND_NAMED);
         } else if p.eat_contextual_kw(T![sym]) {
             dir_spec.abandon(p);
-            paths::type_path(p);
+            expr(p);
             op.complete(p, ASM_SYM);
             op_n.complete(p, ASM_OPERAND_NAMED);
         } else if allow_templates {
