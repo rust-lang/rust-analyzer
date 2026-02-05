@@ -4821,7 +4821,7 @@ fn allowed3(baz: impl Baz<Assoc = Qux<impl Foo>>) {}
             431..433 '{}': ()
             447..450 'baz': impl Baz<Assoc = impl Foo>
             480..482 '{}': ()
-            500..503 'baz': impl Baz<Assoc = &'a impl Foo + 'a>
+            500..503 'baz': impl Baz<Assoc = &'a (impl Foo + 'a)>
             544..546 '{}': ()
             560..563 'baz': impl Baz<Assoc = Qux<impl Foo>>
             598..600 '{}': ()
