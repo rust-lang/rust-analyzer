@@ -2674,3 +2674,16 @@ pub use hresult::HRESULT;
         "#,
     );
 }
+
+#[test]
+fn regression_21577() {
+    check_no_mismatches(
+        r#"
+pub trait FilterT<F: FilterT<F, V = Self::V> = Self> {
+    type V;
+
+    fn foo() {}
+}
+    "#,
+    );
+}
