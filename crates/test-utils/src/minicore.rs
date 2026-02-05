@@ -43,6 +43,7 @@
 //!     dispatch_from_dyn: unsize, pin
 //!     hash: sized
 //!     include:
+//!     include_bytes:
 //!     index: sized
 //!     infallible:
 //!     int_impl: size_of, transmute
@@ -2060,6 +2061,14 @@ mod macros {
         ($file:expr $(,)?) => {{ /* compiler built-in */ }};
     }
     // endregion:include
+
+    // region:include_bytes
+    #[rustc_builtin_macro]
+    #[macro_export]
+    macro_rules! include_bytes {
+        ($file:expr $(,)?) => {{ /* compiler built-in */ }};
+    }
+    // endregion:include_bytes
 
     // region:concat
     #[rustc_builtin_macro]

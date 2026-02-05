@@ -4064,3 +4064,13 @@ fn foo() {
         "#]],
     );
 }
+
+#[test]
+fn include_bytes_len_mismatch() {
+    check_no_mismatches(
+        r#"
+//- minicore: include_bytes
+static S: &[u8; 158] = include_bytes!("/foo/bar/baz.txt");
+    "#,
+    );
+}
