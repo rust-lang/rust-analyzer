@@ -234,7 +234,7 @@ pub struct AsmSym {
 }
 impl AsmSym {
     #[inline]
-    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
+    pub fn path(&self) -> Option<Path> { support::child(&self.syntax) }
     #[inline]
     pub fn sym_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![sym]) }
 }
