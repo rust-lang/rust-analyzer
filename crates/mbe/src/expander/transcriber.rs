@@ -442,10 +442,7 @@ fn expand_var(
                             tt::TtElement::Leaf(tt::Leaf::Punct(p)) => {
                                 matches!(p.char, ':' | '<' | '>' | ',')
                             }
-                            tt::TtElement::Subtree(sub, _) => {
-                                // Allow `<>` for generics
-                                !matches!(sub.delimiter.kind, tt::DelimiterKind::Brace)
-                            }
+                            tt::TtElement::Subtree(..) => false,
                         });
 
                     let wrap_in_parens = !is_negative_literal
