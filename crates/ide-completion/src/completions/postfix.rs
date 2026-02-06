@@ -161,7 +161,20 @@ pub(crate) fn complete_postfix(
                 postfix_snippet("letm", "let mut", &format!("let mut $0 = {receiver_text};"))
                     .add_to(acc, ctx.db);
             }
-            _ => (),
+            _ => {
+                postfix_snippet(
+                    "let",
+                    "let",
+                    &format!("{{\n    let $1 = {receiver_text};\n    $0\n}}"),
+                )
+                .add_to(acc, ctx.db);
+                postfix_snippet(
+                    "letm",
+                    "let mut",
+                    &format!("{{\n    let mut $1 = {receiver_text};\n    $0\n}}"),
+                )
+                .add_to(acc, ctx.db);
+            }
         }
     }
 
@@ -581,6 +594,8 @@ fn main() {
                 sn dbgr    dbg!(&expr)
                 sn deref         *expr
                 sn if       if expr {}
+                sn let             let
+                sn letm        let mut
                 sn match match expr {}
                 sn not           !expr
                 sn ref           &expr
@@ -790,6 +805,54 @@ fn main() {
 fn main() {
     let bar = 2;
     if let $1 = bar
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn let_fallback_block() {
+        check(
+            r#"
+fn main() {
+    match 2 {
+        bar => bar.$0
+    }
+}
+"#,
+            expect![[r#"
+                sn box  Box::new(expr)
+                sn call function(expr)
+                sn const      const {}
+                sn dbg      dbg!(expr)
+                sn dbgr    dbg!(&expr)
+                sn deref         *expr
+                sn let             let
+                sn letm        let mut
+                sn match match expr {}
+                sn ref           &expr
+                sn refm      &mut expr
+                sn return  return expr
+                sn unsafe    unsafe {}
+            "#]],
+        );
+        check_edit(
+            "let",
+            r#"
+fn main() {
+    match 2 {
+        bar => bar.$0
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 2 {
+        bar => {
+    let $1 = bar;
+    $0
+}
+    }
 }
 "#,
         );
