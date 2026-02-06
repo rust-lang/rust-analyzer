@@ -161,7 +161,7 @@ pub(crate) fn complete_postfix(
                 postfix_snippet("letm", "let mut", &format!("let mut $0 = {receiver_text};"))
                     .add_to(acc, ctx.db);
             }
-            _ => {
+            _ if ast::MatchArm::can_cast(second_ancestor.kind()) => {
                 postfix_snippet(
                     "let",
                     "let",
@@ -175,6 +175,7 @@ pub(crate) fn complete_postfix(
                 )
                 .add_to(acc, ctx.db);
             }
+            _ => (),
         }
     }
 
@@ -594,8 +595,6 @@ fn main() {
                 sn dbgr    dbg!(&expr)
                 sn deref         *expr
                 sn if       if expr {}
-                sn let             let
-                sn letm        let mut
                 sn match match expr {}
                 sn not           !expr
                 sn ref           &expr
@@ -811,7 +810,7 @@ fn main() {
     }
 
     #[test]
-    fn let_fallback_block() {
+    fn match_arm_let_block() {
         check(
             r#"
 fn main() {

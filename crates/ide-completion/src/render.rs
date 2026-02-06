@@ -3033,8 +3033,6 @@ fn main() {
                 sn dbgr dbg!(&expr) []
                 sn deref *expr []
                 sn if if expr {} []
-                sn let let []
-                sn letm let mut []
                 sn match match expr {} []
                 sn ref &expr []
                 sn refm &mut expr []
