@@ -414,9 +414,9 @@ struct FlycheckActor {
     /// doesn't provide a way to read sub-process output without blocking, so we
     /// have to wrap sub-processes output handling in a thread and pass messages
     /// back over a channel.
-    command_handle: Option<CommandHandle<CargoCheckMessage>>,
+    command_handle: Option<CommandHandle<CheckMessage>>,
     /// The receiver side of the channel mentioned above.
-    command_receiver: Option<Receiver<CargoCheckMessage>>,
+    command_receiver: Option<Receiver<CheckMessage>>,
     diagnostics_cleared_for: FxHashSet<PackageSpecifier>,
     diagnostics_received: DiagnosticsReceived,
 }
@@ -431,7 +431,7 @@ enum DiagnosticsReceived {
 #[allow(clippy::large_enum_variant)]
 enum Event {
     RequestStateChange(StateChange),
-    CheckEvent(Option<CargoCheckMessage>),
+    CheckEvent(Option<CheckMessage>),
 }
 
 /// This is stable behaviour. Don't change.
@@ -580,7 +580,7 @@ impl FlycheckActor {
                     let (sender, receiver) = unbounded();
                     match CommandHandle::spawn(
                         command,
-                        CargoCheckParser,
+                        CheckParser,
                         sender,
                         match &self.config {
                             FlycheckConfig::Automatic { cargo_options, .. } => {
@@ -700,7 +700,7 @@ impl FlycheckActor {
                     self.report_progress(Progress::DidFinish(res));
                 }
                 Event::CheckEvent(Some(message)) => match message {
-                    CargoCheckMessage::CompilerArtifact(msg) => {
+                    CheckMessage::CompilerArtifact(msg) => {
                         tracing::trace!(
                             flycheck_id = self.id,
                             artifact = msg.target.name,
@@ -730,7 +730,7 @@ impl FlycheckActor {
                             });
                         }
                     }
-                    CargoCheckMessage::Diagnostic { diagnostic, package_id } => {
+                    CheckMessage::Diagnostic { diagnostic, package_id } => {
                         tracing::trace!(
                             flycheck_id = self.id,
                             message = diagnostic.message,
@@ -943,15 +943,18 @@ impl FlycheckActor {
 }
 
 #[allow(clippy::large_enum_variant)]
-enum CargoCheckMessage {
+enum CheckMessage {
+    /// A message from `cargo check`, including details like the path
+    /// to the relevant `Cargo.toml`.
     CompilerArtifact(cargo_metadata::Artifact),
+    /// A diagnostic message from rustc itself.
     Diagnostic { diagnostic: Diagnostic, package_id: Option<PackageSpecifier> },
 }
 
-struct CargoCheckParser;
+struct CheckParser;
 
-impl JsonLinesParser<CargoCheckMessage> for CargoCheckParser {
-    fn from_line(&self, line: &str, error: &mut String) -> Option<CargoCheckMessage> {
+impl JsonLinesParser<CheckMessage> for CheckParser {
+    fn from_line(&self, line: &str, error: &mut String) -> Option<CheckMessage> {
         let mut deserializer = serde_json::Deserializer::from_str(line);
         deserializer.disable_recursion_limit();
         if let Ok(message) = JsonMessage::deserialize(&mut deserializer) {
@@ -959,10 +962,10 @@ impl JsonLinesParser<CargoCheckMessage> for CargoCheckParser {
                 // Skip certain kinds of messages to only spend time on what's useful
                 JsonMessage::Cargo(message) => match message {
                     cargo_metadata::Message::CompilerArtifact(artifact) if !artifact.fresh => {
-                        Some(CargoCheckMessage::CompilerArtifact(artifact))
+                        Some(CheckMessage::CompilerArtifact(artifact))
                     }
                     cargo_metadata::Message::CompilerMessage(msg) => {
-                        Some(CargoCheckMessage::Diagnostic {
+                        Some(CheckMessage::Diagnostic {
                             diagnostic: msg.message,
                             package_id: Some(PackageSpecifier::Cargo {
                                 package_id: Arc::new(msg.package_id),
@@ -972,7 +975,7 @@ impl JsonLinesParser<CargoCheckMessage> for CargoCheckParser {
                     _ => None,
                 },
                 JsonMessage::Rustc(message) => {
-                    Some(CargoCheckMessage::Diagnostic { diagnostic: message, package_id: None })
+                    Some(CheckMessage::Diagnostic { diagnostic: message, package_id: None })
                 }
             };
         }
@@ -982,7 +985,7 @@ impl JsonLinesParser<CargoCheckMessage> for CargoCheckParser {
         None
     }
 
-    fn from_eof(&self) -> Option<CargoCheckMessage> {
+    fn from_eof(&self) -> Option<CheckMessage> {
         None
     }
 }
