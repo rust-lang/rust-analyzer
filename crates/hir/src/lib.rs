@@ -2244,6 +2244,39 @@ impl DefWithBody {
             acc.push(diag.into())
         }
     }
+
+    /// Returns an iterator over the inferred types of all expressions in this body.
+    pub fn expression_types<'db>(
+        self,
+        db: &'db dyn HirDatabase,
+    ) -> impl Iterator<Item = Type<'db>> {
+        self.id().into_iter().flat_map(move |def_id| {
+            let infer = InferenceResult::for_body(db, def_id);
+            let resolver = def_id.resolver(db);
+
+            infer.expression_types().map(move |(_, ty)| Type::new_with_resolver(db, &resolver, ty))
+        })
+    }
+
+    /// Returns an iterator over the inferred types of all patterns in this body.
+    pub fn pattern_types<'db>(self, db: &'db dyn HirDatabase) -> impl Iterator<Item = Type<'db>> {
+        self.id().into_iter().flat_map(move |def_id| {
+            let infer = InferenceResult::for_body(db, def_id);
+            let resolver = def_id.resolver(db);
+
+            infer.pattern_types().map(move |(_, ty)| Type::new_with_resolver(db, &resolver, ty))
+        })
+    }
+
+    /// Returns an iterator over the inferred types of all bindings in this body.
+    pub fn binding_types<'db>(self, db: &'db dyn HirDatabase) -> impl Iterator<Item = Type<'db>> {
+        self.id().into_iter().flat_map(move |def_id| {
+            let infer = InferenceResult::for_body(db, def_id);
+            let resolver = def_id.resolver(db);
+
+            infer.binding_types().map(move |(_, ty)| Type::new_with_resolver(db, &resolver, ty))
+        })
+    }
 }
 
 fn expr_store_diagnostics<'db>(
