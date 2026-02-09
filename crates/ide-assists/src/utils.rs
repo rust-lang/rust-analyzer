@@ -767,7 +767,7 @@ fn generate_impl_inner(
     });
     let generic_args =
         generic_params.as_ref().map(|params| params.to_generic_args().clone_for_update());
-    let trait_where_clause = trait_
+    let adt_assoc_bounds = trait_
         .as_ref()
         .zip(generic_params.as_ref())
         .and_then(|(trait_, params)| generic_param_associated_bounds(adt, trait_, params));
@@ -787,7 +787,7 @@ fn generate_impl_inner(
             false,
             trait_,
             ty,
-            trait_where_clause,
+            adt_assoc_bounds,
             adt.where_clause(),
             body,
         ),
