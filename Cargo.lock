@@ -3754,15 +3754,3 @@ dependencies = [
  "memchr",
  "time",
 ]
-
-[[patch.unused]]
-name = "salsa"
-version = "0.25.2"
-
-[[patch.unused]]
-name = "salsa-macro-rules"
-version = "0.25.2"
-
-[[patch.unused]]
-name = "salsa-macros"
-version = "0.25.2"
