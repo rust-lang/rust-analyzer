@@ -183,31 +183,10 @@ impl server::Server for RaSpanServer<'_> {
         Range { start: span.range.start().into(), end: span.range.end().into() }
     }
     fn span_join(&mut self, first: Self::Span, second: Self::Span) -> Option<Self::Span> {
-        // We can't modify the span range for fixup spans, those are meaningful to fixup, so just
-        // prefer the non-fixup span.
-        if first.anchor.ast_id == FIXUP_ERASED_FILE_AST_ID_MARKER {
-            return Some(second);
-        }
-        if second.anchor.ast_id == FIXUP_ERASED_FILE_AST_ID_MARKER {
-            return Some(first);
-        }
-        // FIXME: Once we can talk back to the client, implement a "long join" request for anchors
-        // that differ in [AstId]s as joining those spans requires resolving the AstIds.
-        if first.anchor != second.anchor {
-            return None;
-        }
-        // Differing context, we can't merge these so prefer the one that's root
-        if first.ctx != second.ctx {
-            if first.ctx.is_root() {
-                return Some(second);
-            } else if second.ctx.is_root() {
-                return Some(first);
-            }
-        }
-        Some(Span {
-            range: first.range.cover(second.range),
-            anchor: second.anchor,
-            ctx: second.ctx,
+        first.join(second, |_, _| {
+            // FIXME: Once we can talk back to the client, implement a "long join" request for anchors
+            // that differ in [AstId]s as joining those spans requires resolving the AstIds.
+            None
         })
     }
     fn span_subspan(
