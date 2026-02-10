@@ -1,7 +1,8 @@
 use ide_db::{FileId, FxHashSet};
 use syntax::{
-    AstNode, T, TextRange,
+    AstNode, SmolStr, T, TextRange, ToSmolStr,
     ast::{self, HasGenericParams, HasName, syntax_factory::SyntaxFactory},
+    format_smolstr,
     syntax_editor::{Element, Position, SyntaxEditor},
 };
 
@@ -53,16 +54,14 @@ pub(crate) fn introduce_named_lifetime(acc: &mut Assists, ctx: &AssistContext<'_
 /// Given a type parameter list, generate a unique lifetime parameter name
 /// which is not in the list
 fn generate_unique_lifetime_param_name(
-    existing_type_param_list: Option<ast::GenericParamList>,
-) -> Option<String> {
-    match existing_type_param_list {
-        Some(type_params) => {
-            let used_lifetime_params: FxHashSet<_> =
-                type_params.lifetime_params().map(|p| p.syntax().text().to_string()).collect();
-            ('a'..='z').map(|it| format!("'{it}")).find(|it| !used_lifetime_params.contains(it))
-        }
-        None => Some("'a".to_owned()),
-    }
+    existing_params: Option<ast::GenericParamList>,
+) -> Option<SmolStr> {
+    let used_lifetime_param: FxHashSet<SmolStr> = existing_params
+        .iter()
+        .flat_map(|params| params.lifetime_params())
+        .map(|p| p.syntax().text().to_smolstr())
+        .collect();
+    ('a'..='z').map(|c| format_smolstr!("'{c}")).find(|lt| !used_lifetime_param.contains(lt))
 }
 
 fn generate_fn_def_assist(
