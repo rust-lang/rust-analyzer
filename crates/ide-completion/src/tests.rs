@@ -79,6 +79,7 @@ pub(crate) const TEST_CONFIG: CompletionConfig<'_> = CompletionConfig {
         enforce_granularity: true,
         group: true,
         skip_glob_imports: true,
+        group_order: InsertUseConfig::default_group_order(),
     },
     prefer_no_std: false,
     prefer_prelude: true,

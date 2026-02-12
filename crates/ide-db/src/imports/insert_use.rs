@@ -5,6 +5,7 @@ mod tests;
 use std::cmp::Ordering;
 
 use hir::Semantics;
+use serde_derive::{Deserialize, Serialize};
 use syntax::{
     Direction, NodeOrToken, SyntaxKind, SyntaxNode, algo,
     ast::{
@@ -54,6 +55,20 @@ pub struct InsertUseConfig {
     pub prefix_kind: PrefixKind,
     pub group: bool,
     pub skip_glob_imports: bool,
+    pub group_order: [ImportGroupKind; 6],
+}
+
+impl InsertUseConfig {
+    pub const fn default_group_order() -> [ImportGroupKind; 6] {
+        [
+            ImportGroupKind::Std,
+            ImportGroupKind::ExternCrate,
+            ImportGroupKind::ThisCrate,
+            ImportGroupKind::ThisModule,
+            ImportGroupKind::SuperModule,
+            ImportGroupKind::One,
+        ]
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -226,7 +241,7 @@ fn insert_use_with_alias_option(
     }
     // either we weren't allowed to merge or there is no import that fits the merge conditions
     // so look for the place we have to insert to
-    insert_use_(scope, use_item, cfg.group);
+    insert_use_(scope, use_item, cfg.group, &cfg.group_order);
 }
 
 pub fn ast_to_remove_for_path_in_use_stmt(path: &ast::Path) -> Option<Box<dyn Removable>> {
@@ -250,9 +265,14 @@ pub fn remove_path_if_in_use_stmt(path: &ast::Path) {
     }
 }
 
-#[derive(Eq, PartialEq, PartialOrd, Ord)]
-enum ImportGroup {
-    // the order here defines the order of new group inserts
+#[derive(Eq, PartialEq)]
+struct ImportGroup {
+    priority: u8,
+    kind: ImportGroupKind,
+}
+
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum ImportGroupKind {
     Std,
     ExternCrate,
     ThisCrate,
@@ -262,30 +282,54 @@ enum ImportGroup {
 }
 
 impl ImportGroup {
-    fn new(use_tree: &ast::UseTree) -> ImportGroup {
+    fn new(use_tree: &ast::UseTree, priority_config: &[ImportGroupKind]) -> ImportGroup {
+        let kind = Self::determine_kind(use_tree);
+
+        let priority = priority_config
+            .iter()
+            .position(|group_name| *group_name == kind)
+            .map(|pos| 255 - (pos as u8)) // Invert priority: higher positions = lower priority
+            .unwrap_or(0); // Default to lowest priority if not found
+
+        ImportGroup { priority, kind }
+    }
+
+    fn determine_kind(use_tree: &ast::UseTree) -> ImportGroupKind {
         if use_tree.path().is_none() && use_tree.use_tree_list().is_some() {
-            return ImportGroup::One;
+            return ImportGroupKind::One;
         }
 
         let Some(first_segment) = use_tree.path().as_ref().and_then(ast::Path::first_segment)
         else {
-            return ImportGroup::ExternCrate;
+            return ImportGroupKind::ExternCrate;
         };
 
         let kind = first_segment.kind().unwrap_or(PathSegmentKind::SelfKw);
         match kind {
-            PathSegmentKind::SelfKw => ImportGroup::ThisModule,
-            PathSegmentKind::SuperKw => ImportGroup::SuperModule,
-            PathSegmentKind::CrateKw => ImportGroup::ThisCrate,
+            PathSegmentKind::SelfKw => ImportGroupKind::ThisModule,
+            PathSegmentKind::SuperKw => ImportGroupKind::SuperModule,
+            PathSegmentKind::CrateKw => ImportGroupKind::ThisCrate,
             PathSegmentKind::Name(name) => match name.text().as_str() {
-                "std" => ImportGroup::Std,
-                "core" => ImportGroup::Std,
-                _ => ImportGroup::ExternCrate,
+                "std" => ImportGroupKind::Std,
+                "core" => ImportGroupKind::Std,
+                _ => ImportGroupKind::ExternCrate,
             },
             // these aren't valid use paths, so fall back to something random
-            PathSegmentKind::SelfTypeKw => ImportGroup::ExternCrate,
-            PathSegmentKind::Type { .. } => ImportGroup::ExternCrate,
+            PathSegmentKind::SelfTypeKw => ImportGroupKind::ExternCrate,
+            PathSegmentKind::Type { .. } => ImportGroupKind::ExternCrate,
         }
+    }
+}
+
+impl PartialOrd for ImportGroup {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ImportGroup {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.priority.cmp(&other.priority)
     }
 }
 
@@ -385,11 +429,16 @@ fn guess_granularity_from_scope(scope: &ImportScope) -> ImportGranularityGuess {
     }
 }
 
-fn insert_use_(scope: &ImportScope, use_item: ast::Use, group_imports: bool) {
+fn insert_use_(
+    scope: &ImportScope,
+    use_item: ast::Use,
+    group_imports: bool,
+    group_priority: &[ImportGroupKind],
+) {
     let scope_syntax = scope.as_syntax_node();
     let insert_use_tree =
         use_item.use_tree().expect("`use_item` should have a use tree for `insert_path`");
-    let group = ImportGroup::new(&insert_use_tree);
+    let group = ImportGroup::new(&insert_use_tree, group_priority);
     let path_node_iter = scope_syntax
         .children()
         .filter_map(|node| ast::Use::cast(node.clone()).zip(Some(node)))
@@ -403,8 +452,8 @@ fn insert_use_(scope: &ImportScope, use_item: ast::Use, group_imports: bool) {
         // This implementation allows the user to rearrange their import groups as this only takes the first group that fits
         let group_iter = path_node_iter
             .clone()
-            .skip_while(|(use_tree, ..)| ImportGroup::new(use_tree) != group)
-            .take_while(|(use_tree, ..)| ImportGroup::new(use_tree) == group);
+            .skip_while(|(use_tree, ..)| ImportGroup::new(use_tree, group_priority) != group)
+            .take_while(|(use_tree, ..)| ImportGroup::new(use_tree, group_priority) == group);
 
         // track the last element we iterated over, if this is still None after the iteration then that means we never iterated in the first place
         let mut last = None;
@@ -430,7 +479,7 @@ fn insert_use_(scope: &ImportScope, use_item: ast::Use, group_imports: bool) {
         // find the group that comes after where we want to insert
         let post_group = path_node_iter
             .inspect(|(.., node)| last = Some(node.clone()))
-            .find(|(use_tree, ..)| ImportGroup::new(use_tree) > group);
+            .find(|(use_tree, ..)| ImportGroup::new(use_tree, group_priority) < group);
         if let Some((.., node)) = post_group {
             cov_mark::hit!(insert_group_new_group);
             ted::insert(ted::Position::before(&node), use_item.syntax());
