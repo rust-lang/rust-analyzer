@@ -12,7 +12,11 @@ use ide_db::{
 };
 use syntax::{
     AstNode, SyntaxNode,
-    ast::{self, HasName, edit::IndentLevel, edit_in_place::Indent, syntax_factory::SyntaxFactory},
+    ast::{
+        self, HasName,
+        edit::{AstNodeEdit, IndentLevel},
+        syntax_factory::SyntaxFactory,
+    },
     match_ast,
     syntax_editor::SyntaxEditor,
 };
@@ -286,7 +290,7 @@ fn add_tuple_struct_def(
     let struct_def = syntax_factory.struct_(visibility, struct_name, None, field_list);
 
     let indent = IndentLevel::from_node(parent);
-    struct_def.reindent_to(indent);
+    let struct_def = struct_def.indent(indent);
 
     edit.insert(parent.text_range().start(), format!("{struct_def}\n\n{indent}"));
 }
