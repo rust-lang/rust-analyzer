@@ -2757,3 +2757,16 @@ where
         "#]],
     );
 }
+
+#[test]
+fn extern_fns_cannot_have_param_patterns() {
+    check_no_mismatches(
+        r#"
+pub(crate) struct Builder<'a>(&'a ());
+
+unsafe extern "C"  {
+    pub(crate) fn foo<'a>(Builder: &Builder<'a>);
+}
+    "#,
+    );
+}
