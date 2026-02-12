@@ -29,12 +29,13 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use hir_ty::{
-    Adjustment, InferenceResult, LifetimeElisionKind, ParamEnvAndCrate, TyLoweringContext,
+    Adjustment, InferenceResult, ParamEnvAndCrate,
     diagnostics::{
         InsideUnsafeBlock, record_literal_missing_fields, record_pattern_missing_fields,
         unsafe_operations,
     },
     lang_items::lang_items_for_bin_op,
+    lower_ty_ext_for_def, lower_ty_for_def,
     method_resolution::{self, CandidateId},
     next_solver::{
         DbInterner, ErrorGuaranteed, GenericArgs, ParamEnv, Ty, TyKind, TypingMode,
@@ -276,17 +277,13 @@ impl<'db> SourceAnalyzer<'db> {
 
         let type_ref = self.type_id(ty)?;
 
-        let mut ty = TyLoweringContext::new(
+        let mut ty = lower_ty_for_def(
             db,
             &self.resolver,
             self.store()?,
             self.resolver.generic_def()?,
-            // FIXME: Is this correct here? Anyway that should impact mostly diagnostics, which we don't emit here
-            // (this can impact the lifetimes generated, e.g. in `const` they won't be `'static`, but this seems like a
-            // small problem).
-            LifetimeElisionKind::Infer,
-        )
-        .lower_ty(type_ref);
+            type_ref,
+        );
 
         // Try and substitute unknown types using InferenceResult
         if let Some(infer) = self.infer()
@@ -1649,9 +1646,7 @@ fn resolve_hir_path_(
     let types = || {
         let (ty, unresolved) = match path.type_anchor() {
             Some(type_ref) => resolver.generic_def().and_then(|def| {
-                let (_, res) =
-                    TyLoweringContext::new(db, resolver, store?, def, LifetimeElisionKind::Infer)
-                        .lower_ty_ext(type_ref);
+                let (_, res) = lower_ty_ext_for_def(db, resolver, store?, def, type_ref);
                 res.map(|ty_ns| (ty_ns, path.segments().first()))
             }),
             None => {
@@ -1798,9 +1793,7 @@ fn resolve_hir_path_qualifier(
     (|| {
         let (ty, unresolved) = match path.type_anchor() {
             Some(type_ref) => resolver.generic_def().and_then(|def| {
-                let (_, res) =
-                    TyLoweringContext::new(db, resolver, store, def, LifetimeElisionKind::Infer)
-                        .lower_ty_ext(type_ref);
+                let (_, res) = lower_ty_ext_for_def(db, resolver, store, def, type_ref);
                 res.map(|ty_ns| (ty_ns, path.segments().first()))
             }),
             None => {
