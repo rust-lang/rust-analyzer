@@ -1153,7 +1153,7 @@ impl<'db> ModuleItemMap<'db> {
         );
         match unresolved_idx {
             None => {
-                let (value, import) = to_value_ns(module_def)?;
+                let (value, import) = to_value_ns(module_def, self.def_map)?;
                 Some((ResolveValueResult::ValueNs(value, import), prefix_info))
             }
             Some(unresolved_idx) => {
@@ -1194,8 +1194,13 @@ impl<'db> ModuleItemMap<'db> {
     }
 }
 
-fn to_value_ns(per_ns: PerNs) -> Option<(ValueNs, Option<ImportOrGlob>)> {
-    let (def, import) = per_ns.take_values_import()?;
+fn to_value_ns(per_ns: PerNs, def_map: &DefMap) -> Option<(ValueNs, Option<ImportOrGlob>)> {
+    let (def, import) = per_ns.take_values_import().or_else(|| {
+        let Some(MacroId::ProcMacroId(proc_macro)) = per_ns.take_macros() else { return None };
+        // If we cannot resolve to value ns, but we can resolve to a proc macro, and this is the crate
+        // defining this proc macro - inside this crate, we should treat the macro as a function.
+        def_map.proc_macro_as_fn(proc_macro).map(|it| (ModuleDefId::FunctionId(it), None))
+    })?;
     let res = match def {
         ModuleDefId::FunctionId(it) => ValueNs::FunctionId(it),
         ModuleDefId::AdtId(AdtId::StructId(it)) => ValueNs::StructId(it),
