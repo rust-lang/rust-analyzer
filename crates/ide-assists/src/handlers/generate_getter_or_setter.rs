@@ -3,7 +3,7 @@ use stdx::{format_to, to_lower_snake_case};
 use syntax::{
     TextRange,
     ast::{
-        self, AstNode, HasGenericParams, HasName, HasVisibility, edit_in_place::Indent,
+        self, AstNode, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit,
         syntax_factory::SyntaxFactory,
     },
     syntax_editor::Position,
@@ -434,7 +434,7 @@ fn build_source_change(
                 }
             };
             let new_fn = method.clone_for_update();
-            new_fn.indent(1.into());
+            let new_fn = new_fn.indent(1.into());
             new_fn.into()
         })
         .collect();
