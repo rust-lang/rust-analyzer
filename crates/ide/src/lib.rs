@@ -22,6 +22,7 @@ mod annotations;
 mod call_hierarchy;
 mod child_modules;
 mod doc_links;
+mod document_color;
 mod expand_macro;
 mod extend_selection;
 mod fetch_crates;
@@ -82,6 +83,7 @@ use crate::navigation_target::ToNav;
 pub use crate::{
     annotations::{Annotation, AnnotationConfig, AnnotationKind, AnnotationLocation},
     call_hierarchy::{CallHierarchyConfig, CallItem},
+    document_color::DocumentColor,
     expand_macro::ExpandedMacro,
     file_structure::{FileStructureConfig, StructureNode, StructureNodeKind},
     folding_ranges::{Fold, FoldKind},
@@ -476,6 +478,10 @@ impl Analysis {
             let source_file = db.parse(editioned_file_id_wrapper).tree();
             file_structure::file_structure(&source_file, config)
         })
+    }
+
+    pub fn document_color(&self, file_id: FileId) -> Cancellable<Vec<DocumentColor>> {
+        self.with_db(|db| document_color::document_color(db, file_id))
     }
 
     /// Returns a list of the places in the file where type hints can be displayed.
