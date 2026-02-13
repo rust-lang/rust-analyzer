@@ -3,7 +3,8 @@ use stdx::{format_to, to_lower_snake_case};
 use syntax::{
     TextRange,
     ast::{
-        self, AstNode, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit, syntax_factory::SyntaxFactory
+        self, AstNode, HasGenericParams, HasName, HasVisibility, edit::AstNodeEdit,
+        syntax_factory::SyntaxFactory,
     },
     syntax_editor::Position,
 };

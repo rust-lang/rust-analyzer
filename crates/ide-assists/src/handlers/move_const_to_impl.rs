@@ -2,7 +2,10 @@ use hir::{AsAssocItem, AssocItemContainer, FileRange, HasSource};
 use ide_db::{assists::AssistId, defs::Definition, search::SearchScope};
 use syntax::{
     SyntaxKind,
-    ast::{self, AstNode, edit::{AstNodeEdit, IndentLevel}},
+    ast::{
+        self, AstNode,
+        edit::{AstNodeEdit, IndentLevel},
+    },
 };
 
 use crate::assist_context::{AssistContext, Assists};
