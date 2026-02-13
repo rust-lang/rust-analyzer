@@ -757,13 +757,6 @@ impl FlycheckActor {
                                         DiagnosticsReceived::AtLeastOneAndClearedWorkspace;
                                 }
 
-                                if let Some(package_id) = package_id {
-                                    tracing::warn!(
-                                        "Ignoring package label {:?} and applying diagnostics to the whole workspace",
-                                        package_id
-                                    );
-                                }
-
                                 self.send(FlycheckMessage::AddDiagnostic {
                                     id: self.id,
                                     generation: self.generation,
