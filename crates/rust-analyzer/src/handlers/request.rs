@@ -1145,7 +1145,7 @@ pub(crate) fn handle_completion(
         None => return Ok(None),
         Some(items) => items,
     };
-
+    tracing::error!("{:?}", &items);
     let items = to_proto::completion_items(
         &snap.config,
         &completion_config.fields_to_resolve,

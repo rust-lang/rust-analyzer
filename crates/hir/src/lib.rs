@@ -6384,6 +6384,7 @@ enum Callee<'db> {
     BuiltinDeriveImplMethod { method: BuiltinDeriveImplMethod, impl_: BuiltinDeriveImplId },
 }
 
+#[derive(Debug)]
 pub enum CallableKind<'db> {
     Function(Function),
     TupleStruct(Struct),
