@@ -2325,6 +2325,26 @@ impl<T: Clone> ${1:_} for Ctx<T> {$0}
 }
 
 #[test]
+fn doctest_inline_bounds() {
+    check_doc_test(
+        "inline_bounds",
+        r#####"
+pub fn serialize<S>(num: u32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    $0S: Serializer,
+{
+    Ok(())
+}
+"#####,
+        r#####"
+pub fn serialize<S: Serializer>(num: u32, serializer: S) -> Result<S::Ok, S::Error> {
+    Ok(())
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_inline_call() {
     check_doc_test(
         "inline_call",
