@@ -94,7 +94,7 @@ pub use infer::{
 };
 pub use lower::{
     GenericPredicates, ImplTraits, LifetimeElisionKind, TyDefId, TyLoweringContext, ValueTyDefId,
-    associated_type_shorthand_candidates, diagnostics::*,
+    associated_type_shorthand_candidates, diagnostics::*, lower_ty_ext_for_def, lower_ty_for_def,
 };
 pub use next_solver::interner::{attach_db, attach_db_allow_change, with_attached_db};
 pub use target_feature::TargetFeatures;

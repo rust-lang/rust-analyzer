@@ -2615,6 +2615,33 @@ pub(crate) fn associated_type_by_name_including_super_traits<'db>(
         })
 }
 
+/// Lowers a [`TypeRefId`] to a [`Ty`] given a generic definition context.
+///
+/// This is the public API for crates that need to lower type references
+/// without manually creating a [`TyLoweringContext`]. Elided lifetimes are inferred.
+pub fn lower_ty_for_def<'db>(
+    db: &'db dyn HirDatabase,
+    resolver: &Resolver<'db>,
+    store: &ExpressionStore,
+    def: GenericDefId,
+    type_ref: TypeRefId,
+) -> Ty<'db> {
+    TyLoweringContext::new(db, resolver, store, def, LifetimeElisionKind::Infer).lower_ty(type_ref)
+}
+
+/// Like [`lower_ty_for_def`], but also returns the [`TypeNs`] resolution if
+/// the type resolved to a named type in the type namespace (e.g. an ADT, trait, or type alias).
+pub fn lower_ty_ext_for_def<'db>(
+    db: &'db dyn HirDatabase,
+    resolver: &Resolver<'db>,
+    store: &ExpressionStore,
+    def: GenericDefId,
+    type_ref: TypeRefId,
+) -> (Ty<'db>, Option<TypeNs>) {
+    TyLoweringContext::new(db, resolver, store, def, LifetimeElisionKind::Infer)
+        .lower_ty_ext(type_ref)
+}
+
 pub fn associated_type_shorthand_candidates(
     db: &dyn HirDatabase,
     def: GenericDefId,
