@@ -91,8 +91,7 @@ pub(crate) fn complete_postfix(
     // so it's better to consider references now to avoid breaking the compilation
 
     let (dot_receiver_including_refs, prefix) = include_references(dot_receiver);
-    let mut receiver_text =
-        get_receiver_text(&ctx.sema, dot_receiver, receiver_is_ambiguous_float_literal);
+    let mut receiver_text = receiver_text;
     receiver_text.insert_str(0, &prefix);
     let postfix_snippet =
         match build_postfix_snippet_builder(ctx, cap, &dot_receiver_including_refs) {
