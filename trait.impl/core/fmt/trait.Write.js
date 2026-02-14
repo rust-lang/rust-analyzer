@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["hir_def",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.1/core/fmt/trait.Write.html\" title=\"trait core::fmt::Write\">Write</a> for <a class=\"struct\" href=\"hir_def/expr_store/pretty/struct.Printer.html\" title=\"struct hir_def::expr_store::pretty::Printer\">Printer</a>&lt;'_&gt;"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.1/core/fmt/trait.Write.html\" title=\"trait core::fmt::Write\">Write</a> for <a class=\"struct\" href=\"hir_def/item_tree/pretty/struct.Printer.html\" title=\"struct hir_def::item_tree::pretty::Printer\">Printer</a>&lt;'_&gt;"]]],["hir_ty",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.1/core/fmt/trait.Write.html\" title=\"trait core::fmt::Write\">Write</a> for <a class=\"struct\" href=\"hir_ty/mir/pretty/struct.MirPrettyCtx.html\" title=\"struct hir_ty::mir::pretty::MirPrettyCtx\">MirPrettyCtx</a>&lt;'_, '_&gt;"]]],["ide",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.1/core/fmt/trait.Write.html\" title=\"trait core::fmt::Write\">Write</a> for <a class=\"struct\" href=\"ide/inlay_hints/struct.InlayHintLabelBuilder.html\" title=\"struct ide::inlay_hints::InlayHintLabelBuilder\">InlayHintLabelBuilder</a>&lt;'_&gt;"]]],["smol_str",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.93.1/core/fmt/trait.Write.html\" title=\"trait core::fmt::Write\">Write</a> for <a class=\"struct\" href=\"smol_str/struct.SmolStrBuilder.html\" title=\"struct smol_str::SmolStrBuilder\">SmolStrBuilder</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[599,310,325,284]}

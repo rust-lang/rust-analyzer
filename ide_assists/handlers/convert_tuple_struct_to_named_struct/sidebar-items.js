@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["convert_tuple_struct_to_named_struct","edit_field_references","edit_struct_def","edit_struct_references","generate_names","generate_record_pat_list"]};

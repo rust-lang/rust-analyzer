@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["from_lt_id","from_toc_id","generics","parent_generic_def","trait_self_param_idx"],"struct":["Generics"]};

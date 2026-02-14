@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MINIMUM_TOOLCHAIN_VERSION_SUPPORTING_LOCKFILE_PATH"],"enum":["CargoFeatures","DepKind","RustLibSource","TargetDirectoryConfig","TargetKind"],"struct":["CargoConfig","CargoMetadataConfig","CargoWorkspace","FetchMetadata","PackageData","PackageDependency","PackageMetadata","RustAnalyzerPackageMetaData","TargetData"],"type":["Package","Target"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Entry"],"macro":["implement"],"struct":["Map","OccupiedEntry","TypeIdHasher","VacantEntry"],"trait":["Downcast","IntoBox"],"type":["AnyMap","RawMap"]};

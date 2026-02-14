@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["macro_semicolon","needs_semicolon","toggle_macro_delimiter"]};

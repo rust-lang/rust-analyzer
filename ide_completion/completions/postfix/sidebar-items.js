@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_custom_postfix_completions","build_postfix_snippet_builder","complete_postfix","escape_snippet_bits","get_receiver_text","include_references","is_in_condition","suggest_receiver_name"],"mod":["format_like"]};
