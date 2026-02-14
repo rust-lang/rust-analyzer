@@ -161,6 +161,7 @@ use external_crate2::bar::A;",
             prefix_kind: PrefixKind::Plain,
             group: false,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -461,6 +462,7 @@ fn insert_empty_file() {
             prefix_kind: PrefixKind::Plain,
             group: false,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -496,6 +498,7 @@ mod x {
             prefix_kind: PrefixKind::Plain,
             group: false,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -526,6 +529,7 @@ use foo::bar;",
             prefix_kind: PrefixKind::Plain,
             group: false,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -953,6 +957,7 @@ fn merge_mod_into_glob() {
             prefix_kind: PrefixKind::Plain,
             group: false,
             skip_glob_imports: false,
+            group_order: InsertUseConfig::default_group_order(),
         },
     )
 }
@@ -969,6 +974,7 @@ fn merge_self_glob() {
             prefix_kind: PrefixKind::Plain,
             group: false,
             skip_glob_imports: false,
+            group_order: InsertUseConfig::default_group_order(),
         },
     )
 }
@@ -1281,6 +1287,7 @@ use self::foo::Foo;
             enforce_granularity: true,
             group: true,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -1301,6 +1308,7 @@ use self::foo::{self, Bar, Foo};
             enforce_granularity: true,
             group: true,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -1321,6 +1329,7 @@ use ::ext::foo::Foo;
             enforce_granularity: true,
             group: true,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     );
 }
@@ -1378,6 +1387,7 @@ fn check(
             prefix_kind: PrefixKind::Plain,
             group: true,
             skip_glob_imports: true,
+            group_order: InsertUseConfig::default_group_order(),
         },
     )
 }

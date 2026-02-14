@@ -28,6 +28,7 @@ use ide::{
 use ide_db::{
     EditionedFileId, LineIndexDatabase, MiniCore, SnippetCap,
     base_db::{SourceDatabase, salsa::Database},
+    imports::insert_use::InsertUseConfig,
 };
 use itertools::Itertools;
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace};
@@ -1187,6 +1188,7 @@ impl flags::AnalysisStats {
                         prefix_kind: hir::PrefixKind::ByCrate,
                         group: true,
                         skip_glob_imports: true,
+                        group_order: InsertUseConfig::default_group_order(),
                     },
                     prefer_no_std: false,
                     prefer_prelude: true,
