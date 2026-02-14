@@ -25,7 +25,7 @@ pub(crate) fn complete_fn_param(
     ctx: &CompletionContext<'_>,
     pattern_ctx: &PatternContext,
 ) -> Option<()> {
-    let (ParamContext { param_list, kind, .. }, impl_or_trait) = match pattern_ctx {
+    let (ParamContext { param_list, kind, param, .. }, impl_or_trait) = match pattern_ctx {
         PatternContext { param_ctx: Some(kind), impl_or_trait, .. } => (kind, impl_or_trait),
         _ => return None,
     };
@@ -46,16 +46,18 @@ pub(crate) fn complete_fn_param(
 
     match kind {
         ParamKind::Function(function) => {
-            fill_fn_params(ctx, function, param_list, impl_or_trait, add_new_item_to_acc);
+            fill_fn_params(ctx, function, param_list, param, impl_or_trait, add_new_item_to_acc);
         }
         ParamKind::Closure(closure) => {
-            let stmt_list = closure.syntax().ancestors().find_map(ast::StmtList::cast)?;
-            params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
-                add_new_item_to_acc(&format_smolstr!(
-                    "{}: {ty}",
-                    name.display(ctx.db, ctx.edition)
-                ));
-            });
+            if is_simple_param(param) {
+                let stmt_list = closure.syntax().ancestors().find_map(ast::StmtList::cast)?;
+                params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
+                    add_new_item_to_acc(&format_smolstr!(
+                        "{}: {ty}",
+                        name.display(ctx.db, ctx.edition)
+                    ));
+                });
+            }
         }
     }
 
@@ -66,12 +68,16 @@ fn fill_fn_params(
     ctx: &CompletionContext<'_>,
     function: &ast::Fn,
     param_list: &ast::ParamList,
+    current_param: &ast::Param,
     impl_or_trait: &Option<Either<ast::Impl, ast::Trait>>,
     mut add_new_item_to_acc: impl FnMut(&str),
 ) {
     let mut file_params = FxHashMap::default();
 
     let mut extract_params = |f: ast::Fn| {
+        if !is_simple_param(current_param) {
+            return;
+        }
         f.param_list().into_iter().flat_map(|it| it.params()).for_each(|param| {
             if let Some(pat) = param.pat() {
                 let whole_param = param.to_smolstr();
@@ -101,7 +107,9 @@ fn fill_fn_params(
         };
     }
 
-    if let Some(stmt_list) = function.syntax().parent().and_then(ast::StmtList::cast) {
+    if let Some(stmt_list) = function.syntax().parent().and_then(ast::StmtList::cast)
+        && is_simple_param(current_param)
+    {
         params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
             file_params
                 .entry(format_smolstr!("{}: {ty}", name.display(ctx.db, ctx.edition)))
@@ -199,4 +207,10 @@ fn comma_wrapper(ctx: &CompletionContext<'_>) -> Option<(impl Fn(&str) -> SmolSt
     let leading = if has_leading_comma { "" } else { ", " };
 
     Some((move |label: &_| format_smolstr!("{leading}{label}{trailing}"), param.text_range()))
+}
+
+fn is_simple_param(param: &ast::Param) -> bool {
+    param
+        .pat()
+        .is_none_or(|pat| matches!(pat, ast::Pat::IdentPat(ident_pat) if ident_pat.pat().is_none()))
 }
