@@ -691,7 +691,6 @@ pub fn eq_attrs(
     attrs0: impl Iterator<Item = ast::Attr>,
     attrs1: impl Iterator<Item = ast::Attr>,
 ) -> bool {
-    // FIXME order of attributes should not matter
     let mut attrs0: Vec<_> = attrs0.map(|attr| attr.syntax().text().to_string()).collect();
     let mut attrs1: Vec<_> = attrs1.map(|attr| attr.syntax().text().to_string()).collect();
     attrs0.sort();
