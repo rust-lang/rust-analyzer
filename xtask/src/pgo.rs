@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use xshell::{Cmd, Shell, cmd};
 
-use crate::flags::PgoTrainingCrate;
+use crate::flags::{PgoTrainingCrate, PgoTrainingCrates};
 
 /// Decorates `ra_build_cmd` to add PGO instrumentation, and then runs the PGO instrumented
 /// Rust Analyzer on itself to gather a PGO profile.
@@ -14,7 +14,7 @@ pub(crate) fn gather_pgo_profile<'a>(
     sh: &'a Shell,
     ra_build_cmd: Cmd<'a>,
     target: &str,
-    train_crate: PgoTrainingCrate,
+    train_crates: PgoTrainingCrates,
 ) -> anyhow::Result<PathBuf> {
     let pgo_dir = std::path::absolute("rust-analyzer-pgo")?;
     // Clear out any stale profiles
@@ -35,21 +35,27 @@ pub(crate) fn gather_pgo_profile<'a>(
         ra_build_cmd.env("RUSTFLAGS", format!("-Cprofile-generate={}", pgo_dir.to_str().unwrap()));
     cmd_gather.run().context("cannot build rust-analyzer with PGO instrumentation")?;
 
-    let (train_path, label) = match &train_crate {
-        PgoTrainingCrate::RustAnalyzer => (PathBuf::from("."), "itself"),
-        PgoTrainingCrate::GitHub(repo) => {
-            (download_crate_for_training(sh, &pgo_dir, repo)?, repo.as_str())
-        }
-    };
+    for train_crate in &train_crates.0 {
+        let (train_path, label) = match train_crate {
+            PgoTrainingCrate::RustAnalyzer => (PathBuf::from("."), "itself"),
+            PgoTrainingCrate::GitHub(repo) => {
+                (download_crate_for_training(sh, &pgo_dir, repo)?, repo.as_str())
+            }
+            PgoTrainingCrate::PathBuf(path) => (
+                path.clone(),
+                path.file_name().and_then(OsStr::to_str).unwrap_or("local training crate"),
+            ),
+        };
 
-    // Run RA either on itself or on a downloaded crate
-    eprintln!("Training RA on {label}...");
-    cmd!(
-        sh,
-        "target/{target}/release/rust-analyzer analysis-stats -q --run-all-ide-things {train_path}"
-    )
-    .run()
-    .context("cannot generate PGO profiles")?;
+        // Run RA either on itself, on a downloaded crate or on a local crate
+        eprintln!("Training RA on {label}...");
+        cmd!(
+            sh,
+            "target/{target}/release/rust-analyzer analysis-stats -q --run-all-ide-things {train_path}"
+        )
+        .run()
+        .context("cannot generate PGO profiles")?;
+    }
 
     // Merge profiles into a single file
     let merged_profile = pgo_dir.join("merged.profdata");

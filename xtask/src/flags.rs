@@ -5,11 +5,29 @@ use std::{fmt, str::FromStr};
 use crate::install::{ClientOpt, ProcMacroServerOpt, ServerOpt};
 
 #[derive(Debug, Clone)]
+pub struct PgoTrainingCrates(pub Vec<PgoTrainingCrate>);
+
+#[derive(Debug, Clone)]
 pub enum PgoTrainingCrate {
     // Use RA's own sources for PGO training
     RustAnalyzer,
     // Download a Rust crate from `https://github.com/{0}` and use it for PGO training.
     GitHub(String),
+    // Use a local (absolute) path for PGO training.
+    PathBuf(std::path::PathBuf),
+}
+
+impl FromStr for PgoTrainingCrates {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let crates = s
+            .split(',')
+            .map(|part| part.parse())
+            .collect::<Result<Vec<PgoTrainingCrate>, String>>()?;
+
+        Ok(PgoTrainingCrates(crates))
+    }
 }
 
 impl FromStr for PgoTrainingCrate {
@@ -18,6 +36,14 @@ impl FromStr for PgoTrainingCrate {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "rust-analyzer" => Ok(Self::RustAnalyzer),
+            path if std::path::Path::new(path).is_absolute() => {
+                let path_buf = std::path::PathBuf::from(path);
+                if path_buf.exists() {
+                    Ok(Self::PathBuf(path_buf))
+                } else {
+                    Err(format!("The specified path '{}' does not exist.", path))
+                }
+            }
             url => Ok(Self::GitHub(url.to_owned())),
         }
     }
@@ -57,7 +83,7 @@ xflags::xflags! {
             optional --force-always-assert
 
             /// Apply PGO optimizations
-            optional --pgo pgo: PgoTrainingCrate
+            optional --pgo pgo: PgoTrainingCrates
         }
 
         cmd fuzz-tests {}
@@ -79,7 +105,7 @@ xflags::xflags! {
             /// Use cargo-zigbuild
             optional --zig
             /// Apply PGO optimizations
-            optional --pgo pgo: PgoTrainingCrate
+            optional --pgo pgo: PgoTrainingCrates
         }
         /// Read a changelog AsciiDoc file and update the GitHub Releases entry in Markdown.
         cmd publish-release-notes {
@@ -137,7 +163,7 @@ pub struct Install {
     pub proc_macro_server: bool,
     pub dev_rel: bool,
     pub force_always_assert: bool,
-    pub pgo: Option<PgoTrainingCrate>,
+    pub pgo: Option<PgoTrainingCrates>,
 }
 
 #[derive(Debug)]
@@ -155,7 +181,7 @@ pub struct Dist {
     pub enable_profiling: bool,
     pub client_patch_version: Option<String>,
     pub zig: bool,
-    pub pgo: Option<PgoTrainingCrate>,
+    pub pgo: Option<PgoTrainingCrates>,
 }
 
 #[derive(Debug)]

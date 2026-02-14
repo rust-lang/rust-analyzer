@@ -6,7 +6,7 @@ use anyhow::{Context, bail, format_err};
 use xshell::{Shell, cmd};
 
 use crate::{
-    flags::{self, Malloc, PgoTrainingCrate},
+    flags::{self, Malloc, PgoTrainingCrates},
     util::detect_target,
 };
 
@@ -38,7 +38,7 @@ const VS_CODES: &[&str] = &["code", "code-exploration", "code-insiders", "codium
 pub(crate) struct ServerOpt {
     pub(crate) malloc: Malloc,
     pub(crate) dev_rel: bool,
-    pub(crate) pgo: Option<PgoTrainingCrate>,
+    pub(crate) pgo: Option<PgoTrainingCrates>,
     pub(crate) force_always_assert: bool,
 }
 
@@ -159,14 +159,14 @@ fn install_server(sh: &Shell, opts: ServerOpt) -> anyhow::Result<()> {
         "cargo install --path crates/rust-analyzer --profile={profile} --locked --force {features...}"
     );
 
-    if let Some(train_crate) = opts.pgo {
+    if let Some(train_crates) = opts.pgo {
         let target = detect_target(sh);
         let build_cmd = cmd!(
             sh,
             "cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target} --profile={profile} --locked {features...}"
         );
 
-        let profile = crate::pgo::gather_pgo_profile(sh, build_cmd, &target, train_crate)?;
+        let profile = crate::pgo::gather_pgo_profile(sh, build_cmd, &target, train_crates)?;
         install_cmd = crate::pgo::apply_pgo_to_cmd(install_cmd, &profile);
     }
 

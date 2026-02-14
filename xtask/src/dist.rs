@@ -11,7 +11,7 @@ use zip::{DateTime, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
     date_iso,
-    flags::{self, Malloc, PgoTrainingCrate},
+    flags::{self, Malloc, PgoTrainingCrates},
     project_root,
     util::detect_target,
 };
@@ -102,7 +102,7 @@ fn dist_server(
     target: &Target,
     allocator: Malloc,
     zig: bool,
-    pgo: Option<PgoTrainingCrate>,
+    pgo: Option<PgoTrainingCrates>,
     dev_rel: bool,
 ) -> anyhow::Result<()> {
     let _e = sh.push_env("CFG_RELEASE", release);
@@ -122,12 +122,12 @@ fn dist_server(
     let features = allocator.to_features();
     let command = if linux_target && zig { "zigbuild" } else { "build" };
 
-    let pgo_profile = if let Some(train_crate) = pgo {
+    let pgo_profile = if let Some(train_crates) = pgo {
         Some(crate::pgo::gather_pgo_profile(
             sh,
             crate::pgo::build_command(sh, command, &target_name, features),
             &target_name,
-            train_crate,
+            train_crates,
         )?)
     } else {
         None
