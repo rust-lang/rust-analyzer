@@ -787,6 +787,22 @@ fn coerce_ref_mut_binding() -> ! {
 }
 
 #[test]
+fn assign_never_place_no_mismatch() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized
+fn foo() {
+    unsafe {
+        let p: *mut ! = 0 as _;
+        let mut x: () = ();
+        x = *p;
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn never_place_isnt_diverging() {
     check_infer_with_mismatches(
         r#"
