@@ -10,7 +10,7 @@ use rustc_proc_macro::Delimiter;
 use crate::bridge::{DelimSpan, Group, Ident, LitKind, Literal, Punct, TokenTree};
 
 /// Trait for allowing tests to parse tokenstreams with dynamic span ranges
-pub(crate) trait SpanLike {
+pub trait SpanLike {
     fn derive_ranged(&self, range: std::ops::Range<usize>) -> Self;
 }
 
@@ -47,7 +47,7 @@ impl<S> TokenStream<S> {
         }
     }
 
-    pub(crate) fn from_str(s: &str, span: S) -> Result<Self, String>
+    pub fn from_str(s: &str, span: S) -> Result<Self, String>
     where
         S: SpanLike + Copy,
     {

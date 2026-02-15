@@ -1861,15 +1861,12 @@ dependencies = [
 name = "proc-macro-srv"
 version = "0.0.0"
 dependencies = [
- "expect-test",
  "intern",
  "libc",
  "libloading",
- "line-index 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "memmap2",
  "object",
  "paths",
- "proc-macro-test",
  "ra-ap-rustc_lexer",
  "span",
  "temp-dir",
@@ -1882,11 +1879,14 @@ dependencies = [
  "clap",
  "expect-test",
  "intern",
+ "line-index 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "object",
  "paths",
  "proc-macro-api",
  "proc-macro-srv",
  "proc-macro-test",
  "span",
+ "temp-dir",
  "tt",
 ]
 

@@ -1,7 +1,7 @@
 //! Handles dynamic library loading for proc macro
 
 mod proc_macros;
-mod version;
+pub mod version;
 
 use rustc_proc_macro::bridge;
 use std::{fmt, fs, io, time::SystemTime};
@@ -16,16 +16,13 @@ use crate::{
     dylib::proc_macros::ProcMacros, token_stream::TokenStream,
 };
 
-pub(crate) struct Expander {
+pub struct Expander {
     inner: ProcMacroLibrary,
     modified_time: SystemTime,
 }
 
 impl Expander {
-    pub(crate) fn new(
-        temp_dir: &TempDir,
-        lib: &Utf8Path,
-    ) -> Result<Expander, LoadProcMacroDylibError> {
+    pub fn new(temp_dir: &TempDir, lib: &Utf8Path) -> Result<Expander, LoadProcMacroDylibError> {
         // Some libraries for dynamic loading require canonicalized path even when it is
         // already absolute
         let lib = lib.canonicalize_utf8()?;
@@ -37,7 +34,7 @@ impl Expander {
         Ok(Expander { inner: library, modified_time })
     }
 
-    pub(crate) fn expand<'a, S: ProcMacroSrvSpan + 'a>(
+    pub fn expand<'a, S: ProcMacroSrvSpan + 'a>(
         &self,
         macro_name: &str,
         macro_body: TokenStream<S>,

@@ -6,10 +6,13 @@ use span::{
 };
 use std::ops::Range;
 
-use crate::{
-    EnvSnapshot, ProcMacroClientInterface, ProcMacroSrv, SpanId, dylib, proc_macro_test_dylib_path,
-    token_stream::TokenStream,
+use proc_macro_srv::{
+    EnvSnapshot, ProcMacroClientInterface, ProcMacroSrv, SpanId, dylib, token_stream::TokenStream,
 };
+
+fn proc_macro_test_dylib_path() -> paths::Utf8PathBuf {
+    proc_macro_test::PROC_MACRO_TEST_LOCATION.into()
+}
 
 fn parse_string(call_site: SpanId, src: &str) -> TokenStream<SpanId> {
     TokenStream::from_str(src, call_site).unwrap()
@@ -24,7 +27,7 @@ fn parse_string_spanned(
         .unwrap()
 }
 
-pub fn assert_expand(
+pub(crate) fn assert_expand(
     macro_name: &str,
     #[rust_analyzer::rust_fixture] ra_fixture: &str,
     expect: Expect,
@@ -33,7 +36,7 @@ pub fn assert_expand(
     assert_expand_impl(macro_name, ra_fixture, None, expect, expect_spanned);
 }
 
-pub fn assert_expand_attr(
+pub(crate) fn assert_expand_attr(
     macro_name: &str,
     #[rust_analyzer::rust_fixture] ra_fixture: &str,
     attr_args: &str,

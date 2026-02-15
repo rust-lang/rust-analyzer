@@ -25,9 +25,12 @@ paths.workspace = true
 span = { path = "../span", default-features = false}
 tt.workspace = true
 intern.workspace = true
+temp-dir.workspace = true
+line-index.workspace = true
+object.workspace = true
 
 # used as proc macro test target
-proc-macro-test.path = "../proc-macro-srv/proc-macro-test"
+proc-macro-test.path = "./proc-macro-test"
 
 [features]
 default = []
