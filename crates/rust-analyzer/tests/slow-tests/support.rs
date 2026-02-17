@@ -411,13 +411,13 @@ impl Server {
     }
     pub(crate) fn wait_for_diagnostics(&self) -> PublishDiagnosticsParams {
         for msg in self.messages.borrow().iter() {
-            if let Message::Notification(n) = msg {
-                if n.method == "textDocument/publishDiagnostics" {
-                    let params: PublishDiagnosticsParams =
-                        serde_json::from_value(n.params.clone()).unwrap();
-                    if !params.diagnostics.is_empty() {
-                        return params;
-                    }
+            if let Message::Notification(n) = msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if !params.diagnostics.is_empty() {
+                    return params;
                 }
             }
         }
@@ -426,13 +426,13 @@ impl Server {
                 .recv()
                 .unwrap_or_else(|Timeout| panic!("timeout while waiting for diagnostics"))
                 .expect("connection closed while waiting for diagnostics");
-            if let Message::Notification(n) = &msg {
-                if n.method == "textDocument/publishDiagnostics" {
-                    let params: PublishDiagnosticsParams =
-                        serde_json::from_value(n.params.clone()).unwrap();
-                    if !params.diagnostics.is_empty() {
-                        return params;
-                    }
+            if let Message::Notification(n) = &msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if !params.diagnostics.is_empty() {
+                    return params;
                 }
             }
         }
@@ -444,13 +444,13 @@ impl Server {
                 .recv()
                 .unwrap_or_else(|Timeout| panic!("timeout while waiting for diagnostics to clear"))
                 .expect("connection closed while waiting for diagnostics to clear");
-            if let Message::Notification(n) = &msg {
-                if n.method == "textDocument/publishDiagnostics" {
-                    let params: PublishDiagnosticsParams =
-                        serde_json::from_value(n.params.clone()).unwrap();
-                    if params.diagnostics.is_empty() {
-                        return;
-                    }
+            if let Message::Notification(n) = &msg
+                && n.method == "textDocument/publishDiagnostics"
+            {
+                let params: PublishDiagnosticsParams =
+                    serde_json::from_value(n.params.clone()).unwrap();
+                if params.diagnostics.is_empty() {
+                    return;
                 }
             }
         }

@@ -382,6 +382,7 @@ enum FlycheckCommandOrigin {
     ProjectJsonRunnable,
 }
 
+#[derive(Debug)]
 enum StateChange {
     Restart {
         generation: DiagnosticsGeneration,
@@ -435,6 +436,7 @@ enum DiagnosticsReceived {
 }
 
 #[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 enum Event {
     RequestStateChange(StateChange),
     CheckEvent(Option<CheckMessage>),
@@ -445,6 +447,7 @@ const SAVED_FILE_PLACEHOLDER_DOLLAR: &str = "$saved_file";
 const LABEL_INLINE: &str = "{label}";
 const SAVED_FILE_INLINE: &str = "{saved_file}";
 
+#[derive(Debug)]
 struct Substitutions<'a> {
     label: Option<&'a str>,
     saved_file: Option<&'a str>,
@@ -950,6 +953,7 @@ impl FlycheckActor {
 }
 
 #[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 enum CheckMessage {
     /// A message from `cargo check`, including details like the path
     /// to the relevant `Cargo.toml`.
