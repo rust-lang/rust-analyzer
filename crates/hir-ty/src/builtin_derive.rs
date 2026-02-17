@@ -260,7 +260,22 @@ fn simple_trait_predicates<'db>(
             let param_idx =
                 param_idx.into_raw().into_u32() + (generic_params.len_lifetimes() as u32);
             let param_ty = Ty::new_param(interner, param_id, param_idx);
-            let trait_ref = TraitRef::new(interner, trait_id.into(), [param_ty]);
+            let trait_args = match loc.trait_ {
+                BuiltinDeriveImplTrait::Copy
+                | BuiltinDeriveImplTrait::Clone
+                | BuiltinDeriveImplTrait::Default
+                | BuiltinDeriveImplTrait::Debug
+                | BuiltinDeriveImplTrait::Hash
+                | BuiltinDeriveImplTrait::Ord
+                | BuiltinDeriveImplTrait::Eq => GenericArgs::new_from_slice(&[param_ty.into()]),
+                BuiltinDeriveImplTrait::PartialOrd | BuiltinDeriveImplTrait::PartialEq => {
+                    GenericArgs::new_from_slice(&[param_ty.into(), param_ty.into()])
+                }
+                BuiltinDeriveImplTrait::CoerceUnsized | BuiltinDeriveImplTrait::DispatchFromDyn => {
+                    unreachable!()
+                }
+            };
+            let trait_ref = TraitRef::new_from_args(interner, trait_id.into(), trait_args);
             trait_ref.upcast(interner)
         });
     let mut assoc_type_bounds = Vec::new();
@@ -528,7 +543,7 @@ struct WithGenerics<'a, T: Trait, const N: usize>(&'a [T; N]);
                 Clause(Binder { value: TraitPredicate(#1: Trait, polarity:Positive), bound_vars: [] })
                 Clause(Binder { value: ConstArgHasType(#2, usize), bound_vars: [] })
                 Clause(Binder { value: TraitPredicate(#1: Sized, polarity:Positive), bound_vars: [] })
-                Clause(Binder { value: TraitPredicate(#1: PartialEq, polarity:Positive), bound_vars: [] })
+                Clause(Binder { value: TraitPredicate(#1: PartialEq<[#1]>, polarity:Positive), bound_vars: [] })
 
                 Clause(Binder { value: TraitPredicate(#1: Trait, polarity:Positive), bound_vars: [] })
                 Clause(Binder { value: ConstArgHasType(#2, usize), bound_vars: [] })
@@ -538,7 +553,7 @@ struct WithGenerics<'a, T: Trait, const N: usize>(&'a [T; N]);
                 Clause(Binder { value: TraitPredicate(#1: Trait, polarity:Positive), bound_vars: [] })
                 Clause(Binder { value: ConstArgHasType(#2, usize), bound_vars: [] })
                 Clause(Binder { value: TraitPredicate(#1: Sized, polarity:Positive), bound_vars: [] })
-                Clause(Binder { value: TraitPredicate(#1: PartialOrd, polarity:Positive), bound_vars: [] })
+                Clause(Binder { value: TraitPredicate(#1: PartialOrd<[#1]>, polarity:Positive), bound_vars: [] })
 
                 Clause(Binder { value: TraitPredicate(#1: Trait, polarity:Positive), bound_vars: [] })
                 Clause(Binder { value: ConstArgHasType(#2, usize), bound_vars: [] })
