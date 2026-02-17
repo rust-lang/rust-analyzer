@@ -35,9 +35,9 @@ extern crate ra_ap_rustc_lexer as rustc_lexer;
 extern crate rustc_lexer;
 
 mod bridge;
-mod dylib;
+pub mod dylib;
 mod server_impl;
-mod token_stream;
+pub mod token_stream;
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -373,12 +373,4 @@ impl Drop for EnvChange<'_> {
             )
         }
     }
-}
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub fn proc_macro_test_dylib_path() -> paths::Utf8PathBuf {
-    proc_macro_test::PROC_MACRO_TEST_LOCATION.into()
 }

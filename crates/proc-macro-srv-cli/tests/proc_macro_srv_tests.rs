@@ -1,9 +1,15 @@
 //! proc-macro tests
 
-#[macro_use]
-mod utils;
-use utils::*;
+#![cfg(feature = "sysroot-abi")]
+#![cfg_attr(feature = "in-rust-tree", feature(rustc_private))]
 
+#[cfg(feature = "in-rust-tree")]
+extern crate rustc_driver as _;
+
+#[allow(warnings)]
+mod common;
+
+use common::test_utils::*;
 use expect_test::expect;
 
 #[test]
@@ -725,5 +731,24 @@ hello",
             LITER 42:Root[0000, 0]@0..100#ROOT2024 Integer 2
             LITER 42:Root[0000, 0]@0..100#ROOT2024 Integer 1
         "#]],
+    );
+}
+
+#[test]
+fn test_version_check() {
+    let info = proc_macro_srv::dylib::version::read_dylib_info(
+        &object::File::parse(
+            &*std::fs::read(crate::common::utils::proc_macro_test_dylib_path()).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        info.version_string,
+        proc_macro_srv::RUSTC_VERSION_STRING,
+        "sysroot ABI mismatch: dylib rustc version (read from .rustc section): {:?} != proc-macro-srv version (read from 'rustc --version'): {:?}",
+        info.version_string,
+        proc_macro_srv::RUSTC_VERSION_STRING,
     );
 }

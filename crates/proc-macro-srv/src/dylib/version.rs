@@ -149,20 +149,3 @@ pub fn read_version(obj: &object::File<'_>) -> io::Result<String> {
     let version_string = String::from_utf8(version_string_utf8);
     version_string.map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
-
-#[test]
-fn test_version_check() {
-    let info = read_dylib_info(
-        &object::File::parse(&*std::fs::read(crate::proc_macro_test_dylib_path()).unwrap())
-            .unwrap(),
-    )
-    .unwrap();
-
-    assert_eq!(
-        info.version_string,
-        crate::RUSTC_VERSION_STRING,
-        "sysroot ABI mismatch: dylib rustc version (read from .rustc section): {:?} != proc-macro-srv version (read from 'rustc --version'): {:?}",
-        info.version_string,
-        crate::RUSTC_VERSION_STRING,
-    );
-}
