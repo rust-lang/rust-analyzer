@@ -532,6 +532,41 @@ fn test() {
             "#]],
         );
     }
+    #[test]
+    fn exclude_tests_macro_refs() {
+        check(
+            r#"
+fn foo$0() -> i32 { 42 }
+
+fn bar() {
+    foo();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn t1() {
+        let f = foo();
+    }
+
+    #[test]
+    fn t2() {
+        dbg!(foo());
+        assert_eq!(foo(), 42);
+        let v = vec![foo()];
+    }
+}
+"#,
+            expect![[r#"
+                foo Function FileId(0) 0..22 3..6
+
+                FileId(0) 39..42
+                FileId(0) 135..138
+            "#]],
+        );
+    }
 
     #[test]
     fn test_struct_literal_after_space() {
