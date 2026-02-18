@@ -16,7 +16,7 @@ use itertools::Itertools;
 use stdx::never;
 use syntax::{
     SmolStr,
-    SyntaxKind::{EXPR_STMT, STMT_LIST},
+    SyntaxKind::{BLOCK_EXPR, EXPR_STMT, STMT_LIST},
     T, TextRange, TextSize, ToSmolStr,
     ast::{self, AstNode, AstToken},
     format_smolstr, match_ast,
@@ -155,7 +155,7 @@ pub(crate) fn complete_postfix(
                 postfix_snippet("let", "let", &format!("let $1 = {receiver_text}"))
                     .add_to(acc, ctx.db);
             }
-            _ if matches!(second_ancestor.kind(), STMT_LIST | EXPR_STMT) => {
+            _ if matches!(second_ancestor.kind(), STMT_LIST | EXPR_STMT | BLOCK_EXPR) => {
                 postfix_snippet("let", "let", &format!("let $0 = {receiver_text};"))
                     .add_to(acc, ctx.db);
                 postfix_snippet("letm", "let mut", &format!("let mut $0 = {receiver_text};"))
@@ -651,6 +651,87 @@ fn main() {
 fn main() {
     baz.l$0
     res
+}
+"#,
+            expect![[r#"
+                sn box  Box::new(expr)
+                sn call function(expr)
+                sn const      const {}
+                sn dbg      dbg!(expr)
+                sn dbgr    dbg!(&expr)
+                sn deref         *expr
+                sn if       if expr {}
+                sn let             let
+                sn letm        let mut
+                sn match match expr {}
+                sn not           !expr
+                sn ref           &expr
+                sn refm      &mut expr
+                sn return  return expr
+                sn unsafe    unsafe {}
+                sn while while expr {}
+            "#]],
+        );
+        check(
+            r#"
+fn main() {
+    &baz.l$0
+    res
+}
+"#,
+            expect![[r#"
+                sn box  Box::new(expr)
+                sn call function(expr)
+                sn const      const {}
+                sn dbg      dbg!(expr)
+                sn dbgr    dbg!(&expr)
+                sn deref         *expr
+                sn if       if expr {}
+                sn let             let
+                sn letm        let mut
+                sn match match expr {}
+                sn not           !expr
+                sn ref           &expr
+                sn refm      &mut expr
+                sn return  return expr
+                sn unsafe    unsafe {}
+                sn while while expr {}
+            "#]],
+        );
+    }
+
+    #[test]
+    fn let_tail_block() {
+        check(
+            r#"
+fn main() {
+    baz.l$0
+}
+"#,
+            expect![[r#"
+                sn box  Box::new(expr)
+                sn call function(expr)
+                sn const      const {}
+                sn dbg      dbg!(expr)
+                sn dbgr    dbg!(&expr)
+                sn deref         *expr
+                sn if       if expr {}
+                sn let             let
+                sn letm        let mut
+                sn match match expr {}
+                sn not           !expr
+                sn ref           &expr
+                sn refm      &mut expr
+                sn return  return expr
+                sn unsafe    unsafe {}
+                sn while while expr {}
+            "#]],
+        );
+
+        check(
+            r#"
+fn main() {
+    &baz.l$0
 }
 "#,
             expect![[r#"
