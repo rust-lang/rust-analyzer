@@ -553,6 +553,11 @@ impl Ctx<'_> {
                     return None;
                 }
 
+                // Similarly, modules cannot be used in pattern position.
+                if matches!(def, hir::ModuleDef::Module(_)) {
+                    return None;
+                }
+
                 let cfg = FindPathConfig {
                     prefer_no_std: false,
                     prefer_prelude: true,
