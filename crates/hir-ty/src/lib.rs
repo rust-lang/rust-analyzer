@@ -31,6 +31,7 @@ mod inhabitedness;
 mod lower;
 pub mod next_solver;
 mod opaques;
+mod representability;
 mod specialization;
 mod target_feature;
 mod utils;
