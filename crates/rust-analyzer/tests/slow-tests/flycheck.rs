@@ -74,3 +74,39 @@ fn main() {
     // Wait for diagnostics to be cleared.
     server.wait_for_diagnostics_cleared();
 }
+
+#[test]
+fn test_flycheck_diagnostic_with_override_command() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/main.rs
+fn main() {}
+"#,
+    )
+    .with_config(serde_json::json!({
+        "checkOnSave": true,
+        "check": {
+            "overrideCommand": ["rustc", "--error-format=json", "$saved_file"]
+        }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    server.write_file_and_save("src/main.rs", "fn main() {\n    let x = 1;\n}\n".to_owned());
+
+    let diagnostics = server.wait_for_diagnostics();
+    assert!(
+        diagnostics.diagnostics.iter().any(|d| d.message.contains("unused variable")),
+        "expected unused variable diagnostic, got: {:?}",
+        diagnostics.diagnostics,
+    );
+}
