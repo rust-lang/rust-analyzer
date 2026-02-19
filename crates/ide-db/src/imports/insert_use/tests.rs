@@ -1529,6 +1529,16 @@ fn merge_gated_imports_with_different_values() {
 }
 
 #[test]
+fn merge_gated_imports_different_order() {
+    check_merge(
+        r#"#[cfg(a)] #[cfg(b)] use foo::bar;"#,
+        r#"#[cfg(b)] #[cfg(a)] use foo::baz;"#,
+        r#"#[cfg(a)] #[cfg(b)] use foo::{bar, baz};"#,
+        MergeBehavior::Crate,
+    );
+}
+
+#[test]
 fn merge_into_existing_cfg_import() {
     check(
         r#"foo::Foo"#,

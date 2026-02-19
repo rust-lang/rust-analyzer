@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use itertools::{EitherOrBoth, Itertools};
 use parser::T;
 use syntax::{
-    Direction, SyntaxElement, algo,
+    Direction, SyntaxElement, ToSmolStr, algo,
     ast::{
         self, AstNode, HasAttrs, HasName, HasVisibility, PathSegmentKind, edit_in_place::Removable,
         make,
@@ -691,10 +691,10 @@ pub fn eq_attrs(
     attrs0: impl Iterator<Item = ast::Attr>,
     attrs1: impl Iterator<Item = ast::Attr>,
 ) -> bool {
-    let mut attrs0: Vec<_> = attrs0.map(|attr| attr.syntax().text().to_string()).collect();
-    let mut attrs1: Vec<_> = attrs1.map(|attr| attr.syntax().text().to_string()).collect();
-    attrs0.sort();
-    attrs1.sort();
+    let mut attrs0: Vec<_> = attrs0.map(|attr| attr.syntax().text().to_smolstr()).collect();
+    let mut attrs1: Vec<_> = attrs1.map(|attr| attr.syntax().text().to_smolstr()).collect();
+    attrs0.sort_unstable();
+    attrs1.sort_unstable();
 
     attrs0 == attrs1
 }
