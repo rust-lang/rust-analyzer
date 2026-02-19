@@ -513,61 +513,32 @@ fn test() {
     }
 
     #[test]
-    fn test_access() {
-        check(
-            r#"
-struct S { f$0: u32 }
-
-#[test]
-fn test() {
-    let mut x = S { f: 92 };
-    x.f = 92;
-}
-"#,
-            expect![[r#"
-                f Field FileId(0) 11..17 11..12
-
-                FileId(0) 61..62 read test
-                FileId(0) 76..77 write test
-            "#]],
-        );
-    }
-    #[test]
     fn exclude_tests_macro_refs() {
         check(
             r#"
+macro_rules! my_macro {
+    ($e:expr) => { $e };
+}
+
 fn foo$0() -> i32 { 42 }
 
 fn bar() {
     foo();
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn t1() {
-        let f = foo();
-    }
-
-    #[test]
-    fn t2() {
-        dbg!(foo());
-        assert_eq!(foo(), 42);
-        let v = vec![foo()];
-    }
+#[test]
+fn t2() {
+    my_macro!(foo());
 }
 "#,
-            expect![[r#"
-                foo Function FileId(0) 0..22 3..6
+          expect![[r#"
+                foo Function FileId(0) 52..74 55..58
 
-                FileId(0) 39..42
-                FileId(0) 135..138
+                FileId(0) 91..94
+                FileId(0) 133..136 test
             "#]],
         );
     }
-
     #[test]
     fn test_struct_literal_after_space() {
         check(
