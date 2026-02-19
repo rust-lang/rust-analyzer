@@ -531,7 +531,7 @@ fn t2() {
     my_macro!(foo());
 }
 "#,
-          expect![[r#"
+            expect![[r#"
                 foo Function FileId(0) 52..74 55..58
 
                 FileId(0) 91..94
