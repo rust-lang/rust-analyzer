@@ -415,7 +415,6 @@ prt!{(3 + 5)}
         )
     }
 
-    // FIXME @alibektas : Inner macro_call is not seen as such. So this doesn't work.
     #[test]
     fn test_nested_macros() {
         check_assist(
