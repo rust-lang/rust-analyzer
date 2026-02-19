@@ -580,10 +580,10 @@ impl Ctx<'_> {
                     }
                 }
 
-                if let hir::ModuleDef::Variant(v) = def {
-                    if v.kind(self.source_scope.db) != hir::StructKind::Unit {
-                        return None;
-                    }
+                if let hir::ModuleDef::Variant(v) = def
+                    && v.kind(self.source_scope.db) != hir::StructKind::Unit
+                {
+                    return None;
                 }
 
                 let cfg = FindPathConfig {
