@@ -622,3 +622,66 @@ fn main() {
         Some('|'),
     );
 }
+
+#[test]
+fn closure_within_param_generic_resolved_by_turbofish() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+fn foo<T>(f: impl Fn(T)) {}
+fn main() {
+    foo::<u32>(|$0);
+}
+"#,
+        r#"
+fn foo<T>(f: impl Fn(T)) {}
+fn main() {
+    foo::<u32>(|${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_generic_resolved_by_inference() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+fn foo<T>(x: T, f: impl Fn(T)) {}
+fn main() {
+    foo(42u32, |$0);
+}
+"#,
+        r#"
+fn foo<T>(x: T, f: impl Fn(T)) {}
+fn main() {
+    foo(42u32, |${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_generic_partially_resolved() {
+    check_edit_with_trigger_character(
+        "|_, _: U| ",
+        r#"
+//- minicore: fn
+fn foo<T, U>(x: T, f: impl Fn(T, U)) {}
+fn main() {
+    foo(42u32, |$0);
+}
+"#,
+        r#"
+fn foo<T, U>(x: T, f: impl Fn(T, U)) {}
+fn main() {
+    foo(42u32, |${1:_}, ${2:_}: ${3:U}| $0);
+}
+"#,
+        Some('|'),
+    );
+}

@@ -3,7 +3,7 @@
 use std::fmt::Write;
 
 use hir::HirDisplay;
-use ide_db::{FxHashMap, active_parameter::callable_for_token};
+use ide_db::{FxHashMap, FxHashSet, active_parameter::callable_for_token};
 use itertools::Either;
 use syntax::{
     AstNode, Direction, SmolStr, SyntaxKind, TextRange, TextSize, ToSmolStr, algo,
@@ -257,13 +257,28 @@ pub(crate) fn complete_closure_within_param(
     let fn_callable = generic_param_ty.as_callable(ctx.db)?;
     let closure_params = fn_callable.params();
 
+    // Build a set of generic param names that have already been resolved
+    // (via turbofish or inference from other arguments). If a substituted
+    // type is concrete (not unknown), the corresponding param is resolved.
+    let resolved_param_names: FxHashSet<_> = callable
+        .substitution(ctx.db)
+        .map(|subst| {
+            subst
+                .types(ctx.db)
+                .into_iter()
+                .filter(|(_, ty)| !ty.contains_unknown())
+                .map(|(name, _)| name)
+                .collect()
+        })
+        .unwrap_or_default();
+
     let module = ctx.scope.module().into();
     let source_range = ctx.source_range();
     let cap = ctx.config.snippet_cap;
 
     // For each closure param, include a type annotation only if the type
-    // contains generic type parameters (meaning inference alone can't determine it).
-    // Concrete types from the Fn bound (e.g. `usize`) will be inferred.
+    // contains generic type parameters (meaning inference alone can't determine it)
+    // AND the instantiated type hasn't already resolved them.
     let mut label = String::from("|");
     let mut snippet = String::new();
     let mut plain = String::new();
@@ -272,7 +287,12 @@ pub(crate) fn complete_closure_within_param(
     for (i, p) in closure_params.iter().enumerate() {
         let sep = if i > 0 { ", " } else { "" };
         let ty = p.ty();
-        let needs_annotation = !ty.generic_params(ctx.db).is_empty();
+        // A type annotation is needed only if the type contains generic params
+        // that haven't been resolved by the calling context.
+        let needs_annotation = ty.generic_params(ctx.db).iter().any(|gp| {
+            let name = gp.name(ctx.db);
+            !resolved_param_names.contains(name.symbol())
+        });
 
         if needs_annotation {
             if let Ok(ty_str) = ty.display_source_code(ctx.db, module, true) {
