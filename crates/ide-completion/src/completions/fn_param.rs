@@ -1,5 +1,7 @@
 //! See [`complete_fn_param`].
 
+use std::fmt::Write;
+
 use hir::HirDisplay;
 use ide_db::{FxHashMap, active_parameter::callable_for_token};
 use itertools::Either;
@@ -228,10 +230,9 @@ pub(crate) fn complete_closure_within_param(
     let closure_param_list = ctx.token.parent().filter(|n| n.kind() == SyntaxKind::PARAM_LIST)?;
     let closure = closure_param_list.parent().filter(|n| n.kind() == SyntaxKind::CLOSURE_EXPR)?;
     let arg_list = closure.parent().filter(|n| n.kind() == SyntaxKind::ARG_LIST)?;
-    let call = arg_list
+    _ = arg_list
         .parent()
         .filter(|n| matches!(n.kind(), SyntaxKind::CALL_EXPR | SyntaxKind::METHOD_CALL_EXPR))?;
-    let _ = call; // just to prove we found it
 
     let (callable, index) = callable_for_token(&ctx.sema, closure.first_token()?)?;
     let index = index?;
@@ -266,38 +267,39 @@ pub(crate) fn complete_closure_within_param(
     // For each closure param, include a type annotation only if the type
     // contains generic type parameters (meaning inference alone can't determine it).
     // Concrete types from the Fn bound (e.g. `usize`) will be inferred.
-    let mut label_parts = Vec::new();
-    let mut snippet_parts = Vec::new();
-    let mut plain_parts = Vec::new();
+    let mut label = String::from("|");
+    let mut snippet = String::new();
+    let mut plain = String::new();
     let mut tab_stop = 1;
 
-    for p in closure_params.iter() {
+    for (i, p) in closure_params.iter().enumerate() {
+        let sep = if i > 0 { ", " } else { "" };
         let ty = p.ty();
         let needs_annotation = !ty.generic_params(ctx.db).is_empty();
 
         if needs_annotation {
             if let Ok(ty_str) = ty.display_source_code(ctx.db, module, true) {
-                label_parts.push(format!("_: {ty_str}"));
-                snippet_parts.push(format!("${{{tab_stop}:_}}: ${{{}:{ty_str}}}", tab_stop + 1));
-                plain_parts.push(format!("_: {ty_str}"));
+                write!(label, "{sep}_: {ty_str}").unwrap();
+                write!(snippet, "{sep}${{{tab_stop}:_}}: ${{{}:{ty_str}}}", tab_stop + 1).unwrap();
+                write!(plain, "{sep}_: {ty_str}").unwrap();
                 tab_stop += 2;
             } else {
-                label_parts.push("_".to_owned());
-                snippet_parts.push(format!("${{{tab_stop}:_}}"));
-                plain_parts.push("_".to_owned());
+                write!(label, "{sep}_").unwrap();
+                write!(snippet, "{sep}${{{tab_stop}:_}}").unwrap();
+                write!(plain, "{sep}_").unwrap();
                 tab_stop += 1;
             }
         } else {
-            label_parts.push("_".to_owned());
-            snippet_parts.push(format!("${{{tab_stop}:_}}"));
-            plain_parts.push("_".to_owned());
+            write!(label, "{sep}_").unwrap();
+            write!(snippet, "{sep}${{{tab_stop}:_}}").unwrap();
+            write!(plain, "{sep}_").unwrap();
             tab_stop += 1;
         }
     }
 
-    let label = format!("|{}| ", label_parts.join(", "));
-    let snippet = format!("{}| $0", snippet_parts.join(", "));
-    let plain = format!("{}| ", plain_parts.join(", "));
+    label.push_str("| ");
+    snippet.push_str("| $0");
+    plain.push_str("| ");
 
     let mut item =
         CompletionItem::new(CompletionItemKind::Binding, source_range, &label, ctx.edition);
