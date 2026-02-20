@@ -1,6 +1,6 @@
 use expect_test::expect;
 
-use crate::tests::{check, check_with_trigger_character};
+use crate::tests::{check, check_edit_with_trigger_character, check_with_trigger_character};
 
 #[test]
 fn only_param() {
@@ -357,4 +357,247 @@ fn g(foo: (), #[baz = "qux"] mut ba$0)
             bn #[baz = "qux"] mut bar: u32
         "##]],
     )
+}
+
+#[test]
+fn closure_within_param_fn_single() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+fn foo(f: impl Fn(u32)) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo(f: impl Fn(u32)) {}
+fn main() {
+    foo(|${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_fn_multiple() {
+    check_edit_with_trigger_character(
+        "|_, _| ",
+        r#"
+//- minicore: fn
+fn foo(f: impl Fn(u32, i64) -> bool) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo(f: impl Fn(u32, i64) -> bool) {}
+fn main() {
+    foo(|${1:_}, ${2:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_fn_mut() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+fn foo(f: impl FnMut(u32)) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo(f: impl FnMut(u32)) {}
+fn main() {
+    foo(|${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_fn_once() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+fn foo(f: impl FnOnce(String) -> String) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo(f: impl FnOnce(String) -> String) {}
+fn main() {
+    foo(|${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_second_arg() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+fn foo(x: u32, f: impl Fn(bool) -> bool) {}
+fn main() {
+    foo(0, |$0);
+}
+"#,
+        r#"
+fn foo(x: u32, f: impl Fn(bool) -> bool) {}
+fn main() {
+    foo(0, |${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_method_call() {
+    check_edit_with_trigger_character(
+        "|_| ",
+        r#"
+//- minicore: fn
+struct S;
+impl S {
+    fn foo(&self, f: impl FnOnce(u32) -> bool) {}
+}
+fn main() {
+    S.foo(|$0);
+}
+"#,
+        r#"
+struct S;
+impl S {
+    fn foo(&self, f: impl FnOnce(u32) -> bool) {}
+}
+fn main() {
+    S.foo(|${1:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_method_second_closure_arg() {
+    check_edit_with_trigger_character(
+        "|_, _| ",
+        r#"
+//- minicore: fn
+struct S;
+impl S {
+    fn foo(&self, a: impl Fn(u32), b: impl Fn(bool, i64)) {}
+}
+fn main() {
+    S.foo(|_| {}, |$0);
+}
+"#,
+        r#"
+struct S;
+impl S {
+    fn foo(&self, a: impl Fn(u32), b: impl Fn(bool, i64)) {}
+}
+fn main() {
+    S.foo(|_| {}, |${1:_}, ${2:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_where_clause() {
+    check_edit_with_trigger_character(
+        "|_, _| ",
+        r#"
+//- minicore: fn
+fn foo<F>(f: F) where F: Fn(u32, bool) -> bool {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo<F>(f: F) where F: Fn(u32, bool) -> bool {}
+fn main() {
+    foo(|${1:_}, ${2:_}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_generic_single() {
+    check_edit_with_trigger_character(
+        "|_: T| ",
+        r#"
+//- minicore: fn
+fn foo<T>(f: impl Fn(T) -> T) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo<T>(f: impl Fn(T) -> T) {}
+fn main() {
+    foo(|${1:_}: ${2:T}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_generic_mixed() {
+    check_edit_with_trigger_character(
+        "|_, _: T| ",
+        r#"
+//- minicore: fn
+fn foo<T>(f: impl Fn(u32, T) -> bool) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo<T>(f: impl Fn(u32, T) -> bool) {}
+fn main() {
+    foo(|${1:_}, ${2:_}: ${3:T}| $0);
+}
+"#,
+        Some('|'),
+    );
+}
+
+#[test]
+fn closure_within_param_generic_multiple() {
+    check_edit_with_trigger_character(
+        "|_: T, _: U| ",
+        r#"
+//- minicore: fn
+fn foo<T, U>(f: impl Fn(T, U)) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo<T, U>(f: impl Fn(T, U)) {}
+fn main() {
+    foo(|${1:_}: ${2:T}, ${3:_}: ${4:U}| $0);
+}
+"#,
+        Some('|'),
+    );
 }
