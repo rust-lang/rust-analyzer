@@ -256,9 +256,6 @@ pub(crate) fn complete_closure_within_param(
 
     let fn_callable = generic_param_ty.as_callable(ctx.db)?;
     let closure_params = fn_callable.params();
-    if closure_params.is_empty() {
-        return None;
-    }
 
     let module = ctx.scope.module().into();
     let source_range = ctx.source_range();

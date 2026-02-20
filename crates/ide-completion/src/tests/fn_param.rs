@@ -601,3 +601,24 @@ fn main() {
         Some('|'),
     );
 }
+
+#[test]
+fn closure_within_param_no_args() {
+    check_edit_with_trigger_character(
+        "|| ",
+        r#"
+//- minicore: fn
+fn foo(f: impl Fn()) {}
+fn main() {
+    foo(|$0);
+}
+"#,
+        r#"
+fn foo(f: impl Fn()) {}
+fn main() {
+    foo(|| $0);
+}
+"#,
+        Some('|'),
+    );
+}
