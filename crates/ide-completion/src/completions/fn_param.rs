@@ -261,7 +261,7 @@ pub(crate) fn complete_closure_within_param(
     // (via turbofish or inference from other arguments). If a substituted
     // type is concrete (not unknown), the corresponding param is resolved.
     let resolved_param_names: FxHashSet<_> = callable
-        .substitution(ctx.db)
+        .substitution()
         .map(|subst| {
             subst
                 .types(ctx.db)

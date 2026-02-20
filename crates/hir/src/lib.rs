@@ -6464,7 +6464,7 @@ impl<'db> Callable<'db> {
     }
 
     /// Returns the generic substitution for this callable, if it is a function.
-    pub fn substitution(&self, db: &'db dyn HirDatabase) -> Option<GenericSubstitution<'db>> {
+    pub fn substitution(&self) -> Option<GenericSubstitution<'db>> {
         let fun = self.as_function()?;
         match self.ty.ty.kind() {
             TyKind::FnDef(_, substs) => GenericSubstitution::new_from_fn(fun, substs, self.ty.env),
