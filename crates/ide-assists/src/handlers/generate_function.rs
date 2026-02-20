@@ -3214,11 +3214,12 @@ fn bar(arg: impl Fn(_) -> bool) {
 }
         "#,
         );
-    }#[test]
-fn generate_method_uses_current_impl_block() {
-    check_assist(
-        generate_function,
-        r"
+    }
+    #[test]
+    fn generate_method_uses_current_impl_block() {
+        check_assist(
+            generate_function,
+            r"
 struct Foo;
 
 impl Foo {
@@ -3233,7 +3234,7 @@ impl Foo {
     }
 }
 ",
-        r"
+            r"
 struct Foo;
 
 impl Foo {
@@ -3252,7 +3253,6 @@ impl Foo {
     }
 }
 ",
-    )
+        )
+    }
 }
-}
-
