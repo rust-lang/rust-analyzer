@@ -40,16 +40,17 @@ mod server_impl;
 mod token_stream;
 
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::hash_map::Entry,
     env,
     ffi::OsString,
     fs,
     ops::Range,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, PoisonError},
     thread,
 };
 
+use dashmap::mapref::entry::Entry as DashEntry;
 use paths::{Utf8Path, Utf8PathBuf};
 use span::Span;
 use temp_dir::TempDir;
@@ -73,7 +74,7 @@ pub enum ProcMacroKind {
 pub const RUSTC_VERSION_STRING: &str = env!("RUSTC_VERSION");
 
 pub struct ProcMacroSrv<'env> {
-    expanders: Mutex<HashMap<Utf8PathBuf, Arc<dylib::Expander>>>,
+    expanders: dashmap::DashMap<Utf8PathBuf, Arc<dylib::Expander>>,
     env: &'env EnvSnapshot,
     temp_dir: TempDir,
 }
@@ -81,7 +82,7 @@ pub struct ProcMacroSrv<'env> {
 impl<'env> ProcMacroSrv<'env> {
     pub fn new(env: &'env EnvSnapshot) -> Self {
         Self {
-            expanders: Default::default(),
+            expanders: dashmap::DashMap::new(),
             env,
             temp_dir: TempDir::with_prefix("proc-macro-srv").unwrap(),
         }
@@ -207,29 +208,32 @@ impl ProcMacroSrv<'_> {
     }
 
     fn expander(&self, path: &Utf8Path) -> Result<Arc<dylib::Expander>, String> {
-        let expander = || {
+        let create_expander = || -> Result<Arc<dylib::Expander>, String> {
             let expander = dylib::Expander::new(&self.temp_dir, path)
-                .map_err(|err| format!("Cannot create expander for {path}: {err}",));
-            expander.map(Arc::new)
+                .map_err(|err| format!("Cannot create expander for {path}: {err}"))?;
+            Ok(Arc::new(expander))
         };
 
-        Ok(
-            match self
-                .expanders
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .entry(path.to_path_buf())
-            {
-                Entry::Vacant(v) => v.insert(expander()?).clone(),
-                Entry::Occupied(mut e) => {
-                    let time = fs::metadata(path).and_then(|it| it.modified()).ok();
-                    if Some(e.get().modified_time()) != time {
-                        e.insert(expander()?);
-                    }
-                    e.get().clone()
-                }
-            },
-        )
+        let path_buf = path.to_path_buf();
+
+        // Check if we need to refresh the expander based on file modification time
+        let needs_refresh = self
+            .expanders
+            .get(&path_buf)
+            .map(|entry| {
+                let time = fs::metadata(&path_buf).and_then(|it| it.modified()).ok();
+                time != Some(entry.value().modified_time())
+            })
+            .unwrap_or(true);
+
+        if needs_refresh {
+            let expander = create_expander()?;
+            self.expanders.insert(path_buf.clone(), expander.clone());
+            Ok(expander)
+        } else {
+            // Safe to unwrap because we just checked it exists
+            Ok(self.expanders.get(&path_buf).unwrap().value().clone())
+        }
     }
 }
 

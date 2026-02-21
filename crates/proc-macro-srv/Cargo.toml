@@ -17,6 +17,7 @@ object.workspace = true
 libloading.workspace = true
 memmap2.workspace = true
 temp-dir.workspace = true
+dashmap.workspace = true
 
 paths.workspace = true
 # span = {workspace = true, default-features = false} does not work

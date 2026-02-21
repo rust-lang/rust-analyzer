@@ -24,5 +24,8 @@ vfs.workspace = true
 paths.workspace = true
 rustc-hash.workspace = true
 
+[dev-dependencies]
+expect-test = "1.5.0"
+
 [lints]
 workspace = true

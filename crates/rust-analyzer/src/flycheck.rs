@@ -9,7 +9,7 @@ use std::{
 };
 
 use cargo_metadata::PackageId;
-use crossbeam_channel::{Receiver, Sender, select_biased, unbounded};
+use crossbeam_channel::{Receiver, Sender, bounded, select_biased};
 use ide_db::FxHashSet;
 use itertools::Itertools;
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
@@ -214,7 +214,8 @@ impl FlycheckHandle {
             manifest_path,
             ws_target_dir,
         );
-        let (sender, receiver) = unbounded::<StateChange>();
+        // Bounded channel for state changes - restart/stop commands are low volume
+        let (sender, receiver) = bounded::<StateChange>(16);
         let thread =
             stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker, format!("Flycheck{id}"))
                 .spawn(move || actor.run(receiver))
@@ -606,7 +607,8 @@ impl FlycheckActor {
                     let user_facing_command = self.config.to_string();
 
                     tracing::debug!(?origin, ?command, "will restart flycheck");
-                    let (sender, receiver) = unbounded();
+                    // Bounded channel for command output - diagnostics can be numerous
+                    let (sender, receiver) = bounded(256);
                     match CommandHandle::spawn(
                         command,
                         CheckParser,

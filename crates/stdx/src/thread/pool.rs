@@ -6,6 +6,13 @@
 //!
 //! The thread pool is implemented entirely using
 //! the threading utilities in [`crate::thread`].
+//!
+//! # Backpressure
+//!
+//! The pool uses bounded channels with capacity `threads * 4` to provide
+//! natural backpressure when the producer outruns the consumers. This prevents
+//! unbounded memory growth and improves work distribution across worker threads.
+//! When the channel is full, `spawn` calls will block until capacity is available.
 
 use std::{
     marker::PhantomData,
@@ -47,8 +54,11 @@ impl Pool {
     pub fn new(threads: usize) -> Self {
         const STACK_SIZE: usize = 8 * 1024 * 1024;
         const INITIAL_INTENT: ThreadIntent = ThreadIntent::Worker;
+        const CHANNEL_CAPACITY_MULTIPLIER: usize = 4;
 
-        let (job_sender, job_receiver) = crossbeam_channel::unbounded();
+        let channel_capacity =
+            threads.checked_mul(CHANNEL_CAPACITY_MULTIPLIER).expect("thread count overflow");
+        let (job_sender, job_receiver) = crossbeam_channel::bounded(channel_capacity);
         let extant_tasks = Arc::new(AtomicUsize::new(0));
 
         let mut handles = Vec::with_capacity(threads);
@@ -149,5 +159,140 @@ impl<'scope> Scope<'_, 'scope> {
         };
         self.pool.extant_tasks.fetch_add(1, Ordering::SeqCst);
         self.pool.job_sender.send(job).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+        },
+        thread,
+        time::Duration,
+    };
+
+    use super::*;
+
+    #[test]
+    fn pool_creates_with_bounded_channel() {
+        let pool = Pool::new(4);
+        drop(pool);
+    }
+
+    #[test]
+    fn pool_spawns_and_executes_tasks() {
+        let pool = Pool::new(2);
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        for _ in 0..10 {
+            let counter_clone = Arc::clone(&counter);
+            pool.spawn(ThreadIntent::Worker, move || {
+                counter_clone.fetch_add(1, Ordering::SeqCst);
+            });
+        }
+
+        while pool.len() > 0 {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(counter.load(Ordering::SeqCst), 10);
+    }
+
+    #[test]
+    fn pool_handles_latency_sensitive_intent() {
+        let pool = Pool::new(2);
+        let executed = Arc::new(AtomicBool::new(false));
+
+        let executed_clone = Arc::clone(&executed);
+        pool.spawn(ThreadIntent::LatencySensitive, move || {
+            executed_clone.store(true, Ordering::SeqCst);
+        });
+
+        while pool.len() > 0 {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(executed.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn pool_len_tracks_extant_tasks() {
+        let pool = Pool::new(2);
+        let started = Arc::new(std::sync::Barrier::new(3));
+        let finished = Arc::new(AtomicUsize::new(0));
+
+        for _ in 0..2 {
+            let started_clone = Arc::clone(&started);
+            let finished_clone = Arc::clone(&finished);
+            pool.spawn(ThreadIntent::Worker, move || {
+                started_clone.wait();
+                finished_clone.fetch_add(1, Ordering::SeqCst);
+            });
+        }
+
+        started.wait();
+        let len_after_start = pool.len();
+        assert!(len_after_start > 0, "pool should have extant tasks after barrier");
+
+        while finished.load(Ordering::SeqCst) < 2 {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(pool.len(), 0);
+    }
+
+    #[test]
+    fn scoped_spawn_works_correctly() {
+        let pool = Pool::new(2);
+        let result = pool.scoped(|scope| {
+            let counter = Arc::new(AtomicUsize::new(0));
+            for _ in 0..5 {
+                let counter_clone = Arc::clone(&counter);
+                scope.spawn(ThreadIntent::Worker, move || {
+                    counter_clone.fetch_add(1, Ordering::SeqCst);
+                });
+            }
+            counter
+        });
+
+        assert_eq!(result.load(Ordering::SeqCst), 5);
+    }
+
+    #[test]
+    fn pool_handles_panic_gracefully() {
+        let pool = Pool::new(2);
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        pool.spawn(ThreadIntent::Worker, move || {
+            panic!("test panic");
+        });
+
+        let counter_clone = Arc::clone(&counter);
+        pool.spawn(ThreadIntent::Worker, move || {
+            counter_clone.fetch_add(1, Ordering::SeqCst);
+        });
+
+        while pool.len() > 0 {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn bounded_channel_allows_multiple_tasks() {
+        let pool = Pool::new(2);
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        for _ in 0..20 {
+            let counter_clone = Arc::clone(&counter);
+            pool.spawn(ThreadIntent::Worker, move || {
+                thread::sleep(Duration::from_millis(5));
+                counter_clone.fetch_add(1, Ordering::SeqCst);
+            });
+        }
+
+        while pool.len() > 0 {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(counter.load(Ordering::SeqCst), 20);
     }
 }

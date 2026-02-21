@@ -6,6 +6,7 @@ use hir_def::{GenericParamId, TraitId, hir::ExprId};
 use intern::{Symbol, sym};
 use rustc_ast_ir::Mutability;
 use rustc_type_ir::inherent::{IntoKind, Ty as _};
+use smallvec::smallvec;
 use syntax::ast::{ArithOp, BinaryOp, UnaryOp};
 use tracing::debug;
 
@@ -215,7 +216,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                         kind: Adjust::Borrow(AutoBorrow::Ref(mutbl)),
                         target: method.sig.inputs_and_output.inputs()[0].store(),
                     };
-                    self.write_expr_adj(lhs_expr, Box::new([autoref]));
+                    self.write_expr_adj(lhs_expr, smallvec![autoref]);
                 }
                 if by_ref_binop
                     && let TyKind::Ref(_, _, mutbl) =
@@ -232,16 +233,13 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                     // HACK(eddyb) Bypass checks due to reborrows being in
                     // some cases applied on the RHS, on top of which we need
                     // to autoref, which is not allowed by write_expr_adj.
-                    // self.write_expr_adj(rhs_expr, Box::new([autoref]));
+                    // self.write_expr_adj(rhs_expr, smallvec![autoref]);
                     match self.result.expr_adjustments.entry(rhs_expr) {
                         hash_map::Entry::Occupied(mut entry) => {
-                            let mut adjustments = Vec::from(std::mem::take(entry.get_mut()));
-                            adjustments.reserve_exact(1);
-                            adjustments.push(autoref);
-                            entry.insert(adjustments.into_boxed_slice());
+                            entry.get_mut().push(autoref);
                         }
                         hash_map::Entry::Vacant(entry) => {
-                            entry.insert(Box::new([autoref]));
+                            entry.insert(smallvec![autoref]);
                         }
                     };
                 }

@@ -502,7 +502,7 @@ impl GlobalState {
             if client_refresh {
                 // Refresh semantic tokens if the client supports it.
                 if self.config.semantic_tokens_refresh() {
-                    self.semantic_tokens_cache.lock().clear();
+                    self.semantic_tokens_cache.clear();
                     self.send_request::<lsp_types::request::SemanticTokensRefresh>((), |_, _| ());
                 }
 

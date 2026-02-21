@@ -78,11 +78,21 @@ pub fn parallel_prime_caches(
         sema_work_sender,
         progress_receiver,
     ) = {
-        let (progress_sender, progress_receiver) = crossbeam_channel::unbounded();
-        let (def_map_work_sender, def_map_work_receiver) = crossbeam_channel::unbounded();
-        let (import_map_work_sender, import_map_work_receiver) = crossbeam_channel::unbounded();
-        let (sema_work_sender, sema_work_receiver) = crossbeam_channel::unbounded();
-        let (symbols_work_sender, symbols_work_receiver) = crossbeam_channel::unbounded();
+        // Use bounded channels to prevent unbounded memory growth in large projects.
+        // Capacity is based on worker thread count to provide natural backpressure.
+        // Work channels: threads * 2 allows each worker to have pending work.
+        // Progress channel: threads * 4 allows multiple progress updates per worker.
+        let work_channel_cap = num_worker_threads.saturating_mul(2).max(4);
+        let progress_channel_cap = num_worker_threads.saturating_mul(4).max(8);
+
+        let (progress_sender, progress_receiver) = crossbeam_channel::bounded(progress_channel_cap);
+        let (def_map_work_sender, def_map_work_receiver) =
+            crossbeam_channel::bounded(work_channel_cap);
+        let (import_map_work_sender, import_map_work_receiver) =
+            crossbeam_channel::bounded(work_channel_cap);
+        let (sema_work_sender, sema_work_receiver) = crossbeam_channel::bounded(work_channel_cap);
+        let (symbols_work_sender, symbols_work_receiver) =
+            crossbeam_channel::bounded(work_channel_cap);
         let prime_caches_worker = move |db: RootDatabase| {
             let handle_def_map = |crate_id, crate_name| {
                 progress_sender.send(ParallelPrimeCacheWorkerProgress::BeginCrateDefMap {

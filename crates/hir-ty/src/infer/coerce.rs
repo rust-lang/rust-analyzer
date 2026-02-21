@@ -1029,7 +1029,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         let (adjustments, _) = self.table.register_infer_ok(ok);
         match expr {
-            ExprOrPatId::ExprId(expr) => self.write_expr_adj(expr, adjustments.into_boxed_slice()),
+            ExprOrPatId::ExprId(expr) => self.write_expr_adj(expr, adjustments.into()),
             ExprOrPatId::PatId(pat) => self
                 .write_pat_adj(pat, adjustments.into_iter().map(|adjust| adjust.target).collect()),
         }
@@ -1167,15 +1167,12 @@ impl<'db> InferenceContext<'_, 'db> {
             for &expr in exprs {
                 self.write_expr_adj(
                     expr,
-                    Box::new([Adjustment {
-                        kind: prev_adjustment.clone(),
-                        target: fn_ptr.store(),
-                    }]),
+                    smallvec![Adjustment { kind: prev_adjustment.clone(), target: fn_ptr.store() }],
                 );
             }
             self.write_expr_adj(
                 new,
-                Box::new([Adjustment { kind: next_adjustment, target: fn_ptr.store() }]),
+                smallvec![Adjustment { kind: next_adjustment, target: fn_ptr.store() }],
             );
             return Ok(fn_ptr);
         }
@@ -1204,7 +1201,7 @@ impl<'db> InferenceContext<'_, 'db> {
             match result {
                 Ok(ok) => {
                     let (adjustments, target) = self.table.register_infer_ok(ok);
-                    self.write_expr_adj(new, adjustments.into_boxed_slice());
+                    self.write_expr_adj(new, adjustments.into());
                     debug!(
                         "coercion::try_find_coercion_lub: was able to coerce from new type {:?} to previous type {:?} ({:?})",
                         new_ty, prev_ty, target

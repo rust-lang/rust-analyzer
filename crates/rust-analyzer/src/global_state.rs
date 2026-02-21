@@ -9,7 +9,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossbeam_channel::{Receiver, Sender, unbounded};
+use crossbeam_channel::{Receiver, Sender};
+use dashmap::DashMap;
 use hir::ChangeWithProcMacros;
 use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
 use ide_db::{
@@ -20,8 +21,7 @@ use itertools::Itertools;
 use load_cargo::SourceRootConfig;
 use lsp_types::{SemanticTokens, Url};
 use parking_lot::{
-    MappedRwLockReadGuard, Mutex, RwLock, RwLockReadGuard, RwLockUpgradableReadGuard,
-    RwLockWriteGuard,
+    MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockUpgradableReadGuard, RwLockWriteGuard,
 };
 use proc_macro_api::ProcMacroClient;
 use project_model::{ManifestPath, ProjectWorkspace, ProjectWorkspaceKind, WorkspaceBuildScripts};
@@ -97,7 +97,7 @@ pub(crate) struct GlobalState {
     pub(crate) source_root_config: SourceRootConfig,
     /// A mapping that maps a local source root's `SourceRootId` to it parent's `SourceRootId`, if it has one.
     pub(crate) local_roots_parent_map: Arc<FxHashMap<SourceRootId, SourceRootId>>,
-    pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
+    pub(crate) semantic_tokens_cache: Arc<DashMap<Url, SemanticTokens>>,
 
     // status
     pub(crate) shutdown_requested: bool,
@@ -209,7 +209,7 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) analysis: Analysis,
     pub(crate) check_fixes: CheckFixes,
     mem_docs: MemDocs,
-    pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
+    pub(crate) semantic_tokens_cache: Arc<DashMap<Url, SemanticTokens>>,
     vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
     // used to signal semantic highlighting to fall back to syntax based highlighting until
@@ -224,27 +224,38 @@ impl std::panic::UnwindSafe for GlobalStateSnapshot {}
 
 impl GlobalState {
     pub(crate) fn new(sender: Sender<lsp_server::Message>, config: Config) -> GlobalState {
+        // Bounded channel capacities based on thread count to prevent OOM in large projects.
+        let main_threads = config.main_loop_num_threads();
+        let loader_channel_cap = main_threads.saturating_mul(4).max(16);
+        let task_channel_cap = main_threads.saturating_mul(4).max(16);
+        let fmt_channel_cap = 4; // Single-threaded pool, minimal capacity needed
+        let deferred_channel_cap = main_threads.saturating_mul(2).max(8);
+        let flycheck_channel_cap = 16; // Limited flycheck instances
+        let test_channel_cap = 8; // Limited test runners
+        let discover_channel_cap = main_threads.saturating_mul(2).max(8);
+
         let loader = {
-            let (sender, receiver) = unbounded::<vfs::loader::Message>();
+            let (sender, receiver) =
+                crossbeam_channel::bounded::<vfs::loader::Message>(loader_channel_cap);
             let handle: vfs_notify::NotifyHandle = vfs::loader::Handle::spawn(sender);
             let handle = Box::new(handle) as Box<dyn vfs::loader::Handle>;
             Handle { handle, receiver }
         };
 
         let task_pool = {
-            let (sender, receiver) = unbounded();
-            let handle = TaskPool::new_with_threads(sender, config.main_loop_num_threads());
+            let (sender, receiver) = crossbeam_channel::bounded(task_channel_cap);
+            let handle = TaskPool::new_with_threads(sender, main_threads);
             Handle { handle, receiver }
         };
         let fmt_pool = {
-            let (sender, receiver) = unbounded();
+            let (sender, receiver) = crossbeam_channel::bounded(fmt_channel_cap);
             let handle = TaskPool::new_with_threads(sender, 1);
             Handle { handle, receiver }
         };
         let cancellation_pool = thread::Pool::new(1);
 
         let deferred_task_queue = {
-            let (sender, receiver) = unbounded();
+            let (sender, receiver) = crossbeam_channel::bounded(deferred_channel_cap);
             DeferredTaskQueue { sender, receiver }
         };
 
@@ -252,10 +263,10 @@ impl GlobalState {
         if let Some(capacities) = config.lru_query_capacities_config() {
             analysis_host.update_lru_capacities(capacities);
         }
-        let (flycheck_sender, flycheck_receiver) = unbounded();
-        let (test_run_sender, test_run_receiver) = unbounded();
+        let (flycheck_sender, flycheck_receiver) = crossbeam_channel::bounded(flycheck_channel_cap);
+        let (test_run_sender, test_run_receiver) = crossbeam_channel::bounded(test_channel_cap);
 
-        let (discover_sender, discover_receiver) = unbounded();
+        let (discover_sender, discover_receiver) = crossbeam_channel::bounded(discover_channel_cap);
 
         let last_gc_revision = analysis_host.raw_database().nonce_and_revision().1;
 

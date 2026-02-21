@@ -1679,7 +1679,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         match self.lookup_field(receiver_ty, name) {
             Some((ty, field_id, adjustments, is_public)) => {
-                self.write_expr_adj(receiver, adjustments.into_boxed_slice());
+                self.write_expr_adj(receiver, adjustments.into());
                 self.result.field_resolutions.insert(tgt_expr, field_id);
                 if !is_public && let Either::Left(field) = field_id {
                     // FIXME: Merge this diagnostic into UnresolvedField?
@@ -1772,7 +1772,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         tgt_expr,
                     ));
                 }
-                self.write_expr_adj(callee, adjustments.into_boxed_slice());
+                self.write_expr_adj(callee, adjustments.into());
                 (params, ret_ty)
             }
             None => {
@@ -1856,7 +1856,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 let field_with_same_name_exists = match self.lookup_field(receiver_ty, method_name)
                 {
                     Some((ty, field_id, adjustments, _public)) => {
-                        self.write_expr_adj(receiver, adjustments.into_boxed_slice());
+                        self.write_expr_adj(receiver, adjustments.into());
                         self.result.field_resolutions.insert(tgt_expr, field_id);
                         Some(ty)
                     }

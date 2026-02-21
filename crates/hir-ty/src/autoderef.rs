@@ -41,7 +41,8 @@ pub fn autoderef<'db>(
     let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
     let (ty, _) = infcx.instantiate_canonical(&ty);
     let autoderef = Autoderef::new(&infcx, env.param_env, ty);
-    let mut v = Vec::new();
+    // Pre-allocate based on recursion limit (10 is typical, limit is 20)
+    let mut v = Vec::with_capacity(10);
     for (ty, _steps) in autoderef {
         // `ty` may contain unresolved inference variables. Since there's no chance they would be
         // resolved, just replace with fallback type.

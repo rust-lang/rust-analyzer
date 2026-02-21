@@ -11,6 +11,7 @@ use rustc_type_ir::{
     elaborate::elaborate,
     inherent::{BoundExistentialPredicates, IntoKind, Ty as _},
 };
+use smallvec::SmallVec;
 use tracing::debug;
 
 use crate::{
@@ -45,7 +46,7 @@ struct ConfirmContext<'a, 'b, 'db> {
 pub(crate) struct ConfirmResult<'db> {
     pub(crate) callee: MethodCallee<'db>,
     pub(crate) illegal_sized_bound: bool,
-    pub(crate) adjustments: Box<[Adjustment]>,
+    pub(crate) adjustments: SmallVec<[Adjustment; 2]>,
 }
 
 impl<'a, 'db> InferenceContext<'a, 'db> {
@@ -177,17 +178,17 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
         &mut self,
         unadjusted_self_ty: Ty<'db>,
         pick: &probe::Pick<'db>,
-    ) -> (Ty<'db>, Box<[Adjustment]>) {
+    ) -> (Ty<'db>, SmallVec<[Adjustment; 2]>) {
         // Commit the autoderefs by calling `autoderef` again, but this
         // time writing the results into the various typeck results.
         let mut autoderef = self.ctx.table.autoderef_with_tracking(unadjusted_self_ty);
         let Some((mut target, n)) = autoderef.nth(pick.autoderefs) else {
-            return (Ty::new_error(self.interner(), ErrorGuaranteed), Box::new([]));
+            return (Ty::new_error(self.interner(), ErrorGuaranteed), SmallVec::new());
         };
         assert_eq!(n, pick.autoderefs);
 
-        let mut adjustments =
-            self.ctx.table.register_infer_ok(autoderef.adjust_steps_as_infer_ok());
+        let mut adjustments: SmallVec<[Adjustment; 2]> =
+            self.ctx.table.register_infer_ok(autoderef.adjust_steps_as_infer_ok()).into();
         match pick.autoref_or_ptr_adjustment {
             Some(probe::AutorefOrPtrAdjustment::Autoref { mutbl, unsize }) => {
                 let region = self.infcx().next_region_var();
@@ -238,7 +239,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             None => {}
         }
 
-        (target, adjustments.into_boxed_slice())
+        (target, adjustments)
     }
 
     /// Returns a set of generic parameters for the method *receiver* where all type and region

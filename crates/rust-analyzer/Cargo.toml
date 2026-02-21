@@ -23,6 +23,7 @@ path = "src/bin/main.rs"
 anyhow.workspace = true
 base64 = "0.22"
 crossbeam-channel.workspace = true
+dashmap.workspace = true
 dirs = "6.0.0"
 dissimilar.workspace = true
 ide-completion.workspace = true

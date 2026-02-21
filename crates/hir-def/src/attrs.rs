@@ -1193,7 +1193,7 @@ impl AttrFlags {
 
         #[salsa::tracked(returns(ref))]
         fn doc_aliases(db: &dyn DefDatabase, owner: AttrDefId) -> Box<[Symbol]> {
-            let mut result = Vec::new();
+            let mut result = Vec::with_capacity(4);
             collect_attrs::<Infallible>(db, owner, |attr| extract_doc_aliases(&mut result, attr));
             result.into_boxed_slice()
         }
@@ -1204,7 +1204,7 @@ impl AttrFlags {
             variant: VariantId,
         ) -> ArenaMap<LocalFieldId, Box<[Symbol]>> {
             collect_field_attrs(db, variant, |cfg_options, field| {
-                let mut result = Vec::new();
+                let mut result = Vec::with_capacity(4);
                 expand_cfg_attr(
                     field.value.attrs(),
                     || cfg_options,
@@ -1230,7 +1230,7 @@ impl AttrFlags {
         // We LRU this query because it is only used by IDE.
         #[salsa::tracked(returns(ref), lru = 250)]
         fn cfgs(db: &dyn DefDatabase, owner: AttrDefId) -> Option<CfgExpr> {
-            let mut result = Vec::new();
+            let mut result = Vec::with_capacity(4);
             collect_attrs::<Infallible>(db, owner, |attr| extract_cfgs(&mut result, attr));
             match result.len() {
                 0 => None,

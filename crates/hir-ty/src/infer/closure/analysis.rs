@@ -1160,7 +1160,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         &params,
                         expr,
                     );
-                    self.result.expr_adjustments.insert(callee, adjustments.into_boxed_slice());
+                    self.result.expr_adjustments.insert(callee, adjustments.into());
                 }
             }
         }

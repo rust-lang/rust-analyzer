@@ -1861,6 +1861,7 @@ dependencies = [
 name = "proc-macro-srv"
 version = "0.0.0"
 dependencies = [
+ "dashmap",
  "expect-test",
  "intern",
  "libc",
@@ -2303,6 +2304,7 @@ dependencies = [
  "cargo_metadata",
  "cfg",
  "crossbeam-channel",
+ "dashmap",
  "dhat",
  "dirs",
  "dissimilar",
@@ -3198,6 +3200,7 @@ name = "vfs-notify"
 version = "0.0.0"
 dependencies = [
  "crossbeam-channel",
+ "expect-test",
  "notify",
  "paths",
  "rayon",

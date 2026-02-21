@@ -14,3 +14,6 @@ docs/book/book
 docs/book/src/assists_generated.md
 docs/book/src/diagnostics_generated.md
 docs/book/src/features_generated.md
+
+# Sisyphus AI agent working directory
+.sisyphus/

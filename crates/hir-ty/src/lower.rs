@@ -215,7 +215,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             in_binders,
             impl_trait_mode,
             unsized_types: FxHashSet::default(),
-            diagnostics: Vec::new(),
+            diagnostics: Vec::with_capacity(4),
             lifetime_elision,
             lowering_param_default: None,
         }
@@ -719,7 +719,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         let bounds = self.with_shifted_in(DebruijnIndex::from_u32(1), |ctx| {
             let mut principal = None;
             let mut auto_traits = SmallVec::<[_; 3]>::new();
-            let mut projections = Vec::new();
+            let mut projections = Vec::with_capacity(4);
             let mut had_error = false;
 
             for b in bounds {
@@ -986,8 +986,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         );
         let (predicates, assoc_ty_bounds_start) =
             self.with_shifted_in(DebruijnIndex::from_u32(1), |ctx| {
-                let mut predicates = Vec::new();
-                let mut assoc_ty_bounds = Vec::new();
+                let mut predicates = Vec::with_capacity(8);
+                let mut assoc_ty_bounds = Vec::with_capacity(4);
                 for b in bounds {
                     for (pred, source) in ctx.lower_type_bound(b, self_ty, false) {
                         match source {

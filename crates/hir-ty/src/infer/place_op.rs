@@ -4,6 +4,7 @@ use hir_def::hir::ExprId;
 use intern::sym;
 use rustc_ast_ir::Mutability;
 use rustc_type_ir::inherent::{IntoKind, Ty as _};
+use smallvec::smallvec;
 use tracing::debug;
 
 use crate::{
@@ -63,10 +64,10 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         {
             self.write_expr_adj(
                 oprnd_expr,
-                Box::new([Adjustment {
+                smallvec![Adjustment {
                     kind: Adjust::Borrow(AutoBorrow::Ref(AutoBorrowMutability::Not)),
                     target: method.sig.inputs_and_output.inputs()[0].store(),
-                }]),
+                }],
             );
         } else {
             panic!("input to deref is not a ref?");
@@ -163,7 +164,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                         target: method.sig.inputs_and_output.inputs()[0].store(),
                     });
                 }
-                autoderef.ctx().write_expr_adj(base_expr, adjustments.into_boxed_slice());
+                autoderef.ctx().write_expr_adj(base_expr, adjustments.into());
 
                 autoderef.ctx().write_method_resolution(expr, method.def_id, method.args);
 

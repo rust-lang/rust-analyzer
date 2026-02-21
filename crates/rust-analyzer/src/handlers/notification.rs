@@ -142,7 +142,7 @@ pub(crate) fn handle_did_close_text_document(
             state.diagnostics.clear_native_for(file_id);
         }
 
-        state.semantic_tokens_cache.lock().remove(&params.text_document.uri);
+        state.semantic_tokens_cache.remove(&params.text_document.uri);
 
         if let Some(path) = path.as_path() {
             state.loader.handle.invalidate(path.to_path_buf());

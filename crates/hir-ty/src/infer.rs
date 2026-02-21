@@ -53,6 +53,7 @@ use rustc_type_ir::{
     AliasTyKind, TypeFoldable,
     inherent::{AdtDef, IntoKind, Ty as _},
 };
+use smallvec::SmallVec;
 use span::Edition;
 use stdx::never;
 use thin_vec::ThinVec;
@@ -524,7 +525,7 @@ pub struct InferenceResult {
     // FIXME: Remove this.
     error_ty: StoredTy,
 
-    pub(crate) expr_adjustments: FxHashMap<ExprId, Box<[Adjustment]>>,
+    pub(crate) expr_adjustments: FxHashMap<ExprId, SmallVec<[Adjustment; 2]>>,
     /// Stores the types which were implicitly dereferenced in pattern binding modes.
     pub(crate) pat_adjustments: FxHashMap<PatId, Vec<StoredTy>>,
     /// Stores the binding mode (`ref` in `let ref x = 2`) of bindings.
@@ -888,10 +889,10 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             traits_in_scope: resolver.traits_in_scope(db),
             resolver,
             diverges: Diverges::Maybe,
-            breakables: Vec::new(),
-            deferred_cast_checks: Vec::new(),
-            current_captures: Vec::new(),
-            current_capture_span_stack: Vec::new(),
+            breakables: Vec::with_capacity(2),
+            deferred_cast_checks: Vec::with_capacity(4),
+            current_captures: Vec::with_capacity(8),
+            current_capture_span_stack: Vec::with_capacity(4),
             current_closure: None,
             deferred_closures: FxHashMap::default(),
             closure_dependencies: FxHashMap::default(),
@@ -1187,7 +1188,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.result.type_of_expr.insert(expr, ty.store());
     }
 
-    pub(crate) fn write_expr_adj(&mut self, expr: ExprId, adjustments: Box<[Adjustment]>) {
+    pub(crate) fn write_expr_adj(&mut self, expr: ExprId, adjustments: SmallVec<[Adjustment; 2]>) {
         if adjustments.is_empty() {
             return;
         }
