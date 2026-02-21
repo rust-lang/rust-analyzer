@@ -110,7 +110,7 @@ pub(crate) fn complete_postfix(
     postfix_snippet("call", "function(expr)", &format!("${{1}}({receiver_text})"))
         .add_to(acc, ctx.db);
 
-    let try_enum = TryEnum::from_ty(&ctx.sema, &receiver_ty.strip_references());
+    let try_enum = TryEnum::from_ty(&ctx.sema, receiver_ty);
     let mut is_in_cond = false;
     if let Some(parent) = dot_receiver_including_refs.syntax().parent()
         && let Some(second_ancestor) = parent.parent()
