@@ -40,17 +40,16 @@ mod server_impl;
 mod token_stream;
 
 use std::{
-    collections::hash_map::Entry,
+    collections::HashMap,
     env,
     ffi::OsString,
     fs,
     ops::Range,
     path::{Path, PathBuf},
-    sync::{Arc, PoisonError},
+    sync::Arc,
     thread,
 };
 
-use dashmap::mapref::entry::Entry as DashEntry;
 use paths::{Utf8Path, Utf8PathBuf};
 use span::Span;
 use temp_dir::TempDir;
