@@ -50,6 +50,7 @@ use std::{
     thread,
 };
 
+use dashmap::DashMap;
 use paths::{Utf8Path, Utf8PathBuf};
 use span::Span;
 use temp_dir::TempDir;
