@@ -146,7 +146,7 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     if !is_editable_crate(target_module.krate(ctx.db()), ctx.db()) {
         return None;
     }
-    //Change
+
     let enclosing_impl = ctx.find_node_at_offset::<ast::Impl>();
     let cursor_impl = enclosing_impl.filter(|impl_| {
         ctx.sema.to_def(impl_).map_or(false, |def| def.self_ty(ctx.sema.db).as_adt() == Some(adt))
@@ -158,7 +158,7 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
         get_adt_source(ctx, &adt, fn_name.text().as_str())?
     };
     let target = get_method_target(ctx, &impl_, &adt)?;
-    //change
+
     let function_builder = FunctionBuilder::from_method_call(
         ctx,
         &call,
