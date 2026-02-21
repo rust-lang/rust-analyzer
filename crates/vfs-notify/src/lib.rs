@@ -175,10 +175,9 @@ impl NotifyActor {
                             event.kind
                     {
                         for path in event.paths {
-                            if let Ok(utf8_path) = Utf8PathBuf::from_path_buf(path) {
-                                if let Ok(abs_path) = AbsPathBuf::try_from(utf8_path) {
-                                    self.debounce.add_path(abs_path);
-                                }
+                            if let Ok(utf8_path) = Utf8PathBuf::from_path_buf(path)
+                                && let Ok(abs_path) = AbsPathBuf::try_from(utf8_path) {
+                                self.debounce.add_path(abs_path);
                             }
                         }
 
@@ -200,12 +199,10 @@ impl NotifyActor {
                                     {
                                         for path in event.paths {
                                             if let Ok(utf8_path) = Utf8PathBuf::from_path_buf(path)
-                                            {
-                                                if let Ok(abs_path) =
+                                                && let Ok(abs_path) =
                                                     AbsPathBuf::try_from(utf8_path)
-                                                {
-                                                    self.debounce.add_path(abs_path);
-                                                }
+                                            {
+                                                self.debounce.add_path(abs_path);
                                             }
                                         }
                                     }
