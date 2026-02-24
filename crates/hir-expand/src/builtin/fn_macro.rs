@@ -384,16 +384,34 @@ fn cfg_select_expand(
                 );
             }
         }
-        let expand_to_if_active = match iter.next() {
-            Some(tt::TtElement::Subtree(_, tt)) => tt.remaining(),
-            _ => {
+        let expand_to_if_active = match iter.peek() {
+            Some(tt::TtElement::Subtree(sub, tt)) if sub.delimiter.kind == DelimiterKind::Brace => {
+                iter.next();
+                tt.remaining()
+            }
+            None | Some(TtElement::Leaf(tt::Leaf::Punct(tt::Punct { char: ',', .. }))) => {
                 let err_span = iter.peek().map(|it| it.first_span()).unwrap_or(span);
+                iter.next();
                 return ExpandResult::new(
                     tt::TopSubtree::empty(tt::DelimSpan::from_single(span)),
                     ExpandError::other(err_span, "expected a token tree after `=>`"),
                 );
             }
+            Some(_) => {
+                let savepoint = iter.savepoint();
+                while let Some(tt) = iter.peek()
+                    && !matches!(tt, TtElement::Leaf(tt::Leaf::Punct(p)) if p.char == ',')
+                {
+                    iter.next();
+                }
+                iter.from_savepoint(savepoint)
+            }
         };
+        if let Some(TtElement::Leaf(tt::Leaf::Punct(p))) = iter.peek()
+            && p.char == ','
+        {
+            iter.next();
+        }
 
         if expand_to.is_none() && active {
             expand_to = Some(expand_to_if_active);
