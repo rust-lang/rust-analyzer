@@ -2732,6 +2732,67 @@ impl ModCollector<'_, '_> {
             }
         }
 
+        // Case 1b: resolve path-qualified macro_rules macros early to preserve textual scopes.
+        {
+            let mut eager_callback_buffer = vec![];
+            let resolver_def_id = |path: &ModPath| {
+                let def_map = &self.def_collector.def_map;
+                let local_def_map = self
+                    .def_collector
+                    .crate_local_def_map
+                    .unwrap_or(&self.def_collector.local_def_map);
+                let resolved = def_map.resolve_path_fp_with_macro(
+                    local_def_map,
+                    db,
+                    ResolveMode::Other,
+                    self.module_id,
+                    path,
+                    BuiltinShadowMode::Module,
+                    Some(MacroSubNs::Bang),
+                );
+                if resolved.reached_fixedpoint == ReachedFixedPoint::No {
+                    return None;
+                }
+                let macro_id = resolved.resolved_def.take_macros()?;
+                match macro_id {
+                    MacroId::MacroRulesId(_) => Some(self.def_collector.db.macro_def(macro_id)),
+                    _ => None,
+                }
+            };
+            if let Ok(res) = macro_call_as_call_id(
+                db,
+                ast_id.ast_id,
+                &ast_id.path,
+                ctxt,
+                expand_to,
+                self.def_collector.def_map.krate,
+                resolver_def_id,
+                &mut |ptr, call_id| eager_callback_buffer.push((ptr, call_id)),
+            ) {
+                for (ptr, call_id) in eager_callback_buffer {
+                    self.def_collector.def_map.modules[self.module_id]
+                        .scope
+                        .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
+                }
+                if res.err.is_none() {
+                    if let Some(call_id) = res.value {
+                        self.def_collector.def_map.modules[self.module_id]
+                            .scope
+                            .add_macro_invoc(ast_id.ast_id, call_id);
+                        self.def_collector.collect_macro_expansion(
+                            self.module_id,
+                            call_id,
+                            self.macro_depth + 1,
+                            container,
+                            None,
+                        );
+                    }
+
+                    return;
+                }
+            }
+        }
+
         // Case 2: resolve in module scope, expand during name resolution.
         self.def_collector.unresolved_macros.push(MacroDirective {
             module_id: self.module_id,
