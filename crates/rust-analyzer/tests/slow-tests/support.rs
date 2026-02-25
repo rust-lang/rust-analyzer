@@ -497,7 +497,22 @@ impl Server {
                 text_document: self.doc_id(path),
                 text: Some(text),
             },
-        )
+        );
+
+        // In a real LSP session, we receive DidChangeWatchedFiles
+        // shortly after DidSave, but there is a non-zero amount of
+        // time between the notifications. Add a brief sleep so we can
+        // start handling the DidSave event, mimicking a real session.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        self.notification::<lsp_types::notification::DidChangeWatchedFiles>(
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![lsp_types::FileEvent {
+                    uri: self.doc_id(path).uri,
+                    typ: lsp_types::FileChangeType::CHANGED,
+                }],
+            },
+        );
     }
 }
 

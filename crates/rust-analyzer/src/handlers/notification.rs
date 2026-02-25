@@ -296,7 +296,7 @@ pub(crate) fn handle_did_change_watched_files(
         if let Ok(path) = from_proto::abs_path(&change.uri) {
             if !trigger_flycheck {
                 trigger_flycheck =
-                    state.config.workspace_roots().iter().any(|root| !path.starts_with(root));
+                    state.config.workspace_roots().iter().all(|root| !path.starts_with(root));
             }
             state.loader.handle.invalidate(path);
         }
