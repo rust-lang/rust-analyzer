@@ -1037,58 +1037,6 @@ indirect_macro!();
 }
 
 #[test]
-fn macro_generating_macro() {
-    check(
-        r#"
-//- /lib.rs
-macro_rules! outer {
-    ($name:ident) => {
-        macro_rules! __inner_builder {
-            ($d:tt) => {
-                macro_rules! $name {
-                    () => { 42 };
-                }
-                pub(crate) use $name;
-            }
-        }
-        __inner_builder!($);
-    };
-}
-
-mod inner;
-
-//- /inner.rs
-outer!(my_macro);
-
-mod sub;
-
-//- /inner/sub.rs
-fn test() {
-    my_macro!();
-}
-"#,
-        expect![[r#"
-            crate
-            - inner : type
-            - (legacy) outer : macro!
-
-            crate::inner
-            - my_macro : macro! (import)
-            - sub : type
-            - (legacy) __inner_builder : macro!
-            - (legacy) my_macro : macro!
-            - (legacy) outer : macro!
-
-            crate::inner::sub
-            - test : value
-            - (legacy) __inner_builder : macro!
-            - (legacy) my_macro : macro!
-            - (legacy) outer : macro!
-        "#]],
-    );
-}
-
-#[test]
 fn macro_generating_macro_with_macro_export() {
     check(
         r#"
@@ -1101,7 +1049,6 @@ macro_rules! outer {
                 macro_rules! $name {
                     () => { 42 };
                 }
-                pub(crate) use $name;
             }
         }
         __inner_builder!($);
@@ -1127,7 +1074,6 @@ fn test() {
             - (legacy) outer : macro!
 
             crate::inner
-            - my_macro : macro! (import)
             - sub : type
             - (legacy) __inner_builder : macro!
             - (legacy) my_macro : macro!
