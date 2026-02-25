@@ -439,7 +439,6 @@ assist.emitMustUse = true"#,
 }
 
 #[test]
-#[ignore = "flaky test that tends to hang"]
 fn ratoml_inherit_config_from_ws_root() {
     if skip_slow_tests() {
         return;
@@ -662,7 +661,6 @@ pub fn add(left: usize, right: usize) -> usize {
 }
 
 #[test]
-#[ignore = "Root ratomls are not being looked for on startup. Fix this."]
 fn ratoml_rm_ws_root_ratoml_child_has_client_as_parent_now() {
     if skip_slow_tests() {
         return;
@@ -1006,5 +1004,47 @@ fn main() {
         InternalTestingFetchConfigOption::CheckWorkspace,
         2,
         InternalTestingFetchConfigResponse::CheckWorkspace(true),
+    );
+}
+
+#[test]
+fn ratoml_virtual_workspace() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = RatomlTest::new(
+        vec![
+            r#"
+//- /p1/Cargo.toml
+[workspace]
+members = ["member"]
+"#,
+            r#"
+//- /p1/rust-analyzer.toml
+assist.emitMustUse = true
+"#,
+            r#"
+//- /p1/member/Cargo.toml
+[package]
+name = "member"
+version = "0.1.0"
+edition = "2021"
+"#,
+            r#"
+//- /p1/member/src/lib.rs
+pub fn add(left: usize, right: usize) -> usize {
+    left + right
+}
+"#,
+        ],
+        vec!["p1"],
+        None,
+    );
+
+    server.query(
+        InternalTestingFetchConfigOption::AssistEmitMustUse,
+        3,
+        InternalTestingFetchConfigResponse::AssistEmitMustUse(true),
     );
 }
