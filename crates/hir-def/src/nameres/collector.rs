@@ -2681,8 +2681,43 @@ impl ModCollector<'_, '_> {
         // new legacy macros that create textual scopes. We need a way to resolve names in textual
         // scopes without eager expansion.
 
-        let mut eager_callback_buffer = vec![];
         // Case 1: try to resolve macro calls with single-segment name and expand macro_rules
+        let mut eager_callback_buffer = vec![];
+        let resolve_single_segment = |path: &ModPath| {
+            path.as_ident().and_then(|name| {
+                let def_map = &self.def_collector.def_map;
+                def_map
+                    .with_ancestor_maps(db, self.module_id, &mut |map, module| {
+                        map[module].scope.get_legacy_macro(name)?.last().copied()
+                    })
+                    .or_else(|| def_map[self.module_id].scope.get(name).take_macros())
+                    .or_else(|| Some(def_map.macro_use_prelude.get(name).copied()?.0))
+                    .filter(|&id| sub_namespace_match(db, id, Some(MacroSubNs::Bang)))
+                    .map(|it| self.def_collector.db.macro_def(it))
+            })
+        };
+        // resolve path-qualified macro_rules macros early to preserve textual scopes.
+        let resolve_qualified = |path: &ModPath| {
+            let local_def_map =
+                self.def_collector.crate_local_def_map.unwrap_or(&self.def_collector.local_def_map);
+            let resolved = self.def_collector.def_map.resolve_path_fp_with_macro(
+                local_def_map,
+                db,
+                ResolveMode::Other,
+                self.module_id,
+                path,
+                BuiltinShadowMode::Module,
+                Some(MacroSubNs::Bang),
+            );
+            if resolved.reached_fixedpoint == ReachedFixedPoint::No {
+                return None;
+            }
+            let macro_id = resolved.resolved_def.take_macros()?;
+            match macro_id {
+                MacroId::MacroRulesId(_) => Some(self.def_collector.db.macro_def(macro_id)),
+                _ => None,
+            }
+        };
         if let Ok(res) = macro_call_as_call_id(
             db,
             ast_id.ast_id,
@@ -2690,19 +2725,7 @@ impl ModCollector<'_, '_> {
             ctxt,
             expand_to,
             self.def_collector.def_map.krate,
-            |path| {
-                path.as_ident().and_then(|name| {
-                    let def_map = &self.def_collector.def_map;
-                    def_map
-                        .with_ancestor_maps(db, self.module_id, &mut |map, module| {
-                            map[module].scope.get_legacy_macro(name)?.last().copied()
-                        })
-                        .or_else(|| def_map[self.module_id].scope.get(name).take_macros())
-                        .or_else(|| Some(def_map.macro_use_prelude.get(name).copied()?.0))
-                        .filter(|&id| sub_namespace_match(db, id, Some(MacroSubNs::Bang)))
-                        .map(|it| self.def_collector.db.macro_def(it))
-                })
-            },
+            |path| resolve_single_segment(path).or_else(|| resolve_qualified(path)),
             &mut |ptr, call_id| eager_callback_buffer.push((ptr, call_id)),
         ) {
             for (ptr, call_id) in eager_callback_buffer {
@@ -2710,71 +2733,10 @@ impl ModCollector<'_, '_> {
                     .scope
                     .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
             }
-            // FIXME: if there were errors, this might've been in the eager expansion from an
-            // unresolved macro, so we need to push this into late macro resolution. see fixme above
-            if res.err.is_none() {
-                // Legacy macros need to be expanded immediately, so that any macros they produce
-                // are in scope.
-                if let Some(call_id) = res.value {
-                    self.def_collector.def_map.modules[self.module_id]
-                        .scope
-                        .add_macro_invoc(ast_id.ast_id, call_id);
-                    self.def_collector.collect_macro_expansion(
-                        self.module_id,
-                        call_id,
-                        self.macro_depth + 1,
-                        container,
-                        None,
-                    );
-                }
-
-                return;
-            }
-        }
-
-        // Case 1b: resolve path-qualified macro_rules macros early to preserve textual scopes.
-        {
-            let mut eager_callback_buffer = vec![];
-            let resolver_def_id = |path: &ModPath| {
-                let def_map = &self.def_collector.def_map;
-                let local_def_map = self
-                    .def_collector
-                    .crate_local_def_map
-                    .unwrap_or(&self.def_collector.local_def_map);
-                let resolved = def_map.resolve_path_fp_with_macro(
-                    local_def_map,
-                    db,
-                    ResolveMode::Other,
-                    self.module_id,
-                    path,
-                    BuiltinShadowMode::Module,
-                    Some(MacroSubNs::Bang),
-                );
-                if resolved.reached_fixedpoint == ReachedFixedPoint::No {
-                    return None;
-                }
-                let macro_id = resolved.resolved_def.take_macros()?;
-                match macro_id {
-                    MacroId::MacroRulesId(_) => Some(self.def_collector.db.macro_def(macro_id)),
-                    _ => None,
-                }
-            };
-            if let Ok(res) = macro_call_as_call_id(
-                db,
-                ast_id.ast_id,
-                &ast_id.path,
-                ctxt,
-                expand_to,
-                self.def_collector.def_map.krate,
-                resolver_def_id,
-                &mut |ptr, call_id| eager_callback_buffer.push((ptr, call_id)),
-            ) {
-                for (ptr, call_id) in eager_callback_buffer {
-                    self.def_collector.def_map.modules[self.module_id]
-                        .scope
-                        .add_macro_invoc(ptr.map(|(_, it)| it), call_id);
-                }
-                if res.err.is_none() {
+            match res.err {
+                None => {
+                    // Legacy macros need to be expanded immediately, so that any macros they produce
+                    // are in scope.
                     if let Some(call_id) = res.value {
                         self.def_collector.def_map.modules[self.module_id]
                             .scope
@@ -2789,6 +2751,10 @@ impl ModCollector<'_, '_> {
                     }
 
                     return;
+                }
+                Some(_) => {
+                    // FIXME: if there were errors, this might've been in the eager expansion from an
+                    // unresolved macro, so we need to push this into late macro resolution. see fixme above
                 }
             }
         }
