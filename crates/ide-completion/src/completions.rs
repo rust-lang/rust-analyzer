@@ -34,7 +34,7 @@ use crate::{
     CompletionContext, CompletionItem, CompletionItemKind,
     context::{
         DotAccess, ItemListKind, NameContext, NameKind, NameRefContext, NameRefKind,
-        PathCompletionCtx, PathKind, PatternContext, TypeLocation, Visible,
+        PathCompletionCtx, PathKind, PatternContext, TypeAscriptionTarget, TypeLocation, Visible,
     },
     item::Builder,
     render::{
@@ -112,11 +112,22 @@ impl Completions {
         }
     }
 
-    pub(crate) fn add_type_keywords(&mut self, ctx: &CompletionContext<'_>) {
-        self.add_keyword_snippet(ctx, "fn", "fn($1)");
-        self.add_keyword_snippet(ctx, "dyn", "dyn $0");
-        self.add_keyword_snippet(ctx, "impl", "impl $0");
-        self.add_keyword_snippet(ctx, "for", "for<$1>");
+    pub(crate) fn add_type_keywords(
+        &mut self,
+        ctx: &CompletionContext<'_>,
+        required_thin_arrow: bool,
+    ) {
+        let mut add_keyword = |kw, snippet| {
+            if required_thin_arrow {
+                self.add_keyword_snippet(ctx, kw, snippet);
+            } else {
+                self.add_keyword_snippet(ctx, kw, &snippet[3..]);
+            }
+        };
+        add_keyword("fn", "-> fn($1)");
+        add_keyword("dyn", "-> dyn $0");
+        add_keyword("impl", "-> impl $0");
+        add_keyword("for", "-> for<$1>");
     }
 
     pub(crate) fn add_super_keyword(
@@ -747,6 +758,12 @@ pub(super) fn complete_name_ref(
                             field::complete_field_list_tuple_variant(acc, ctx, path_ctx);
                         }
                         TypeLocation::TypeAscription(ascription) => {
+                            if let TypeAscriptionTarget::RetType { item: Some(item), .. } =
+                                ascription
+                                && path_ctx.required_thin_arrow()
+                            {
+                                keyword::complete_for_and_where(acc, ctx, &item.clone().into());
+                            }
                             r#type::complete_ascribed_type(acc, ctx, path_ctx, ascription);
                         }
                         TypeLocation::GenericArg { .. }
