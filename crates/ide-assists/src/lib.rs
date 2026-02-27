@@ -118,6 +118,7 @@ mod handlers {
     mod auto_import;
     mod bind_unused_param;
     mod change_visibility;
+    mod convert_attr_cfg_to_if;
     mod convert_bool_then;
     mod convert_bool_to_enum;
     mod convert_char_literal;
@@ -260,6 +261,8 @@ mod handlers {
             convert_bool_to_enum::convert_bool_to_enum,
             convert_char_literal::convert_char_literal,
             convert_closure_to_fn::convert_closure_to_fn,
+            convert_attr_cfg_to_if::convert_attr_cfg_to_if,
+            convert_attr_cfg_to_if::convert_if_cfg_to_attr,
             convert_comment_block::convert_comment_block,
             convert_comment_from_or_to_doc::convert_comment_from_or_to_doc,
             convert_for_to_while_let::convert_for_loop_to_while_let,
