@@ -1476,6 +1476,74 @@ fn foo<T: Copy + Clone>() { }
 }
 
 #[test]
+fn doctest_generate_asref_impl_from_borrow() {
+    check_doc_test(
+        "generate_asref_impl_from_borrow",
+        r#####"
+//- minicore: borrow, as_ref
+use core::borrow::Borrow;
+struct Foo<T>(T);
+
+impl<T> $0Borrow<T> for Foo<T> {
+    fn borrow(&self) -> &T {
+        &self.0
+    }
+}
+"#####,
+        r#####"
+use core::borrow::Borrow;
+struct Foo<T>(T);
+
+$0impl<T> AsRef<T> for Foo<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> Borrow<T> for Foo<T> {
+    fn borrow(&self) -> &T {
+        &self.0
+    }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_generate_asref_impl_from_borrow_1() {
+    check_doc_test(
+        "generate_asref_impl_from_borrow",
+        r#####"
+//- minicore: borrow_mut, as_mut
+use core::borrow::BorrowMut;
+struct Foo<T>(T);
+
+impl<T> $0BorrowMut<T> for Foo<T> {
+    fn borrow_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+"#####,
+        r#####"
+use core::borrow::BorrowMut;
+struct Foo<T>(T);
+
+$0impl<T> AsMut<T> for Foo<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> BorrowMut<T> for Foo<T> {
+    fn borrow_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_blanket_trait_impl() {
     check_doc_test(
         "generate_blanket_trait_impl",
