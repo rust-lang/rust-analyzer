@@ -259,6 +259,44 @@ fn handle(action: Action) {
 }
 
 #[test]
+fn doctest_add_reference() {
+    check_doc_test(
+        "add_reference",
+        r#####"
+fn foo(arg0: i32, $0arg1: [i32; 32]) {}
+fn bar() {
+    foo(5, [8; 32])
+}
+"#####,
+        r#####"
+fn foo(arg0: i32, arg1: &[i32; 32]) {}
+fn bar() {
+    foo(5, &[8; 32])
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_add_reference_1() {
+    check_doc_test(
+        "add_reference",
+        r#####"
+fn foo(arg0: i32, mut $0arg1: [i32; 32]) {}
+fn bar() {
+    foo(5, [8; 32])
+}
+"#####,
+        r#####"
+fn foo(arg0: i32, arg1: &mut [i32; 32]) {}
+fn bar() {
+    foo(5, &mut [8; 32])
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_add_return_type() {
     check_doc_test(
         "add_return_type",

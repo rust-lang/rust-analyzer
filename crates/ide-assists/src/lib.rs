@@ -112,6 +112,7 @@ mod handlers {
     mod add_lifetime_to_type;
     mod add_missing_impl_members;
     mod add_missing_match_arms;
+    mod add_reference;
     mod add_return_type;
     mod add_turbo_fish;
     mod apply_demorgan;
@@ -249,6 +250,7 @@ mod handlers {
             add_label_to_loop::add_label_to_loop,
             add_lifetime_to_type::add_lifetime_to_type,
             add_missing_match_arms::add_missing_match_arms,
+            add_reference::add_reference,
             add_turbo_fish::add_turbo_fish,
             apply_demorgan::apply_demorgan_iterator,
             apply_demorgan::apply_demorgan,
