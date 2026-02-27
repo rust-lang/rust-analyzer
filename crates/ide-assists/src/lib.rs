@@ -207,6 +207,7 @@ mod handlers {
     mod remove_else_branches;
     mod remove_mut;
     mod remove_parentheses;
+    mod remove_reference;
     mod remove_underscore;
     mod remove_unused_imports;
     mod remove_unused_param;
@@ -351,6 +352,7 @@ mod handlers {
             remove_mut::remove_mut,
             remove_else_branches::remove_else_branches,
             remove_parentheses::remove_parentheses,
+            remove_reference::remove_reference,
             remove_underscore::remove_underscore,
             remove_unused_imports::remove_unused_imports,
             remove_unused_param::remove_unused_param,
