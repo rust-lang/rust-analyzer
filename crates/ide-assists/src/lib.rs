@@ -270,6 +270,7 @@ mod handlers {
             convert_iter_for_each_to_for::convert_iter_for_each_to_for,
             convert_let_else_to_match::convert_let_else_to_match,
             convert_match_to_let_else::convert_match_to_let_else,
+            convert_match_to_let_else::convert_if_let_to_let_else,
             convert_named_struct_to_tuple_struct::convert_named_struct_to_tuple_struct,
             convert_nested_function_to_closure::convert_nested_function_to_closure,
             convert_range_for_to_while::convert_range_for_to_while,
