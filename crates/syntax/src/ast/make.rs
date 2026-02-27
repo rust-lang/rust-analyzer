@@ -1050,6 +1050,14 @@ pub fn mut_self_param() -> ast::SelfParam {
     ast_from_text("fn f(&mut self) { }")
 }
 
+pub fn owned_self_param() -> ast::SelfParam {
+    ast_from_text("fn f(self) { }")
+}
+
+pub fn owned_mut_self_param() -> ast::SelfParam {
+    ast_from_text("fn f(mut self) { }")
+}
+
 pub fn ret_type(ty: ast::Type) -> ast::RetType {
     ast_from_text(&format!("fn f() -> {ty} {{ }}"))
 }
