@@ -104,6 +104,70 @@ pub(crate) fn unmerge_match_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     )
 }
 
+// Assist: unmerge_to_guarded_arm
+//
+// Unmerge into guarded match arm.
+//
+// ```
+// enum Kind { Num(u32) }
+//
+// fn handle(kind: Kind) {
+//     match kind {
+//         Kind::Num(n) $0=> foo(n),
+//     }
+// }
+// ```
+// ->
+// ```
+// enum Kind { Num(u32) }
+//
+// fn handle(kind: Kind) {
+//     match kind {
+//         Kind::Num(n) if $0 => foo(n),
+//         Kind::Num(n) => foo(n),
+//     }
+// }
+// ```
+pub(crate) fn unmerge_to_guarded_arm(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let arrow_token = ctx.find_token_syntax_at_offset(T![=>])?;
+    let match_arm = ast::MatchArm::cast(arrow_token.parent()?)?;
+
+    if match_arm.guard().is_some() {
+        return None;
+    }
+
+    acc.add(
+        AssistId::refactor_rewrite("unmerge_to_guarded_arm"),
+        "Unmerge to guarded match arm",
+        match_arm.syntax().text_range(),
+        |edit| {
+            let make = SyntaxFactory::without_mappings();
+            let mut editor = edit.make_editor(match_arm.syntax());
+
+            let guard = vec![
+                make.token(T![if]).into(),
+                make.whitespace(" ").into(),
+                make.whitespace(" ").into(),
+            ];
+            if let Some(cap) = ctx.config.snippet_cap {
+                editor.add_annotation(&guard[2], edit.make_tabstop_before(cap));
+            }
+            editor.insert_all(Position::before(arrow_token), guard);
+
+            let new_arm = match_arm.syntax().clone_for_update();
+            editor.insert(Position::after(match_arm.syntax()), &new_arm);
+
+            if let Some(prev) = new_arm.prev_sibling_or_token()
+                && prev.kind() == SyntaxKind::WHITESPACE
+            {
+                editor.insert(Position::after(match_arm.syntax()), prev);
+            }
+
+            edit.add_file_edits(ctx.vfs_file_id(), editor);
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tests::{check_assist, check_assist_not_applicable};
@@ -277,6 +341,46 @@ fn main() {
         X::A => {}
         X::B => {}
     }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn unmerge_to_guarded_arm_with_block() {
+        check_assist(
+            unmerge_to_guarded_arm,
+            r#"
+fn main() {
+    match () {
+        () $0=> {
+            foo()
+        }
+    };
+}"#,
+            r#"
+fn main() {
+    match () {
+        () if $0 => {
+            foo()
+        }
+        () => {
+            foo()
+        }
+    };
+}"#,
+        );
+    }
+
+    #[test]
+    fn unmerge_to_guarded_arm_guarded() {
+        check_assist_not_applicable(
+            unmerge_to_guarded_arm,
+            r#"
+fn main() {
+    match () {
+        () if true $0=> {}
+    };
 }
 "#,
         );
