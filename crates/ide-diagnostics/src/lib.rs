@@ -261,6 +261,7 @@ impl DiagnosticsConfig {
                 prefix_kind: PrefixKind::Plain,
                 group: false,
                 skip_glob_imports: false,
+                group_order: InsertUseConfig::default_group_order(),
             },
             prefer_no_std: false,
             prefer_prelude: true,

@@ -17,7 +17,7 @@ use ide::{
 use ide_db::{
     MiniCore, SnippetCap,
     assists::ExprFillDefaultMode,
-    imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind},
+    imports::insert_use::{ImportGranularity, ImportGroupKind, InsertUseConfig, PrefixKind},
 };
 use itertools::{Either, Itertools};
 use paths::{Utf8Path, Utf8PathBuf};
@@ -738,6 +738,17 @@ config_data! {
         /// order](https://rust-analyzer.github.io/book/features.html#auto-import). Groups are
         /// separated by newlines.
         imports_group_enable: bool = true,
+
+        /// Custom ordering of import groups. Available groups: "std", "extern_crate", "this_crate",
+        /// "this_module", "super_module", "one".
+        imports_group_priority: [ImportGroupKind; 6] = [
+            ImportGroupKind::Std,
+            ImportGroupKind::ExternCrate,
+            ImportGroupKind::ThisCrate,
+            ImportGroupKind::ThisModule,
+            ImportGroupKind::SuperModule,
+            ImportGroupKind::One,
+        ],
 
         /// Allow import insertion to merge new imports into single path glob imports like `use
         /// std::fmt::*;`.
@@ -2104,6 +2115,7 @@ impl Config {
             },
             group: self.imports_group_enable(source_root).to_owned(),
             skip_glob_imports: !self.imports_merge_glob(source_root),
+            group_order: self.imports_group_priority(source_root).to_owned(),
         }
     }
 
@@ -4052,6 +4064,13 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                     }
                 ]
              }
+        },
+        "[ImportGroupKind; 6]" => set! {
+           "type": "array",
+           "items": {
+               "type": "string",
+               "enum": ["impl_fn", "rust_analyzer", "with_id", "hide"],
+           },
         },
         _ => panic!("missing entry for {ty}: {default} (field {field})"),
     }
