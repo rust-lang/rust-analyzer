@@ -4,9 +4,47 @@ use std::{fmt, str::FromStr};
 
 use crate::install::{ClientOpt, ProcMacroServerOpt, ServerOpt};
 
+#[derive(Clone, Copy, Default, Debug)]
+pub enum Allocator {
+    /// Use the system allocator.
+    #[default]
+    System,
+    /// Use the jemalloc allocator.
+    Jemalloc,
+    /// Use the mimalloc allocator.
+    Mimalloc,
+    /// Use DHAT for memory profiling. This is very slow!
+    Dhat,
+}
+
+impl Allocator {
+    pub(crate) fn to_features(self) -> &'static [&'static str] {
+        match self {
+            Self::System => &[][..],
+            Self::Mimalloc => &["--features", "mimalloc"],
+            Self::Jemalloc => &["--features", "jemalloc"],
+            Self::Dhat => &["--features", "dhat"],
+        }
+    }
+}
+
+impl FromStr for Allocator {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "system" => Ok(Self::System),
+            "jemalloc" => Ok(Self::Jemalloc),
+            "mimalloc" => Ok(Self::Mimalloc),
+            "dhat" => Ok(Self::Dhat),
+            _ => Err("Invalid option".to_owned()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum PgoTrainingCrate {
-    // Use RA's own sources for PGO training
+    // Use RA's own sources for PGO training.
     RustAnalyzer,
     // Download a Rust crate from `https://github.com/{0}` and use it for PGO training.
     GitHub(String),
@@ -38,14 +76,8 @@ xflags::xflags! {
 
             /// Install only the language server.
             optional --server
-            /// Use mimalloc allocator for server.
-            optional --mimalloc
-            /// Use jemalloc allocator for server.
-            optional --jemalloc
-            // Enable memory profiling support.
-            //
-            // **Warning:** This will produce a slower build of rust-analyzer, use only for profiling.
-            optional --enable-profiling
+            /// Configure the allocator.
+            optional --allocator allocator: Allocator
 
             /// Install the proc-macro server.
             optional --proc-macro-server
@@ -67,14 +99,8 @@ xflags::xflags! {
         }
 
         cmd dist {
-            /// Use mimalloc allocator for server
-            optional --mimalloc
-            /// Use jemalloc allocator for server
-            optional --jemalloc
-            // Enable memory profiling support.
-            //
-            // **Warning:** This will produce a slower build of rust-analyzer, use only for profiling.
-            optional --enable-profiling
+            /// Configure the allocator.
+            optional --allocator allocator: Allocator
             optional --client-patch-version version: String
             /// Use cargo-zigbuild
             optional --zig
@@ -131,9 +157,7 @@ pub struct Install {
     pub client: bool,
     pub code_bin: Option<String>,
     pub server: bool,
-    pub mimalloc: bool,
-    pub jemalloc: bool,
-    pub enable_profiling: bool,
+    pub allocator: Option<Allocator>,
     pub proc_macro_server: bool,
     pub dev_rel: bool,
     pub force_always_assert: bool,
@@ -150,9 +174,7 @@ pub struct Release {
 
 #[derive(Debug)]
 pub struct Dist {
-    pub mimalloc: bool,
-    pub jemalloc: bool,
-    pub enable_profiling: bool,
+    pub allocator: Option<Allocator>,
     pub client_patch_version: Option<String>,
     pub zig: bool,
     pub pgo: Option<PgoTrainingCrate>,
@@ -285,43 +307,16 @@ impl AsRef<str> for MeasurementType {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Malloc {
-    System,
-    Mimalloc,
-    Jemalloc,
-    Dhat,
-}
-
-impl Malloc {
-    pub(crate) fn to_features(self) -> &'static [&'static str] {
-        match self {
-            Malloc::System => &[][..],
-            Malloc::Mimalloc => &["--features", "mimalloc"],
-            Malloc::Jemalloc => &["--features", "jemalloc"],
-            Malloc::Dhat => &["--features", "dhat"],
-        }
-    }
-}
-
 impl Install {
     pub(crate) fn server(&self) -> Option<ServerOpt> {
         if (self.client || self.proc_macro_server) && !self.server {
             return None;
         }
-        let malloc = if self.mimalloc {
-            Malloc::Mimalloc
-        } else if self.jemalloc {
-            Malloc::Jemalloc
-        } else if self.enable_profiling {
-            Malloc::Dhat
-        } else {
-            Malloc::System
-        };
+        let allocator = self.allocator;
         Some(ServerOpt {
-            malloc,
+            allocator: allocator.unwrap_or_default(),
             // Profiling requires debug information.
-            dev_rel: self.dev_rel || self.enable_profiling,
+            dev_rel: self.dev_rel || matches!(self.allocator, Some(Allocator::Dhat)),
             pgo: self.pgo.clone(),
             force_always_assert: self.force_always_assert,
         })
@@ -337,19 +332,5 @@ impl Install {
             return None;
         }
         Some(ClientOpt { code_bin: self.code_bin.clone() })
-    }
-}
-
-impl Dist {
-    pub(crate) fn allocator(&self) -> Malloc {
-        if self.mimalloc {
-            Malloc::Mimalloc
-        } else if self.jemalloc {
-            Malloc::Jemalloc
-        } else if self.enable_profiling {
-            Malloc::Dhat
-        } else {
-            Malloc::System
-        }
     }
 }

@@ -11,7 +11,7 @@ use zip::{DateTime, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
     date_iso,
-    flags::{self, Malloc, PgoTrainingCrate},
+    flags::{self, Allocator, PgoTrainingCrate},
     project_root,
     util::detect_target,
 };
@@ -26,10 +26,13 @@ impl flags::Dist {
 
         let project_root = project_root();
         let target = Target::get(&project_root, sh);
-        let allocator = self.allocator();
+        let allocator = self.allocator.unwrap_or_default();
         let dist = project_root.join("dist");
         sh.remove_path(&dist)?;
         sh.create_dir(&dist)?;
+
+        // Profiling requires debug information.
+        let dev_rel = matches!(allocator, Allocator::Dhat);
 
         if let Some(patch_version) = self.client_patch_version {
             let version = if stable {
@@ -45,22 +48,12 @@ impl flags::Dist {
                 allocator,
                 self.zig,
                 self.pgo,
-                // Profiling requires debug information.
-                self.enable_profiling,
+                dev_rel,
             )?;
             let release_tag = if stable { date_iso(sh)? } else { "nightly".to_owned() };
             dist_client(sh, &version, &release_tag, &target)?;
         } else {
-            dist_server(
-                sh,
-                "0.0.0-standalone",
-                &target,
-                allocator,
-                self.zig,
-                self.pgo,
-                // Profiling requires debug information.
-                self.enable_profiling,
-            )?;
+            dist_server(sh, "0.0.0-standalone", &target, allocator, self.zig, self.pgo, dev_rel)?;
         }
         Ok(())
     }
@@ -100,7 +93,7 @@ fn dist_server(
     sh: &Shell,
     release: &str,
     target: &Target,
-    allocator: Malloc,
+    allocator: Allocator,
     zig: bool,
     pgo: Option<PgoTrainingCrate>,
     dev_rel: bool,
