@@ -1261,6 +1261,16 @@
             {
                 "title": "Completion",
                 "properties": {
+                    "rust-analyzer.completion.addSemicolonToJumps": {
+                        "markdownDescription": "Automatically add a semicolon when completing break, continue and return.",
+                        "default": true,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "Completion",
+                "properties": {
                     "rust-analyzer.completion.addSemicolonToUnit": {
                         "markdownDescription": "Automatically add a semicolon when completing unit-returning functions.\n\nIn `match` arms it completes a comma instead.",
                         "default": true,

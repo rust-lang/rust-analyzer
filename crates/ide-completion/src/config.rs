@@ -24,6 +24,7 @@ pub struct CompletionConfig<'a> {
     pub term_search_fuel: u64,
     pub full_function_signatures: bool,
     pub callable: Option<CallableSnippets>,
+    pub add_semicolon_to_jumps: bool,
     pub add_semicolon_to_unit: bool,
     pub snippet_cap: Option<SnippetCap>,
     pub insert_use: InsertUseConfig,
