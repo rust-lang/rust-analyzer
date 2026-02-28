@@ -139,6 +139,7 @@ mod handlers {
     mod convert_tuple_struct_to_named_struct;
     mod convert_two_arm_bool_match_to_matches_macro;
     mod convert_while_to_loop;
+    mod destructure_enum;
     mod destructure_struct_binding;
     mod destructure_tuple_binding;
     mod desugar_doc_comment;
@@ -278,6 +279,7 @@ mod handlers {
             convert_tuple_struct_to_named_struct::convert_tuple_struct_to_named_struct,
             convert_two_arm_bool_match_to_matches_macro::convert_two_arm_bool_match_to_matches_macro,
             convert_while_to_loop::convert_while_to_loop,
+            destructure_enum::destructure_enum,
             destructure_struct_binding::destructure_struct_binding,
             destructure_tuple_binding::destructure_tuple_binding,
             desugar_doc_comment::desugar_doc_comment,
