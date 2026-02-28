@@ -1,15 +1,17 @@
 //! Renderer for function calls.
 
-use hir::{AsAssocItem, HirDisplay, db::HirDatabase};
-use ide_db::{SnippetCap, SymbolKind};
+use hir::{AsAssocItem, AssocItemContainer, HirDisplay, PathResolution, db::HirDatabase};
+use ide_db::{SnippetCap, SymbolKind, text_edit::TextEdit};
 use itertools::Itertools;
+use std::borrow::Cow;
 use stdx::{format_to, to_lower_snake_case};
-use syntax::{AstNode, SmolStr, ToSmolStr, format_smolstr};
+use syntax::{AstNode, SmolStr, TextRange, ToSmolStr, format_smolstr};
 
 use crate::{
     CallableSnippets,
     context::{
-        CompleteSemicolon, CompletionContext, DotAccess, DotAccessKind, PathCompletionCtx, PathKind,
+        CompleteSemicolon, CompletionContext, DotAccess, DotAccessKind, PathCompletionCtx,
+        PathKind, Qualified,
     },
     item::{
         Builder, CompletionItem, CompletionItemKind, CompletionRelevance, CompletionRelevanceFn,
@@ -24,6 +26,17 @@ use crate::{
 enum FuncKind<'ctx> {
     Function(&'ctx PathCompletionCtx<'ctx>),
     Method(&'ctx DotAccess<'ctx>, Option<SmolStr>),
+}
+
+struct UfcsData {
+    prefix: String,
+    replacement_range: TextRange,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct CallSnippetRewrite<'a> {
+    prefix: &'a str,
+    replace_range: TextRange,
 }
 
 pub(crate) fn render_fn(
@@ -86,6 +99,22 @@ fn render(
                 is_op_method: completion.is_ops_trait(trait_),
             }
         });
+
+    let trait_container = assoc_item.and_then(|assoc_item| match assoc_item.container(db) {
+        AssocItemContainer::Trait(trait_) => Some(trait_),
+        _ => None,
+    });
+
+    let ufcs_data = if ctx.import_to_add.is_none() {
+        match (&func_kind, trait_container) {
+            (FuncKind::Function(path_ctx), Some(trait_)) => {
+                trait_method_ufcs_data(ctx.completion, path_ctx, trait_)
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
 
     let (has_dot_receiver, has_call_parens, cap) = match func_kind {
         FuncKind::Function(&PathCompletionCtx {
@@ -151,7 +180,18 @@ fn render(
         .detail(detail)
         .lookup_by(name.as_str().to_smolstr());
 
+    if complete_call_parens.is_none()
+        && let Some(data) = &ufcs_data
+    {
+        let insert_text = format!("{}{}", data.prefix, escaped_call);
+        item.text_edit(TextEdit::replace(data.replacement_range, insert_text));
+    }
+
     if let Some((cap, (self_param, params))) = complete_call_parens {
+        let rewrite = ufcs_data.as_ref().map(|data| CallSnippetRewrite {
+            replace_range: data.replacement_range,
+            prefix: &data.prefix,
+        });
         add_call_parens(
             &mut item,
             completion,
@@ -161,6 +201,7 @@ fn render(
             self_param,
             params,
             &ret_type,
+            rewrite,
         );
     }
 
@@ -217,11 +258,19 @@ pub(super) fn add_call_parens<'b>(
     self_param: Option<hir::SelfParam>,
     params: Vec<hir::Param<'_>>,
     ret_type: &hir::Type<'_>,
+    mut rewrite: Option<CallSnippetRewrite<'_>>,
 ) -> &'b mut Builder {
     cov_mark::hit!(inserts_parens_for_function_calls);
 
+    let call_head = if let Some(rewrite_data) = rewrite.as_ref() {
+        Cow::Owned(format!("{}{}", rewrite_data.prefix, escaped_name))
+    } else {
+        Cow::Borrowed(escaped_name.as_str())
+    };
+    let call_head = call_head.as_ref();
+
     let (mut snippet, label_suffix) = if self_param.is_none() && params.is_empty() {
-        (format!("{escaped_name}()$0"), "()")
+        (format!("{call_head}()$0"), "()")
     } else {
         builder.trigger_call_info();
         let snippet = if let Some(CallableSnippets::FillArguments) = ctx.config.callable {
@@ -247,20 +296,19 @@ pub(super) fn add_call_parens<'b>(
             match self_param {
                 Some(self_param) => {
                     format!(
-                        "{}(${{1:{}}}{}{})$0",
-                        escaped_name,
+                        "{call_head}(${{1:{}}}{}{})$0",
                         self_param.display(ctx.db, ctx.display_target),
                         if params.is_empty() { "" } else { ", " },
                         function_params_snippet
                     )
                 }
                 None => {
-                    format!("{escaped_name}({function_params_snippet})$0")
+                    format!("{call_head}({function_params_snippet})$0")
                 }
             }
         } else {
             cov_mark::hit!(suppress_arg_snippets);
-            format!("{escaped_name}($0)")
+            format!("{call_head}($0)")
         };
 
         (snippet, "(…)")
@@ -283,7 +331,12 @@ pub(super) fn add_call_parens<'b>(
             }
         }
     }
-    builder.label(SmolStr::from_iter([&name, label_suffix])).insert_snippet(cap, snippet)
+    let builder = builder.label(SmolStr::from_iter([&name, label_suffix]));
+    if let Some(rewrite_data) = rewrite.take() {
+        builder.snippet_edit(cap, TextEdit::replace(rewrite_data.replace_range, snippet))
+    } else {
+        builder.insert_snippet(cap, snippet)
+    }
 }
 
 fn ref_of_param(ctx: &CompletionContext<'_>, arg: &str, ty: &hir::Type<'_>) -> &'static str {
@@ -391,6 +444,68 @@ fn params<'db>(
         func.self_param(ctx.db)
     };
     Some((self_param, func.params_without_self(ctx.db)))
+}
+
+fn trait_method_ufcs_data(
+    completion: &CompletionContext<'_>,
+    path_ctx: &PathCompletionCtx<'_>,
+    trait_: hir::Trait,
+) -> Option<UfcsData> {
+    let needs_ufcs = match &path_ctx.qualified {
+        Qualified::With { resolution: Some(resolution), .. } => resolution_targets_type(resolution),
+        Qualified::TypeAnchor { ty, trait_: None } => ty.is_some(),
+        _ => false,
+    };
+
+    if !needs_ufcs {
+        return None;
+    }
+
+    let (qualifier_text, replacement_range) = qualifier_text_and_range(completion, path_ctx)?;
+    let trait_path = trait_path_string(completion, trait_);
+    let prefix = format!("<{qualifier_text} as {trait_path}>::");
+    Some(UfcsData { prefix, replacement_range })
+}
+
+fn qualifier_text_and_range(
+    completion: &CompletionContext<'_>,
+    path_ctx: &PathCompletionCtx<'_>,
+) -> Option<(String, TextRange)> {
+    let qualifier = path_ctx
+        .original_path
+        .as_ref()
+        .and_then(|path| path.qualifier())
+        .or_else(|| path_ctx.path.qualifier())?;
+    let qualifier_syntax = qualifier.syntax();
+    let text = qualifier_syntax.text().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let start = qualifier_syntax.text_range().start();
+    let end = completion.position.offset;
+    if start >= end {
+        return None;
+    }
+    Some((text, TextRange::new(start, end)))
+}
+
+fn trait_path_string(ctx: &CompletionContext<'_>, trait_: hir::Trait) -> String {
+    let cfg = ctx.config.find_path_config(ctx.is_nightly);
+    ctx.module
+        .find_path(ctx.db, hir::ModuleDef::Trait(trait_), cfg)
+        .map(|path| path.display(ctx.db, ctx.edition).to_string())
+        .unwrap_or_else(|| trait_.name(ctx.db).display_no_db(ctx.edition).to_string())
+}
+
+fn resolution_targets_type(resolution: &PathResolution) -> bool {
+    match resolution {
+        PathResolution::Def(def) => matches!(
+            def,
+            hir::ModuleDef::Adt(_) | hir::ModuleDef::TypeAlias(_) | hir::ModuleDef::BuiltinType(_)
+        ),
+        PathResolution::TypeParam(_) | PathResolution::SelfType(_) => true,
+        _ => false,
+    }
 }
 
 #[cfg(test)]
