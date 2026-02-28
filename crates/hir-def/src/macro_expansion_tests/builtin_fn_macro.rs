@@ -568,6 +568,11 @@ cfg_select! {
     _ => { fn true_2() {} }
 }
 
+const _: i32 = cfg_select! { true => 2 + 3, _ => 3 + 4 };
+const _: i32 = cfg_select! { false => 2 + 3, _ => 3 + 4 };
+
+const _: () = { let cfg_select! { _ => () } = (); };
+
 cfg_select! {
     false => { fn false_3() {} }
 }
@@ -588,6 +593,11 @@ pub macro cfg_select($($tt:tt)*) {}
 fn true_1() {}
 
 fn true_2() {}
+
+const _: i32 = 2+3;
+const _: i32 = 3+4;
+
+const _: () = { let () = (); };
 
 /* error: none of the predicates in this `cfg_select` evaluated to true */
 
