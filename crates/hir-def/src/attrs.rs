@@ -25,7 +25,7 @@ use std::{
     ops::{ControlFlow, Range},
 };
 
-use base_db::Crate;
+use base_db::{AnchoredPath, Crate, EditionedFileId};
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_expand::{
@@ -39,7 +39,7 @@ use rustc_abi::ReprOptions;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use syntax::{
-    AstNode, AstToken, NodeOrToken, SmolStr, SourceFile, SyntaxNode, SyntaxToken, T,
+    AstNode, AstToken, NodeOrToken, SmolStr, SourceFile, SyntaxKind, SyntaxNode, SyntaxToken, T,
     ast::{self, AttrDocCommentIter, HasAttrs, IsString, TokenTreeChildren},
 };
 use tt::{TextRange, TextSize};
@@ -481,6 +481,8 @@ struct DocsSourceMapLine {
     string_offset: TextSize,
     /// The offset in the AST of the text.
     ast_offset: TextSize,
+    file_id: Option<HirFileId>,
+    trim_indent: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -574,6 +576,9 @@ impl Docs {
             // The range is combined from two lines - cannot map it back.
             return None;
         }
+        if let Some(file_override) = line.file_id {
+            file = file_override;
+        }
         let ast_range = string_range - line.string_offset + line.ast_offset;
         let is_inner = if inner_docs_start
             .is_some_and(|inner_docs_start| string_range.start() >= inner_docs_start)
@@ -613,16 +618,26 @@ impl Docs {
 
         self.docs.push_str(&other.docs);
         self.docs_source_map.extend(other.docs_source_map.iter().map(
-            |&DocsSourceMapLine { string_offset, ast_offset }| DocsSourceMapLine {
-                ast_offset,
-                string_offset: string_offset + other_offset,
+            |&DocsSourceMapLine { string_offset, ast_offset, file_id, trim_indent }| {
+                DocsSourceMapLine {
+                    ast_offset,
+                    string_offset: string_offset + other_offset,
+                    file_id,
+                    trim_indent,
+                }
             },
         ));
     }
 
     fn extend_with_doc_comment(&mut self, comment: ast::Comment, indent: &mut usize) {
         let Some((doc, offset)) = comment.doc_comment() else { return };
-        self.extend_with_doc_str(doc, comment.syntax().text_range().start() + offset, indent);
+        self.extend_with_doc_str(
+            doc,
+            comment.syntax().text_range().start() + offset,
+            indent,
+            None,
+            true,
+        );
     }
 
     fn extend_with_doc_attr(&mut self, value: SyntaxToken, indent: &mut usize) {
@@ -631,19 +646,71 @@ impl Docs {
         let value_offset = value_offset.start();
         let Ok(value) = value.value() else { return };
         // FIXME: Handle source maps for escaped text.
-        self.extend_with_doc_str(&value, value_offset, indent);
+        self.extend_with_doc_str(&value, value_offset, indent, None, true);
     }
 
-    fn extend_with_doc_str(&mut self, doc: &str, mut offset_in_ast: TextSize, indent: &mut usize) {
+    fn extend_with_doc_include(
+        &mut self,
+        db: &dyn DefDatabase,
+        attr: &ast::Attr,
+        owner_file: HirFileId,
+        krate: Crate,
+        indent: &mut usize,
+    ) {
+        let Some(expr) = attr.expr() else { return };
+        let ast::Expr::MacroExpr(macro_expr) = expr else { return };
+        let Some(macro_call) = macro_expr.macro_call() else { return };
+        let Some(path) = macro_call.path() else { return };
+        let Some(name_ref) = path.segment().and_then(|seg| seg.name_ref()) else { return };
+        let name = name_ref.text();
+        if name != "include_str" {
+            return;
+        }
+        let Some(tt) = macro_call.token_tree() else { return };
+        let literal = tt
+            .syntax()
+            .descendants_with_tokens()
+            .filter_map(|it| it.into_token())
+            .find(|token| token.kind() == SyntaxKind::STRING);
+        let Some(literal) = literal else { return };
+        let Some(value) = ast::String::cast(literal.clone()) else { return };
+        let Ok(path) = value.value() else { return };
+        let path = path.into_owned();
+        let owner_file = owner_file.original_file_respecting_includes(db);
+        let anchor_file_id = owner_file.file_id(db);
+        let Some(included_file_id) =
+            db.resolve_path(AnchoredPath { anchor: anchor_file_id, path: &path })
+        else {
+            return;
+        };
+        let edition = owner_file.edition(db);
+        let editioned = EditionedFileId::new(db, included_file_id, edition, krate);
+        let included_hir: HirFileId = editioned.into();
+        let text = db.file_text(included_file_id).text(db).clone();
+        self.extend_with_doc_str(&text, TextSize::new(0), indent, Some(included_hir), false);
+    }
+
+    fn extend_with_doc_str(
+        &mut self,
+        doc: &str,
+        mut offset_in_ast: TextSize,
+        indent: &mut usize,
+        file_id: Option<HirFileId>,
+        trim_indent: bool,
+    ) {
         for line in doc.split('\n') {
             self.docs_source_map.push(DocsSourceMapLine {
                 string_offset: TextSize::of(&self.docs),
                 ast_offset: offset_in_ast,
+                file_id,
+                trim_indent,
             });
             offset_in_ast += TextSize::of(line) + TextSize::of("\n");
 
             let line = line.trim_end();
-            if let Some(line_indent) = line.chars().position(|ch| !ch.is_whitespace()) {
+            if trim_indent
+                && let Some(line_indent) = line.chars().position(|ch| !ch.is_whitespace())
+            {
                 // Empty lines are handled because `position()` returns `None` for them.
                 *indent = std::cmp::min(*indent, line_indent);
             }
@@ -675,7 +742,7 @@ impl Docs {
             }
         }
 
-        if self.docs.is_empty() {
+        if self.docs.is_empty() || indent == usize::MAX {
             return;
         }
 
@@ -697,10 +764,14 @@ impl Docs {
             let line_docs =
                 &guard.0.docs[TextRange::new(line_source.string_offset, string_end_offset)];
             let line_docs_len = TextSize::of(line_docs);
-            let indent_size = line_docs.char_indices().nth(indent).map_or_else(
-                || TextSize::of(line_docs) - TextSize::of("\n"),
-                |(offset, _)| TextSize::new(offset as u32),
-            );
+            let indent_size = if line_source.trim_indent {
+                line_docs.char_indices().nth(indent).map_or_else(
+                    || TextSize::of(line_docs) - TextSize::of("\n"),
+                    |(offset, _)| TextSize::new(offset as u32),
+                )
+            } else {
+                TextSize::new(0)
+            };
             unsafe { guard.0.docs.as_bytes_mut() }.copy_within(
                 Range::<usize>::from(TextRange::new(
                     line_source.string_offset + indent_size,
@@ -721,9 +792,10 @@ impl Docs {
             // line should not get shifted (in general, the shift for the string offset is by the
             // number of lines until the current one, excluding the current one).
             line_source.string_offset -= accumulated_offset;
-            line_source.ast_offset += indent_size;
-
-            accumulated_offset += indent_size;
+            if line_source.trim_indent {
+                line_source.ast_offset += indent_size;
+                accumulated_offset += indent_size;
+            }
         }
         // Don't use `String::truncate()` here because it's not guaranteed to not do UTF-8-dependent things,
         // and we may have temporarily broken the string's encoding.
@@ -786,6 +858,8 @@ fn extract_cfgs(result: &mut Vec<CfgExpr>, attr: Meta) -> ControlFlow<Infallible
 }
 
 fn extract_docs<'a>(
+    db: &dyn DefDatabase,
+    krate: Crate,
     get_cfg_options: &dyn Fn() -> &'a CfgOptions,
     source: InFile<ast::AnyHasAttrs>,
     outer_mod_decl: Option<InFile<ast::Module>>,
@@ -802,49 +876,61 @@ fn extract_docs<'a>(
     };
 
     let mut cfg_options = None;
-    let mut extend_with_attrs =
-        |result: &mut Docs, node: &SyntaxNode, expect_inner_attrs, indent: &mut usize| {
-            expand_cfg_attr_with_doc_comments::<_, Infallible>(
-                AttrDocCommentIter::from_syntax_node(node).filter(|attr| match attr {
-                    Either::Left(attr) => attr.kind().is_inner() == expect_inner_attrs,
-                    Either::Right(comment) => comment.kind().doc.is_some_and(|kind| {
-                        (kind == ast::CommentPlacement::Inner) == expect_inner_attrs
-                    }),
+    let mut extend_with_attrs = |result: &mut Docs,
+                                 owner_file: HirFileId,
+                                 node: &SyntaxNode,
+                                 expect_inner_attrs,
+                                 indent: &mut usize| {
+        expand_cfg_attr_with_doc_comments::<_, Infallible>(
+            AttrDocCommentIter::from_syntax_node(node).filter(|attr| match attr {
+                Either::Left(attr) => attr.kind().is_inner() == expect_inner_attrs,
+                Either::Right(comment) => comment.kind().doc.is_some_and(|kind| {
+                    (kind == ast::CommentPlacement::Inner) == expect_inner_attrs
                 }),
-                || cfg_options.get_or_insert_with(get_cfg_options),
-                |attr| {
-                    match attr {
-                        Either::Right(doc_comment) => {
-                            result.extend_with_doc_comment(doc_comment, indent)
-                        }
-                        Either::Left((attr, _, _, _)) => match attr {
-                            // FIXME: Handle macros: `#[doc = concat!("foo", "bar")]`.
-                            Meta::NamedKeyValue {
-                                name: Some(name), value: Some(value), ..
-                            } if name.text() == "doc" => {
-                                result.extend_with_doc_attr(value, indent);
-                            }
-                            _ => {}
-                        },
+            }),
+            || cfg_options.get_or_insert_with(get_cfg_options),
+            |attr| {
+                match attr {
+                    Either::Right(doc_comment) => {
+                        result.extend_with_doc_comment(doc_comment, indent)
                     }
-                    ControlFlow::Continue(())
-                },
-            );
-        };
+                    Either::Left((attr, _, _, top_attr)) => match attr {
+                        // FIXME: Handle macros: `#[doc = concat!("foo", "bar")]`.
+                        Meta::NamedKeyValue { name: Some(name), value: Some(value), .. }
+                            if name.text() == "doc" =>
+                        {
+                            result.extend_with_doc_attr(value, indent);
+                        }
+                        Meta::NamedKeyValue { name: Some(name), .. } if name.text() == "doc" => {
+                            result.extend_with_doc_include(db, top_attr, owner_file, krate, indent);
+                        }
+                        _ => {}
+                    },
+                }
+                ControlFlow::Continue(())
+            },
+        );
+    };
 
     if let Some(outer_mod_decl) = outer_mod_decl {
         let mut indent = usize::MAX;
-        extend_with_attrs(&mut result, outer_mod_decl.value.syntax(), false, &mut indent);
+        extend_with_attrs(
+            &mut result,
+            outer_mod_decl.file_id,
+            outer_mod_decl.value.syntax(),
+            false,
+            &mut indent,
+        );
         result.remove_indent(indent, 0);
         result.outline_mod = Some((outer_mod_decl.file_id, result.docs_source_map.len()));
     }
 
     let inline_source_map_start = result.docs_source_map.len();
     let mut indent = usize::MAX;
-    extend_with_attrs(&mut result, source.value.syntax(), false, &mut indent);
+    extend_with_attrs(&mut result, source.file_id, source.value.syntax(), false, &mut indent);
     if let Some(inner_attrs_node) = &inner_attrs_node {
         result.inline_inner_docs_start = Some(TextSize::of(&result.docs));
-        extend_with_attrs(&mut result, inner_attrs_node, true, &mut indent);
+        extend_with_attrs(&mut result, source.file_id, inner_attrs_node, true, &mut indent);
     }
     result.remove_indent(indent, inline_source_map_start);
 
@@ -1295,7 +1381,7 @@ impl AttrFlags {
         // Note: we don't have to pass down `_extra_crate_attrs` here, since `extract_docs`
         // does not handle crate-level attributes related to docs.
         // See: https://doc.rust-lang.org/rustdoc/write-documentation/the-doc-attribute.html#at-the-crate-level
-        extract_docs(&|| krate.cfg_options(db), source, outer_mod_decl, inner_attrs_node)
+        extract_docs(db, krate, &|| krate.cfg_options(db), source, outer_mod_decl, inner_attrs_node)
     }
 
     #[inline]
@@ -1308,8 +1394,9 @@ impl AttrFlags {
             db: &dyn DefDatabase,
             variant: VariantId,
         ) -> ArenaMap<LocalFieldId, Option<Box<Docs>>> {
+            let krate = variant.krate(db);
             collect_field_attrs(db, variant, |cfg_options, field| {
-                extract_docs(&|| cfg_options, field, None, None)
+                extract_docs(db, krate, &|| cfg_options, field, None, None)
             })
         }
     }
@@ -1563,7 +1650,7 @@ mod tests {
         let outer = " foo\n\tbar  baz";
         let mut ast_offset = TextSize::new(123);
         for line in outer.split('\n') {
-            docs.extend_with_doc_str(line, ast_offset, &mut indent);
+            docs.extend_with_doc_str(line, ast_offset, &mut indent, None, true);
             ast_offset += TextSize::of(line) + TextSize::of("\n");
         }
 
@@ -1571,7 +1658,7 @@ mod tests {
         ast_offset += TextSize::new(123);
         let inner = " bar \n baz";
         for line in inner.split('\n') {
-            docs.extend_with_doc_str(line, ast_offset, &mut indent);
+            docs.extend_with_doc_str(line, ast_offset, &mut indent, None, true);
             ast_offset += TextSize::of(line) + TextSize::of("\n");
         }
 
@@ -1581,18 +1668,26 @@ mod tests {
                 DocsSourceMapLine {
                     string_offset: 0,
                     ast_offset: 123,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 5,
                     ast_offset: 128,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 15,
                     ast_offset: 261,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 20,
                     ast_offset: 267,
+                    file_id: None,
+                    trim_indent: true,
                 },
             ]
         "#]]
@@ -1608,18 +1703,26 @@ mod tests {
                 DocsSourceMapLine {
                     string_offset: 0,
                     ast_offset: 124,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 4,
                     ast_offset: 129,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 13,
                     ast_offset: 262,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 17,
                     ast_offset: 268,
+                    file_id: None,
+                    trim_indent: true,
                 },
             ]
         "#]]
@@ -1633,34 +1736,50 @@ mod tests {
                 DocsSourceMapLine {
                     string_offset: 0,
                     ast_offset: 124,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 4,
                     ast_offset: 129,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 13,
                     ast_offset: 262,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 17,
                     ast_offset: 268,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 21,
                     ast_offset: 124,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 25,
                     ast_offset: 129,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 34,
                     ast_offset: 262,
+                    file_id: None,
+                    trim_indent: true,
                 },
                 DocsSourceMapLine {
                     string_offset: 38,
                     ast_offset: 268,
+                    file_id: None,
+                    trim_indent: true,
                 },
             ]
         "#]]
@@ -1679,6 +1798,25 @@ mod tests {
             docs.find_ast_range(range(23, 25)),
             Some((in_file(range(263, 265)), IsInnerDoc::Yes))
         );
+    }
+
+    #[test]
+    fn docs_include_preserves_indent() {
+        let (_db, file_id) = TestDB::with_single_file("");
+        let mut docs = Docs {
+            docs: String::new(),
+            docs_source_map: Vec::new(),
+            outline_mod: None,
+            inline_file: file_id.into(),
+            prefix_len: TextSize::new(0),
+            inline_inner_docs_start: None,
+            outline_inner_docs_start: None,
+        };
+        let mut indent = usize::MAX;
+        docs.extend_with_doc_str("  comment", TextSize::new(0), &mut indent, None, true);
+        docs.extend_with_doc_str("    include", TextSize::new(0), &mut indent, None, false);
+        docs.remove_indent(indent, 0);
+        assert_eq!(docs.docs, "comment\n    include\n");
     }
 
     #[test]
