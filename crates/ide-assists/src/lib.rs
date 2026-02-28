@@ -148,6 +148,7 @@ mod handlers {
     mod extract_expressions_from_format_string;
     mod extract_function;
     mod extract_module;
+    mod extract_string;
     mod extract_struct_from_enum_variant;
     mod extract_type_alias;
     mod extract_variable;
@@ -286,6 +287,7 @@ mod handlers {
             expand_glob_import::expand_glob_reexport,
             expand_rest_pattern::expand_rest_pattern,
             extract_expressions_from_format_string::extract_expressions_from_format_string,
+            extract_string::extract_string,
             extract_struct_from_enum_variant::extract_struct_from_enum_variant,
             extract_type_alias::extract_type_alias,
             fix_visibility::fix_visibility,
