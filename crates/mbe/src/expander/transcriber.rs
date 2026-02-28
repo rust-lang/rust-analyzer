@@ -418,7 +418,35 @@ fn expand_var(
                         ])
                     );
 
+                    // Check if this looks like a path with `::` separator.
+                    // Paths like `generic::<i32>` should not be wrapped in parentheses,
+                    // as it would break `asm!` `sym` operands from macro expansion.
+                    // We use a conservative heuristic: only skip wrapping if the expression
+                    // contains `::` (path separator) and only has path-like tokens.
+                    let has_path_separator = {
+                        let mut prev_colon = false;
+                        sub.iter().any(|tt| {
+                            let is_colon = matches!(
+                                tt,
+                                tt::TtElement::Leaf(tt::Leaf::Punct(p)) if p.char == ':'
+                            );
+                            let result = prev_colon && is_colon;
+                            prev_colon = is_colon;
+                            result
+                        })
+                    };
+                    let is_path_like = has_path_separator
+                        && sub.iter().all(|tt| match tt {
+                            tt::TtElement::Leaf(tt::Leaf::Ident(_)) => true,
+                            tt::TtElement::Leaf(tt::Leaf::Literal(_)) => true,
+                            tt::TtElement::Leaf(tt::Leaf::Punct(p)) => {
+                                matches!(p.char, ':' | '<' | '>' | ',')
+                            }
+                            tt::TtElement::Subtree(..) => false,
+                        });
+
                     let wrap_in_parens = !is_negative_literal
+                        && !is_path_like
                         && !matches!(sub.iter().collect_array(), Some([tt::TtElement::Leaf(_)]))
                         && sub.try_into_subtree().is_none_or(|it| {
                             it.top_subtree().delimiter.kind == tt::DelimiterKind::Invisible
