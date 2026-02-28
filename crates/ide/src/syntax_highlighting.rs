@@ -61,6 +61,8 @@ pub struct HighlightConfig<'a> {
     pub inject_doc_comment: bool,
     /// Whether to highlight the macro call bang
     pub macro_bang: bool,
+    /// Whether to highlight keywords
+    pub keywords: bool,
     /// Whether to highlight unresolved things be their syntax
     pub syntactic_name_ref_highlighting: bool,
     pub minicore: MiniCore<'a>,
@@ -447,7 +449,7 @@ fn traverse(
                 hl
             }
             NodeOrToken::Token(token) => {
-                highlight::token(sema, token, edition, &is_unsafe_node, tt_level > 0)
+                highlight::token(sema, token, edition, &is_unsafe_node, tt_level > 0, config)
                     .zip(Some(None))
             }
         };

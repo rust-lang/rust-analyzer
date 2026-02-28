@@ -16,6 +16,7 @@ const HL_CONFIG: HighlightConfig<'_> = HighlightConfig {
     operator: true,
     inject_doc_comment: true,
     macro_bang: true,
+    keywords: true,
     syntactic_name_ref_highlighting: false,
     minicore: MiniCore::default(),
 };
@@ -1517,6 +1518,44 @@ fn main() {
 "#,
         HighlightConfig { strings: false, ..HL_CONFIG },
         expect_file!["./test_data/highlight_strings_disabled.html"],
+        false,
+    );
+}
+
+#[test]
+fn test_keywords_highlighting_disabled() {
+    check_highlighting_with_config(
+        r#"
+extern crate self;
+
+use crate;
+use self;
+mod __ {
+    use super::*;
+}
+
+macro_rules! void {
+    ($($tt:tt)*) => {discard!($($tt:tt)*)}
+}
+
+struct __ where Self:;
+fn __(_: Self) {}
+void!(Self);
+
+// edition dependent
+void!(try async await gen);
+// edition and context dependent
+void!(dyn);
+// builtin custom syntax
+void!(builtin offset_of format_args asm);
+// contextual
+void!(macro_rules, union, default, raw, auto, yeet);
+// reserved
+void!(abstract become box do final macro override priv typeof unsized virtual yield);
+void!('static 'self 'unsafe)
+"#,
+        HighlightConfig { keywords: false, ..HL_CONFIG },
+        expect_file!["./test_data/highlight_keywords_disabled.html"],
         false,
     );
 }

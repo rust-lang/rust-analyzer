@@ -1514,6 +1514,15 @@ When enabled, rust-analyzer will highlight rust source in doc comments as well a
 doc links.
 
 
+## rust-analyzer.semanticHighlighting.keywords.enable {#semanticHighlighting.keywords.enable}
+
+Default: `true`
+
+Use semantic tokens for keywords.
+
+When enabled, rust-analyzer will emit semantic tokens for keyword tokens.
+
+
 ## rust-analyzer.semanticHighlighting.nonStandardTokens {#semanticHighlighting.nonStandardTokens}
 
 Default: `true`
