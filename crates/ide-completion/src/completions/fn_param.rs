@@ -1,7 +1,9 @@
 //! See [`complete_fn_param`].
 
+use std::fmt::Write;
+
 use hir::HirDisplay;
-use ide_db::FxHashMap;
+use ide_db::{FxHashMap, FxHashSet, active_parameter::callable_for_token};
 use itertools::Either;
 use syntax::{
     AstNode, Direction, SmolStr, SyntaxKind, TextRange, TextSize, ToSmolStr, algo,
@@ -213,4 +215,116 @@ fn is_simple_param(param: &ast::Param) -> bool {
     param
         .pat()
         .is_none_or(|pat| matches!(pat, ast::Pat::IdentPat(ident_pat) if ident_pat.pat().is_none()))
+}
+
+/// When completing inside a closure's param list that is an argument to a call,
+/// suggest parameter lists based on the expected `Fn*` trait signature.
+///
+/// E.g. for `foo(|$0|)` where `foo` expects `impl Fn(usize, String) -> bool`,
+/// suggest `a, b` and `a: usize, b: String`.
+pub(crate) fn complete_closure_within_param(
+    acc: &mut Completions,
+    ctx: &CompletionContext<'_>,
+) -> Option<()> {
+    // Walk up: PARAM_LIST -> CLOSURE_EXPR -> ARG_LIST -> CALL_EXPR/METHOD_CALL_EXPR
+    let closure_param_list = ctx.token.parent().filter(|n| n.kind() == SyntaxKind::PARAM_LIST)?;
+    let closure = closure_param_list.parent().filter(|n| n.kind() == SyntaxKind::CLOSURE_EXPR)?;
+    let arg_list = closure.parent().filter(|n| n.kind() == SyntaxKind::ARG_LIST)?;
+    _ = arg_list
+        .parent()
+        .filter(|n| matches!(n.kind(), SyntaxKind::CALL_EXPR | SyntaxKind::METHOD_CALL_EXPR))?;
+
+    let (callable, index) = callable_for_token(&ctx.sema, closure.first_token()?)?;
+    let index = index?;
+
+    // We must look at the *generic* function definition's param type, not the
+    // instantiated one from the callable. When the closure is just `|`, inference
+    // yields `{unknown}` for the instantiated type. The generic param type
+    // (e.g. `impl Fn(usize) -> u32`) lives in the function's param env, so
+    // `as_callable` can resolve the Fn trait bound from there.
+    let hir::CallableKind::Function(fun) = callable.kind() else {
+        return None;
+    };
+    // Use the absolute index (which includes self) to index into assoc_fn_params,
+    // so that method calls with self don't cause an off-by-one.
+    let abs_index = callable.params().into_iter().nth(index)?.index();
+    let generic_param_ty = fun.assoc_fn_params(ctx.db).into_iter().nth(abs_index)?.ty().clone();
+
+    if !generic_param_ty.impls_fnonce(ctx.db) {
+        return None;
+    }
+
+    let fn_callable = generic_param_ty.as_callable(ctx.db)?;
+    let closure_params = fn_callable.params();
+
+    // Build a set of generic param names that have already been resolved
+    // (via turbofish or inference from other arguments). If a substituted
+    // type is concrete (not unknown), the corresponding param is resolved.
+    let resolved_param_names: FxHashSet<_> = callable
+        .substitution()
+        .map(|subst| {
+            subst
+                .types(ctx.db)
+                .into_iter()
+                .filter(|(_, ty)| !ty.contains_unknown())
+                .map(|(name, _)| name)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let module = ctx.scope.module().into();
+    let source_range = ctx.source_range();
+    let cap = ctx.config.snippet_cap;
+
+    // For each closure param, include a type annotation only if the type
+    // contains generic type parameters (meaning inference alone can't determine it)
+    // AND the instantiated type hasn't already resolved them.
+    let mut label = String::from("|");
+    let mut snippet = String::new();
+    let mut plain = String::new();
+    let mut tab_stop = 1;
+
+    for (i, p) in closure_params.iter().enumerate() {
+        let sep = if i > 0 { ", " } else { "" };
+        let ty = p.ty();
+        // A type annotation is needed only if the type contains generic params
+        // that haven't been resolved by the calling context.
+        let needs_annotation = ty.generic_params(ctx.db).iter().any(|gp| {
+            let name = gp.name(ctx.db);
+            !resolved_param_names.contains(name.symbol())
+        });
+
+        if needs_annotation {
+            if let Ok(ty_str) = ty.display_source_code(ctx.db, module, true) {
+                write!(label, "{sep}_: {ty_str}").unwrap();
+                write!(snippet, "{sep}${{{tab_stop}:_}}: ${{{}:{ty_str}}}", tab_stop + 1).unwrap();
+                write!(plain, "{sep}_: {ty_str}").unwrap();
+                tab_stop += 2;
+            } else {
+                write!(label, "{sep}_").unwrap();
+                write!(snippet, "{sep}${{{tab_stop}:_}}").unwrap();
+                write!(plain, "{sep}_").unwrap();
+                tab_stop += 1;
+            }
+        } else {
+            write!(label, "{sep}_").unwrap();
+            write!(snippet, "{sep}${{{tab_stop}:_}}").unwrap();
+            write!(plain, "{sep}_").unwrap();
+            tab_stop += 1;
+        }
+    }
+
+    label.push_str("| ");
+    snippet.push_str("| $0");
+    plain.push_str("| ");
+
+    let mut item =
+        CompletionItem::new(CompletionItemKind::Binding, source_range, &label, ctx.edition);
+    match cap {
+        Some(cap) => item.insert_snippet(cap, &snippet),
+        None => item.insert_text(&plain),
+    };
+    item.add_to(acc, ctx.db);
+
+    Some(())
 }

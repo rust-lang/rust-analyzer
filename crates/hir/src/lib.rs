@@ -6384,6 +6384,7 @@ enum Callee<'db> {
     BuiltinDeriveImplMethod { method: BuiltinDeriveImplMethod, impl_: BuiltinDeriveImplId },
 }
 
+#[derive(Debug)]
 pub enum CallableKind<'db> {
     Function(Function),
     TupleStruct(Struct),
@@ -6460,6 +6461,15 @@ impl<'db> Callable<'db> {
 
     pub fn ty(&self) -> &Type<'db> {
         &self.ty
+    }
+
+    /// Returns the generic substitution for this callable, if it is a function.
+    pub fn substitution(&self) -> Option<GenericSubstitution<'db>> {
+        let fun = self.as_function()?;
+        match self.ty.ty.kind() {
+            TyKind::FnDef(_, substs) => GenericSubstitution::new_from_fn(fun, substs, self.ty.env),
+            _ => None,
+        }
     }
 }
 

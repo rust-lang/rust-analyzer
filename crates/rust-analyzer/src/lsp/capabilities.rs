@@ -55,6 +55,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
                 ".".to_owned(),
                 "'".to_owned(),
                 "(".to_owned(),
+                "|".to_owned(),
             ]),
             all_commit_characters: None,
             completion_item: config.caps().completion_item(),
