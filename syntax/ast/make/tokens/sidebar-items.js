@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["blank_line","crate_kw","doc_comment","ident","literal","semicolon","single_newline","single_space","whitespace"],"static":["SOURCE_FILE"],"struct":["WsBuilder"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Anchor","ExtractionKind"],"fn":["extract_variable","get_literal_name","peel_parens","valid_target_expr"]};

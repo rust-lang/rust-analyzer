@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["dollar_crate"],"macro":["impl_to_to_tokentrees","quote"],"struct":["WithDelimiter"],"trait":["ToTokenTree"]};

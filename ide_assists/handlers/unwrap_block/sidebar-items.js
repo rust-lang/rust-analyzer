@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["delete_else_before","extract_statements","unwrap_block","wrap_let"]};

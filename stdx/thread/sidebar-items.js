@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ThreadIntent"],"fn":["spawn"],"mod":["intent","pool"],"struct":["Builder","JoinHandle","Pool"]};

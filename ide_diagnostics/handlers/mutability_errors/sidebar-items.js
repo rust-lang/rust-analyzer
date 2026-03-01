@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["need_mut","token","unused_mut"]};

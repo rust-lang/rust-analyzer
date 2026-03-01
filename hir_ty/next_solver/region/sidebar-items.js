@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BoundRegionKind"],"struct":["BoundRegion","EarlyParamRegion","LateParamRegion","Region","RegionAssumptions","RegionAssumptionsStorage","RegionInterned","StoredRegion","StoredRegionAssumptions"],"type":["GenericArgOutlivesPredicate","PlaceholderRegion","RegionKind"]};

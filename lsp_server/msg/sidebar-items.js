@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ErrorCode","IdRepr","Message"],"fn":["invalid_data","read_msg_text","write_msg_text"],"macro":["invalid_data"],"struct":["Notification","Request","RequestId","Response","ResponseError"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["existing_from_impl","extract_variant_info","generate_from_impl_for_enum","generate_impl_code","selected_variants"],"struct":["VariantInfo"]};

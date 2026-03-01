@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CompletionItemKind","CompletionItemRefMode","CompletionRelevancePostfixMatch","CompletionRelevanceReturnType","CompletionRelevanceTypeMatch"],"struct":["Builder","CompletionItem","CompletionItemLabel","CompletionRelevance","CompletionRelevanceFn","CompletionRelevanceTraitInfo"]};

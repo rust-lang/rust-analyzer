@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_generic_param_list","create_where_clause","get_or_insert_comma_after","normalize_ws_between_braces"],"trait":["AttrsOwnerEdit","GenericParamsOwnerEdit","HasVisibilityEdit","Indent","Removable"]};

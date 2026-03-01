@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["compute_block_scopes","compute_expr_scopes","empty_entries"],"struct":["ExprScopes","ScopeData","ScopeEntry"],"type":["ScopeId"]};

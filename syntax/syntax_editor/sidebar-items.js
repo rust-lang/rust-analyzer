@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Change","ChangeKind","PositionRepr"],"fn":["is_ancestor_or_self","is_ancestor_or_self_of_element"],"mod":["edit_algo","edits","mapping"],"struct":["Position","SyntaxAnnotation","SyntaxEdit","SyntaxEditor","SyntaxMapping","SyntaxMappingBuilder"],"trait":["Element","Removable"]};

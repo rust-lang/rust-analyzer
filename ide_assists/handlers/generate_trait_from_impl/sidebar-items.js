@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["generate_trait_from_impl","remove_items_visibility","strip_body"]};

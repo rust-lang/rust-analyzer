@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_args_to_binder","clauses_as_obligations","explicit_item_bounds","explicit_item_self_bounds","sizedness_constraint_for_ty","sizedness_fast_path","upcast_choices"],"struct":["BottomUpFolder","ContainsTypeErrors","Discr","MaxUniverse","PlaceholderReplacer"],"trait":["CoroutineArgsExt","FloatExt","IntegerExt","IntegerTypeExt","PrimitiveExt"]};

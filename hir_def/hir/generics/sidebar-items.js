@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GenericParamData","GenericParamDataRef","TypeOrConstParamData","TypeParamProvenance","WherePredicate"],"static":["EMPTY"],"struct":["ConstParamData","GenericParams","LifetimeParamData","TypeParamData"],"type":["LocalLifetimeParamId","LocalTypeOrConstParamId"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CONTINUE_NO_BREAKS"],"enum":["LintAttr","PathResolution"],"fn":["find_root","macro_call_to_macro_id"],"macro":["to_def_impls"],"mod":["child_by_source","source_to_def"],"struct":["PathResolutionPerNs","RenameConflictsVisitor","Semantics","SemanticsImpl","SemanticsScope","TypeInfo","VisibleTraits"],"trait":["ToDef"]};

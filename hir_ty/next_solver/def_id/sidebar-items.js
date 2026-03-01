@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AnyImplId","Ctor","SolverDefId"],"macro":["declare_id_wrapper"],"struct":["AdtIdWrapper","CallableIdWrapper","ClosureIdWrapper","CoroutineIdWrapper","GeneralConstIdWrapper","TraitIdWrapper","TypeAliasIdWrapper"]};

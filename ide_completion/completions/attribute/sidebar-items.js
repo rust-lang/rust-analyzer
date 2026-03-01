@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ATTRIBUTES","EXPR_ATTRIBUTES"],"fn":["attr","complete_attribute_path","complete_known_attribute_input","parse_comma_sep_expr"],"macro":["attrs"],"mod":["cfg","derive","diagnostic","lint","macro_use","repr"],"static":["KIND_TO_ATTRIBUTES"],"struct":["AttrCompletion"]};

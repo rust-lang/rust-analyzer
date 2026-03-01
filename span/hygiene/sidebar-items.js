@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["SALSA_MAX_ID_MIRROR"],"enum":["Transparency"],"struct":["SyntaxContext"]};

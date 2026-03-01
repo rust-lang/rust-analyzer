@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Queries","SetterKind"],"struct":["GeneratedInputStruct","InputQuery","InputSetter","InputSetterWithDurability","Intern","Lookup","TrackedQuery","Transparent"]};

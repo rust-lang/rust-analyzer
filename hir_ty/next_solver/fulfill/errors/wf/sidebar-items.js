@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["object_region_bounds","unnormalized_obligations"],"struct":["WfPredicates"]};
