@@ -701,6 +701,11 @@ config_data! {
         /// List of rust-analyzer diagnostics to disable.
         diagnostics_disabled: FxHashSet<String> = FxHashSet::default(),
 
+        /// Clear native diagnostics for a file as soon as its content changes, before
+        /// reanalysis completes. This prevents stale diagnostics from lingering between
+        /// an edit and the next analysis pass.
+        diagnostics_eagerInvalidation: bool = false,
+
         /// Show native rust-analyzer diagnostics.
         diagnostics_enable: bool = true,
 
@@ -711,11 +716,6 @@ config_data! {
         /// Map of prefixes to be substituted when parsing diagnostic file paths. This should be the
         /// reverse mapping of what is passed to `rustc` as `--remap-path-prefix`.
         diagnostics_remapPrefix: FxHashMap<String, String> = FxHashMap::default(),
-
-        /// Clear native diagnostics for a file as soon as its content changes, before
-        /// reanalysis completes. This prevents stale diagnostics from lingering between
-        /// an edit and the next analysis pass.
-        diagnostics_eagerInvalidation: bool = false,
 
         /// Run additional style lints.
         diagnostics_styleLints_enable: bool = false,
