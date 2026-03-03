@@ -24,12 +24,13 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 use ide_db::FxHashMap;
 use lsp_types::{
-    CodeActionContext, CodeActionParams, CompletionParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, DocumentRangeFormattingParams, FileRename, FormattingOptions,
-    GotoDefinitionParams, HoverParams, InlayHint, InlayHintLabel, InlayHintParams,
-    PartialResultParams, Position, Range, RenameFilesParams, TextDocumentItem,
-    TextDocumentPositionParams, WorkDoneProgressParams,
-    notification::DidOpenTextDocument,
+    CodeActionContext, CodeActionParams, CompletionParams, DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams, FileRename,
+    FormattingOptions, GotoDefinitionParams, HoverParams, InlayHint, InlayHintLabel,
+    InlayHintParams, PartialResultParams, Position, Range, RenameFilesParams,
+    TextDocumentContentChangeEvent, TextDocumentItem, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    notification::{DidChangeTextDocument, DidOpenTextDocument},
     request::{
         CodeActionRequest, Completion, Formatting, GotoTypeDefinition, HoverRequest,
         InlayHintRequest, InlayHintResolveRequest, RangeFormatting, WillRenameFiles,
@@ -1579,4 +1580,57 @@ fn test() {
     let arr = res.as_array().unwrap();
     assert_eq!(arr.len(), 2);
     expect![[r#"{"goal":"Goal { param_env: ParamEnv { clauses: [] }, predicate: Binder { value: TraitPredicate(usize: Trait, polarity:Positive), bound_vars: [] } }","result":"Err(NoSolution)","depth":0,"candidates":[]}"#]].assert_eq(&arr[0].to_string());
+}
+
+#[test]
+fn test_eager_diagnostic_invalidation_on_did_change() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+fn main() {
+    let x: u32 = "hello";
+}
+"#,
+    )
+    .with_config(json!({
+        "diagnostics": { "eagerInvalidation": true }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    // Open the file and wait for rust-analyzer to publish diagnostics for the type error.
+    server.notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: server.doc_id("src/lib.rs").uri,
+            language_id: "rust".to_owned(),
+            version: 1,
+            text: "fn main() {\n    let x: u32 = \"hello\";\n}\n".to_owned(),
+        },
+    });
+    let diags = server.wait_for_diagnostics();
+    assert!(!diags.diagnostics.is_empty(), "expected diagnostics for type error");
+
+    // Send a didChange with corrected content - eager invalidation should clear diagnostics
+    // immediately without waiting for a cargo check cycle.
+    server.notification::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier {
+            uri: server.doc_id("src/lib.rs").uri,
+            version: 2,
+        },
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: "fn main() {\n    let x: u32 = 42;\n}\n".to_owned(),
+        }],
+    });
+    server.wait_for_diagnostics_cleared();
 }

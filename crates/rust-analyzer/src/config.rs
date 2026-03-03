@@ -712,6 +712,11 @@ config_data! {
         /// reverse mapping of what is passed to `rustc` as `--remap-path-prefix`.
         diagnostics_remapPrefix: FxHashMap<String, String> = FxHashMap::default(),
 
+        /// Clear native diagnostics for a file as soon as its content changes, before
+        /// reanalysis completes. This prevents stale diagnostics from lingering between
+        /// an edit and the next analysis pass.
+        diagnostics_eagerInvalidation: bool = false,
+
         /// Run additional style lints.
         diagnostics_styleLints_enable: bool = false,
 
@@ -2224,6 +2229,10 @@ impl Config {
 
     pub fn publish_diagnostics(&self, source_root: Option<SourceRootId>) -> bool {
         self.diagnostics_enable(source_root).to_owned()
+    }
+
+    pub fn eager_diagnostic_invalidation(&self) -> bool {
+        *self.diagnostics_eagerInvalidation(None)
     }
 
     pub fn diagnostics_map(&self, source_root: Option<SourceRootId>) -> DiagnosticsMapConfig {

@@ -591,6 +591,16 @@ Map of prefixes to be substituted when parsing diagnostic file paths. This shoul
 reverse mapping of what is passed to `rustc` as `--remap-path-prefix`.
 
 
+## rust-analyzer.diagnostics.eagerInvalidation {#diagnostics.eagerInvalidation}
+
+Default: `false`
+
+Clear native diagnostics for a file as soon as its content changes, before
+reanalysis completes. This prevents stale diagnostics from lingering between
+an edit and the next analysis pass. Intended for non-UI rapid-edit workflows
+such as agentic coding tools.
+
+
 ## rust-analyzer.diagnostics.styleLints.enable {#diagnostics.styleLints.enable}
 
 Default: `false`
