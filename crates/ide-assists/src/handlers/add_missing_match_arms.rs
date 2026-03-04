@@ -7,10 +7,11 @@ use ide_db::assists::ExprFillDefaultMode;
 use ide_db::syntax_helpers::suggest_name;
 use ide_db::{famous_defs::FamousDefs, helpers::mod_path_to_ast};
 use itertools::Itertools;
-use syntax::ToSmolStr;
-use syntax::ast::edit::{AstNodeEdit, IndentLevel};
+use syntax::ast::edit::IndentLevel;
 use syntax::ast::syntax_factory::SyntaxFactory;
 use syntax::ast::{self, AstNode, MatchArmList, MatchExpr, Pat, make};
+use syntax::syntax_editor::{Position, SyntaxEditor};
+use syntax::{SyntaxKind, SyntaxNode, ToSmolStr};
 
 use crate::{AssistContext, AssistId, Assists, utils};
 
@@ -225,7 +226,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
             // having any hidden variants means that we need a catch-all arm
             needs_catch_all_arm |= has_hidden_variants;
 
-            let missing_arms = missing_pats
+            let mut missing_arms = missing_pats
                 .filter(|(_, hidden)| {
                     // filter out hidden patterns because they're handled by the catch-all arm
                     !hidden
@@ -240,34 +241,8 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
                             ExprFillDefaultMode::Default => make::ext::expr_todo(),
                         },
                     )
-                });
-
-            let mut arms: Vec<_> = match_arm_list
-                .arms()
-                .filter(|arm| {
-                    if matches!(arm.pat(), Some(ast::Pat::WildcardPat(_))) {
-                        let is_empty_expr = arm.expr().is_none_or(|e| match e {
-                            ast::Expr::BlockExpr(b) => {
-                                b.statements().next().is_none() && b.tail_expr().is_none()
-                            }
-                            ast::Expr::TupleExpr(t) => t.fields().next().is_none(),
-                            _ => false,
-                        });
-                        if is_empty_expr {
-                            false
-                        } else {
-                            cov_mark::hit!(add_missing_match_arms_empty_expr);
-                            true
-                        }
-                    } else {
-                        true
-                    }
                 })
-                .map(|arm| arm.reset_indent().indent(IndentLevel(1)))
-                .collect();
-
-            let first_new_arm_idx = arms.len();
-            arms.extend(missing_arms);
+                .collect::<Vec<_>>();
 
             if needs_catch_all_arm && !has_catch_all_arm {
                 cov_mark::hit!(added_wildcard_pattern);
@@ -280,13 +255,11 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
                         ExprFillDefaultMode::Default => make::ext::expr_todo(),
                     },
                 );
-                arms.push(arm);
+                missing_arms.push(arm);
             }
 
-            let new_match_arm_list = make.match_arm_list(arms);
-
             // FIXME: Hack for syntax trees not having great support for macros
-            // Just replace the element that the original range came from
+            // Just edit the element that the original range came from
             let old_place = {
                 // Find the original element
                 let file = ctx.sema.parse(arm_list_range.file_id);
@@ -303,25 +276,25 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
             };
 
             let mut editor = builder.make_editor(&old_place);
-            let new_match_arm_list = new_match_arm_list.indent(IndentLevel::from_node(&old_place));
-            editor.replace(old_place, new_match_arm_list.syntax());
+
+            remove_wildcard_arms(ctx, &match_arm_list, &old_place, &mut editor);
+            append_arms_to_arm_list(&missing_arms, &old_place, &mut editor);
 
             if let Some(cap) = ctx.config.snippet_cap {
-                if let Some(it) = new_match_arm_list
-                    .arms()
-                    .nth(first_new_arm_idx)
+                if let Some(it) = missing_arms
+                    .first()
                     .and_then(|arm| arm.syntax().descendants().find_map(ast::WildcardPat::cast))
                 {
                     editor.add_annotation(it.syntax(), builder.make_placeholder_snippet(cap));
                 }
 
-                for arm in new_match_arm_list.arms().skip(first_new_arm_idx) {
+                for arm in &missing_arms {
                     if let Some(expr) = arm.expr() {
                         editor.add_annotation(expr.syntax(), builder.make_placeholder_snippet(cap));
                     }
                 }
 
-                if let Some(arm) = new_match_arm_list.arms().skip(first_new_arm_idx).last() {
+                if let Some(arm) = missing_arms.last() {
                     editor.add_annotation(arm.syntax(), builder.make_tabstop_after(cap));
                 }
             }
@@ -366,6 +339,91 @@ fn cursor_at_trivial_match_arm_list(
     }
 
     None
+}
+
+fn remove_wildcard_arms(
+    ctx: &AssistContext<'_>,
+    match_arm_list: &MatchArmList,
+    place: &SyntaxNode,
+    editor: &mut SyntaxEditor,
+) {
+    let is_empty_expr = |expr| match expr {
+        Some(ast::Expr::BlockExpr(b)) => b.statements().next().is_none() && b.tail_expr().is_none(),
+        Some(ast::Expr::TupleExpr(t)) => t.fields().next().is_none(),
+        _ => false,
+    };
+    let mut last_arm = None;
+    for arm in match_arm_list.arms() {
+        if !matches!(arm.pat(), Some(Pat::WildcardPat(_))) {
+            last_arm = Some(arm);
+            continue;
+        }
+        if !is_empty_expr(arm.expr()) {
+            cov_mark::hit!(add_missing_match_arms_empty_expr);
+            last_arm = Some(arm);
+            continue;
+        }
+        let Some(range) = ctx.sema.original_range_opt(arm.syntax()) else { continue };
+        if !place.text_range().contains_range(range.range) {
+            continue;
+        }
+        let Some(node) = place.covering_element(range.range).into_node() else { continue };
+        let mut elements =
+            node.children_with_tokens().filter(|it| range.range.contains_range(it.text_range()));
+        let Some(first) = elements.next() else { continue };
+        let last = elements.last().unwrap_or_else(|| first.clone());
+
+        let prev = match &first {
+            syntax::NodeOrToken::Node(node) => node.first_token().and_then(|it| it.prev_token()),
+            syntax::NodeOrToken::Token(tok) => tok.prev_token(),
+        };
+        if let Some(prev) = prev
+            && prev.kind() == SyntaxKind::WHITESPACE
+        {
+            editor.delete(prev);
+        }
+
+        editor.delete_all(first..=last);
+    }
+
+    if let Some(last_arm) = last_arm
+        && last_arm.comma_token().is_none()
+        && last_arm.expr().is_none_or(|it| !it.is_block_like())
+        && let Some(range) = ctx.sema.original_range_opt(last_arm.syntax())
+        && let Some(node) = place.covering_element(range.range).into_node()
+    {
+        let elements =
+            node.children_with_tokens().filter(|it| range.range.contains_range(it.text_range()));
+        let elem = elements.last().unwrap_or(node.into());
+        editor.insert(Position::after(elem), make::token(syntax::T![,]));
+    }
+}
+
+fn append_arms_to_arm_list(arms: &[ast::MatchArm], node: &SyntaxNode, editor: &mut SyntaxEditor) {
+    let Some(mut before) = node.last_token() else {
+        stdx::never!("match arm list not contain any token");
+        return;
+    };
+    if let Some(prev) = before.prev_token()
+        && prev.kind() == SyntaxKind::WHITESPACE
+    {
+        before = prev;
+    }
+    let open_curly = !node.text().contains_char('\n') || before.kind() == SyntaxKind::WHITESPACE;
+    let indent = IndentLevel::from_node(node);
+    let arm_indent = indent + 1;
+    let indent = make::tokens::whitespace(&format!("\n{indent}"));
+    let arm_indent = make::tokens::whitespace(&format!("\n{arm_indent}"));
+    let elements = arms
+        .iter()
+        .flat_map(|arm| [arm_indent.clone().into(), arm.syntax().clone().into()])
+        .chain(open_curly.then(|| indent.clone().into()))
+        .collect();
+    if before.kind() == SyntaxKind::WHITESPACE {
+        editor.replace_with_many(before, elements);
+    } else {
+        editor.insert_all(Position::before(before), elements);
+    }
 }
 
 fn is_variant_missing(existing_pats: &[Pat], var: &Pat) -> bool {
@@ -2041,6 +2099,35 @@ fn foo(t: E) {
     match t {
         E::A => ${1:todo!()},
         E::B => ${2:todo!()},$0
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn keep_comments() {
+        check_assist(
+            add_missing_match_arms,
+            r#"
+enum E { A, B, C }
+
+fn foo(t: E) -> i32 {
+    match $0t {
+        // variant a
+        E::A => 2
+        // comment on end
+    }
+}"#,
+            r#"
+enum E { A, B, C }
+
+fn foo(t: E) -> i32 {
+    match t {
+        // variant a
+        E::A => 2,
+        // comment on end
+        E::B => ${1:todo!()},
+        E::C => ${2:todo!()},$0
     }
 }"#,
         );
