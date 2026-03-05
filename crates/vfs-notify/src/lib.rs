@@ -276,9 +276,18 @@ impl NotifyActor {
                                 return false;
                             }
 
-                            // We want to filter out subdirectories that are roots themselves, because they will be visited separately.
-                            dirs.exclude.iter().all(|it| it != path)
-                                && (root == path || dirs.include.iter().all(|it| it != path))
+                            if dirs.exclude.iter().any(|it| path.starts_with(it)) {
+                                // Directly excluded.
+                                false
+                            } else if root == path {
+                                // Needed so that we won't enter the next if.
+                                true
+                            } else if dirs.include.iter().any(|it| it == path) {
+                                // A subdirectory that is a project on its own, exclude it or it will be scanned twice.
+                                false
+                            } else {
+                                true
+                            }
                         });
 
                     let files = walkdir.filter_map(|it| it.ok()).filter_map(|entry| {

@@ -753,7 +753,6 @@ impl ProjectWorkspace {
 
                         let exclude = vec![
                             pkg_root.join(".git"),
-                            pkg_root.join("target"),
                             pkg_root.join("tests"),
                             pkg_root.join("examples"),
                             pkg_root.join("benches"),
@@ -840,8 +839,6 @@ impl ProjectWorkspace {
                         let mut exclude = vec![pkg_root.join(".git")];
                         if is_local {
                             include.extend(self.extra_includes.iter().cloned());
-
-                            exclude.push(pkg_root.join("target"));
                         } else {
                             exclude.push(pkg_root.join("tests"));
                             exclude.push(pkg_root.join("examples"));
@@ -903,8 +900,6 @@ impl ProjectWorkspace {
                         let mut exclude = vec![pkg_root.join(".git")];
                         if is_local {
                             include.extend(self.extra_includes.iter().cloned());
-
-                            exclude.push(pkg_root.join("target"));
                         } else {
                             exclude.push(pkg_root.join("tests"));
                             exclude.push(pkg_root.join("examples"));
