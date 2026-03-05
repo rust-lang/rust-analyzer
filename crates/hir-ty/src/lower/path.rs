@@ -2,7 +2,7 @@
 
 use either::Either;
 use hir_def::{
-    GenericDefId, GenericParamId, Lookup, TraitId, TypeParamId,
+    AssocItemId, GenericDefId, GenericParamId, HasModule, Lookup, TraitId, TypeParamId,
     expr_store::{
         ExpressionStore, HygieneId,
         path::{
@@ -19,6 +19,7 @@ use hir_def::{
 };
 use rustc_type_ir::{
     AliasTerm, AliasTy, AliasTyKind,
+    fast_reject::{TreatParams, simplify_type},
     inherent::{GenericArgs as _, Region as _, Ty as _},
 };
 use smallvec::SmallVec;
@@ -34,6 +35,7 @@ use crate::{
         AssocTypeShorthandResolution, GenericPredicateSource, LifetimeElisionKind,
         PathDiagnosticCallbackData,
     },
+    method_resolution::InherentImpls,
     next_solver::{
         Binder, Clause, Const, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg, GenericArgs,
         Predicate, ProjectionPredicate, Region, TraitRef, Ty,
@@ -519,6 +521,51 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     .get_with(|(assoc_type, trait_args)| (*assoc_type, trait_args.as_ref()))
                     .skip_binder();
                 (assoc_type, EarlyBinder::bind(trait_args).instantiate(interner, impl_trait.args))
+            }
+            // associated types in inherent impl
+            Some(TypeNs::AdtId(adt)) => {
+                let adt_ty = Ty::new_adt(
+                    interner,
+                    adt,
+                    GenericArgs::identity_for_item(interner, adt.into()),
+                );
+                let Some(simplified) = simplify_type(interner, adt_ty, TreatParams::AsRigid) else {
+                    return error_ty();
+                };
+
+                let module = adt.module(db);
+                let krate = module.krate(db);
+                let block = module.block(db);
+
+                let mut found_alias = None;
+                InherentImpls::for_each_crate_and_block(db, krate, block, &mut |impls| {
+                    if found_alias.is_some() {
+                        return;
+                    }
+                    for &impl_id in impls.for_self_ty(&simplified) {
+                        // skip trait impl, only need inherent impl
+                        if db.impl_signature(impl_id).target_trait.is_some() {
+                            continue;
+                        }
+                        for (name, item) in impl_id.impl_items(db).items.iter() {
+                            if name == assoc_name
+                                && let AssocItemId::TypeAliasId(alias_id) = item
+                            {
+                                found_alias = Some(*alias_id);
+                                break;
+                            }
+                        }
+                        if found_alias.is_some() {
+                            break;
+                        }
+                    }
+                });
+
+                let Some(alias_id) = found_alias else {
+                    return error_ty();
+                };
+
+                return self.lower_path_inner(TyDefId::TypeAliasId(alias_id), infer_args);
             }
             _ => return error_ty(),
         };

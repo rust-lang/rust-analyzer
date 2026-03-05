@@ -5142,3 +5142,34 @@ fn foo(v: Struct<f32>) {
     "#,
     );
 }
+
+#[test]
+fn inherent_associated_type_path() {
+    check_infer(
+        r#"
+#![feature(inherent_associated_types)]
+
+struct A;
+impl A {
+    type B = i32;
+}
+
+trait C { fn foo() -> Self; }
+impl C for A::B {
+    fn foo() -> Self { 1 }
+}
+
+fn main() {
+    let x: A::B = C::foo();
+}
+"#,
+        expect![[r#"
+            149..154 '{ 1 }': i32
+            151..152 '1': i32
+            168..199 '{     ...o(); }': ()
+            178..179 'x': i32
+            188..194 'C::foo': fn foo<i32>() -> i32
+            188..196 'C::foo()': i32
+        "#]],
+    );
+}
