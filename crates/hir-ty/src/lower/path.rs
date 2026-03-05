@@ -2,7 +2,7 @@
 
 use either::Either;
 use hir_def::{
-    AssocItemId, GenericDefId, GenericParamId, HasModule, Lookup, TraitId, TypeParamId,
+    GenericDefId, GenericParamId, Lookup, TraitId, TypeParamId,
     expr_store::{
         ExpressionStore, HygieneId,
         path::{
@@ -19,7 +19,6 @@ use hir_def::{
 };
 use rustc_type_ir::{
     AliasTerm, AliasTy, AliasTyKind,
-    fast_reject::{TreatParams, simplify_type},
     inherent::{GenericArgs as _, Region as _, Ty as _},
 };
 use smallvec::SmallVec;
@@ -35,7 +34,6 @@ use crate::{
         AssocTypeShorthandResolution, GenericPredicateSource, LifetimeElisionKind,
         PathDiagnosticCallbackData,
     },
-    method_resolution::InherentImpls,
     next_solver::{
         Binder, Clause, Const, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg, GenericArgs,
         Predicate, ProjectionPredicate, Region, TraitRef, Ty,
@@ -524,44 +522,9 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             }
             // associated types in inherent impl
             Some(TypeNs::AdtId(adt)) => {
-                let adt_ty = Ty::new_adt(
-                    interner,
-                    adt,
-                    GenericArgs::identity_for_item(interner, adt.into()),
-                );
-                let Some(simplified) = simplify_type(interner, adt_ty, TreatParams::AsRigid) else {
-                    return error_ty();
-                };
-
-                let module = adt.module(db);
-                let krate = module.krate(db);
-                let block = module.block(db);
-
-                let mut found_alias = None;
-                InherentImpls::for_each_crate_and_block(db, krate, block, &mut |impls| {
-                    if found_alias.is_some() {
-                        return;
-                    }
-                    for &impl_id in impls.for_self_ty(&simplified) {
-                        // skip trait impl, only need inherent impl
-                        if db.impl_signature(impl_id).target_trait.is_some() {
-                            continue;
-                        }
-                        for (name, item) in impl_id.impl_items(db).items.iter() {
-                            if name == assoc_name
-                                && let AssocItemId::TypeAliasId(alias_id) = item
-                            {
-                                found_alias = Some(*alias_id);
-                                break;
-                            }
-                        }
-                        if found_alias.is_some() {
-                            break;
-                        }
-                    }
-                });
-
-                let Some(alias_id) = found_alias else {
+                let Some(alias_id) =
+                    crate::method_resolution::find_inherent_assoc_type(db, adt, assoc_name)
+                else {
                     return error_ty();
                 };
 
