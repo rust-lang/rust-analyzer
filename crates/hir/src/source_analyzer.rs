@@ -1678,6 +1678,14 @@ fn resolve_hir_path_(
             return Some(PathResolution::Def(ModuleDefId::from(type_alias_id).into()));
         }
 
+        // inherent associated types
+        if let (Some(unresolved), TypeNs::AdtId(adt_id)) = (&unresolved, &ty)
+            && let Some(alias_id) =
+                method_resolution::find_inherent_assoc_type(db, *adt_id, unresolved.name)
+        {
+            return Some(PathResolution::Def(ModuleDefId::from(alias_id).into()));
+        }
+
         let res = match ty {
             TypeNs::SelfType(it) => PathResolution::SelfType(it.into()),
             TypeNs::GenericParam(id) => PathResolution::TypeParam(id.into()),
@@ -1825,6 +1833,14 @@ fn resolve_hir_path_qualifier(
                 trait_id.trait_items(db).associated_type_by_name(unresolved.name)
         {
             return Some(PathResolution::Def(ModuleDefId::from(type_alias_id).into()));
+        }
+
+        // inherent associated types
+        if let (Some(unresolved), TypeNs::AdtId(adt_id)) = (&unresolved, &ty)
+            && let Some(alias_id) =
+                method_resolution::find_inherent_assoc_type(db, *adt_id, unresolved.name)
+        {
+            return Some(PathResolution::Def(ModuleDefId::from(alias_id).into()));
         }
 
         let res = match ty {

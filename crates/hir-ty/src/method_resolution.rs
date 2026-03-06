@@ -13,8 +13,8 @@ use tracing::{debug, instrument};
 
 use base_db::Crate;
 use hir_def::{
-    AssocItemId, BlockId, BuiltinDeriveImplId, ConstId, FunctionId, GenericParamId, HasModule,
-    ImplId, ItemContainerId, ModuleId, TraitId,
+    AdtId, AssocItemId, BlockId, BuiltinDeriveImplId, ConstId, FunctionId, GenericParamId,
+    HasModule, ImplId, ItemContainerId, ModuleId, TraitId, TypeAliasId,
     attrs::AttrFlags,
     builtin_derive::BuiltinDeriveImplMethod,
     expr_store::path::GenericArgs as HirGenericArgs,
@@ -876,4 +876,43 @@ impl TraitImpls {
             for_each_block(type_block, trait_block).for_each(for_each);
         }
     }
+}
+
+pub fn find_inherent_assoc_type(
+    db: &dyn HirDatabase,
+    adt: AdtId,
+    name: &Name,
+) -> Option<TypeAliasId> {
+    use rustc_type_ir::inherent::GenericArgs;
+
+    let interner = DbInterner::new_no_crate(db);
+
+    let adt_ty = Ty::new_adt(interner, adt, GenericArgs::identity_for_item(interner, adt.into()));
+    let simplified = simplify_type(interner, adt_ty, TreatParams::AsRigid)?;
+
+    let module = adt.module(db);
+    let mut found = None;
+
+    InherentImpls::for_each_crate_and_block(db, module.krate(db), module.block(db), &mut |impls| {
+        if found.is_some() {
+            return;
+        }
+        for &impl_id in impls.for_self_ty(&simplified) {
+            if db.impl_signature(impl_id).target_trait.is_some() {
+                continue;
+            }
+            for (n, item) in impl_id.impl_items(db).items.iter() {
+                if n == name
+                    && let AssocItemId::TypeAliasId(id) = item
+                {
+                    found = Some(*id);
+                    break;
+                }
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+    });
+    found
 }
