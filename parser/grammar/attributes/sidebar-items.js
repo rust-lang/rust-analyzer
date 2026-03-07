@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ATTRIBUTE_FIRST"],"fn":["attr","inner_attrs","meta","outer_attrs"]};

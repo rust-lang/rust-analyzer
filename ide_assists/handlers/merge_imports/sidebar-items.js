@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Edit"],"fn":["merge_imports"],"trait":["Merge"]};

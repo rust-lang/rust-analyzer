@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LAST_STANDARD_MOD","SUPPORTED_MODIFIERS","SUPPORTED_TYPES"],"fn":["diff_tokens","standard_fallback_type","type_index"],"macro":["count_tts","define_semantic_token_modifiers","define_semantic_token_types"],"mod":["modifiers","types"],"struct":["ModifierSet","SemanticTokensBuilder"]};

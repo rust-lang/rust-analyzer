@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ChangedAncestorKind"],"fn":["apply_edits","report_intersecting_changes","to_owning_node"],"struct":["ChangedAncestor","TreeMutator"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MirLowerError"],"fn":["cast_kind","lower_to_mir","mir_body_cycle_result","mir_body_for_closure_query","mir_body_query"],"macro":["implementation_error","not_supported"],"mod":["as_place","pattern_matching"],"struct":["DropScope","DropScopeToken","LoopBlocks","MirLowerCtx"],"type":["Result"]};

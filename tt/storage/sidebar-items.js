@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["RESERVED_SPAN_PARTS_LEN"],"enum":["TokenTree","TopSubtreeBuilderRepr","TopSubtreeRepr"],"fn":["n_bits_mask"],"macro":["dispatch","dispatch_builder"],"struct":["CompressedSpanPart","SpanStorage32","SpanStorage64","SpanStorage96","SubtreeBuilderRestorePoint","TopSubtree","TopSubtreeBuilder"],"trait":["SpanStorage"],"type":["FxIndexSet"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_data_HirDatabase"],"struct":["HirDatabaseData","InternedClosure","InternedClosureId","InternedConstParamId","InternedCoroutine","InternedCoroutineId","InternedLifetimeParamId","InternedOpaqueTyId"],"trait":["HirDatabase"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["resolve_maybe_upvar","upvars_mentioned"],"struct":["Upvars"]};
