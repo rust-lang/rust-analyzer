@@ -765,7 +765,7 @@ fn relative_file(
     err_span: Span,
 ) -> Result<EditionedFileId, ExpandError> {
     let lookup = db.lookup_intern_macro_call(call_id);
-    let call_site = lookup.kind.file_id().original_file_respecting_includes(db).file_id(db);
+    let call_site = lookup.kind.file_id().original_file_respecting_includes(db).file_id();
     let path = AnchoredPath { anchor: call_site, path: path_str };
     let res: FileId = db
         .resolve_path(path)
@@ -774,7 +774,7 @@ fn relative_file(
     if res == call_site && !allow_recursion {
         Err(ExpandError::other(err_span, format!("recursive inclusion of `{path_str}`")))
     } else {
-        Ok(EditionedFileId::new(db, res, lookup.krate.data(db).edition, lookup.krate))
+        Ok(EditionedFileId::new(res, lookup.krate.data(db).edition))
     }
 }
 
@@ -893,7 +893,7 @@ fn include_str_expand(
         }
     };
 
-    let text = db.file_text(file_id.file_id(db));
+    let text = db.file_text(file_id.file_id());
     let text = &**text.text(db);
 
     ExpandResult::ok(quote!(call_site =>#text))

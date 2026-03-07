@@ -105,7 +105,7 @@ impl<'a> AssistContext<'a> {
     }
 
     pub(crate) fn vfs_file_id(&self) -> FileId {
-        self.frange.file_id.file_id(self.db())
+        self.frange.file_id.file_id()
     }
 
     pub(crate) fn file_id(&self) -> EditionedFileId {
@@ -113,7 +113,7 @@ impl<'a> AssistContext<'a> {
     }
 
     pub(crate) fn edition(&self) -> Edition {
-        self.frange.file_id.edition(self.db())
+        self.frange.file_id.edition()
     }
 
     pub(crate) fn has_empty_selection(&self) -> bool {
@@ -168,7 +168,7 @@ impl Assists {
     pub(crate) fn new(ctx: &AssistContext<'_>, resolve: AssistResolveStrategy) -> Assists {
         Assists {
             resolve,
-            file: ctx.frange.file_id.file_id(ctx.db()),
+            file: ctx.frange.file_id.file_id(),
             buf: Vec::new(),
             allowed: ctx.config.allowed.clone(),
         }

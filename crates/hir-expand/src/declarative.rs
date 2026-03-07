@@ -176,7 +176,7 @@ impl DeclarativeMacroExpander {
         };
         let edition = ctx_edition(match id.file_id {
             HirFileId::MacroFile(macro_file) => macro_file.lookup(db).ctxt,
-            HirFileId::FileId(file) => SyntaxContext::root(file.edition(db)),
+            HirFileId::FileId(file) => SyntaxContext::root(file.edition()),
         });
         Arc::new(DeclarativeMacroExpander { mac, transparency, edition })
     }

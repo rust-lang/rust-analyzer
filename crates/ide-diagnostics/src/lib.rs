@@ -300,7 +300,7 @@ pub fn syntax_diagnostics(
     let sema = Semantics::new(db);
     let editioned_file_id = sema.attach_first_edition(file_id);
 
-    let (file_id, _) = editioned_file_id.unpack(db);
+    let (file_id, _) = editioned_file_id.unpack();
 
     // [#3434] Only take first 128 errors to prevent slowing down editor/ide, the number 128 is chosen arbitrarily.
     db.parse_errors(editioned_file_id)
@@ -329,7 +329,7 @@ pub fn semantic_diagnostics(
     let sema = Semantics::new(db);
     let editioned_file_id = sema.attach_first_edition(file_id);
 
-    let (file_id, edition) = editioned_file_id.unpack(db);
+    let (file_id, edition) = editioned_file_id.unpack();
     let mut res = Vec::new();
 
     let parse = sema.parse(editioned_file_id);
@@ -338,8 +338,8 @@ pub fn semantic_diagnostics(
     // We should implement these differently in some form?
     // Salsa caching + incremental re-parse would be better here
     for node in parse.syntax().descendants() {
-        handlers::useless_braces::useless_braces(db, &mut res, editioned_file_id, &node);
-        handlers::field_shorthand::field_shorthand(db, &mut res, editioned_file_id, &node);
+        handlers::useless_braces::useless_braces(&mut res, editioned_file_id, &node);
+        handlers::field_shorthand::field_shorthand(&mut res, editioned_file_id, &node);
         handlers::json_is_not_rust::json_in_items(
             &sema,
             &mut res,
@@ -379,9 +379,7 @@ pub fn semantic_diagnostics(
                 m.diagnostics(db, &mut diags, config.style_lints);
             }
         }
-        None => {
-            handlers::unlinked_file::unlinked_file(&ctx, &mut res, editioned_file_id.file_id(db))
-        }
+        None => handlers::unlinked_file::unlinked_file(&ctx, &mut res, editioned_file_id.file_id()),
     }
 
     for diag in diags {
@@ -491,7 +489,7 @@ pub fn semantic_diagnostics(
 
     // The edition isn't accurate (each diagnostics may have its own edition due to macros),
     // but it's okay as it's only being used for error recovery.
-    handle_lints(&ctx.sema, file_id, krate, &mut lints, editioned_file_id.edition(db));
+    handle_lints(&ctx.sema, file_id, krate, &mut lints, editioned_file_id.edition());
 
     res.retain(|d| d.severity != Severity::Allow);
 
@@ -765,5 +763,5 @@ fn adjusted_display_range<N: AstNode>(
     let hir::FileRange { file_id, range } = diag_ptr
         .with_value(adj(node).unwrap_or_else(|| diag_ptr.value.text_range()))
         .original_node_file_range_rooted(ctx.sema.db);
-    ide_db::FileRange { file_id: file_id.file_id(ctx.sema.db), range }
+    ide_db::FileRange { file_id: file_id.file_id(), range }
 }

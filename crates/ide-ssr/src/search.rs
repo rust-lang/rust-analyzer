@@ -223,7 +223,7 @@ impl<'db> MatchFinder<'db> {
         }
         let Some(node_range) = self.sema.original_range_opt(code) else { return false };
         for range in &self.restrict_ranges {
-            if range.file_id == node_range.file_id.file_id(self.sema.db)
+            if range.file_id == node_range.file_id.file_id()
                 && range.range.contains_range(node_range.range)
             {
                 return true;

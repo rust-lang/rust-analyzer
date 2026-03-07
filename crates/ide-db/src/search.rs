@@ -167,9 +167,7 @@ impl SearchScope {
             let source_root = db.file_source_root(crate_data.root_file_id).source_root_id(db);
             let source_root = db.source_root(source_root).source_root(db);
             entries.extend(
-                source_root
-                    .iter()
-                    .map(|id| (EditionedFileId::new(db, id, crate_data.edition, krate), None)),
+                source_root.iter().map(|id| (EditionedFileId::new(id, crate_data.edition), None)),
             );
         }
         SearchScope { entries }
@@ -183,9 +181,9 @@ impl SearchScope {
 
             let source_root = db.file_source_root(root_file).source_root_id(db);
             let source_root = db.source_root(source_root).source_root(db);
-            entries.extend(source_root.iter().map(|id| {
-                (EditionedFileId::new(db, id, rev_dep.edition(db), rev_dep.into()), None)
-            }));
+            entries.extend(
+                source_root.iter().map(|id| (EditionedFileId::new(id, rev_dep.edition(db)), None)),
+            );
         }
         SearchScope { entries }
     }
@@ -199,7 +197,7 @@ impl SearchScope {
         SearchScope {
             entries: source_root
                 .iter()
-                .map(|id| (EditionedFileId::new(db, id, of.edition(db), of.into()), None))
+                .map(|id| (EditionedFileId::new(id, of.edition(db)), None))
                 .collect(),
         }
     }
@@ -484,7 +482,7 @@ impl<'a> FindUsages<'a> {
         scope: &'b SearchScope,
     ) -> impl Iterator<Item = (Arc<str>, EditionedFileId, TextRange)> + 'b {
         scope.entries.iter().map(|(&file_id, &search_range)| {
-            let text = db.file_text(file_id.file_id(db)).text(db);
+            let text = db.file_text(file_id.file_id()).text(db);
             let search_range =
                 search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&**text)));
 
@@ -1056,7 +1054,7 @@ impl<'a> FindUsages<'a> {
                     return;
                 };
 
-                let file_text = sema.db.file_text(file_id.file_id(self.sema.db));
+                let file_text = sema.db.file_text(file_id.file_id());
                 let text = file_text.text(sema.db);
                 let search_range =
                     search_range.unwrap_or_else(|| TextRange::up_to(TextSize::of(&**text)));

@@ -16,7 +16,6 @@
 mod on_enter;
 
 use either::Either;
-use hir::EditionedFileId;
 use ide_db::{FilePosition, RootDatabase, base_db::RootQueryDb};
 use span::Edition;
 use std::iter;
@@ -76,12 +75,7 @@ pub(crate) fn on_char_typed(
         .copied()
         .unwrap_or_else(|| *db.all_crates().first().unwrap());
     let edition = krate.data(db).edition;
-    let editioned_file_id_wrapper = EditionedFileId::from_span(
-        db,
-        span::EditionedFileId::new(position.file_id, edition),
-        krate,
-    );
-    let file = &db.parse(editioned_file_id_wrapper);
+    let file = &db.parse(span::EditionedFileId::new(position.file_id, edition));
     let char_matches_position =
         file.tree().syntax().text().char_at(position.offset) == Some(char_typed);
     if !stdx::always!(char_matches_position) {

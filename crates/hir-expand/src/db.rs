@@ -57,7 +57,7 @@ pub trait ExpandDatabase: RootQueryDb {
     #[salsa::invoke(crate::proc_macro::proc_macros_for_crate)]
     fn proc_macros_for_crate(&self, krate: Crate) -> Option<Arc<CrateProcMacros>>;
 
-    #[salsa::invoke(ast_id_map)]
+    #[salsa::invoke_interned(ast_id_map)]
     #[salsa::lru(1024)]
     fn ast_id_map(&self, file_id: HirFileId) -> Arc<AstIdMap>;
 
@@ -81,7 +81,7 @@ pub trait ExpandDatabase: RootQueryDb {
     #[salsa::transparent]
     #[salsa::invoke(crate::span_map::expansion_span_map)]
     fn expansion_span_map(&self, file_id: MacroCallId) -> Arc<ExpansionSpanMap>;
-    #[salsa::invoke(crate::span_map::real_span_map)]
+    #[salsa::invoke_interned(crate::span_map::real_span_map)]
     fn real_span_map(&self, file_id: EditionedFileId) -> Arc<RealSpanMap>;
 
     /// Macro ids. That's probably the tricksiest bit in rust-analyzer, and the
@@ -162,7 +162,7 @@ fn syntax_context(db: &dyn ExpandDatabase, file: HirFileId, edition: Edition) ->
 }
 
 fn resolve_span(db: &dyn ExpandDatabase, Span { range, anchor, ctx: _ }: Span) -> FileRange {
-    let file_id = EditionedFileId::from_span_guess_origin(db, anchor.file_id);
+    let file_id = anchor.file_id;
     let anchor_offset =
         db.ast_id_map(file_id.into()).get_erased(anchor.ast_id).text_range().start();
     FileRange { file_id, range: range + anchor_offset }

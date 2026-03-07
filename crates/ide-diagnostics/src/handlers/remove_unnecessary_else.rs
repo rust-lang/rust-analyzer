@@ -89,10 +89,8 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &RemoveUnnecessaryElse) -> Option<Vec<
     };
 
     let edit = TextEdit::replace(range, replacement);
-    let source_change = SourceChange::from_text_edit(
-        d.if_expr.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
-        edit,
-    );
+    let source_change =
+        SourceChange::from_text_edit(d.if_expr.file_id.original_file(ctx.sema.db).file_id(), edit);
 
     Some(vec![fix(
         "remove_unnecessary_else",

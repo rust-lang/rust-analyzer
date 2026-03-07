@@ -205,7 +205,7 @@ impl StaticIndex<'_> {
         // hovers
         let sema = hir::Semantics::new(self.db);
         let root = sema.parse_guess_edition(file_id).syntax().clone();
-        let edition = sema.attach_first_edition(file_id).edition(sema.db);
+        let edition = sema.attach_first_edition(file_id).edition();
         let display_target = match sema.first_crate(file_id) {
             Some(krate) => krate.to_display_target(sema.db),
             None => return,
@@ -305,12 +305,11 @@ impl StaticIndex<'_> {
         hir::attach_db(db, || {
             let work = all_modules(db).into_iter().filter(|module| {
                 let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
+                let source_root = db.file_source_root(file_id.file_id()).source_root_id(db);
                 let source_root = db.source_root(source_root).source_root(db);
                 let is_vendored = match vendored_libs_config {
                     VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
+                        .path_for_file(&file_id.file_id())
                         .is_some_and(|module_path| module_path.starts_with(workspace_root)),
                     VendoredLibrariesConfig::Excluded => false,
                 };
@@ -326,8 +325,7 @@ impl StaticIndex<'_> {
             };
             let mut visited_files = FxHashSet::default();
             for module in work {
-                let file_id =
-                    module.definition_source_file_id(db).original_file(db).file_id(&analysis.db);
+                let file_id = module.definition_source_file_id(db).original_file(db).file_id();
                 if visited_files.contains(&file_id) {
                     continue;
                 }

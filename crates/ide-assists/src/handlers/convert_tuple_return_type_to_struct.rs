@@ -193,7 +193,7 @@ fn replace_usages(
         });
 
         editor.add_mappings(syntax_factory.finish_with_mappings());
-        edit.add_file_edits(file_id.file_id(ctx.db()), editor);
+        edit.add_file_edits(file_id.file_id(), editor);
     }
 }
 

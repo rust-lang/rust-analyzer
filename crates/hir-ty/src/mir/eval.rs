@@ -426,7 +426,7 @@ impl MirEvalError {
                 };
                 let file_id = span.file_id.original_file(db);
                 let text_range = span.value.text_range();
-                writeln!(f, "{}", span_formatter(file_id.file_id(db), text_range))?;
+                writeln!(f, "{}", span_formatter(file_id.file_id(), text_range))?;
             }
         }
         match err {

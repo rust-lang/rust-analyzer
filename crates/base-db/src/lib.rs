@@ -10,7 +10,7 @@ pub use salsa_macros;
 
 // FIXME: Rename this crate, base db is non descriptive
 mod change;
-mod editioned_file_id;
+// mod editioned_file_id;
 mod input;
 pub mod target;
 
@@ -23,7 +23,6 @@ use std::{
 
 pub use crate::{
     change::FileChange,
-    editioned_file_id::EditionedFileId,
     input::{
         BuiltCrateData, BuiltDependency, Crate, CrateBuilder, CrateBuilderId, CrateDataBuilder,
         CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CratesIdMap, CratesMap,
@@ -36,6 +35,7 @@ pub use query_group;
 use rustc_hash::{FxHashSet, FxHasher};
 use salsa::{Durability, Setter};
 pub use semver::{BuildMetadata, Prerelease, Version, VersionReq};
+pub use span::EditionedFileId;
 use syntax::{Parse, SyntaxError, ast};
 use triomphe::Arc;
 pub use vfs::{AnchoredPath, AnchoredPathBuf, FileId, VfsPath, file_set::FileSet};
@@ -241,7 +241,7 @@ pub struct SourceRootInput {
 #[query_group::query_group]
 pub trait RootQueryDb: SourceDatabase + salsa::Database {
     /// Parses the file into the syntax tree.
-    #[salsa::invoke(parse)]
+    #[salsa::invoke_interned(parse)]
     #[salsa::lru(128)]
     fn parse(&self, file_id: EditionedFileId) -> Parse<ast::SourceFile>;
 
@@ -359,21 +359,25 @@ fn toolchain_channel(db: &dyn RootQueryDb, krate: Crate) -> Option<ReleaseChanne
 
 fn parse(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Parse<ast::SourceFile> {
     let _p = tracing::info_span!("parse", ?file_id).entered();
-    let (file_id, edition) = file_id.unpack(db.as_dyn_database());
+    let (file_id, edition) = file_id.unpack();
     let text = db.file_text(file_id).text(db);
     ast::SourceFile::parse(text, edition)
 }
 
 fn parse_errors(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Option<&[SyntaxError]> {
     #[salsa_macros::tracked(returns(ref))]
-    fn parse_errors(db: &dyn RootQueryDb, file_id: EditionedFileId) -> Option<Box<[SyntaxError]>> {
+    fn parse_errors(
+        db: &dyn RootQueryDb,
+        file_id: EditionedFileId,
+        (): (),
+    ) -> Option<Box<[SyntaxError]>> {
         let errors = db.parse(file_id).errors();
         match &*errors {
             [] => None,
             [..] => Some(errors.into()),
         }
     }
-    parse_errors(db, file_id).as_ref().map(|it| &**it)
+    parse_errors(db, file_id, ()).as_ref().map(|it| &**it)
 }
 
 fn source_root_crates(db: &dyn RootQueryDb, id: SourceRootId) -> Arc<[Crate]> {

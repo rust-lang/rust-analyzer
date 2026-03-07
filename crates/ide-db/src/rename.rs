@@ -271,7 +271,7 @@ fn rename_mod(
         );
     }
     if let ModuleSource::SourceFile(..) = def_source {
-        let anchor = file_id.original_file(sema.db).file_id(sema.db);
+        let anchor = file_id.original_file(sema.db).file_id();
 
         let is_mod_rs = module.is_mod_rs(sema.db);
         let has_detached_child = module.children(sema.db).any(|child| !child.is_inline(sema.db));
@@ -320,7 +320,7 @@ fn rename_mod(
                 {
                     let new_name = new_name.display(sema.db, edition).to_string();
                     source_change.insert_source_edit(
-                        file_id.file_id(sema.db),
+                        file_id.file_id(),
                         TextEdit::replace(file_range.range, new_name),
                     )
                 };
@@ -332,9 +332,9 @@ fn rename_mod(
     let def = Definition::Module(module);
     let usages = def.usages(sema).all();
     let ref_edits = usages.iter().map(|(file_id, references)| {
-        let edition = file_id.edition(sema.db);
+        let edition = file_id.edition();
         (
-            file_id.file_id(sema.db),
+            file_id.file_id(),
             source_edit_from_references(sema.db, references, def, &new_name, edition),
         )
     });
@@ -399,9 +399,9 @@ fn rename_reference(
     }
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(file_id, references)| {
-        let edition = file_id.edition(sema.db);
+        let edition = file_id.edition();
         (
-            file_id.file_id(sema.db),
+            file_id.file_id(),
             source_edit_from_references(sema.db, references, def, &new_name, edition),
         )
     }));
@@ -606,7 +606,7 @@ fn source_edit_from_def(
                         file_id = Some(file_id2);
                         edit.replace(
                             range,
-                            new_name.display(sema.db, file_id2.edition(sema.db)).to_string(),
+                            new_name.display(sema.db, file_id2.edition()).to_string(),
                         );
                         continue;
                     }
@@ -641,9 +641,7 @@ fn source_edit_from_def(
                             //                      ^^^^^ replace this with `new_name`
                             edit.replace(
                                 name_range,
-                                new_name
-                                    .display(sema.db, source.file_id.edition(sema.db))
-                                    .to_string(),
+                                new_name.display(sema.db, source.file_id.edition()).to_string(),
                             );
                         }
                     } else {
@@ -656,13 +654,13 @@ fn source_edit_from_def(
                         );
                         edit.replace(
                             name_range,
-                            new_name.display(sema.db, source.file_id.edition(sema.db)).to_string(),
+                            new_name.display(sema.db, source.file_id.edition()).to_string(),
                         );
                     }
                 } else {
                     edit.replace(
                         name_range,
-                        new_name.display(sema.db, source.file_id.edition(sema.db)).to_string(),
+                        new_name.display(sema.db, source.file_id.edition()).to_string(),
                     );
                 }
             }
@@ -675,7 +673,7 @@ fn source_edit_from_def(
         edit.set_annotation(conflict_annotation);
 
         let Some(file_id) = file_id else { bail!("No file available to rename") };
-        return Ok((file_id.file_id(sema.db), edit));
+        return Ok((file_id.file_id(), edit));
     }
     let FileRange { file_id, range } = def
         .range_for_rename(sema)
@@ -683,12 +681,12 @@ fn source_edit_from_def(
     let (range, new_name) = match def {
         Definition::ExternCrateDecl(decl) if decl.alias(sema.db).is_none() => (
             TextRange::empty(range.end()),
-            format!(" as {}", new_name.display(sema.db, file_id.edition(sema.db)),),
+            format!(" as {}", new_name.display(sema.db, file_id.edition()),),
         ),
-        _ => (range, new_name.display(sema.db, file_id.edition(sema.db)).to_string()),
+        _ => (range, new_name.display(sema.db, file_id.edition()).to_string()),
     };
     edit.replace(range, new_name);
-    Ok((file_id.file_id(sema.db), edit.finish()))
+    Ok((file_id.file_id(), edit.finish()))
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]

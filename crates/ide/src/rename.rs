@@ -131,7 +131,7 @@ pub(crate) fn rename(
     let source_file = sema.parse(file_id);
     let syntax = source_file.syntax();
 
-    let edition = file_id.edition(db);
+    let edition = file_id.edition();
     let (new_name, kind) = IdentifierKind::classify(edition, new_name)?;
 
     let defs = find_definitions(&sema, syntax, position, &new_name)?;
@@ -378,7 +378,7 @@ fn find_definitions(
             // remove duplicates, comparing `Definition`s
             Ok(v.into_iter()
                 .unique_by(|&(.., def, _, _)| def)
-                .map(|(a, b, c, d, e)| (a.into_file_id(sema.db), b, c, d, e))
+                .map(|(a, b, c, d, e)| (a.into_file_id(), b, c, d, e))
                 .collect::<Vec<_>>()
                 .into_iter())
         }
@@ -464,7 +464,7 @@ fn transform_assoc_fn_into_method_call(
             replacement.push('(');
 
             source_change.insert_source_edit(
-                replace_range.file_id.file_id(sema.db),
+                replace_range.file_id.file_id(),
                 TextEdit::replace(replace_range.range, replacement),
             );
         }
@@ -534,18 +534,18 @@ fn rename_to_self(
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
-            file_id.file_id(sema.db),
+            file_id.file_id(),
             source_edit_from_references(
                 sema.db,
                 references,
                 def,
                 &Name::new_symbol_root(sym::self_),
-                file_id.edition(sema.db),
+                file_id.edition(),
             ),
         )
     }));
     source_change.insert_source_edit(
-        file_id.original_file(sema.db).file_id(sema.db),
+        file_id.original_file(sema.db).file_id(),
         TextEdit::replace(param_source.syntax().text_range(), String::from(self_param)),
     );
     transform_assoc_fn_into_method_call(sema, &mut source_change, fn_def);
@@ -664,7 +664,7 @@ fn transform_method_call_into_assoc_fn(
                     ) else {
                         continue;
                     };
-                    path.display(sema.db, replace_range.file_id.edition(sema.db)).to_string()
+                    path.display(sema.db, replace_range.file_id.edition()).to_string()
                 }
                 hir::ItemContainer::Impl(impl_) => {
                     let ty = impl_.self_ty(sema.db);
@@ -677,8 +677,7 @@ fn transform_method_call_into_assoc_fn(
                             ) else {
                                 continue;
                             };
-                            path.display(sema.db, replace_range.file_id.edition(sema.db))
-                                .to_string()
+                            path.display(sema.db, replace_range.file_id.edition()).to_string()
                         }
                         None => {
                             let Ok(mut ty) =
@@ -721,7 +720,7 @@ fn transform_method_call_into_assoc_fn(
             }
 
             source_change.insert_source_edit(
-                replace_range.file_id.file_id(sema.db),
+                replace_range.file_id.file_id(),
                 TextEdit::replace(replace_range.range, replacement),
             );
         }
@@ -761,17 +760,11 @@ fn rename_self_to_param(
         bail!("Cannot rename reference to `_` as it is being referenced multiple times");
     }
     let mut source_change = SourceChange::default();
-    source_change.insert_source_edit(file_id.original_file(sema.db).file_id(sema.db), edit);
+    source_change.insert_source_edit(file_id.original_file(sema.db).file_id(), edit);
     source_change.extend(usages.iter().map(|(file_id, references)| {
         (
-            file_id.file_id(sema.db),
-            source_edit_from_references(
-                sema.db,
-                references,
-                def,
-                new_name,
-                file_id.edition(sema.db),
-            ),
+            file_id.file_id(),
+            source_edit_from_references(sema.db, references, def, new_name, file_id.edition()),
         )
     }));
     transform_method_call_into_assoc_fn(sema, &mut source_change, fn_def, find_path_config);

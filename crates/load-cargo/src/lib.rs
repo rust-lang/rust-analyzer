@@ -569,7 +569,7 @@ impl ProcMacroExpander for Expander {
                     ast_id,
                     TextRange::new(TextSize::from(start), TextSize::from(end)),
                 );
-                let source = db.file_text(range.file_id.file_id(db)).text(db);
+                let source = db.file_text(range.file_id.file_id()).text(db);
                 let text = source
                     .get(usize::from(range.range.start())..usize::from(range.range.end()))
                     .map(ToOwned::to_owned);
@@ -580,7 +580,7 @@ impl ProcMacroExpander for Expander {
             SubRequest::LineColumn { file_id, ast_id, offset } => {
                 let range =
                     resolve_sub_span(db, file_id, ast_id, TextRange::empty(TextSize::from(offset)));
-                let source = db.file_text(range.file_id.file_id(db)).text(db);
+                let source = db.file_text(range.file_id.file_id()).text(db);
                 let line_index = ide_db::line_index::LineIndex::new(source);
                 let (line, column) = line_index
                     .try_line_col(range.range.start())
@@ -638,7 +638,7 @@ impl ProcMacroExpander for Expander {
                     current_span = Span {
                         range: resolved.range,
                         anchor: SpanAnchor {
-                            file_id: resolved.file_id.editioned_file_id(db),
+                            file_id: resolved.file_id,
                             ast_id: span::ROOT_ERASED_FILE_AST_ID,
                         },
                         ctx: current_ctx,
@@ -652,7 +652,7 @@ impl ProcMacroExpander for Expander {
                 let resolved = db.resolve_span(current_span);
 
                 Ok(SubResponse::SpanSourceResult {
-                    file_id: resolved.file_id.editioned_file_id(db).as_u32(),
+                    file_id: resolved.file_id.as_u32(),
                     ast_id: span::ROOT_ERASED_FILE_AST_ID.into_raw(),
                     start: u32::from(resolved.range.start()),
                     end: u32::from(resolved.range.end()),
@@ -684,7 +684,7 @@ impl ProcMacroExpander for Expander {
                             .text_range();
 
                         let parent_span = Some(ParentSpan {
-                            file_id: editioned_file_id.editioned_file_id(db).as_u32(),
+                            file_id: editioned_file_id.as_u32(),
                             ast_id: span::ROOT_ERASED_FILE_AST_ID.into_raw(),
                             start: u32::from(range.start()),
                             end: u32::from(range.end()),

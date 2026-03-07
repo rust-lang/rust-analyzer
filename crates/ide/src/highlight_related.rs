@@ -66,7 +66,7 @@ pub(crate) fn highlight_related(
     let token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
         T![?] => 4, // prefer `?` when the cursor is sandwiched like in `await$0?`
         T![->] | T![=>] => 4,
-        kind if kind.is_keyword(file_id.edition(sema.db)) => 3,
+        kind if kind.is_keyword(file_id.edition()) => 3,
         IDENT | INT_NUMBER => 2,
         T![|] => 1,
         _ => 0,
@@ -139,7 +139,7 @@ fn highlight_closure_captures(
                     .sources(sema.db)
                     .into_iter()
                     .flat_map(|x| x.to_nav(sema.db))
-                    .filter(|decl| decl.file_id == file_id.file_id(sema.db))
+                    .filter(|decl| decl.file_id == file_id.file_id())
                     .filter_map(|decl| decl.focus_range)
                     .map(move |range| HighlightedRange { range, category })
                     .chain(usages)
@@ -263,7 +263,7 @@ fn highlight_references(
                     .sources(sema.db)
                     .into_iter()
                     .flat_map(|x| x.to_nav(sema.db))
-                    .filter(|decl| decl.file_id == file_id.file_id(sema.db))
+                    .filter(|decl| decl.file_id == file_id.file_id())
                     .filter_map(|decl| decl.focus_range)
                     .map(|range| HighlightedRange { range, category })
                     .for_each(|x| {
@@ -281,7 +281,7 @@ fn highlight_references(
                     },
                 };
                 for nav in navs {
-                    if nav.file_id != file_id.file_id(sema.db) {
+                    if nav.file_id != file_id.file_id() {
                         continue;
                     }
                     let hl_range = nav.focus_range.map(|range| {
