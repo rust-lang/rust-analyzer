@@ -28,8 +28,8 @@ use syntax::ast::make;
 use crate::{
     completions::Completions,
     context::{
-        CompletionAnalysis, CompletionContext, NameRefContext, NameRefKind, PathCompletionCtx,
-        PathKind,
+        CompletionAnalysis, CompletionContext, NameContext, NameKind, NameRefContext, NameRefKind,
+        ParamContext, ParamKind, PathCompletionCtx, PathKind, PatternContext,
     },
 };
 
@@ -212,6 +212,41 @@ pub fn completions(
         return Some(completions.into());
     }
 
+    if trigger_character == Some('|') {
+        // 2026-02-13T11:30:41.704583Z ERROR CompletionAnalysis: Name(NameContext {
+        //  name: None,
+        //  kind: IdentPat(PatternContext {
+        //      refutability: Irrefutable,
+        //      param_ctx: Some(ParamContext {
+        //          param_list: ParamList {
+        //              syntax: PARAM_LIST@7497..7498 },
+        //              param: Param {
+        //                  syntax:
+        //                  PARAM@7498..7516
+        //              },
+        //          kind: Closure(ClosureExpr {
+        //              syntax: CLOSURE_EXPR@7497..7498
+        //          }
+        //       )
+        //     }),
+        // has_type_ascription: false, should_suggest_name: true, after_if_expr: false, parent_pat:
+        // None, ref_token: None, mut_token: None, record_pat: None, impl_or_trait: None,
+        // missing_variants: [] }) })
+
+        if let CompletionAnalysis::Name(NameContext {
+            kind:
+                NameKind::IdentPat(PatternContext {
+                    param_ctx: Some(ParamContext { kind: ParamKind::Closure(_), .. }),
+                    ..
+                }),
+            ..
+        }) = analysis
+        {
+            completions::fn_param::complete_closure_within_param(&mut completions, ctx);
+        }
+        return Some(completions.into());
+    }
+    tracing::error!("CompletionAnalysis: {:?}", &analysis);
     // when the user types a bare `_` (that is it does not belong to an identifier)
     // the user might just wanted to type a `_` for type inference or pattern discarding
     // so try to suppress completions in those cases
