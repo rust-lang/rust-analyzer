@@ -118,6 +118,7 @@ pub const BAZ: u32 = 0;
         expect![[r#"
             [
                 "crate_local_def_map",
+                "file_item_tree_query",
                 "crate_local_def_map",
             ]
         "#]],
