@@ -38,8 +38,8 @@ pub type FilePosition = FilePositionWrapper<EditionedFileId>;
 
 impl FilePosition {
     #[inline]
-    pub fn into_file_id(self, db: &dyn ExpandDatabase) -> FilePositionWrapper<FileId> {
-        FilePositionWrapper { file_id: self.file_id.file_id(db), offset: self.offset }
+    pub fn into_file_id(self) -> FilePositionWrapper<FileId> {
+        FilePositionWrapper { file_id: self.file_id.file_id(), offset: self.offset }
     }
 }
 
@@ -72,13 +72,13 @@ pub type FileRange = FileRangeWrapper<EditionedFileId>;
 
 impl FileRange {
     #[inline]
-    pub fn into_file_id(self, db: &dyn ExpandDatabase) -> FileRangeWrapper<FileId> {
-        FileRangeWrapper { file_id: self.file_id.file_id(db), range: self.range }
+    pub fn into_file_id(self) -> FileRangeWrapper<FileId> {
+        FileRangeWrapper { file_id: self.file_id.file_id(), range: self.range }
     }
 
     #[inline]
     pub fn file_text(self, db: &dyn ExpandDatabase) -> &triomphe::Arc<str> {
-        db.file_text(self.file_id.file_id(db)).text(db)
+        db.file_text(self.file_id.file_id()).text(db)
     }
 
     #[inline]
@@ -422,7 +422,7 @@ impl InFile<TextRange> {
     ) -> (FileRange, SyntaxContext) {
         match self.file_id {
             HirFileId::FileId(file_id) => {
-                (FileRange { file_id, range: self.value }, SyntaxContext::root(file_id.edition(db)))
+                (FileRange { file_id, range: self.value }, SyntaxContext::root(file_id.edition()))
             }
             HirFileId::MacroFile(mac_file) => {
                 match map_node_range_up(db, &db.expansion_span_map(mac_file), self.value) {
@@ -479,7 +479,7 @@ impl InFile<TextRange> {
         match self.file_id {
             HirFileId::FileId(file_id) => Some((
                 FileRange { file_id, range: self.value },
-                SyntaxContext::root(file_id.edition(db)),
+                SyntaxContext::root(file_id.edition()),
             )),
             HirFileId::MacroFile(mac_file) => {
                 map_node_range_up(db, &db.expansion_span_map(mac_file), self.value)

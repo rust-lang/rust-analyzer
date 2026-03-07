@@ -1,6 +1,6 @@
 //! This module resolves `mod foo;` declaration to file.
 use arrayvec::ArrayVec;
-use base_db::{AnchoredPath, Crate};
+use base_db::AnchoredPath;
 use hir_expand::{EditionedFileId, name::Name};
 
 use crate::{HirFileId, db::DefDatabase};
@@ -62,7 +62,6 @@ impl ModDir {
         file_id: HirFileId,
         name: &Name,
         attr_path: Option<&str>,
-        krate: Crate,
     ) -> Result<(EditionedFileId, bool, ModDir), Box<[String]>> {
         let name = name.as_str();
 
@@ -79,7 +78,7 @@ impl ModDir {
 
         let orig_file_id = file_id.original_file_respecting_includes(db);
         for candidate in candidate_files.iter() {
-            let path = AnchoredPath { anchor: orig_file_id.file_id(db), path: candidate.as_str() };
+            let path = AnchoredPath { anchor: orig_file_id.file_id(), path: candidate.as_str() };
             if let Some(file_id) = db.resolve_path(path) {
                 let is_mod_rs = candidate.ends_with("/mod.rs");
 
@@ -92,7 +91,7 @@ impl ModDir {
                 if let Some(mod_dir) = self.child(dir_path, !root_dir_owner) {
                     return Ok((
                         // FIXME: Edition, is this rightr?
-                        EditionedFileId::new(db, file_id, orig_file_id.edition(db), krate),
+                        EditionedFileId::new(file_id, orig_file_id.edition()),
                         is_mod_rs,
                         mod_dir,
                     ));

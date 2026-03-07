@@ -126,7 +126,7 @@ impl flags::AnalysisStats {
         let source_roots = krates
             .iter()
             .cloned()
-            .map(|krate| db.file_source_root(krate.root_file(db)).source_root_id(db))
+            .map(|krate| (db.file_source_root(krate.root_file(db)).source_root_id(db), krate))
             .unique();
 
         let mut dep_loc = 0;
@@ -137,7 +137,7 @@ impl flags::AnalysisStats {
         let mut workspace_item_stats = PrettyItemStats::default();
         let mut dep_item_stats = PrettyItemStats::default();
 
-        for source_root_id in source_roots {
+        for (source_root_id, krate) in source_roots {
             let source_root = db.source_root(source_root_id).source_root(db);
             for file_id in source_root.iter() {
                 if let Some(p) = source_root.path_for_file(&file_id)
@@ -148,7 +148,8 @@ impl flags::AnalysisStats {
                         let length = db.file_text(file_id).text(db).lines().count();
                         let item_stats = db
                             .file_item_tree(
-                                EditionedFileId::current_edition_guess_origin(db, file_id).into(),
+                                EditionedFileId::current_edition(file_id).into(),
+                                krate.into(),
                             )
                             .item_tree_stats()
                             .into();
@@ -160,7 +161,8 @@ impl flags::AnalysisStats {
                         let length = db.file_text(file_id).text(db).lines().count();
                         let item_stats = db
                             .file_item_tree(
-                                EditionedFileId::current_edition_guess_origin(db, file_id).into(),
+                                EditionedFileId::current_edition(file_id).into(),
+                                krate.into(),
                             )
                             .item_tree_stats()
                             .into();
@@ -211,7 +213,7 @@ impl flags::AnalysisStats {
             let file_id = module.definition_source_file_id(db);
             let file_id = file_id.original_file(db);
 
-            let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+            let source_root = db.file_source_root(file_id.file_id()).source_root_id(db);
             let source_root = db.source_root(source_root).source_root(db);
             if !source_root.is_library || self.with_deps {
                 num_crates += 1;
@@ -348,7 +350,7 @@ impl flags::AnalysisStats {
         file_ids.dedup();
 
         if self.run_all_ide_things {
-            self.run_ide_things(host.analysis(), &file_ids, db, &vfs, verbosity);
+            self.run_ide_things(host.analysis(), &file_ids, &vfs, verbosity);
         }
 
         if self.run_term_search {
@@ -492,7 +494,6 @@ impl flags::AnalysisStats {
         let mut sw = self.stop_watch();
 
         for &file_id in file_ids {
-            let file_id = file_id.editioned_file_id(db);
             let sema = hir::Semantics::new(db);
             let display_target = match sema.first_crate(file_id.file_id()) {
                 Some(krate) => krate.to_display_target(sema.db),
@@ -793,7 +794,7 @@ impl flags::AnalysisStats {
                     };
                     if let Some(src) = source {
                         let original_file = src.file_id.original_file(db);
-                        let path = vfs.file_path(original_file.file_id(db));
+                        let path = vfs.file_path(original_file.file_id());
                         let syntax_range = src.text_range();
                         format!(
                             "processing: {} ({} {:?})",
@@ -1101,7 +1102,7 @@ impl flags::AnalysisStats {
                     };
                     if let Some(src) = source {
                         let original_file = src.file_id.original_file(db);
-                        let path = vfs.file_path(original_file.file_id(db));
+                        let path = vfs.file_path(original_file.file_id());
                         let syntax_range = src.text_range();
                         format!(
                             "processing: {} ({} {:?})",
@@ -1155,7 +1156,6 @@ impl flags::AnalysisStats {
         &self,
         analysis: Analysis,
         file_ids: &[EditionedFileId],
-        db: &RootDatabase,
         vfs: &Vfs,
         verbosity: Verbosity,
     ) {
@@ -1170,7 +1170,7 @@ impl flags::AnalysisStats {
 
         let mut bar = create_bar();
         for &file_id in file_ids {
-            let msg = format!("diagnostics: {}", vfs.file_path(file_id.file_id(db)));
+            let msg = format!("diagnostics: {}", vfs.file_path(file_id.file_id()));
             bar.set_message(move || msg.clone());
             _ = analysis.full_diagnostics(
                 &DiagnosticsConfig {
@@ -1205,7 +1205,7 @@ impl flags::AnalysisStats {
 
         let mut bar = create_bar();
         for &file_id in file_ids {
-            let msg = format!("inlay hints: {}", vfs.file_path(file_id.file_id(db)));
+            let msg = format!("inlay hints: {}", vfs.file_path(file_id.file_id()));
             bar.set_message(move || msg.clone());
             _ = analysis.inlay_hints(
                 &InlayHintsConfig {
@@ -1263,7 +1263,7 @@ impl flags::AnalysisStats {
             minicore: MiniCore::default(),
         };
         for &file_id in file_ids {
-            let msg = format!("annotations: {}", vfs.file_path(file_id.file_id(db)));
+            let msg = format!("annotations: {}", vfs.file_path(file_id.file_id()));
             bar.set_message(move || msg.clone());
             analysis
                 .annotations(&annotation_config, analysis.editioned_file_id_to_vfs(file_id))
@@ -1324,8 +1324,8 @@ fn location_csv_expr(db: &RootDatabase, vfs: &Vfs, sm: &BodySourceMap, expr_id: 
     let root = db.parse_or_expand(src.file_id);
     let node = src.map(|e| e.to_node(&root).syntax().clone());
     let original_range = node.as_ref().original_file_range_rooted(db);
-    let path = vfs.file_path(original_range.file_id.file_id(db));
-    let line_index = db.line_index(original_range.file_id.file_id(db));
+    let path = vfs.file_path(original_range.file_id.file_id());
+    let line_index = db.line_index(original_range.file_id.file_id());
     let text_range = original_range.range;
     let (start, end) =
         (line_index.line_col(text_range.start()), line_index.line_col(text_range.end()));
@@ -1340,8 +1340,8 @@ fn location_csv_pat(db: &RootDatabase, vfs: &Vfs, sm: &BodySourceMap, pat_id: Pa
     let root = db.parse_or_expand(src.file_id);
     let node = src.map(|e| e.to_node(&root).syntax().clone());
     let original_range = node.as_ref().original_file_range_rooted(db);
-    let path = vfs.file_path(original_range.file_id.file_id(db));
-    let line_index = db.line_index(original_range.file_id.file_id(db));
+    let path = vfs.file_path(original_range.file_id.file_id());
+    let line_index = db.line_index(original_range.file_id.file_id());
     let text_range = original_range.range;
     let (start, end) =
         (line_index.line_col(text_range.start()), line_index.line_col(text_range.end()));
@@ -1359,8 +1359,8 @@ fn expr_syntax_range<'a>(
         let root = db.parse_or_expand(src.file_id);
         let node = src.map(|e| e.to_node(&root).syntax().clone());
         let original_range = node.as_ref().original_file_range_rooted(db);
-        let path = vfs.file_path(original_range.file_id.file_id(db));
-        let line_index = db.line_index(original_range.file_id.file_id(db));
+        let path = vfs.file_path(original_range.file_id.file_id());
+        let line_index = db.line_index(original_range.file_id.file_id());
         let text_range = original_range.range;
         let (start, end) =
             (line_index.line_col(text_range.start()), line_index.line_col(text_range.end()));
@@ -1380,8 +1380,8 @@ fn pat_syntax_range<'a>(
         let root = db.parse_or_expand(src.file_id);
         let node = src.map(|e| e.to_node(&root).syntax().clone());
         let original_range = node.as_ref().original_file_range_rooted(db);
-        let path = vfs.file_path(original_range.file_id.file_id(db));
-        let line_index = db.line_index(original_range.file_id.file_id(db));
+        let path = vfs.file_path(original_range.file_id.file_id());
+        let line_index = db.line_index(original_range.file_id.file_id());
         let text_range = original_range.range;
         let (start, end) =
             (line_index.line_col(text_range.start()), line_index.line_col(text_range.end()));

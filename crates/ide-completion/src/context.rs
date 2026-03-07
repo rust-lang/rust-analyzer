@@ -714,7 +714,7 @@ impl<'db> CompletionContext<'db> {
         // to determine context, though the original_file will be used for
         // actual completion.
         let file_with_fake_ident = {
-            let (_, edition) = editioned_file_id.unpack(db);
+            let (_, edition) = editioned_file_id.unpack();
             let parse = db.parse(editioned_file_id);
             parse.reparse(TextRange::empty(offset), COMPLETION_MARKER, edition).tree()
         };

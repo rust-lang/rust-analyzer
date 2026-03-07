@@ -472,12 +472,12 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn attach_first_edition_opt(&self, file: FileId) -> Option<EditionedFileId> {
         let krate = self.file_to_module_defs(file).next()?.krate(self.db);
-        Some(EditionedFileId::new(self.db, file, krate.edition(self.db), krate.id))
+        Some(EditionedFileId::new(file, krate.edition(self.db)))
     }
 
     pub fn attach_first_edition(&self, file: FileId) -> EditionedFileId {
         self.attach_first_edition_opt(file)
-            .unwrap_or_else(|| EditionedFileId::current_edition_guess_origin(self.db, file))
+            .unwrap_or_else(|| EditionedFileId::current_edition(file))
     }
 
     pub fn parse_guess_edition(&self, file_id: FileId) -> ast::SourceFile {
@@ -490,8 +490,7 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn adjust_edition(&self, file_id: HirFileId) -> HirFileId {
         if let Some(editioned_file_id) = file_id.file_id() {
-            self.attach_first_edition_opt(editioned_file_id.file_id(self.db))
-                .map_or(file_id, Into::into)
+            self.attach_first_edition_opt(editioned_file_id.file_id()).map_or(file_id, Into::into)
         } else {
             file_id
         }
@@ -500,7 +499,7 @@ impl<'db> SemanticsImpl<'db> {
     pub fn find_parent_file(&self, file_id: HirFileId) -> Option<InFile<SyntaxNode>> {
         match file_id {
             HirFileId::FileId(file_id) => {
-                let module = self.file_to_module_defs(file_id.file_id(self.db)).next()?;
+                let module = self.file_to_module_defs(file_id.file_id()).next()?;
                 let def_map = crate_def_map(self.db, module.krate(self.db).id);
                 match def_map[module.id].origin {
                     ModuleOrigin::CrateRoot { .. } => None,
@@ -557,7 +556,7 @@ impl<'db> SemanticsImpl<'db> {
         let file_id = self.find_file(attr.syntax()).file_id;
         let krate = match file_id {
             HirFileId::FileId(file_id) => {
-                self.file_to_module_defs(file_id.file_id(self.db)).next()?.krate(self.db).id
+                self.file_to_module_defs(file_id.file_id()).next()?.krate(self.db).id
             }
             HirFileId::MacroFile(macro_file) => self.db.lookup_intern_macro_call(macro_file).krate,
         };
@@ -1578,7 +1577,7 @@ impl<'db> SemanticsImpl<'db> {
         let root = self.parse_or_expand(src.file_id);
         let node = src.map(|it| it.to_node(&root));
         let FileRange { file_id, range } = node.as_ref().original_file_range_rooted(self.db);
-        FileRangeWrapper { file_id: file_id.file_id(self.db), range }
+        FileRangeWrapper { file_id: file_id.file_id(), range }
     }
 
     pub fn diagnostics_display_range_for_range(
@@ -1586,7 +1585,7 @@ impl<'db> SemanticsImpl<'db> {
         src: InFile<TextRange>,
     ) -> FileRangeWrapper<FileId> {
         let FileRange { file_id, range } = src.original_node_file_range_rooted(self.db);
-        FileRangeWrapper { file_id: file_id.file_id(self.db), range }
+        FileRangeWrapper { file_id: file_id.file_id(), range }
     }
 
     fn token_ancestors_with_macros(
@@ -2072,7 +2071,7 @@ impl<'db> SemanticsImpl<'db> {
 
     fn hir_file_to_module_defs(&self, file: HirFileId) -> impl Iterator<Item = Module> {
         // FIXME: Do we need to care about inline modules for macro expansions?
-        self.file_to_module_defs(file.original_file_respecting_includes(self.db).file_id(self.db))
+        self.file_to_module_defs(file.original_file_respecting_includes(self.db).file_id())
     }
 
     pub fn scope(&self, node: &SyntaxNode) -> Option<SemanticsScope<'db>> {

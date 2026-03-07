@@ -176,7 +176,7 @@ impl<'db> MatchFinder<'db> {
         let mut matches_by_file = FxHashMap::default();
         for m in self.matches().matches {
             matches_by_file
-                .entry(m.range.file_id.file_id(self.sema.db))
+                .entry(m.range.file_id.file_id())
                 .or_insert_with(SsrMatches::default)
                 .matches
                 .push(m);
@@ -230,7 +230,7 @@ impl<'db> MatchFinder<'db> {
     ) -> Vec<MatchDebugInfo> {
         let file = self.sema.parse(file_id);
         let mut res = Vec::new();
-        let file_text = self.sema.db.file_text(file_id.file_id(self.sema.db)).text(self.sema.db);
+        let file_text = self.sema.db.file_text(file_id.file_id()).text(self.sema.db);
         let mut remaining_text = &**file_text;
         let mut base = 0;
         let len = snippet.len() as u32;

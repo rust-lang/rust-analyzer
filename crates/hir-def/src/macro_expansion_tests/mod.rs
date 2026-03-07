@@ -458,8 +458,7 @@ m!(g);
     "#;
 
     let (db, file_id) = TestDB::with_single_file(fixture);
-    let krate = file_id.krate(&db);
-    let def_map = crate_def_map(&db, krate);
+    let def_map = crate_def_map(&db, db.test_crate());
     let source = def_map[def_map.root].definition_source(&db);
     let source_file = match source.value {
         ModuleSource::SourceFile(it) => it,

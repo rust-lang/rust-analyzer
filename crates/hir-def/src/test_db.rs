@@ -159,7 +159,7 @@ impl TestDB {
         for &krate in self.relevant_crates(file_id).iter() {
             let crate_def_map = crate_def_map(self, krate);
             for (local_id, data) in crate_def_map.modules() {
-                if data.origin.file_id().map(|file_id| file_id.file_id(self)) == Some(file_id) {
+                if data.origin.file_id().map(|file_id| file_id.file_id()) == Some(file_id) {
                     return local_id;
                 }
             }
@@ -168,7 +168,7 @@ impl TestDB {
     }
 
     pub(crate) fn module_at_position(&self, position: FilePosition) -> ModuleId {
-        let file_module = self.module_for_file(position.file_id.file_id(self));
+        let file_module = self.module_for_file(position.file_id.file_id());
         let mut def_map = file_module.def_map(self);
         let module = self.mod_at_position(def_map, position);
 
@@ -204,7 +204,7 @@ impl TestDB {
             let Some(file_id) = src.file_id.file_id() else {
                 continue;
             };
-            if file_id.file_id(self) != position.file_id.file_id(self) {
+            if file_id.file_id() != position.file_id.file_id() {
                 continue;
             }
 
@@ -252,7 +252,7 @@ impl TestDB {
             let Some(file_id) = file_id.file_id() else {
                 continue;
             };
-            if file_id.file_id(self) != position.file_id.file_id(self) {
+            if file_id.file_id() != position.file_id.file_id() {
                 continue;
             }
             for decl in module.scope.declarations() {

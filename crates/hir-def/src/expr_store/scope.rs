@@ -334,7 +334,7 @@ mod tests {
         let krate = db.test_crate();
         let crate_def_map = crate_def_map(db, krate);
 
-        let module = crate_def_map.modules_for_file(db, file_id).next().unwrap();
+        let module = crate_def_map.modules_for_file(file_id).next().unwrap();
         let (_, def) = crate_def_map[module].scope.entries().next().unwrap();
         match def.take_values().unwrap() {
             ModuleDefId::FunctionId(it) => it,
@@ -357,7 +357,7 @@ mod tests {
         let editioned_file_id = position.file_id;
         let offset = position.offset;
 
-        let (file_id, _) = editioned_file_id.unpack(&db);
+        let (file_id, _) = editioned_file_id.unpack();
 
         let file_syntax = db.parse(editioned_file_id).syntax_node();
         let marker: ast::PathExpr = find_node_at_offset(&file_syntax, offset).unwrap();
@@ -513,7 +513,7 @@ fn foo() {
         let editioned_file_id = position.file_id;
         let offset = position.offset;
 
-        let (file_id, _) = editioned_file_id.unpack(&db);
+        let (file_id, _) = editioned_file_id.unpack();
 
         let file = db.parse(editioned_file_id).ok().unwrap();
         let expected_name = find_node_at_offset::<ast::Name>(file.syntax(), expected_offset.into())

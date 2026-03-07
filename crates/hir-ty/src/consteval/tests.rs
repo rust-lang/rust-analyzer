@@ -124,14 +124,14 @@ fn pretty_print_err(e: ConstEvalError, db: &TestDB) -> String {
 fn eval_goal(db: &TestDB, file_id: EditionedFileId) -> Result<Const<'_>, ConstEvalError> {
     let _tracing = setup_tracing();
     let interner = DbInterner::new_no_crate(db);
-    let module_id = db.module_for_file(file_id.file_id(db));
+    let module_id = db.module_for_file(file_id.file_id());
     let def_map = module_id.def_map(db);
     let scope = &def_map[module_id].scope;
     let const_id = scope
         .declarations()
         .find_map(|x| match x {
             hir_def::ModuleDefId::ConstId(x) => {
-                if db.const_signature(x).name.as_ref()?.display(db, file_id.edition(db)).to_string()
+                if db.const_signature(x).name.as_ref()?.display(db, file_id.edition()).to_string()
                     == "GOAL"
                 {
                     Some(x)

@@ -29,7 +29,7 @@ fn check_def_map_is_not_recomputed(
         &[],
         expecta,
     );
-    db.set_file_text(pos.file_id.file_id(&db), ra_fixture_change);
+    db.set_file_text(pos.file_id.file_id(), ra_fixture_change);
 
     execute_assert_events(
         &db,
@@ -68,7 +68,7 @@ pub const BAZ: u32 = 0;
 
         let mut add_crate = |crate_name, root_file_idx: usize| {
             new_crate_graph.add_crate_root(
-                files[root_file_idx].file_id(&db),
+                files[root_file_idx].file_id(),
                 Edition::CURRENT,
                 Some(CrateDisplayName::from_canonical_name(crate_name)),
                 None,
@@ -515,7 +515,7 @@ m!(Z);
         || {
             let crate_def_map = crate_def_map(&db, krate);
             let module_data = &crate_def_map
-                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
+                [crate_def_map.modules_for_file(pos.file_id.file_id()).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 4);
         },
         &[("file_item_tree_query", 6), ("parse_macro_expansion_shim", 3)],
@@ -558,14 +558,14 @@ fn quux() { 92 }
 m!(Y);
 m!(Z);
 "#;
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
             let crate_def_map = crate_def_map(&db, krate);
             let module_data = &crate_def_map
-                [crate_def_map.modules_for_file(&db, pos.file_id.file_id(&db)).next().unwrap()];
+                [crate_def_map.modules_for_file(pos.file_id.file_id()).next().unwrap()];
             assert_eq!(module_data.scope.resolutions().count(), 4);
         },
         &[("file_item_tree_query", 1), ("parse_macro_expansion_shim", 0)],
@@ -604,7 +604,7 @@ pub type Ty = ();
     execute_assert_events(
         &db,
         || {
-            db.file_item_tree(pos.file_id.into());
+            db.file_item_tree(pos.file_id.into(), db.test_crate());
         },
         &[("file_item_tree_query", 1), ("parse", 1)],
         expect![[r#"
@@ -617,14 +617,14 @@ pub type Ty = ();
         "#]],
     );
 
-    let file_id = pos.file_id.file_id(&db);
+    let file_id = pos.file_id.file_id();
     let file_text = db.file_text(file_id).text(&db);
     db.set_file_text(file_id, &format!("{file_text}\n"));
 
     execute_assert_events(
         &db,
         || {
-            db.file_item_tree(pos.file_id.into());
+            db.file_item_tree(pos.file_id.into(), db.test_crate());
         },
         &[("file_item_tree_query", 1), ("parse", 1)],
         expect![[r#"

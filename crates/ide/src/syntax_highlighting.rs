@@ -229,7 +229,7 @@ fn traverse(
     krate: Option<hir::Crate>,
     range_to_highlight: TextRange,
 ) {
-    let is_unlinked = sema.file_to_module_def(file_id.file_id(sema.db)).is_none();
+    let is_unlinked = sema.file_to_module_def(file_id.file_id()).is_none();
 
     enum AttrOrDerive {
         Attr(ast::Item),
@@ -498,14 +498,7 @@ fn string_injections(
             {
                 return ControlFlow::Break(());
             }
-            highlight_format_string(
-                hl,
-                sema,
-                krate,
-                &string,
-                &descended_string,
-                file_id.edition(sema.db),
-            );
+            highlight_format_string(hl, sema, krate, &string, &descended_string, file_id.edition());
 
             if !string.is_raw() {
                 highlight_escape_string(hl, config, &string);

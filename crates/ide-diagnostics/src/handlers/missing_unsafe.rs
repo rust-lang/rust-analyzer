@@ -57,10 +57,8 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingUnsafe) -> Option<Vec<Ass
         replacement = format!("({replacement})");
     }
     let edit = TextEdit::replace(node_to_add_unsafe_block.text_range(), replacement);
-    let source_change = SourceChange::from_text_edit(
-        d.node.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
-        edit,
-    );
+    let source_change =
+        SourceChange::from_text_edit(d.node.file_id.original_file(ctx.sema.db).file_id(), edit);
     Some(vec![fix("add_unsafe", "Add unsafe block", source_change, expr.syntax().text_range())])
 }
 

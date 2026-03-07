@@ -509,15 +509,11 @@ impl DefMap {
 
 impl DefMap {
     /// Returns all modules in the crate that are associated with the given file.
-    pub fn modules_for_file<'a>(
-        &'a self,
-        db: &'a dyn DefDatabase,
-        file_id: FileId,
-    ) -> impl Iterator<Item = ModuleId> + 'a {
+    pub fn modules_for_file<'a>(&'a self, file_id: FileId) -> impl Iterator<Item = ModuleId> + 'a {
         self.modules
             .iter()
             .filter(move |(_, data)| {
-                data.origin.file_id().map(|file_id| file_id.file_id(db)) == Some(file_id)
+                data.origin.file_id().map(|file_id| file_id.file_id()) == Some(file_id)
             })
             .map(|(id, _)| id)
     }

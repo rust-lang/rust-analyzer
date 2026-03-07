@@ -35,19 +35,23 @@ pub(super) struct Ctx<'a> {
     source_ast_id_map: Arc<AstIdMap>,
     span_map: OnceCell<SpanMap>,
     file: HirFileId,
-    cfg_options: OnceCell<&'a CfgOptions>,
+    cfg_options: &'a CfgOptions,
     top_level: Vec<ModItemId>,
     visibilities: FxIndexSet<RawVisibility>,
 }
 
 impl<'a> Ctx<'a> {
-    pub(super) fn new(db: &'a dyn DefDatabase, file: HirFileId) -> Self {
+    pub(super) fn new(
+        cfg_options: &'a CfgOptions,
+        file: HirFileId,
+        db: &'a dyn DefDatabase,
+    ) -> Self {
         Self {
             db,
             tree: ItemTree::default(),
             source_ast_id_map: db.ast_id_map(file),
             file,
-            cfg_options: OnceCell::new(),
+            cfg_options,
             span_map: OnceCell::new(),
             visibilities: FxIndexSet::default(),
             top_level: Vec::new(),
@@ -56,7 +60,7 @@ impl<'a> Ctx<'a> {
 
     #[inline]
     pub(super) fn cfg_options(&self) -> &'a CfgOptions {
-        self.cfg_options.get_or_init(|| self.file.krate(self.db).cfg_options(self.db))
+        self.cfg_options
     }
 
     pub(super) fn span_map(&self) -> SpanMapRef<'_> {

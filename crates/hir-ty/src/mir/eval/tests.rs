@@ -18,7 +18,7 @@ use super::{MirEvalError, interpret_mir};
 fn eval_main(db: &TestDB, file_id: EditionedFileId) -> Result<(String, String), MirEvalError> {
     crate::attach_db(db, || {
         let interner = DbInterner::new_no_crate(db);
-        let module_id = db.module_for_file(file_id.file_id(db));
+        let module_id = db.module_for_file(file_id.file_id());
         let def_map = module_id.def_map(db);
         let scope = &def_map[module_id].scope;
         let func_id = scope
@@ -91,7 +91,7 @@ fn check_pass_and_stdio(
                         line_index(range.end())
                     )
                 };
-                let krate = db.module_for_file(file_id.file_id(&db)).krate(&db);
+                let krate = db.module_for_file(file_id.file_id()).krate(&db);
                 e.pretty_print(
                     &mut err,
                     &db,

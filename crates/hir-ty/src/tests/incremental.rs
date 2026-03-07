@@ -20,7 +20,7 @@ fn foo() -> i32 {
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let crate_def_map = module.def_map(&db);
             visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
@@ -31,6 +31,7 @@ fn foo() -> i32 {
         &[("InferenceResult::for_body_", 1)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -59,12 +60,12 @@ fn foo() -> i32 {
     1
 }";
 
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let crate_def_map = module.def_map(&db);
             visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
@@ -107,7 +108,7 @@ fn baz() -> i32 {
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let crate_def_map = module.def_map(&db);
             visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
@@ -118,6 +119,7 @@ fn baz() -> i32 {
         &[("InferenceResult::for_body_", 3)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -171,12 +173,12 @@ fn baz() -> i32 {
 }
 ";
 
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let crate_def_map = module.def_map(&db);
             visit_module(&db, crate_def_map, module, &mut |def| {
                 if let ModuleDefId::FunctionId(it) = def {
@@ -230,13 +232,14 @@ $0",
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
         &[("TraitImpls::for_crate_", 1)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -263,12 +266,12 @@ pub struct NewStruct {
 }
 ";
 
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
@@ -304,13 +307,14 @@ $0",
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
         &[("TraitImpls::for_crate_", 1)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -338,12 +342,12 @@ pub enum SomeEnum {
 }
 ";
 
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
@@ -379,13 +383,14 @@ $0",
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
         &[("TraitImpls::for_crate_", 1)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -410,12 +415,12 @@ fn bar() -> f32 {
 }
 ";
 
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
@@ -455,13 +460,14 @@ $0",
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
         &[("TraitImpls::for_crate_", 1)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -494,12 +500,12 @@ impl SomeStruct {
 }
 ";
 
-    db.set_file_text(pos.file_id.file_id(&db), new_text);
+    db.set_file_text(pos.file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(pos.file_id.file_id(&db));
+            let module = db.module_for_file(pos.file_id.file_id());
             let _crate_def_map = module.def_map(&db);
             TraitImpls::for_crate(&db, module.krate(&db));
         },
@@ -541,7 +547,7 @@ fn main() {
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(file_id.file_id(&db));
+            let module = db.module_for_file(file_id.file_id());
             let crate_def_map = module.def_map(&db);
             let mut defs: Vec<DefWithBodyId> = vec![];
             visit_module(&db, crate_def_map, module, &mut |it| {
@@ -562,6 +568,7 @@ fn main() {
         &[("trait_solve_shim", 0)],
         expect_test::expect![[r#"
             [
+                "source_root_crates_shim",
                 "crate_local_def_map",
                 "file_item_tree_query",
                 "ast_id_map_shim",
@@ -630,12 +637,12 @@ fn main() {
     s.$0
 }";
 
-    db.set_file_text(file_id.file_id(&db), new_text);
+    db.set_file_text(file_id.file_id(), new_text);
 
     execute_assert_events(
         &db,
         || {
-            let module = db.module_for_file(file_id.file_id(&db));
+            let module = db.module_for_file(file_id.file_id());
             let crate_def_map = module.def_map(&db);
             let mut defs: Vec<DefWithBodyId> = vec![];
 

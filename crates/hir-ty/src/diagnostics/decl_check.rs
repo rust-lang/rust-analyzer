@@ -658,7 +658,7 @@ impl<'a> DeclValidator<'a> {
             return;
         };
 
-        let edition = file_id.original_file(self.db).edition(self.db);
+        let edition = file_id.original_file(self.db).edition();
         let diagnostic = IncorrectCase {
             file: file_id,
             ident_type,

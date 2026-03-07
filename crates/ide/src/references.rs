@@ -137,7 +137,7 @@ pub(crate) fn find_all_refs(
                 .into_iter()
                 .map(|(file_id, refs)| {
                     (
-                        file_id.file_id(sema.db),
+                        file_id.file_id(),
                         refs.into_iter()
                             .map(|file_ref| (file_ref.range, file_ref.category))
                             .unique()
@@ -426,7 +426,7 @@ fn handle_control_flow_keywords(
     FilePosition { file_id, offset }: FilePosition,
 ) -> Option<ReferenceSearchResult> {
     let file = sema.parse_guess_edition(file_id);
-    let edition = sema.attach_first_edition(file_id).edition(sema.db);
+    let edition = sema.attach_first_edition(file_id).edition();
     let token = pick_best_token(file.syntax().token_at_offset(offset), |kind| match kind {
         _ if kind.is_keyword(edition) => 4,
         T![=>] => 3,
@@ -451,7 +451,7 @@ fn handle_control_flow_keywords(
             .into_iter()
             .map(|HighlightedRange { range, category }| (range, category))
             .collect();
-        (file_id.file_id(sema.db), ranges)
+        (file_id.file_id(), ranges)
     })
     .collect();
 
@@ -1150,11 +1150,8 @@ pub(super) struct Foo$0 {
 
         check_with_scope(
             code,
-            Some(&mut |db| {
-                SearchScope::single_file(EditionedFileId::current_edition_guess_origin(
-                    db,
-                    FileId::from_raw(2),
-                ))
+            Some(&mut |_| {
+                SearchScope::single_file(EditionedFileId::current_edition(FileId::from_raw(2)))
             }),
             expect![[r#"
                 quux Function FileId(0) 19..35 26..30
