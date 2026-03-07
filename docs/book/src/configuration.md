@@ -48,10 +48,11 @@ To verify which configuration is actually used by `rust-analyzer`, set
 config-related messages. Logs should show both the JSON that
 `rust-analyzer` sees as well as the updated config.
 
-(Work in progress:) It is also possible to place configuration in a
-`rust-analyzer.toml` file. It should be located in the project root or in your
-user configuration directory (e.g. `~/.config/rust-analyzer/`). This is a work in
-progress, many configuration options aren't supported yet.
+It is also possible to place configuration in a `rust-analyzer.toml` file.
+It should be located in the project root (next to `Cargo.toml`) or in your
+user configuration directory (e.g. `~/.config/rust-analyzer/`).
+This works for both regular and virtual workspaces (workspaces without a root package).
+Settings from a project-level `rust-analyzer.toml` are inherited by all member crates.
 
 This is the list of config options `rust-analyzer` supports:
 

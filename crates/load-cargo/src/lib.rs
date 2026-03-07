@@ -282,6 +282,19 @@ impl ProjectFolders {
             }
         }
 
+        for ws in workspaces.iter() {
+            let ws_root = ws.workspace_root().to_path_buf();
+            let already_covered =
+                roots.iter().any(|root| root.is_local && root.include.contains(&ws_root));
+            if !already_covered {
+                roots.push(PackageRoot {
+                    is_local: true,
+                    include: vec![ws_root.clone()],
+                    exclude: vec![ws_root.join(".git"), ws_root.join("target")],
+                });
+            }
+        }
+
         for root in roots.into_iter().filter(|it| !it.include.is_empty()) {
             let file_set_roots: Vec<VfsPath> =
                 root.include.iter().cloned().map(VfsPath::from).collect();
