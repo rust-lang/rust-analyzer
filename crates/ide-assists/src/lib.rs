@@ -178,6 +178,7 @@ mod handlers {
     mod generate_new;
     mod generate_single_field_struct_from;
     mod generate_trait_from_impl;
+    mod inline_bounds;
     mod inline_call;
     mod inline_const_as_literal;
     mod inline_local_variable;
@@ -317,6 +318,7 @@ mod handlers {
             generate_trait_from_impl::generate_trait_from_impl,
             generate_single_field_struct_from::generate_single_field_struct_from,
             generate_blanket_trait_impl::generate_blanket_trait_impl,
+            inline_bounds::inline_bounds,
             inline_call::inline_call,
             inline_call::inline_into_callers,
             inline_const_as_literal::inline_const_as_literal,
