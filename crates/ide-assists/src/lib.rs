@@ -223,6 +223,7 @@ mod handlers {
     mod replace_string_with_char;
     mod replace_turbofish_with_explicit_type;
     mod sort_items;
+    mod split_if;
     mod split_import;
     mod term_search;
     mod toggle_async_sugar;
@@ -370,6 +371,7 @@ mod handlers {
             replace_qualified_name_with_use::replace_qualified_name_with_use,
             replace_turbofish_with_explicit_type::replace_turbofish_with_explicit_type,
             sort_items::sort_items,
+            split_if::split_if,
             split_import::split_import,
             term_search::term_search,
             toggle_async_sugar::desugar_async_into_impl_future,
