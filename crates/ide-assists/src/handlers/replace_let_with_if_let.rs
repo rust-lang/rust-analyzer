@@ -39,6 +39,11 @@ pub(crate) fn replace_let_with_if_let(acc: &mut Assists, ctx: &AssistContext<'_>
     let let_stmt = let_kw.parent().and_then(ast::LetStmt::cast)?;
     let init = let_stmt.initializer()?;
     let original_pat = let_stmt.pat()?;
+    let statements =
+        std::iter::successors(let_stmt.syntax().next_sibling(), |it| it.next_sibling())
+            .filter_map(ast::Stmt::cast)
+            .filter(|stmt| crate::utils::is_selected(stmt, ctx.selection_trimmed(), false))
+            .collect::<Vec<_>>();
 
     let target = let_kw.text_range();
     acc.add(
@@ -67,16 +72,23 @@ pub(crate) fn replace_let_with_if_let(acc: &mut Assists, ctx: &AssistContext<'_>
             let init_expr =
                 if let_expr_needs_paren(&init) { make.expr_paren(init).into() } else { init };
 
-            let block = make.block_expr([], None);
-            let block = block.indent(IndentLevel::from_node(let_stmt.syntax()));
+            let block = make.block_expr(statements.iter().map(AstNodeEdit::reset_indent), None);
             let if_expr = make.expr_if(
                 make.expr_let(pat, init_expr).into(),
-                block,
+                block.indent(IndentLevel::from_node(let_stmt.syntax())),
                 let_stmt
                     .let_else()
                     .and_then(|let_else| let_else.block_expr().map(ast::ElseBranch::from)),
             );
             let if_stmt = make.expr_stmt(if_expr.into());
+            for stmt in statements {
+                if let Some(prev) = stmt.syntax().prev_sibling_or_token()
+                    && prev.kind() == syntax::SyntaxKind::WHITESPACE
+                {
+                    editor.delete(prev);
+                }
+                editor.delete(stmt.syntax());
+            }
 
             editor.replace(let_stmt.syntax(), if_stmt.syntax());
             editor.add_mappings(make.finish_with_mappings());
@@ -141,6 +153,32 @@ enum E<T> { X(T), Y(T) }
 fn main() {
     if let x = E::X(92) {
     }
+}
+            ",
+        )
+    }
+
+    #[test]
+    fn replace_let_with_stmts() {
+        check_assist(
+            replace_let_with_if_let,
+            r"
+enum E<T> { X(T), Y(T) }
+
+fn main() {
+    $0let x = E::X(92);
+    let y = x;$0
+    let _ = ();
+}
+            ",
+            r"
+enum E<T> { X(T), Y(T) }
+
+fn main() {
+    if let x = E::X(92) {
+        let y = x;
+    }
+    let _ = ();
 }
             ",
         )
