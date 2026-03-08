@@ -12,7 +12,7 @@ use itertools::Itertools;
 use syntax::ast::syntax_factory::SyntaxFactory;
 use syntax::syntax_editor::SyntaxEditor;
 use syntax::{
-    AstNode, NodeOrToken, SyntaxNode,
+    AstNode, NodeOrToken, SyntaxKind, SyntaxNode,
     ast::{self, HasGenericParams, HasName},
 };
 
@@ -322,12 +322,27 @@ fn create_replacement(
         if let Some(old_lifetime) = ast::Lifetime::cast(syntax.clone()) {
             if let Some(new_lifetime) = lifetime_map.0.get(&old_lifetime.to_string()) {
                 if new_lifetime.text() == "'_" {
-                    removals.push(NodeOrToken::Node(syntax.clone()));
-
-                    if let Some(ws) = syntax.next_sibling_or_token() {
-                        removals.push(ws.clone());
+                    if let Some(lifetime_arg) =
+                        old_lifetime.syntax().parent().and_then(ast::LifetimeArg::cast)
+                    {
+                        // If the LifetimeArg is a child of GenericArgList, remove the LifetimeArg
+                        // wrapper
+                        if lifetime_arg
+                            .syntax()
+                            .parent()
+                            .and_then(ast::GenericArgList::cast)
+                            .is_some()
+                        {
+                            removals.push(NodeOrToken::Node(lifetime_arg.syntax().clone()));
+                            continue;
+                        }
                     }
-
+                    removals.push(NodeOrToken::Node(syntax.clone()));
+                    if let Some(ws) = syntax.next_sibling_or_token()
+                        && ws.kind() == SyntaxKind::WHITESPACE
+                    {
+                        removals.push(ws);
+                    }
                     continue;
                 }
 
@@ -346,6 +361,30 @@ fn create_replacement(
             };
 
             replacements.push((syntax.clone(), new));
+        }
+    }
+
+    // Remove GenericArgList entirely if all its args are being removed (avoids empty angle brackets)
+    let generic_arg_lists_to_check: Vec<_> =
+        updated_concrete_type.descendants().filter_map(ast::GenericArgList::cast).collect();
+
+    for generic_arg_list in generic_arg_lists_to_check {
+        let will_be_empty = generic_arg_list.generic_args().all(|arg| match arg {
+            ast::GenericArg::LifetimeArg(lt_arg) => removals.iter().any(|removal| {
+                if let NodeOrToken::Node(node) = removal { node == lt_arg.syntax() } else { false }
+            }),
+            _ => false,
+        });
+
+        if will_be_empty && generic_arg_list.generic_args().next().is_some() {
+            removals.retain(|removal| {
+                if let NodeOrToken::Node(node) = removal {
+                    !node.ancestors().any(|anc| anc == *generic_arg_list.syntax())
+                } else {
+                    true
+                }
+            });
+            removals.push(NodeOrToken::Node(generic_arg_list.syntax().clone()));
         }
     }
 
@@ -942,6 +981,27 @@ impl<T, const C: usize> Tr<'static, u8> for Strukt<'_, T, C> {
 trait Tr {
     fn new() -> Self$0;
 }
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_types_with_lifetime() {
+        check_assist(
+            inline_type_alias_uses,
+            r#"
+struct A<'a, 'b>(pub &'a mut &'b mut ());
+
+type $0T<'a, 'b> = A<'a, 'b>;
+
+fn foo(_: T) {}
+"#,
+            r#"
+struct A<'a, 'b>(pub &'a mut &'b mut ());
+
+
+
+fn foo(_: A) {}
 "#,
         );
     }
