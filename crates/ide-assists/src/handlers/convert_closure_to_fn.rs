@@ -12,9 +12,10 @@ use syntax::{
         self, HasArgList, HasGenericParams, HasName,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
     hacks::parse_expr_from_str,
-    ted,
+    syntax_editor::SyntaxEditor,
 };
 
 use crate::assist_context::{AssistContext, Assists};
@@ -91,7 +92,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
         })
         .collect::<Option<Vec<_>>>()?;
 
-    let mut body = closure.body()?.clone_for_update();
+    let body = closure.body()?;
     let mut is_gen = false;
     let mut is_async = closure.async_token().is_some();
     if is_async {
@@ -100,43 +101,29 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
     // We defer the wrapping of the body in the block, because `make::block()` will generate a new node,
     // but we need to locate `AstPtr`s inside the body.
     let mut wrap_body_in_block = true;
+    let mut body_prefix_ranges_to_delete = Vec::new();
     if let ast::Expr::BlockExpr(block) = &body {
+        let removed_async = block.async_token().is_some() && !is_async;
         if let Some(async_token) = block.async_token()
-            && !is_async
+            && removed_async
         {
             is_async = true;
             ret_ty = ret_ty.future_output(ctx.db())?;
-            let token_idx = async_token.index();
-            let whitespace_tokens_after_count = async_token
-                .siblings_with_tokens(Direction::Next)
-                .skip(1)
-                .take_while(|token| token.kind() == SyntaxKind::WHITESPACE)
-                .count();
-            body.syntax().splice_children(
-                token_idx..token_idx + whitespace_tokens_after_count + 1,
-                Vec::new(),
-            );
+            body_prefix_ranges_to_delete
+                .extend(token_with_following_whitespace_ranges(&body, async_token));
         }
         if let Some(gen_token) = block.gen_token() {
             is_gen = true;
             ret_ty = ret_ty.iterator_item(ctx.db())?;
-            let token_idx = gen_token.index();
-            let whitespace_tokens_after_count = gen_token
-                .siblings_with_tokens(Direction::Next)
-                .skip(1)
-                .take_while(|token| token.kind() == SyntaxKind::WHITESPACE)
-                .count();
-            body.syntax().splice_children(
-                token_idx..token_idx + whitespace_tokens_after_count + 1,
-                Vec::new(),
-            );
+            body_prefix_ranges_to_delete
+                .extend(token_with_following_whitespace_ranges(&body, gen_token));
         }
 
         if block.try_block_modifier().is_none()
             && block.unsafe_token().is_none()
             && block.label().is_none()
             && block.const_token().is_none()
-            && block.async_token().is_none()
+            && (block.async_token().is_none() || removed_async)
         {
             wrap_body_in_block = false;
         }
@@ -157,6 +144,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
             let mut captures_as_args = Vec::with_capacity(captures.len());
 
             let body_root = body.syntax().ancestors().last().unwrap();
+            let body_range = body.syntax().text_range();
             // We need to defer this work because otherwise the text range of elements is being messed up, and
             // replacements for the next captures won't work.
             let mut capture_usages_replacement_map = Vec::with_capacity(captures.len());
@@ -165,9 +153,9 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
                 // FIXME: Allow configuring the replacement of `self`.
                 let capture_name =
                     if capture.local().is_self(ctx.db()) && !capture.has_field_projections() {
-                        make::name("this")
+                        "this".to_owned()
                     } else {
-                        make::name(&capture.place_to_name(ctx.db()))
+                        capture.place_to_name(ctx.db())
                     };
 
                 closure_mentioned_generic_params.extend(capture_ty.generic_params(ctx.db()));
@@ -176,7 +164,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
                     .display_source_code(ctx.db(), module.into(), true)
                     .unwrap_or_else(|_| "_".to_owned());
                 params.push(make::param(
-                    ast::Pat::IdentPat(make::ident_pat(false, false, capture_name.clone_subtree())),
+                    ast::Pat::IdentPat(make::ident_pat(false, false, make::name(&capture_name))),
                     make::ty(&capture_ty),
                 ));
 
@@ -195,14 +183,12 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
                             expr
                         }
                     };
-                    let replacement = wrap_capture_in_deref_if_needed(
-                        &expr,
-                        &capture_name,
+                    capture_usages_replacement_map.push((
+                        expr.syntax().text_range(),
+                        capture_name.clone(),
                         capture.kind(),
                         capture_usage.is_ref(),
-                    )
-                    .clone_for_update();
-                    capture_usages_replacement_map.push((expr, replacement));
+                    ));
                 }
 
                 captures_as_args.push(capture_as_arg(ctx, capture));
@@ -211,13 +197,58 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
             let (closure_type_params, closure_where_clause) =
                 compute_closure_type_params(ctx, closure_mentioned_generic_params, &closure);
 
-            for (old, new) in capture_usages_replacement_map {
-                if old == body {
-                    body = new;
-                } else {
-                    ted::replace(old.syntax(), new.syntax());
+            let body = {
+                let body_clone = body.syntax().clone_subtree();
+                let mut editor = SyntaxEditor::new(body_clone.clone());
+                let make = SyntaxFactory::without_mappings();
+                let mut replaced_body = None;
+
+                for range in &body_prefix_ranges_to_delete {
+                    editor.delete(body_clone.covering_element(*range));
                 }
-            }
+
+                for (old_range, capture_name, capture_kind, is_ref) in
+                    capture_usages_replacement_map
+                {
+                    if old_range == body_range {
+                        let body_expr = ast::Expr::cast(body_clone.clone()).unwrap();
+                        replaced_body = Some(wrap_capture_in_deref_if_needed(
+                            &body_expr,
+                            &make,
+                            &capture_name,
+                            capture_kind,
+                            is_ref,
+                        ));
+                        continue;
+                    }
+
+                    let rel_range = old_range - body_range.start();
+                    let target = body_clone.covering_element(rel_range);
+                    let target_expr = match &target {
+                        syntax::NodeOrToken::Node(node) => ast::Expr::cast(node.clone()).unwrap(),
+                        syntax::NodeOrToken::Token(token) => token
+                            .parent()
+                            .into_iter()
+                            .flat_map(|parent| parent.ancestors())
+                            .find_map(ast::Expr::cast)
+                            .unwrap(),
+                    };
+                    let replacement = wrap_capture_in_deref_if_needed(
+                        &target_expr,
+                        &make,
+                        &capture_name,
+                        capture_kind,
+                        is_ref,
+                    );
+                    editor.replace(target, replacement.syntax().clone());
+                }
+
+                if let Some(body) = replaced_body {
+                    editor.replace(body_clone, body.syntax().clone());
+                }
+
+                ast::Expr::cast(editor.finish().new_root().clone()).unwrap()
+            };
 
             let body = if wrap_body_in_block {
                 make::block_expr([], Some(body))
@@ -463,9 +494,26 @@ fn compute_closure_type_params(
     (Some(make::generic_param_list(include_params)), where_clause)
 }
 
+fn token_with_following_whitespace_ranges(
+    body: &ast::Expr,
+    token: syntax::SyntaxToken,
+) -> Vec<syntax::TextRange> {
+    let mut ranges = vec![token.text_range() - body.syntax().text_range().start()];
+    ranges.extend(
+        token
+            .siblings_with_tokens(Direction::Next)
+            .skip(1)
+            .take_while(|next| next.kind() == SyntaxKind::WHITESPACE)
+            .filter_map(|next| next.into_token())
+            .map(|next| next.text_range() - body.syntax().text_range().start()),
+    );
+    ranges
+}
+
 fn wrap_capture_in_deref_if_needed(
     expr: &ast::Expr,
-    capture_name: &ast::Name,
+    make: &SyntaxFactory,
+    capture_name: &str,
     capture_kind: CaptureKind,
     is_ref: bool,
 ) -> ast::Expr {
@@ -481,7 +529,7 @@ fn wrap_capture_in_deref_if_needed(
         expr
     }
 
-    let capture_name = make::expr_path(make::path_from_text(&capture_name.text()));
+    let capture_name = make.expr_path(make.ident_path(capture_name));
     if capture_kind == CaptureKind::Move || is_ref {
         return capture_name;
     }
@@ -503,7 +551,7 @@ fn wrap_capture_in_deref_if_needed(
     if does_autoderef {
         return capture_name;
     }
-    make::expr_prefix(T![*], capture_name).into()
+    make.expr_prefix(T![*], capture_name).into()
 }
 
 fn capture_as_arg(ctx: &AssistContext<'_>, capture: &ClosureCapture<'_>) -> ast::Expr {
