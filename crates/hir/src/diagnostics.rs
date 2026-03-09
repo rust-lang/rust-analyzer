@@ -35,12 +35,61 @@ pub use hir_ty::{
     diagnostics::{CaseType, IncorrectCase},
 };
 
+/// The macro takes two lists (separated by ;):
+/// 1. Structs defined inline. For brevity, `pub` and `struct` can be omitted -- for example, the
+///    following struct:
+///    ```ignore
+///    pub struct BreakOutsideOfLoop {
+///        pub expr: InFile<AstPtr<ast::Expr>>,
+///        pub is_break: bool,
+///        pub bad_value_break: bool,
+///    }
+///    ```
+///    can be written as follows:
+///    ```ignore
+///    BreakOutsideOfLoop {
+///        expr: InFile<AstPtr<ast::Expr>>,
+///        is_break: bool,
+///        bad_value_break: bool,
+///    }
+///    ```
+/// 2. Names of structs imported from outside.
+///
+/// It creates:
+/// - for the inline structs, their definitions
+/// - the `AnyDiagnostic` enum, with variants derived from both lists of structs
+/// - `impl From<$Diagnostic> for AnyDiagnostic` for each of the variants
 macro_rules! diagnostics {
-    ($AnyDiagnostic:ident <$db:lifetime> -> $($diag:ident $(<$lt:lifetime>)?,)*) => {
+    ($AnyDiagnostic:ident <$db:lifetime> ->
+        $(
+            $(#[$attr:meta])*
+            $diag:ident $(<$lt:lifetime>)? {$(
+                    $(#[$field_attr:meta])* $field:ident: $field_ty:ty,
+            )*}
+        )*
+
+        ;
+
+        $(
+            $imp_diag:ident $(<$imp_lt:lifetime>)?,
+        )*
+    ) => {
+        $(
+            $(#[$attr])*
+            pub struct $diag $(<$lt>)? {$(
+                $(#[$field_attr])* pub $field: $field_ty,
+            )*}
+        )*
+
         #[derive(Debug)]
-        pub enum $AnyDiagnostic<$db> {$(
-            $diag(Box<$diag $(<$lt>)?>),
-        )*}
+        pub enum $AnyDiagnostic<$db> {
+            $(
+                $diag(Box<$diag $(<$lt>)?>),
+            )*
+            $(
+                $imp_diag(Box<$imp_diag $(<$imp_lt>)?>),
+            )*
+        }
 
         $(
             impl<$db> From<$diag $(<$lt>)?> for $AnyDiagnostic<$db> {
@@ -49,411 +98,361 @@ macro_rules! diagnostics {
                 }
             }
         )*
+        $(
+            impl<$db> From<$imp_diag $(<$imp_lt>)?> for $AnyDiagnostic<$db> {
+                fn from(d: $imp_diag $(<$imp_lt>)?) -> $AnyDiagnostic<$db> {
+                    $AnyDiagnostic::$imp_diag(Box::new(d))
+                }
+            }
+        )*
     };
 }
-// FIXME Accept something like the following in the macro call instead
-// diagnostics![
-// pub struct BreakOutsideOfLoop {
-//     pub expr: InFile<AstPtr<ast::Expr>>,
-//     pub is_break: bool,
-//     pub bad_value_break: bool,
-// }, ...
-// or more concisely
-// BreakOutsideOfLoop {
-//     expr: InFile<AstPtr<ast::Expr>>,
-//     is_break: bool,
-//     bad_value_break: bool,
-// }, ...
-// ]
 
 diagnostics![AnyDiagnostic<'db> ->
-    AwaitOutsideOfAsync,
-    BreakOutsideOfLoop,
-    CastToUnsized<'db>,
-    ExpectedFunction<'db>,
-    InactiveCode,
-    IncoherentImpl,
-    IncorrectCase,
-    InvalidCast<'db>,
-    InvalidDeriveTarget,
-    MacroDefError,
-    MacroError,
-    MacroExpansionParseError,
-    MalformedDerive,
-    MismatchedArgCount,
-    MismatchedTupleStructPatArgCount,
-    MissingFields,
-    MissingMatchArms,
-    MissingUnsafe,
-    MovedOutOfRef<'db>,
-    NeedMut,
-    NonExhaustiveLet,
-    NoSuchField,
-    PrivateAssocItem,
-    PrivateField,
-    RemoveTrailingReturn,
-    RemoveUnnecessaryElse,
-    ReplaceFilterMapNextWithFindMap,
-    TraitImplIncorrectSafety,
-    TraitImplMissingAssocItems,
-    TraitImplOrphan,
-    TraitImplRedundantAssocItems,
-    TypedHole<'db>,
-    TypeMismatch<'db>,
-    UndeclaredLabel,
-    UnimplementedBuiltinMacro,
-    UnreachableLabel,
-    UnresolvedAssocItem,
-    UnresolvedExternCrate,
-    UnresolvedField<'db>,
-    UnresolvedImport,
-    UnresolvedMacroCall,
-    UnresolvedMethodCall<'db>,
-    UnresolvedModule,
-    UnresolvedIdent,
-    UnusedMut,
-    UnusedVariable,
-    GenericArgsProhibited,
-    ParenthesizedGenericArgsWithoutFnTrait,
-    BadRtn,
-    IncorrectGenericsLen,
-    IncorrectGenericsOrder,
-    MissingLifetime,
-    ElidedLifetimesInPath,
+    #[derive(Debug)]
+    AwaitOutsideOfAsync {
+        node: InFile<AstPtr<ast::AwaitExpr>>,
+        location: String,
+    }
+
+    #[derive(Debug)]
+    BadRtn {
+        rtn: InFile<AstPtr<ast::ReturnTypeSyntax>>,
+    }
+
+    #[derive(Debug)]
+    BreakOutsideOfLoop {
+        expr: InFile<ExprOrPatPtr>,
+        is_break: bool,
+        bad_value_break: bool,
+    }
+
+    #[derive(Debug)]
+    CastToUnsized<'db> {
+        expr: InFile<ExprOrPatPtr>,
+        cast_ty: Type<'db>,
+    }
+
+    #[derive(Debug)]
+    ElidedLifetimesInPath {
+        /// Points at the name if there are no generics.
+        generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
+        expected: u32,
+        def: GenericDef,
+        hard_error: bool,
+    }
+
+    #[derive(Debug)]
+    ExpectedFunction<'db> {
+        call: InFile<ExprOrPatPtr>,
+        found: Type<'db>,
+    }
+
+    #[derive(Debug)]
+    GenericArgsProhibited {
+        args: InFile<AstPtr<Either<ast::GenericArgList, ast::ParenthesizedArgList>>>,
+        reason: GenericArgsProhibitedReason,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    InactiveCode {
+        node: InFile<SyntaxNodePtr>,
+        cfg: CfgExpr,
+        opts: CfgOptions,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    IncoherentImpl {
+        file_id: HirFileId,
+        impl_: AstPtr<ast::Impl>,
+    }
+
+    #[derive(Debug)]
+    IncorrectGenericsLen {
+        /// Points at the name if there are no generics.
+        generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
+        kind: IncorrectGenericsLenKind,
+        provided: u32,
+        expected: u32,
+        def: GenericDef,
+    }
+
+    #[derive(Debug)]
+    IncorrectGenericsOrder {
+        provided_arg: InFile<AstPtr<ast::GenericArg>>,
+        expected_kind: GenericArgKind,
+    }
+
+    #[derive(Debug)]
+    InvalidCast<'db> {
+        expr: InFile<ExprOrPatPtr>,
+        error: CastError,
+        expr_ty: Type<'db>,
+        cast_ty: Type<'db>,
+    }
+
+    #[derive(Debug)]
+    InvalidDeriveTarget {
+        range: InFile<TextRange>,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    MacroDefError {
+        node: InFile<AstPtr<ast::Macro>>,
+        message: String,
+        name: Option<TextRange>,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    MacroError {
+        range: InFile<TextRange>,
+        message: String,
+        error: bool,
+        kind: &'static str,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    MacroExpansionParseError {
+        range: InFile<TextRange>,
+        errors: Arc<[SyntaxError]>,
+    }
+
+    #[derive(Debug)]
+    MalformedDerive {
+        range: InFile<TextRange>,
+    }
+
+    #[derive(Debug)]
+    MismatchedArgCount {
+        call_expr: InFile<ExprOrPatPtr>,
+        expected: usize,
+        found: usize,
+    }
+
+    #[derive(Debug)]
+    MismatchedTupleStructPatArgCount {
+        expr_or_pat: InFile<ExprOrPatPtr>,
+        expected: usize,
+        found: usize,
+    }
+
+    #[derive(Debug)]
+    MissingFields {
+        file: HirFileId,
+        field_list_parent: AstPtr<Either<ast::RecordExpr, ast::RecordPat>>,
+        field_list_parent_path: Option<AstPtr<ast::Path>>,
+        missed_fields: Vec<Name>,
+    }
+
+    #[derive(Debug)]
+    MissingLifetime {
+        /// Points at the name if there are no generics.
+        generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
+        expected: u32,
+        def: GenericDef,
+    }
+
+    #[derive(Debug)]
+    MissingMatchArms {
+        scrutinee_expr: InFile<AstPtr<ast::Expr>>,
+        uncovered_patterns: String,
+    }
+
+    #[derive(Debug)]
+    MissingUnsafe {
+        node: InFile<ExprOrPatPtr>,
+        lint: UnsafeLint,
+        reason: UnsafetyReason,
+    }
+
+    #[derive(Debug)]
+    MovedOutOfRef<'db> {
+        ty: Type<'db>,
+        span: InFile<SyntaxNodePtr>,
+    }
+
+    #[derive(Debug)]
+    NeedMut {
+        local: Local,
+        span: InFile<SyntaxNodePtr>,
+    }
+
+    #[derive(Debug)]
+    NonExhaustiveLet {
+        pat: InFile<AstPtr<ast::Pat>>,
+        uncovered_patterns: String,
+    }
+
+    #[derive(Debug)]
+    NoSuchField {
+        field: InFile<AstPtr<Either<ast::RecordExprField, ast::RecordPatField>>>,
+        private: Option<Field>,
+        variant: VariantId,
+    }
+
+    #[derive(Debug)]
+    PrivateAssocItem {
+        expr_or_pat: InFile<ExprOrPatPtr>,
+        item: AssocItem,
+    }
+
+    #[derive(Debug)]
+    PrivateField {
+        expr: InFile<ExprOrPatPtr>,
+        field: Field,
+    }
+
+    #[derive(Debug)]
+    RemoveTrailingReturn {
+        return_expr: InFile<AstPtr<ast::ReturnExpr>>,
+    }
+
+    #[derive(Debug)]
+    RemoveUnnecessaryElse {
+        if_expr: InFile<AstPtr<ast::IfExpr>>,
+    }
+
+    #[derive(Debug)]
+    ReplaceFilterMapNextWithFindMap {
+        file: HirFileId,
+        /// This expression is the whole method chain up to and including `.filter_map(..).next()`.
+        next_expr: AstPtr<ast::Expr>,
+    }
+    // FIXME: Split this off into the corresponding 4 rustc errors
+
+    #[derive(Debug, PartialEq, Eq)]
+    TraitImplIncorrectSafety {
+        file_id: HirFileId,
+        impl_: AstPtr<ast::Impl>,
+        should_be_safe: bool,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    TraitImplMissingAssocItems {
+        file_id: HirFileId,
+        impl_: AstPtr<ast::Impl>,
+        missing: Vec<(Name, AssocItem)>,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    TraitImplOrphan {
+        file_id: HirFileId,
+        impl_: AstPtr<ast::Impl>,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    TraitImplRedundantAssocItems {
+        file_id: HirFileId,
+        trait_: Trait,
+        impl_: AstPtr<ast::Impl>,
+        assoc_item: (Name, AssocItem),
+    }
+
+    #[derive(Debug)]
+    TypedHole<'db> {
+        expr: InFile<ExprOrPatPtr>,
+        expected: Type<'db>,
+    }
+
+    #[derive(Debug)]
+    TypeMismatch<'db> {
+        expr_or_pat: InFile<ExprOrPatPtr>,
+        expected: Type<'db>,
+        actual: Type<'db>,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    UndeclaredLabel {
+        node: InFile<AstPtr<ast::Lifetime>>,
+        name: Name,
+    }
+
+    #[derive(Debug)]
+    UnimplementedBuiltinMacro {
+        node: InFile<SyntaxNodePtr>,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    UnreachableLabel {
+        node: InFile<AstPtr<ast::Lifetime>>,
+        name: Name,
+    }
+
+    #[derive(Debug)]
+    UnresolvedAssocItem {
+        expr_or_pat: InFile<ExprOrPatPtr>,
+    }
+
+    #[derive(Debug)]
+    UnresolvedExternCrate {
+        decl: InFile<AstPtr<ast::ExternCrate>>,
+    }
+
+    #[derive(Debug)]
+    UnresolvedField<'db> {
+        expr: InFile<ExprOrPatPtr>,
+        receiver: Type<'db>,
+        name: Name,
+        method_with_same_name_exists: bool,
+    }
+
+    #[derive(Debug)]
+    UnresolvedImport {
+        decl: InFile<AstPtr<ast::UseTree>>,
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    UnresolvedMacroCall {
+        range: InFile<TextRange>,
+        path: ModPath,
+        is_bang: bool,
+    }
+
+    #[derive(Debug)]
+    UnresolvedMethodCall<'db> {
+        expr: InFile<ExprOrPatPtr>,
+        receiver: Type<'db>,
+        name: Name,
+        field_with_same_name: Option<Type<'db>>,
+        assoc_func_with_same_name: Option<Function>,
+    }
+
+    #[derive(Debug)]
+    UnresolvedModule {
+        decl: InFile<AstPtr<ast::Module>>,
+        candidates: Box<[String]>,
+    }
+
+    #[derive(Debug)]
+    UnresolvedIdent {
+        node: InFile<(ExprOrPatPtr, Option<TextRange>)>,
+    }
+
+    #[derive(Debug)]
+    UnusedMut {
+        local: Local,
+    }
+
+    #[derive(Debug)]
+    UnusedVariable {
+        local: Local,
+    }
+
+    #[derive(Debug)]
+    ParenthesizedGenericArgsWithoutFnTrait {
+        args: InFile<AstPtr<ast::ParenthesizedArgList>>,
+    }
+
+    ;
+
+    // IncorrectCase,
 ];
-
-#[derive(Debug)]
-pub struct BreakOutsideOfLoop {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub is_break: bool,
-    pub bad_value_break: bool,
-}
-
-#[derive(Debug)]
-pub struct TypedHole<'db> {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub expected: Type<'db>,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedModule {
-    pub decl: InFile<AstPtr<ast::Module>>,
-    pub candidates: Box<[String]>,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedExternCrate {
-    pub decl: InFile<AstPtr<ast::ExternCrate>>,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedImport {
-    pub decl: InFile<AstPtr<ast::UseTree>>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UnresolvedMacroCall {
-    pub range: InFile<TextRange>,
-    pub path: ModPath,
-    pub is_bang: bool,
-}
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UnreachableLabel {
-    pub node: InFile<AstPtr<ast::Lifetime>>,
-    pub name: Name,
-}
-
-#[derive(Debug)]
-pub struct AwaitOutsideOfAsync {
-    pub node: InFile<AstPtr<ast::AwaitExpr>>,
-    pub location: String,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UndeclaredLabel {
-    pub node: InFile<AstPtr<ast::Lifetime>>,
-    pub name: Name,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct InactiveCode {
-    pub node: InFile<SyntaxNodePtr>,
-    pub cfg: CfgExpr,
-    pub opts: CfgOptions,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct MacroError {
-    pub range: InFile<TextRange>,
-    pub message: String,
-    pub error: bool,
-    pub kind: &'static str,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct MacroExpansionParseError {
-    pub range: InFile<TextRange>,
-    pub errors: Arc<[SyntaxError]>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct MacroDefError {
-    pub node: InFile<AstPtr<ast::Macro>>,
-    pub message: String,
-    pub name: Option<TextRange>,
-}
-
-#[derive(Debug)]
-pub struct UnimplementedBuiltinMacro {
-    pub node: InFile<SyntaxNodePtr>,
-}
-
-#[derive(Debug)]
-pub struct InvalidDeriveTarget {
-    pub range: InFile<TextRange>,
-}
-
-#[derive(Debug)]
-pub struct MalformedDerive {
-    pub range: InFile<TextRange>,
-}
-
-#[derive(Debug)]
-pub struct NoSuchField {
-    pub field: InFile<AstPtr<Either<ast::RecordExprField, ast::RecordPatField>>>,
-    pub private: Option<Field>,
-    pub variant: VariantId,
-}
-
-#[derive(Debug)]
-pub struct PrivateAssocItem {
-    pub expr_or_pat: InFile<ExprOrPatPtr>,
-    pub item: AssocItem,
-}
-
-#[derive(Debug)]
-pub struct MismatchedTupleStructPatArgCount {
-    pub expr_or_pat: InFile<ExprOrPatPtr>,
-    pub expected: usize,
-    pub found: usize,
-}
-
-#[derive(Debug)]
-pub struct ExpectedFunction<'db> {
-    pub call: InFile<ExprOrPatPtr>,
-    pub found: Type<'db>,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedField<'db> {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub receiver: Type<'db>,
-    pub name: Name,
-    pub method_with_same_name_exists: bool,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedMethodCall<'db> {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub receiver: Type<'db>,
-    pub name: Name,
-    pub field_with_same_name: Option<Type<'db>>,
-    pub assoc_func_with_same_name: Option<Function>,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedAssocItem {
-    pub expr_or_pat: InFile<ExprOrPatPtr>,
-}
-
-#[derive(Debug)]
-pub struct UnresolvedIdent {
-    pub node: InFile<(ExprOrPatPtr, Option<TextRange>)>,
-}
-
-#[derive(Debug)]
-pub struct PrivateField {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub field: Field,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnsafeLint {
     HardError,
     UnsafeOpInUnsafeFn,
     DeprecatedSafe2024,
-}
-
-#[derive(Debug)]
-pub struct MissingUnsafe {
-    pub node: InFile<ExprOrPatPtr>,
-    pub lint: UnsafeLint,
-    pub reason: UnsafetyReason,
-}
-
-#[derive(Debug)]
-pub struct MissingFields {
-    pub file: HirFileId,
-    pub field_list_parent: AstPtr<Either<ast::RecordExpr, ast::RecordPat>>,
-    pub field_list_parent_path: Option<AstPtr<ast::Path>>,
-    pub missed_fields: Vec<Name>,
-}
-
-#[derive(Debug)]
-pub struct ReplaceFilterMapNextWithFindMap {
-    pub file: HirFileId,
-    /// This expression is the whole method chain up to and including `.filter_map(..).next()`.
-    pub next_expr: AstPtr<ast::Expr>,
-}
-
-#[derive(Debug)]
-pub struct MismatchedArgCount {
-    pub call_expr: InFile<ExprOrPatPtr>,
-    pub expected: usize,
-    pub found: usize,
-}
-
-#[derive(Debug)]
-pub struct MissingMatchArms {
-    pub scrutinee_expr: InFile<AstPtr<ast::Expr>>,
-    pub uncovered_patterns: String,
-}
-
-#[derive(Debug)]
-pub struct NonExhaustiveLet {
-    pub pat: InFile<AstPtr<ast::Pat>>,
-    pub uncovered_patterns: String,
-}
-
-#[derive(Debug)]
-pub struct TypeMismatch<'db> {
-    pub expr_or_pat: InFile<ExprOrPatPtr>,
-    pub expected: Type<'db>,
-    pub actual: Type<'db>,
-}
-
-#[derive(Debug)]
-pub struct NeedMut {
-    pub local: Local,
-    pub span: InFile<SyntaxNodePtr>,
-}
-
-#[derive(Debug)]
-pub struct UnusedMut {
-    pub local: Local,
-}
-
-#[derive(Debug)]
-pub struct UnusedVariable {
-    pub local: Local,
-}
-
-#[derive(Debug)]
-pub struct MovedOutOfRef<'db> {
-    pub ty: Type<'db>,
-    pub span: InFile<SyntaxNodePtr>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct IncoherentImpl {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplOrphan {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-}
-
-// FIXME: Split this off into the corresponding 4 rustc errors
-#[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplIncorrectSafety {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-    pub should_be_safe: bool,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplMissingAssocItems {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-    pub missing: Vec<(Name, AssocItem)>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplRedundantAssocItems {
-    pub file_id: HirFileId,
-    pub trait_: Trait,
-    pub impl_: AstPtr<ast::Impl>,
-    pub assoc_item: (Name, AssocItem),
-}
-
-#[derive(Debug)]
-pub struct RemoveTrailingReturn {
-    pub return_expr: InFile<AstPtr<ast::ReturnExpr>>,
-}
-
-#[derive(Debug)]
-pub struct RemoveUnnecessaryElse {
-    pub if_expr: InFile<AstPtr<ast::IfExpr>>,
-}
-
-#[derive(Debug)]
-pub struct CastToUnsized<'db> {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub cast_ty: Type<'db>,
-}
-
-#[derive(Debug)]
-pub struct InvalidCast<'db> {
-    pub expr: InFile<ExprOrPatPtr>,
-    pub error: CastError,
-    pub expr_ty: Type<'db>,
-    pub cast_ty: Type<'db>,
-}
-
-#[derive(Debug)]
-pub struct GenericArgsProhibited {
-    pub args: InFile<AstPtr<Either<ast::GenericArgList, ast::ParenthesizedArgList>>>,
-    pub reason: GenericArgsProhibitedReason,
-}
-
-#[derive(Debug)]
-pub struct ParenthesizedGenericArgsWithoutFnTrait {
-    pub args: InFile<AstPtr<ast::ParenthesizedArgList>>,
-}
-
-#[derive(Debug)]
-pub struct BadRtn {
-    pub rtn: InFile<AstPtr<ast::ReturnTypeSyntax>>,
-}
-
-#[derive(Debug)]
-pub struct IncorrectGenericsLen {
-    /// Points at the name if there are no generics.
-    pub generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
-    pub kind: IncorrectGenericsLenKind,
-    pub provided: u32,
-    pub expected: u32,
-    pub def: GenericDef,
-}
-
-#[derive(Debug)]
-pub struct MissingLifetime {
-    /// Points at the name if there are no generics.
-    pub generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
-    pub expected: u32,
-    pub def: GenericDef,
-}
-
-#[derive(Debug)]
-pub struct ElidedLifetimesInPath {
-    /// Points at the name if there are no generics.
-    pub generics_or_segment: InFile<AstPtr<Either<ast::GenericArgList, ast::NameRef>>>,
-    pub expected: u32,
-    pub def: GenericDef,
-    pub hard_error: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -472,13 +471,6 @@ impl GenericArgKind {
         }
     }
 }
-
-#[derive(Debug)]
-pub struct IncorrectGenericsOrder {
-    pub provided_arg: InFile<AstPtr<ast::GenericArg>>,
-    pub expected_kind: GenericArgKind,
-}
-
 impl<'db> AnyDiagnostic<'db> {
     pub(crate) fn body_validation_diagnostic(
         db: &'db dyn HirDatabase,
