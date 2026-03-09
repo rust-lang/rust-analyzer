@@ -5,6 +5,7 @@ use syntax::{
     ast::{
         self, AstNode,
         edit::{AstNodeEdit, IndentLevel},
+        syntax_factory::SyntaxFactory,
     },
 };
 
@@ -90,6 +91,8 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
         "Move const to impl block",
         const_.syntax().text_range(),
         |builder| {
+            let make = SyntaxFactory::with_mappings();
+
             let usages = Definition::Const(def)
                 .usages(&ctx.sema)
                 .in_scope(&SearchScope::file_range(FileRange {
@@ -100,7 +103,6 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
             let range_to_delete = match const_.syntax().next_sibling_or_token() {
                 Some(s) if matches!(s.kind(), SyntaxKind::WHITESPACE) => {
-                    // Remove following whitespaces too.
                     const_.syntax().text_range().cover(s.text_range())
                 }
                 _ => const_.syntax().text_range(),
@@ -116,36 +118,30 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                 builder.replace(range, const_ref);
             }
 
-            // Heuristically inserting the extracted const after the consecutive existing consts
-            // from the beginning of assoc items. We assume there are no inherent assoc type as
-            // above.
             let last_const =
                 items.assoc_items().take_while(|it| matches!(it, ast::AssocItem::Const(_))).last();
             let insert_offset = match &last_const {
                 Some(it) => it.syntax().text_range().end(),
                 None => match items.l_curly_token() {
                     Some(l_curly) => l_curly.text_range().end(),
-                    // Not sure if this branch is ever reachable, but it wouldn't hurt to have a
-                    // fallback.
                     None => items.syntax().text_range().start(),
                 },
             };
 
-            // If the moved const will be the first item of the impl, add a new line after that.
-            //
-            // We're assuming the code is formatted according to Rust's standard style guidelines
-            // (i.e. no empty lines between impl's `{` token and its first assoc item).
             let fixup = if last_const.is_none() { "\n" } else { "" };
             let indent = IndentLevel::from_node(parent_fn.syntax());
 
+            let mut editor = builder.make_editor(const_.syntax());
             let const_ = const_.clone_for_update();
             let const_ = const_.reset_indent();
-            let const_ = const_.indent(indent);
+            let const_ = const_.indent_with_mapping(indent, &make);
             builder.insert(insert_offset, format!("\n{indent}{const_}{fixup}"));
+
+            editor.add_mappings(make.finish_with_mappings());
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
-
 #[cfg(test)]
 mod tests {
     use crate::tests::{check_assist, check_assist_not_applicable};
