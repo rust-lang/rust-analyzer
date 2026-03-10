@@ -445,7 +445,7 @@ diagnostics![AnyDiagnostic<'db> ->
 
     ;
 
-    // IncorrectCase,
+    IncorrectCase,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
