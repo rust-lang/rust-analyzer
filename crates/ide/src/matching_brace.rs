@@ -79,6 +79,14 @@ mod tests {
             "fn func(x) { return (2 * (x + 3)$0) + 5;}",
             "fn func(x) { return $0(2 * (x + 3)) + 5;}",
         );
+        do_check(
+            "fn func(x) { return (2 * (x $0+ 3)) + 5;}",
+            "fn func(x) { return (2 * (x + 3$0)) + 5;}",
+        );
+        do_check(
+            "fn func(x) { re$0turn (2 * (x + 3)) + 5;}",
+            "fn func(x) { return (2 * (x + 3)) + 5;$0}",
+        );
 
         {
             cov_mark::check!(pipes_not_braces);
