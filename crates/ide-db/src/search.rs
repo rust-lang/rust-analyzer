@@ -169,7 +169,7 @@ impl SearchScope {
             entries.extend(
                 source_root
                     .iter()
-                    .map(|id| (EditionedFileId::new(db, id, crate_data.edition, krate), None)),
+                    .map(|id| (EditionedFileId::new(db, id, crate_data.edition), None)),
             );
         }
         SearchScope { entries }
@@ -183,9 +183,11 @@ impl SearchScope {
 
             let source_root = db.file_source_root(root_file).source_root_id(db);
             let source_root = db.source_root(source_root).source_root(db);
-            entries.extend(source_root.iter().map(|id| {
-                (EditionedFileId::new(db, id, rev_dep.edition(db), rev_dep.into()), None)
-            }));
+            entries.extend(
+                source_root
+                    .iter()
+                    .map(|id| (EditionedFileId::new(db, id, rev_dep.edition(db)), None)),
+            );
         }
         SearchScope { entries }
     }
@@ -199,7 +201,7 @@ impl SearchScope {
         SearchScope {
             entries: source_root
                 .iter()
-                .map(|id| (EditionedFileId::new(db, id, of.edition(db), of.into()), None))
+                .map(|id| (EditionedFileId::new(db, id, of.edition(db)), None))
                 .collect(),
         }
     }
@@ -1370,7 +1372,7 @@ fn is_name_ref_in_import(name_ref: &ast::NameRef) -> bool {
 }
 
 fn is_name_ref_in_test(sema: &Semantics<'_, RootDatabase>, name_ref: &ast::NameRef) -> bool {
-    name_ref.syntax().ancestors().any(|node| match ast::Fn::cast(node) {
+    sema.ancestors_with_macros(name_ref.syntax().clone()).any(|node| match ast::Fn::cast(node) {
         Some(it) => sema.to_def(&it).is_some_and(|func| func.is_test(sema.db)),
         None => false,
     })

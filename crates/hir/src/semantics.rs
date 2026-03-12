@@ -472,12 +472,12 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn attach_first_edition_opt(&self, file: FileId) -> Option<EditionedFileId> {
         let krate = self.file_to_module_defs(file).next()?.krate(self.db);
-        Some(EditionedFileId::new(self.db, file, krate.edition(self.db), krate.id))
+        Some(EditionedFileId::new(self.db, file, krate.edition(self.db)))
     }
 
     pub fn attach_first_edition(&self, file: FileId) -> EditionedFileId {
         self.attach_first_edition_opt(file)
-            .unwrap_or_else(|| EditionedFileId::current_edition_guess_origin(self.db, file))
+            .unwrap_or_else(|| EditionedFileId::current_edition(self.db, file))
     }
 
     pub fn parse_guess_edition(&self, file_id: FileId) -> ast::SourceFile {
@@ -1817,6 +1817,28 @@ impl<'db> SemanticsImpl<'db> {
 
     fn resolve_try_expr(&self, try_expr: &ast::TryExpr) -> Option<Function> {
         self.analyze(try_expr.syntax())?.resolve_try_expr(self.db, try_expr)
+    }
+
+    /// The type that the associated `try` block, closure or function expects.
+    pub fn try_expr_returned_type(&self, try_expr: &ast::TryExpr) -> Option<Type<'db>> {
+        self.ancestors_with_macros(try_expr.syntax().clone()).find_map(|parent| {
+            if let Some(try_block) = ast::BlockExpr::cast(parent.clone())
+                && try_block.try_block_modifier().is_some()
+            {
+                Some(self.type_of_expr(&try_block.into())?.original)
+            } else if let Some(closure) = ast::ClosureExpr::cast(parent.clone()) {
+                Some(
+                    self.type_of_expr(&closure.into())?
+                        .original
+                        .as_callable(self.db)?
+                        .return_type(),
+                )
+            } else if let Some(function) = ast::Fn::cast(parent) {
+                Some(self.to_def(&function)?.ret_type(self.db))
+            } else {
+                None
+            }
+        })
     }
 
     // This does not resolve the method call to the correct trait impl!

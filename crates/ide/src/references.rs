@@ -513,26 +513,32 @@ fn test() {
     }
 
     #[test]
-    fn test_access() {
+    fn exclude_tests_macro_refs() {
         check(
             r#"
-struct S { f$0: u32 }
+macro_rules! my_macro {
+    ($e:expr) => { $e };
+}
+
+fn foo$0() -> i32 { 42 }
+
+fn bar() {
+    foo();
+}
 
 #[test]
-fn test() {
-    let mut x = S { f: 92 };
-    x.f = 92;
+fn t2() {
+    my_macro!(foo());
 }
 "#,
             expect![[r#"
-                f Field FileId(0) 11..17 11..12
+                foo Function FileId(0) 52..74 55..58
 
-                FileId(0) 61..62 read test
-                FileId(0) 76..77 write test
+                FileId(0) 91..94
+                FileId(0) 133..136 test
             "#]],
         );
     }
-
     #[test]
     fn test_struct_literal_after_space() {
         check(
@@ -1145,10 +1151,7 @@ pub(super) struct Foo$0 {
         check_with_scope(
             code,
             Some(&mut |db| {
-                SearchScope::single_file(EditionedFileId::current_edition_guess_origin(
-                    db,
-                    FileId::from_raw(2),
-                ))
+                SearchScope::single_file(EditionedFileId::current_edition(db, FileId::from_raw(2)))
             }),
             expect![[r#"
                 quux Function FileId(0) 19..35 26..30

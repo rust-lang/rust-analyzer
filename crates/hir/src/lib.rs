@@ -1091,7 +1091,7 @@ fn macro_call_diagnostics<'db>(
         let file_id = loc.kind.file_id();
         let mut range = precise_macro_call_location(&loc.kind, db, loc.krate);
         let RenderedExpandError { message, error, kind } = err.render_to_string(db);
-        if Some(err.span().anchor.file_id) == file_id.file_id().map(|it| it.editioned_file_id(db)) {
+        if Some(err.span().anchor.file_id) == file_id.file_id().map(|it| it.span_file_id(db)) {
             range.value = err.span().range
                 + db.ast_id_map(file_id).get_erased(err.span().anchor.ast_id).text_range().start();
         }
@@ -5952,7 +5952,16 @@ impl<'db> Type<'db> {
     ) -> R {
         let module = resolver.module();
         let interner = DbInterner::new_with(db, module.krate(db));
-        let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
+        // Most IDE operations want to operate in PostAnalysis mode, revealing opaques. This makes
+        // for a nicer IDE experience. However, method resolution is always done on real code (either
+        // existing code or code to be inserted), and there using PostAnalysis is dangerous - we may
+        // suggest invalid methods. So we're using the TypingMode of the body we're in.
+        let typing_mode = if let Some(body_owner) = resolver.body_owner() {
+            TypingMode::analysis_in_body(interner, body_owner.into())
+        } else {
+            TypingMode::non_body_analysis()
+        };
+        let infcx = interner.infer_ctxt().build(typing_mode);
         let unstable_features =
             MethodResolutionUnstableFeatures::from_def_map(resolver.top_level_def_map());
         let environment = param_env_from_resolver(db, resolver);
@@ -6149,6 +6158,13 @@ impl<'db> Type<'db> {
         Some(adt.into())
     }
 
+    /// Holes in the args can come from lifetime/const params.
+    pub fn as_adt_with_args(&self) -> Option<(Adt, Vec<Option<Type<'db>>>)> {
+        let (adt, args) = self.ty.as_adt()?;
+        let args = args.iter().map(|arg| Some(self.derived(arg.ty()?))).collect();
+        Some((adt.into(), args))
+    }
+
     pub fn as_builtin(&self) -> Option<BuiltinType> {
         self.ty.as_builtin().map(|inner| BuiltinType { inner })
     }
@@ -6167,6 +6183,7 @@ impl<'db> Type<'db> {
         self.autoderef_(db)
             .filter_map(|ty| ty.dyn_trait())
             .flat_map(move |dyn_trait_id| hir_ty::all_super_traits(db, dyn_trait_id))
+            .copied()
             .map(Trait::from)
     }
 
@@ -6184,6 +6201,7 @@ impl<'db> Type<'db> {
                         _ => None,
                     })
                     .flat_map(|t| hir_ty::all_super_traits(db, t))
+                    .copied()
             })
             .map(Trait::from)
     }
