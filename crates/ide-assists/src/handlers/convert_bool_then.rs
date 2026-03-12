@@ -126,7 +126,7 @@ pub(crate) fn convert_if_to_bool_then(acc: &mut Assists, ctx: &AssistContext<'_>
             let cond = if invert_cond {
                 invert_boolean_expression(&make, cond)
             } else {
-                cond.clone_for_update()
+                cond.clone_subtree()
             };
             let cond = if parenthesize { make.expr_paren(cond).into() } else { cond };
             let arg_list = make.arg_list(Some(make.expr_closure(None, closure_body).into()));
