@@ -931,7 +931,7 @@ impl<'a> IntoIterator for &'a Env {
 
 #[derive(Debug)]
 pub struct CyclicDependenciesError {
-    path: Vec<(CrateBuilderId, Option<CrateDisplayName>)>,
+    pub path: Vec<(CrateBuilderId, Option<CrateDisplayName>)>,
 }
 
 impl CyclicDependenciesError {
