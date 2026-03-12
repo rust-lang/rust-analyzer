@@ -1357,6 +1357,22 @@ fn cargo_to_crate_graph(
     // target of downstream.
     for pkg in cargo.packages() {
         for dep in &cargo[pkg].dependencies {
+            // A package shouldn't depend on itself in the r-a crate graph. This is rare
+            // but legal in Rust.
+            //
+            // One use case is a package depending on itself in dev-dependencies, to
+            // enable additional features when testing. The cfg crate in r-a does this.
+            //
+            // <https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies>
+            //
+            // Another use case is the 'semver trick', where a crate depends on itself to
+            // reduce the number of breaking changes.
+            //
+            // <https://github.com/dtolnay/semver-trick>
+            if dep.pkg == pkg {
+                continue;
+            }
+
             let Some(&to) = pkg_to_lib_crate.get(&dep.pkg) else { continue };
             let Some(targets) = pkg_crates.get(&pkg) else { continue };
 
