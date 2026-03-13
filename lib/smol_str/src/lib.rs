@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(feature = "nightly", feature(deref_pure_trait))]
 #![debugger_visualizer(gdb_script_file = "gdb_smolstr_printer.py")]
 
 extern crate alloc;
@@ -123,6 +124,9 @@ impl SmolStr {
         SmolStr::new(unsafe { core::str::from_utf8_unchecked(bytes) })
     }
 }
+
+#[cfg(feature = "nightly")]
+unsafe impl std::ops::DerefPure for SmolStr {}
 
 impl Clone for SmolStr {
     #[inline]
