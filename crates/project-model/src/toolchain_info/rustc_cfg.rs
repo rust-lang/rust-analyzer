@@ -62,7 +62,7 @@ fn rustc_print_cfg(
     config: QueryConfig<'_>,
 ) -> anyhow::Result<String> {
     const RUSTC_ARGS: [&str; 2] = ["--print", "cfg"];
-    let (sysroot, current_dir) = match config {
+    let (sysroot, mut current_dir) = match config {
         QueryConfig::Cargo(sysroot, cargo_toml, _) => {
             let mut cmd = sysroot.tool(Tool::Cargo, cargo_toml.parent(), extra_env);
             cmd.env("__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS", "nightly");
@@ -85,6 +85,14 @@ fn rustc_print_cfg(
         }
         QueryConfig::Rustc(sysroot, current_dir) => (sysroot, current_dir),
     };
+
+    let temp_dir = std::env::temp_dir();
+    if !current_dir.exists() {
+        // It doesn't matter which directory we run `rustc --print cfg` in, but we
+        // want a directory that exists. Use the system temporary directory so we
+        // have a portable directory that should always exist.
+        current_dir = &temp_dir;
+    }
 
     let mut cmd = sysroot.tool(Tool::Rustc, current_dir, extra_env);
     cmd.args(RUSTC_ARGS);
