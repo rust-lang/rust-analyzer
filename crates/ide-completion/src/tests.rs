@@ -242,10 +242,32 @@ pub(crate) fn check_edit_with_config(
     ra_fixture_before: &str,
     ra_fixture_after: &str,
 ) {
+    check_edit_impl(config, what, ra_fixture_before, ra_fixture_after, None)
+}
+
+#[track_caller]
+pub(crate) fn check_edit_with_trigger_character(
+    what: &str,
+    #[rust_analyzer::rust_fixture] ra_fixture_before: &str,
+    #[rust_analyzer::rust_fixture] ra_fixture_after: &str,
+    trigger_character: Option<char>,
+) {
+    check_edit_impl(TEST_CONFIG, what, ra_fixture_before, ra_fixture_after, trigger_character)
+}
+
+#[track_caller]
+fn check_edit_impl(
+    config: CompletionConfig<'_>,
+    what: &str,
+    ra_fixture_before: &str,
+    ra_fixture_after: &str,
+    trigger_character: Option<char>,
+) {
     let ra_fixture_after = trim_indent(ra_fixture_after);
     let (db, position) = position(ra_fixture_before);
-    let completions: Vec<CompletionItem> =
-        hir::attach_db(&db, || crate::completions(&db, &config, position, None).unwrap());
+    let completions: Vec<CompletionItem> = hir::attach_db(&db, || {
+        crate::completions(&db, &config, position, trigger_character).unwrap()
+    });
     let Some((completion,)) = completions.iter().filter(|it| it.lookup() == what).collect_tuple()
     else {
         panic!("can't find {what:?} completion in {completions:#?}")
