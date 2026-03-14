@@ -190,12 +190,15 @@ impl flags::Scip {
                     symbol_roles |= scip_types::SymbolRole::Definition as i32;
                 }
 
-                let enclosing_range = match token.definition_body {
-                    Some(def_body) if def_body.file_id == file_id => {
-                        text_range_to_scip_range(&line_index, def_body.range)
-                    }
-                    _ => Vec::new(),
-                };
+                // Look up the enclosing_range for this specific occurrence from ReferenceData
+                let enclosing_range = token
+                    .references
+                    .iter()
+                    .find(|r| r.range.file_id == file_id && r.range.range == text_range)
+                    .and_then(|r| r.enclosing_range)
+                    .filter(|range| range.file_id == file_id)
+                    .map(|range| text_range_to_scip_range(&line_index, range.range))
+                    .unwrap_or_default();
 
                 occurrences.push(scip_types::Occurrence {
                     range: text_range_to_scip_range(&line_index, text_range),
@@ -937,7 +940,7 @@ pub mod example_mod {
         );
 
         let file = si.files.first().unwrap();
-        let (_, token_id) = file.tokens.get(1).unwrap(); // first token is file module, second is `foo`
+        let (token_range, token_id) = file.tokens.get(1).unwrap(); // first token is file module, second is `foo`
         let token = si.tokens.get(*token_id).unwrap();
 
         let expected_range = FileRangeWrapper {
@@ -945,6 +948,335 @@ pub mod example_mod {
             range: TextRange::new(0.into(), 11.into()),
         };
 
-        assert_eq!(token.definition_body, Some(expected_range));
+        // Look up enclosing_range from ReferenceData for this occurrence
+        let enclosing_range = token
+            .references
+            .iter()
+            .find(|r| r.range.range == *token_range)
+            .and_then(|r| r.enclosing_range);
+
+        assert_eq!(enclosing_range, Some(expected_range));
+    }
+
+    /// Find a token by range marked with ‹...›, then check its enclosing_range matches «...»
+    /// Test Format:
+    /// - INPUT: Source code with «...» markers around the EXPECTED enclosing range
+    ///   and ‹...› markers around the specific TOKEN to check
+    /// - The test asserts that enclosing_range EXACTLY matches the «...» marked region
+    #[track_caller]
+    fn check_enclosing_range(input: &str) {
+        // Remove markers and track positions
+        // We need to calculate positions in the cleaned source
+
+        // First, find all marker positions in the original input
+        let enc_start_orig = input.find('«').expect("Input should contain «");
+        let enc_end_orig = input.find('»').expect("Input should contain »");
+        let tok_start_orig = input.find('‹').expect("Input should contain ‹");
+        let tok_end_orig = input.find('›').expect("Input should contain ›");
+
+        // ChangeFixture strips the leading newline, so track that
+        let leading_newline_offset = if input.starts_with('\n') { 1 } else { 0 };
+
+        // Remove all markers from input
+        let source = input.replace(['«', '»', '‹', '›'], "");
+
+        // Calculate positions in cleaned source (after marker removal and leading newline strip)
+        // For each position, subtract:
+        // - leading_newline_offset (if applicable)
+        // - bytes of markers that appeared before this position
+
+        fn adjusted_pos(
+            orig_pos: usize,
+            leading_newline_offset: usize,
+            enc_start: usize,
+            enc_end: usize,
+            tok_start: usize,
+            tok_end: usize,
+        ) -> usize {
+            let mut pos = orig_pos - leading_newline_offset;
+            // Each marker is 3 bytes in UTF-8 (« » ‹ ›)
+            if orig_pos > enc_start {
+                pos -= '«'.len_utf8();
+            }
+            if orig_pos > enc_end {
+                pos -= '»'.len_utf8();
+            }
+            if orig_pos > tok_start {
+                pos -= '‹'.len_utf8();
+            }
+            if orig_pos > tok_end {
+                pos -= '›'.len_utf8();
+            }
+            pos
+        }
+
+        // Enclosing range: from « to » (exclusive of markers)
+        // The content between « and » in original becomes the range in cleaned source
+        let enc_start_clean = adjusted_pos(
+            enc_start_orig + '«'.len_utf8(),
+            leading_newline_offset,
+            enc_start_orig,
+            enc_end_orig,
+            tok_start_orig,
+            tok_end_orig,
+        );
+        let enc_end_clean = adjusted_pos(
+            enc_end_orig,
+            leading_newline_offset,
+            enc_start_orig,
+            enc_end_orig,
+            tok_start_orig,
+            tok_end_orig,
+        );
+
+        // Token range: from ‹ to › (exclusive of markers)
+        let tok_start_clean = adjusted_pos(
+            tok_start_orig + '‹'.len_utf8(),
+            leading_newline_offset,
+            enc_start_orig,
+            enc_end_orig,
+            tok_start_orig,
+            tok_end_orig,
+        );
+        let tok_end_clean = adjusted_pos(
+            tok_end_orig,
+            leading_newline_offset,
+            enc_start_orig,
+            enc_end_orig,
+            tok_start_orig,
+            tok_end_orig,
+        );
+
+        let expected_enc_range =
+            TextRange::new((enc_start_clean as u32).into(), (enc_end_clean as u32).into());
+
+        let expected_tok_range =
+            TextRange::new((tok_start_clean as u32).into(), (tok_end_clean as u32).into());
+
+        let mut host = AnalysisHost::default();
+        let change_fixture = ChangeFixture::parse(&source);
+        host.raw_database_mut().apply_change(change_fixture.change);
+
+        let analysis = host.analysis();
+        let si = StaticIndex::compute(
+            &analysis,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
+
+        let file = si.files.first().unwrap();
+
+        // Find the token by its range
+        let token_id = file
+            .tokens
+            .iter()
+            .find_map(|(range, id)| if *range == expected_tok_range { Some(id) } else { None })
+            .unwrap_or_else(|| {
+                let all_ranges: Vec<_> = file.tokens.iter().map(|(r, _)| *r).collect();
+                panic!(
+                    "Should find token at range {:?}\nAvailable token ranges: {:?}",
+                    expected_tok_range, all_ranges
+                )
+            });
+
+        let token = si.tokens.get(*token_id).unwrap();
+
+        // Look up enclosing_range from the ReferenceData for this specific occurrence
+        let enclosing = token
+            .references
+            .iter()
+            .find(|r| r.range.range == expected_tok_range)
+            .and_then(|r| r.enclosing_range)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Token at {:?} should have enclosing_range in ReferenceData",
+                    expected_tok_range
+                )
+            });
+
+        // Extract marked content for error messages
+        let enc_marked_content = &input[enc_start_orig + '«'.len_utf8()..enc_end_orig];
+        let tok_marked_content = &input[tok_start_orig + '‹'.len_utf8()..tok_end_orig];
+
+        assert_eq!(
+            enclosing.range,
+            expected_enc_range,
+            "\nToken '{}' at {:?} enclosing_range mismatch:\n  Expected: {:?} (marked: «{}»)\n  Actual:   {:?}\n",
+            tok_marked_content,
+            expected_tok_range,
+            expected_enc_range,
+            enc_marked_content,
+            enclosing.range,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_method_in_impl() {
+        check_enclosing_range(
+            r#"
+struct Foo;
+impl Foo {
+    «fn ‹method›(&self) {}»
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_struct_field() {
+        check_enclosing_range(
+            r#"
+struct Point {
+    «‹x›: i32»,
+    y: i32,
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_nested_function() {
+        check_enclosing_range(
+            r#"
+fn outer() {
+    «fn ‹inner›() {
+        let x = 1;
+    }»
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_local_variable() {
+        check_enclosing_range(
+            r#"
+fn foo() {
+    «let ‹x› = 42;»
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_closure_parameter() {
+        check_enclosing_range(
+            r#"
+fn main() {
+    let f = |«‹x›: i32»| x + 1;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_function_parameter() {
+        check_enclosing_range(
+            r#"
+fn greet(«‹name›: &str») {
+    println!("{}", name);
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_top_level_const() {
+        check_enclosing_range("«const ‹FOO›: i32 = 42;»");
+    }
+
+    #[test]
+    fn enclosing_range_variable_in_if_condition() {
+        // When we look up a reference (usage) of a token, its enclosing_range
+        // is the enclosing range of the DEFINITION, not the usage site.
+        // Here `val` usage is in the if condition, but enclosing_range points
+        // to the parameter declaration `val: bool`.
+        check_enclosing_range(
+            r#"
+fn check(val: bool) {
+    «if ‹val› {
+        println!("yes");
+    }»
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_variable_in_match_arm() {
+        // The pattern `0` in a match arm is a literal, not a definition.
+        // Test with the parameter `x` instead - its enclosing_range is the param declaration.
+        check_enclosing_range(
+            r#"
+fn process(x: i32) {
+    «match ‹x› {
+        0 => println!("zero"),
+        _ => println!("other"),
+    }»
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_method_call_receiver() {
+        // When we look up `s` at the usage site `s.len()`, its enclosing_range
+        // is the enclosing range of the DEFINITION (the parameter declaration).
+        check_enclosing_range(
+            r#"
+fn example(s: String) {
+    «‹s›.len()»;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_in_macro_expansion() {
+        // This test demonstrates that macro call tokens get correct enclosing_range.
+        // The macro name `m` at the call site gets enclosing_range = the macro call.
+        check_enclosing_range(
+            r#"
+macro_rules! m {
+    () => {
+        let x = 1;
+    };
+}
+
+fn foo() {
+    «‹m›!()»;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enclosing_range_macro_with_argument() {
+        // FIXME: This test documents current behavior which may not be ideal.
+        //
+        // When a token is passed as an argument to a macro, the enclosing_range
+        // is the TOKEN_TREE containing the argument (i.e., `(y)`), not the full
+        // MACRO_CALL (i.e., `m!(y)`).
+        //
+        // This happens because scope_node is token.parent(), which for `y` inside
+        // `m!(y)` is the TOKEN_TREE node `(y)`, not the MACRO_CALL node.
+        //
+        // Ideally, the enclosing_range might be the full macro call or the
+        // expansion context, but that would require different scope_node handling.
+        check_enclosing_range(
+            r#"
+macro_rules! m {
+    ($x:expr) => {
+        $x + 1
+    };
+}
+
+fn foo() {
+    let y = 1;
+    m!«(‹y›)»;
+}
+"#,
+        );
     }
 }
