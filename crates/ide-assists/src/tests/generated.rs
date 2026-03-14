@@ -1476,6 +1476,42 @@ fn foo<T: Copy + Clone>() { }
 }
 
 #[test]
+fn doctest_generate_binary_ops_impl() {
+    check_doc_test(
+        "generate_binary_ops_impl",
+        r#####"
+struct Int(i32);
+
+impl<T> core::ops::AddAssign$0<i32> for Int {
+    fn add_assign(&mut self, rhs: i32) {
+        self.0 += rhs;
+        todo!()
+    }
+}
+"#####,
+        r#####"
+struct Int(i32);
+
+impl<T> core::ops::Add<i32> for Int {
+    type Output = Self;
+
+    fn add(mut self, rhs: i32) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<T> core::ops::AddAssign<i32> for Int {
+    fn add_assign(&mut self, rhs: i32) {
+        self.0 += rhs;
+        todo!()
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_blanket_trait_impl() {
     check_doc_test(
         "generate_blanket_trait_impl",
