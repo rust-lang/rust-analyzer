@@ -29,7 +29,7 @@ use crate::{
     HoverAction, HoverConfig, HoverResult, Markup, MemoryLayoutHoverConfig,
     MemoryLayoutHoverRenderKind,
     doc_links::{remove_links, rewrite_links},
-    hover::{SubstTyLen, notable_traits, walk_and_push_ty},
+    hover::{SubstTyLen, TyOrConst, notable_traits, walk_and_push_ty},
     interpret::render_const_eval_error,
 };
 
@@ -454,7 +454,7 @@ pub(super) fn definition(
     db: &RootDatabase,
     def: Definition,
     famous_defs: Option<&FamousDefs<'_, '_>>,
-    notable_traits: &[(Trait, Vec<(Option<Type<'_>>, Name)>)],
+    notable_traits: &[(Trait, Vec<(Option<TyOrConst<'_>>, Name)>)],
     macro_arm: Option<u32>,
     render_extras: bool,
     subst_types: Option<&Vec<(Symbol, Type<'_>)>>,
@@ -525,65 +525,15 @@ pub(super) fn definition(
         Definition::Const(it) => {
             let body = it.eval(db);
             Some(match body {
-                Ok(it) => match it.render_debug(db) {
-                    Ok(it) => it,
-                    Err(err) => {
-                        let it = it.render(db, display_target);
-                        if env::var_os("RA_DEV").is_some() {
-                            format!(
-                                "{it}\n{}",
-                                render_const_eval_error(db, err.into(), display_target)
-                            )
-                        } else {
-                            it
-                        }
-                    }
-                },
-                Err(err) => {
-                    let source = it.source(db)?;
-                    let mut body = source.value.body()?.syntax().clone();
-                    if let Some(macro_file) = source.file_id.macro_file() {
-                        let span_map = db.expansion_span_map(macro_file);
-                        body = prettify_macro_expansion(db, body, &span_map, it.krate(db).into());
-                    }
-                    if env::var_os("RA_DEV").is_some() {
-                        format!("{body}\n{}", render_const_eval_error(db, err, display_target))
-                    } else {
-                        body.to_string()
-                    }
-                }
+                Ok(it) => const_value(&it, db, display_target),
+                Err(err) => source_value(&it, |it| it.body(), err, db, display_target)?,
             })
         }
         Definition::Static(it) => {
             let body = it.eval(db);
             Some(match body {
-                Ok(it) => match it.render_debug(db) {
-                    Ok(it) => it,
-                    Err(err) => {
-                        let it = it.render(db, display_target);
-                        if env::var_os("RA_DEV").is_some() {
-                            format!(
-                                "{it}\n{}",
-                                render_const_eval_error(db, err.into(), display_target)
-                            )
-                        } else {
-                            it
-                        }
-                    }
-                },
-                Err(err) => {
-                    let source = it.source(db)?;
-                    let mut body = source.value.body()?.syntax().clone();
-                    if let Some(macro_file) = source.file_id.macro_file() {
-                        let span_map = db.expansion_span_map(macro_file);
-                        body = prettify_macro_expansion(db, body, &span_map, it.krate(db).into());
-                    }
-                    if env::var_os("RA_DEV").is_some() {
-                        format!("{body}\n{}", render_const_eval_error(db, err, display_target))
-                    } else {
-                        body.to_string()
-                    }
-                }
+                Ok(it) => const_value(&it, db, display_target),
+                Err(err) => source_value(&it, |it| it.body(), err, db, display_target)?,
             })
         }
         _ => None,
@@ -904,7 +854,7 @@ pub(super) fn literal(
 
 fn render_notable_trait(
     db: &RootDatabase,
-    notable_traits: &[(Trait, Vec<(Option<Type<'_>>, Name)>)],
+    notable_traits: &[(Trait, Vec<(Option<TyOrConst<'_>>, Name)>)],
     edition: Edition,
     display_target: DisplayTarget,
 ) -> Option<String> {
@@ -926,7 +876,16 @@ fn render_notable_trait(
                     f(&name.display(db, edition))?;
                     f(&" = ")?;
                     match ty {
-                        Some(ty) => f(&ty.display(db, display_target)),
+                        Some(TyOrConst::Type(ty)) => f(&ty.display(db, display_target)),
+                        Some(TyOrConst::Const(it)) => match it.eval(db) {
+                            Ok(value) => f(&const_value(&value, db, display_target)),
+                            Err(err) => {
+                                match source_value(it, |it| it.body(), err, db, display_target) {
+                                    Some(s) => f(&s),
+                                    None => f(&"?"),
+                                }
+                            }
+                        },
                         None => f(&"?"),
                     }
                 })
@@ -1068,6 +1027,44 @@ fn closure_ty(
     }
     res.markup = markup.into();
     Some(res)
+}
+
+fn const_value(
+    evaluated: &hir::EvaluatedConst<'_>,
+    db: &RootDatabase,
+    display_target: DisplayTarget,
+) -> String {
+    match evaluated.render_debug(db) {
+        Ok(it) => it,
+        Err(err) => {
+            let it = evaluated.render(db, display_target);
+            if env::var_os("RA_DEV").is_some() {
+                format!("{it}\n{}", render_const_eval_error(db, err.into(), display_target))
+            } else {
+                it
+            }
+        }
+    }
+}
+
+fn source_value<T: HasCrate + HasSource + Copy>(
+    it: &T,
+    expr: fn(&<T as HasSource>::Ast) -> Option<ast::Expr>,
+    err: hir::ConstEvalError<'_>,
+    db: &RootDatabase,
+    display_target: DisplayTarget,
+) -> Option<String> {
+    let source = it.source(db)?;
+    let mut body = expr(&source.value)?.syntax().clone();
+    if let Some(macro_file) = source.file_id.macro_file() {
+        let span_map = db.expansion_span_map(macro_file);
+        body = prettify_macro_expansion(db, body, &span_map, it.krate(db).into());
+    }
+    Some(if env::var_os("RA_DEV").is_some() {
+        format!("{body}\n{}", render_const_eval_error(db, err, display_target))
+    } else {
+        body.to_string()
+    })
 }
 
 fn definition_path(db: &RootDatabase, &def: &Definition, edition: Edition) -> Option<String> {
