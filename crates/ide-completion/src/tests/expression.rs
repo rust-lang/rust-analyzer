@@ -2961,6 +2961,41 @@ fn foo<T: ExcludedTrait>() {
 }
 
 #[test]
+fn trait_method_completion_uses_ufcs_syntax() {
+    check_edit(
+        "baby_name",
+        r#"
+trait Animal {
+    fn baby_name() -> String;
+}
+
+struct Dog;
+impl Animal for Dog {
+    fn baby_name() -> String { String::from("Puppy") }
+}
+
+fn make() {
+    Dog::$0
+}
+"#,
+        r#"
+trait Animal {
+    fn baby_name() -> String;
+}
+
+struct Dog;
+impl Animal for Dog {
+    fn baby_name() -> String { String::from("Puppy") }
+}
+
+fn make() {
+    <Dog as Animal>::baby_name()$0
+}
+"#,
+    );
+}
+
+#[test]
 fn hide_ragennew_synthetic_identifiers() {
     check(
         r#"
