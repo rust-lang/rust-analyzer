@@ -6,7 +6,7 @@ use anyhow::{Context, bail, format_err};
 use xshell::{Shell, cmd};
 
 use crate::{
-    flags::{self, Malloc, PgoTrainingCrate},
+    flags::{self, Allocator, PgoTrainingCrate},
     util::detect_target,
 };
 
@@ -36,7 +36,7 @@ pub(crate) struct ClientOpt {
 const VS_CODES: &[&str] = &["code", "code-exploration", "code-insiders", "codium", "code-oss"];
 
 pub(crate) struct ServerOpt {
-    pub(crate) malloc: Malloc,
+    pub(crate) allocator: Allocator,
     pub(crate) dev_rel: bool,
     pub(crate) pgo: Option<PgoTrainingCrate>,
     pub(crate) force_always_assert: bool,
@@ -44,11 +44,11 @@ pub(crate) struct ServerOpt {
 
 impl ServerOpt {
     fn to_features(&self) -> Vec<&'static str> {
-        let malloc_features = self.malloc.to_features();
+        let allocator_features = self.allocator.to_features();
         let mut features = Vec::with_capacity(
-            malloc_features.len() + if self.force_always_assert { 2 } else { 0 },
+            allocator_features.len() + if self.force_always_assert { 2 } else { 0 },
         );
-        features.extend(malloc_features);
+        features.extend(allocator_features);
         if self.force_always_assert {
             features.extend(["--features", "force-always-assert"]);
         }
