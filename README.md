@@ -4,6 +4,8 @@
     alt="rust-analyzer logo">
 </p>
 
+[![codecov](https://codecov.io/github/rust-lang/rust-analyzer/graph/badge.svg)](https://app.codecov.io/github/rust-lang/rust-analyzer)
+
 rust-analyzer is a language server that provides IDE functionality for
 writing Rust programs. You can use it with any editor that supports
 the [Language Server
