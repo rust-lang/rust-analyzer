@@ -19,7 +19,9 @@
 //! # The Call-site Hierarchy
 //!
 //! `ExpnData::call_site` in rustc, `MacroCallLoc::call_site` in rust-analyzer.
+#[cfg(feature = "salsa")]
 use crate::Edition;
+
 use std::fmt;
 
 /// A syntax context describes a hierarchy tracking order of macro definitions.
@@ -281,7 +283,7 @@ const _: () = {
                     let fields = SyntaxContext::ingredient(zalsa).data(zalsa, id);
                     fields.edition
                 }
-                None => Edition::from_u32(SyntaxContext::MAX_ID - self.into_u32()),
+                None => Edition::from_u32(SyntaxContext::MAX_ROOT_ID - self.into_u32()),
             }
         }
 
@@ -331,11 +333,46 @@ const _: () = {
     }
 };
 
-impl SyntaxContext {
+#[cfg(feature = "salsa")]
+impl<'db> SyntaxContext {
+    const MAX_ROOT_ID: u32 = salsa::Id::MAX_U32 + Edition::LATEST as u32;
+
+    #[inline]
+    pub const fn into_u32(self) -> u32 {
+        self.0
+    }
+
+    /// # Safety
+    ///
+    /// The ID must be a valid `SyntaxContext`.
+    #[inline]
+    pub const unsafe fn from_u32(u32: u32) -> Self {
+        debug_assert!(u32 != 0);
+        // INVARIANT: Our precondition.
+        Self(u32, std::marker::PhantomData)
+    }
+
+    #[inline]
+    fn as_salsa_id(self) -> Option<salsa::Id> {
+        if self.is_root() {
+            None
+        } else {
+            // SAFETY: By our invariant, this is either a root (which we verified it's not) or a valid `salsa::Id`.
+            // Note we use `from_bits_unchecked` here to avoid the debug assert ..., the generation is still 0 with this.
+            unsafe { Some(salsa::Id::from_bits_unchecked(self.0 as u64)) }
+        }
+    }
+
+    #[inline]
+    fn from_salsa_id(id: salsa::Id) -> Self {
+        // SAFETY: This comes from a Salsa ID.
+        unsafe { Self::from_u32(id.index()) }
+    }
+
     #[inline]
     pub fn is_root(self) -> bool {
-        (SyntaxContext::MAX_ID - Edition::LATEST as u32) <= self.into_u32()
-            && self.into_u32() <= (SyntaxContext::MAX_ID - Edition::Edition2015 as u32)
+        (SyntaxContext::MAX_ROOT_ID - Edition::LATEST as u32) <= self.into_u32()
+            && self.into_u32() <= (SyntaxContext::MAX_ROOT_ID - Edition::Edition2015 as u32)
     }
 
     #[inline]
@@ -350,42 +387,7 @@ impl SyntaxContext {
     pub const fn root(edition: Edition) -> Self {
         let edition = edition as u32;
         // SAFETY: Roots are valid `SyntaxContext`s
-        unsafe { SyntaxContext::from_u32(SyntaxContext::MAX_ID - edition) }
-    }
-}
-
-#[cfg(feature = "salsa")]
-impl<'db> SyntaxContext {
-    const MAX_ID: u32 = salsa::Id::MAX_U32 - 1;
-
-    #[inline]
-    pub const fn into_u32(self) -> u32 {
-        self.0
-    }
-
-    /// # Safety
-    ///
-    /// The ID must be a valid `SyntaxContext`.
-    #[inline]
-    pub const unsafe fn from_u32(u32: u32) -> Self {
-        // INVARIANT: Our precondition.
-        Self(u32, std::marker::PhantomData)
-    }
-
-    #[inline]
-    fn as_salsa_id(self) -> Option<salsa::Id> {
-        if self.is_root() {
-            None
-        } else {
-            // SAFETY: By our invariant, this is either a root (which we verified it's not) or a valid `salsa::Id`.
-            unsafe { Some(salsa::Id::from_index(self.0)) }
-        }
-    }
-
-    #[inline]
-    fn from_salsa_id(id: salsa::Id) -> Self {
-        // SAFETY: This comes from a Salsa ID.
-        unsafe { Self::from_u32(id.index()) }
+        unsafe { SyntaxContext::from_u32(SyntaxContext::MAX_ROOT_ID - edition) }
     }
 
     #[inline]
@@ -446,15 +448,8 @@ impl<'db> SyntaxContext {
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct SyntaxContext(u32);
 
-#[allow(dead_code)]
-const SALSA_MAX_ID_MIRROR: u32 = u32::MAX - 0xFF;
-#[cfg(feature = "salsa")]
-const _: () = assert!(salsa::Id::MAX_U32 == SALSA_MAX_ID_MIRROR);
-
 #[cfg(not(feature = "salsa"))]
 impl SyntaxContext {
-    const MAX_ID: u32 = SALSA_MAX_ID_MIRROR - 1;
-
     pub const fn into_u32(self) -> u32 {
         self.0
     }
@@ -463,6 +458,7 @@ impl SyntaxContext {
     ///
     /// None. This is always safe to call without the `salsa` feature.
     pub const unsafe fn from_u32(u32: u32) -> Self {
+        debug_assert!(u32 != 0);
         Self(u32)
     }
 }
@@ -495,13 +491,25 @@ impl Transparency {
     }
 }
 
+#[cfg(feature = "salsa")]
 impl fmt::Display for SyntaxContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_root() {
-            write!(f, "ROOT{}", Edition::from_u32(SyntaxContext::MAX_ID - self.into_u32()).number())
+            write!(
+                f,
+                "ROOT{}",
+                Edition::from_u32(SyntaxContext::MAX_ROOT_ID - self.into_u32()).number()
+            )
         } else {
             write!(f, "{}", self.into_u32())
         }
+    }
+}
+
+#[cfg(not(feature = "salsa"))]
+impl fmt::Display for SyntaxContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.into_u32())
     }
 }
 
@@ -511,6 +519,52 @@ impl std::fmt::Debug for SyntaxContext {
             fmt::Display::fmt(self, f)
         } else {
             f.debug_tuple("SyntaxContext").field(&self.0).finish()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_root_edition_is_root() {
+        for edition in Edition::iter() {
+            let ctx = SyntaxContext::root(edition);
+            assert!(ctx.is_root(), "{edition} root should be identified as root");
+        }
+    }
+
+    #[test]
+    fn test_root_edition_editions() {
+        let db = salsa::DatabaseImpl::new();
+        for edition in Edition::iter() {
+            let ctx = SyntaxContext::root(edition);
+            assert_eq!(edition, ctx.edition(&db), "{edition} root should have edition {edition}");
+        }
+    }
+
+    #[test]
+    fn test_roots_do_not_overlap_with_salsa_ids() {
+        for edition in Edition::iter() {
+            let root = SyntaxContext::root(edition);
+            let root_u32 = root.into_u32();
+            assert!(
+                root_u32 >= salsa::Id::MAX_U32,
+                "Root context for {:?} (value {}) must be >= salsa::Id::MAX_U32 ({}) to avoid collision",
+                edition,
+                root_u32,
+                salsa::Id::MAX_U32
+            );
+        }
+    }
+
+    #[test]
+    fn test_non_root_value_is_not_root() {
+        for edition in Edition::iter() {
+            // SAFETY: This is just for testing purposes
+            let ctx = unsafe { SyntaxContext::from_u32(edition as u32 + 1) };
+            assert!(!ctx.is_root(), "{edition} root should be identified as root");
         }
     }
 }
