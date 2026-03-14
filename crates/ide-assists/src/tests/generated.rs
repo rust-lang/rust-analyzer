@@ -945,6 +945,51 @@ fn main() {
 }
 
 #[test]
+fn doctest_destructure_enum() {
+    check_doc_test(
+        "destructure_enum",
+        r#####"
+enum Action { Move { distance: u32 }, Stop }
+
+fn handle(action: Action) {
+    action$0
+}
+"#####,
+        r#####"
+enum Action { Move { distance: u32 }, Stop }
+
+fn handle(action: Action) {
+    match action {
+        Action::Move { distance } => ${1:{}}
+        Action::Stop => ${2:{}}$0
+    }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_destructure_enum_1() {
+    check_doc_test(
+        "destructure_enum",
+        r#####"
+//- minicore: option
+fn handle(i: Option<i32>) {
+    i$0
+}
+"#####,
+        r#####"
+fn handle(i: Option<i32>) {
+    match i {
+        Some(_) => ${1:{}}
+        None => ${2:{}}$0
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_destructure_struct_binding() {
     check_doc_test(
         "destructure_struct_binding",
