@@ -1913,7 +1913,15 @@ fn add_proc_macro_dep(
 
 fn add_dep_inner(graph: &mut CrateGraphBuilder, from: CrateBuilderId, dep: DependencyBuilder) {
     if let Err(err) = graph.add_dep(from, dep) {
-        tracing::warn!("{}", err)
+        // It is actually legal to have cyclic dependencies in Rust when using cargo.
+        //
+        // A cargo package (i.e. a thing with a Cargo.toml) may depend on itself in
+        // dev-dependencies in order to enable additional features when running
+        // tests. Dev-dependencies are not propagated, so they aren't visible to crates
+        // that depend on this one.
+        //
+        // <https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies>
+        tracing::info!("{}", err)
     }
 }
 
