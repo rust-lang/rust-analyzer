@@ -406,14 +406,15 @@ pub(crate) fn complete_expr_path(
                     }
 
                     if let Some(loop_ty) = innermost_breakable_ty {
-                        if in_block_expr {
+                        let semicolon = in_block_expr && ctx.config.add_semicolon_to_jumps;
+                        if semicolon {
                             add_keyword("continue", "continue;");
                         } else {
                             add_keyword("continue", "continue");
                         }
                         add_keyword(
                             "break",
-                            match (loop_ty.is_unit(), in_block_expr) {
+                            match (loop_ty.is_unit(), semicolon) {
                                 (true, true) => "break;",
                                 (true, false) => "break",
                                 (false, true) => "break $0;",
@@ -423,9 +424,10 @@ pub(crate) fn complete_expr_path(
                     }
 
                     if let Some(ret_ty) = innermost_ret_ty {
+                        let semicolon = in_block_expr && ctx.config.add_semicolon_to_jumps;
                         add_keyword(
                             "return",
-                            match (ret_ty.is_unit(), in_block_expr) {
+                            match (ret_ty.is_unit(), semicolon) {
                                 (true, true) => {
                                     cov_mark::hit!(return_unit_block);
                                     "return;"
