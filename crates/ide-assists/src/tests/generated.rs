@@ -446,6 +446,38 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_cast_to_from() {
+    check_doc_test(
+        "convert_cast_to_from",
+        r#####"
+//- minicore: from
+impl From<i32> for i64 {
+    fn from(value: i32) -> Self {
+        value as i64
+    }
+}
+
+fn main() {
+    let a: i32 = 3;
+    let b = a a$0s i64;
+}
+"#####,
+        r#####"
+impl From<i32> for i64 {
+    fn from(value: i32) -> Self {
+        value as i64
+    }
+}
+
+fn main() {
+    let a: i32 = 3;
+    let b = i64::from(a);
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_char_literal() {
     check_doc_test(
         "convert_char_literal",
