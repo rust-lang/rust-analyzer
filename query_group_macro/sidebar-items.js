@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["query_group"],"enum":["QueryKind"],"fn":["filter_attrs","is_not_salsa_attr_path","make_trait_method","query_group_impl","token_stream_with_error"],"mod":["queries"],"struct":["Cycle","InputStructField","Parenthesized","RemoveAttrsFromTraitMethods","SalsaAttr","SelfToDbRewriter"]};

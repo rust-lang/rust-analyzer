@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ArithKind"],"fn":["is_primitive_int","parse_binary_op","replace_arith","replace_arith_with_checked","replace_arith_with_saturating","replace_arith_with_wrapping"]};

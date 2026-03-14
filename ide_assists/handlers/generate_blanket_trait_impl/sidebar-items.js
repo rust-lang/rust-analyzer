@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["apply_sized","cfg_attrs","contained_owned_self_method","default_block","existing_any_impl","exlucde_sized","find_bound","generate_blanket_trait_impl","has_owned_self","has_owned_self_param","has_ret_owned_self","has_sized","super_traits_has_sized","this_name","todo_fn","ty_bound_is","where_clause_sized"]};
