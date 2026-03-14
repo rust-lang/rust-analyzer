@@ -1037,8 +1037,9 @@ impl Foo {
     }
 
     #[test]
-    fn test_rename_to_underscore() {
-        check("_", r#"fn main() { let i$0 = 1; }"#, r#"fn main() { let _ = 1; }"#);
+    fn test_rename_minus_to_underscore() {
+        check("-", r#"fn main() { let i$0 = 1; }"#, r#"fn main() { let _ = 1; }"#);
+        check("a-b", r#"fn main() { let i$0 = 1; }"#, r#"fn main() { let a_b = 1; }"#);
     }
 
     #[test]

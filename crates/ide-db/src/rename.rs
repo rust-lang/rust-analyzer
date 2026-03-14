@@ -701,6 +701,7 @@ pub enum IdentifierKind {
 
 impl IdentifierKind {
     pub fn classify(edition: Edition, new_name: &str) -> Result<(Name, IdentifierKind)> {
+        let new_name = &new_name.replace('-', "_");
         match parser::LexedStr::single_token(edition, new_name) {
             Some(res) => match res {
                 (SyntaxKind::IDENT, _) => Ok((Name::new_root(new_name), IdentifierKind::Ident)),
@@ -710,7 +711,7 @@ impl IdentifierKind {
                 (SyntaxKind::LIFETIME_IDENT, _) if new_name != "'static" && new_name != "'_" => {
                     Ok((Name::new_lifetime(new_name), IdentifierKind::Lifetime))
                 }
-                _ if SyntaxKind::from_keyword(new_name, edition).is_some() => match new_name {
+                _ if SyntaxKind::from_keyword(new_name, edition).is_some() => match &**new_name {
                     "self" => Ok((Name::new_root(new_name), IdentifierKind::LowercaseSelf)),
                     "crate" | "super" | "Self" => {
                         bail!("Invalid name `{}`: cannot rename to a keyword", new_name)
