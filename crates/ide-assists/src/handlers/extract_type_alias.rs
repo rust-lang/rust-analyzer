@@ -3,7 +3,7 @@ use hir::HirDisplay;
 use ide_db::{FxHashSet, syntax_helpers::node_ext::walk_ty};
 use syntax::{
     ast::{
-        self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel, make,
+        self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel,
         syntax_factory::SyntaxFactory,
     },
     syntax_editor,
@@ -47,7 +47,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     let resolved_ty = if !resolved_ty.contains_unknown() {
         let module = ctx.sema.scope(ty.syntax())?.module();
         let resolved_ty = resolved_ty.display_source_code(ctx.db(), module.into(), false).ok()?;
-        make::ty(&resolved_ty)
+        SyntaxFactory::without_mappings().ty(&resolved_ty)
     } else {
         ty.clone()
     };
@@ -98,7 +98,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                 syntax_editor::Position::before(node),
                 vec![
                     ty_alias.syntax().clone().into(),
-                    make::tokens::whitespace(&format!("\n\n{indent}")).into(),
+                    factory.whitespace(&format!("\n\n{indent}")).into(),
                 ],
             );
 

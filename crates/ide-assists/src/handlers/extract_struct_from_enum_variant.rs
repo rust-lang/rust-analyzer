@@ -70,8 +70,7 @@ pub(crate) fn extract_struct_from_enum_variant(
             let mut visited_modules_set = FxHashSet::default();
             let current_module = enum_hir.module(ctx.db());
             visited_modules_set.insert(current_module);
-            // Record references in the definition file so it can be edited once together
-            // with variant and struct-definition updates.
+            // record file references of the file the def resides in, we only want to swap to the edited file in the builder once
             let mut def_file_references = None;
             for (file_id, references) in usages {
                 if file_id == ctx.file_id() {
