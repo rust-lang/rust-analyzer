@@ -395,18 +395,28 @@ impl Module {
                     if use_.syntax().parent().is_some_and(|parent| parent == covering_node)
                         && use_stmts_set.insert(use_.syntax().text_range().start())
                     {
-                        let use_ = use_stmts_to_be_inserted
+                        let entry = use_stmts_to_be_inserted
                             .entry(use_.syntax().text_range().start())
-                            .or_insert_with(|| use_.clone_subtree().clone_for_update());
-                        for seg in use_
+                            .or_insert_with(|| use_.clone_subtree());
+                        let replacements: Vec<_> = entry
                             .syntax()
                             .descendants()
                             .filter_map(ast::NameRef::cast)
                             .filter(|seg| seg.syntax().to_string() == name_ref.to_string())
-                        {
-                            let new_ref = make::path_from_text(&format!("{mod_name}::{seg}"))
-                                .clone_for_update();
-                            ted::replace(seg.syntax().parent()?, new_ref.syntax());
+                            .filter_map(|seg| {
+                                Some((
+                                    seg.syntax().parent()?,
+                                    make::path_from_text(&format!("{mod_name}::{seg}"))
+                                        .clone_for_update(),
+                                ))
+                            })
+                            .collect();
+                        if !replacements.is_empty() {
+                            let mut editor = SyntaxEditor::new(entry.syntax().clone());
+                            for (parent, new_ref) in &replacements {
+                                editor.replace(parent, new_ref.syntax());
+                            }
+                            *entry = ast::Use::cast(editor.finish().new_root().clone()).unwrap();
                         }
                     }
                 }
