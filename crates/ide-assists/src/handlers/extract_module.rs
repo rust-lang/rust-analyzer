@@ -19,12 +19,12 @@ use syntax::{
         edit::{AstNodeEdit, IndentLevel},
         make,
     },
-    match_ast, ted,
+    match_ast,
 };
 
 use crate::{AssistContext, Assists};
 use syntax::ast::syntax_factory::SyntaxFactory;
-use syntax::syntax_editor::SyntaxEditor;
+use syntax::syntax_editor::{Position, SyntaxEditor};
 
 use super::remove_unused_param::range_to_remove;
 
@@ -428,8 +428,20 @@ impl Module {
     }
 
     fn change_visibility(&mut self, record_fields: Vec<SyntaxNode>) {
+        // Reset the indentation of each body_item while it still has its parent context
+        // (so IndentLevel::from_node correctly reads the preceding whitespace token).
+        // reset_indent() internally calls clone_subtree(), which also detaches the item
+        // from the original file tree — satisfying SyntaxEditor's requirement for a
+        // detached root — while normalising internal whitespace to level 0.
+        for item in &mut self.body_items {
+            // reset_indent() uses SyntaxEditor internally and returns a mutable node.
+            // clone_subtree() turns it back into an immutable detached node, which
+            // SyntaxEditor requires as its root (asserts !mutable).
+            *item = ast::Item::cast(item.reset_indent().syntax().clone_subtree()).unwrap();
+        }
+
         let (mut replacements, record_field_parents, impls) =
-            get_replacements_for_visibility_change(&mut self.body_items, false);
+            get_replacements_for_visibility_change(&mut self.body_items, true);
 
         let mut impl_items = impls
             .into_iter()
@@ -452,17 +464,42 @@ impl Module {
             }
         }
 
-        for (vis, syntax) in replacements {
-            let item = syntax.children_with_tokens().find(|node_or_token| {
-                match node_or_token.kind() {
-                    // We're skipping comments, doc comments, and attribute macros that may precede the keyword
-                    // that the visibility should be placed before.
-                    SyntaxKind::COMMENT | SyntaxKind::ATTR | SyntaxKind::WHITESPACE => false,
-                    _ => true,
-                }
-            });
+        for body_item in &mut self.body_items {
+            let insert_targets: Vec<_> = replacements
+                .iter()
+                .filter(|(vis, syntax)| {
+                    vis.is_none()
+                        && (syntax == body_item.syntax()
+                            || syntax.ancestors().any(|a| &a == body_item.syntax()))
+                })
+                .filter_map(|(_, syntax)| {
+                    syntax.children_with_tokens().find(|nt| {
+                        // We're skipping comments, doc comments, and attribute macros that may
+                        // precede the keyword that the visibility should be placed before.
+                        !matches!(
+                            nt.kind(),
+                            SyntaxKind::COMMENT | SyntaxKind::ATTR | SyntaxKind::WHITESPACE
+                        )
+                    })
+                })
+                .collect();
 
-            add_change_vis(vis, item);
+            if insert_targets.is_empty() {
+                continue;
+            }
+
+            let mut editor = SyntaxEditor::new(body_item.syntax().clone());
+            for target in insert_targets {
+                let pub_crate_vis = make::visibility_pub_crate().clone_for_update();
+                editor.insert_all(
+                    Position::before(target),
+                    vec![
+                        pub_crate_vis.syntax().clone().into(),
+                        make::tokens::single_space().into(),
+                    ],
+                );
+            }
+            *body_item = ast::Item::cast(editor.finish().new_root().clone_subtree()).unwrap();
         }
     }
 
@@ -829,15 +866,6 @@ fn get_use_tree_paths_from_path(
         })?;
 
     Some(use_tree_str)
-}
-
-fn add_change_vis(vis: Option<ast::Visibility>, node_or_token_opt: Option<syntax::SyntaxElement>) {
-    if vis.is_none()
-        && let Some(node_or_token) = node_or_token_opt
-    {
-        let pub_crate_vis = make::visibility_pub_crate().clone_for_update();
-        ted::insert(ted::Position::before(node_or_token), pub_crate_vis.syntax());
-    }
 }
 
 fn indent_range_before_given_node(node: &SyntaxNode) -> Option<TextRange> {
