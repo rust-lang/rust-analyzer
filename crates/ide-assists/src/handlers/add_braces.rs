@@ -272,14 +272,14 @@ fn foo() {
             r#"
 const X: i32 =$0 1 + 2;
 "#,
-        r#"
+            r#"
         const X: i32 = {
             1 + 2
         };
 "#,
-            );
-        }
- 
+        );
+    }
+
     #[test]
     fn suggest_add_braces_for_static_initializer() {
         check_assist(
@@ -287,31 +287,30 @@ const X: i32 =$0 1 + 2;
             r#"
             static X: i32 $0= 1 + 2;
 "#,
-        r#"
+            r#"
 static X: i32 = {
     1 + 2
 };
 "#,
-    );
-}
+        );
+    }
 
     #[test]
-    fn suggest_add_braces_for_let_else_initializer() {
+    fn suggest_add_braces_for_let_expr_initializer() {
         check_assist(
             add_braces,
             r#"
 fn foo(opt: Option<i32>) {
-    let Some(x) $0= opt else return;
+    let x = $0 (let Some(y) = opt else { return });
 }
 "#,
-        r#"
+            r#"
 fn foo(opt: Option<i32>) {
-    let Some(x) = {
-        opt
-    } else return;
+    let x = {
+        (let Some(y) = opt else { return })
+    };
 }
 "#,
-    );
-  }
-
+        );
+    }
 }
