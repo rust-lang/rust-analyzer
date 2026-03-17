@@ -3648,6 +3648,25 @@ fn f() {
     }
 
     #[test]
+    /// Issue: https://github.com/rust-lang/rust-analyzer/issues/18554
+    fn float_consts_relevance() {
+        check_relevance(
+            r#"
+//- minicore: float_consts
+fn main() {
+    let x = f32::INF$0
+}
+"#,
+            expect![[r#"
+                ct INFINITY f32 [type_could_unify+requires_import]
+                ct NEG_INFINITY f32 [type_could_unify+requires_import]
+                ct INFINITY pub const INFINITY: f32 []
+                ct NEG_INFINITY pub const NEG_INFINITY: f32 []
+            "#]],
+        );
+    }
+
+    #[test]
     fn completes_struct_with_raw_identifier() {
         check_edit(
             "type",
