@@ -23,6 +23,8 @@ use syntax::{
 };
 
 use crate::{AssistContext, Assists};
+use syntax::ast::syntax_factory::SyntaxFactory;
+use syntax::syntax_editor::SyntaxEditor;
 
 use super::remove_unused_param::range_to_remove;
 
@@ -195,9 +197,17 @@ fn generate_module_def(
             .filter_map(ast::AssocItem::cast)
             .map(|it| it.indent(IndentLevel(1)))
             .collect_vec();
-        let assoc_item_list = make::assoc_item_list(Some(assoc_items)).clone_for_update();
-        let impl_ = impl_.reset_indent();
-        ted::replace(impl_.get_or_create_assoc_item_list().syntax(), assoc_item_list.syntax());
+        let impl_detached = ast::Impl::cast(impl_.syntax().clone_subtree()).unwrap();
+        let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
+        let factory = SyntaxFactory::with_mappings();
+        let assoc_item_list = factory.assoc_item_list(assoc_items);
+        editor.replace(
+            impl_detached.assoc_item_list().unwrap().syntax(),
+            assoc_item_list.syntax(),
+        );
+        editor.add_mappings(factory.finish_with_mappings());
+        let new_impl_node = editor.finish().new_root().clone();
+        let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
         // Add the import for enum/struct corresponding to given impl block
         let use_impl = make_use_stmt_of_node_with_super(self_ty.syntax());
         once(use_impl)
