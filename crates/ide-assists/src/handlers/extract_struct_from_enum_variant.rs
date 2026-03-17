@@ -6,24 +6,26 @@ use ide_db::{
     FxHashSet, RootDatabase,
     defs::Definition,
     helpers::mod_path_to_ast,
-    imports::insert_use::{ImportScope, InsertUseConfig, insert_use},
+    imports::insert_use::{ImportScope, ImportScopeKind, InsertUseConfig, insert_use_with_editor},
     path_transform::PathTransform,
     search::FileReference,
 };
 use itertools::Itertools;
 use syntax::{
-    Edition, SyntaxElement,
+    Direction, Edition, SyntaxElement,
     SyntaxKind::*,
-    SyntaxNode, T,
+    SyntaxNode, SyntaxToken, T,
     ast::{
         self, AstNode, HasAttrs, HasGenericParams, HasName, HasVisibility,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
-    match_ast, ted,
+    match_ast,
+    syntax_editor::{Position, SyntaxEditor},
 };
 
-use crate::{AssistContext, AssistId, Assists, assist_context::SourceChangeBuilder};
+use crate::{AssistContext, AssistId, Assists};
 
 // Assist: extract_struct_from_enum_variant
 //
@@ -68,47 +70,65 @@ pub(crate) fn extract_struct_from_enum_variant(
             let mut visited_modules_set = FxHashSet::default();
             let current_module = enum_hir.module(ctx.db());
             visited_modules_set.insert(current_module);
-            // record file references of the file the def resides in, we only want to swap to the edited file in the builder once
+            // Record references in the definition file so it can be edited once together
+            // with variant and struct-definition updates.
             let mut def_file_references = None;
             for (file_id, references) in usages {
                 if file_id == ctx.file_id() {
                     def_file_references = Some(references);
                     continue;
                 }
-                builder.edit_file(file_id.file_id(ctx.db()));
                 let processed = process_references(
                     ctx,
-                    builder,
                     &mut visited_modules_set,
                     &enum_module_def,
                     &variant_hir_name,
                     references,
                 );
+                let Some((segment, ..)) = processed.first() else { continue };
+                let mut editor = builder.make_editor(segment.syntax());
+                let factory = SyntaxFactory::with_mappings();
                 processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition)
+                    apply_references(
+                        ctx.config.insert_use,
+                        path,
+                        node,
+                        import,
+                        edition,
+                        &mut editor,
+                        &factory,
+                    )
                 });
+                editor.add_mappings(factory.finish_with_mappings());
+                builder.add_file_edits(file_id.file_id(ctx.db()), editor);
             }
-            builder.edit_file(ctx.vfs_file_id());
-
-            let variant = builder.make_mut(variant.clone());
+            let mut editor = builder.make_editor(variant.syntax());
+            let factory = SyntaxFactory::with_mappings();
             if let Some(references) = def_file_references {
                 let processed = process_references(
                     ctx,
-                    builder,
                     &mut visited_modules_set,
                     &enum_module_def,
                     &variant_hir_name,
                     references,
                 );
                 processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition)
+                    apply_references(
+                        ctx.config.insert_use,
+                        path,
+                        node,
+                        import,
+                        edition,
+                        &mut editor,
+                        &factory,
+                    )
                 });
             }
 
             let generic_params = enum_ast
                 .generic_param_list()
                 .and_then(|known_generics| extract_generic_params(&known_generics, &field_list));
-            let generics = generic_params.as_ref().map(|generics| generics.clone_for_update());
+            let generics = generic_params.clone();
 
             // resolve GenericArg in field_list to actual type
             let field_list = if let Some((target_scope, source_scope)) =
@@ -126,25 +146,40 @@ pub(crate) fn extract_struct_from_enum_variant(
                     }
                 }
             } else {
-                field_list.clone_for_update()
+                match &field_list {
+                    Either::Left(field_list) => Either::Left(field_list.clone_subtree()),
+                    Either::Right(field_list) => Either::Right(field_list.clone_subtree()),
+                }
             };
+            let (comments_to_insert, comments_to_remove) =
+                collect_comments_to_move(variant.syntax(), &factory);
 
-            let def =
-                create_struct_def(variant_name.clone(), &variant, &field_list, generics, &enum_ast);
+            let def = create_struct_def(
+                variant_name.clone(),
+                &field_list,
+                generics,
+                &enum_ast,
+                comments_to_insert,
+                &factory,
+            );
 
             let enum_ast = variant.parent_enum();
             let indent = enum_ast.indent_level();
             let def = def.indent(indent);
 
-            ted::insert_all(
-                ted::Position::before(enum_ast.syntax()),
+            editor.insert_all(
+                Position::before(enum_ast.syntax()),
                 vec![
                     def.syntax().clone().into(),
-                    make::tokens::whitespace(&format!("\n\n{indent}")).into(),
+                    factory.whitespace(&format!("\n\n{indent}")).into(),
                 ],
             );
 
-            update_variant(&variant, generic_params.map(|g| g.clone_for_update()));
+            comments_to_remove.into_iter().for_each(|elem| editor.delete(elem));
+            update_variant(&mut editor, &factory, &variant, generic_params);
+
+            editor.add_mappings(factory.finish_with_mappings());
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
@@ -253,118 +288,150 @@ fn tag_generics_in_variant(ty: &ast::Type, generics: &mut [(ast::GenericParam, b
 
 fn create_struct_def(
     name: ast::Name,
-    variant: &ast::Variant,
     field_list: &Either<ast::RecordFieldList, ast::TupleFieldList>,
     generics: Option<ast::GenericParamList>,
     enum_: &ast::Enum,
+    comments_to_move: Vec<SyntaxElement>,
+    factory: &SyntaxFactory,
 ) -> ast::Struct {
     let enum_vis = enum_.visibility();
-
-    let insert_vis = |node: &'_ SyntaxNode, vis: &'_ SyntaxNode| {
-        let vis = vis.clone_for_update();
-        ted::insert(ted::Position::before(node), vis);
+    let field_list: ast::FieldList = match field_list {
+        Either::Left(field_list) => field_list.clone_subtree().into(),
+        Either::Right(field_list) => field_list.clone_subtree().into(),
     };
+    let field_list = field_list.indent(IndentLevel::single());
+
+    let strukt = make::struct_(enum_vis.clone(), name, generics, field_list);
+    let mut struct_editor = SyntaxEditor::new(strukt.syntax().clone());
 
     // for fields without any existing visibility, use visibility of enum
-    let field_list: ast::FieldList = match field_list {
-        Either::Left(field_list) => {
-            if let Some(vis) = &enum_vis {
+    if let Some(vis) = &enum_vis
+        && let Some(field_list) = strukt.field_list()
+    {
+        match field_list {
+            ast::FieldList::RecordFieldList(field_list) => {
                 field_list
                     .fields()
                     .filter(|field| field.visibility().is_none())
                     .filter_map(|field| field.name())
-                    .for_each(|it| insert_vis(it.syntax(), vis.syntax()));
+                    .for_each(|it| {
+                        struct_editor.insert_all(
+                            Position::before(it.syntax()),
+                            vec![
+                                vis.syntax().clone_subtree().clone_for_update().into(),
+                                factory.whitespace(" ").into(),
+                            ],
+                        )
+                    });
             }
-
-            field_list.clone().into()
-        }
-        Either::Right(field_list) => {
-            if let Some(vis) = &enum_vis {
+            ast::FieldList::TupleFieldList(field_list) => {
                 field_list
                     .fields()
                     .filter(|field| field.visibility().is_none())
                     .filter_map(|field| field.ty())
-                    .for_each(|it| insert_vis(it.syntax(), vis.syntax()));
+                    .for_each(|it| {
+                        struct_editor.insert_all(
+                            Position::before(it.syntax()),
+                            vec![
+                                vis.syntax().clone_subtree().clone_for_update().into(),
+                                factory.whitespace(" ").into(),
+                            ],
+                        )
+                    });
             }
-
-            field_list.clone().into()
         }
-    };
-    let field_list = field_list.indent(IndentLevel::single());
-
-    let strukt = make::struct_(enum_vis, name, generics, field_list).clone_for_update();
+    }
 
     // take comments from variant
-    ted::insert_all(
-        ted::Position::first_child_of(strukt.syntax()),
-        take_all_comments(variant.syntax()),
-    );
+    struct_editor.insert_all(Position::first_child_of(strukt.syntax()), comments_to_move);
 
     // copy attributes from enum
-    ted::insert_all(
-        ted::Position::first_child_of(strukt.syntax()),
+    struct_editor.insert_all(
+        Position::first_child_of(strukt.syntax()),
         enum_
             .attrs()
             .flat_map(|it| {
-                vec![it.syntax().clone_for_update().into(), make::tokens::single_newline().into()]
+                vec![
+                    it.syntax().clone_subtree().clone_for_update().into(),
+                    factory.whitespace("\n").into(),
+                ]
             })
             .collect(),
     );
 
-    strukt
+    let struct_edit = struct_editor.finish();
+    ast::Struct::cast(struct_edit.new_root().clone()).expect("struct root should stay a struct")
 }
 
-fn update_variant(variant: &ast::Variant, generics: Option<ast::GenericParamList>) -> Option<()> {
+fn update_variant(
+    editor: &mut SyntaxEditor,
+    factory: &SyntaxFactory,
+    variant: &ast::Variant,
+    generics: Option<ast::GenericParamList>,
+) -> Option<()> {
     let name = variant.name()?;
     let generic_args = generics
         .filter(|generics| generics.generic_params().count() > 0)
         .map(|generics| generics.to_generic_args());
-    // FIXME: replace with a `ast::make` constructor
     let ty = match generic_args {
-        Some(generic_args) => make::ty(&format!("{name}{generic_args}")),
-        None => make::ty(&name.text()),
+        Some(generic_args) => factory.ty(&format!("{name}{generic_args}")),
+        None => factory.ty(&name.text()),
     };
 
     // change from a record to a tuple field list
-    let tuple_field = make::tuple_field(None, ty);
-    let field_list = make::tuple_field_list(iter::once(tuple_field)).clone_for_update();
-    ted::replace(variant.field_list()?.syntax(), field_list.syntax());
+    let tuple_field = factory.tuple_field(None, ty);
+    let field_list = factory.tuple_field_list(iter::once(tuple_field));
+    editor.replace(variant.field_list()?.syntax(), field_list.syntax());
 
     // remove any ws after the name
     if let Some(ws) = name
         .syntax()
-        .siblings_with_tokens(syntax::Direction::Next)
+        .siblings_with_tokens(Direction::Next)
         .find_map(|tok| tok.into_token().filter(|tok| tok.kind() == WHITESPACE))
     {
-        ted::remove(SyntaxElement::Token(ws));
+        editor.delete(SyntaxElement::Token(ws));
     }
 
     Some(())
 }
 
-// Note: this also detaches whitespace after comments,
-// since `SyntaxNode::splice_children` (and by extension `ted::insert_all_raw`)
-// detaches nodes. If we only took the comments, we'd leave behind the old whitespace.
-fn take_all_comments(node: &SyntaxNode) -> Vec<SyntaxElement> {
+fn collect_comments_to_move(
+    node: &SyntaxNode,
+    factory: &SyntaxFactory,
+) -> (Vec<SyntaxElement>, Vec<SyntaxElement>) {
     let mut remove_next_ws = false;
-    node.children_with_tokens()
-        .filter_map(move |child| match child.kind() {
-            COMMENT => {
-                remove_next_ws = true;
-                child.detach();
-                Some(child)
-            }
-            WHITESPACE if remove_next_ws => {
-                remove_next_ws = false;
-                child.detach();
-                Some(make::tokens::single_newline().into())
-            }
-            _ => {
-                remove_next_ws = false;
-                None
-            }
-        })
-        .collect()
+    let mut comments_to_insert = Vec::new();
+    let mut comments_to_remove = Vec::new();
+
+    node.children_with_tokens().for_each(|child| match child.kind() {
+        COMMENT => {
+            remove_next_ws = true;
+            let comment = child
+                .clone()
+                .into_token()
+                .map(|token| make_comment_token(token.text()))
+                .unwrap_or(child.clone());
+            comments_to_insert.push(comment);
+            comments_to_remove.push(child);
+        }
+        WHITESPACE if remove_next_ws => {
+            remove_next_ws = false;
+            comments_to_insert.push(factory.whitespace("\n").into());
+            comments_to_remove.push(child);
+        }
+        _ => remove_next_ws = false,
+    });
+
+    (comments_to_insert, comments_to_remove)
+}
+
+fn make_comment_token(text: &str) -> SyntaxElement {
+    let parse = syntax::SourceFile::parse(text, Edition::CURRENT);
+    let comment = parse.tree().syntax().clone_for_update().first_child_or_token().unwrap();
+    if let Some(token) = comment.as_token() {
+        token.detach();
+    }
+    comment
 }
 
 fn apply_references(
@@ -373,20 +440,38 @@ fn apply_references(
     node: SyntaxNode,
     import: Option<(ImportScope, hir::ModPath)>,
     edition: Edition,
+    editor: &mut SyntaxEditor,
+    factory: &SyntaxFactory,
 ) {
     if let Some((scope, path)) = import {
-        insert_use(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg);
+        let needs_newline_fix = needs_module_import_newline_fix(&scope);
+        insert_use_with_editor(
+            &scope,
+            mod_path_to_ast(&path, edition),
+            &insert_use_cfg,
+            editor,
+            factory,
+        );
+        if needs_newline_fix && let Some(l_curly) = scope_l_curly_token(&scope) {
+            let indent = scope_indent_after_l_curly(&scope);
+            // `insert_use_with_editor` inserts newline then `use` at the same position in this
+            // branch; insertion order makes the `use` appear before the newline.
+            if !indent.is_empty() {
+                editor.insert(Position::after(l_curly.clone()), factory.whitespace(&indent));
+            }
+            editor.insert(Position::after(l_curly), factory.whitespace("\n"));
+        }
     }
-    // deep clone to prevent cycle
-    let path = make::path_from_segments(iter::once(segment.clone_subtree()), false);
-    ted::insert_raw(ted::Position::before(segment.syntax()), path.clone_for_update().syntax());
-    ted::insert_raw(ted::Position::before(segment.syntax()), make::token(T!['(']));
-    ted::insert_raw(ted::Position::after(&node), make::token(T![')']));
+    let path = factory.path_from_segments(iter::once(segment.clone_subtree()), false);
+    editor.insert_all(
+        Position::before(segment.syntax()),
+        vec![path.syntax().clone().into(), factory.token(T!['(']).into()],
+    );
+    editor.insert(Position::after(&node), factory.token(T![')']));
 }
 
 fn process_references(
     ctx: &AssistContext<'_>,
-    builder: &mut SourceChangeBuilder,
     visited_modules: &mut FxHashSet<Module>,
     enum_module_def: &ModuleDef,
     variant_hir_name: &Name,
@@ -397,8 +482,6 @@ fn process_references(
     refs.into_iter()
         .flat_map(|reference| {
             let (segment, scope_node, module) = reference_to_node(&ctx.sema, reference)?;
-            let segment = builder.make_mut(segment);
-            let scope_node = builder.make_syntax_mut(scope_node);
             if !visited_modules.contains(&module) {
                 let cfg =
                     ctx.config.find_path_config(ctx.sema.is_nightly(module.krate(ctx.sema.db)));
@@ -446,6 +529,54 @@ fn reference_to_node(
     };
     let module = sema.scope(&expr_or_pat)?.module();
     Some((segment, expr_or_pat, module))
+}
+
+fn scope_l_curly_token(scope: &ImportScope) -> Option<SyntaxToken> {
+    match &scope.kind {
+        ImportScopeKind::File(_) => None,
+        ImportScopeKind::Module(item_list) => item_list.l_curly_token(),
+        ImportScopeKind::Block(stmt_list) => stmt_list.l_curly_token(),
+    }
+}
+
+fn needs_module_import_newline_fix(scope: &ImportScope) -> bool {
+    let Some(_l_curly) = scope_l_curly_token(scope) else { return false };
+    if scope.as_syntax_node().children().any(|child| ast::Use::can_cast(child.kind())) {
+        return false;
+    }
+
+    let has_leading_inner_element = scope
+        .as_syntax_node()
+        .children_with_tokens()
+        .skip(1)
+        .take_while(|child| match child {
+            SyntaxElement::Node(node) => {
+                ast::AnyHasAttrs::cast(node.clone()).is_some_and(|has_attrs| {
+                    has_attrs
+                        .attrs()
+                        .any(|attr| attr.excl_token().is_some() && attr.l_brack_token().is_some())
+                        && ast::Item::cast(node.clone()).is_none()
+                })
+            }
+            SyntaxElement::Token(token) => [WHITESPACE, COMMENT, SHEBANG].contains(&token.kind()),
+        })
+        .filter(|child| child.as_token().is_none_or(|t| t.kind() != WHITESPACE))
+        .last()
+        .is_some();
+
+    !has_leading_inner_element
+}
+
+fn scope_indent_after_l_curly(scope: &ImportScope) -> String {
+    let Some(l_curly) = scope_l_curly_token(scope) else { return String::new() };
+    let Some(token) = l_curly.next_sibling_or_token().and_then(|it| it.into_token()) else {
+        return String::new();
+    };
+    if token.kind() != WHITESPACE {
+        return String::new();
+    }
+
+    token.text().rsplit('\n').next().unwrap_or_default().to_owned()
 }
 
 #[cfg(test)]
@@ -970,6 +1101,33 @@ enum E {
 
 fn f() {
     let E::V(V(i, j)) = E::V(V(9, 2));
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn extract_fix_references_with_turbofish() {
+        check_assist(
+            extract_struct_from_enum_variant,
+            r#"
+enum E<T> {
+    $0V(T, T)
+}
+
+fn f() {
+    let _ = E::<i32>::V(9, 2);
+}
+"#,
+            r#"
+struct V<T>(T, T);
+
+enum E<T> {
+    V(V<T>)
+}
+
+fn f() {
+    let _ = E::<i32>::V(V(9, 2));
 }
 "#,
         )
