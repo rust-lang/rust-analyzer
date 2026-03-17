@@ -1,4 +1,5 @@
 use either::Either;
+use hir::AsAssocItem;
 use ide_db::{
     famous_defs::FamousDefs,
     syntax_helpers::node_ext::{for_each_tail_expr, walk_expr},
@@ -42,7 +43,19 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     let parent = ret_type.syntax().parent()?;
     let body_expr = match_ast! {
         match parent {
-            ast::Fn(func) => func.body()?.into(),
+            ast::Fn(func) => {
+            // do not offer this assist inside trait impls — the return type
+            // is part of the trait contract and cannot be changed unilaterally.
+            let is_trait_impl = ctx.sema
+                .to_def(&func)
+                .and_then(|hir_func| hir_func.as_assoc_item(ctx.db()))
+                .and_then(|assoc_item: hir::AssocItem| assoc_item.implemented_trait(ctx.db()))
+                .is_some();
+            if is_trait_impl {
+                return None;
+            }
+            func.body()?.into()
+        },
             ast::ClosureExpr(closure) => match closure.body()? {
                 ast::Expr::BlockExpr(block) => block.into(),
                 // closures require a block when a return type is specified
@@ -2291,6 +2304,28 @@ fn foo() -> Result<impl Iterator<Item = i32>$0, ()> {
             r#"
 fn foo() -> impl Iterator<Item = i32> {
     Some(42).into_iter()
+}
+"#,
+            "Unwrap Result return type",
+        );
+    }
+
+    #[test]
+    fn unwrap_result_return_type_not_applicable_in_trait_impl() {
+        check_assist_not_applicable_by_label(
+            unwrap_return_type,
+            r#"
+//- minicore: result
+trait Foo {
+    fn foo(&self) -> Result<i32, ()>;
+}
+
+struct Bar;
+
+impl Foo for Bar {
+    fn foo(&self) -> Result<i32$0, ()> {
+        Ok(42)
+    }
 }
 "#,
             "Unwrap Result return type",
