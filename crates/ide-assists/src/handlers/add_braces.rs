@@ -264,4 +264,54 @@ fn foo() {
 "#,
         );
     }
+
+    #[test]
+    fn suggest_add_braces_for_const_initializer() {
+        check_assist(
+            add_braces,
+            r#"
+const X: i32 =$0 1 + 2;
+"#,
+        r#"
+        const X: i32 = {
+            1 + 2
+        };
+"#,
+            );
+        }
+ 
+    #[test]
+    fn suggest_add_braces_for_static_initializer() {
+        check_assist(
+            add_braces,
+            r#"
+            static X: i32 $0= 1 + 2;
+"#,
+        r#"
+static X: i32 = {
+    1 + 2
+};
+"#,
+    );
+}
+
+    #[test]
+    fn suggest_add_braces_for_let_else_initializer() {
+        check_assist(
+            add_braces,
+            r#"
+fn foo(opt: Option<i32>) {
+    let Some(x) $0= opt else return;
+}
+"#,
+        r#"
+fn foo(opt: Option<i32>) {
+    let Some(x) = {
+        opt
+    } else return;
+}
+"#,
+    );
+  }
+
 }
