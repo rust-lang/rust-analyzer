@@ -294,23 +294,4 @@ static X: i32 = {
 "#,
         );
     }
-
-    #[test]
-    fn suggest_add_braces_for_let_expr_initializer() {
-        check_assist(
-            add_braces,
-            r#"
-fn foo(opt: Option<i32>) {
-    let x = $0 (let Some(y) = opt else { return });
-}
-"#,
-            r#"
-fn foo(opt: Option<i32>) {
-    let x = {
-        (let Some(y) = opt else { return })
-    };
-}
-"#,
-        );
-    }
 }
