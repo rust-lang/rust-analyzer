@@ -9,7 +9,7 @@ use crate::{AssistContext, AssistId, Assists};
 
 // Assist: add_braces
 //
-// Adds braces to closure bodies, match arm expressions and assignment bodies.
+// Adds braces to closure bodies, match arm expressions and Initializer expression.
 //
 // ```
 // fn foo(n: i32) -> i32 {
@@ -52,7 +52,7 @@ pub(crate) fn add_braces(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
         match expr_type {
             ParentType::ClosureExpr => "Add braces to this closure body",
             ParentType::MatchArmExpr => "Add braces to this match arm expression",
-            ParentType::Assignment => "Add braces to this assignment expression",
+            ParentType::Initializer => "Add braces to this Initializer expression",
         },
         expr.syntax().text_range(),
         |builder| {
@@ -73,7 +73,7 @@ pub(crate) fn add_braces(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<(
 enum ParentType {
     MatchArmExpr,
     ClosureExpr,
-    Assignment,
+    Initializer,
 }
 
 fn get_replacement_node(ctx: &AssistContext<'_>) -> Option<(ParentType, ast::Expr)> {
@@ -89,7 +89,7 @@ fn get_replacement_node(ctx: &AssistContext<'_>) -> Option<(ParentType, ast::Exp
                 _ => return None,
             }
         };
-        (ParentType::Assignment, body)
+        (ParentType::Initializer, body)
     } else if let Some(Either::Left(match_arm)) = &node {
         let match_arm_expr = match_arm.expr()?;
         (ParentType::MatchArmExpr, match_arm_expr)
