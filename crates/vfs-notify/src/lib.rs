@@ -14,7 +14,7 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender, select, unbounded};
-use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher, event::AccessKind};
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rayon::iter::{IndexedParallelIterator as _, IntoParallelIterator as _, ParallelIterator};
 use rustc_hash::FxHashSet;
@@ -195,8 +195,10 @@ impl NotifyActor {
                 },
                 Event::NotifyEvent(event) => {
                     if let Some(event) = log_notify_error(event)
-                        && let EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) =
-                            event.kind
+                        && let EventKind::Create(_)
+                        | EventKind::Access(AccessKind::Open(_))
+                        | EventKind::Modify(_)
+                        | EventKind::Remove(_) = event.kind
                     {
                         let files = event
                             .paths
