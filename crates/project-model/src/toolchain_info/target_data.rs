@@ -55,9 +55,7 @@ pub fn get(
             let mut cmd = sysroot.tool(Tool::Cargo, cargo_toml.parent(), extra_env);
             cmd.env("RUSTC_BOOTSTRAP", "1");
             cmd.args(["rustc", "-Z", "unstable-options"]).args(RUSTC_ARGS);
-            if let Some(target) = target {
-                cmd.args(["--target", target]);
-            }
+            toolchain::cargo_use_targets(&mut cmd, target.as_slice());
             cmd.args(["--", "-Z", "unstable-options"]);
             match utf8_stdout(&mut cmd) {
                 Ok(output) => return process(output),
