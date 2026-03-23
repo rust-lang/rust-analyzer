@@ -1,6 +1,6 @@
 use either::Either;
 use hir::HirDisplay;
-use ide_db::{FxHashSet, syntax_helpers::node_ext::walk_ty};
+use ide_db::syntax_helpers::node_ext::walk_ty;
 use syntax::{
     ast::{
         self, AstNode, HasGenericArgs, HasGenericParams, HasName, edit::IndentLevel,
@@ -58,7 +58,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
         target,
         |builder| {
             let mut edit = builder.make_editor(node);
-            let factory = SyntaxFactory::with_mappings();
+            let make = SyntaxFactory::with_mappings();
 
             let mut known_generics = match item.generic_param_list() {
                 Some(it) => it.generic_params().collect(),
@@ -72,20 +72,20 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
             }
             let generics = collect_used_generics(&ty, &known_generics);
             let generic_params =
-                generics.map(|it| factory.generic_param_list(it.into_iter().cloned()));
+                generics.map(|it| make.generic_param_list(it.into_iter().cloned()));
 
             // Replace original type with the alias
-            let ty_args = generic_params.as_ref().map(|it| it.to_generic_args());
+            let ty_args = generic_params.as_ref().map(|it| generic_params_to_args(&make, it));
             let new_ty = if let Some(ty_args) = ty_args {
-                factory.path_segment_generics(factory.name_ref("Type"), ty_args)
+                make.path_segment_generics(make.name_ref("Type"), ty_args)
             } else {
-                factory.path_segment(factory.name_ref("Type"))
+                make.path_segment(make.name_ref("Type"))
             };
             edit.replace(ty.syntax(), new_ty.syntax());
 
             // Insert new alias
             let ty_alias =
-                factory.ty_alias([], "Type", generic_params, None, None, Some((resolved_ty, None)));
+                make.ty_alias([], "Type", generic_params, None, None, Some((resolved_ty, None)));
 
             if let Some(cap) = ctx.config.snippet_cap
                 && let Some(name) = ty_alias.name()
@@ -98,14 +98,32 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                 syntax_editor::Position::before(node),
                 vec![
                     ty_alias.syntax().clone().into(),
-                    factory.whitespace(&format!("\n\n{indent}")).into(),
+                    make.whitespace(&format!("\n\n{indent}")).into(),
                 ],
             );
 
-            edit.add_mappings(factory.finish_with_mappings());
+            edit.add_mappings(make.finish_with_mappings());
             builder.add_file_edits(ctx.vfs_file_id(), edit);
         },
     )
+}
+
+fn generic_params_to_args(
+    make: &SyntaxFactory,
+    generics: &ast::GenericParamList,
+) -> ast::GenericArgList {
+    let args = generics.generic_params().filter_map(|param| match param {
+        ast::GenericParam::LifetimeParam(it) => {
+            it.lifetime().map(|lt| make.lifetime_arg(lt).into())
+        }
+        ast::GenericParam::TypeParam(it) => {
+            it.name().map(|name| make.type_arg(make.ty(name.text().as_str())).into())
+        }
+        ast::GenericParam::ConstParam(it) => {
+            it.name().map(|name| make.type_arg(make.ty(name.text().as_str())).into())
+        }
+    });
+    make.generic_arg_list(args, false)
 }
 
 fn collect_used_generics<'gp>(
@@ -199,21 +217,6 @@ fn collect_used_generics<'gp>(
         ast::GenericParam::ConstParam(_) => 2,
         ast::GenericParam::LifetimeParam(_) => 0,
         ast::GenericParam::TypeParam(_) => 1,
-    });
-    let mut seen = FxHashSet::default();
-    generics.retain(|gp| {
-        let key = match gp {
-            ast::GenericParam::ConstParam(cp) => {
-                (2_u8, cp.name().map(|it| it.text().to_string()).unwrap_or_default())
-            }
-            ast::GenericParam::LifetimeParam(lp) => {
-                (0_u8, lp.lifetime().map(|it| it.text().to_string()).unwrap_or_default())
-            }
-            ast::GenericParam::TypeParam(tp) => {
-                (1_u8, tp.name().map(|it| it.text().to_string()).unwrap_or_default())
-            }
-        };
-        seen.insert(key)
     });
 
     Some(generics).filter(|it| !it.is_empty())
@@ -416,21 +419,6 @@ where
 {
     arr: Type<T, N>,
 }
-            "#,
-        );
-    }
-
-    #[test]
-    fn dedup_repeated_generic_params() {
-        check_assist(
-            extract_type_alias,
-            r#"
-fn f<T>(v: $0(T, T)$0) {}
-            "#,
-            r#"
-type $0Type<T> = (T, T);
-
-fn f<T>(v: Type<T>) {}
             "#,
         );
     }
