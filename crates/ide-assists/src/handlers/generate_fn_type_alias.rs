@@ -104,23 +104,17 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                 let generic_params = (!generic_params_vec.is_empty())
                     .then(|| factory.generic_param_list(generic_params_vec));
 
-                let is_unsafe = func_node.unsafe_token().is_some();
-                let ty = factory.ty_fn_ptr(
-                    is_unsafe,
+                let ty = build_fn_ptr_type(
+                    &factory,
+                    func_node.unsafe_token().is_some(),
                     func_node.abi(),
-                    fn_params_vec.into_iter(),
+                    fn_params_vec,
                     func_node.ret_type(),
                 );
 
                 // Insert new alias
-                let ty_alias = factory.ty_alias(
-                    [],
-                    &alias_name,
-                    generic_params,
-                    None,
-                    None,
-                    Some((ast::Type::FnPtrType(ty), None)),
-                );
+                let ty_alias =
+                    factory.ty_alias([], &alias_name, generic_params, None, None, Some((ty, None)));
 
                 let indent = IndentLevel::from_node(insertion_node);
                 edit.insert_all(
@@ -144,6 +138,40 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
     }
 
     Some(())
+}
+
+fn build_fn_ptr_type(
+    factory: &SyntaxFactory,
+    is_unsafe: bool,
+    abi: Option<ast::Abi>,
+    params: Vec<ast::Param>,
+    ret_type: Option<ast::RetType>,
+) -> ast::Type {
+    let mut fn_ty = String::new();
+    if is_unsafe {
+        fn_ty.push_str("unsafe ");
+    }
+    if let Some(abi) = abi {
+        fn_ty.push_str(abi.syntax().text().to_string().as_str());
+        fn_ty.push(' ');
+    }
+
+    fn_ty.push_str("fn(");
+    fn_ty.push_str(
+        &params
+            .into_iter()
+            .map(|param| param.syntax().text().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    fn_ty.push(')');
+
+    if let Some(ret_type) = ret_type {
+        fn_ty.push(' ');
+        fn_ty.push_str(ret_type.syntax().text().to_string().as_str());
+    }
+
+    factory.ty(&fn_ty)
 }
 
 enum ParamStyle {
