@@ -36,7 +36,7 @@ use hir_def::{
     AdtId, AssocItemId, ConstId, ConstParamId, DefWithBodyId, ExpressionStoreOwner, FieldId,
     FunctionId, GenericDefId, GenericParamId, ItemContainerId, LocalFieldId, Lookup, TraitId,
     TupleFieldId, TupleId, TypeAliasId, TypeOrConstParamId, VariantId,
-    expr_store::{ConstExprOrigin, ExpressionStore, HygieneId, path::Path},
+    expr_store::{ConstExprOrigin, ExpressionStore, path::Path},
     hir::{BindingAnnotation, BindingId, ExprId, ExprOrPatId, LabelId, PatId},
     lang_item::LangItems,
     layout::Integer,
