@@ -930,7 +930,7 @@ impl ProcMacroExpander for DelegateShoutProcMacroExpander {
         _: String,
     ) -> Result<TopSubtree, ProcMacroExpansionError> {
         Ok(quote! { call_site =>
-            const _: () = {
+            const __DELEGATE_SHOUT_IMPL: () = {
                 impl Shout for Animal {
                     fn shout(&self, input: &str) -> String {
                         match self {
