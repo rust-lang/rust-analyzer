@@ -1377,6 +1377,45 @@ pub fn attr_macro() {}
 }
 
 #[test]
+fn custom_derive_generated_impl_match_on_ref_self() {
+    check_no_mismatches(
+        r#"
+//- proc_macros: delegate_shout
+trait Shout {
+    fn shout(&self, input: &str) -> String;
+}
+
+struct Cat;
+
+impl Shout for Cat {
+    fn shout(&self, input: &str) -> String {
+        loop {}
+    }
+}
+
+struct Dog;
+
+impl Shout for Dog {
+    fn shout(&self, input: &str) -> String {
+        loop {}
+    }
+}
+
+#[derive(DelegateShout)]
+enum Animal {
+    Cat(Cat),
+    Dog(Dog),
+}
+
+fn main() {
+    let animal = Animal::Cat(Cat);
+    animal.shout("BAR");
+}
+"#,
+    );
+}
+
+#[test]
 fn clone_with_type_bound() {
     check_types(
         r#"

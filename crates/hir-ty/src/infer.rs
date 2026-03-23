@@ -1644,7 +1644,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         let mut path_ctx = ctx.at_path(path, node);
         let interner = DbInterner::conjure();
         let (resolution, unresolved) = if value_ns {
-            let Some(res) = path_ctx.resolve_path_in_value_ns(HygieneId::ROOT) else {
+            let hygiene = match node {
+                ExprOrPatId::ExprId(expr) => self.store.expr_path_hygiene(expr),
+                ExprOrPatId::PatId(pat) => self.store.pat_path_hygiene(pat),
+            };
+            let Some(res) = path_ctx.resolve_path_in_value_ns(hygiene) else {
                 return (self.err_ty(), None);
             };
             match res {
