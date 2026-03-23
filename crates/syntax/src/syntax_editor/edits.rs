@@ -177,6 +177,32 @@ impl SyntaxEditor {
     }
 }
 
+/// Constructs a matching [`ast::GenericArgList`] from generic params using [`SyntaxFactory`].
+///
+/// Returns `None` if no well-formed generic args can be produced.
+pub fn generic_args_from_params(
+    make: &SyntaxFactory,
+    params: &ast::GenericParamList,
+) -> Option<ast::GenericArgList> {
+    let args = params
+        .generic_params()
+        .filter_map(|param| match param {
+            ast::GenericParam::LifetimeParam(it) => {
+                Some(make.lifetime_arg(make.lifetime(it.lifetime()?.text().as_str())).into())
+            }
+            ast::GenericParam::TypeParam(it) => {
+                Some(make.type_arg(make.ty(it.name()?.text().as_str())).into())
+            }
+            // Name-only const params are represented as `TypeArg`s.
+            ast::GenericParam::ConstParam(it) => {
+                Some(make.type_arg(make.ty(it.name()?.text().as_str())).into())
+            }
+        })
+        .collect::<Vec<ast::GenericArg>>();
+
+    (!args.is_empty()).then(|| make.generic_arg_list(args, false))
+}
+
 fn get_or_insert_comma_after(editor: &mut SyntaxEditor, syntax: &SyntaxNode) -> SyntaxToken {
     let make = SyntaxFactory::without_mappings();
     match syntax

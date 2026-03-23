@@ -57,7 +57,7 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
             func_node.syntax().text_range(),
             |builder| {
                 let mut edit = builder.make_editor(func);
-                let factory = SyntaxFactory::with_mappings();
+                let make = SyntaxFactory::with_mappings();
 
                 let alias_name = format!("{}Fn", stdx::to_camel_case(&name.to_string()));
 
@@ -72,23 +72,23 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                         .and_then(|scope| {
                             self_ty.display_source_code(ctx.db(), scope.module().into(), false).ok()
                         })
-                        .map(|text| factory.ty(&text))
+                        .map(|text| make.ty(&text))
                         .or_else(|| {
                             let is_ref = self_ty.is_reference();
                             let is_mut = self_ty.is_mutable_reference();
                             self_ty.strip_references().as_adt().map(|adt| {
-                                let inner_type = factory.ty(adt.name(ctx.db()).as_str());
-                                if is_ref { factory.ty_ref(inner_type, is_mut) } else { inner_type }
+                                let inner_type = make.ty(adt.name(ctx.db()).as_str());
+                                if is_ref { make.ty_ref(inner_type, is_mut) } else { inner_type }
                             })
                         });
                     if let Some(self_ty) = self_ty {
-                        fn_params_vec.push(factory.unnamed_param(self_ty));
+                        fn_params_vec.push(make.unnamed_param(self_ty));
                     }
                 }
 
                 fn_params_vec.extend(param_list.params().filter_map(|p| match style {
                     ParamStyle::Named => Some(p),
-                    ParamStyle::Unnamed => p.ty().map(|ty| factory.unnamed_param(ty)),
+                    ParamStyle::Unnamed => p.ty().map(|ty| make.unnamed_param(ty)),
                 }));
 
                 let mut generic_params_vec = Vec::new();
@@ -102,10 +102,10 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                     generic_params_vec.extend(generic_params.generic_params());
                 }
                 let generic_params = (!generic_params_vec.is_empty())
-                    .then(|| factory.generic_param_list(generic_params_vec));
+                    .then(|| make.generic_param_list(generic_params_vec));
 
                 let ty = build_fn_ptr_type(
-                    &factory,
+                    &make,
                     func_node.unsafe_token().is_some(),
                     func_node.abi(),
                     fn_params_vec,
@@ -114,14 +114,14 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
 
                 // Insert new alias
                 let ty_alias =
-                    factory.ty_alias([], &alias_name, generic_params, None, None, Some((ty, None)));
+                    make.ty_alias([], &alias_name, generic_params, None, None, Some((ty, None)));
 
                 let indent = IndentLevel::from_node(insertion_node);
                 edit.insert_all(
                     syntax_editor::Position::before(insertion_node),
                     vec![
                         ty_alias.syntax().clone().into(),
-                        factory.whitespace(&format!("\n\n{indent}")).into(),
+                        make.whitespace(&format!("\n\n{indent}")).into(),
                     ],
                 );
 
@@ -131,7 +131,7 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                     edit.add_annotation(name.syntax(), builder.make_placeholder_snippet(cap));
                 }
 
-                edit.add_mappings(factory.finish_with_mappings());
+                edit.add_mappings(make.finish_with_mappings());
                 builder.add_file_edits(ctx.vfs_file_id(), edit);
             },
         );
@@ -141,7 +141,7 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
 }
 
 fn build_fn_ptr_type(
-    factory: &SyntaxFactory,
+    make: &SyntaxFactory,
     is_unsafe: bool,
     abi: Option<ast::Abi>,
     params: Vec<ast::Param>,
@@ -171,7 +171,7 @@ fn build_fn_ptr_type(
         fn_ty.push_str(ret_type.syntax().text().to_string().as_str());
     }
 
-    factory.ty(&fn_ty)
+    make.ty(&fn_ty)
 }
 
 enum ParamStyle {

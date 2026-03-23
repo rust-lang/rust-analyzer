@@ -20,7 +20,7 @@ mod edit_algo;
 mod edits;
 mod mapping;
 
-pub use edits::{GetOrCreateWhereClause, Removable};
+pub use edits::{GetOrCreateWhereClause, Removable, generic_args_from_params};
 pub use mapping::{SyntaxMapping, SyntaxMappingBuilder};
 
 #[derive(Debug)]

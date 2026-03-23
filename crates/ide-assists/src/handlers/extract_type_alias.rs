@@ -47,7 +47,8 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
     let resolved_ty = if !resolved_ty.contains_unknown() {
         let module = ctx.sema.scope(ty.syntax())?.module();
         let resolved_ty = resolved_ty.display_source_code(ctx.db(), module.into(), false).ok()?;
-        SyntaxFactory::without_mappings().ty(&resolved_ty)
+        let make = SyntaxFactory::without_mappings();
+        make.ty(&resolved_ty)
     } else {
         ty.clone()
     };
@@ -75,7 +76,9 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                 generics.map(|it| make.generic_param_list(it.into_iter().cloned()));
 
             // Replace original type with the alias
-            let ty_args = generic_params.as_ref().map(|it| generic_params_to_args(&make, it));
+            let ty_args = generic_params
+                .as_ref()
+                .and_then(|it| syntax_editor::generic_args_from_params(&make, it));
             let new_ty = if let Some(ty_args) = ty_args {
                 make.path_segment_generics(make.name_ref("Type"), ty_args)
             } else {
@@ -106,24 +109,6 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
             builder.add_file_edits(ctx.vfs_file_id(), edit);
         },
     )
-}
-
-fn generic_params_to_args(
-    make: &SyntaxFactory,
-    generics: &ast::GenericParamList,
-) -> ast::GenericArgList {
-    let args = generics.generic_params().filter_map(|param| match param {
-        ast::GenericParam::LifetimeParam(it) => {
-            it.lifetime().map(|lt| make.lifetime_arg(lt).into())
-        }
-        ast::GenericParam::TypeParam(it) => {
-            it.name().map(|name| make.type_arg(make.ty(name.text().as_str())).into())
-        }
-        ast::GenericParam::ConstParam(it) => {
-            it.name().map(|name| make.type_arg(make.ty(name.text().as_str())).into())
-        }
-    });
-    make.generic_arg_list(args, false)
 }
 
 fn collect_used_generics<'gp>(
