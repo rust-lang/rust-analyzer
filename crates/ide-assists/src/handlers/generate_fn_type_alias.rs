@@ -104,17 +104,25 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                 let generic_params = (!generic_params_vec.is_empty())
                     .then(|| make.generic_param_list(generic_params_vec));
 
-                let ty = build_fn_ptr_type(
-                    &make,
-                    func_node.unsafe_token().is_some(),
-                    func_node.abi(),
-                    fn_params_vec,
-                    func_node.ret_type(),
-                );
+                let ty = {
+                    let make = SyntaxFactory::without_mappings();
+                    make.ty_fn_ptr(
+                        func_node.unsafe_token().is_some(),
+                        func_node.abi(),
+                        fn_params_vec.into_iter(),
+                        func_node.ret_type(),
+                    )
+                };
 
                 // Insert new alias
-                let ty_alias =
-                    make.ty_alias([], &alias_name, generic_params, None, None, Some((ty, None)));
+                let ty_alias = make.ty_alias(
+                    [],
+                    &alias_name,
+                    generic_params,
+                    None,
+                    None,
+                    Some((ast::Type::FnPtrType(ty), None)),
+                );
 
                 let indent = IndentLevel::from_node(insertion_node);
                 edit.insert_all(
@@ -138,40 +146,6 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
     }
 
     Some(())
-}
-
-fn build_fn_ptr_type(
-    make: &SyntaxFactory,
-    is_unsafe: bool,
-    abi: Option<ast::Abi>,
-    params: Vec<ast::Param>,
-    ret_type: Option<ast::RetType>,
-) -> ast::Type {
-    let mut fn_ty = String::new();
-    if is_unsafe {
-        fn_ty.push_str("unsafe ");
-    }
-    if let Some(abi) = abi {
-        fn_ty.push_str(abi.syntax().text().to_string().as_str());
-        fn_ty.push(' ');
-    }
-
-    fn_ty.push_str("fn(");
-    fn_ty.push_str(
-        &params
-            .into_iter()
-            .map(|param| param.syntax().text().to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    );
-    fn_ty.push(')');
-
-    if let Some(ret_type) = ret_type {
-        fn_ty.push(' ');
-        fn_ty.push_str(ret_type.syntax().text().to_string().as_str());
-    }
-
-    make.ty(&fn_ty)
 }
 
 enum ParamStyle {
