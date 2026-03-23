@@ -14,7 +14,7 @@ use tracing::{debug, instrument};
 use base_db::Crate;
 use hir_def::{
     AssocItemId, BlockId, BuiltinDeriveImplId, ConstId, FunctionId, GenericParamId, HasModule,
-    ImplId, ItemContainerId, ModuleId, TraitId,
+    ImplId, ItemContainerId, ModuleDefId, ModuleId, TraitId,
     attrs::AttrFlags,
     builtin_derive::BuiltinDeriveImplMethod,
     expr_store::path::GenericArgs as HirGenericArgs,
@@ -620,9 +620,11 @@ impl InherentImpls {
                     }
                 }
 
-                // To better support custom derives, collect impls in all unnamed const items.
-                // const _: () = { ... };
-                for konst in module_data.scope.unnamed_consts() {
+                // To better support custom derives, collect impls in const items.
+                for konst in consts_in_scope(
+                    module_data.scope.declarations(),
+                    module_data.scope.unnamed_consts(),
+                ) {
                     let body = db.body(konst.into());
                     for (_, block_def_map) in body.blocks(db) {
                         collect(db, block_def_map, map);
@@ -763,9 +765,11 @@ impl TraitImpls {
                     entry.1.push(impl_id);
                 }
 
-                // To better support custom derives, collect impls in all unnamed const items.
-                // const _: () = { ... };
-                for konst in module_data.scope.unnamed_consts() {
+                // To better support custom derives, collect impls in const items.
+                for konst in consts_in_scope(
+                    module_data.scope.declarations(),
+                    module_data.scope.unnamed_consts(),
+                ) {
                     let body = db.body(konst.into());
                     for (_, block_def_map) in body.blocks(db) {
                         collect(db, block_def_map, lang_items, map);
@@ -876,4 +880,16 @@ impl TraitImpls {
             for_each_block(type_block, trait_block).for_each(for_each);
         }
     }
+}
+
+fn consts_in_scope<'a>(
+    declarations: impl Iterator<Item = ModuleDefId> + 'a,
+    unnamed_consts: impl Iterator<Item = ConstId> + 'a,
+) -> impl Iterator<Item = ConstId> + 'a {
+    declarations
+        .filter_map(|decl| match decl {
+            ModuleDefId::ConstId(konst) => Some(konst),
+            _ => None,
+        })
+        .chain(unnamed_consts)
 }

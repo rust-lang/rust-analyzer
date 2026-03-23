@@ -1501,6 +1501,48 @@ fn f() {
 }
 
 #[test]
+fn trait_impl_in_named_const() {
+    check_types(
+        r#"
+struct S;
+
+trait Tr {
+    fn method(&self) -> u16;
+}
+
+const IMPL: () = {
+    impl Tr for S {}
+};
+
+fn f() {
+    S.method();
+  //^^^^^^^^^^ u16
+}
+    "#,
+    );
+}
+
+#[test]
+fn inherent_impl_in_named_const() {
+    check_types(
+        r#"
+struct S;
+
+const IMPL: () = {
+    impl S {
+        fn method(&self) -> u16 { 0 }
+    }
+};
+
+fn f() {
+    S.method();
+  //^^^^^^^^^^ u16
+}
+    "#,
+    );
+}
+
+#[test]
 fn resolve_const_generic_array_methods() {
     check_types(
         r#"

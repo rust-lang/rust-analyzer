@@ -577,21 +577,6 @@ pub fn derive_identity(item: TokenStream) -> TokenStream {
         ),
         (
             r#"
-#[proc_macro_derive(DelegateShout)]
-pub fn delegate_shout(_item: TokenStream) -> TokenStream {
-    TokenStream
-}
-"#
-            .into(),
-            ProcMacro {
-                name: Symbol::intern("DelegateShout"),
-                kind: ProcMacroKind::CustomDerive,
-                expander: sync::Arc::new(DelegateShoutProcMacroExpander),
-                disabled: false,
-            },
-        ),
-        (
-            r#"
 #[proc_macro_attribute]
 pub fn input_replace(attr: TokenStream, _item: TokenStream) -> TokenStream {
     attr
@@ -907,39 +892,6 @@ impl ProcMacroExpander for Issue18089ProcMacroExpander {
             pub use my_macro___ as #macro_name;
 
             #subtree
-        })
-    }
-
-    fn eq_dyn(&self, other: &dyn ProcMacroExpander) -> bool {
-        other.type_id() == TypeId::of::<Self>()
-    }
-}
-
-#[derive(Debug)]
-struct DelegateShoutProcMacroExpander;
-impl ProcMacroExpander for DelegateShoutProcMacroExpander {
-    fn expand(
-        &self,
-        _: &dyn ExpandDatabase,
-        _: &TopSubtree,
-        _: Option<&TopSubtree>,
-        _: &Env,
-        _: Span,
-        call_site: Span,
-        _: Span,
-        _: String,
-    ) -> Result<TopSubtree, ProcMacroExpansionError> {
-        Ok(quote! { call_site =>
-            const __DELEGATE_SHOUT_IMPL: () = {
-                impl Shout for Animal {
-                    fn shout(&self, input: &str) -> String {
-                        match self {
-                            Animal::Cat(it) => it.shout(input),
-                            Animal::Dog(it) => it.shout(input),
-                        }
-                    }
-                }
-            };
         })
     }
 

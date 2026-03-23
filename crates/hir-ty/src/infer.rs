@@ -36,7 +36,7 @@ use hir_def::{
     AdtId, AssocItemId, ConstId, ConstParamId, DefWithBodyId, ExpressionStoreOwner, FieldId,
     FunctionId, GenericDefId, GenericParamId, ItemContainerId, LocalFieldId, Lookup, TraitId,
     TupleFieldId, TupleId, TypeAliasId, TypeOrConstParamId, VariantId,
-    expr_store::{ConstExprOrigin, ExpressionStore, path::Path},
+    expr_store::{ConstExprOrigin, ExpressionStore, HygieneId, path::Path},
     hir::{BindingAnnotation, BindingId, ExprId, ExprOrPatId, LabelId, PatId},
     lang_item::LangItems,
     layout::Integer,
@@ -1644,11 +1644,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         let mut path_ctx = ctx.at_path(path, node);
         let interner = DbInterner::conjure();
         let (resolution, unresolved) = if value_ns {
-            let hygiene = match node {
-                ExprOrPatId::ExprId(expr) => self.store.expr_path_hygiene(expr),
-                ExprOrPatId::PatId(pat) => self.store.pat_path_hygiene(pat),
-            };
-            let Some(res) = path_ctx.resolve_path_in_value_ns(hygiene) else {
+            let Some(res) = path_ctx.resolve_path_in_value_ns(HygieneId::ROOT) else {
                 return (self.err_ty(), None);
             };
             match res {
