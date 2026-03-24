@@ -103,6 +103,7 @@ trait Merge: AstNode + Clone {
         let mut merged = self.clone();
         let mut replace = self;
         let mut update_replace = |item: Self| {
+            // Replace the first item, `self` may come after `items`
             if item.syntax().text_range().start() < replace.syntax().text_range().start() {
                 std::mem::replace(&mut replace, item)
             } else {
