@@ -14,7 +14,7 @@ use syntax::{
         make,
     },
     hacks::parse_expr_from_str,
-    ted,
+    syntax_editor::SyntaxEditor,
 };
 
 use crate::assist_context::{AssistContext, Assists};
@@ -211,13 +211,15 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
             let (closure_type_params, closure_where_clause) =
                 compute_closure_type_params(ctx, closure_mentioned_generic_params, &closure);
 
+            let mut editor = SyntaxEditor::new(body.syntax().clone());
             for (old, new) in capture_usages_replacement_map {
                 if old == body {
                     body = new;
                 } else {
-                    ted::replace(old.syntax(), new.syntax());
+                    editor.replace(old.syntax(), new.syntax());
                 }
             }
+            body = ast::Expr::cast(editor.finish().new_root().clone()).unwrap_or(body);
 
             let body = if wrap_body_in_block {
                 make::block_expr([], Some(body.reset_indent().indent(1.into())))
