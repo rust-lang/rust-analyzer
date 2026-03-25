@@ -58,6 +58,7 @@ pub struct PathTransform<'a> {
     substs: AstSubsts,
     target_scope: &'a SemanticsScope<'a>,
     source_scope: &'a SemanticsScope<'a>,
+    pre_resolved_type_substs: FxHashMap<hir::TypeParam, ast::Type>,
 }
 
 impl<'a> PathTransform<'a> {
@@ -72,6 +73,7 @@ impl<'a> PathTransform<'a> {
             target_scope,
             generic_def: Some(trait_.into()),
             substs: get_syntactic_substs(impl_).unwrap_or_default(),
+            pre_resolved_type_substs: Default::default(),
         }
     }
 
@@ -86,6 +88,7 @@ impl<'a> PathTransform<'a> {
             target_scope,
             generic_def: Some(function.into()),
             substs: get_type_args_from_arg_list(generic_arg_list).unwrap_or_default(),
+            pre_resolved_type_substs: Default::default(),
         }
     }
 
@@ -100,6 +103,7 @@ impl<'a> PathTransform<'a> {
             target_scope,
             generic_def: Some(impl_.into()),
             substs: get_type_args_from_arg_list(generic_arg_list).unwrap_or_default(),
+            pre_resolved_type_substs: Default::default(),
         }
     }
 
@@ -114,6 +118,7 @@ impl<'a> PathTransform<'a> {
             target_scope,
             generic_def: Some(adt.into()),
             substs: get_type_args_from_arg_list(generic_arg_list).unwrap_or_default(),
+            pre_resolved_type_substs: Default::default(),
         }
     }
 
@@ -126,7 +131,18 @@ impl<'a> PathTransform<'a> {
             target_scope,
             generic_def: None,
             substs: AstSubsts::default(),
+            pre_resolved_type_substs: Default::default(),
         }
+    }
+
+    /// Add pre-resolved type parameter substitutions that will be merged into
+    /// the substitution map built from `generic_def` and `substs`.
+    pub fn with_type_substs(
+        mut self,
+        substs: FxHashMap<hir::TypeParam, ast::Type>,
+    ) -> PathTransform<'a> {
+        self.pre_resolved_type_substs = substs;
+        self
     }
 
     #[must_use]
@@ -228,6 +244,8 @@ impl<'a> PathTransform<'a> {
                 }
                 _ => (), // ignore mismatching params
             });
+        // Merge in any pre-resolved type substitutions (e.g. from inferred generic args).
+        type_substs.extend(self.pre_resolved_type_substs.clone());
         // No need to prettify lifetimes, there's nothing to prettify.
         let lifetime_substs: FxHashMap<_, _> = self
             .generic_def
@@ -409,9 +427,24 @@ impl Ctx<'_> {
                             }
                         });
 
-                        let segment = make::path_segment_ty(subst.clone(), trait_ref);
-                        let qualified = make::path_from_segments(std::iter::once(segment), false);
-                        editor.replace(path.syntax(), qualified.clone_for_update().syntax());
+                        if trait_ref.is_none()
+                            && let ast::Type::PathType(subst_path_ty) = subst
+                            && let Some(subst_path) = subst_path_ty.path()
+                        {
+                            // When the substituted type is a simple path (e.g. `Foo`)
+                            // and no trait qualification is needed, we can replace
+                            // directly without wrapping in `<>`.
+                            editor.replace(
+                                path.syntax(),
+                                subst_path.clone_subtree().clone_for_update().syntax(),
+                            );
+                        } else {
+                            let segment = make::path_segment_ty(subst.clone(), trait_ref);
+                            let qualified =
+                                make::path_from_segments(std::iter::once(segment), false);
+                            editor
+                                .replace(path.syntax(), qualified.clone_for_update().syntax());
+                        }
                     } else if let Some(path_ty) = ast::PathType::cast(parent) {
                         let old = path_ty.syntax();
 

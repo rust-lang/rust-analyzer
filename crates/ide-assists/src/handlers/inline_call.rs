@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use ast::make;
 use either::Either;
 use hir::{
-    FileRange, PathResolution, Semantics, TypeInfo,
+    AsAssocItem, FileRange, HirDisplay, PathResolution, Semantics, TypeInfo,
     db::{ExpandDatabase, HirDatabase},
     sym,
 };
@@ -18,6 +18,7 @@ use ide_db::{
     syntax_helpers::{node_ext::expr_as_name_ref, prettify_macro_expansion},
 };
 use itertools::{Itertools, izip};
+use ide_db::FxHashMap;
 use syntax::{
     AstNode, NodeOrToken, SyntaxKind,
     ast::{
@@ -128,8 +129,17 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                 let replaced = call_infos
                     .into_iter()
                     .map(|(call_info, mut_node)| {
-                        let replacement =
-                            inline(&ctx.sema, def_file, function, &func_body, &params, &call_info);
+                        let inferred_type_substs =
+                            resolve_inferred_type_substs(&ctx.sema, &call_info.node, function);
+                        let replacement = inline(
+                            &ctx.sema,
+                            def_file,
+                            function,
+                            &func_body,
+                            &params,
+                            &call_info,
+                            inferred_type_substs,
+                        );
                         ted::replace(mut_node, replacement.syntax());
                     })
                     .count();
@@ -198,7 +208,7 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         name_ref.clone(),
         ctx.sema.file_to_module_def(ctx.vfs_file_id())?.krate(ctx.db()).into(),
     )?;
-    let (function, label) = match &call_info.node {
+    let (function, label, generic_subst) = match &call_info.node {
         ast::CallableExpr::Call(call) => {
             let path = match call.expr()? {
                 ast::Expr::PathExpr(path) => path.path(),
@@ -208,10 +218,12 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
                 PathResolution::Def(hir::ModuleDef::Function(f)) => f,
                 _ => return None,
             };
-            (function, format!("Inline `{path}`"))
+            (function, format!("Inline `{path}`"), None)
         }
         ast::CallableExpr::MethodCall(call) => {
-            (ctx.sema.resolve_method_call(call)?, format!("Inline `{name_ref}`"))
+            let (func_or_field, subst) = ctx.sema.resolve_method_call_fallback(call)?;
+            let function = func_or_field.left()?;
+            (function, format!("Inline `{name_ref}`"), subst)
         }
     };
 
@@ -233,9 +245,18 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         return None;
     }
 
+    let inferred_type_substs = match (generic_subst.as_ref(), ctx.sema.scope(call_info.node.syntax()))
+    {
+        (Some(subst), Some(scope)) => {
+            build_inferred_type_substs(ctx.db(), scope.module(), function, subst)
+        }
+        _ => FxHashMap::default(),
+    };
+
     let syntax = call_info.node.syntax().clone();
     acc.add(AssistId::refactor_inline("inline_call"), label, syntax.text_range(), |builder| {
-        let replacement = inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info);
+        let replacement =
+            inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, inferred_type_substs);
         builder.replace_ast(
             match call_info.node {
                 ast::CallableExpr::Call(it) => ast::Expr::CallExpr(it),
@@ -311,6 +332,68 @@ fn get_fn_params<'db>(
     Some(params)
 }
 
+/// Build a map from type parameters to their concrete types based on inferred
+/// generic substitutions from a method call resolution.
+fn build_inferred_type_substs(
+    db: &dyn HirDatabase,
+    target_module: hir::Module,
+    function: hir::Function,
+    generic_subst: &hir::GenericSubstitution<'_>,
+) -> FxHashMap<hir::TypeParam, ast::Type> {
+    let mut substs = FxHashMap::default();
+
+    // Collect the substitution types keyed by their parameter name.
+    let resolved_types: FxHashMap<_, _> = generic_subst.types(db).into_iter().collect();
+
+    // Gather type params from the function's container (trait/impl) and the function itself.
+    let container_def: Option<hir::GenericDef> = function
+        .as_assoc_item(db)
+        .map(|assoc| match assoc.container(db) {
+            hir::AssocItemContainer::Trait(t) => t.into(),
+            hir::AssocItemContainer::Impl(i) => i.into(),
+        });
+
+    let all_type_params = container_def
+        .into_iter()
+        .chain(std::iter::once(hir::GenericDef::from(function)))
+        .flat_map(|def| def.type_or_const_params(db))
+        .filter_map(|param| match param.split(db) {
+            Either::Right(tp) => Some(tp),
+            Either::Left(_) => None,
+        });
+
+    for type_param in all_type_params {
+        let name = type_param.name(db);
+        if let Some(concrete_ty) = resolved_types.get(name.symbol())
+            && let Ok(ty_str) = concrete_ty.display_source_code(db, target_module.into(), false)
+        {
+            substs.insert(type_param, make::ty(&ty_str));
+        }
+    }
+
+    substs
+}
+
+/// Resolve inferred generic type substitutions for a call expression.
+/// For method calls on trait/impl methods, this resolves the concrete types
+/// that the type parameters are instantiated with at the call site.
+fn resolve_inferred_type_substs(
+    sema: &Semantics<'_, RootDatabase>,
+    node: &ast::CallableExpr,
+    function: hir::Function,
+) -> FxHashMap<hir::TypeParam, ast::Type> {
+    let ast::CallableExpr::MethodCall(call) = node else {
+        return FxHashMap::default();
+    };
+    let Some((_, Some(generic_subst))) = sema.resolve_method_call_fallback(call) else {
+        return FxHashMap::default();
+    };
+    let Some(target_module) = sema.scope(node.syntax()).map(|s| s.module()) else {
+        return FxHashMap::default();
+    };
+    build_inferred_type_substs(sema.db, target_module, function, &generic_subst)
+}
+
 fn inline(
     sema: &Semantics<'_, RootDatabase>,
     function_def_file_id: EditionedFileId,
@@ -318,6 +401,7 @@ fn inline(
     fn_body: &ast::BlockExpr,
     params: &[(ast::Pat, Option<ast::Type>, hir::Param<'_>)],
     CallInfo { node, arguments, generic_arg_list, krate }: &CallInfo,
+    inferred_type_substs: FxHashMap<hir::TypeParam, ast::Type>,
 ) -> ast::Expr {
     let file_id = sema.hir_file_for(fn_body.syntax());
     let mut body = if let Some(macro_file) = file_id.macro_file() {
@@ -538,14 +622,18 @@ fn inline(
         }
     }
 
-    if let Some(generic_arg_list) = generic_arg_list.clone()
-        && let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
+    if (generic_arg_list.is_some() || !inferred_type_substs.is_empty())
+        && let Some((target, source)) =
+            &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
     {
-        body.reindent_to(IndentLevel(0));
-        if let Some(new_body) = ast::BlockExpr::cast(
+        let transform = if let Some(generic_arg_list) = generic_arg_list.clone() {
             PathTransform::function_call(target, source, function, generic_arg_list)
-                .apply(body.syntax()),
-        ) {
+        } else {
+            PathTransform::generic_transformation(target, source)
+        };
+        let transform = transform.with_type_substs(inferred_type_substs);
+        body.reindent_to(IndentLevel(0));
+        if let Some(new_body) = ast::BlockExpr::cast(transform.apply(body.syntax())) {
             body = new_body;
         }
     }
@@ -1882,6 +1970,68 @@ macro_rules! bar {
 
 fn f() {
     bar!(foo$0());
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_into_substitutes_concrete_type() {
+        check_assist(
+            inline_call,
+            r#"
+//- minicore: from
+struct Foo(u32);
+impl From<u32> for Foo {
+    fn from(value: u32) -> Self {
+        Foo(value)
+    }
+}
+fn main() {
+    let x: Foo = 0u32.$0into();
+}
+"#,
+            r#"
+struct Foo(u32);
+impl From<u32> for Foo {
+    fn from(value: u32) -> Self {
+        Foo(value)
+    }
+}
+fn main() {
+    let x: Foo = Foo::from(0u32);
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_turbofish_and_inferred_trait_params() {
+        // Even with turbofish, trait-level type params should be resolved
+        // from inference since turbofish only covers function-level params.
+        check_assist(
+            inline_call,
+            r#"
+//- minicore: from
+struct Bar(u64);
+impl From<u64> for Bar {
+    fn from(value: u64) -> Self {
+        Bar(value)
+    }
+}
+fn main() {
+    let y: Bar = 42u64.$0into();
+}
+"#,
+            r#"
+struct Bar(u64);
+impl From<u64> for Bar {
+    fn from(value: u64) -> Self {
+        Bar(value)
+    }
+}
+fn main() {
+    let y: Bar = Bar::from(42u64);
 }
 "#,
         );
