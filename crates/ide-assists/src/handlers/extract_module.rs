@@ -199,10 +199,10 @@ fn generate_module_def(
             .collect_vec();
         let impl_detached = ast::Impl::cast(impl_.syntax().clone_subtree()).unwrap();
         let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
-        let factory = SyntaxFactory::with_mappings();
-        let assoc_item_list = factory.assoc_item_list(assoc_items);
+        let make = SyntaxFactory::with_mappings();
+        let assoc_item_list = make.assoc_item_list(assoc_items);
         editor.replace(impl_detached.assoc_item_list().unwrap().syntax(), assoc_item_list.syntax());
-        editor.add_mappings(factory.finish_with_mappings());
+        editor.add_mappings(make.finish_with_mappings());
         let new_impl_node = editor.finish().new_root().clone();
         let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
         // Add the import for enum/struct corresponding to given impl block
