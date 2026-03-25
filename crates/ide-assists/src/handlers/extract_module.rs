@@ -18,13 +18,13 @@ use syntax::{
         self, HasVisibility,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
     match_ast,
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::{AssistContext, Assists};
-use syntax::ast::syntax_factory::SyntaxFactory;
-use syntax::syntax_editor::{Position, SyntaxEditor};
 
 use super::remove_unused_param::range_to_remove;
 
@@ -201,10 +201,7 @@ fn generate_module_def(
         let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
         let factory = SyntaxFactory::with_mappings();
         let assoc_item_list = factory.assoc_item_list(assoc_items);
-        editor.replace(
-            impl_detached.assoc_item_list().unwrap().syntax(),
-            assoc_item_list.syntax(),
-        );
+        editor.replace(impl_detached.assoc_item_list().unwrap().syntax(), assoc_item_list.syntax());
         editor.add_mappings(factory.finish_with_mappings());
         let new_impl_node = editor.finish().new_root().clone();
         let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
@@ -428,15 +425,11 @@ impl Module {
     }
 
     fn change_visibility(&mut self, record_fields: Vec<SyntaxNode>) {
-        // Reset the indentation of each body_item while it still has its parent context
-        // (so IndentLevel::from_node correctly reads the preceding whitespace token).
-        // reset_indent() internally calls clone_subtree(), which also detaches the item
-        // from the original file tree — satisfying SyntaxEditor's requirement for a
-        // detached root — while normalising internal whitespace to level 0.
+        // Detach each item from the file tree while preserving correct indentation.
+        // reset_indent() must be called before detaching so IndentLevel::from_node
+        // can read the preceding whitespace; clone_subtree() then produces the
+        // immutable detached root that SyntaxEditor requires.
         for item in &mut self.body_items {
-            // reset_indent() uses SyntaxEditor internally and returns a mutable node.
-            // clone_subtree() turns it back into an immutable detached node, which
-            // SyntaxEditor requires as its root (asserts !mutable).
             *item = ast::Item::cast(item.reset_indent().syntax().clone_subtree()).unwrap();
         }
 
