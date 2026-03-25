@@ -442,8 +442,7 @@ impl Ctx<'_> {
                             let segment = make::path_segment_ty(subst.clone(), trait_ref);
                             let qualified =
                                 make::path_from_segments(std::iter::once(segment), false);
-                            editor
-                                .replace(path.syntax(), qualified.clone_for_update().syntax());
+                            editor.replace(path.syntax(), qualified.clone_for_update().syntax());
                         }
                     } else if let Some(path_ty) = ast::PathType::cast(parent) {
                         let old = path_ty.syntax();

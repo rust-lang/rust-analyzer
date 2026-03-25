@@ -7,6 +7,7 @@ use hir::{
     db::{ExpandDatabase, HirDatabase},
     sym,
 };
+use ide_db::FxHashMap;
 use ide_db::{
     EditionedFileId, RootDatabase,
     base_db::Crate,
@@ -18,7 +19,6 @@ use ide_db::{
     syntax_helpers::{node_ext::expr_as_name_ref, prettify_macro_expansion},
 };
 use itertools::{Itertools, izip};
-use ide_db::FxHashMap;
 use syntax::{
     AstNode, NodeOrToken, SyntaxKind,
     ast::{
@@ -245,18 +245,25 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         return None;
     }
 
-    let inferred_type_substs = match (generic_subst.as_ref(), ctx.sema.scope(call_info.node.syntax()))
-    {
-        (Some(subst), Some(scope)) => {
-            build_inferred_type_substs(ctx.db(), scope.module(), function, subst)
-        }
-        _ => FxHashMap::default(),
-    };
+    let inferred_type_substs =
+        match (generic_subst.as_ref(), ctx.sema.scope(call_info.node.syntax())) {
+            (Some(subst), Some(scope)) => {
+                build_inferred_type_substs(ctx.db(), scope.module(), function, subst)
+            }
+            _ => FxHashMap::default(),
+        };
 
     let syntax = call_info.node.syntax().clone();
     acc.add(AssistId::refactor_inline("inline_call"), label, syntax.text_range(), |builder| {
-        let replacement =
-            inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, inferred_type_substs);
+        let replacement = inline(
+            &ctx.sema,
+            file_id,
+            function,
+            &fn_body,
+            &params,
+            &call_info,
+            inferred_type_substs,
+        );
         builder.replace_ast(
             match call_info.node {
                 ast::CallableExpr::Call(it) => ast::Expr::CallExpr(it),
@@ -346,9 +353,8 @@ fn build_inferred_type_substs(
     let resolved_types: FxHashMap<_, _> = generic_subst.types(db).into_iter().collect();
 
     // Gather type params from the function's container (trait/impl) and the function itself.
-    let container_def: Option<hir::GenericDef> = function
-        .as_assoc_item(db)
-        .map(|assoc| match assoc.container(db) {
+    let container_def: Option<hir::GenericDef> =
+        function.as_assoc_item(db).map(|assoc| match assoc.container(db) {
             hir::AssocItemContainer::Trait(t) => t.into(),
             hir::AssocItemContainer::Impl(i) => i.into(),
         });
@@ -623,8 +629,7 @@ fn inline(
     }
 
     if (generic_arg_list.is_some() || !inferred_type_substs.is_empty())
-        && let Some((target, source)) =
-            &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
+        && let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
     {
         let transform = if let Some(generic_arg_list) = generic_arg_list.clone() {
             PathTransform::function_call(target, source, function, generic_arg_list)
