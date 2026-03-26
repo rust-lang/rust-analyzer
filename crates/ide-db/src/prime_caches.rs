@@ -244,7 +244,7 @@ pub fn parallel_prime_caches(
                 cb(ParallelPrimeCachesProgress {
                     crates_currently_indexing: vec![],
                     crates_done: crate_def_maps_done,
-                    crates_total: crate_def_maps_done,
+                    crates_total: crate_def_maps_total,
                     work_type: "Done",
                 });
                 return;
