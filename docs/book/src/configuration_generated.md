@@ -879,6 +879,24 @@ order](https://rust-analyzer.github.io/book/features.html#auto-import). Groups a
 separated by newlines.
 
 
+## rust-analyzer.imports.group.priority {#imports.group.priority}
+
+Default:
+```json
+[
+  "Std",
+  "ExternCrate",
+  "ThisCrate",
+  "ThisModule",
+  "SuperModule",
+  "One"
+]
+```
+
+Custom ordering of import groups. Available groups: "std", "extern_crate", "this_crate",
+"this_module", "super_module", "one".
+
+
 ## rust-analyzer.imports.merge.glob {#imports.merge.glob}
 
 Default: `true`

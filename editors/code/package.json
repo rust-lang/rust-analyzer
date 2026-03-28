@@ -2055,6 +2055,32 @@
             {
                 "title": "Imports",
                 "properties": {
+                    "rust-analyzer.imports.group.priority": {
+                        "markdownDescription": "Custom ordering of import groups. Available groups: \"std\", \"extern_crate\", \"this_crate\",\n\"this_module\", \"super_module\", \"one\".",
+                        "default": [
+                            "Std",
+                            "ExternCrate",
+                            "ThisCrate",
+                            "ThisModule",
+                            "SuperModule",
+                            "One"
+                        ],
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "impl_fn",
+                                "rust_analyzer",
+                                "with_id",
+                                "hide"
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "title": "Imports",
+                "properties": {
                     "rust-analyzer.imports.merge.glob": {
                         "markdownDescription": "Allow import insertion to merge new imports into single path glob imports like `use\nstd::fmt::*;`.",
                         "default": true,
