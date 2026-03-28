@@ -18,8 +18,10 @@ use syntax::{
         self, HasVisibility,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
-    match_ast, ted,
+    match_ast,
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::{AssistContext, Assists};
@@ -195,9 +197,14 @@ fn generate_module_def(
             .filter_map(ast::AssocItem::cast)
             .map(|it| it.indent(IndentLevel(1)))
             .collect_vec();
-        let assoc_item_list = make::assoc_item_list(Some(assoc_items)).clone_for_update();
-        let impl_ = impl_.reset_indent();
-        ted::replace(impl_.get_or_create_assoc_item_list().syntax(), assoc_item_list.syntax());
+        let impl_detached = ast::Impl::cast(impl_.syntax().clone_subtree()).unwrap();
+        let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
+        let make = SyntaxFactory::with_mappings();
+        let assoc_item_list = make.assoc_item_list(assoc_items);
+        editor.replace(impl_detached.assoc_item_list().unwrap().syntax(), assoc_item_list.syntax());
+        editor.add_mappings(make.finish_with_mappings());
+        let new_impl_node = editor.finish().new_root().clone();
+        let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
         // Add the import for enum/struct corresponding to given impl block
         let use_impl = make_use_stmt_of_node_with_super(self_ty.syntax());
         once(use_impl)
@@ -385,18 +392,28 @@ impl Module {
                     if use_.syntax().parent().is_some_and(|parent| parent == covering_node)
                         && use_stmts_set.insert(use_.syntax().text_range().start())
                     {
-                        let use_ = use_stmts_to_be_inserted
+                        let entry = use_stmts_to_be_inserted
                             .entry(use_.syntax().text_range().start())
-                            .or_insert_with(|| use_.clone_subtree().clone_for_update());
-                        for seg in use_
+                            .or_insert_with(|| use_.clone_subtree());
+                        let replacements: Vec<_> = entry
                             .syntax()
                             .descendants()
                             .filter_map(ast::NameRef::cast)
                             .filter(|seg| seg.syntax().to_string() == name_ref.to_string())
-                        {
-                            let new_ref = make::path_from_text(&format!("{mod_name}::{seg}"))
-                                .clone_for_update();
-                            ted::replace(seg.syntax().parent()?, new_ref.syntax());
+                            .filter_map(|seg| {
+                                Some((
+                                    seg.syntax().parent()?,
+                                    make::path_from_text(&format!("{mod_name}::{seg}"))
+                                        .clone_for_update(),
+                                ))
+                            })
+                            .collect();
+                        if !replacements.is_empty() {
+                            let mut editor = SyntaxEditor::new(entry.syntax().clone());
+                            for (parent, new_ref) in &replacements {
+                                editor.replace(parent, new_ref.syntax());
+                            }
+                            *entry = ast::Use::cast(editor.finish().new_root().clone()).unwrap();
                         }
                     }
                 }
@@ -408,8 +425,16 @@ impl Module {
     }
 
     fn change_visibility(&mut self, record_fields: Vec<SyntaxNode>) {
+        // Detach each item from the file tree while preserving correct indentation.
+        // reset_indent() must be called before detaching so IndentLevel::from_node
+        // can read the preceding whitespace; clone_subtree() then produces the
+        // immutable detached root that SyntaxEditor requires.
+        for item in &mut self.body_items {
+            *item = ast::Item::cast(item.reset_indent().syntax().clone_subtree()).unwrap();
+        }
+
         let (mut replacements, record_field_parents, impls) =
-            get_replacements_for_visibility_change(&mut self.body_items, false);
+            get_replacements_for_visibility_change(&mut self.body_items, true);
 
         let mut impl_items = impls
             .into_iter()
@@ -432,17 +457,42 @@ impl Module {
             }
         }
 
-        for (vis, syntax) in replacements {
-            let item = syntax.children_with_tokens().find(|node_or_token| {
-                match node_or_token.kind() {
-                    // We're skipping comments, doc comments, and attribute macros that may precede the keyword
-                    // that the visibility should be placed before.
-                    SyntaxKind::COMMENT | SyntaxKind::ATTR | SyntaxKind::WHITESPACE => false,
-                    _ => true,
-                }
-            });
+        for body_item in &mut self.body_items {
+            let insert_targets: Vec<_> = replacements
+                .iter()
+                .filter(|(vis, syntax)| {
+                    vis.is_none()
+                        && (syntax == body_item.syntax()
+                            || syntax.ancestors().any(|a| &a == body_item.syntax()))
+                })
+                .filter_map(|(_, syntax)| {
+                    syntax.children_with_tokens().find(|nt| {
+                        // We're skipping comments, doc comments, and attribute macros that may
+                        // precede the keyword that the visibility should be placed before.
+                        !matches!(
+                            nt.kind(),
+                            SyntaxKind::COMMENT | SyntaxKind::ATTR | SyntaxKind::WHITESPACE
+                        )
+                    })
+                })
+                .collect();
 
-            add_change_vis(vis, item);
+            if insert_targets.is_empty() {
+                continue;
+            }
+
+            let mut editor = SyntaxEditor::new(body_item.syntax().clone());
+            for target in insert_targets {
+                let pub_crate_vis = make::visibility_pub_crate().clone_for_update();
+                editor.insert_all(
+                    Position::before(target),
+                    vec![
+                        pub_crate_vis.syntax().clone().into(),
+                        make::tokens::single_space().into(),
+                    ],
+                );
+            }
+            *body_item = ast::Item::cast(editor.finish().new_root().clone_subtree()).unwrap();
         }
     }
 
@@ -809,15 +859,6 @@ fn get_use_tree_paths_from_path(
         })?;
 
     Some(use_tree_str)
-}
-
-fn add_change_vis(vis: Option<ast::Visibility>, node_or_token_opt: Option<syntax::SyntaxElement>) {
-    if vis.is_none()
-        && let Some(node_or_token) = node_or_token_opt
-    {
-        let pub_crate_vis = make::visibility_pub_crate().clone_for_update();
-        ted::insert(ted::Position::before(node_or_token), pub_crate_vis.syntax());
-    }
 }
 
 fn indent_range_before_given_node(node: &SyntaxNode) -> Option<TextRange> {
