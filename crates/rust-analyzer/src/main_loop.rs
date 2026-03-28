@@ -192,12 +192,18 @@ impl GlobalState {
         if self.config.discover_workspace_config().is_none() {
             self.fetch_workspaces_queue.request_op(
                 "startup".to_owned(),
-                FetchWorkspaceRequest { path: None, force_crate_graph_reload: false },
+                FetchWorkspaceRequest {
+                    path: None,
+                    force_crate_graph_reload: false,
+                    config_generation: self.config_generation,
+                },
             );
-            if let Some((cause, FetchWorkspaceRequest { path, force_crate_graph_reload })) =
-                self.fetch_workspaces_queue.should_start_op()
+            if let Some((
+                cause,
+                FetchWorkspaceRequest { path, force_crate_graph_reload, config_generation },
+            )) = self.fetch_workspaces_queue.should_start_op()
             {
-                self.fetch_workspaces(cause, path, force_crate_graph_reload);
+                self.fetch_workspaces(cause, path, force_crate_graph_reload, config_generation);
             }
         }
 
@@ -564,10 +570,12 @@ impl GlobalState {
 
         if (self.config.cargo_autoreload_config(None)
             || self.config.discover_workspace_config().is_some())
-            && let Some((cause, FetchWorkspaceRequest { path, force_crate_graph_reload })) =
-                self.fetch_workspaces_queue.should_start_op()
+            && let Some((
+                cause,
+                FetchWorkspaceRequest { path, force_crate_graph_reload, config_generation },
+            )) = self.fetch_workspaces_queue.should_start_op()
         {
-            self.fetch_workspaces(cause, path, force_crate_graph_reload);
+            self.fetch_workspaces(cause, path, force_crate_graph_reload, config_generation);
         }
 
         if !self.fetch_workspaces_queue.op_in_progress() {
@@ -811,9 +819,14 @@ impl GlobalState {
                 let (state, msg) = match progress {
                     ProjectWorkspaceProgress::Begin => (Progress::Begin, None),
                     ProjectWorkspaceProgress::Report(msg) => (Progress::Report, Some(msg)),
-                    ProjectWorkspaceProgress::End(workspaces, force_crate_graph_reload) => {
+                    ProjectWorkspaceProgress::End(
+                        workspaces,
+                        force_crate_graph_reload,
+                        config_generation,
+                    ) => {
                         let resp = FetchWorkspaceResponse { workspaces, force_crate_graph_reload };
                         self.fetch_workspaces_queue.op_completed(resp);
+                        self.last_workspace_fetch_generation = Some(config_generation);
                         if let Err(e) = self.fetch_workspace_error() {
                             error!("FetchWorkspaceError: {e}");
                         }
