@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AnyString","CommentPlacement","CommentShape","Radix"],"struct":["CommentKind","QuoteOffsets"],"trait":["IsString"]};

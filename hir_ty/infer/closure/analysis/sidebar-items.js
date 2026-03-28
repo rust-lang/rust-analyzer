@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CaptureKind","HirPlaceProjection"],"fn":["apply_adjusts_to_place"],"struct":["CapturedItem","CapturedItemWithoutTy","HirPlace"]};
