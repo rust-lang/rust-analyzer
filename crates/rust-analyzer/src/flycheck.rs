@@ -64,9 +64,7 @@ pub(crate) enum Target {
 
 impl CargoOptions {
     pub(crate) fn apply_on_command(&self, cmd: &mut Command, ws_target_dir: Option<&Utf8Path>) {
-        for target in &self.target_tuples {
-            cmd.args(["--target", target.as_str()]);
-        }
+        toolchain::cargo_use_targets(cmd, &self.target_tuples);
         if self.all_targets {
             if self.set_test {
                 cmd.arg("--all-targets");
