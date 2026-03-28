@@ -572,29 +572,56 @@ impl TestAttr {
 fn has_runnable_doc_test(db: &RootDatabase, attrs: &hir::AttrsWithOwner) -> bool {
     const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
     const RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE: &[&str] =
-        &["", "rust", "should_panic", "edition2015", "edition2018", "edition2021"];
+        &["", "rust", "should_panic", "edition2015", "edition2018", "edition2021", "edition2024"];
 
-    attrs.hir_docs(db).is_some_and(|doc| {
-        let mut in_code_block = false;
+    let doc = match attrs.hir_docs(db) {
+        Some(doc) => doc,
+        None => return false,
+    };
+    let mut in_code_block = false;
+    let mut runnable_found = false;
+    let mut has_compile_fail = false;
 
-        for line in doc.docs().lines() {
-            if let Some(header) =
-                RUSTDOC_FENCES.into_iter().find_map(|fence| line.strip_prefix(fence))
+    for line in doc.docs().lines() {
+        let trimmed_line = line.trim_start();
+        if let Some(header) =
+            RUSTDOC_FENCES.into_iter().find_map(|fence| trimmed_line.strip_prefix(fence))
+        {
+            if in_code_block {
+                in_code_block = false;
+                continue;
+            }
+
+            in_code_block = true;
+            let mut block_has_compile_fail = false;
+            let mut block_runnable = true;
+
+            for attr in header
+                .split(',')
+                .flat_map(|segment| segment.split_ascii_whitespace())
+                .map(str::trim)
+                .filter(|attr| !attr.is_empty())
             {
-                in_code_block = !in_code_block;
+                if attr.eq_ignore_ascii_case("compile_fail") {
+                    block_has_compile_fail = true;
+                    block_runnable = false;
+                    break;
+                }
 
-                if in_code_block
-                    && header
-                        .split(',')
-                        .all(|sub| RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE.contains(&sub.trim()))
+                if !RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE
+                    .iter()
+                    .any(|allowed| allowed.eq_ignore_ascii_case(attr))
                 {
-                    return true;
+                    block_runnable = false;
                 }
             }
-        }
 
-        false
-    })
+            has_compile_fail |= block_has_compile_fail;
+            runnable_found |= block_runnable;
+        }
+    }
+
+    runnable_found && !has_compile_fail
 }
 
 // We could create runnables for modules with number_of_test_submodules > 0,
@@ -935,6 +962,33 @@ impl Test for StructWithRunnable {}
                     "(DocTest, NavigationTarget { file_id: FileId(0), full_range: 900..965, name: \"StructWithRunnable\" })",
                     "(DocTest, NavigationTarget { file_id: FileId(0), full_range: 967..1024, focus_range: 1003..1021, name: \"impl\", kind: Impl })",
                     "(DocTest, NavigationTarget { file_id: FileId(0), full_range: 1088..1154, focus_range: 1133..1151, name: \"impl\", kind: Impl })",
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn doc_test_with_compile_fail_blocks_is_skipped() {
+        check(
+            r#"
+//- /lib.rs
+$0
+fn main() {}
+
+/// ```compile_fail
+/// let x = 5;
+/// x += 1;
+/// ```
+///
+/// ```
+/// let x = 5;
+/// x + 1;
+/// ```
+fn add() {}
+"#,
+            expect![[r#"
+                [
+                    "(Bin, NavigationTarget { file_id: FileId(0), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
                 ]
             "#]],
         );
