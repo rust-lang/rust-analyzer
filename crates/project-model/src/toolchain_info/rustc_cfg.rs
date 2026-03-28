@@ -87,7 +87,7 @@ fn rustc_print_cfg(
     };
 
     let mut cmd = sysroot.tool(Tool::Rustc, current_dir, extra_env);
-    cmd.args(RUSTC_ARGS);
+    cmd.args(["-Z", "unstable-options"]).args(RUSTC_ARGS);
     cmd.arg("-O");
     if let Some(target) = target {
         cmd.args(["--target", target]);
