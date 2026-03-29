@@ -568,18 +568,63 @@ fn inline(
         });
     }
 
+    // Transform return expressions into break expressions with a labeled block.
+    // This is needed because `return` in the inlined body would otherwise exit
+    // the *caller* function, not just the inlined block.
+    let returns_to_replace: Vec<_> = body
+        .syntax()
+        .descendants()
+        .filter_map(ast::ReturnExpr::cast)
+        .filter(|ret| {
+            // Only transform returns that belong to the inlined body, not those
+            // inside closures or async/gen blocks (which create their own return scope).
+            ret.syntax().ancestors().take_while(|it| it != body.syntax()).all(|ancestor| {
+                match ast::Expr::cast(ancestor) {
+                    Some(ast::Expr::ClosureExpr(_)) => false,
+                    Some(ast::Expr::BlockExpr(block)) => !matches!(
+                        block.modifier(),
+                        Some(
+                            ast::BlockModifier::Async(_)
+                                | ast::BlockModifier::Const(_)
+                                | ast::BlockModifier::AsyncGen(_)
+                                | ast::BlockModifier::Gen(_)
+                        )
+                    ),
+                    _ => true,
+                }
+            })
+        })
+        .collect();
+
+    if !returns_to_replace.is_empty() {
+        let label_lifetime = make::lifetime("'inline");
+        let label = make::label(label_lifetime.clone()).clone_for_update();
+
+        for ret_expr in returns_to_replace {
+            let break_expr =
+                make::expr_break(Some(label_lifetime.clone()), ret_expr.expr()).clone_for_update();
+            ted::replace(ret_expr.syntax(), break_expr.syntax());
+        }
+
+        // Insert label as a child of BlockExpr, before the StmtList
+        if let Some(stmt_list) = body.stmt_list() {
+            ted::insert(ted::Position::before(stmt_list.syntax()), label.syntax());
+        }
+    }
+
     let original_indentation = match node {
         ast::CallableExpr::Call(it) => it.indent_level(),
         ast::CallableExpr::MethodCall(it) => it.indent_level(),
     };
     body.reindent_to(original_indentation);
 
+    let has_label = body.label().is_some();
     let no_stmts = body.statements().next().is_none();
     match body.tail_expr() {
-        Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts => {
+        Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts && !has_label => {
             make::expr_paren(expr).clone_for_update().into()
         }
-        Some(expr) if !is_async_fn && no_stmts => expr,
+        Some(expr) if !is_async_fn && no_stmts && !has_label => expr,
         _ => match node
             .syntax()
             .parent()
@@ -1882,6 +1927,250 @@ macro_rules! bar {
 
 fn f() {
     bar!(foo$0());
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_early_return() {
+        check_assist(
+            inline_call,
+            r#"
+fn early_return() -> Option<()> {
+    return None;
+}
+fn main() -> Option<()> {
+    if early_return$0().is_none() {
+        return Some(());
+    }
+    None
+}
+"#,
+            r#"
+fn early_return() -> Option<()> {
+    return None;
+}
+fn main() -> Option<()> {
+    if 'inline: {
+        break 'inline None;
+    }.is_none() {
+        return Some(());
+    }
+    None
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_early_return_and_tail_expr() {
+        check_assist(
+            inline_call,
+            r#"
+fn foo(x: i32) -> i32 {
+    if x < 0 {
+        return -1;
+    }
+    x * 2
+}
+fn main() {
+    let result = foo$0(5);
+}
+"#,
+            r#"
+fn foo(x: i32) -> i32 {
+    if x < 0 {
+        return -1;
+    }
+    x * 2
+}
+fn main() {
+    let result = 'inline: {
+        let x = 5;
+        if x < 0 {
+            break 'inline -1;
+        }
+        x * 2
+    };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_return_in_closure_not_transformed() {
+        check_assist(
+            inline_call,
+            r#"
+fn foo() -> fn() -> i32 {
+    || return 42
+}
+fn main() {
+    let f = foo$0();
+}
+"#,
+            r#"
+fn foo() -> fn() -> i32 {
+    || return 42
+}
+fn main() {
+    let f = (|| return 42);
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_multiple_early_returns() {
+        check_assist(
+            inline_call,
+            r#"
+fn classify(x: i32) -> &'static str {
+    if x < 0 {
+        return "negative";
+    }
+    if x == 0 {
+        return "zero";
+    }
+    "positive"
+}
+fn main() {
+    let s = classify$0(1);
+}
+"#,
+            r#"
+fn classify(x: i32) -> &'static str {
+    if x < 0 {
+        return "negative";
+    }
+    if x == 0 {
+        return "zero";
+    }
+    "positive"
+}
+fn main() {
+    let s = 'inline: {
+        let x = 1;
+        if x < 0 {
+            break 'inline "negative";
+        }
+        if x == 0 {
+            break 'inline "zero";
+        }
+        "positive"
+    };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_return_in_async_block_not_transformed() {
+        check_assist(
+            inline_call,
+            r#"
+fn foo() -> i32 {
+    let _ = async { return 42; };
+    return 0;
+}
+fn main() {
+    let x = foo$0();
+}
+"#,
+            r#"
+fn foo() -> i32 {
+    let _ = async { return 42; };
+    return 0;
+}
+fn main() {
+    let x = 'inline: {
+        let _ = async { return 42; };
+        break 'inline 0;
+    };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_return_no_expr() {
+        check_assist(
+            inline_call,
+            r#"
+fn greet(is_loud: bool) {
+    if !is_loud {
+        return;
+    }
+    println!("HELLO!");
+}
+fn main() {
+    greet$0(true);
+}
+"#,
+            r#"
+fn greet(is_loud: bool) {
+    if !is_loud {
+        return;
+    }
+    println!("HELLO!");
+}
+fn main() {
+    'inline: {
+        if !true {
+            break 'inline;
+        }
+        println!("HELLO!");
+    };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_into_callers_with_early_return() {
+        check_assist(
+            inline_into_callers,
+            r#"
+fn ear$0ly(x: i32) -> i32 {
+    if x < 0 {
+        return -1;
+    }
+    x * 2
+}
+fn main() {
+    let a = early(1);
+}
+"#,
+            r#"
+
+fn main() {
+    let a = 'inline: {
+        let x = 1;
+        if x < 0 {
+            break 'inline -1;
+        }
+        x * 2
+    };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn inline_call_with_return_as_tail_expr() {
+        check_assist(
+            inline_call,
+            r#"
+fn foo() -> i32 { return 42 }
+fn main() {
+    let x = foo$0();
+}
+"#,
+            r#"
+fn foo() -> i32 { return 42 }
+fn main() {
+    let x = 'inline: { break 'inline 42 };
 }
 "#,
         );
