@@ -73,7 +73,7 @@ pub(crate) fn replace_named_generic_with_impl(
         target,
         |edit| {
             let mut editor = edit.make_editor(type_param.syntax());
-            let make = SyntaxFactory::without_mappings();
+            let make = SyntaxFactory::with_mappings();
 
             // remove trait from generic param list
             if let Some(generic_params) = fn_.generic_param_list() {
@@ -94,6 +94,7 @@ pub(crate) fn replace_named_generic_with_impl(
             for path_type in path_types_to_replace.iter().rev() {
                 editor.replace(path_type.syntax(), new_bounds.syntax());
             }
+            editor.add_mappings(make.finish_with_mappings());
             edit.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
