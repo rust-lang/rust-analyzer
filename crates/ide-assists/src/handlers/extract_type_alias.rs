@@ -57,7 +57,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
         target,
         |builder| {
             let mut edit = builder.make_editor(node);
-            let make = SyntaxFactory::without_mappings();
+            let make = SyntaxFactory::with_mappings();
 
             let resolved_ty = make.ty(&resolved_ty);
 
@@ -103,6 +103,7 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                 ],
             );
 
+            edit.add_mappings(make.finish_with_mappings());
             builder.add_file_edits(ctx.vfs_file_id(), edit);
         },
     )

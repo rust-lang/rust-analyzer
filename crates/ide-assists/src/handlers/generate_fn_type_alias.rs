@@ -56,7 +56,7 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
             func_node.syntax().text_range(),
             |builder| {
                 let mut edit = builder.make_editor(func);
-                let make = SyntaxFactory::without_mappings();
+                let make = SyntaxFactory::with_mappings();
 
                 let alias_name = format!("{}Fn", stdx::to_camel_case(&name.to_string()));
 
@@ -118,6 +118,7 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                     edit.add_annotation(name.syntax(), builder.make_placeholder_snippet(cap));
                 }
 
+                edit.add_mappings(make.finish_with_mappings());
                 builder.add_file_edits(ctx.vfs_file_id(), edit);
             },
         );
