@@ -520,6 +520,16 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     .skip_binder();
                 (assoc_type, EarlyBinder::bind(trait_args).instantiate(interner, impl_trait.args))
             }
+            // associated types in inherent impl
+            Some(TypeNs::AdtId(adt)) => {
+                let Some(alias_id) =
+                    crate::method_resolution::find_inherent_assoc_type(db, adt, assoc_name)
+                else {
+                    return error_ty();
+                };
+
+                return self.lower_path_inner(TyDefId::TypeAliasId(alias_id), infer_args);
+            }
             _ => return error_ty(),
         };
 
