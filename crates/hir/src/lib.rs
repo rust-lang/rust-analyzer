@@ -2827,10 +2827,7 @@ impl Function {
     /// Returns the return expressions in this function's body that belong to the
     /// function itself (not inside closures or async blocks which create their own
     /// return scope). Uses HIR analysis, which handles returns inside macro expansions.
-    pub fn return_points(
-        self,
-        db: &dyn HirDatabase,
-    ) -> Vec<InFile<AstPtr<ast::ReturnExpr>>> {
+    pub fn return_points(self, db: &dyn HirDatabase) -> Vec<InFile<AstPtr<ast::ReturnExpr>>> {
         let func_id: FunctionId = match self.id {
             AnyFunctionId::FunctionId(id) => id,
             _ => return vec![],
