@@ -333,6 +333,66 @@ fn inline(
     } else {
         fn_body.clone_for_update()
     };
+
+    // Collect return expressions before modifying the body tree, as modifications shift
+    // text ranges. Returns inside async functions don't need transformation because the
+    // body gets wrapped in `async move { ... }` which preserves return semantics.
+    let is_async_fn = function.is_async(sema.db);
+    let returns_to_replace: Vec<ast::ReturnExpr> = if is_async_fn {
+        vec![]
+    } else if file_id.is_macro() {
+        // Function defined in a macro — the body was prettified so HIR source map ranges
+        // don't match. Walk the prettified body syntactically instead.
+        body.syntax()
+            .descendants()
+            .filter_map(ast::ReturnExpr::cast)
+            .filter(|ret| {
+                ret.syntax().ancestors().take_while(|it| it != body.syntax()).all(|ancestor| {
+                    match ast::Expr::cast(ancestor) {
+                        Some(ast::Expr::ClosureExpr(_)) => false,
+                        Some(ast::Expr::BlockExpr(block)) => !matches!(
+                            block.modifier(),
+                            Some(
+                                ast::BlockModifier::Async(_)
+                                    | ast::BlockModifier::Const(_)
+                                    | ast::BlockModifier::AsyncGen(_)
+                                    | ast::BlockModifier::Gen(_)
+                            )
+                        ),
+                        _ => true,
+                    }
+                })
+            })
+            .collect()
+    } else {
+        // Use HIR analysis which handles returns inside macro expansions.
+        function
+            .return_points(sema.db)
+            .into_iter()
+            .filter_map(|ret| {
+                if !ret.file_id.is_macro() {
+                    // Direct return in source — find in cloned body by text range
+                    body.syntax()
+                        .descendants()
+                        .filter_map(ast::ReturnExpr::cast)
+                        .find(|r| r.syntax().text_range() == ret.value.text_range())
+                } else {
+                    // Macro-generated return — try to upmap to original source
+                    let root = sema.parse_or_expand(ret.file_id);
+                    let return_expr = ret.value.to_node(&root);
+                    let hir::FileRange { file_id, range } =
+                        sema.original_range_opt(return_expr.syntax())?;
+                    if file_id != function_def_file_id {
+                        return None;
+                    }
+                    body.syntax()
+                        .descendants()
+                        .filter_map(ast::ReturnExpr::cast)
+                        .find(|r| r.syntax().text_range() == range)
+                }
+            })
+            .collect()
+    };
     let usages_for_locals = |local| {
         Definition::Local(local)
             .usages(sema)
@@ -550,7 +610,6 @@ fn inline(
         }
     }
 
-    let is_async_fn = function.is_async(sema.db);
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
         body = make::async_move_block_expr(body.statements(), body.tail_expr()).clone_for_update();
@@ -571,31 +630,6 @@ fn inline(
     // Transform return expressions into break expressions with a labeled block.
     // This is needed because `return` in the inlined body would otherwise exit
     // the *caller* function, not just the inlined block.
-    let returns_to_replace: Vec<_> = body
-        .syntax()
-        .descendants()
-        .filter_map(ast::ReturnExpr::cast)
-        .filter(|ret| {
-            // Only transform returns that belong to the inlined body, not those
-            // inside closures or async/gen blocks (which create their own return scope).
-            ret.syntax().ancestors().take_while(|it| it != body.syntax()).all(|ancestor| {
-                match ast::Expr::cast(ancestor) {
-                    Some(ast::Expr::ClosureExpr(_)) => false,
-                    Some(ast::Expr::BlockExpr(block)) => !matches!(
-                        block.modifier(),
-                        Some(
-                            ast::BlockModifier::Async(_)
-                                | ast::BlockModifier::Const(_)
-                                | ast::BlockModifier::AsyncGen(_)
-                                | ast::BlockModifier::Gen(_)
-                        )
-                    ),
-                    _ => true,
-                }
-            })
-        })
-        .collect();
-
     if !returns_to_replace.is_empty() {
         let label_lifetime = make::lifetime("'inline");
         let label = make::label(label_lifetime.clone()).clone_for_update();

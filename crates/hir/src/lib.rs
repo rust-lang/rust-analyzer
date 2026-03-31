@@ -2824,6 +2824,38 @@ impl Function {
         }
     }
 
+    /// Returns the return expressions in this function's body that belong to the
+    /// function itself (not inside closures or async blocks which create their own
+    /// return scope). Uses HIR analysis, which handles returns inside macro expansions.
+    pub fn return_points(
+        self,
+        db: &dyn HirDatabase,
+    ) -> Vec<InFile<AstPtr<ast::ReturnExpr>>> {
+        let func_id: FunctionId = match self.id {
+            AnyFunctionId::FunctionId(id) => id,
+            _ => return vec![],
+        };
+        let (body, source_map) = Body::with_source_map(db, func_id.into());
+        let mut returns = vec![];
+        let mut to_visit = vec![body.root_expr()];
+        while let Some(expr_id) = to_visit.pop() {
+            let expr = &body[expr_id];
+            // Closures and async blocks create their own return scope
+            match expr {
+                Expr::Closure { .. } | Expr::Async { .. } => continue,
+                _ => {}
+            }
+            if matches!(expr, Expr::Return { .. })
+                && let Ok(source) = source_map.expr_syntax(expr_id)
+                && let Some(ptr) = source.value.cast::<ast::ReturnExpr>()
+            {
+                returns.push(InFile::new(source.file_id, ptr));
+            }
+            body.walk_child_exprs(expr_id, |child| to_visit.push(child));
+        }
+        returns
+    }
+
     pub fn as_proc_macro(self, db: &dyn HirDatabase) -> Option<Macro> {
         let AnyFunctionId::FunctionId(id) = self.id else {
             return None;
