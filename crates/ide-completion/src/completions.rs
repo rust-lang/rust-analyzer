@@ -2,6 +2,7 @@
 
 pub(crate) mod attribute;
 pub(crate) mod dot;
+pub(crate) mod doctest;
 pub(crate) mod env_vars;
 pub(crate) mod expr;
 pub(crate) mod extern_abi;
