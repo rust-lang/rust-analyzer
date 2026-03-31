@@ -369,16 +369,17 @@ fn inline(
 
     // Collect return expressions that need to be rewritten to labeled breaks.
     // Async functions are excluded: their body is later wrapped in `async move { }`,
-    // which preserves the return semantics.
+    // which preserves return semantics.
     let is_async_fn = function.is_async(sema.db);
     let return_nodes: Vec<ast::ReturnExpr> = if is_async_fn {
         vec![]
-    } else {
+    } else if file_id.is_macro() {
+        // Function defined in a macro — the body was prettified so HIR source map ranges
+        // don't match. Walk the prettified body syntactically instead.
         body.syntax()
             .descendants()
             .filter_map(ast::ReturnExpr::cast)
             .filter(|ret| {
-                // Exclude returns inside closures or async/const/gen blocks.
                 ret.syntax().ancestors().take_while(|it| it != body.syntax()).all(|ancestor| {
                     match ast::Expr::cast(ancestor) {
                         Some(ast::Expr::ClosureExpr(_)) => false,
@@ -396,6 +397,23 @@ fn inline(
                 })
             })
             .collect()
+    } else {
+        // Use HIR analysis to get the return points. The editor's body is re-rooted so
+        // its ranges are body-relative; subtract body_offset to convert file-relative
+        // ranges from return_points() before looking up nodes.
+        function
+            .return_points(sema.db)
+            .into_iter()
+            .filter_map(|ret| {
+                let root = sema.db.parse_or_expand(ret.file_id);
+                let return_expr = ret.value.to_node(&root);
+                let body_relative_range = return_expr.syntax().text_range() - body_offset;
+                body.syntax()
+                    .covering_element(body_relative_range)
+                    .ancestors()
+                    .find_map(ast::ReturnExpr::cast)
+            })
+            .collect()
     };
 
     // Register break replacements in the editor now, before finish().
@@ -406,6 +424,7 @@ fn inline(
             editor.replace(ret_expr.syntax(), break_expr.syntax());
         }
     }
+
 
     let usages_for_locals = |local| {
         Definition::Local(local)
@@ -677,10 +696,8 @@ fn inline(
     }
 
     // Insert the `'inline:` label now that the body is fully assembled.
-    // The break replacements were registered in the editor above; we just need
-    // to attach the label to the outermost block here.
-    // body is always mutable at this point (editor.finish() returns a mutable tree,
-    // and make.block_expr / make.async_move_block_expr also produce mutable trees).
+    // Break replacements were registered in the editor above; just attach the label.
+    // body is always mutable here (editor.finish() and make.block_expr both produce mutable trees).
     if !return_nodes.is_empty() {
         let label = make::label(make::lifetime("'inline")).clone_for_update();
         if let Some(stmt_list) = body.stmt_list() {
