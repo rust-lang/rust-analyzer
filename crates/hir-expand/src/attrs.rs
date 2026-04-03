@@ -390,15 +390,14 @@ pub fn collect_item_tree_attrs<'a, BreakValue>(
             if let Meta::TokenTree { path, tt } = &attr
                 && path.is1("cfg")
             {
-                let cfg =
-                    CfgExpr::parse_from_ast(&mut TokenTreeChildren::new(tt).peekable());
+                let cfg = CfgExpr::parse_from_ast(&mut TokenTreeChildren::new(tt).peekable());
                 if cfg_options().check(&cfg) == Some(false) {
                     return ControlFlow::Break(Either::Right(cfg));
                 }
-            } else if should_count_for_attr_id(&attr) {
-                if let ControlFlow::Break(v) = on_attr(attr, container, top_attr, range) {
-                    return ControlFlow::Break(Either::Left(v));
-                }
+            } else if should_count_for_attr_id(&attr)
+                && let ControlFlow::Break(v) = on_attr(attr, container, top_attr, range)
+            {
+                return ControlFlow::Break(Either::Left(v));
             }
             ControlFlow::Continue(())
         },
