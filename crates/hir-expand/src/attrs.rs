@@ -346,6 +346,27 @@ pub(crate) fn is_item_tree_filtered_attr(name: &str) -> bool {
     )
 }
 
+/// Returns `true` if this attribute should increment the `item_tree_attr_id` counter
+/// when being processed.
+///
+/// # Invariant
+///
+/// Both [`collect_item_tree_attrs`] and `macro_input_callback` (in `cfg_process.rs`) must
+/// use this predicate when deciding whether to advance the counter, to keep it synchronised
+/// with the [`AttrId`]s assigned by the item tree. Keeping the logic in one place prevents
+/// the kind of desynchronisation fixed in PR #21205.
+pub(crate) fn should_count_for_attr_id(meta: &Meta) -> bool {
+    match meta {
+        // `cfg` is evaluated and stripped, but is NOT counted for AttrId purposes.
+        Meta::TokenTree { path, .. } if path.is1("cfg") => false,
+        Meta::TokenTree { path, .. } | Meta::Path { path } => {
+            !(path.segments.len() == 1 && is_item_tree_filtered_attr(path.segments[0].text()))
+        }
+        Meta::NamedKeyValue { name: Some(n), .. } => !is_item_tree_filtered_attr(n.text()),
+        Meta::NamedKeyValue { name: None, .. } => true,
+    }
+}
+
 /// This collects attributes exactly as the item tree needs them. This is used for the item tree,
 /// as well as for resolving [`AttrId`]s.
 pub fn collect_item_tree_attrs<'a, BreakValue>(
@@ -361,30 +382,23 @@ pub fn collect_item_tree_attrs<'a, BreakValue>(
             // We filter builtin attributes that we don't need for nameres, because this saves memory.
             // I only put the most common attributes, but if some attribute becomes common feel free to add it.
             // Notice, however: for an attribute to be filtered out, it *must* not be shadowable with a macro!
-            let filter = match &attr {
-                Meta::NamedKeyValue { name: Some(name), .. } => {
-                    is_item_tree_filtered_attr(name.text())
+            //
+            // `cfg` is handled separately because it has a side effect (evaluating the cfg
+            // expression). Whether an attribute increments the AttrId counter is decided by
+            // `should_count_for_attr_id`, which both this function and `macro_input_callback`
+            // (cfg_process.rs) must agree on.
+            if let Meta::TokenTree { path, tt } = &attr
+                && path.is1("cfg")
+            {
+                let cfg =
+                    CfgExpr::parse_from_ast(&mut TokenTreeChildren::new(tt).peekable());
+                if cfg_options().check(&cfg) == Some(false) {
+                    return ControlFlow::Break(Either::Right(cfg));
                 }
-                Meta::TokenTree { path, tt } if path.segments.len() == 1 => {
-                    let name = path.segments[0].text();
-                    if name == "cfg" {
-                        let cfg =
-                            CfgExpr::parse_from_ast(&mut TokenTreeChildren::new(tt).peekable());
-                        if cfg_options().check(&cfg) == Some(false) {
-                            return ControlFlow::Break(Either::Right(cfg));
-                        }
-                        true
-                    } else {
-                        is_item_tree_filtered_attr(name)
-                    }
+            } else if should_count_for_attr_id(&attr) {
+                if let ControlFlow::Break(v) = on_attr(attr, container, top_attr, range) {
+                    return ControlFlow::Break(Either::Left(v));
                 }
-                Meta::Path { path } => {
-                    path.segments.len() == 1 && is_item_tree_filtered_attr(path.segments[0].text())
-                }
-                _ => false,
-            };
-            if !filter && let ControlFlow::Break(v) = on_attr(attr, container, top_attr, range) {
-                return ControlFlow::Break(Either::Left(v));
             }
             ControlFlow::Continue(())
         },

@@ -13,7 +13,7 @@ use syntax::{
 use syntax_bridge::DocCommentDesugarMode;
 
 use crate::{
-    attrs::{AttrId, Meta, expand_cfg_attr, is_item_tree_filtered_attr},
+    attrs::{AttrId, Meta, expand_cfg_attr, should_count_for_attr_id},
     db::ExpandDatabase,
     fixup::{self, SyntaxFixupUndoInfo},
     span_map::SpanMapRef,
@@ -153,36 +153,18 @@ fn macro_input_callback(
                             }
 
                             let mut strip_current_attr = false;
-                            match attr {
-                                Meta::NamedKeyValue { name, .. } => {
-                                    if name
-                                        .is_none_or(|name| !is_item_tree_filtered_attr(name.text()))
-                                    {
-                                        strip_current_attr = should_strip_attr();
-                                    }
+                            if let Meta::TokenTree { path, tt } = &attr
+                                && path.is1("cfg")
+                            {
+                                let cfg_expr = CfgExpr::parse_from_ast(
+                                    &mut TokenTreeChildren::new(tt).peekable(),
+                                );
+                                if cfg_options().check(&cfg_expr) == Some(false) {
+                                    return ControlFlow::Break(ItemIsCfgedOut);
                                 }
-                                Meta::TokenTree { path, tt } => {
-                                    if path.is1("cfg") {
-                                        let cfg_expr = CfgExpr::parse_from_ast(
-                                            &mut TokenTreeChildren::new(&tt).peekable(),
-                                        );
-                                        if cfg_options().check(&cfg_expr) == Some(false) {
-                                            return ControlFlow::Break(ItemIsCfgedOut);
-                                        }
-                                        strip_current_attr = true;
-                                    } else if path.segments.len() != 1
-                                        || !is_item_tree_filtered_attr(path.segments[0].text())
-                                    {
-                                        strip_current_attr = should_strip_attr();
-                                    }
-                                }
-                                Meta::Path { path } => {
-                                    if path.segments.len() != 1
-                                        || !is_item_tree_filtered_attr(path.segments[0].text())
-                                    {
-                                        strip_current_attr = should_strip_attr();
-                                    }
-                                }
+                                strip_current_attr = true;
+                            } else if should_count_for_attr_id(&attr) {
+                                strip_current_attr = should_strip_attr();
                             }
 
                             if !strip_current_attr {
