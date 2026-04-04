@@ -380,7 +380,7 @@ Some multi-line comment$0
         completion_list(
             r#"
 /// Some doc comment
-/// just text$0
+/// let test$0 = 1
 "#,
         ),
         String::new(),

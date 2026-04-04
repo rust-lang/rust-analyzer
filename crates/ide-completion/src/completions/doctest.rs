@@ -4,13 +4,9 @@ use base_db::{
     CrateGraphBuilder, DependencyBuilder, LibraryRoots, LocalRoots, SourceDatabase, SourceRoot,
     all_crates,
 };
-use hir::{
-    ChangeWithProcMacros, HasAttrs, InFile, Semantics,
-    db::DefDatabase,
-};
+use hir::{ChangeWithProcMacros, HasAttrs, InFile, Semantics, db::DefDatabase};
 use ide_db::{
-    FxHashMap,
-    FilePosition, RootDatabase,
+    FilePosition, FxHashMap, RootDatabase,
     defs::Definition,
     range_mapper::RangeMapper,
     rust_doc::is_rust_fence,
@@ -19,9 +15,7 @@ use ide_db::{
 use syntax::{
     AstNode, AstToken,
     SyntaxKind::{ASSOC_ITEM_LIST, ITEM_LIST, SOURCE_FILE},
-    SyntaxNode, SyntaxToken, TextRange, TextSize,
-    ast,
-    match_ast,
+    SyntaxNode, SyntaxToken, TextRange, TextSize, ast, match_ast,
 };
 
 use crate::{CompletionConfig, CompletionItem};
@@ -29,8 +23,7 @@ use crate::{CompletionConfig, CompletionItem};
 const RUSTDOC_FENCE_LENGTH: usize = 3;
 const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
 const DOCTEST_WRAPPER_NAME: &str = "__ra_doctest_completion";
-const DOCTEST_WRAPPER_PREFIX: &str =
-    "\n#[allow(dead_code)]\nfn __ra_doctest_completion() {\n";
+const DOCTEST_WRAPPER_PREFIX: &str = "\n#[allow(dead_code)]\nfn __ra_doctest_completion() {\n";
 const DOCTEST_WRAPPER_SUFFIX: &str = "\n}\n";
 
 pub(crate) fn complete_doctest(
@@ -44,8 +37,9 @@ pub(crate) fn complete_doctest(
     let file = sema.parse(editioned_file_id).syntax().clone();
     let token = file.token_at_offset(position.offset).left_biased()?;
 
-    let analysis =
-        hir::attach_db_allow_change(db, || DoctestCompletionAnalysis::new(&sema, position.file_id, token))?;
+    let analysis = hir::attach_db_allow_change(db, || {
+        DoctestCompletionAnalysis::new(&sema, position.file_id, token)
+    })?;
     let doctest_offset = analysis.map_offset_down(position.offset)?;
 
     let completions = hir::attach_db_allow_change(&analysis.db, || {
