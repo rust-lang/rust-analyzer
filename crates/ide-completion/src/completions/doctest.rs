@@ -38,7 +38,7 @@ pub(crate) fn complete_doctest(
     let token = file.token_at_offset(position.offset).left_biased()?;
 
     let analysis = hir::attach_db_allow_change(db, || {
-        DoctestCompletionAnalysis::new(&sema, position.file_id, token)
+        DoctestCompletionAnalysis::new(&sema, position.file_id, position.offset, token)
     })?;
     let doctest_offset = analysis.map_offset_down(position.offset)?;
 
@@ -71,6 +71,7 @@ impl DoctestCompletionAnalysis {
     fn new(
         sema: &Semantics<'_, RootDatabase>,
         file_id: ide_db::FileId,
+        original_offset: TextSize,
         doc_token: SyntaxToken,
     ) -> Option<Self> {
         let owner = doc_comment_owner(sema, &doc_token)?;
@@ -95,6 +96,7 @@ impl DoctestCompletionAnalysis {
         let mut is_codeblock = false;
         let mut is_doctest = false;
         let mut has_doctests = false;
+        let mut contains_cursor = false;
 
         let mut docs_offset = TextSize::new(0);
         for mut line in docs.docs().split('\n') {
@@ -127,11 +129,12 @@ impl DoctestCompletionAnalysis {
             }
 
             has_doctests = true;
+            contains_cursor |= mapped_range.contains_inclusive(original_offset);
             add_mapped(&mut up_mapper, &mut down_mapper, line, mapped_range);
             add_unmapped(&mut up_mapper, &mut down_mapper, "\n");
         }
 
-        if !has_doctests {
+        if !has_doctests || !contains_cursor {
             return None;
         }
 
@@ -241,9 +244,17 @@ fn doc_comment_owner(
 ) -> Option<SyntaxNode> {
     let (node, is_inner) = match_ast! {
         match doc_token {
-            ast::Comment(comment) => (doc_token.parent()?, comment.is_inner()),
+            ast::Comment(comment) => {
+                if !comment.is_doc() {
+                    return None;
+                }
+                (doc_token.parent()?, comment.is_inner())
+            },
             ast::String(string) => {
-                let attr = doc_token.parent_ancestors().find_map(ast::Attr::cast)?;
+                let attr = doc_token
+                    .parent_ancestors()
+                    .find_map(ast::Attr::cast)
+                    .filter(|attr| attr.simple_name().as_deref() == Some("doc"))?;
                 if doc_token
                     .parent_ancestors()
                     .find_map(ast::MacroCall::cast)
