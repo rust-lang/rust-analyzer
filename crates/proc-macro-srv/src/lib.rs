@@ -163,6 +163,20 @@ impl ProcMacroSrv<'_> {
         })?;
 
         let prev_env = EnvChange::apply(snapped_env, env, current_dir.as_ref().map(<_>::as_ref));
+        let unwrap_invisible =
+            |stream: token_stream::TokenStream<S>| -> token_stream::TokenStream<S> {
+                if stream.0.len() == 1 {
+                    if let crate::bridge::TokenTree::Group(ref group) = stream.0[0] {
+                        if let Some(inner_stream) = &group.stream {
+                            return inner_stream.clone();
+                        }
+                    }
+                }
+                stream
+            };
+
+        let macrobody = unwrap_invisible(macro_body);
+        let attribute = attribute.map(unwrap_invisible);
 
         // Note, we spawn a new thread here so that thread locals allocation don't accumulate (this
         // includes the proc-macro symbol interner)
