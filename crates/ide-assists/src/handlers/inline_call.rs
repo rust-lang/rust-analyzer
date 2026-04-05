@@ -367,65 +367,11 @@ fn inline(
     let body_offset = body_to_clone.syntax().text_range().start();
     let (editor, body) = SyntaxEditor::with_ast_node(&body_to_clone);
 
-    // Collect return expressions that need to be rewritten to labeled breaks.
-    // Async functions are excluded: their body is later wrapped in `async move { }`,
-    // which preserves return semantics.
+    // Check whether the function has return expressions that need to be transformed
+    // into labeled breaks. Async functions don't need this because the body gets wrapped
+    // in `async move { ... }` which preserves return semantics.
     let is_async_fn = function.is_async(sema.db);
-    let return_nodes: Vec<ast::ReturnExpr> = if is_async_fn {
-        vec![]
-    } else if file_id.is_macro() {
-        // Function defined in a macro — the body was prettified so HIR source map ranges
-        // don't match. Walk the prettified body syntactically instead.
-        body.syntax()
-            .descendants()
-            .filter_map(ast::ReturnExpr::cast)
-            .filter(|ret| {
-                ret.syntax().ancestors().take_while(|it| it != body.syntax()).all(|ancestor| {
-                    match ast::Expr::cast(ancestor) {
-                        Some(ast::Expr::ClosureExpr(_)) => false,
-                        Some(ast::Expr::BlockExpr(block)) => !matches!(
-                            block.modifier(),
-                            Some(
-                                ast::BlockModifier::Async(_)
-                                    | ast::BlockModifier::Const(_)
-                                    | ast::BlockModifier::AsyncGen(_)
-                                    | ast::BlockModifier::Gen(_)
-                            )
-                        ),
-                        _ => true,
-                    }
-                })
-            })
-            .collect()
-    } else {
-        // Use HIR analysis to get the return points. The editor's body is re-rooted so
-        // its ranges are body-relative; subtract body_offset to convert file-relative
-        // ranges from return_points() before looking up nodes.
-        function
-            .return_points(sema.db)
-            .into_iter()
-            .filter_map(|ret| {
-                let root = sema.db.parse_or_expand(ret.file_id);
-                let return_expr = ret.value.to_node(&root);
-                let body_relative_range = return_expr.syntax().text_range() - body_offset;
-                body.syntax()
-                    .covering_element(body_relative_range)
-                    .ancestors()
-                    .find_map(ast::ReturnExpr::cast)
-            })
-            .collect()
-    };
-
-    // Register break replacements in the editor now, before finish().
-    if !return_nodes.is_empty() {
-        let inline_lt = make::lifetime("'inline");
-        for ret_expr in &return_nodes {
-            let break_expr = make::expr_break(Some(inline_lt.clone()), ret_expr.expr());
-            editor.replace(ret_expr.syntax(), break_expr.syntax());
-        }
-    }
-
-
+    let has_early_returns = !is_async_fn && !function.return_points(sema.db).is_empty();
     let usages_for_locals = |local| {
         Definition::Local(local)
             .usages(sema)
@@ -678,6 +624,13 @@ fn inline(
         body = new_body;
     }
 
+    // Walk the cloned body and replace `return X` with `break 'inline X` before the body
+    // is potentially reconstructed with prepended let stmts below. The label is inserted
+    // after reconstruction so it survives a `make.block_expr` reassignment.
+    if has_early_returns {
+        replace_returns_with_breaks(&body);
+    }
+
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
         body = make.async_move_block_expr(body.statements(), body.tail_expr());
@@ -695,10 +648,9 @@ fn inline(
         original_body_indent = IndentLevel(0);
     }
 
-    // Insert the `'inline:` label now that the body is fully assembled.
-    // Break replacements were registered in the editor above; just attach the label.
-    // body is always mutable here (editor.finish() and make.block_expr both produce mutable trees).
-    if !return_nodes.is_empty() {
+    // Insert the 'inline label after the body is fully assembled. Doing this after
+    // the let_stmts reconstruction ensures the label survives a `make.block_expr` swap.
+    if has_early_returns {
         let label = make::label(make::lifetime("'inline")).clone_for_update();
         if let Some(stmt_list) = body.stmt_list() {
             ted::insert(ted::Position::before(stmt_list.syntax()), label.syntax());
@@ -741,6 +693,33 @@ fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
         .and_then(|it| it.syntax().parent())
         .and_then(ast::PathType::cast)
         .is_some()
+}
+
+/// Replaces `return` / `return expr` with `break 'inline` / `break 'inline expr`
+/// for all `ReturnExpr` nodes that belong directly to the function body
+/// (i.e., not nested inside closures or async blocks).
+fn replace_returns_with_breaks(body: &ast::BlockExpr) {
+    fn walk(node: &syntax::SyntaxNode) {
+        for child in node.children() {
+            if ast::ClosureExpr::can_cast(child.kind()) {
+                continue;
+            }
+            if let Some(block) = ast::BlockExpr::cast(child.clone())
+                && (block.async_token().is_some() || block.const_token().is_some())
+            {
+                continue;
+            }
+            if let Some(return_expr) = ast::ReturnExpr::cast(child.clone()) {
+                let break_expr =
+                    make::expr_break(Some(make::lifetime("'inline")), return_expr.expr())
+                        .clone_for_update();
+                ted::replace(return_expr.syntax(), break_expr.syntax());
+            } else {
+                walk(&child);
+            }
+        }
+    }
+    walk(body.syntax());
 }
 
 fn path_expr_as_record_field(usage: &PathExpr) -> Option<ast::RecordExprField> {
