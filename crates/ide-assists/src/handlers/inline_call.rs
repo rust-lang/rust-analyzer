@@ -684,20 +684,6 @@ fn inline(
     }
 }
 
-fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
-    self_tok
-        .parent_ancestors()
-        .skip_while(|it| !ast::Path::can_cast(it.kind()))
-        .map_while(ast::Path::cast)
-        .last()
-        .and_then(|it| it.syntax().parent())
-        .and_then(ast::PathType::cast)
-        .is_some()
-}
-
-/// Replaces `return` / `return expr` with `break 'inline` / `break 'inline expr`
-/// for all `ReturnExpr` nodes that belong directly to the function body
-/// (i.e., not nested inside closures or async blocks).
 fn replace_returns_with_breaks(body: &ast::BlockExpr) {
     fn walk(node: &syntax::SyntaxNode) {
         for child in node.children() {
@@ -720,6 +706,17 @@ fn replace_returns_with_breaks(body: &ast::BlockExpr) {
         }
     }
     walk(body.syntax());
+}
+
+fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
+    self_tok
+        .parent_ancestors()
+        .skip_while(|it| !ast::Path::can_cast(it.kind()))
+        .map_while(ast::Path::cast)
+        .last()
+        .and_then(|it| it.syntax().parent())
+        .and_then(ast::PathType::cast)
+        .is_some()
 }
 
 fn path_expr_as_record_field(usage: &PathExpr) -> Option<ast::RecordExprField> {
