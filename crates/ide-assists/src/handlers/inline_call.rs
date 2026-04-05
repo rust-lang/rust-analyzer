@@ -334,65 +334,11 @@ fn inline(
         fn_body.clone_for_update()
     };
 
-    // Collect return expressions before modifying the body tree, as modifications shift
-    // text ranges. Returns inside async functions don't need transformation because the
-    // body gets wrapped in `async move { ... }` which preserves return semantics.
+    // Check whether the function has return expressions that need to be transformed
+    // into labeled breaks. Async functions don't need this because the body gets wrapped
+    // in `async move { ... }` which preserves return semantics.
     let is_async_fn = function.is_async(sema.db);
-    let returns_to_replace: Vec<ast::ReturnExpr> = if is_async_fn {
-        vec![]
-    } else if file_id.is_macro() {
-        // Function defined in a macro — the body was prettified so HIR source map ranges
-        // don't match. Walk the prettified body syntactically instead.
-        body.syntax()
-            .descendants()
-            .filter_map(ast::ReturnExpr::cast)
-            .filter(|ret| {
-                ret.syntax().ancestors().take_while(|it| it != body.syntax()).all(|ancestor| {
-                    match ast::Expr::cast(ancestor) {
-                        Some(ast::Expr::ClosureExpr(_)) => false,
-                        Some(ast::Expr::BlockExpr(block)) => !matches!(
-                            block.modifier(),
-                            Some(
-                                ast::BlockModifier::Async(_)
-                                    | ast::BlockModifier::Const(_)
-                                    | ast::BlockModifier::AsyncGen(_)
-                                    | ast::BlockModifier::Gen(_)
-                            )
-                        ),
-                        _ => true,
-                    }
-                })
-            })
-            .collect()
-    } else {
-        // Use HIR analysis which handles returns inside macro expansions.
-        function
-            .return_points(sema.db)
-            .into_iter()
-            .filter_map(|ret| {
-                if !ret.file_id.is_macro() {
-                    // Direct return in source — find in cloned body by text range
-                    body.syntax()
-                        .descendants()
-                        .filter_map(ast::ReturnExpr::cast)
-                        .find(|r| r.syntax().text_range() == ret.value.text_range())
-                } else {
-                    // Macro-generated return — try to upmap to original source
-                    let root = sema.parse_or_expand(ret.file_id);
-                    let return_expr = ret.value.to_node(&root);
-                    let hir::FileRange { file_id, range } =
-                        sema.original_range_opt(return_expr.syntax())?;
-                    if file_id != function_def_file_id {
-                        return None;
-                    }
-                    body.syntax()
-                        .descendants()
-                        .filter_map(ast::ReturnExpr::cast)
-                        .find(|r| r.syntax().text_range() == range)
-                }
-            })
-            .collect()
-    };
+    let has_early_returns = !is_async_fn && !function.return_points(sema.db).is_empty();
     let usages_for_locals = |local| {
         Definition::Local(local)
             .usages(sema)
@@ -610,6 +556,21 @@ fn inline(
         }
     }
 
+    // Transform return expressions into break expressions with a labeled block.
+    // `return_ranges` (from HIR analysis) tells us whether the function has returns
+    // that need transformation. The actual replacement walks the cloned body tree,
+    // skipping returns inside closures, async blocks, and macro call arguments.
+    if has_early_returns {
+        let label = make::label(make::lifetime("'inline")).clone_for_update();
+
+        replace_returns_with_breaks(&body);
+
+        // Insert label as a child of BlockExpr, before the StmtList
+        if let Some(stmt_list) = body.stmt_list() {
+            ted::insert(ted::Position::before(stmt_list.syntax()), label.syntax());
+        }
+    }
+
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
         body = make::async_move_block_expr(body.statements(), body.tail_expr()).clone_for_update();
@@ -625,25 +586,6 @@ fn inline(
         let_stmts.into_iter().rev().for_each(|let_stmt| {
             ted::insert(ted::Position::after(position.clone()), let_stmt.syntax().clone());
         });
-    }
-
-    // Transform return expressions into break expressions with a labeled block.
-    // This is needed because `return` in the inlined body would otherwise exit
-    // the *caller* function, not just the inlined block.
-    if !returns_to_replace.is_empty() {
-        let label_lifetime = make::lifetime("'inline");
-        let label = make::label(label_lifetime.clone()).clone_for_update();
-
-        for ret_expr in returns_to_replace {
-            let break_expr =
-                make::expr_break(Some(label_lifetime.clone()), ret_expr.expr()).clone_for_update();
-            ted::replace(ret_expr.syntax(), break_expr.syntax());
-        }
-
-        // Insert label as a child of BlockExpr, before the StmtList
-        if let Some(stmt_list) = body.stmt_list() {
-            ted::insert(ted::Position::before(stmt_list.syntax()), label.syntax());
-        }
     }
 
     let original_indentation = match node {
@@ -682,6 +624,33 @@ fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
         .and_then(|it| it.syntax().parent())
         .and_then(ast::PathType::cast)
         .is_some()
+}
+
+/// Replaces `return` / `return expr` with `break 'inline` / `break 'inline expr`
+/// for all `ReturnExpr` nodes that belong directly to the function body
+/// (i.e., not nested inside closures or async blocks).
+fn replace_returns_with_breaks(body: &ast::BlockExpr) {
+    fn walk(node: &syntax::SyntaxNode) {
+        for child in node.children() {
+            if ast::ClosureExpr::can_cast(child.kind()) {
+                continue;
+            }
+            if let Some(block) = ast::BlockExpr::cast(child.clone())
+                && (block.async_token().is_some() || block.const_token().is_some())
+            {
+                continue;
+            }
+            if let Some(return_expr) = ast::ReturnExpr::cast(child.clone()) {
+                let break_expr =
+                    make::expr_break(Some(make::lifetime("'inline")), return_expr.expr())
+                        .clone_for_update();
+                ted::replace(return_expr.syntax(), break_expr.syntax());
+            } else {
+                walk(&child);
+            }
+        }
+    }
+    walk(body.syntax());
 }
 
 fn path_expr_as_record_field(usage: &PathExpr) -> Option<ast::RecordExprField> {
