@@ -1511,7 +1511,7 @@ pub const DEFAULT_LINTS: &[Lint] = &[
         deny_since: None,
     },
     Lint {
-        label: "warnings",
+        label: "warnings-mass",
         description: r##"mass-change the level for lints which produce warnings"##,
         default_severity: Severity::Warning,
         warn_since: None,
