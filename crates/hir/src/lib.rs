@@ -2824,23 +2824,21 @@ impl Function {
         }
     }
 
-    /// Returns the text ranges of `return` keywords in this function's body,
+    /// Returns the `return` expressions in this function's body,
     /// excluding those inside closures or async blocks.
-    pub fn return_points(self, db: &dyn HirDatabase) -> Vec<TextRange> {
+    pub fn return_points(self, db: &dyn HirDatabase) -> Vec<ast::ReturnExpr> {
         let func_id: FunctionId = match self.id {
             AnyFunctionId::FunctionId(id) => id,
             _ => return vec![],
         };
         let (body, source_map) = Body::with_source_map(db, func_id.into());
-        let fn_file_id = func_id.loc(db).id.file_id;
 
         fn collect_returns(
             body: &Body,
             source_map: &hir_def::expr_store::ExpressionStoreSourceMap,
             db: &dyn HirDatabase,
-            fn_file_id: HirFileId,
             expr_id: ExprId,
-            acc: &mut Vec<TextRange>,
+            acc: &mut Vec<ast::ReturnExpr>,
         ) {
             match &body[expr_id] {
                 Expr::Closure { .. } | Expr::Async { .. } | Expr::Const(_) => return,
@@ -2849,30 +2847,18 @@ impl Function {
                         && let Some(ret_expr) = source.value.cast::<ast::ReturnExpr>()
                     {
                         let root = db.parse_or_expand(source.file_id);
-                        let node = ret_expr.to_node(&root);
-                        if let Some(return_token) = node.return_token() {
-                            let token_range = return_token.text_range();
-                            if source.file_id == fn_file_id {
-                                acc.push(token_range);
-                            } else if let Some((file_range, _)) =
-                                InFile::new(source.file_id, token_range)
-                                    .original_node_file_range_opt(db)
-                                && file_range.file_id == fn_file_id
-                            {
-                                acc.push(file_range.range);
-                            }
-                        }
+                        acc.push(ret_expr.to_node(&root));
                     }
                 }
                 _ => {}
             }
             body.walk_child_exprs(expr_id, |child| {
-                collect_returns(body, source_map, db, fn_file_id, child, acc);
+                collect_returns(body, source_map, db, child, acc);
             });
         }
 
         let mut returns = vec![];
-        collect_returns(body, source_map, db, fn_file_id, body.root_expr(), &mut returns);
+        collect_returns(body, source_map, db, body.root_expr(), &mut returns);
         returns
     }
 
