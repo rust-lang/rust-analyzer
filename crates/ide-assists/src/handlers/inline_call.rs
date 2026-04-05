@@ -338,7 +338,16 @@ fn inline(
     // into labeled breaks. Async functions don't need this because the body gets wrapped
     // in `async move { ... }` which preserves return semantics.
     let is_async_fn = function.is_async(sema.db);
-    let has_early_returns = !is_async_fn && !function.return_points(sema.db).is_empty();
+    let return_points = if is_async_fn { vec![] } else { function.return_points(sema.db) };
+    // Locate corresponding ReturnExpr nodes in the cloned body before any ted operations
+    // shift offsets. Holding these references keeps them valid through later mutations.
+    let return_nodes: Vec<_> = return_points
+        .iter()
+        .filter_map(|ret| {
+            let range = ret.value.syntax().text_range();
+            body.syntax().covering_element(range).ancestors().find_map(ast::ReturnExpr::cast)
+        })
+        .collect();
     let usages_for_locals = |local| {
         Definition::Local(local)
             .usages(sema)
@@ -556,16 +565,15 @@ fn inline(
         }
     }
 
-    // Transform return expressions into break expressions with a labeled block.
-    // `return_ranges` (from HIR analysis) tells us whether the function has returns
-    // that need transformation. The actual replacement walks the cloned body tree,
-    // skipping returns inside closures, async blocks, and macro call arguments.
-    if has_early_returns {
+    if !return_points.is_empty() {
         let label = make::label(make::lifetime("'inline")).clone_for_update();
 
-        replace_returns_with_breaks(&body);
+        for ret_node in &return_nodes {
+            let break_expr = make::expr_break(Some(make::lifetime("'inline")), ret_node.expr())
+                .clone_for_update();
+            ted::replace(ret_node.syntax(), break_expr.syntax());
+        }
 
-        // Insert label as a child of BlockExpr, before the StmtList
         if let Some(stmt_list) = body.stmt_list() {
             ted::insert(ted::Position::before(stmt_list.syntax()), label.syntax());
         }
@@ -624,33 +632,6 @@ fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
         .and_then(|it| it.syntax().parent())
         .and_then(ast::PathType::cast)
         .is_some()
-}
-
-/// Replaces `return` / `return expr` with `break 'inline` / `break 'inline expr`
-/// for all `ReturnExpr` nodes that belong directly to the function body
-/// (i.e., not nested inside closures or async blocks).
-fn replace_returns_with_breaks(body: &ast::BlockExpr) {
-    fn walk(node: &syntax::SyntaxNode) {
-        for child in node.children() {
-            if ast::ClosureExpr::can_cast(child.kind()) {
-                continue;
-            }
-            if let Some(block) = ast::BlockExpr::cast(child.clone())
-                && (block.async_token().is_some() || block.const_token().is_some())
-            {
-                continue;
-            }
-            if let Some(return_expr) = ast::ReturnExpr::cast(child.clone()) {
-                let break_expr =
-                    make::expr_break(Some(make::lifetime("'inline")), return_expr.expr())
-                        .clone_for_update();
-                ted::replace(return_expr.syntax(), break_expr.syntax());
-            } else {
-                walk(&child);
-            }
-        }
-    }
-    walk(body.syntax());
 }
 
 fn path_expr_as_record_field(usage: &PathExpr) -> Option<ast::RecordExprField> {
