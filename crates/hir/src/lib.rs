@@ -2826,7 +2826,7 @@ impl Function {
 
     /// Returns the `return` expressions in this function's body,
     /// excluding those inside closures or async blocks.
-    pub fn return_points(self, db: &dyn HirDatabase) -> Vec<ast::ReturnExpr> {
+    pub fn return_points(self, db: &dyn HirDatabase) -> Vec<InFile<ast::ReturnExpr>> {
         let func_id: FunctionId = match self.id {
             AnyFunctionId::FunctionId(id) => id,
             _ => return vec![],
@@ -2838,7 +2838,7 @@ impl Function {
             source_map: &hir_def::expr_store::ExpressionStoreSourceMap,
             db: &dyn HirDatabase,
             expr_id: ExprId,
-            acc: &mut Vec<ast::ReturnExpr>,
+            acc: &mut Vec<InFile<ast::ReturnExpr>>,
         ) {
             match &body[expr_id] {
                 Expr::Closure { .. } | Expr::Async { .. } | Expr::Const(_) => return,
@@ -2847,7 +2847,7 @@ impl Function {
                         && let Some(ret_expr) = source.value.cast::<ast::ReturnExpr>()
                     {
                         let root = db.parse_or_expand(source.file_id);
-                        acc.push(ret_expr.to_node(&root));
+                        acc.push(InFile::new(source.file_id, ret_expr.to_node(&root)));
                     }
                 }
                 _ => {}
