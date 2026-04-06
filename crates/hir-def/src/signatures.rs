@@ -580,6 +580,7 @@ bitflags! {
         const EXPLICIT_SAFE = 1 << 11;
         const HAS_LEGACY_CONST_GENERICS = 1 << 12;
         const RUSTC_INTRINSIC = 1 << 13;
+        const GEN = 1 << 14;
     }
 }
 
@@ -637,6 +638,9 @@ impl FunctionSignature {
         }
         if source.value.async_token().is_some() {
             flags.insert(FnFlags::ASYNC);
+        }
+        if source.value.gen_token().is_some() {
+            flags.insert(FnFlags::GEN);
         }
         if source.value.const_token().is_some() {
             flags.insert(FnFlags::CONST);
@@ -699,6 +703,10 @@ impl FunctionSignature {
 
     pub fn is_async(&self) -> bool {
         self.flags.contains(FnFlags::ASYNC)
+    }
+
+    pub fn is_gen(&self) -> bool {
+        self.flags.contains(FnFlags::GEN)
     }
 
     pub fn is_unsafe(&self) -> bool {

@@ -427,6 +427,7 @@ macro_rules! __known_path {
     (core::range::RangeFrom) => {};
     (core::range::RangeInclusive) => {};
     (core::range::RangeToInclusive) => {};
+    (core::async_iter::AsyncIterator) => {};
     (core::future::Future) => {};
     (core::future::IntoFuture) => {};
     (core::fmt::Debug) => {};

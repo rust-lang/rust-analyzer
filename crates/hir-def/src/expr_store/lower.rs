@@ -70,6 +70,7 @@ pub(super) fn lower_body(
     parameters: Option<ast::ParamList>,
     body: Option<ast::Expr>,
     is_async_fn: bool,
+    is_gen_fn: bool,
 ) -> (Body, BodySourceMap) {
     // We cannot leave the root span map empty and let any identifier from it be treated as root,
     // because when inside nested macros `SyntaxContextId`s from the outer macro will be interleaved
@@ -174,6 +175,8 @@ pub(super) fn lower_body(
                 DefWithBodyId::VariantId(..) => Awaitable::No("enum variant"),
             }
         },
+        is_async_fn,
+        is_gen_fn,
     );
     collector.store.inference_roots = Some(smallvec![(body_expr, RootExprOrigin::BodyRoot)]);
 
@@ -374,12 +377,20 @@ pub(crate) fn lower_function(
         expr_collector.lower_type_ref_opt(ret_type.ty(), &mut ExprCollector::impl_trait_allocator)
     });
 
-    let return_type = if fn_.value.async_token().is_some() {
-        let path = hir_expand::mod_path::path![core::future::Future];
+    let return_type = if fn_.value.async_token().is_some() || fn_.value.gen_token().is_some() {
+        let (path, assoc_name) =
+            match (fn_.value.async_token().is_some(), fn_.value.gen_token().is_some()) {
+                (true, true) => {
+                    (hir_expand::mod_path::path![core::async_iter::AsyncIterator], sym::Item)
+                }
+                (true, false) => (hir_expand::mod_path::path![core::future::Future], sym::Output),
+                (false, true) => (hir_expand::mod_path::path![core::iter::Iterator], sym::Item),
+                (false, false) => unreachable!(),
+            };
         let mut generic_args: Vec<_> =
             std::iter::repeat_n(None, path.segments().len() - 1).collect();
         let binding = AssociatedTypeBinding {
-            name: Name::new_symbol_root(sym::Output),
+            name: Name::new_symbol_root(assoc_name),
             args: None,
             type_ref: Some(
                 return_type
@@ -944,9 +955,15 @@ impl<'db> ExprCollector<'db> {
         })
     }
 
-    /// An `async fn` needs to capture all parameters in the generated `async` block, even if they have
+    /// Coroutine-like functions need to capture all parameters in the generated block, even if they have
     /// non-captured patterns such as wildcards (to ensure consistent drop order).
-    fn lower_async_fn(&mut self, params: &mut Vec<PatId>, body: ExprId) -> ExprId {
+    fn lower_coroutine_fn(
+        &mut self,
+        params: &mut Vec<PatId>,
+        body: ExprId,
+        is_async_fn: bool,
+        is_gen_fn: bool,
+    ) -> ExprId {
         let mut statements = Vec::new();
         for param in params {
             let name = match self.store.pats[*param] {
@@ -978,11 +995,23 @@ impl<'db> ExprCollector<'db> {
             *param = pat_id;
         }
 
-        self.alloc_expr_desugared(Expr::Async {
-            id: None,
-            statements: statements.into_boxed_slice(),
-            tail: Some(body),
-        })
+        let expr = match (is_async_fn, is_gen_fn) {
+            (true, true) => Expr::AsyncGen {
+                id: None,
+                statements: statements.into_boxed_slice(),
+                tail: Some(body),
+            },
+            (true, false) => Expr::Async {
+                id: None,
+                statements: statements.into_boxed_slice(),
+                tail: Some(body),
+            },
+            (false, true) => {
+                Expr::Gen { id: None, statements: statements.into_boxed_slice(), tail: Some(body) }
+            }
+            (false, false) => unreachable!(),
+        };
+        self.alloc_expr_desugared(expr)
     }
 
     fn collect(
@@ -990,11 +1019,17 @@ impl<'db> ExprCollector<'db> {
         params: &mut Vec<PatId>,
         expr: Option<ast::Expr>,
         awaitable: Awaitable,
+        is_async_fn: bool,
+        is_gen_fn: bool,
     ) -> ExprId {
         self.awaitable_context.replace(awaitable);
         self.with_label_rib(RibKind::Closure, |this| {
             let body = this.collect_expr_opt(expr);
-            if awaitable == Awaitable::Yes { this.lower_async_fn(params, body) } else { body }
+            if is_async_fn || is_gen_fn {
+                this.lower_coroutine_fn(params, body, is_async_fn, is_gen_fn)
+            } else {
+                body
+            }
         })
     }
 
@@ -1155,6 +1190,24 @@ impl<'db> ExprCollector<'db> {
                         })
                     })
                 }
+                Some(ast::BlockModifier::Gen(_)) => {
+                    self.with_awaitable_block(Awaitable::No("non-async gen block"), |this| {
+                        this.collect_block_(e, |id, statements, tail| Expr::Gen {
+                            id,
+                            statements,
+                            tail,
+                        })
+                    })
+                }
+                Some(ast::BlockModifier::AsyncGen(_)) => {
+                    self.with_awaitable_block(Awaitable::Yes, |this| {
+                        this.collect_block_(e, |id, statements, tail| Expr::AsyncGen {
+                            id,
+                            statements,
+                            tail,
+                        })
+                    })
+                }
                 Some(ast::BlockModifier::Const(_)) => {
                     self.with_label_rib(RibKind::Constant, |this| {
                         this.with_awaitable_block(Awaitable::No("constant block"), |this| {
@@ -1165,14 +1218,6 @@ impl<'db> ExprCollector<'db> {
                         })
                     })
                 }
-                // FIXME
-                Some(ast::BlockModifier::AsyncGen(_)) => {
-                    self.with_awaitable_block(Awaitable::Yes, |this| this.collect_block(e))
-                }
-                Some(ast::BlockModifier::Gen(_)) => self
-                    .with_awaitable_block(Awaitable::No("non-async gen block"), |this| {
-                        this.collect_block(e)
-                    }),
                 None => self.collect_block(e),
             },
             ast::Expr::LoopExpr(e) => {

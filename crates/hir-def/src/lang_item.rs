@@ -381,6 +381,7 @@ language_item_table! { LangItems =>
     FnOnceOutput,            sym::fn_once_output,      TypeAliasId;
 
     Future,                  sym::future_trait,        TraitId;
+    AsyncIterator,           sym::async_iterator,      TraitId;
     CoroutineState,          sym::coroutine_state,     EnumId;
     Coroutine,               sym::coroutine,           TraitId;
     CoroutineReturn,         sym::coroutine_return,    TypeAliasId;

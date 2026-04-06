@@ -245,6 +245,8 @@ impl<'db> InferenceContext<'_, 'db> {
             | Expr::Yield { .. }
             | Expr::Cast { .. }
             | Expr::Async { .. }
+            | Expr::Gen { .. }
+            | Expr::AsyncGen { .. }
             | Expr::Unsafe { .. }
             | Expr::Await { .. }
             | Expr::Ref { .. }
@@ -392,6 +394,12 @@ impl<'db> InferenceContext<'_, 'db> {
             }
             Expr::Async { id: _, statements, tail } => {
                 self.infer_async_block(tgt_expr, statements, tail)
+            }
+            Expr::Gen { id: _, statements, tail } => {
+                self.infer_gen_block(tgt_expr, statements, tail)
+            }
+            Expr::AsyncGen { id: _, statements, tail } => {
+                self.infer_async_gen_block(tgt_expr, statements, tail)
             }
             &Expr::Loop { body, label } => {
                 // FIXME: should be:
@@ -1223,8 +1231,99 @@ impl<'db> InferenceContext<'_, 'db> {
         self.lower_async_block_type_impl_trait(inner_ty, tgt_expr)
     }
 
+    fn infer_gen_block(
+        &mut self,
+        tgt_expr: ExprId,
+        statements: &[Statement],
+        tail: &Option<ExprId>,
+    ) -> Ty<'db> {
+        self.infer_generator_block(tgt_expr, statements, tail, false)
+    }
+
+    fn infer_async_gen_block(
+        &mut self,
+        tgt_expr: ExprId,
+        statements: &[Statement],
+        tail: &Option<ExprId>,
+    ) -> Ty<'db> {
+        self.infer_generator_block(tgt_expr, statements, tail, true)
+    }
+
+    fn infer_generator_block(
+        &mut self,
+        tgt_expr: ExprId,
+        statements: &[Statement],
+        tail: &Option<ExprId>,
+        is_async: bool,
+    ) -> Ty<'db> {
+        let ret_ty = self.table.next_ty_var();
+        let yield_ty = self.table.next_ty_var();
+        let prev_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
+        let prev_ret_ty = mem::replace(&mut self.return_ty, ret_ty);
+        let prev_ret_coercion = self.return_coercion.replace(CoerceMany::new(ret_ty));
+        let prev_resume_yield_tys =
+            self.resume_yield_tys.replace((self.types.types.unit, yield_ty));
+
+        let expected = &Expectation::has_type(ret_ty);
+        let (_, inner_ty) = self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {
+            let ty = this.infer_block(tgt_expr, statements, *tail, None, expected);
+            if let Some(target) = expected.only_has_type(&mut this.table) {
+                match this.coerce(tgt_expr.into(), ty, target, AllowTwoPhase::No, ExprIsRead::Yes) {
+                    Ok(res) => res,
+                    Err(_) => {
+                        this.result.type_mismatches.get_or_insert_default().insert(
+                            tgt_expr.into(),
+                            TypeMismatch { expected: target.store(), actual: ty.store() },
+                        );
+                        target
+                    }
+                }
+            } else {
+                ty
+            }
+        });
+
+        self.diverges = prev_diverges;
+        self.return_ty = prev_ret_ty;
+        self.return_coercion = prev_ret_coercion;
+        self.resume_yield_tys = prev_resume_yield_tys;
+
+        if is_async {
+            self.lower_async_gen_block_type_impl_trait(yield_ty, inner_ty, tgt_expr)
+        } else {
+            self.lower_gen_block_type_impl_trait(yield_ty, inner_ty, tgt_expr)
+        }
+    }
+
     pub(crate) fn lower_async_block_type_impl_trait(
         &mut self,
+        inner_ty: Ty<'db>,
+        tgt_expr: ExprId,
+    ) -> Ty<'db> {
+        self.lower_coroutine_block_type(self.types.types.unit, inner_ty, tgt_expr)
+    }
+
+    pub(crate) fn lower_gen_block_type_impl_trait(
+        &mut self,
+        yield_ty: Ty<'db>,
+        inner_ty: Ty<'db>,
+        tgt_expr: ExprId,
+    ) -> Ty<'db> {
+        self.lower_coroutine_block_type(yield_ty, inner_ty, tgt_expr)
+    }
+
+    pub(crate) fn lower_async_gen_block_type_impl_trait(
+        &mut self,
+        yield_ty: Ty<'db>,
+        inner_ty: Ty<'db>,
+        tgt_expr: ExprId,
+    ) -> Ty<'db> {
+        self.lower_coroutine_block_type(yield_ty, inner_ty, tgt_expr)
+    }
+
+    fn lower_coroutine_block_type(
+        &mut self,
+        yield_ty: Ty<'db>,
         inner_ty: Ty<'db>,
         tgt_expr: ExprId,
     ) -> Ty<'db> {
@@ -1241,7 +1340,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     kind_ty: self.types.types.unit,
                     // rustc uses a special lang item type for the resume ty. I don't believe this can cause us problems.
                     resume_ty: self.types.types.unit,
-                    yield_ty: self.types.types.unit,
+                    yield_ty,
                     return_ty: inner_ty,
                     // FIXME: Infer upvars.
                     tupled_upvars_ty: self.types.types.unit,

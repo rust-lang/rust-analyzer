@@ -406,7 +406,10 @@ impl<'db> UnsafeVisitor<'db> {
                 });
                 return;
             }
-            Expr::Block { statements, .. } | Expr::Async { statements, .. } => {
+            Expr::Block { statements, .. }
+            | Expr::Async { statements, .. }
+            | Expr::Gen { statements, .. }
+            | Expr::AsyncGen { statements, .. } => {
                 self.walk_pats_top(
                     statements.iter().filter_map(|statement| match statement {
                         &Statement::Let { pat, .. } => Some(pat),

@@ -219,6 +219,16 @@ pub enum Expr {
         statements: Box<[Statement]>,
         tail: Option<ExprId>,
     },
+    Gen {
+        id: Option<BlockId>,
+        statements: Box<[Statement]>,
+        tail: Option<ExprId>,
+    },
+    AsyncGen {
+        id: Option<BlockId>,
+        statements: Box<[Statement]>,
+        tail: Option<ExprId>,
+    },
     Const(ExprId),
     // FIXME: Fold this into Block with an unsafe flag?
     Unsafe {
@@ -340,6 +350,8 @@ impl Expr {
             | Expr::Unsafe { .. }
             | Expr::Const(_)
             | Expr::Async { .. }
+            | Expr::Gen { .. }
+            | Expr::AsyncGen { .. }
             | Expr::If { .. }
             | Expr::Literal(_)
             | Expr::Loop { .. }

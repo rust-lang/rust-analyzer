@@ -957,6 +957,8 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
             Expr::Await { .. } => not_supported!("await"),
             Expr::Yeet { .. } => not_supported!("yeet"),
             Expr::Async { .. } => not_supported!("async block"),
+            Expr::Gen { .. } => not_supported!("gen block"),
+            Expr::AsyncGen { .. } => not_supported!("async gen block"),
             &Expr::Const(_) => {
                 // let subst = self.placeholder_subst();
                 // self.lower_const(
