@@ -95,5 +95,20 @@ export async function getTests(ctx: Context) {
             ]);
             assert.notDeepStrictEqual(args.filter, undefined);
         });
+
+        suite.addTest("A nextest test is rewritten to cargo test", async () => {
+            const args = Cargo.artifactSpec(["nextest", "run", "--package", "pkg_name", "--lib"]);
+
+            // "nextest run" should be rewritten to "test" for binary discovery
+            assert.deepStrictEqual(args.cargoArgs, [
+                "test",
+                "--package",
+                "pkg_name",
+                "--lib",
+                "--message-format=json",
+                "--no-run",
+            ]);
+            assert.notDeepStrictEqual(args.filter, undefined);
+        });
     });
 }

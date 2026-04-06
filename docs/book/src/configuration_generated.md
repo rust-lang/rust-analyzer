@@ -1465,6 +1465,17 @@ replace the package name, target option (such as `--bin` or `--example`), the ta
 the arguments passed to test binary args (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
 
 
+## rust-analyzer.runnables.test.runner {#runnables.test.runner}
+
+Default: `"libtest"`
+
+The test runner to use. When set to `nextest`, rust-analyzer
+automatically adjusts the subcommand and flag layout for both
+code-lens runnables and the Test Explorer.
+`libtest` (default) uses `cargo test` with libtest flags,
+`nextest` uses `cargo nextest run` with nextest-compatible flags.
+
+
 ## rust-analyzer.rustc.source {#rustc.source}
 
 Default: `null`

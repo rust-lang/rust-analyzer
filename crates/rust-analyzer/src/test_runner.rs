@@ -1,6 +1,8 @@
 //! This module provides the functionality needed to run `cargo test` in a background
 //! thread and report the result of each test in a channel.
 
+use std::process::Command;
+
 use crossbeam_channel::Sender;
 use paths::{AbsPath, Utf8Path};
 use project_model::TargetKind;
@@ -10,6 +12,7 @@ use toolchain::Tool;
 
 use crate::{
     command::{CommandHandle, JsonLinesParser},
+    config::TestRunnerKind,
     flycheck::CargoOptions,
 };
 
@@ -93,19 +96,72 @@ pub(crate) struct TestTarget {
     pub kind: TargetKind,
 }
 
+/// Configuration for the Test Explorer.
+#[derive(Clone, Debug)]
+pub(crate) struct CargoTestConfig {
+    pub options: CargoOptions,
+    pub runner: TestRunnerKind,
+}
+
 impl CargoTestHandle {
     pub(crate) fn new(
         path: Option<&str>,
-        options: CargoOptions,
+        config: CargoTestConfig,
         root: &AbsPath,
         ws_target_dir: Option<&Utf8Path>,
         test_target: TestTarget,
         sender: Sender<CargoTestMessage>,
     ) -> anyhow::Result<Self> {
+        let cmd = Self::automatic_command(
+            path,
+            config.options,
+            config.runner,
+            root,
+            ws_target_dir,
+            &test_target,
+        );
+
+        Ok(Self {
+            _handle: CommandHandle::spawn(
+                cmd,
+                CargoTestOutputParser::new(&test_target),
+                sender,
+                None,
+            )?,
+        })
+    }
+
+    fn automatic_command(
+        path: Option<&str>,
+        options: CargoOptions,
+        runner: TestRunnerKind,
+        root: &AbsPath,
+        ws_target_dir: Option<&Utf8Path>,
+        test_target: &TestTarget,
+    ) -> Command {
+        match runner {
+            TestRunnerKind::LibTest => {
+                Self::libtest_command(path, options, root, ws_target_dir, test_target)
+            }
+            TestRunnerKind::Nextest => {
+                Self::nextest_command(path, options, root, ws_target_dir, test_target)
+            }
+        }
+    }
+
+    /// Shared command builder for both libtest and nextest.
+    /// Each caller is responsible for appending runner-specific trailing
+    /// arguments (JSON format flags, filter expressions, etc.).
+    fn cargo_base_command(
+        subcommand: &[&str],
+        options: &CargoOptions,
+        root: &AbsPath,
+        ws_target_dir: Option<&Utf8Path>,
+        test_target: &TestTarget,
+    ) -> Command {
         let mut cmd = toolchain::command(Tool::Cargo.path(), root, &options.extra_env);
-        cmd.env("RUSTC_BOOTSTRAP", "1");
         cmd.arg("--color=always");
-        cmd.arg(&options.subcommand); // test, usually
+        cmd.args(subcommand);
 
         cmd.arg("--package");
         cmd.arg(&test_target.package);
@@ -125,24 +181,54 @@ impl CargoTestHandle {
         cmd.arg("--manifest-path");
         cmd.arg(root.join("Cargo.toml"));
         options.apply_on_command(&mut cmd, ws_target_dir);
+
+        cmd
+    }
+
+    /// Build a `cargo test ... -- -Z unstable-options --format=json` command.
+    fn libtest_command(
+        path: Option<&str>,
+        options: CargoOptions,
+        root: &AbsPath,
+        ws_target_dir: Option<&Utf8Path>,
+        test_target: &TestTarget,
+    ) -> Command {
+        let mut cmd =
+            Self::cargo_base_command(&["test"], &options, root, ws_target_dir, test_target);
+        cmd.env("RUSTC_BOOTSTRAP", "1");
         cmd.arg("--");
         if let Some(path) = path {
             cmd.arg(path);
         }
         cmd.args(["-Z", "unstable-options"]);
         cmd.arg("--format=json");
-
         for extra_arg in options.extra_test_bin_args {
             cmd.arg(extra_arg);
         }
+        cmd
+    }
 
-        Ok(Self {
-            _handle: CommandHandle::spawn(
-                cmd,
-                CargoTestOutputParser::new(&test_target),
-                sender,
-                None,
-            )?,
-        })
+    /// Build a `cargo nextest run ... --message-format libtest-json` command.
+    fn nextest_command(
+        path: Option<&str>,
+        options: CargoOptions,
+        root: &AbsPath,
+        ws_target_dir: Option<&Utf8Path>,
+        test_target: &TestTarget,
+    ) -> Command {
+        let mut cmd = Self::cargo_base_command(
+            &["nextest", "run"],
+            &options,
+            root,
+            ws_target_dir,
+            test_target,
+        );
+        cmd.arg("--message-format");
+        cmd.arg("libtest-json");
+        cmd.arg("--");
+        if let Some(path) = path {
+            cmd.arg(path);
+        }
+        cmd
     }
 }

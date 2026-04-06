@@ -55,6 +55,15 @@ export class Cargo {
                 }
                 break;
             }
+            // When the server sends `nextest run ...` (runner = nextest),
+            // debug still needs `cargo test --no-run` to discover the test
+            // binary. Rewrite back to a plain `test` invocation.
+            case "nextest":
+                cargoArgs.splice(0, 2, "test");
+                if (!cargoArgs.includes("--no-run")) {
+                    cargoArgs.push("--no-run");
+                }
+                break;
         }
 
         const result: ArtifactSpec = { cargoArgs: cargoArgs };

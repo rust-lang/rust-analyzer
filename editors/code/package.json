@@ -2992,6 +2992,24 @@
                 }
             },
             {
+                "title": "Runnables",
+                "properties": {
+                    "rust-analyzer.runnables.test.runner": {
+                        "markdownDescription": "The test runner to use. When set to `nextest`, rust-analyzer\nautomatically adjusts the subcommand and flag layout for both\ncode-lens runnables and the Test Explorer.\n`libtest` (default) uses `cargo test` with libtest flags,\n`nextest` uses `cargo nextest run` with nextest-compatible flags.",
+                        "default": "libtest",
+                        "type": "string",
+                        "enum": [
+                            "libtest",
+                            "nextest"
+                        ],
+                        "enumDescriptions": [
+                            "Use `cargo test` with standard libtest flags.",
+                            "Use `cargo nextest run` with nextest-compatible flags."
+                        ]
+                    }
+                }
+            },
+            {
                 "title": "Rustc",
                 "properties": {
                     "rust-analyzer.rustc.source": {

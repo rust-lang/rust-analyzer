@@ -12,6 +12,7 @@ use rustc_hash::FxHashSet;
 use triomphe::Arc;
 use vfs::AbsPathBuf;
 
+use crate::config::TestRunnerKind;
 use crate::global_state::GlobalStateSnapshot;
 
 /// A target represents a thing we can build or test.
@@ -132,16 +133,24 @@ impl CargoTargetSpec {
         let extra_test_binary_args = config.extra_test_binary_args;
 
         let mut cargo_args = Vec::new();
-        let executable_args = Self::executable_args_for(kind, extra_test_binary_args);
+        let executable_args =
+            Self::executable_args_for(kind, extra_test_binary_args, config.runner);
 
+        // For LibTest the user-configurable `test_command` / `bench_command`
+        // is used (defaults: "test", "bench").  For Nextest the subcommand is
+        // hard-coded to "nextest run" — `test_command` is intentionally
+        // ignored because it has no meaningful nextest equivalent.
         match kind {
-            RunnableKind::Test { .. } => {
-                cargo_args.push(config.test_command);
-            }
-            RunnableKind::TestMod { .. } => {
-                cargo_args.push(config.test_command);
-            }
+            RunnableKind::Test { .. } | RunnableKind::TestMod { .. } => match config.runner {
+                TestRunnerKind::LibTest => cargo_args.push(config.test_command),
+                TestRunnerKind::Nextest => {
+                    cargo_args.push("nextest".to_owned());
+                    cargo_args.push("run".to_owned());
+                }
+            },
             RunnableKind::Bench { .. } => {
+                // nextest has no bench subcommand; this always uses the
+                // libtest bench_command regardless of the runner setting.
                 cargo_args.push(config.bench_command);
             }
             RunnableKind::DocTest { .. } => {
@@ -149,13 +158,18 @@ impl CargoTargetSpec {
                 cargo_args.push("--doc".to_owned());
             }
             RunnableKind::Bin => {
-                let subcommand = match spec {
-                    Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }) => {
-                        config.test_command
+                let is_test_target =
+                    matches!(spec, Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }));
+                match (is_test_target, config.runner) {
+                    (true, TestRunnerKind::Nextest) => {
+                        cargo_args.push("nextest".to_owned());
+                        cargo_args.push("run".to_owned());
                     }
-                    _ => "run".to_owned(),
-                };
-                cargo_args.push(subcommand);
+                    (true, TestRunnerKind::LibTest) => {
+                        cargo_args.push(config.test_command);
+                    }
+                    _ => cargo_args.push("run".to_owned()),
+                }
             }
         }
 
@@ -253,13 +267,11 @@ impl CargoTargetSpec {
             _ => arg,
         };
 
-        let extra_test_binary_args = config.extra_test_binary_args;
-        let executable_args = Self::executable_args_for(kind, extra_test_binary_args);
+        let executable_args =
+            Self::executable_args_for(kind, config.extra_test_binary_args, config.runner);
 
         args.map(|mut args| {
-            let exec_args_idx = args.iter().position(|a| a == "${executable_args}");
-
-            if let Some(idx) = exec_args_idx {
+            if let Some(idx) = args.iter().position(|a| a == "${executable_args}") {
                 args.splice(idx..idx + 1, executable_args);
             }
 
@@ -270,34 +282,51 @@ impl CargoTargetSpec {
     fn executable_args_for(
         kind: &RunnableKind,
         extra_test_binary_args: impl IntoIterator<Item = String>,
+        runner: TestRunnerKind,
     ) -> Vec<String> {
         let mut executable_args = Vec::new();
-
-        match kind {
-            RunnableKind::Test { test_id } => {
-                executable_args.push(test_id.to_string());
-                if let TestId::Path(_) = test_id {
-                    executable_args.push("--exact".to_owned());
+        match runner {
+            TestRunnerKind::LibTest => match kind {
+                RunnableKind::Test { test_id } => {
+                    executable_args.push(test_id.to_string());
+                    if let TestId::Path(_) = test_id {
+                        executable_args.push("--exact".to_owned());
+                    }
+                    executable_args.extend(extra_test_binary_args);
+                    executable_args.push("--include-ignored".to_owned());
                 }
-                executable_args.extend(extra_test_binary_args);
-                executable_args.push("--include-ignored".to_owned());
-            }
-            RunnableKind::TestMod { path } => {
-                executable_args.push(path.clone());
-                executable_args.extend(extra_test_binary_args);
-            }
-            RunnableKind::Bench { test_id } => {
-                executable_args.push(test_id.to_string());
-                if let TestId::Path(_) = test_id {
-                    executable_args.push("--exact".to_owned());
+                RunnableKind::TestMod { path } => {
+                    executable_args.push(path.clone());
+                    executable_args.extend(extra_test_binary_args);
                 }
-                executable_args.extend(extra_test_binary_args);
-            }
-            RunnableKind::DocTest { test_id } => {
-                executable_args.push(test_id.to_string());
-                executable_args.extend(extra_test_binary_args);
-            }
-            RunnableKind::Bin => {}
+                RunnableKind::Bench { test_id } => {
+                    executable_args.push(test_id.to_string());
+                    if let TestId::Path(_) = test_id {
+                        executable_args.push("--exact".to_owned());
+                    }
+                    executable_args.extend(extra_test_binary_args);
+                }
+                RunnableKind::DocTest { test_id } => {
+                    executable_args.push(test_id.to_string());
+                    executable_args.extend(extra_test_binary_args);
+                }
+                RunnableKind::Bin => {}
+            },
+            TestRunnerKind::Nextest => match kind {
+                RunnableKind::Test { test_id } => {
+                    executable_args.push(test_id.to_string());
+                }
+                RunnableKind::TestMod { path } => {
+                    executable_args.push(path.clone());
+                }
+                RunnableKind::Bench { test_id } => {
+                    executable_args.push(test_id.to_string());
+                }
+                RunnableKind::DocTest { test_id } => {
+                    executable_args.push(test_id.to_string());
+                }
+                RunnableKind::Bin => {}
+            },
         }
 
         executable_args
@@ -401,5 +430,75 @@ mod tests {
         check(r#"#![cfg(all(feature = "baz", feature = "foo"))]"#, &["baz", "foo"]);
         check(r#"#![cfg(any(feature = "baz", feature = "foo", unix))]"#, &["baz"]);
         check(r#"#![cfg(foo)]"#, &[]);
+    }
+
+    #[test]
+    fn executable_args_libtest_path_test() {
+        let kind = RunnableKind::Test { test_id: TestId::Path("mod::my_test".into()) };
+        let args = CargoTargetSpec::executable_args_for(
+            &kind,
+            vec!["--nocapture".to_owned()],
+            TestRunnerKind::LibTest,
+        );
+        assert_eq!(args, vec!["mod::my_test", "--exact", "--nocapture", "--include-ignored"]);
+    }
+
+    #[test]
+    fn executable_args_libtest_name_test() {
+        let kind = RunnableKind::Test { test_id: TestId::Name("my_test".into()) };
+        let args = CargoTargetSpec::executable_args_for(
+            &kind,
+            vec!["--nocapture".to_owned()],
+            TestRunnerKind::LibTest,
+        );
+        // Name tests don't get --exact
+        assert_eq!(args, vec!["my_test", "--nocapture", "--include-ignored"]);
+    }
+
+    #[test]
+    fn executable_args_nextest_path_test() {
+        let kind = RunnableKind::Test { test_id: TestId::Path("mod::my_test".into()) };
+        let args = CargoTargetSpec::executable_args_for(
+            &kind,
+            vec!["--nocapture".to_owned()],
+            TestRunnerKind::Nextest,
+        );
+        // Nextest: no --exact, no --include-ignored, no extra binary args
+        assert_eq!(args, vec!["mod::my_test"]);
+    }
+
+    #[test]
+    fn executable_args_nextest_test_mod() {
+        let kind = RunnableKind::TestMod { path: "my_module".into() };
+        let args = CargoTargetSpec::executable_args_for(
+            &kind,
+            vec!["--nocapture".to_owned()],
+            TestRunnerKind::Nextest,
+        );
+        // Nextest: only the path, no extra binary args
+        assert_eq!(args, vec!["my_module"]);
+    }
+
+    #[test]
+    fn executable_args_libtest_bench() {
+        let kind = RunnableKind::Bench { test_id: TestId::Path("mod::my_bench".into()) };
+        let args = CargoTargetSpec::executable_args_for(
+            &kind,
+            vec!["--nocapture".to_owned()],
+            TestRunnerKind::LibTest,
+        );
+        assert_eq!(args, vec!["mod::my_bench", "--exact", "--nocapture"]);
+    }
+
+    #[test]
+    fn executable_args_nextest_bench() {
+        let kind = RunnableKind::Bench { test_id: TestId::Path("mod::my_bench".into()) };
+        let args = CargoTargetSpec::executable_args_for(
+            &kind,
+            vec!["--nocapture".to_owned()],
+            TestRunnerKind::Nextest,
+        );
+        // Nextest: no --exact, no extra args
+        assert_eq!(args, vec!["mod::my_bench"]);
     }
 }

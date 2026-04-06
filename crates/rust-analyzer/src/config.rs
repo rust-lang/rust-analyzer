@@ -41,6 +41,7 @@ use crate::{
     flycheck::{CargoOptions, FlycheckConfig},
     lsp::capabilities::ClientCapabilities,
     lsp_ext::{WorkspaceSymbolSearchKind, WorkspaceSymbolSearchScope},
+    test_runner::CargoTestConfig,
 };
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, rustc_hash::FxBuildHasher>;
@@ -990,6 +991,12 @@ config_data! {
         /// replace the package name, target option (such as `--bin` or `--example`), the target name and
         /// the arguments passed to test binary args (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
         runnables_test_overrideCommand: Option<Vec<String>> = None,
+        /// The test runner to use. When set to `nextest`, rust-analyzer
+        /// automatically adjusts the subcommand and flag layout for both
+        /// code-lens runnables and the Test Explorer.
+        /// `libtest` (default) uses `cargo test` with libtest flags,
+        /// `nextest` uses `cargo nextest run` with nextest-compatible flags.
+        runnables_test_runner: TestRunnerKind = TestRunnerKind::LibTest,
 
         /// Path to the Cargo.toml of the rust compiler workspace, for usage in rustc_private
         /// projects, or "discover" to try to automatically find it if the `rustc-dev` component
@@ -1653,17 +1660,31 @@ pub struct RunnablesConfig {
     /// Additional arguments for the `cargo`, e.g. `--release`.
     pub cargo_extra_args: Vec<String>,
     /// Additional arguments for the binary being run, if it is a test or benchmark.
+    ///
+    /// Vestigial for nextest: arguments after `--` in `cargo nextest run` are
+    /// *filter expressions*, not binary flags, so these are intentionally
+    /// skipped when `runner == Nextest`. See `executable_args_for` in
+    /// `target_spec.rs`.
     pub extra_test_binary_args: Vec<String>,
-    /// Subcommand used for doctest runnables instead of `test`.
+    /// Subcommand used for test runnables (e.g. `"test"`).
+    ///
+    /// Vestigial for nextest: when `runner == Nextest` the subcommand is
+    /// hard-coded to `nextest run` and this field is ignored. It is still
+    /// read for the `LibTest` path and for any future custom runners.
     pub test_command: String,
     /// Override the command used for test runnables.
     pub test_override_command: Option<Vec<String>>,
-    /// Subcommand used for doctest runnables instead of `bench`.
+    /// Subcommand used for bench runnables (e.g. `"bench"`).
+    ///
+    /// Vestigial for nextest: nextest has no bench subcommand, so this is
+    /// only meaningful for the `LibTest` path.
     pub bench_command: String,
     /// Override the command used for bench runnables.
     pub bench_override_command: Option<Vec<String>>,
     /// Override the command used for doctest runnables.
     pub doc_test_override_command: Option<Vec<String>>,
+    /// The test runner to use (cargo test vs nextest).
+    pub runner: TestRunnerKind,
 }
 
 /// Configuration for workspace symbol search requests.
@@ -2516,23 +2537,29 @@ impl Config {
         *self.check_workspace(source_root)
     }
 
-    pub(crate) fn cargo_test_options(&self, source_root: Option<SourceRootId>) -> CargoOptions {
-        CargoOptions {
-            // Might be nice to allow users to specify test_command = "nextest"
-            subcommand: "test".into(),
-            target_tuples: self.cargo_target(source_root).clone().into_iter().collect(),
-            all_targets: false,
-            no_default_features: *self.cargo_noDefaultFeatures(source_root),
-            all_features: matches!(self.cargo_features(source_root), CargoFeaturesDef::All),
-            features: match self.cargo_features(source_root).clone() {
-                CargoFeaturesDef::All => vec![],
-                CargoFeaturesDef::Selected(it) => it,
+    pub(crate) fn cargo_test_options(&self, source_root: Option<SourceRootId>) -> CargoTestConfig {
+        CargoTestConfig {
+            runner: *self.runnables_test_runner(source_root),
+            options: CargoOptions {
+                // Dead field in this context: `libtest_command` and
+                // `nextest_command` pass a hard-coded `&[&str]` to
+                // `cargo_base_command` and never read `options.subcommand`.
+                // We set it to "test" only because `CargoOptions` requires it.
+                subcommand: "test".to_owned(),
+                target_tuples: self.cargo_target(source_root).clone().into_iter().collect(),
+                all_targets: false,
+                no_default_features: *self.cargo_noDefaultFeatures(source_root),
+                all_features: matches!(self.cargo_features(source_root), CargoFeaturesDef::All),
+                features: match self.cargo_features(source_root).clone() {
+                    CargoFeaturesDef::All => vec![],
+                    CargoFeaturesDef::Selected(it) => it,
+                },
+                extra_args: self.extra_args(source_root).clone(),
+                extra_test_bin_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
+                extra_env: self.extra_env(source_root).clone(),
+                target_dir_config: self.target_dir_from_config(source_root),
+                set_test: true,
             },
-            extra_args: self.extra_args(source_root).clone(),
-            extra_test_bin_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
-            extra_env: self.extra_env(source_root).clone(),
-            target_dir_config: self.target_dir_from_config(source_root),
-            set_test: true,
         }
     }
 
@@ -2623,6 +2650,7 @@ impl Config {
             bench_command: self.runnables_bench_command(source_root).clone(),
             bench_override_command: self.runnables_bench_overrideCommand(source_root).clone(),
             doc_test_override_command: self.runnables_doctest_overrideCommand(source_root).clone(),
+            runner: *self.runnables_test_runner(source_root),
         }
     }
 
@@ -3038,6 +3066,15 @@ enum ClosureStyle {
     RustAnalyzer,
     WithId,
     Hide,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TestRunnerKind {
+    // serde's `snake_case` would produce `"lib_test"`.
+    #[serde(rename = "libtest")]
+    LibTest,
+    Nextest,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -4110,6 +4147,14 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                     }
                 ]
              }
+        },
+        "TestRunnerKind" => set! {
+            "type": "string",
+            "enum": ["libtest", "nextest"],
+            "enumDescriptions": [
+                "Use `cargo test` with standard libtest flags.",
+                "Use `cargo nextest run` with nextest-compatible flags."
+            ],
         },
         _ => panic!("missing entry for {ty}: {default} (field {field})"),
     }
