@@ -11,6 +11,7 @@
 //!     add:
 //!     asm:
 //!     assert:
+//!     async_iterator: option, future, pin
 //!     as_mut: sized
 //!     as_ref: sized
 //!     async_fn: fn, tuple, future, copy
@@ -1530,6 +1531,7 @@ pub mod slice {
 
 // region:option
 pub mod option {
+    #[lang = "Option"]
     pub enum Option<T> {
         #[lang = "None"]
         None,
@@ -1679,6 +1681,7 @@ pub mod future {
     }
 }
 pub mod task {
+    #[lang = "Poll"]
     pub enum Poll<T> {
         #[lang = "Ready"]
         Ready(T),
@@ -1691,6 +1694,22 @@ pub mod task {
     }
 }
 // endregion:future
+
+// region:async_iterator
+pub mod async_iter {
+    use crate::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
+
+    #[lang = "async_iterator"]
+    pub trait AsyncIterator {
+        type Item;
+
+        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>>;
+    }
+}
+// endregion:async_iterator
 
 // region:iterator
 pub mod iter {

@@ -413,6 +413,7 @@ language_item_table! { LangItems =>
     FnOnceOutput,            sym::fn_once_output,      TypeAliasId;
 
     Future,                  sym::future_trait,        TraitId;
+    AsyncIterator,           sym::async_iterator,      TraitId;
     CoroutineState,          sym::coroutine_state,     EnumId;
     Coroutine,               sym::coroutine,           TraitId;
     CoroutineReturn,         sym::coroutine_return,    TypeAliasId;
@@ -522,7 +523,6 @@ language_item_table! { LangItems =>
     IteratorNext,            sym::next,                FunctionId;
     Iterator,                sym::iterator,            TraitId;
     FusedIterator,           sym::fused_iterator,      TraitId;
-    AsyncIterator,           sym::async_iterator,      TraitId;
 
     PinNewUnchecked,         sym::new_unchecked,       FunctionId;
 

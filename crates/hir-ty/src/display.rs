@@ -14,7 +14,10 @@ use hir_def::{
     Lookup, ModuleDefId, ModuleId, TraitId,
     expr_store::{ExpressionStore, path::Path},
     find_path::{self, PrefixKind},
-    hir::generics::{GenericParams, TypeOrConstParamData, TypeParamProvenance, WherePredicate},
+    hir::{
+        ClosureKind as HirClosureKind, CoroutineKind,
+        generics::{GenericParams, TypeOrConstParamData, TypeParamProvenance, WherePredicate},
+    },
     item_scope::ItemInNs,
     item_tree::FieldsShape,
     lang_item::LangItems,
@@ -64,6 +67,36 @@ use crate::{
     primitive,
     utils::{detect_variant_from_bytes, fn_traits},
 };
+
+fn async_gen_item_ty_from_yield_ty<'db>(
+    lang_items: &LangItems,
+    yield_ty: Ty<'db>,
+) -> Option<Ty<'db>> {
+    let poll_id = lang_items.Poll.map(hir_def::AdtId::EnumId)?;
+    let option_id = lang_items.Option.map(hir_def::AdtId::EnumId)?;
+
+    let TyKind::Adt(poll_def, poll_args) = yield_ty.kind() else {
+        return None;
+    };
+    if poll_def.inner().id != poll_id {
+        return None;
+    }
+    let [poll_inner] = poll_args.as_slice() else {
+        return None;
+    };
+    let poll_inner = poll_inner.ty()?;
+
+    let TyKind::Adt(option_def, option_args) = poll_inner.kind() else {
+        return None;
+    };
+    if option_def.inner().id != option_id {
+        return None;
+    }
+    let [item] = option_args.as_slice() else {
+        return None;
+    };
+    item.ty()
+}
 
 pub type Result<T = (), E = HirDisplayError> = std::result::Result<T, E>;
 
@@ -1519,6 +1552,22 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
             }
             TyKind::CoroutineClosure(id, args) => {
                 let id = id.0;
+                let closure_kind = match id.loc(db) {
+                    InternedClosure(owner, expr_id) => {
+                        match &ExpressionStore::of(db, owner)[expr_id] {
+                            hir_def::hir::Expr::Closure {
+                                closure_kind: HirClosureKind::CoroutineClosure(kind),
+                                ..
+                            } => *kind,
+                            expr => panic!("invalid expr for coroutine closure: {expr:?}"),
+                        }
+                    }
+                };
+                let closure_label = match closure_kind {
+                    CoroutineKind::Async => "async closure",
+                    CoroutineKind::Gen => "gen closure",
+                    CoroutineKind::AsyncGen => "async gen closure",
+                };
                 if f.display_kind.is_source_code() {
                     if !f.display_kind.allows_opaque() {
                         return Err(HirDisplayError::DisplaySourceCodeError(
@@ -1533,25 +1582,28 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                     ClosureStyle::ClosureWithId => {
                         return write!(
                             f,
-                            "{{async closure#{:?}}}",
+                            "{{{closure_label}#{:?}}}",
                             salsa::plumbing::AsId::as_id(&id).index()
                         );
                     }
                     ClosureStyle::ClosureWithSubst => {
                         write!(
                             f,
-                            "{{async closure#{:?}}}",
+                            "{{{closure_label}#{:?}}}",
                             salsa::plumbing::AsId::as_id(&id).index()
                         )?;
                         return hir_fmt_generics(f, args.as_slice(), None, None);
                     }
                     _ => (),
                 }
-                let kind = args.as_coroutine_closure().kind();
-                let kind = match kind {
-                    rustc_type_ir::ClosureKind::Fn => "AsyncFn",
-                    rustc_type_ir::ClosureKind::FnMut => "AsyncFnMut",
-                    rustc_type_ir::ClosureKind::FnOnce => "AsyncFnOnce",
+                let callable_kind = args.as_coroutine_closure().kind();
+                let kind = match (closure_kind, callable_kind) {
+                    (CoroutineKind::Async, rustc_type_ir::ClosureKind::Fn) => "AsyncFn",
+                    (CoroutineKind::Async, rustc_type_ir::ClosureKind::FnMut) => "AsyncFnMut",
+                    (CoroutineKind::Async, rustc_type_ir::ClosureKind::FnOnce) => "AsyncFnOnce",
+                    (_, rustc_type_ir::ClosureKind::Fn) => "Fn",
+                    (_, rustc_type_ir::ClosureKind::FnMut) => "FnMut",
+                    (_, rustc_type_ir::ClosureKind::FnOnce) => "FnOnce",
                 };
                 let coroutine_sig = args.as_coroutine_closure().coroutine_closure_sig();
                 let coroutine_sig = coroutine_sig.skip_binder();
@@ -1559,7 +1611,11 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                 let coroutine_output = coroutine_sig.return_ty;
                 match f.closure_style {
                     ClosureStyle::ImplFn => write!(f, "impl {kind}(")?,
-                    ClosureStyle::RANotation => write!(f, "async |")?,
+                    ClosureStyle::RANotation => match closure_kind {
+                        CoroutineKind::Async => write!(f, "async |")?,
+                        CoroutineKind::Gen => write!(f, "gen |")?,
+                        CoroutineKind::AsyncGen => write!(f, "async gen |")?,
+                    },
                     _ => unreachable!(),
                 }
                 if coroutine_inputs.is_empty() {
@@ -1677,7 +1733,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                 let expr = &body[expr_id];
                 match expr {
                     hir_def::hir::Expr::Closure {
-                        closure_kind: hir_def::hir::ClosureKind::AsyncBlock { .. },
+                        closure_kind: HirClosureKind::Coroutine { kind: CoroutineKind::Async, .. },
                         ..
                     } => {
                         let future_trait = f.lang_items().Future;
@@ -1706,7 +1762,68 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                         write!(f, ">")?;
                     }
                     hir_def::hir::Expr::Closure {
-                        closure_kind: hir_def::hir::ClosureKind::Coroutine(..),
+                        closure_kind: HirClosureKind::Coroutine { kind: CoroutineKind::Gen, .. },
+                        ..
+                    } => {
+                        let iterator_trait = f.lang_items().Iterator;
+                        let item = iterator_trait.and_then(|t| {
+                            t.trait_items(db)
+                                .associated_type_by_name(&Name::new_symbol_root(sym::Item))
+                        });
+                        write!(f, "impl ")?;
+                        if let Some(t) = iterator_trait {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Iterator")?;
+                        if iterator_trait.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, "<")?;
+                        if let Some(t) = item {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Item")?;
+                        if item.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, " = ")?;
+                        yield_ty.hir_fmt(f)?;
+                        write!(f, ">")?;
+                    }
+                    hir_def::hir::Expr::Closure {
+                        closure_kind:
+                            HirClosureKind::Coroutine { kind: CoroutineKind::AsyncGen, .. },
+                        ..
+                    } => {
+                        let async_iterator_trait = f.lang_items().AsyncIterator;
+                        let item = async_iterator_trait.and_then(|t| {
+                            t.trait_items(db)
+                                .associated_type_by_name(&Name::new_symbol_root(sym::Item))
+                        });
+                        write!(f, "impl ")?;
+                        if let Some(t) = async_iterator_trait {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "AsyncIterator")?;
+                        if async_iterator_trait.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, "<")?;
+                        if let Some(t) = item {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Item")?;
+                        if item.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, " = ")?;
+                        let item_ty = async_gen_item_ty_from_yield_ty(f.lang_items(), yield_ty)
+                            .unwrap_or(yield_ty);
+                        item_ty.hir_fmt(f)?;
+                        write!(f, ">")?;
+                    }
+                    hir_def::hir::Expr::Closure {
+                        closure_kind: HirClosureKind::OldCoroutine(..),
                         ..
                     } => {
                         if f.display_kind.is_source_code() {

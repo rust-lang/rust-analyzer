@@ -12,10 +12,10 @@ use macros::GenericTypeVisitable;
 use rustc_abi::{Float, Integer, Size};
 use rustc_ast_ir::{Mutability, try_visit, visit::VisitorResult};
 use rustc_type_ir::{
-    AliasTyKind, BoundVar, BoundVarIndexKind, ClosureKind, CoroutineArgs, CoroutineArgsParts,
-    DebruijnIndex, FlagComputation, Flags, FloatTy, FloatVid, GenericTypeVisitable, InferTy, IntTy,
-    IntVid, Interner, TyVid, TypeFoldable, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
-    TypeVisitableExt, TypeVisitor, UintTy, Upcast, WithCachedTypeInfo,
+    AliasTyKind, BoundVar, BoundVarIndexKind, ClosureKind, DebruijnIndex, FlagComputation, Flags,
+    FloatTy, FloatVid, GenericTypeVisitable, InferTy, IntTy, IntVid, Interner, TyVid, TypeFoldable,
+    TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor, UintTy,
+    Upcast, WithCachedTypeInfo,
     inherent::{
         AdtDef as _, BoundExistentialPredicates, GenericArgs as _, IntoKind, ParamLike,
         Safety as _, SliceLike, Ty as _,
@@ -575,23 +575,13 @@ impl<'db> Ty<'db> {
             }
             TyKind::CoroutineClosure(coroutine_id, args) => {
                 Some(args.as_coroutine_closure().coroutine_closure_sig().map_bound(|sig| {
-                    let unit_ty = Ty::new_unit(interner);
-                    let return_ty = Ty::new_coroutine(
+                    let closure_args = args.as_coroutine_closure();
+                    let return_ty = sig.to_coroutine(
                         interner,
+                        closure_args.parent_args(),
+                        closure_args.kind_ty(),
                         interner.coroutine_for_closure(coroutine_id),
-                        CoroutineArgs::new(
-                            interner,
-                            CoroutineArgsParts {
-                                parent_args: args.as_coroutine_closure().parent_args(),
-                                kind_ty: unit_ty,
-                                resume_ty: unit_ty,
-                                yield_ty: unit_ty,
-                                return_ty: sig.return_ty,
-                                // FIXME: Deduce this from the coroutine closure's upvars.
-                                tupled_upvars_ty: unit_ty,
-                            },
-                        )
-                        .args,
+                        closure_args.tupled_upvars_ty(),
                     );
                     FnSig {
                         inputs_and_output: Tys::new_from_iter(

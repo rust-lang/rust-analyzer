@@ -124,6 +124,24 @@ async fn test() {
 }
 
 #[test]
+fn infer_async_gen_closure() {
+    check_types(
+        r#"
+//- minicore: async_iterator, fn
+//- /main.rs edition:2024
+fn test() {
+    let f = async gen move |x: i32| {
+        yield x + 42;
+    };
+    let a = f(4);
+    a;
+//  ^ impl AsyncIterator<Item = i32>
+}
+"#,
+    );
+}
+
+#[test]
 fn auto_sized_async_block() {
     check_no_mismatches(
         r#"

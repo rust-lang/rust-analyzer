@@ -276,8 +276,8 @@ impl InternedCoroutineId {
                 matches!(
                     expr,
                     hir_def::hir::Expr::Closure {
-                        closure_kind: hir_def::hir::ClosureKind::Coroutine(_)
-                            | hir_def::hir::ClosureKind::AsyncBlock { .. },
+                        closure_kind: hir_def::hir::ClosureKind::OldCoroutine(_)
+                            | hir_def::hir::ClosureKind::Coroutine { .. },
                         ..
                     }
                 ),
@@ -305,7 +305,7 @@ impl InternedCoroutineClosureId {
                 matches!(
                     expr,
                     hir_def::hir::Expr::Closure {
-                        closure_kind: hir_def::hir::ClosureKind::AsyncClosure,
+                        closure_kind: hir_def::hir::ClosureKind::CoroutineClosure(_),
                         ..
                     }
                 ),

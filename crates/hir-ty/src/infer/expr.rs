@@ -2129,7 +2129,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 // closure wrapped in a block.
                 // See <https://github.com/rust-lang/rust/issues/112225>.
                 let is_closure = if let Expr::Closure { closure_kind, .. } = self.store[*arg] {
-                    !matches!(closure_kind, ClosureKind::Coroutine(_))
+                    !matches!(closure_kind, ClosureKind::OldCoroutine(_))
                 } else {
                     false
                 };
