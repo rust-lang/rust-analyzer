@@ -486,7 +486,7 @@ pub trait Trait<'a, 'b, A, B, C: Default> {
 impl<'x, 'y, T, V, U: Default> Trait<'x, 'y, T, V, U> for () {
     $0fn foo(&self, _one: &'x T, _another: &'y V) -> (U, &'x i32) {
         let value: &'x i32 = &0;
-        (<U>::default(), value)
+        (U::default(), value)
     }
 }"#,
         );
