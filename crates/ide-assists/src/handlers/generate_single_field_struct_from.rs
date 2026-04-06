@@ -114,9 +114,8 @@ pub(crate) fn generate_single_field_struct_from(
             )
             .indent(1.into());
 
-            let cfg_attrs = strukt
-                .attrs()
-                .filter(|attr| attr.as_simple_call().is_some_and(|(name, _arg)| name == "cfg"));
+            let cfg_attrs =
+                strukt.attrs().filter(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))));
 
             let impl_ = make::impl_trait(
                 cfg_attrs,
