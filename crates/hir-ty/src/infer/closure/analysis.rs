@@ -1070,8 +1070,10 @@ impl<'db> InferenceContext<'_, 'db> {
                         break 'reset_span_stack;
                     };
                     match variant {
-                        VariantId::EnumVariantId(_) | VariantId::UnionId(_) => {
-                            self.consume_place(place)
+                        VariantId::UnionId(_) => self.consume_place(place),
+                        VariantId::EnumVariantId(_) => {
+                            let arg = args[0];
+                            self.consume_with_pat(place, arg);
                         }
                         VariantId::StructId(s) => {
                             let vd = s.fields(self.db);
