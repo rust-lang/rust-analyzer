@@ -2367,6 +2367,21 @@ fn something() -> &'static str {
 }
 
 #[test]
+fn doctest_inline_default_generic_parameter() {
+    check_doc_test(
+        "inline_default_generic_parameter",
+        r#####"
+struct Foo<T = i32$0>(T);
+impl Foo { }
+"#####,
+        r#####"
+struct Foo<T>(T);
+impl Foo<i32> { }
+"#####,
+    )
+}
+
+#[test]
 fn doctest_inline_into_callers() {
     check_doc_test(
         "inline_into_callers",

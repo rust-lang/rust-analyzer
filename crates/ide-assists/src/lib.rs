@@ -180,6 +180,7 @@ mod handlers {
     mod generate_trait_from_impl;
     mod inline_call;
     mod inline_const_as_literal;
+    pub(crate) mod inline_default_generic_parameter;
     mod inline_local_variable;
     mod inline_macro;
     mod inline_type_alias;
@@ -320,6 +321,7 @@ mod handlers {
             inline_call::inline_call,
             inline_call::inline_into_callers,
             inline_const_as_literal::inline_const_as_literal,
+            inline_default_generic_parameter::inline_default_generic_parameter,
             inline_local_variable::inline_local_variable,
             inline_macro::inline_macro,
             inline_type_alias::inline_type_alias_uses,
