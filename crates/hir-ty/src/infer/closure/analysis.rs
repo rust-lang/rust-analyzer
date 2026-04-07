@@ -1072,8 +1072,12 @@ impl<'db> InferenceContext<'_, 'db> {
                     match variant {
                         VariantId::UnionId(_) => self.consume_place(place),
                         VariantId::EnumVariantId(_) => {
-                            let arg = args[0];
-                            self.consume_with_pat(place, arg);
+                            if args.is_empty() {
+                                self.consume_place(place)
+                            } else {
+                                let arg = args[0];
+                                self.consume_with_pat(place, arg)
+                            }
                         }
                         VariantId::StructId(s) => {
                             let vd = s.fields(self.db);
