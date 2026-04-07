@@ -1326,8 +1326,8 @@ impl Foo {
 struct Foo { foo$0: i32 }
 
 impl Foo {
-    fn new(foo: i32) -> Self {
-        Self { foo }
+    fn foo(foo: i32) {
+        Self { foo };
     }
 }
 "#,
@@ -1335,8 +1335,8 @@ impl Foo {
 struct Foo { field: i32 }
 
 impl Foo {
-    fn new(foo: i32) -> Self {
-        Self { field: foo }
+    fn foo(foo: i32) {
+        Self { field: foo };
     }
 }
 "#,
@@ -3926,6 +3926,65 @@ impl Foo {
 
 fn bar() {
     Foo::foo(&Foo, 1);
+}
+        "#,
+        );
+    }
+
+    #[test]
+    fn rename_constructor_locals() {
+        check(
+            "field",
+            r#"
+struct Struct {
+    struct_field$0: String,
+}
+
+impl Struct {
+    fn new(struct_field: String) -> Self {
+        if false {
+            return Self { struct_field };
+        }
+        Self { struct_field }
+    }
+}
+
+mod foo {
+    macro_rules! m {
+        ($it:expr) => { return $it };
+    }
+
+    impl crate::Struct {
+        fn with_foo(struct_field: String) -> crate::Struct {
+            m!(crate::Struct { struct_field });
+        }
+    }
+}
+        "#,
+            r#"
+struct Struct {
+    field: String,
+}
+
+impl Struct {
+    fn new(field: String) -> Self {
+        if false {
+            return Self { field };
+        }
+        Self { field }
+    }
+}
+
+mod foo {
+    macro_rules! m {
+        ($it:expr) => { return $it };
+    }
+
+    impl crate::Struct {
+        fn with_foo(field: String) -> crate::Struct {
+            m!(crate::Struct { field });
+        }
+    }
 }
         "#,
         );

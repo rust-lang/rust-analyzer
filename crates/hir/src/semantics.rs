@@ -1635,6 +1635,44 @@ impl<'db> SemanticsImpl<'db> {
             .kmerge_by(|node1, node2| node1.text_range().len() < node2.text_range().len())
     }
 
+    /// Returns the `return` expressions in this function's body,
+    /// excluding those inside closures or async blocks.
+    pub fn fn_return_points(&self, func: Function) -> Vec<InFile<ast::ReturnExpr>> {
+        let func_id = match func.id {
+            AnyFunctionId::FunctionId(id) => id,
+            _ => return vec![],
+        };
+        let (body, source_map) = Body::with_source_map(self.db, func_id.into());
+
+        fn collect_returns(
+            sema: &SemanticsImpl<'_>,
+            body: &Body,
+            source_map: &hir_def::expr_store::ExpressionStoreSourceMap,
+            expr_id: ExprId,
+            acc: &mut Vec<InFile<ast::ReturnExpr>>,
+        ) {
+            match &body[expr_id] {
+                Expr::Closure { .. } | Expr::Const(_) => return,
+                Expr::Return { .. } => {
+                    if let Ok(source) = source_map.expr_syntax(expr_id)
+                        && let Some(ret_expr) = source.value.cast::<ast::ReturnExpr>()
+                    {
+                        let root = sema.parse_or_expand(source.file_id);
+                        acc.push(InFile::new(source.file_id, ret_expr.to_node(&root)));
+                    }
+                }
+                _ => {}
+            }
+            body.walk_child_exprs(expr_id, |child| {
+                collect_returns(sema, body, source_map, child, acc);
+            });
+        }
+
+        let mut returns = vec![];
+        collect_returns(self, body, source_map, body.root_expr(), &mut returns);
+        returns
+    }
+
     pub fn resolve_lifetime_param(&self, lifetime: &ast::Lifetime) -> Option<LifetimeParam> {
         let text = lifetime.text();
         let lifetime_param = lifetime.syntax().ancestors().find_map(|syn| {

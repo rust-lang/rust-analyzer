@@ -1984,6 +1984,14 @@ impl Variant {
             Variant::EnumVariant(e) => (*e).name(db),
         }
     }
+
+    pub fn adt(&self, db: &dyn HirDatabase) -> Adt {
+        match *self {
+            Variant::Struct(it) => it.into(),
+            Variant::Union(it) => it.into(),
+            Variant::EnumVariant(it) => it.parent_enum(db).into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
