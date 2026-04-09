@@ -201,7 +201,9 @@ fn generate_module_def(
         let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
         let make = SyntaxFactory::with_mappings();
         let assoc_item_list = make.assoc_item_list(assoc_items);
-        editor.replace(impl_detached.assoc_item_list().unwrap().syntax(), assoc_item_list.syntax());
+        if let Some(existing_list) = impl_detached.assoc_item_list() {
+            editor.replace(existing_list.syntax(), assoc_item_list.syntax());
+        }
         editor.add_mappings(make.finish_with_mappings());
         let new_impl_node = editor.finish().new_root().clone();
         let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
