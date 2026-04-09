@@ -286,7 +286,7 @@ impl CompletionRelevance {
             function,
             is_skipping_completion,
             has_local_inherent_impl,
-            is_deprecated: _,
+            is_deprecated,
         } = self;
 
         // only applicable for completions within use items
@@ -360,6 +360,11 @@ impl CompletionRelevance {
         };
 
         if has_local_inherent_impl {
+            score -= 5;
+        }
+
+        // lower rank for deprecated items
+        if is_deprecated {
             score -= 5;
         }
 

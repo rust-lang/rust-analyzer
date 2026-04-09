@@ -3802,10 +3802,10 @@ fn main() {
 }
 "#,
             expect![[r#"
-                ct INFINITY f32 [type_could_unify+requires_import+deprecated]
-                ct NEG_INFINITY f32 [type_could_unify+requires_import+deprecated]
                 ct INFINITY pub const INFINITY: f32 []
                 ct NEG_INFINITY pub const NEG_INFINITY: f32 []
+                ct INFINITY f32 [type_could_unify+requires_import+deprecated]
+                ct NEG_INFINITY f32 [type_could_unify+requires_import+deprecated]
             "#]],
         );
     }
