@@ -33,3 +33,4 @@ jobs:
           title: "Update generated lints"
           body: "Weekly lint updates for `crates/ide-db/src/generated/lints.rs`."
           labels: "A-infra"
+          token: ${{ secrets.APP_PRIVATE_KEY }}
