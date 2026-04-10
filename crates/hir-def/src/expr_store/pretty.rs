@@ -835,6 +835,12 @@ impl Printer<'_> {
             Expr::Async { id: _, statements, tail } => {
                 self.print_block(Some("async "), statements, tail);
             }
+            Expr::Gen { id: _, statements, tail } => {
+                self.print_block(Some("gen "), statements, tail);
+            }
+            Expr::AsyncGen { id: _, statements, tail } => {
+                self.print_block(Some("async gen "), statements, tail);
+            }
             Expr::Const(id) => {
                 w!(self, "const {{ /* {id:?} */ }}");
             }

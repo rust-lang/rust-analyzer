@@ -644,7 +644,9 @@ impl ExpressionStore {
             }
             Expr::Block { statements, tail, .. }
             | Expr::Unsafe { statements, tail, .. }
-            | Expr::Async { statements, tail, .. } => {
+            | Expr::Async { statements, tail, .. }
+            | Expr::Gen { statements, tail, .. }
+            | Expr::AsyncGen { statements, tail, .. } => {
                 for stmt in statements.iter() {
                     match stmt {
                         Statement::Let { initializer, else_branch, pat, .. } => {
@@ -779,7 +781,9 @@ impl ExpressionStore {
             }
             Expr::Block { statements, tail, .. }
             | Expr::Unsafe { statements, tail, .. }
-            | Expr::Async { statements, tail, .. } => {
+            | Expr::Async { statements, tail, .. }
+            | Expr::Gen { statements, tail, .. }
+            | Expr::AsyncGen { statements, tail, .. } => {
                 for stmt in statements.iter() {
                     match stmt {
                         Statement::Let { initializer, else_branch, .. } => {

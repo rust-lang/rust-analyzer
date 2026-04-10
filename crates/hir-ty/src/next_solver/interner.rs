@@ -1368,7 +1368,9 @@ impl<'db> Interner for DbInterner<'db> {
                 hir_def::hir::ClosureKind::Async => rustc_ast_ir::Movability::Static,
                 _ => panic!("unexpected expression for a coroutine: {expr:?}"),
             },
-            hir_def::hir::Expr::Async { .. } => rustc_ast_ir::Movability::Static,
+            hir_def::hir::Expr::Async { .. }
+            | hir_def::hir::Expr::Gen { .. }
+            | hir_def::hir::Expr::AsyncGen { .. } => rustc_ast_ir::Movability::Static,
             _ => panic!("unexpected expression for a coroutine: {expr:?}"),
         }
     }
@@ -1549,7 +1551,7 @@ impl<'db> Interner for DbInterner<'db> {
             SolverTraitLangItem::AsyncFnOnceOutput => unimplemented!(
                 "This is incorrectly marked as `SolverTraitLangItem`, and is not used by the solver."
             ),
-            SolverTraitLangItem::AsyncIterator => unimplemented!(),
+            SolverTraitLangItem::AsyncIterator => lang_items.AsyncIterator,
             SolverTraitLangItem::Clone => lang_items.Clone,
             SolverTraitLangItem::Copy => lang_items.Copy,
             SolverTraitLangItem::Coroutine => lang_items.Coroutine,
@@ -1599,7 +1601,6 @@ impl<'db> Interner for DbInterner<'db> {
 
             ignore = {
                 AsyncFnKindHelper,
-                AsyncIterator,
                 BikeshedGuaranteedNoDrop,
                 FusedIterator,
                 AsyncFnOnceOutput, // This is incorrectly marked as `SolverTraitLangItem`, and is not used by the solver.
@@ -1625,6 +1626,7 @@ impl<'db> Interner for DbInterner<'db> {
             Unpin,
             Tuple,
             Iterator,
+            AsyncIterator,
             AsyncFn,
             AsyncFnMut,
             AsyncFnOnce,
@@ -1686,7 +1688,6 @@ impl<'db> Interner for DbInterner<'db> {
 
             ignore = {
                 AsyncFnKindHelper,
-                AsyncIterator,
                 BikeshedGuaranteedNoDrop,
                 FusedIterator,
                 AsyncFnOnceOutput, // This is incorrectly marked as `SolverTraitLangItem`, and is not used by the solver.
@@ -1712,6 +1713,7 @@ impl<'db> Interner for DbInterner<'db> {
             Unpin,
             Tuple,
             Iterator,
+            AsyncIterator,
             AsyncFn,
             AsyncFnMut,
             AsyncFnOnce,
@@ -1999,14 +2001,16 @@ impl<'db> Interner for DbInterner<'db> {
         )
     }
 
-    fn coroutine_is_gen(self, _coroutine_def_id: Self::CoroutineId) -> bool {
-        // We don't handle gen coroutines yet.
-        false
+    fn coroutine_is_gen(self, def_id: Self::CoroutineId) -> bool {
+        let InternedCoroutine(owner, expr_id) = def_id.0.loc(self.db);
+        let store = ExpressionStore::of(self.db, owner);
+        matches!(store[expr_id], hir_def::hir::Expr::Gen { .. })
     }
 
-    fn coroutine_is_async_gen(self, _coroutine_def_id: Self::CoroutineId) -> bool {
-        // We don't handle gen coroutines yet.
-        false
+    fn coroutine_is_async_gen(self, def_id: Self::CoroutineId) -> bool {
+        let InternedCoroutine(owner, expr_id) = def_id.0.loc(self.db);
+        let store = ExpressionStore::of(self.db, owner);
+        matches!(store[expr_id], hir_def::hir::Expr::AsyncGen { .. })
     }
 
     fn unsizing_params_for_adt(self, id: Self::AdtId) -> Self::UnsizingParams {
@@ -2119,6 +2123,8 @@ impl<'db> Interner for DbInterner<'db> {
             if matches!(
                 expr,
                 hir_def::hir::Expr::Async { .. }
+                    | hir_def::hir::Expr::Gen { .. }
+                    | hir_def::hir::Expr::AsyncGen { .. }
                     | hir_def::hir::Expr::Closure {
                         closure_kind: hir_def::hir::ClosureKind::Async
                             | hir_def::hir::ClosureKind::Coroutine(_),

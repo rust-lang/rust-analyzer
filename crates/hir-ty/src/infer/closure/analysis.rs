@@ -610,6 +610,8 @@ impl<'db> InferenceContext<'_, 'db> {
                 }
             }
             Expr::Async { statements, tail, .. }
+            | Expr::Gen { statements, tail, .. }
+            | Expr::AsyncGen { statements, tail, .. }
             | Expr::Unsafe { statements, tail, .. }
             | Expr::Block { statements, tail, .. } => {
                 for s in statements.iter() {

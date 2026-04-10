@@ -1572,6 +1572,58 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                         return_ty.hir_fmt(f)?;
                         write!(f, ">")?;
                     }
+                    hir_def::hir::Expr::Gen { .. } => {
+                        let iterator_trait = f.lang_items().Iterator;
+                        let item = iterator_trait.and_then(|t| {
+                            t.trait_items(db)
+                                .associated_type_by_name(&Name::new_symbol_root(sym::Item))
+                        });
+                        write!(f, "impl ")?;
+                        if let Some(t) = iterator_trait {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Iterator")?;
+                        if iterator_trait.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, "<")?;
+                        if let Some(t) = item {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Item")?;
+                        if item.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, " = ")?;
+                        yield_ty.hir_fmt(f)?;
+                        write!(f, ">")?;
+                    }
+                    hir_def::hir::Expr::AsyncGen { .. } => {
+                        let async_iterator_trait = f.lang_items().AsyncIterator;
+                        let item = async_iterator_trait.and_then(|t| {
+                            t.trait_items(db)
+                                .associated_type_by_name(&Name::new_symbol_root(sym::Item))
+                        });
+                        write!(f, "impl ")?;
+                        if let Some(t) = async_iterator_trait {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "AsyncIterator")?;
+                        if async_iterator_trait.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, "<")?;
+                        if let Some(t) = item {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Item")?;
+                        if item.is_some() {
+                            f.end_location_link();
+                        }
+                        write!(f, " = ")?;
+                        yield_ty.hir_fmt(f)?;
+                        write!(f, ">")?;
+                    }
                     hir_def::hir::Expr::Closure {
                         closure_kind: hir_def::hir::ClosureKind::Coroutine(..),
                         ..

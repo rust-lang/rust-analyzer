@@ -146,7 +146,11 @@ impl<'db> ExprValidator<'db> {
                 Expr::If { .. } => {
                     self.check_for_unnecessary_else(id, expr);
                 }
-                Expr::Block { .. } | Expr::Async { .. } | Expr::Unsafe { .. } => {
+                Expr::Block { .. }
+                | Expr::Async { .. }
+                | Expr::Gen { .. }
+                | Expr::AsyncGen { .. }
+                | Expr::Unsafe { .. } => {
                     self.validate_block(expr);
                 }
                 _ => {}
@@ -327,6 +331,8 @@ impl<'db> ExprValidator<'db> {
     fn validate_block(&mut self, expr: &Expr) {
         let (Expr::Block { statements, .. }
         | Expr::Async { statements, .. }
+        | Expr::Gen { statements, .. }
+        | Expr::AsyncGen { statements, .. }
         | Expr::Unsafe { statements, .. }) = expr
         else {
             return;

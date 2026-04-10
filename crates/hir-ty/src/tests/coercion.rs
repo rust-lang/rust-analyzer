@@ -392,6 +392,34 @@ fn test() {
 }
 
 #[test]
+fn gen_yield_coerce() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = gen {
+        yield &1u32;
+        yield &&1u32;
+    };
+}
+        "#,
+    );
+}
+
+#[test]
+fn async_gen_yield_coerce() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = async gen {
+        yield &1u32;
+        yield &&1u32;
+    };
+}
+        "#,
+    );
+}
+
+#[test]
 fn assign_coerce() {
     check_no_mismatches(
         r"

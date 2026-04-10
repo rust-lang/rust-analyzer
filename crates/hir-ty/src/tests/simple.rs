@@ -2066,6 +2066,138 @@ fn test() {
 }
 
 #[test]
+fn gen_block_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: iterator, deref
+use core::iter::Iterator;
+
+fn test() {
+    let mut generator = gen {
+        yield 1i8;
+    };
+    let result = generator.next();
+}
+        "#,
+        expect![[r#"
+            37..131 '{     ...t(); }': ()
+            47..60 'mut generator': impl Iterator<Item = i8>
+            63..93 'gen { ...     }': impl Iterator<Item = i8>
+            77..86 'yield 1i8': ()
+            83..86 '1i8': i8
+            103..109 'result': Option<i8>
+            112..121 'generator': impl Iterator<Item = i8>
+            112..128 'genera...next()': Option<i8>
+        "#]],
+    );
+}
+
+#[test]
+fn async_gen_block_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: async_iterator, option, future, deref, pin
+use core::async_iter::AsyncIterator;
+use core::pin::Pin;
+use core::task::Context;
+
+fn test(mut cx: Context<'_>) {
+    let mut generator = async gen {
+        yield 1i8;
+    };
+    let result = Pin::new(&mut generator).poll_next(&mut cx);
+}
+        "#,
+        expect![[r#"
+            91..97 'mut cx': Context<'?>
+            112..239 '{     ...cx); }': ()
+            122..135 'mut generator': impl AsyncIterator<Item = i8>
+            138..174 'async ...     }': impl AsyncIterator<Item = i8>
+            158..167 'yield 1i8': ()
+            164..167 '1i8': i8
+            184..190 'result': {unknown}
+            193..201 'Pin::new': fn new<&'? mut impl AsyncIterator<Item = i8>>(&'? mut impl AsyncIterator<Item = i8>) -> Pin<&'? mut impl AsyncIterator<Item = i8>>
+            193..217 'Pin::n...rator)': Pin<&'? mut impl AsyncIterator<Item = i8>>
+            193..236 'Pin::n...ut cx)': Poll<Option<<impl AsyncIterator<Item = i8> as AsyncIterator>::Item>>
+            202..216 '&mut generator': &'? mut impl AsyncIterator<Item = i8>
+            207..216 'generator': impl AsyncIterator<Item = i8>
+            228..235 '&mut cx': &'? mut Context<'?>
+            233..235 'cx': Context<'?>
+        "#]],
+    );
+}
+
+#[test]
+fn gen_fn_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: iterator, deref
+use core::iter::Iterator;
+
+gen fn html() {
+    yield ();
+}
+
+fn test() {
+    let mut generator = html();
+    let result = generator.next();
+}
+        "#,
+        expect![[r#"
+            41..58 '{     ... (); }': ()
+            47..55 'yield ()': ()
+            53..55 '()': ()
+            70..140 '{     ...t(); }': ()
+            80..93 'mut generator': impl Iterator<Item = ()>
+            96..100 'html': fn html() -> impl Iterator<Item = ()>
+            96..102 'html()': impl Iterator<Item = ()>
+            112..118 'result': Option<()>
+            121..130 'generator': impl Iterator<Item = ()>
+            121..137 'genera...next()': Option<()>
+        "#]],
+    );
+}
+
+#[test]
+fn async_gen_fn_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: async_iterator, option, future, deref, pin
+use core::async_iter::AsyncIterator;
+use core::pin::Pin;
+use core::task::Context;
+
+async gen fn html() {
+    yield ();
+}
+
+fn test(mut cx: Context<'_>) {
+    let mut generator = html();
+    let result = Pin::new(&mut generator).poll_next(&mut cx);
+}
+        "#,
+        expect![[r#"
+            103..120 '{     ... (); }': ()
+            109..117 'yield ()': ()
+            115..117 '()': ()
+            130..136 'mut cx': Context<'?>
+            151..248 '{     ...cx); }': ()
+            161..174 'mut generator': impl AsyncIterator<Item = ()>
+            177..181 'html': fn html() -> impl AsyncIterator<Item = ()>
+            177..183 'html()': impl AsyncIterator<Item = ()>
+            193..199 'result': Poll<Option<()>>
+            202..210 'Pin::new': fn new<&'? mut impl AsyncIterator<Item = ()>>(&'? mut impl AsyncIterator<Item = ()>) -> Pin<&'? mut impl AsyncIterator<Item = ()>>
+            202..226 'Pin::n...rator)': Pin<&'? mut impl AsyncIterator<Item = ()>>
+            202..245 'Pin::n...ut cx)': Poll<Option<()>>
+            211..225 '&mut generator': &'? mut impl AsyncIterator<Item = ()>
+            216..225 'generator': impl AsyncIterator<Item = ()>
+            237..244 '&mut cx': &'? mut Context<'?>
+            242..244 'cx': Context<'?>
+        "#]],
+    );
+}
+
+#[test]
 fn tuple_pattern_nested_match_ergonomics() {
     check_no_mismatches(
         r#"
