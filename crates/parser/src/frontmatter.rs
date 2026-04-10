@@ -250,7 +250,7 @@ pub fn strip_shebang(input: &str) -> Option<usize> {
 
 /// Returns the index after any lines with only whitespace, if present
 pub fn strip_ws_lines(input: &str) -> Option<usize> {
-    let ws_end = input.find(|c| !is_whitespace(c)).unwrap_or(input.len());
+    let ws_end = input.find(|c| !crate::whitespace::is_rust_whitespace(c)).unwrap_or(input.len());
     if ws_end == 0 {
         return None;
     }
@@ -260,49 +260,8 @@ pub fn strip_ws_lines(input: &str) -> Option<usize> {
     Some(nl_end)
 }
 
-/// True if `c` is considered a whitespace according to Rust language definition.
-/// See [Rust language reference](https://doc.rust-lang.org/reference/whitespace.html)
-/// for definitions of these classes.
-fn is_whitespace(c: char) -> bool {
-    // This is Pattern_White_Space.
-    //
-    // Note that this set is stable (ie, it doesn't change with different
-    // Unicode versions), so it's ok to just hard-code the values.
-
-    matches!(
-        c,
-        // End-of-line characters
-        | '\u{000A}' // line feed (\n)
-        | '\u{000B}' // vertical tab
-        | '\u{000C}' // form feed
-        | '\u{000D}' // carriage return (\r)
-        | '\u{0085}' // next line (from latin1)
-        | '\u{2028}' // LINE SEPARATOR
-        | '\u{2029}' // PARAGRAPH SEPARATOR
-
-        // `Default_Ignorable_Code_Point` characters
-        | '\u{200E}' // LEFT-TO-RIGHT MARK
-        | '\u{200F}' // RIGHT-TO-LEFT MARK
-
-        // Horizontal space characters
-        | '\u{0009}'   // tab (\t)
-        | '\u{0020}' // space
-    )
-}
-
-/// True if `c` is considered horizontal whitespace according to Rust language definition.
 fn is_horizontal_whitespace(c: char) -> bool {
-    // This is Pattern_White_Space.
-    //
-    // Note that this set is stable (ie, it doesn't change with different
-    // Unicode versions), so it's ok to just hard-code the values.
-
-    matches!(
-        c,
-        // Horizontal space characters
-        '\u{0009}'   // tab (\t)
-        | '\u{0020}' // space
-    )
+    crate::whitespace::is_rust_horizontal_whitespace(c)
 }
 
 fn strip_newline(text: &str) -> &str {
