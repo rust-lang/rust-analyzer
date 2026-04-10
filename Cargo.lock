@@ -1111,6 +1111,8 @@ dependencies = [
  "rustc-hash 2.1.1",
  "salsa",
  "salsa-macros",
+ "serde",
+ "serde_derive",
  "smallvec",
  "span",
  "stdx",
