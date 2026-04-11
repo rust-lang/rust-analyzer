@@ -1702,12 +1702,14 @@ impl<'db> InferenceContext<'_, 'db> {
                     receiver,
                     tgt_expr,
                 );
-                self.push_diagnostic(InferenceDiagnostic::UnresolvedField {
-                    expr: tgt_expr,
-                    receiver: receiver_ty.store(),
-                    name: name.clone(),
-                    method_with_same_name_exists: resolved.is_ok(),
-                });
+                if !receiver_ty.is_ty_var() {
+                    self.push_diagnostic(InferenceDiagnostic::UnresolvedField {
+                        expr: tgt_expr,
+                        receiver: receiver_ty.store(),
+                        name: name.clone(),
+                        method_with_same_name_exists: resolved.is_ok(),
+                    });
+                }
                 match resolved {
                     Ok((func, _is_visible)) => {
                         self.check_method_call(tgt_expr, &[], func.sig, expected)
