@@ -587,10 +587,6 @@ impl flags::AnalysisStats {
                     continue;
                 };
 
-                fn trim(s: &str) -> String {
-                    s.chars().filter(|c| !c.is_whitespace()).collect()
-                }
-
                 let todo = syntax::ast::make::ext::expr_todo().to_string();
                 let mut formatter = |_: &hir::Type<'_>| todo.clone();
                 let mut syntax_hit_found = false;
@@ -608,7 +604,8 @@ impl flags::AnalysisStats {
                             display_target,
                         )
                         .unwrap();
-                    syntax_hit_found |= trim(&original_text) == trim(&generated);
+                    syntax_hit_found |=
+                        strip_rust_whitespace(&original_text) == strip_rust_whitespace(&generated);
 
                     // Validate if type-checks
                     let mut txt = file_txt.text(db).to_string();
@@ -662,7 +659,7 @@ impl flags::AnalysisStats {
                 let msg = move || {
                     format!(
                         "processing: {:<50}",
-                        trim(&original_text).chars().take(50).collect::<String>()
+                        strip_rust_whitespace(&original_text).chars().take(50).collect::<String>()
                     )
                 };
                 if verbosity.is_spammy() {
@@ -1569,6 +1566,10 @@ fn percentage(n: u64, total: u64) -> u64 {
     (n * 100).checked_div(total).unwrap_or(100)
 }
 
+fn strip_rust_whitespace(s: &str) -> String {
+    parser::whitespace::strip_rust_whitespace(s)
+}
+
 #[derive(Default, Debug, Eq, PartialEq)]
 struct UsizeWithUnderscore(usize);
 
@@ -1646,5 +1647,5 @@ impl fmt::Display for PrettyItemStats {
 // fn syntax_len(node: SyntaxNode) -> usize {
 //     // Macro expanded code doesn't contain whitespace, so erase *all* whitespace
 //     // to make macro and non-macro code comparable.
-//     node.to_string().replace(|it: char| it.is_ascii_whitespace(), "").len()
+//     strip_rust_whitespace(&node.to_string()).len()
 // }

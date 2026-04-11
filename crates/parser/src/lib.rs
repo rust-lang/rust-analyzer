@@ -38,6 +38,7 @@ mod parser;
 mod shortcuts;
 mod syntax_kind;
 mod token_set;
+pub mod whitespace;
 
 pub use T_ as T;
 
