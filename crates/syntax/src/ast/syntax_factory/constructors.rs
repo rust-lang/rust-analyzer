@@ -1818,10 +1818,7 @@ impl SyntaxFactory {
         make::assoc_item_list(None).clone_for_update()
     }
 
-    pub fn item_list(
-        &self,
-        items: impl IntoIterator<Item = ast::Item>,
-    ) -> ast::ItemList {
+    pub fn item_list(&self, items: impl IntoIterator<Item = ast::Item>) -> ast::ItemList {
         let (items, input) = iterator_input(items);
         let items_vec: Vec<_> = items.into_iter().collect();
         let ast = make::item_list(Some(items_vec)).clone_for_update();
@@ -1835,21 +1832,14 @@ impl SyntaxFactory {
         ast
     }
 
-    pub fn mod_(
-        &self,
-        name: ast::Name,
-        body: Option<ast::ItemList>,
-    ) -> ast::Module {
+    pub fn mod_(&self, name: ast::Name, body: Option<ast::ItemList>) -> ast::Module {
         let ast = make::mod_(name.clone(), body.clone()).clone_for_update();
 
         if let Some(mut mapping) = self.mappings() {
             let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
             builder.map_node(name.syntax().clone(), ast.name().unwrap().syntax().clone());
             if let Some(body) = body {
-                builder.map_node(
-                    body.syntax().clone(),
-                    ast.item_list().unwrap().syntax().clone(),
-                );
+                builder.map_node(body.syntax().clone(), ast.item_list().unwrap().syntax().clone());
             }
             builder.finish(&mut mapping);
         }

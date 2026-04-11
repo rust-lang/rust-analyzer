@@ -188,6 +188,7 @@ fn generate_module_def(
     parent_impl: &Option<ast::Impl>,
     Module { name, body_items, use_items }: &Module,
 ) -> ast::Module {
+    let make = SyntaxFactory::without_mappings();
     let items: Vec<_> = if let Some(impl_) = parent_impl.as_ref()
         && let Some(self_ty) = impl_.self_ty()
     {
@@ -199,12 +200,12 @@ fn generate_module_def(
             .collect_vec();
         let impl_detached = ast::Impl::cast(impl_.syntax().clone_subtree()).unwrap();
         let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
-        let make = SyntaxFactory::with_mappings();
-        let assoc_item_list = make.assoc_item_list(assoc_items);
+        let make_editor = SyntaxFactory::with_mappings();
+        let assoc_item_list = make_editor.assoc_item_list(assoc_items);
         if let Some(existing_list) = impl_detached.assoc_item_list() {
             editor.replace(existing_list.syntax(), assoc_item_list.syntax());
         }
-        editor.add_mappings(make.finish_with_mappings());
+        editor.add_mappings(make_editor.finish_with_mappings());
         let new_impl_node = editor.finish().new_root().clone();
         let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
         // Add the import for enum/struct corresponding to given impl block
@@ -218,10 +219,10 @@ fn generate_module_def(
     };
 
     let items = items.into_iter().map(|it| it.reset_indent().indent(IndentLevel(1))).collect_vec();
-    let module_body = make::item_list(Some(items));
+    let module_body = make.item_list(items);
 
-    let module_name = make::name(name);
-    make::mod_(module_name, Some(module_body))
+    let module_name = make.name(name);
+    make.mod_(module_name, Some(module_body))
 }
 
 fn make_use_stmt_of_node_with_super(node_syntax: &SyntaxNode) -> ast::Item {
