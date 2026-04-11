@@ -459,9 +459,7 @@ impl WorkspaceBuildScripts {
                     cmd.arg(target_dir.as_ref());
                 }
 
-                if let Some(target) = &config.target {
-                    cmd.args(["--target", target]);
-                }
+                toolchain::cargo_use_targets(&mut cmd, config.target.as_slice());
                 let mut lockfile_copy = None;
                 if let Some(toolchain) = toolchain {
                     let lockfile_path =
