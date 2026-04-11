@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AttrKind","FieldKind","Macro","NameLike","NameOrNameRef","PathSegmentKind","SelfParamKind","StructKind","TypeBoundKind","TypeOrConstParam","VisibilityKind"],"fn":["into_comma","text_of_first_token"],"struct":["SlicePatComponents","TokenTreeChildren"]};

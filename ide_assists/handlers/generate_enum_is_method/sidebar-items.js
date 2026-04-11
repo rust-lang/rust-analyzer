@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["generate_enum_is_method"],"struct":["Method"]};
