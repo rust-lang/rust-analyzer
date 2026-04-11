@@ -655,16 +655,17 @@ impl ProjectWorkspace {
             return workspaces.iter().map(|it| it.run_build_scripts(config, progress)).collect();
         }
 
-        let cargo_ws: Vec<_> = workspaces
+        let (cargo_ws, sysroots): (Vec<_>, Vec<_>) = workspaces
             .iter()
             .filter_map(|it| match &it.kind {
-                ProjectWorkspaceKind::Cargo { cargo, .. } => Some(cargo),
+                ProjectWorkspaceKind::Cargo { cargo, .. } => Some((cargo, &it.sysroot)),
                 _ => None,
             })
-            .collect();
+            .unzip();
         let outputs = &mut match WorkspaceBuildScripts::run_once(
             config,
             &cargo_ws,
+            &sysroots,
             progress,
             working_directory,
         ) {
