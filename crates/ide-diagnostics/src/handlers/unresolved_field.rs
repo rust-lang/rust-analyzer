@@ -554,4 +554,20 @@ impl S {
         "#,
         );
     }
+
+    #[test]
+    fn closure_param_field_access() {
+        check_diagnostics(
+            r#"
+struct S {
+    field: (),
+}
+fn f(_: impl FnOnce(S)) {}
+fn main() {
+    let cb = |s| _ = s.field;
+    f(cb)
+}
+"#,
+        );
+    }
 }
