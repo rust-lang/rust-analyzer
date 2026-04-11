@@ -2824,6 +2824,44 @@ impl Function {
         }
     }
 
+    /// Returns the `return` expressions in this function's body,
+    /// excluding those inside closures or async blocks.
+    pub fn return_points(self, db: &dyn HirDatabase) -> Vec<InFile<ast::ReturnExpr>> {
+        let func_id: FunctionId = match self.id {
+            AnyFunctionId::FunctionId(id) => id,
+            _ => return vec![],
+        };
+        let (body, source_map) = Body::with_source_map(db, func_id.into());
+
+        fn collect_returns(
+            body: &Body,
+            source_map: &hir_def::expr_store::ExpressionStoreSourceMap,
+            db: &dyn HirDatabase,
+            expr_id: ExprId,
+            acc: &mut Vec<InFile<ast::ReturnExpr>>,
+        ) {
+            match &body[expr_id] {
+                Expr::Closure { .. } | Expr::Async { .. } | Expr::Const(_) => return,
+                Expr::Return { .. } => {
+                    if let Ok(source) = source_map.expr_syntax(expr_id)
+                        && let Some(ret_expr) = source.value.cast::<ast::ReturnExpr>()
+                    {
+                        let root = db.parse_or_expand(source.file_id);
+                        acc.push(InFile::new(source.file_id, ret_expr.to_node(&root)));
+                    }
+                }
+                _ => {}
+            }
+            body.walk_child_exprs(expr_id, |child| {
+                collect_returns(body, source_map, db, child, acc);
+            });
+        }
+
+        let mut returns = vec![];
+        collect_returns(body, source_map, db, body.root_expr(), &mut returns);
+        returns
+    }
+
     pub fn as_proc_macro(self, db: &dyn HirDatabase) -> Option<Macro> {
         let AnyFunctionId::FunctionId(id) = self.id else {
             return None;
