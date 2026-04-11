@@ -436,7 +436,7 @@ impl Module {
         }
 
         let (mut replacements, record_field_parents, impls) =
-            get_replacements_for_visibility_change(&mut self.body_items, true);
+            get_replacements_for_visibility_change(&mut self.body_items);
 
         let mut impl_items = impls
             .into_iter()
@@ -445,7 +445,7 @@ impl Module {
             .collect_vec();
 
         let (mut impl_item_replacements, _, _) =
-            get_replacements_for_visibility_change(&mut impl_items, true);
+            get_replacements_for_visibility_change(&mut impl_items);
 
         replacements.append(&mut impl_item_replacements);
 
@@ -793,7 +793,6 @@ fn check_def_in_mod_and_out_sel(
 
 fn get_replacements_for_visibility_change(
     items: &mut [ast::Item],
-    is_clone_for_updated: bool,
 ) -> (
     Vec<(Option<ast::Visibility>, SyntaxNode)>,
     Vec<(Option<ast::Visibility>, SyntaxNode)>,
@@ -804,9 +803,6 @@ fn get_replacements_for_visibility_change(
     let mut impls = Vec::new();
 
     for item in items {
-        if !is_clone_for_updated {
-            *item = item.clone_for_update();
-        }
         //Use stmts are ignored
         macro_rules! push_to_replacement {
             ($it:ident) => {
