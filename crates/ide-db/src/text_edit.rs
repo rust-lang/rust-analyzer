@@ -151,6 +151,10 @@ impl TextEdit {
     pub fn change_annotation(&self) -> Option<ChangeAnnotationId> {
         self.annotation
     }
+
+    pub fn cancel_edits_touching(&mut self, touching: TextRange) {
+        self.indels.retain(|indel| indel.delete.intersect(touching).is_none());
+    }
 }
 
 impl IntoIterator for TextEdit {
