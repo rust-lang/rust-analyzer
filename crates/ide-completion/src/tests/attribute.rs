@@ -1372,6 +1372,16 @@ mod lint {
             r#"#[allow(rustdoc::bare_urls struct Test;"#,
         );
     }
+
+    #[test]
+    fn no_duplicate_warnings_lint() {
+        let completions = crate::tests::completion_list(r#"#[allow(w$0)] struct Test;"#);
+        let warning_count = completions.lines().filter(|line| line.contains("warnings")).count();
+        assert_eq!(
+            warning_count, 1,
+            "Expected `warnings` to appear exactly once, but found {warning_count} occurrences:\n{completions}"
+        );
+    }
 }
 
 mod repr {

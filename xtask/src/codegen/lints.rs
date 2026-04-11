@@ -352,7 +352,9 @@ fn generate_lint_descriptor(sh: &Shell, buf: &mut String) {
         push_lint_completion(buf, name, lint);
     }
     for (name, (group, _)) in &lint_groups {
-        push_lint_completion(buf, name, group);
+        if !lints.iter().any(|(n, _)| n == name) {
+            push_lint_completion(buf, name, group);
+        }
     }
     buf.push_str("];\n\n");
 
@@ -376,7 +378,9 @@ fn generate_lint_descriptor(sh: &Shell, buf: &mut String) {
         push_lint_completion(buf, name, lint);
     }
     for (name, (group, _)) in &lint_groups_rustdoc {
-        push_lint_completion(buf, name, group);
+        if !lints_rustdoc.iter().any(|(n, _)| n == name) {
+            push_lint_completion(buf, name, group);
+        }
     }
     buf.push_str("];\n\n");
 
