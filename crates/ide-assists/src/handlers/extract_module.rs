@@ -397,6 +397,7 @@ impl Module {
                         let entry = use_stmts_to_be_inserted
                             .entry(use_.syntax().text_range().start())
                             .or_insert_with(|| use_.clone_subtree());
+                        let make = SyntaxFactory::without_mappings();
                         let replacements: Vec<_> = entry
                             .syntax()
                             .descendants()
@@ -405,8 +406,7 @@ impl Module {
                             .filter_map(|seg| {
                                 Some((
                                     seg.syntax().parent()?,
-                                    make::path_from_text(&format!("{mod_name}::{seg}"))
-                                        .clone_for_update(),
+                                    make.path_from_text(&format!("{mod_name}::{seg}")),
                                 ))
                             })
                             .collect();
