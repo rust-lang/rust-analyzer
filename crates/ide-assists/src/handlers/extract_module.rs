@@ -18,8 +18,10 @@ use syntax::{
         self, HasVisibility,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
-    match_ast, ted,
+    match_ast,
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::{AssistContext, Assists};
@@ -186,6 +188,7 @@ fn generate_module_def(
     parent_impl: &Option<ast::Impl>,
     Module { name, body_items, use_items }: &Module,
 ) -> ast::Module {
+    let make = SyntaxFactory::without_mappings();
     let items: Vec<_> = if let Some(impl_) = parent_impl.as_ref()
         && let Some(self_ty) = impl_.self_ty()
     {
@@ -195,9 +198,16 @@ fn generate_module_def(
             .filter_map(ast::AssocItem::cast)
             .map(|it| it.indent(IndentLevel(1)))
             .collect_vec();
-        let assoc_item_list = make::assoc_item_list(Some(assoc_items)).clone_for_update();
-        let impl_ = impl_.reset_indent();
-        ted::replace(impl_.get_or_create_assoc_item_list().syntax(), assoc_item_list.syntax());
+        let impl_detached = ast::Impl::cast(impl_.syntax().clone_subtree()).unwrap();
+        let (mut editor, _) = SyntaxEditor::new(impl_detached.syntax().clone());
+        let make = SyntaxFactory::with_mappings();
+        let assoc_item_list = make.assoc_item_list(assoc_items);
+        if let Some(existing_list) = impl_detached.assoc_item_list() {
+            editor.replace(existing_list.syntax(), assoc_item_list.syntax());
+        }
+        editor.add_mappings(make.finish_with_mappings());
+        let new_impl_node = editor.finish().new_root().clone();
+        let impl_ = ast::Impl::cast(new_impl_node).unwrap().reset_indent();
         // Add the import for enum/struct corresponding to given impl block
         let use_impl = make_use_stmt_of_node_with_super(self_ty.syntax());
         once(use_impl)
@@ -209,10 +219,10 @@ fn generate_module_def(
     };
 
     let items = items.into_iter().map(|it| it.reset_indent().indent(IndentLevel(1))).collect_vec();
-    let module_body = make::item_list(Some(items));
+    let module_body = make.item_list(items);
 
-    let module_name = make::name(name);
-    make::mod_(module_name, Some(module_body))
+    let module_name = make.name(name);
+    make.mod_(module_name, Some(module_body))
 }
 
 fn make_use_stmt_of_node_with_super(node_syntax: &SyntaxNode) -> ast::Item {
@@ -385,18 +395,28 @@ impl Module {
                     if use_.syntax().parent().is_some_and(|parent| parent == covering_node)
                         && use_stmts_set.insert(use_.syntax().text_range().start())
                     {
-                        let use_ = use_stmts_to_be_inserted
+                        let entry = use_stmts_to_be_inserted
                             .entry(use_.syntax().text_range().start())
-                            .or_insert_with(|| use_.clone_subtree().clone_for_update());
-                        for seg in use_
+                            .or_insert_with(|| use_.clone_subtree());
+                        let make = SyntaxFactory::without_mappings();
+                        let replacements: Vec<_> = entry
                             .syntax()
                             .descendants()
                             .filter_map(ast::NameRef::cast)
                             .filter(|seg| seg.syntax().to_string() == name_ref.to_string())
-                        {
-                            let new_ref = make::path_from_text(&format!("{mod_name}::{seg}"))
-                                .clone_for_update();
-                            ted::replace(seg.syntax().parent()?, new_ref.syntax());
+                            .filter_map(|seg| {
+                                Some((
+                                    seg.syntax().parent()?,
+                                    make.path_from_text(&format!("{mod_name}::{seg}")),
+                                ))
+                            })
+                            .collect();
+                        if !replacements.is_empty() {
+                            let (mut editor, _) = SyntaxEditor::new(entry.syntax().clone());
+                            for (parent, new_ref) in &replacements {
+                                editor.replace(parent, new_ref.syntax());
+                            }
+                            *entry = ast::Use::cast(editor.finish().new_root().clone()).unwrap();
                         }
                     }
                 }
@@ -408,8 +428,16 @@ impl Module {
     }
 
     fn change_visibility(&mut self, record_fields: Vec<SyntaxNode>) {
+        // Detach each item from the file tree while preserving correct indentation.
+        // reset_indent() must be called before detaching so IndentLevel::from_node
+        // can read the preceding whitespace; clone_subtree() then produces the
+        // immutable detached root that SyntaxEditor requires.
+        for item in &mut self.body_items {
+            *item = ast::Item::cast(item.reset_indent().syntax().clone_subtree()).unwrap();
+        }
+
         let (mut replacements, record_field_parents, impls) =
-            get_replacements_for_visibility_change(&mut self.body_items, false);
+            get_replacements_for_visibility_change(&mut self.body_items);
 
         let mut impl_items = impls
             .into_iter()
@@ -418,7 +446,7 @@ impl Module {
             .collect_vec();
 
         let (mut impl_item_replacements, _, _) =
-            get_replacements_for_visibility_change(&mut impl_items, true);
+            get_replacements_for_visibility_change(&mut impl_items);
 
         replacements.append(&mut impl_item_replacements);
 
@@ -432,17 +460,42 @@ impl Module {
             }
         }
 
-        for (vis, syntax) in replacements {
-            let item = syntax.children_with_tokens().find(|node_or_token| {
-                match node_or_token.kind() {
-                    // We're skipping comments, doc comments, and attribute macros that may precede the keyword
-                    // that the visibility should be placed before.
-                    SyntaxKind::COMMENT | SyntaxKind::ATTR | SyntaxKind::WHITESPACE => false,
-                    _ => true,
-                }
-            });
+        let make = SyntaxFactory::without_mappings();
+        for body_item in &mut self.body_items {
+            let insert_targets: Vec<_> = replacements
+                .iter()
+                .filter(|(vis, syntax)| {
+                    vis.is_none()
+                        && (syntax == body_item.syntax()
+                            || syntax.ancestors().any(|a| &a == body_item.syntax()))
+                })
+                .filter_map(|(_, syntax)| {
+                    syntax.children_with_tokens().find(|nt| {
+                        // We're skipping comments, doc comments, and attribute macros that may
+                        // precede the keyword that the visibility should be placed before.
+                        !matches!(
+                            nt.kind(),
+                            SyntaxKind::COMMENT | SyntaxKind::ATTR | SyntaxKind::WHITESPACE
+                        )
+                    })
+                })
+                .collect();
 
-            add_change_vis(vis, item);
+            if insert_targets.is_empty() {
+                continue;
+            }
+
+            let (mut editor, _) = SyntaxEditor::new(body_item.syntax().clone());
+            for target in insert_targets {
+                editor.insert_all(
+                    Position::before(target),
+                    vec![
+                        make.visibility_pub_crate().syntax().clone().into(),
+                        make.whitespace(" ").into(),
+                    ],
+                );
+            }
+            *body_item = ast::Item::cast(editor.finish().new_root().clone_subtree()).unwrap();
         }
     }
 
@@ -741,7 +794,6 @@ fn check_def_in_mod_and_out_sel(
 
 fn get_replacements_for_visibility_change(
     items: &mut [ast::Item],
-    is_clone_for_updated: bool,
 ) -> (
     Vec<(Option<ast::Visibility>, SyntaxNode)>,
     Vec<(Option<ast::Visibility>, SyntaxNode)>,
@@ -752,9 +804,6 @@ fn get_replacements_for_visibility_change(
     let mut impls = Vec::new();
 
     for item in items {
-        if !is_clone_for_updated {
-            *item = item.clone_for_update();
-        }
         //Use stmts are ignored
         macro_rules! push_to_replacement {
             ($it:ident) => {
@@ -809,15 +858,6 @@ fn get_use_tree_paths_from_path(
         })?;
 
     Some(use_tree_str)
-}
-
-fn add_change_vis(vis: Option<ast::Visibility>, node_or_token_opt: Option<syntax::SyntaxElement>) {
-    if vis.is_none()
-        && let Some(node_or_token) = node_or_token_opt
-    {
-        let pub_crate_vis = make::visibility_pub_crate().clone_for_update();
-        ted::insert(ted::Position::before(node_or_token), pub_crate_vis.syntax());
-    }
 }
 
 fn indent_range_before_given_node(node: &SyntaxNode) -> Option<TextRange> {
