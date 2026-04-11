@@ -199,7 +199,7 @@ fn generate_module_def(
             .map(|it| it.indent(IndentLevel(1)))
             .collect_vec();
         let impl_detached = ast::Impl::cast(impl_.syntax().clone_subtree()).unwrap();
-        let mut editor = SyntaxEditor::new(impl_detached.syntax().clone());
+        let (mut editor, _) = SyntaxEditor::new(impl_detached.syntax().clone());
         let make_editor = SyntaxFactory::with_mappings();
         let assoc_item_list = make_editor.assoc_item_list(assoc_items);
         if let Some(existing_list) = impl_detached.assoc_item_list() {
@@ -412,7 +412,7 @@ impl Module {
                             })
                             .collect();
                         if !replacements.is_empty() {
-                            let mut editor = SyntaxEditor::new(entry.syntax().clone());
+                            let (mut editor, _) = SyntaxEditor::new(entry.syntax().clone());
                             for (parent, new_ref) in &replacements {
                                 editor.replace(parent, new_ref.syntax());
                             }
@@ -485,7 +485,7 @@ impl Module {
                 continue;
             }
 
-            let mut editor = SyntaxEditor::new(body_item.syntax().clone());
+            let (mut editor, _) = SyntaxEditor::new(body_item.syntax().clone());
             for target in insert_targets {
                 editor.insert_all(
                     Position::before(target),
