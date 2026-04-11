@@ -56,6 +56,13 @@ pub use crate::{
     syntax_kind::SyntaxKind,
 };
 
+/// True if `c` is whitespace in Rust source (Unicode Pattern_White_Space as in the language reference).
+///
+/// See <https://doc.rust-lang.org/reference/whitespace.html>.
+pub fn is_rust_whitespace(c: char) -> bool {
+    frontmatter::is_whitespace(c)
+}
+
 /// Parse the whole of the input as a given syntactic construct.
 ///
 /// This covers two main use-cases:
