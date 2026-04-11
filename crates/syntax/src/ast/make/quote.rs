@@ -189,3 +189,18 @@ pub(crate) const fn verify_only_whitespaces(text: &str) {
         i += 1;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::verify_only_whitespaces;
+
+    #[test]
+    fn test_verify_only_whitespaces_accepts_rust_lexer_whitespace() {
+        verify_only_whitespaces(" ");    // space
+        verify_only_whitespaces("\t");   // tab
+        verify_only_whitespaces("\n");   // newline
+        verify_only_whitespaces("\r");   // carriage return
+        verify_only_whitespaces("\x0C"); // form feed
+        verify_only_whitespaces("\x0B"); // vertical tab -- currently panics (bug)
+    }
+}
