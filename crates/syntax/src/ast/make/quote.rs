@@ -183,7 +183,7 @@ pub(crate) const fn verify_only_whitespaces(text: &str) {
     let text = text.as_bytes();
     let mut i = 0;
     while i < text.len() {
-        if !text[i].is_ascii_whitespace() {
+        if !text[i].is_ascii_whitespace() && text[i] != 0x0B {
             panic!("non-whitespace found in whitespace token");
         }
         i += 1;
@@ -196,10 +196,10 @@ mod tests {
 
     #[test]
     fn test_verify_only_whitespaces_accepts_rust_lexer_whitespace() {
-        verify_only_whitespaces(" ");    // space
-        verify_only_whitespaces("\t");   // tab
-        verify_only_whitespaces("\n");   // newline
-        verify_only_whitespaces("\r");   // carriage return
+        verify_only_whitespaces(" "); // space
+        verify_only_whitespaces("\t"); // tab
+        verify_only_whitespaces("\n"); // newline
+        verify_only_whitespaces("\r"); // carriage return
         verify_only_whitespaces("\x0C"); // form feed
         verify_only_whitespaces("\x0B"); // vertical tab -- currently panics (bug)
     }
