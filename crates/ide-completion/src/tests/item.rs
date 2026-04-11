@@ -380,3 +380,22 @@ foo!(f$0);
         "#]],
     );
 }
+
+#[test]
+fn completes_variant_through_hidden_enum_alias() {
+    check(
+        r#"
+#[doc(hidden)]
+pub enum Foo { Variant }
+
+pub type Bar = Foo;
+
+fn main() {
+    let x = Bar::V$0;
+}
+"#,
+        expect![[r#"
+            ev Variant Variant
+        "#]],
+    );
+}
