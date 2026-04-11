@@ -459,6 +459,7 @@ impl Module {
             }
         }
 
+        let make = SyntaxFactory::without_mappings();
         for body_item in &mut self.body_items {
             let insert_targets: Vec<_> = replacements
                 .iter()
@@ -485,12 +486,11 @@ impl Module {
 
             let mut editor = SyntaxEditor::new(body_item.syntax().clone());
             for target in insert_targets {
-                let pub_crate_vis = make::visibility_pub_crate().clone_for_update();
                 editor.insert_all(
                     Position::before(target),
                     vec![
-                        pub_crate_vis.syntax().clone().into(),
-                        make::tokens::single_space().into(),
+                        make.visibility_pub_crate().syntax().clone().into(),
+                        make.whitespace(" ").into(),
                     ],
                 );
             }
