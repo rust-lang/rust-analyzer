@@ -444,19 +444,18 @@ fn inline(
             .collect();
         for self_tok in self_tokens {
             let mut replace_with = t.clone_subtree().syntax().clone_subtree();
-            if !is_in_type_path(&self_tok) {
-                if let Some(ty) = ast::Type::cast(replace_with.clone()) {
-                    if let Some(generic_arg_list) = ty.generic_arg_list() {
-                        // Build replacement without generics using a sub-editor
-                        let (mut sub_editor, sub_root) = SyntaxEditor::new(replace_with.clone());
-                        let generic_node = sub_root
-                            .descendants()
-                            .find(|n| n.text_range() == generic_arg_list.syntax().text_range())
-                            .unwrap();
-                        sub_editor.delete(generic_node);
-                        replace_with = sub_editor.finish().new_root().clone();
-                    }
-                }
+            if !is_in_type_path(&self_tok)
+                && let Some(ty) = ast::Type::cast(replace_with.clone())
+                && let Some(generic_arg_list) = ty.generic_arg_list()
+            {
+                // Build replacement without generics using a sub-editor
+                let (mut sub_editor, sub_root) = SyntaxEditor::new(replace_with.clone());
+                let generic_node = sub_root
+                    .descendants()
+                    .find(|n| n.text_range() == generic_arg_list.syntax().text_range())
+                    .unwrap();
+                sub_editor.delete(generic_node);
+                replace_with = sub_editor.finish().new_root().clone();
             }
             editor.replace(self_tok, replace_with);
         }
@@ -622,13 +621,12 @@ fn inline(
     // Apply generic substitution (needs immutable tree)
     if let Some(generic_arg_list) = generic_arg_list.clone()
         && let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
-    {
-        if let Some(new_body) = ast::BlockExpr::cast(
+        && let Some(new_body) = ast::BlockExpr::cast(
             PathTransform::function_call(target, source, function, generic_arg_list)
                 .apply(body.syntax()),
-        ) {
-            body = new_body;
-        }
+        )
+    {
+        body = new_body;
     }
 
     let is_async_fn = function.is_async(sema.db);
