@@ -1,0 +1,30 @@
+SOURCE_FILE
+  TYPE_ALIAS
+    TYPE_KW "type"
+    WHITESPACE " "
+    NAME
+      IDENT "T"
+    WHITESPACE " "
+    EQ "="
+    WHITESPACE " "
+    PATTERN_TYPE
+      IN_KW "in"
+      WHITESPACE " "
+      PATH_TYPE
+        PATH
+          PATH_SEGMENT
+            NAME_REF
+              IDENT "u8"
+      WHITESPACE " "
+      IS_KW "is"
+      WHITESPACE " "
+      RANGE_PAT
+        LITERAL_PAT
+          LITERAL
+            INT_NUMBER "0"
+        DOT2 ".."
+        LITERAL_PAT
+          LITERAL
+            INT_NUMBER "10"
+    SEMICOLON ";"
+  WHITESPACE "\n"

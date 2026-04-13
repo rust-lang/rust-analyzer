@@ -1,3 +1,5 @@
+use crate::grammar::entry::prefix::pat;
+
 use super::*;
 
 pub(super) const TYPE_FIRST: TokenSet = paths::PATH_FIRST.union(TokenSet::new(&[
@@ -15,6 +17,7 @@ pub(super) const TYPE_FIRST: TokenSet = paths::PATH_FIRST.union(TokenSet::new(&[
     T![impl],
     T![dyn],
     T![Self],
+    T![in],
     LIFETIME_IDENT,
 ]));
 
@@ -54,6 +57,7 @@ fn type_with_bounds_cond(p: &mut Parser<'_>, allow_bounds: bool) {
         T![dyn] => dyn_trait_type(p),
         // Some path types are not allowed to have bounds (no plus)
         T![<] => path_type_bounds(p, allow_bounds),
+        T![in] => pattern_type(p),
         T![ident] if !p.current_edition().at_least_2018() && is_dyn_weak(p) => {
             dyn_trait_type_weak(p)
         }
@@ -410,4 +414,18 @@ pub(super) fn opt_type_bounds_as_dyn_trait_type(
 
     // Finally precede everything with DYN_TRAIT_TYPE
     m.precede(p).complete(p, DYN_TRAIT_TYPE)
+}
+
+// test pattern_type
+// type T = in u8 is 0..10;
+fn pattern_type(p: &mut Parser<'_>) {
+    assert!(p.at(T![in]));
+    let m = p.start();
+    p.bump(T![in]);
+    type_(p);
+    if !p.eat_contextual_kw(T![is]) {
+        p.error("expected `is`")
+    }
+    pat(p);
+    m.complete(p, PATTERN_TYPE);
 }

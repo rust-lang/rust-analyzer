@@ -720,6 +720,10 @@ impl<'db> ExprCollector<'db> {
             ast::Type::DynTraitType(inner) => TypeRef::DynTrait(
                 self.type_bounds_from_ast(inner.type_bound_list(), impl_trait_lower_fn),
             ),
+            ast::Type::PatternType(inner) => TypeRef::PatternType(
+                self.lower_type_ref_opt(inner.ty(), impl_trait_lower_fn),
+                self.collect_pat_top(inner.pat()),
+            ),
             ast::Type::MacroType(mt) => match mt.macro_call() {
                 Some(mcall) => {
                     let macro_ptr = AstPtr::new(&mcall);

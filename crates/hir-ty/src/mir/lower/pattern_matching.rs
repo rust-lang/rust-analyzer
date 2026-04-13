@@ -367,6 +367,7 @@ impl<'db> MirLowerCtx<'_, 'db> {
                             self.db,
                             p,
                             self.display_target(),
+                            self.owner.into(),
                             self.store,
                         )
                     };

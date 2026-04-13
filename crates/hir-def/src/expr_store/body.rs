@@ -8,7 +8,7 @@ use syntax::ast;
 use triomphe::Arc;
 
 use crate::{
-    DefWithBodyId, HasModule,
+    DefWithBodyId, ExpressionStoreOwnerId, HasModule,
     db::DefDatabase,
     expr_store::{
         ExpressionStore, ExpressionStoreSourceMap, SelfParamPtr, lower::lower_body, pretty,
@@ -139,7 +139,7 @@ impl Body {
     pub fn pretty_print_pat(
         &self,
         db: &dyn DefDatabase,
-        owner: DefWithBodyId,
+        owner: ExpressionStoreOwnerId,
         pat: PatId,
         oneline: bool,
         edition: Edition,

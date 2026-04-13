@@ -126,6 +126,7 @@ pub enum SyntaxKind {
     GLOBAL_ASM_KW,
     INLATEOUT_KW,
     INOUT_KW,
+    IS_KW,
     LABEL_KW,
     LATEOUT_KW,
     MACRO_RULES_KW,
@@ -266,6 +267,7 @@ pub enum SyntaxKind {
     PATH_PAT,
     PATH_SEGMENT,
     PATH_TYPE,
+    PATTERN_TYPE,
     PREFIX_EXPR,
     PTR_TYPE,
     RANGE_EXPR,
@@ -450,6 +452,7 @@ impl SyntaxKind {
             | PATH_PAT
             | PATH_SEGMENT
             | PATH_TYPE
+            | PATTERN_TYPE
             | PREFIX_EXPR
             | PTR_TYPE
             | RANGE_EXPR
@@ -632,6 +635,7 @@ impl SyntaxKind {
             GLOBAL_ASM_KW => "global_asm",
             INLATEOUT_KW => "inlateout",
             INOUT_KW => "inout",
+            IS_KW => "is",
             LABEL_KW => "label",
             LATEOUT_KW => "lateout",
             MACRO_RULES_KW => "macro_rules",
@@ -737,6 +741,7 @@ impl SyntaxKind {
             GLOBAL_ASM_KW => true,
             INLATEOUT_KW => true,
             INOUT_KW => true,
+            IS_KW => true,
             LABEL_KW => true,
             LATEOUT_KW => true,
             MACRO_RULES_KW => true,
@@ -830,6 +835,7 @@ impl SyntaxKind {
             GLOBAL_ASM_KW => true,
             INLATEOUT_KW => true,
             INOUT_KW => true,
+            IS_KW => true,
             LABEL_KW => true,
             LATEOUT_KW => true,
             MACRO_RULES_KW => true,
@@ -986,6 +992,7 @@ impl SyntaxKind {
             "global_asm" => GLOBAL_ASM_KW,
             "inlateout" => INLATEOUT_KW,
             "inout" => INOUT_KW,
+            "is" => IS_KW,
             "label" => LABEL_KW,
             "lateout" => LATEOUT_KW,
             "macro_rules" => MACRO_RULES_KW,
@@ -1160,6 +1167,7 @@ macro_rules ! T_ {
     [global_asm] => { $ crate :: SyntaxKind :: GLOBAL_ASM_KW };
     [inlateout] => { $ crate :: SyntaxKind :: INLATEOUT_KW };
     [inout] => { $ crate :: SyntaxKind :: INOUT_KW };
+    [is] => { $ crate :: SyntaxKind :: IS_KW };
     [label] => { $ crate :: SyntaxKind :: LABEL_KW };
     [lateout] => { $ crate :: SyntaxKind :: LATEOUT_KW };
     [macro_rules] => { $ crate :: SyntaxKind :: MACRO_RULES_KW };

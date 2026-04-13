@@ -381,6 +381,7 @@ define_symbols! {
     PartialOrd,
     CoercePointee,
     path,
+    pattern_type,
     Pending,
     phantom_data,
     pieces,

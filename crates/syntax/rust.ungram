@@ -665,6 +665,7 @@ Type =
 | NeverType
 | ParenType
 | PathType
+| PatternType
 | PtrType
 | RefType
 | SliceType
@@ -705,6 +706,9 @@ FnPtrType =
 
 ForType =
   ForBinder Type
+
+PatternType =
+  'in' Type 'is' Pat
 
 ImplTraitType =
   'impl' TypeBoundList

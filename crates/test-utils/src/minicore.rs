@@ -51,10 +51,11 @@
 //!     iterators: iterator, fn
 //!     manually_drop: drop
 //!     non_null:
-//!     non_zero:
+//!     non_zero: transmute, option
 //!     option: panic
 //!     ord: eq, option
 //!     panic: fmt
+//!     pat:
 //!     phantom_data:
 //!     pin:
 //!     pointee: copy, send, sync, ord, hash, unpin, phantom_data
@@ -2120,6 +2121,33 @@ mod macros {
     macro_rules! option_env {}
     // endregion:env
 }
+
+// region:pat
+pub mod pat {
+    #[macro_export]
+    #[rustc_builtin_macro(pattern_type)]
+    macro_rules! pattern_type {
+        ($($arg:tt)*) => {
+            /* compiler built-in */
+        };
+    }
+
+    pub const trait RangePattern {
+        /// Trait version of the inherent `MIN` assoc const.
+        #[lang = "RangeMin"]
+        const MIN: Self;
+
+        /// Trait version of the inherent `MIN` assoc const.
+        #[lang = "RangeMax"]
+        const MAX: Self;
+
+        /// A compile-time helper to subtract 1 for exclusive ranges.
+        #[lang = "RangeSub"]
+        #[track_caller]
+        fn sub_one(self) -> Self;
+    }
+}
+// endregion:pat
 
 // region:non_zero
 pub mod num {

@@ -12,7 +12,7 @@ use crate::{
         ExpressionStore,
         path::{GenericArg, Path},
     },
-    hir::ExprId,
+    hir::{ExprId, PatId},
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -142,6 +142,7 @@ pub enum TypeRef {
     ImplTrait(ThinVec<TypeBound>),
     DynTrait(ThinVec<TypeBound>),
     TypeParam(TypeParamId),
+    PatternType(TypeRefId, PatId),
     Error,
 }
 
@@ -221,6 +222,7 @@ impl TypeRef {
                     }
                 }
                 TypeRef::Path(path) => go_path(path, f, map),
+                TypeRef::PatternType(ty, _) => go(*ty, f, map),
                 TypeRef::Never | TypeRef::Placeholder | TypeRef::Error | TypeRef::TypeParam(_) => {}
             };
         }

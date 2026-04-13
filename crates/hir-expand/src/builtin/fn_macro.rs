@@ -137,6 +137,7 @@ register_builtin! {
     (const_format_args, ConstFormatArgs) => format_args_expand,
     (format_args_nl, FormatArgsNl) => format_args_nl_expand,
     (quote, Quote) => quote_expand,
+    (pattern_type, PatternType) => pattern_type_expand,
 
     EagerExpander:
     (compile_error, CompileError) => compile_error_expand,
@@ -993,4 +994,15 @@ fn unescape_str(s: &str) -> Cow<'_, str> {
     } else {
         Cow::Borrowed(s)
     }
+}
+
+fn pattern_type_expand(
+    _db: &dyn ExpandDatabase,
+    _arg_id: MacroCallId,
+    tt: &tt::TopSubtree,
+    call_site: Span,
+) -> ExpandResult<tt::TopSubtree> {
+    let mut tt = tt.clone();
+    tt.set_top_subtree_delimiter_kind(tt::DelimiterKind::Invisible);
+    ExpandResult::ok(quote! {call_site => in #tt })
 }
