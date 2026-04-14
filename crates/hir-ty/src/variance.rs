@@ -12,6 +12,9 @@
 //! currently does not allow to be resolved via a fixpoint computation. This will likely be resolved
 //! by the next salsa version. If not, we will likely have to adapt and go with the rustc approach
 //! while installing firewall per item queries to prevent invalidation issues.
+//!
+//! We conservatively assume bivariance when we run into query cycles. This is unsound, so it
+//! differs from rustc, but it's fine in IDE context.
 
 use hir_def::{
     AdtId, GenericDefId, GenericParamId, VariantId,
@@ -39,8 +42,7 @@ pub(crate) fn variances_of(db: &dyn HirDatabase, def: GenericDefId) -> Variances
 
 #[salsa::tracked(
     returns(ref),
-    cycle_fn = crate::variance::variances_of_cycle_fn,
-    cycle_initial = crate::variance::variances_of_cycle_initial,
+    cycle_result = crate::variance::variances_of_cycle_result,
 )]
 fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariancesOf {
     tracing::debug!("variances_of(def={:?})", def);
@@ -72,16 +74,6 @@ fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariance
     VariancesOf::new_from_slice(&variances).store()
 }
 
-pub(crate) fn variances_of_cycle_fn(
-    _db: &dyn HirDatabase,
-    _: &salsa::Cycle<'_>,
-    _last_provisional_value: &StoredVariancesOf,
-    value: StoredVariancesOf,
-    _def: GenericDefId,
-) -> StoredVariancesOf {
-    value
-}
-
 fn glb(v1: Variance, v2: Variance) -> Variance {
     // Greatest lower bound of the variance lattice as defined in The Paper:
     //
@@ -102,7 +94,7 @@ fn glb(v1: Variance, v2: Variance) -> Variance {
     }
 }
 
-pub(crate) fn variances_of_cycle_initial(
+pub(crate) fn variances_of_cycle_result(
     db: &dyn HirDatabase,
     _: salsa::Id,
     def: GenericDefId,
@@ -111,6 +103,8 @@ pub(crate) fn variances_of_cycle_initial(
     let generics = generics(db, def);
     let count = generics.len();
 
+    // If we hit a cycle, just assume the variance is bivariant and give
+    // up. This is an unsound approximation that's fine in an IDE.
     VariancesOf::new_from_iter(interner, std::iter::repeat_n(Variance::Bivariant, count)).store()
 }
 
@@ -850,12 +844,55 @@ struct S3<T>(S<T, T>);
 
     #[test]
     fn prove_fixedpoint() {
+        // Conservatively treat cyclic types as bivariant.
         check(
             r#"
 struct FixedPoint<T, U, V>(&'static FixedPoint<(), T, U>, V);
 "#,
             expect![[r#"
-                FixedPoint[T: covariant, U: covariant, V: covariant]
+                FixedPoint[T: bivariant, U: bivariant, V: bivariant]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn deeply_recursive_types() {
+        // Regression test: we have multiple cyclic types and the cycles are
+        // different lengths. This previously caused a salsa panic.
+        check(
+            r#"
+enum Type<T> {
+    Object(Box<Expression<T>>),
+    Generic(Box<Type<T>>),
+}
+
+enum DeclareClassExtends<T> {
+    Ident(Type<T>),
+    Recursive(Box<DeclareClassExtends<T>>),
+}
+
+enum Statement<T> {
+    Class(Class<T>),
+    Declare(DeclareClassExtends<T>),
+}
+
+enum Expression<T> {
+    Call(Type<T>),
+    Class(Class<T>),
+}
+
+struct Class<T>(Box<Statement<T>>, Box<Expression<T>>);
+
+fn make() -> Statement<()> {
+    loop {}
+}
+"#,
+            expect![[r#"
+                Type[T: bivariant]
+                DeclareClassExtends[T: bivariant]
+                Statement[T: bivariant]
+                Expression[T: bivariant]
+                Class[T: bivariant]
             "#]],
         );
     }
