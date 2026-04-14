@@ -347,6 +347,17 @@ pub fn remove_path_if_in_use_stmt(path: &ast::Path) {
     }
 }
 
+pub fn remove_use_tree_if_simple(use_tree: &ast::UseTree, editor: &mut SyntaxEditor) {
+    if use_tree.use_tree_list().is_some() || use_tree.star_token().is_some() {
+        return;
+    }
+    if let Some(use_) = use_tree.syntax().parent().and_then(ast::Use::cast) {
+        syntax::syntax_editor::Removable::remove(&use_, editor);
+    } else {
+        syntax::syntax_editor::Removable::remove(use_tree, editor);
+    }
+}
+
 #[derive(Eq, PartialEq, PartialOrd, Ord)]
 enum ImportGroup {
     // the order here defines the order of new group inserts

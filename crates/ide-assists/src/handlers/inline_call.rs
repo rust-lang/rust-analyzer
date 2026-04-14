@@ -10,9 +10,9 @@ use ide_db::{
     EditionedFileId, RootDatabase,
     base_db::Crate,
     defs::Definition,
+    imports::insert_use::remove_use_tree_if_simple,
     path_transform::PathTransform,
     search::{FileReference, FileReferenceNode, SearchScope},
-    source_change::SourceChangeBuilder,
     syntax_helpers::{node_ext::expr_as_name_ref, prettify_macro_expansion},
 };
 use itertools::{Itertools, izip};
@@ -22,6 +22,7 @@ use syntax::{
         self, HasArgList, HasGenericArgs, Pat, PathExpr,
         edit::{AstNodeEdit, IndentLevel},
         make,
+        syntax_factory::SyntaxFactory,
     },
     syntax_editor::SyntaxEditor,
 };
@@ -108,25 +109,11 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
 
             let mut remove_def = true;
             let mut inline_refs_for_file = |file_id: EditionedFileId, refs: Vec<FileReference>| {
-                use syntax::syntax_editor::Removable;
-
                 let file_id = file_id.file_id(ctx.db());
                 builder.edit_file(file_id);
                 let call_krate = ctx.sema.file_to_module_def(file_id).map(|it| it.krate(ctx.db()));
                 let count = refs.len();
-                // Split refs into call-site name refs and use-tree paths
-                let (name_refs, use_trees): (Vec<ast::NameRef>, Vec<ast::UseTree>) = refs
-                    .into_iter()
-                    .filter_map(|file_ref| match file_ref.name {
-                        FileReferenceNode::NameRef(name_ref) => Some(name_ref),
-                        _ => None,
-                    })
-                    .partition_map(|name_ref| {
-                        match name_ref.syntax().ancestors().find_map(ast::UseTree::cast) {
-                            Some(use_tree) => Either::Right(use_tree),
-                            None => Either::Left(name_ref),
-                        }
-                    });
+                let (name_refs, use_trees) = split_refs_and_uses(refs, Some);
                 let call_infos: Vec<_> = name_refs
                     .into_iter()
                     .filter_map(|it| CallInfo::from_name_ref(it, call_krate?.into()))
@@ -134,8 +121,12 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     // directly inlining into macros may cause errors.
                     .filter(|call_info| !ctx.sema.hir_file_for(call_info.node.syntax()).is_macro())
                     .collect();
-                if let Some(first) = call_infos.first() {
-                    let mut editor = builder.make_editor(first.node.syntax());
+                let anchor = call_infos
+                    .first()
+                    .map(|ci| ci.node.syntax().clone())
+                    .or_else(|| use_trees.first().map(|ut| ut.syntax().clone()));
+                if let Some(anchor) = anchor {
+                    let mut editor = builder.make_editor(&anchor);
                     let replaced = call_infos
                         .into_iter()
                         .map(|call_info| {
@@ -148,16 +139,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     if replaced + use_trees.len() == count {
                         // we replaced all usages in this file, so we can remove the imports
                         for use_tree in &use_trees {
-                            if use_tree.use_tree_list().is_some() || use_tree.star_token().is_some()
-                            {
-                                continue;
-                            }
-                            if let Some(use_) = use_tree.syntax().parent().and_then(ast::Use::cast)
-                            {
-                                use_.remove(&mut editor);
-                            } else {
-                                use_tree.remove(&mut editor);
-                            }
+                            remove_use_tree_if_simple(use_tree, &mut editor);
                         }
                     } else {
                         remove_def = false;
@@ -184,17 +166,16 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
 }
 
 pub(super) fn split_refs_and_uses<T: ast::AstNode>(
-    builder: &mut SourceChangeBuilder,
     iter: impl IntoIterator<Item = FileReference>,
     mut map_ref: impl FnMut(ast::NameRef) -> Option<T>,
-) -> (Vec<T>, Vec<ast::Path>) {
+) -> (Vec<T>, Vec<ast::UseTree>) {
     iter.into_iter()
         .filter_map(|file_ref| match file_ref.name {
             FileReferenceNode::NameRef(name_ref) => Some(name_ref),
             _ => None,
         })
         .filter_map(|name_ref| match name_ref.syntax().ancestors().find_map(ast::UseTree::cast) {
-            Some(use_tree) => builder.make_mut(use_tree).path().map(Either::Right),
+            Some(use_tree) => Some(Either::Right(use_tree)),
             None => map_ref(name_ref).map(Either::Left),
         })
         .partition_map(|either| either)
@@ -443,7 +424,7 @@ fn inline(
             .filter(|tok| tok.kind() == SyntaxKind::SELF_TYPE_KW)
             .collect();
         for self_tok in self_tokens {
-            let mut replace_with = t.clone_subtree().syntax().clone_subtree();
+            let mut replace_with = t.syntax().clone_subtree();
             if !is_in_type_path(&self_tok)
                 && let Some(ty) = ast::Type::cast(replace_with.clone())
                 && let Some(generic_arg_list) = ty.generic_arg_list()
@@ -550,7 +531,6 @@ fn inline(
                 for usage in &self_token_usages {
                     let this_token = make::name_ref("this")
                         .syntax()
-                        .clone_subtree()
                         .first_token()
                         .expect("NameRef should have had a token.");
                     editor.replace(usage.clone(), this_token);
@@ -565,13 +545,14 @@ fn inline(
                 if let Some(field) = path_expr_as_record_field(usage) {
                     cov_mark::hit!(inline_call_inline_direct_field);
                     let field_name = field.field_name().unwrap();
-                    let new_field = make::record_expr_field(
-                        make::name_ref(&field_name.text()),
+                    let factory = SyntaxFactory::without_mappings();
+                    let new_field = factory.record_expr_field(
+                        factory.name_ref(&field_name.text()),
                         Some(replacement.clone()),
                     );
                     editor.replace(field.syntax(), new_field.syntax());
                 } else {
-                    editor.replace(usage.syntax(), replacement.syntax().clone_subtree());
+                    editor.replace(usage.syntax(), replacement.syntax());
                 }
             };
 
@@ -629,6 +610,7 @@ fn inline(
         body = new_body;
     }
 
+    let factory = SyntaxFactory::without_mappings();
     let is_async_fn = function.is_async(sema.db);
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
@@ -638,12 +620,12 @@ fn inline(
         if !let_stmts.is_empty() {
             cov_mark::hit!(inline_call_async_fn_with_let_stmts);
             body = body.indent(IndentLevel(1));
-            body = make::block_expr(let_stmts, Some(body.into()));
+            body = factory.block_expr(let_stmts, Some(body.into()));
         }
     } else if !let_stmts.is_empty() {
         // Prepend let statements to the body's existing statements
         let stmts: Vec<ast::Stmt> = let_stmts.into_iter().chain(body.statements()).collect();
-        body = make::block_expr(stmts, body.tail_expr());
+        body = factory.block_expr(stmts, body.tail_expr());
     }
 
     let original_indentation = match node {
@@ -655,7 +637,7 @@ fn inline(
     let no_stmts = body.statements().next().is_none();
     match body.tail_expr() {
         Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts => {
-            make::expr_paren(expr).into()
+            factory.expr_paren(expr).into()
         }
         Some(expr) if !is_async_fn && no_stmts => expr,
         _ => match node
@@ -665,7 +647,7 @@ fn inline(
             .and_then(|bin_expr| bin_expr.lhs())
         {
             Some(lhs) if lhs.syntax() == node.syntax() => {
-                make::expr_paren(ast::Expr::BlockExpr(body)).into()
+                factory.expr_paren(ast::Expr::BlockExpr(body)).into()
             }
             _ => ast::Expr::BlockExpr(body),
         },
