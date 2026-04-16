@@ -30,6 +30,8 @@ triomphe.workspace = true
 nohash-hasher.workspace = true
 bitflags.workspace = true
 smallvec.workspace = true
+serde = { version = "1.0.219" }
+serde_derive = { version = "1.0.219" }
 
 # local deps
 base-db.workspace = true
