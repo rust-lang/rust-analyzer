@@ -320,7 +320,7 @@ pub(crate) fn runnable_fn(
 ) -> Option<Runnable> {
     let edition = def.krate(sema.db).edition(sema.db);
     let under_cfg_test = has_cfg_test(def.module(sema.db).attrs(sema.db).cfgs(sema.db));
-    let kind = if !under_cfg_test && def.is_main(sema.db) {
+    let kind = if def.is_main(sema.db) && !(under_cfg_test && def.exported_main(sema.db)) {
         RunnableKind::Bin
     } else {
         let test_id = || {
@@ -1708,6 +1708,22 @@ fn exp_main() {}
                     "(Bin, NavigationTarget { file_id: FileId(0), full_range: 36..80, focus_range: 67..75, name: \"exp_main\", kind: Function })",
                     "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 83..168, focus_range: 100..115, name: \"test_mod_inline\", kind: Module, description: \"mod test_mod_inline\" }, Atom(Flag(\"test\")))",
                     "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 192..218, focus_range: 209..217, name: \"test_mod\", kind: Module, description: \"mod test_mod\" }, Atom(Flag(\"test\")))",
+                ]
+            "#]],
+        )
+    }
+
+    #[test]
+    fn main_runnable_even_with_cfg_test() {
+        check(
+            r#"
+//- /lib.rs crate:foo cfg:test
+$0
+fn main() {}
+"#,
+            expect![[r#"
+                [
+                    "(Bin, NavigationTarget { file_id: FileId(0), full_range: 1..13, focus_range: 4..8, name: \"main\", kind: Function })",
                 ]
             "#]],
         )
