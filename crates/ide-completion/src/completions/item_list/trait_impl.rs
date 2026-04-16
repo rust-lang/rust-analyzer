@@ -1356,7 +1356,7 @@ noop! {
 struct Test;
 
 impl Foo for Test {
-    fn foo(&mut self,bar:i64,baz: &mut u32) -> Result<(),u32> {
+    fn foo(&mut self,bar: i64,baz: &mut u32) -> Result<(),u32> {
     $0
 }
 }

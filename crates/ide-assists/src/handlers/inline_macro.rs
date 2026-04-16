@@ -258,7 +258,7 @@ macro_rules! whitespace {
         if true {}
     };
 }
-fn f() { if true{}; }
+fn f() { if true {}; }
 "#,
         )
     }
