@@ -352,6 +352,9 @@ fn generate_lint_descriptor(sh: &Shell, buf: &mut String) {
         push_lint_completion(buf, name, lint);
     }
     for (name, (group, _)) in &lint_groups {
+        if name == "warnings" {
+            continue;
+        }
         push_lint_completion(buf, name, group);
     }
     buf.push_str("];\n\n");
