@@ -23,7 +23,7 @@ use triomphe::Arc;
 use crate::{
     CargoConfig, CargoFeatures, CargoWorkspace, InvocationStrategy, ManifestPath, Package, Sysroot,
     TargetKind,
-    cargo_config_file::{LockfileCopy, LockfileUsage, make_lockfile_copy},
+    cargo_config_file::{CargoConfigFile, LockfileCopy, LockfileUsage, make_lockfile_copy},
     sysroot::RustLibSrcWorkspace,
     utf8_stdout,
 };
@@ -73,14 +73,17 @@ impl BuildScriptOutput {
 }
 
 impl WorkspaceBuildScripts {
-    /// Runs the build scripts for the given workspace
+    /// Runs the build scripts for the given workspace.
+    ///
+    /// Returns `(workspace_build_scripts, sysroot_build_scripts)`. The sysroot build scripts are
+    /// populated when build-std is active; otherwise they are empty/default.
     pub(crate) fn run_for_workspace(
         config: &CargoConfig,
         workspace: &CargoWorkspace,
         progress: &dyn Fn(String),
         sysroot: &Sysroot,
         toolchain: Option<&semver::Version>,
-    ) -> io::Result<WorkspaceBuildScripts> {
+    ) -> io::Result<(WorkspaceBuildScripts, WorkspaceBuildScripts)> {
         let current_dir = workspace.workspace_root();
 
         let allowed_features = workspace.workspace_features();
@@ -93,18 +96,26 @@ impl WorkspaceBuildScripts {
             sysroot,
             toolchain,
         )?;
-        Self::run_per_ws(cmd, workspace, sysroot, progress)
+        let build_std =
+            CargoConfigFile::load(workspace.manifest_path(), &config.extra_env, sysroot)
+                .as_ref()
+                .is_some_and(CargoConfigFile::build_std_requested);
+        Self::run_per_ws(cmd, workspace, sysroot, progress, build_std)
     }
 
     /// Runs the build scripts by invoking the configured command *once*.
     /// This populates the outputs for all passed in workspaces.
+    ///
+    /// Returns a `Vec` of `(workspace_build_scripts, sysroot_build_scripts)` pairs, one per
+    /// workspace. The sysroot build scripts are populated when build-std is active for that
+    /// workspace; otherwise they are empty/default.
     pub(crate) fn run_once(
         config: &CargoConfig,
         workspaces: &[&CargoWorkspace],
         sysroots: &[&Sysroot],
         progress: &dyn Fn(String),
         working_directory: &AbsPathBuf,
-    ) -> io::Result<Vec<WorkspaceBuildScripts>> {
+    ) -> io::Result<Vec<(WorkspaceBuildScripts, WorkspaceBuildScripts)>> {
         assert_eq!(config.invocation_strategy, InvocationStrategy::Once);
 
         let (_guard, cmd) = Self::build_command(
@@ -142,12 +153,51 @@ impl WorkspaceBuildScripts {
             })
             .collect();
 
-        // Insert sysroot package IDs so that messages for stdlib crates emitted when
-        // build-std is enabled are recognized rather than reported as unknown packages.
+        // Detect build-std per workspace. For workspaces where build-std is active, we capture
+        // sysroot package outputs; for others, we just recognize and discard them.
+        let build_std_per_ws: Vec<bool> = workspaces
+            .iter()
+            .zip(sysroots.iter())
+            .map(|(ws, sysroot)| {
+                CargoConfigFile::load(ws.manifest_path(), &config.extra_env, sysroot)
+                    .as_ref()
+                    .is_some_and(CargoConfigFile::build_std_requested)
+            })
+            .collect();
+        let any_build_std = build_std_per_ws.iter().any(|&b| b);
+
+        // `None` entries: sysroot packages that are recognized but discarded (non-build-std path).
+        // For build-std workspaces, sysroot packages go into `sysroot_by_id` / `sysroot_res`.
+        let mut sysroot_by_id: FxHashMap<Arc<PackageId>, (Package, usize)> = FxHashMap::default();
+        let mut sysroot_collisions: Vec<(&Arc<PackageId>, usize, Package)> = Vec::new();
+        let sysroot_res: Vec<RefCell<WorkspaceBuildScripts>> = sysroots
+            .iter()
+            .enumerate()
+            .map(|(idx, sysroot)| {
+                let mut sbs = WorkspaceBuildScripts::default();
+                if build_std_per_ws.get(idx).copied().unwrap_or(false) {
+                    if let RustLibSrcWorkspace::Workspace { ws, .. } = sysroot.workspace() {
+                        for package in ws.packages() {
+                            sbs.outputs.insert(package, BuildScriptOutput::default());
+                            if sysroot_by_id.contains_key(&ws[package].id) {
+                                sysroot_collisions.push((&ws[package].id, idx, package));
+                            } else {
+                                sysroot_by_id.insert(ws[package].id.clone(), (package, idx));
+                            }
+                        }
+                    }
+                }
+                RefCell::new(sbs)
+            })
+            .collect();
+
+        // For sysroot packages not covered by build-std, insert as None (silent discard).
         for sysroot in sysroots {
             if let RustLibSrcWorkspace::Workspace { ws, .. } = sysroot.workspace() {
                 for package in ws.packages() {
-                    by_id.entry(ws[package].id.clone()).or_insert(None);
+                    if !sysroot_by_id.contains_key(&ws[package].id) {
+                        by_id.entry(ws[package].id.clone()).or_insert(None);
+                    }
                 }
             }
         }
@@ -163,10 +213,21 @@ impl WorkspaceBuildScripts {
                         );
                     }
                     Some(None) => {
-                        // Sysroot package (e.g. core when build-std is enabled);
-                        // its outputs are handled separately.
+                        // Sysroot package not in build-std mode; discard.
                     }
                     None => {
+                        if any_build_std {
+                            if let Some(&(sysroot_pkg, sysroot_idx)) = sysroot_by_id.get(package) {
+                                let sysroot = sysroots[sysroot_idx];
+                                if let RustLibSrcWorkspace::Workspace { ws, .. } =
+                                    sysroot.workspace()
+                                {
+                                    let mut sr = sysroot_res[sysroot_idx].borrow_mut();
+                                    cb(&ws[sysroot_pkg].name, &mut sr.outputs[sysroot_pkg]);
+                                    return;
+                                }
+                            }
+                        }
                         tracing::error!(
                             "Received compiler message for unknown package: {}",
                             package
@@ -183,6 +244,15 @@ impl WorkspaceBuildScripts {
             }
         });
 
+        let mut sysroot_res: Vec<WorkspaceBuildScripts> =
+            sysroot_res.into_iter().map(|r| r.into_inner()).collect();
+        sysroot_res.iter_mut().for_each(|it| it.error.clone_from(&errors));
+        sysroot_collisions.into_iter().for_each(|(id, sysroot_idx, package)| {
+            if let Some(&(p, w)) = sysroot_by_id.get(id) {
+                sysroot_res[sysroot_idx].outputs[package] = sysroot_res[w].outputs[p].clone();
+            }
+        });
+
         if tracing::enabled!(tracing::Level::INFO) {
             for (idx, workspace) in workspaces.iter().enumerate() {
                 for package in workspace.packages() {
@@ -194,7 +264,7 @@ impl WorkspaceBuildScripts {
             }
         }
 
-        Ok(res)
+        Ok(res.into_iter().zip(sysroot_res).collect())
     }
 
     pub fn error(&self) -> Option<&str> {
@@ -309,23 +379,36 @@ impl WorkspaceBuildScripts {
         workspace: &CargoWorkspace,
         sysroot: &Sysroot,
         progress: &dyn Fn(String),
-    ) -> io::Result<WorkspaceBuildScripts> {
+        build_std: bool,
+    ) -> io::Result<(WorkspaceBuildScripts, WorkspaceBuildScripts)> {
         let mut res = WorkspaceBuildScripts::default();
         let outputs = &mut res.outputs;
         // NB: Cargo.toml could have been modified between `cargo metadata` and
         // `cargo check`. We shouldn't assume that package ids we see here are
         // exactly those from `config`.
-        // `None` entries mark sysroot packages: recognized but not stored in the workspace output.
+        // `None` entries mark sysroot packages: recognized but discarded (non-build-std path).
         let mut by_id: FxHashMap<Arc<PackageId>, Option<Package>> = FxHashMap::default();
         for package in workspace.packages() {
             outputs.insert(package, BuildScriptOutput::default());
             by_id.insert(workspace[package].id.clone(), Some(package));
         }
-        // Insert sysroot package IDs so that messages for stdlib crates emitted when
-        // build-std is enabled are recognized rather than reported as unknown packages.
+
+        // When build-std is NOT active, insert sysroot package IDs as None so that any
+        // unexpected messages for them are silently discarded rather than flagged as unknown.
+        // When build-std IS active, we capture sysroot outputs via `sysroot_by_id` below.
+        let mut sysroot_by_id: FxHashMap<Arc<PackageId>, Package> = FxHashMap::default();
+        let sysroot_res = RefCell::new(WorkspaceBuildScripts::default());
         if let RustLibSrcWorkspace::Workspace { ws, .. } = sysroot.workspace() {
-            for package in ws.packages() {
-                by_id.entry(ws[package].id.clone()).or_insert(None);
+            if build_std {
+                let mut sbs = sysroot_res.borrow_mut();
+                for package in ws.packages() {
+                    sbs.outputs.insert(package, BuildScriptOutput::default());
+                    sysroot_by_id.insert(ws[package].id.clone(), package);
+                }
+            } else {
+                for package in ws.packages() {
+                    by_id.entry(ws[package].id.clone()).or_insert(None);
+                }
             }
         }
 
@@ -335,15 +418,21 @@ impl WorkspaceBuildScripts {
                 match by_id.get(package) {
                     Some(Some(package)) => cb(&workspace[*package].name, &mut outputs[*package]),
                     Some(None) => {
-                        // Sysroot package (e.g. core when build-std is enabled);
-                        // its outputs are handled separately, so discard here.
+                        // Sysroot package not in build-std mode; discard.
                     }
                     None => {
-                        never!(
-                            "Received compiler message for unknown package: {}\n {}",
-                            package,
-                            by_id.keys().join(", ")
-                        );
+                        if let Some(&sysroot_pkg) = sysroot_by_id.get(package) {
+                            if let RustLibSrcWorkspace::Workspace { ws, .. } = sysroot.workspace() {
+                                let mut sr = sysroot_res.borrow_mut();
+                                cb(&ws[sysroot_pkg].name, &mut sr.outputs[sysroot_pkg]);
+                            }
+                        } else {
+                            never!(
+                                "Received compiler message for unknown package: {}\n {}",
+                                package,
+                                by_id.keys().join(", ")
+                            );
+                        }
                     }
                 }
             },
@@ -359,7 +448,7 @@ impl WorkspaceBuildScripts {
             }
         }
 
-        Ok(res)
+        Ok((res, sysroot_res.into_inner()))
     }
 
     fn run_command(
