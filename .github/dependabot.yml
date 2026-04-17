@@ -1,0 +1,7 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    # Disable version updates for npm dependencies
+    open-pull-requests-limit: 0
+  - package-ecosystem: "rust-toolchain"
+    open-pull-requests-limit: 0
