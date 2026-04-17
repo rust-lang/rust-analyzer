@@ -1,6 +1,6 @@
 use hir::db::ExpandDatabase;
 use ide_db::syntax_helpers::prettify_macro_expansion;
-use syntax::ast::{self, AstNode};
+use syntax::ast::{self, AstNode, edit::AstNodeEdit};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -52,6 +52,7 @@ pub(crate) fn inline_macro(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
             // Don't call `prettify_macro_expansion()` outside the actual assist action; it does some heavy rowan tree manipulation,
             // which can be very costly for big macros when it is done *even without the assist being invoked*.
             let expanded = prettify_macro_expansion(ctx.db(), expanded, &span_map, target_crate_id);
+            let expanded = ast::edit::indent(&expanded, unexpanded.indent_level());
             editor.replace(unexpanded.syntax(), expanded);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
@@ -299,12 +300,12 @@ macro_rules! foo {
 }
 fn main() {
     cfg_if!{
-    if #[cfg(test)]{
-        1;
-    }else {
-        1;
-    }
-};
+        if #[cfg(test)]{
+            1;
+        }else {
+            1;
+        }
+    };
 }
 "#,
         );
