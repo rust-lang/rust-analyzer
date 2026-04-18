@@ -50,6 +50,7 @@
 //!     iterator: option
 //!     iterators: iterator, fn
 //!     manually_drop: drop
+//!     matches:
 //!     non_null:
 //!     non_zero:
 //!     option: panic
@@ -2180,6 +2181,20 @@ macro_rules! column {
     () => {};
 }
 // endregion:column
+
+// region:matches
+#[macro_export]
+#[allow_internal_unstable(non_exhaustive_omitted_patterns_lint, stmt_expr_attributes)]
+macro_rules! matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        #[allow(non_exhaustive_omitted_patterns)]
+        match $expression {
+            $pattern $(if $guard)? => true,
+            _ => false
+        }
+    };
+}
+// endregion:matches
 
 pub mod prelude {
     pub mod v1 {
