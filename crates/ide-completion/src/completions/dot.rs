@@ -307,7 +307,7 @@ fn complete_methods(
 mod tests {
     use expect_test::expect;
 
-    use crate::tests::{check_edit, check_no_kw, check_with_private_editable};
+    use crate::tests::{check, check_edit, check_no_kw, check_with_private_editable};
 
     #[test]
     fn test_struct_field_and_method_completion() {
@@ -1804,6 +1804,35 @@ fn main() {
                 me into_iter() (as IntoIterator)    fn(self) -> <Self as IntoIterator>::IntoIter
                 me next() (as Iterator)        fn(&mut self) -> Option<<Self as Iterator>::Item>
                 me nth(…) (as Iterator) fn(&mut self, usize) -> Option<<Self as Iterator>::Item>
+            "#]],
+        );
+    }
+
+    #[test]
+    fn no_await_on_error_type() {
+        check(
+            r#"
+//- minicore: future
+fn foo(t: T) {
+    let _ = t.$0;
+}
+        "#,
+            expect![[r#"
+                kw await    expr.await
+                sn box  Box::new(expr)
+                sn call function(expr)
+                sn const      const {}
+                sn dbg      dbg!(expr)
+                sn dbgr    dbg!(&expr)
+                sn deref         *expr
+                sn if       if expr {}
+                sn match match expr {}
+                sn not           !expr
+                sn ref           &expr
+                sn refm      &mut expr
+                sn return  return expr
+                sn unsafe    unsafe {}
+                sn while while expr {}
             "#]],
         );
     }
