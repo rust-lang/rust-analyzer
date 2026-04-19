@@ -10,7 +10,7 @@ use rustc_next_trait_solver::{
 use rustc_type_ir::{
     Interner, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor,
     inherent::{IntoKind, Span as _},
-    solve::{Certainty, NoSolution},
+    solve::{Certainty, MaybeCause, NoSolution},
 };
 
 use crate::next_solver::{
@@ -211,6 +211,11 @@ impl<'db> FulfillmentCtxt<'db> {
 
                 match certainty {
                     Certainty::Yes => {}
+                    Certainty::Maybe { cause: MaybeCause::Overflow { .. }, .. }
+                        if has_changed == HasChanged::No =>
+                    {
+                        errors.push(NextSolverError::Overflow(obligation));
+                    }
                     Certainty::Maybe { .. } => self.obligations.register(obligation, stalled_on),
                 }
             }
