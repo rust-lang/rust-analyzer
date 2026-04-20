@@ -75,6 +75,7 @@ use hir_def::{
         TypeAliasSignature, UnionSignature, VariantFields,
     },
     src::HasSource as _,
+    unstable_features::UnstableFeatures,
     visibility::visibility_from_ast,
 };
 use hir_expand::{
@@ -89,9 +90,7 @@ use hir_ty::{
     diagnostics::BodyValidationDiagnostic,
     direct_super_traits, known_const_to_ast,
     layout::{Layout as TyLayout, RustcEnumVariantIdx, RustcFieldIdx, TagEncoding},
-    method_resolution::{
-        self, InherentImpls, MethodResolutionContext, MethodResolutionUnstableFeatures,
-    },
+    method_resolution::{self, InherentImpls, MethodResolutionContext},
     mir::interpret_mir,
     next_solver::{
         AliasTy, AnyImplId, ClauseKind, ConstKind, DbInterner, EarlyBinder, EarlyParamRegion,
@@ -343,7 +342,7 @@ impl Crate {
     }
 
     pub fn is_unstable_feature_enabled(self, db: &dyn HirDatabase, feature: &Symbol) -> bool {
-        crate_def_map(db, self.id).is_unstable_feature_enabled(feature)
+        UnstableFeatures::query(db, self.id).is_enabled(feature)
     }
 }
 
@@ -984,10 +983,8 @@ impl Module {
                 // relationship here would be significantly more expensive.
                 if !missing.is_empty() {
                     let krate = self.krate(db).id;
-                    let def_map = crate_def_map(db, krate);
-                    if def_map.is_unstable_feature_enabled(&sym::specialization)
-                        || def_map.is_unstable_feature_enabled(&sym::min_specialization)
-                    {
+                    let features = UnstableFeatures::query(db, krate);
+                    if features.specialization || features.min_specialization {
                         missing.retain(|(assoc_name, assoc_item)| {
                             let AssocItem::Function(_) = assoc_item else {
                                 return true;
@@ -6178,8 +6175,7 @@ impl<'db> Type<'db> {
             TypingMode::non_body_analysis()
         };
         let infcx = interner.infer_ctxt().build(typing_mode);
-        let unstable_features =
-            MethodResolutionUnstableFeatures::from_def_map(resolver.top_level_def_map());
+        let features = resolver.top_level_def_map().features();
         let environment = param_env_from_resolver(db, resolver);
         let ctx = MethodResolutionContext {
             infcx: &infcx,
@@ -6187,7 +6183,7 @@ impl<'db> Type<'db> {
             param_env: environment.param_env,
             traits_in_scope,
             edition: resolver.krate().data(db).edition,
-            unstable_features: &unstable_features,
+            features,
         };
         f(&ctx)
     }

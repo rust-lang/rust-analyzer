@@ -40,7 +40,7 @@ pub fn crate_lang_items(db: &dyn DefDatabase, krate: Crate) -> Option<Box<LangIt
 
     let crate_def_map = crate_def_map(db, krate);
 
-    if !crate_def_map.is_unstable_feature_enabled(&sym::lang_items) {
+    if !crate_def_map.features().lang_items {
         return None;
     }
 

@@ -626,8 +626,7 @@ impl<'db> SourceAnalyzer<'db> {
         has_start: bool,
         has_end: bool,
     ) -> Option<StructId> {
-        let has_new_range =
-            self.resolver.top_level_def_map().is_unstable_feature_enabled(&sym::new_range);
+        let has_new_range = self.resolver.top_level_def_map().features().new_range;
         let lang_items = self.lang_items(db);
         match (op_kind, has_start, has_end) {
             (RangeOp::Exclusive, false, false) => lang_items.RangeFull,

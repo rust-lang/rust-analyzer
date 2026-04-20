@@ -44,6 +44,7 @@ use hir_def::{
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
     signatures::{ConstSignature, EnumSignature, FunctionSignature, StaticSignature},
     type_ref::{ConstRef, LifetimeRefId, TypeRef, TypeRefId},
+    unstable_features::UnstableFeatures,
 };
 use hir_expand::{mod_path::ModPath, name::Name};
 use indexmap::IndexSet;
@@ -78,7 +79,7 @@ use crate::{
     lower::{
         ImplTraitIdx, ImplTraitLoweringMode, LifetimeElisionKind, diagnostics::TyLoweringDiagnostic,
     },
-    method_resolution::{CandidateId, MethodResolutionUnstableFeatures},
+    method_resolution::CandidateId,
     next_solver::{
         AliasTy, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs, Region,
         StoredGenericArgs, StoredTy, StoredTys, Ty, TyKind, Tys,
@@ -1112,11 +1113,11 @@ pub(crate) struct InferenceContext<'body, 'db> {
     /// and resolve the path via its methods. This will ensure proper error reporting.
     pub(crate) resolver: Resolver<'db>,
     target_features: OnceCell<(TargetFeatures<'db>, TargetFeatureIsSafeInTarget)>,
-    pub(crate) unstable_features: MethodResolutionUnstableFeatures,
     pub(crate) edition: Edition,
     pub(crate) generic_def: GenericDefId,
     pub(crate) table: unify::InferenceTable<'db>,
     pub(crate) lang_items: &'db LangItems,
+    pub(crate) features: &'db UnstableFeatures,
     /// The traits in scope, disregarding block modules. This is used for caching purposes.
     traits_in_scope: FxHashSet<TraitId>,
     pub(crate) result: InferenceResult,
@@ -1218,10 +1219,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             return_ty: types.types.error, // set in collect_* calls
             types,
             target_features: OnceCell::new(),
-            unstable_features: MethodResolutionUnstableFeatures::from_def_map(
-                resolver.top_level_def_map(),
-            ),
             lang_items: table.interner().lang_items(),
+            features: resolver.top_level_def_map().features(),
             edition: resolver.krate().data(db).edition,
             table,
             tuple_field_accesses_rev: Default::default(),
@@ -2317,7 +2316,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     }
 
     fn has_new_range_feature(&self) -> bool {
-        self.resolver.top_level_def_map().is_unstable_feature_enabled(&sym::new_range)
+        self.features.new_range
     }
 
     fn resolve_range(&self) -> Option<AdtId> {

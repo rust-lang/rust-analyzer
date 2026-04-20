@@ -6,8 +6,8 @@ use hir_def::{
     AssocItemId, ConstId, FunctionId, GenericDefId, HasModule, TraitId, TypeAliasId,
     TypeOrConstParamId, TypeParamId,
     hir::generics::{GenericParams, LocalTypeOrConstParamId},
-    nameres::crate_def_map,
     signatures::{FunctionSignature, TraitFlags, TraitSignature},
+    unstable_features::UnstableFeatures,
 };
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{
@@ -111,8 +111,9 @@ where
     // rustc checks for non-lifetime binders here, but we don't support HRTB yet
 
     let trait_data = trait_.trait_items(db);
+    let mut features = None;
     for (_, assoc_item) in &trait_data.items {
-        dyn_compatibility_violation_for_assoc_item(db, trait_, *assoc_item, cb)?;
+        dyn_compatibility_violation_for_assoc_item(db, &mut features, trait_, *assoc_item, cb)?;
     }
 
     ControlFlow::Continue(())
@@ -274,8 +275,9 @@ fn contains_illegal_self_type_reference<'db, T: rustc_type_ir::TypeVisitable<DbI
     t.visit_with(&mut visitor).is_break()
 }
 
-fn dyn_compatibility_violation_for_assoc_item<F>(
-    db: &dyn HirDatabase,
+fn dyn_compatibility_violation_for_assoc_item<'db, F>(
+    db: &'db dyn HirDatabase,
+    features: &mut Option<&'db UnstableFeatures>,
     trait_: TraitId,
     item: AssocItemId,
     cb: &mut F,
@@ -297,8 +299,10 @@ where
             })
         }
         AssocItemId::TypeAliasId(it) => {
-            let def_map = crate_def_map(db, trait_.krate(db));
-            if def_map.is_unstable_feature_enabled(&intern::sym::generic_associated_type_extended) {
+            if features
+                .get_or_insert_with(|| UnstableFeatures::query(db, trait_.krate(db)))
+                .generic_associated_type_extended
+            {
                 ControlFlow::Continue(())
             } else {
                 let generic_params = GenericParams::of(db, item.into());

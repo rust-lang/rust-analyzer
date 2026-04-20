@@ -320,8 +320,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
 
         // We don't need to gate this behind arbitrary self types
         // per se, but it does make things a bit more gated.
-        if self.ctx.unstable_features.arbitrary_self_types
-            || self.ctx.unstable_features.arbitrary_self_types_pointers
+        if self.ctx.features.arbitrary_self_types || self.ctx.features.arbitrary_self_types_pointers
         {
             autoderef = autoderef.use_receiver_trait();
         }
@@ -483,7 +482,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                 self.ctx.table.register_infer_ok(infer_ok);
             }
             Err(_) => {
-                if self.ctx.unstable_features.arbitrary_self_types {
+                if self.ctx.features.arbitrary_self_types {
                     self.ctx.result.type_mismatches.get_or_insert_default().insert(
                         self.expr.into(),
                         TypeMismatch { expected: method_self_ty.store(), actual: self_ty.store() },
