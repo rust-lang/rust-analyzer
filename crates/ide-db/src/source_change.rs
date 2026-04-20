@@ -7,7 +7,7 @@ use std::{collections::hash_map::Entry, fmt, iter, mem};
 
 use crate::imports::insert_use::{ImportScope, ImportScopeKind};
 use crate::text_edit::{TextEdit, TextEditBuilder};
-use crate::{SnippetCap, assists::Command, syntax_helpers::tree_diff::diff};
+use crate::{WorkspaceSnippetCap, assists::Command, syntax_helpers::tree_diff::diff};
 use base_db::AnchoredPathBuf;
 use itertools::Itertools;
 use macros::UpmapFromRaFixture;
@@ -294,16 +294,25 @@ impl SourceChangeBuilder {
         }
     }
 
-    pub fn make_placeholder_snippet(&mut self, _cap: SnippetCap) -> SyntaxAnnotation {
-        self.add_snippet_annotation(AnnotationSnippet::Over)
+    pub fn make_placeholder_snippet(
+        &mut self,
+        workspace_snippet_cap: WorkspaceSnippetCap,
+    ) -> SyntaxAnnotation {
+        self.add_snippet_annotation(workspace_snippet_cap, AnnotationSnippet::Over)
     }
 
-    pub fn make_tabstop_before(&mut self, _cap: SnippetCap) -> SyntaxAnnotation {
-        self.add_snippet_annotation(AnnotationSnippet::Before)
+    pub fn make_tabstop_before(
+        &mut self,
+        workspace_snippet_cap: WorkspaceSnippetCap,
+    ) -> SyntaxAnnotation {
+        self.add_snippet_annotation(workspace_snippet_cap, AnnotationSnippet::Before)
     }
 
-    pub fn make_tabstop_after(&mut self, _cap: SnippetCap) -> SyntaxAnnotation {
-        self.add_snippet_annotation(AnnotationSnippet::After)
+    pub fn make_tabstop_after(
+        &mut self,
+        workspace_snippet_cap: WorkspaceSnippetCap,
+    ) -> SyntaxAnnotation {
+        self.add_snippet_annotation(workspace_snippet_cap, AnnotationSnippet::After)
     }
 
     fn commit(&mut self) {
@@ -429,59 +438,68 @@ impl SourceChangeBuilder {
     }
 
     /// Adds a tabstop snippet to place the cursor before `node`
-    pub fn add_tabstop_before(&mut self, _cap: SnippetCap, node: impl AstNode) {
+    pub fn add_tabstop_before(&mut self, cap: WorkspaceSnippetCap, node: impl AstNode) {
         assert!(node.syntax().parent().is_some());
-        self.add_snippet(PlaceSnippet::Before(node.syntax().clone().into()));
+        self.add_snippet(cap, PlaceSnippet::Before(node.syntax().clone().into()));
     }
 
     /// Adds a tabstop snippet to place the cursor after `node`
-    pub fn add_tabstop_after(&mut self, _cap: SnippetCap, node: impl AstNode) {
+    pub fn add_tabstop_after(&mut self, cap: WorkspaceSnippetCap, node: impl AstNode) {
         assert!(node.syntax().parent().is_some());
-        self.add_snippet(PlaceSnippet::After(node.syntax().clone().into()));
+        self.add_snippet(cap, PlaceSnippet::After(node.syntax().clone().into()));
     }
 
     /// Adds a tabstop snippet to place the cursor before `token`
-    pub fn add_tabstop_before_token(&mut self, _cap: SnippetCap, token: SyntaxToken) {
+    pub fn add_tabstop_before_token(&mut self, cap: WorkspaceSnippetCap, token: SyntaxToken) {
         assert!(token.parent().is_some());
-        self.add_snippet(PlaceSnippet::Before(token.into()));
+        self.add_snippet(cap, PlaceSnippet::Before(token.into()));
     }
 
     /// Adds a tabstop snippet to place the cursor after `token`
-    pub fn add_tabstop_after_token(&mut self, _cap: SnippetCap, token: SyntaxToken) {
+    pub fn add_tabstop_after_token(&mut self, cap: WorkspaceSnippetCap, token: SyntaxToken) {
         assert!(token.parent().is_some());
-        self.add_snippet(PlaceSnippet::After(token.into()));
+        self.add_snippet(cap, PlaceSnippet::After(token.into()));
     }
 
     /// Adds a snippet to move the cursor selected over `node`
-    pub fn add_placeholder_snippet(&mut self, _cap: SnippetCap, node: impl AstNode) {
+    pub fn add_placeholder_snippet(&mut self, cap: WorkspaceSnippetCap, node: impl AstNode) {
         assert!(node.syntax().parent().is_some());
-        self.add_snippet(PlaceSnippet::Over(node.syntax().clone().into()))
+        self.add_snippet(cap, PlaceSnippet::Over(node.syntax().clone().into()))
     }
 
     /// Adds a snippet to move the cursor selected over `token`
-    pub fn add_placeholder_snippet_token(&mut self, _cap: SnippetCap, token: SyntaxToken) {
+    pub fn add_placeholder_snippet_token(&mut self, cap: WorkspaceSnippetCap, token: SyntaxToken) {
         assert!(token.parent().is_some());
-        self.add_snippet(PlaceSnippet::Over(token.into()))
+        self.add_snippet(cap, PlaceSnippet::Over(token.into()))
     }
 
     /// Adds a snippet to move the cursor selected over `nodes`
     ///
     /// This allows for renaming newly generated items without having to go
     /// through a separate rename step.
-    pub fn add_placeholder_snippet_group(&mut self, _cap: SnippetCap, nodes: Vec<SyntaxNode>) {
+    pub fn add_placeholder_snippet_group(
+        &mut self,
+        cap: WorkspaceSnippetCap,
+        nodes: Vec<SyntaxNode>,
+    ) {
         assert!(nodes.iter().all(|node| node.parent().is_some()));
-        self.add_snippet(PlaceSnippet::OverGroup(
-            nodes.into_iter().map(|node| node.into()).collect(),
-        ))
+        self.add_snippet(
+            cap,
+            PlaceSnippet::OverGroup(nodes.into_iter().map(|node| node.into()).collect()),
+        )
     }
 
-    fn add_snippet(&mut self, snippet: PlaceSnippet) {
+    fn add_snippet(&mut self, _cap: WorkspaceSnippetCap, snippet: PlaceSnippet) {
         let snippet_builder = self.snippet_builder.get_or_insert(SnippetBuilder { places: vec![] });
         snippet_builder.places.push(snippet);
         self.source_change.is_snippet = true;
     }
 
-    fn add_snippet_annotation(&mut self, kind: AnnotationSnippet) -> SyntaxAnnotation {
+    fn add_snippet_annotation(
+        &mut self,
+        _cap: WorkspaceSnippetCap,
+        kind: AnnotationSnippet,
+    ) -> SyntaxAnnotation {
         let annotation = SyntaxAnnotation::default();
         self.snippet_annotations.push((kind, annotation));
         self.source_change.is_snippet = true;

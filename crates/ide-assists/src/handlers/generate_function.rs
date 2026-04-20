@@ -3,7 +3,7 @@ use hir::{
     TypeInfo,
 };
 use ide_db::{
-    FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
+    FileId, FxHashMap, FxHashSet, RootDatabase, WorkspaceSnippetCap,
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
     helpers::is_editable_crate,
@@ -188,7 +188,7 @@ fn add_func_to_accumulator(
 
         let target = function_builder.target.clone();
         let edition = function_builder.target_edition;
-        let func = function_builder.render(ctx.config.snippet_cap, edit);
+        let func = function_builder.render(ctx.config.workspace_snippet_cap, edit);
 
         if let Some(adt) = adt_info
             .and_then(|adt_info| if adt_info.impl_exists { None } else { Some(adt_info.adt) })
@@ -360,7 +360,11 @@ impl FunctionBuilder {
         })
     }
 
-    fn render(self, cap: Option<SnippetCap>, edit: &mut SourceChangeBuilder) -> ast::Fn {
+    fn render(
+        self,
+        workspace_snippet_cap: Option<WorkspaceSnippetCap>,
+        edit: &mut SourceChangeBuilder,
+    ) -> ast::Fn {
         let visibility = match self.visibility {
             Visibility::None => None,
             Visibility::Crate => Some(make::visibility_pub_crate()),
@@ -392,19 +396,19 @@ impl FunctionBuilder {
             .tail_expr()
             .expect("function body should have a tail expression");
 
-        if let Some(cap) = cap {
+        if let Some(workspace_snippet_cap) = workspace_snippet_cap {
             if self.should_focus_return_type {
                 // Focus the return type if there is one
                 match ret_type {
                     Some(ret_type) => {
-                        edit.add_placeholder_snippet(cap, ret_type);
+                        edit.add_placeholder_snippet(workspace_snippet_cap, ret_type);
                     }
                     None => {
-                        edit.add_placeholder_snippet(cap, tail_expr);
+                        edit.add_placeholder_snippet(workspace_snippet_cap, tail_expr);
                     }
                 }
             } else {
-                edit.add_placeholder_snippet(cap, tail_expr);
+                edit.add_placeholder_snippet(workspace_snippet_cap, tail_expr);
             }
         }
 

@@ -60,7 +60,7 @@ pub(crate) fn complete_cfg(acc: &mut Completions, ctx: &CompletionContext<'_>) {
                 hir::CfgAtom::Flag(key) => (key.as_str(), "".into()),
                 hir::CfgAtom::KeyValue { key, .. } => (
                     key.as_str(),
-                    if ctx.config.snippet_cap.is_some() {
+                    if ctx.config.completion_snippet_cap.is_some() {
                         SmolStr::from_iter([key.as_str(), " = $0"])
                     } else {
                         SmolStr::default()
@@ -76,10 +76,10 @@ pub(crate) fn complete_cfg(acc: &mut Completions, ctx: &CompletionContext<'_>) {
                     s,
                     ctx.edition,
                 );
-                if let Some(cap) = ctx.config.snippet_cap
+                if let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap
                     && !snippet.is_empty()
                 {
-                    item.insert_snippet(cap, snippet);
+                    item.insert_snippet(completion_snippet_cap, snippet);
                 }
                 item.add_to(acc, ctx.db);
             }),

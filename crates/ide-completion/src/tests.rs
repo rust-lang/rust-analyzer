@@ -29,7 +29,7 @@ use expect_test::Expect;
 use hir::db::HirDatabase;
 use hir::{PrefixKind, setup_tracing};
 use ide_db::{
-    FilePosition, RootDatabase, SnippetCap,
+    CompletionSnippetCap, FilePosition, RootDatabase,
     imports::insert_use::{ImportGranularity, InsertUseConfig},
     ra_fixture::RaFixtureConfig,
 };
@@ -73,7 +73,7 @@ pub(crate) const TEST_CONFIG: CompletionConfig<'_> = CompletionConfig {
     full_function_signatures: false,
     callable: Some(CallableSnippets::FillArguments),
     add_semicolon_to_unit: true,
-    snippet_cap: SnippetCap::new(true),
+    completion_snippet_cap: CompletionSnippetCap::new(true),
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::Crate,
         prefix_kind: PrefixKind::Plain,

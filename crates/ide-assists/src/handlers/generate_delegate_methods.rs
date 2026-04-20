@@ -222,10 +222,10 @@ pub(crate) fn generate_delegate_methods(acc: &mut Assists, ctx: &AssistContext<'
                     }
                 };
 
-                if let Some(cap) = ctx.config.snippet_cap
+                if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
                     && let Some(fn_) = fn_
                 {
-                    let tabstop = edit.make_tabstop_before(cap);
+                    let tabstop = edit.make_tabstop_before(workspace_snippet_cap);
                     editor.add_annotation(fn_.syntax(), tabstop);
                 }
                 edit.add_file_edits(ctx.vfs_file_id(), editor);

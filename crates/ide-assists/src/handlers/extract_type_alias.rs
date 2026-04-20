@@ -87,10 +87,13 @@ pub(crate) fn extract_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
             let ty_alias =
                 make.ty_alias(None, name, generic_params, None, None, Some((resolved_ty, None)));
 
-            if let Some(cap) = ctx.config.snippet_cap
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
                 && let Some(name) = ty_alias.name()
             {
-                editor.add_annotation(name.syntax(), builder.make_tabstop_before(cap));
+                editor.add_annotation(
+                    name.syntax(),
+                    builder.make_tabstop_before(workspace_snippet_cap),
+                );
             }
 
             let indent = IndentLevel::from_node(node);

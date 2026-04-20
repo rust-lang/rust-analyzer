@@ -1,7 +1,7 @@
 //! Renderer for function calls.
 
 use hir::{AsAssocItem, HirDisplay, db::HirDatabase};
-use ide_db::{SnippetCap, SymbolKind};
+use ide_db::{CompletionSnippetCap, SymbolKind};
 use itertools::Itertools;
 use stdx::{format_to, to_lower_snake_case};
 use syntax::{AstNode, SmolStr, ToSmolStr, format_smolstr};
@@ -87,21 +87,21 @@ fn render(
             }
         });
 
-    let (has_dot_receiver, has_call_parens, cap) = match func_kind {
+    let (has_dot_receiver, has_call_parens, completion_snippet_cap) = match func_kind {
         FuncKind::Function(&PathCompletionCtx {
             kind: PathKind::Expr { .. },
             has_call_parens,
             ..
-        }) => (false, has_call_parens, ctx.completion.config.snippet_cap),
+        }) => (false, has_call_parens, ctx.completion.config.completion_snippet_cap),
         FuncKind::Method(&DotAccess { kind: DotAccessKind::Method, .. }, _) => {
-            (true, true, ctx.completion.config.snippet_cap)
+            (true, true, ctx.completion.config.completion_snippet_cap)
         }
         FuncKind::Method(DotAccess { kind: DotAccessKind::Field { .. }, .. }, _) => {
-            (true, false, ctx.completion.config.snippet_cap)
+            (true, false, ctx.completion.config.completion_snippet_cap)
         }
         _ => (false, false, None),
     };
-    let complete_call_parens = cap
+    let complete_call_parens = completion_snippet_cap
         .filter(|_| !has_call_parens)
         .and_then(|cap| Some((cap, params(ctx.completion, func, &func_kind, has_dot_receiver)?)));
 
@@ -151,11 +151,11 @@ fn render(
         .detail(detail)
         .lookup_by(name.as_str().to_smolstr());
 
-    if let Some((cap, (self_param, params))) = complete_call_parens {
+    if let Some((completion_snippet_cap, (self_param, params))) = complete_call_parens {
         add_call_parens(
             &mut item,
             completion,
-            cap,
+            completion_snippet_cap,
             call,
             escaped_call,
             self_param,
@@ -211,7 +211,7 @@ fn compute_return_type_match(
 pub(super) fn add_call_parens<'b>(
     builder: &'b mut Builder,
     ctx: &CompletionContext<'_>,
-    cap: SnippetCap,
+    completion_snippet_cap: CompletionSnippetCap,
     name: SmolStr,
     escaped_name: SmolStr,
     self_param: Option<hir::SelfParam>,
@@ -283,7 +283,9 @@ pub(super) fn add_call_parens<'b>(
             }
         }
     }
-    builder.label(SmolStr::from_iter([&name, label_suffix])).insert_snippet(cap, snippet)
+    builder
+        .label(SmolStr::from_iter([&name, label_suffix]))
+        .insert_snippet(completion_snippet_cap, snippet)
 }
 
 fn ref_of_param(ctx: &CompletionContext<'_>, arg: &str, ty: &hir::Type<'_>) -> &'static str {

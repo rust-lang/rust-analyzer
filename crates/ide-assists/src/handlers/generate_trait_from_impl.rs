@@ -152,8 +152,8 @@ pub(crate) fn generate_trait_from_impl(acc: &mut Assists, ctx: &AssistContext<'_
             );
 
             // Link the trait name & trait ref names together as a placeholder snippet group
-            if let Some(cap) = ctx.config.snippet_cap {
-                let placeholder = builder.make_placeholder_snippet(cap);
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+                let placeholder = builder.make_placeholder_snippet(workspace_snippet_cap);
                 editor.add_annotation(trait_name.syntax(), placeholder);
                 editor.add_annotation(trait_name_ref.syntax(), placeholder);
             }
@@ -222,7 +222,9 @@ fn strip_body(editor: &SyntaxEditor, item: &ast::AssocItem) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{check_assist, check_assist_no_snippet_cap, check_assist_not_applicable};
+    use crate::tests::{
+        check_assist, check_assist_no_workspace_snippet_cap, check_assist_not_applicable,
+    };
 
     #[test]
     fn test_trigger_when_cursor_on_header() {
@@ -241,7 +243,7 @@ impl Foo { $0
 
     #[test]
     fn test_assoc_item_fn() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 struct Foo(f64);
@@ -268,7 +270,7 @@ impl Add for Foo {
 
     #[test]
     fn test_remove_doc_comments() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 struct Foo(f64);
@@ -304,7 +306,7 @@ impl Add for Foo {
 
     #[test]
     fn test_assoc_item_macro() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 struct Foo;
@@ -339,7 +341,7 @@ impl NewTrait for Foo {
 
     #[test]
     fn test_assoc_item_const() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 struct Foo;
@@ -362,7 +364,7 @@ impl NewTrait for Foo {
 
     #[test]
     fn test_impl_with_generics() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 struct Foo<const N: usize>([i32; N]);
@@ -390,7 +392,7 @@ impl<const N: usize> NewTrait<N> for Foo<N> {
 
     #[test]
     fn test_trait_items_should_not_have_vis() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 struct Foo;
@@ -427,7 +429,7 @@ impl Emp$0tyImpl{}
 
     #[test]
     fn test_not_top_level_impl() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 mod a {
@@ -450,7 +452,7 @@ mod a {
 
     #[test]
     fn test_multi_fn_impl_not_suggest_trait_name() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_trait_from_impl,
             r#"
 impl S$0 {
@@ -471,7 +473,7 @@ impl NewTrait for S {
     }
 
     #[test]
-    fn test_snippet_cap_is_some() {
+    fn test_workspace_snippet_cap_is_some() {
         check_assist(
             generate_trait_from_impl,
             r#"

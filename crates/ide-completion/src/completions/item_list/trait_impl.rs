@@ -233,15 +233,15 @@ fn add_function_impl_(
             get_transformed_fn(ctx, source.value, impl_def, async_sugaring)
     {
         let function_decl = function_declaration(ctx, &transformed_fn, source.file_id.macro_file());
-        match ctx.config.snippet_cap {
-            Some(cap) => {
-                let snippet = format!("{function_decl} {{\n    $0\n}}");
-                item.snippet_edit(cap, TextEdit::replace(replacement_range, snippet));
-            }
-            None => {
-                let header = format!("{function_decl} {{");
-                item.text_edit(TextEdit::replace(replacement_range, header));
-            }
+        if let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap {
+            let snippet = format!("{function_decl} {{\n    $0\n}}");
+            item.snippet_edit(
+                completion_snippet_cap,
+                TextEdit::replace(replacement_range, snippet),
+            );
+        } else {
+            let header = format!("{function_decl} {{");
+            item.text_edit(TextEdit::replace(replacement_range, header));
         };
         item.add_to(acc, ctx.db);
     }
@@ -427,15 +427,15 @@ fn add_type_alias_impl(
                 })
                 .unwrap_or_default();
 
-            match ctx.config.snippet_cap {
-                Some(cap) => {
-                    let snippet = format!("{decl}$0{wc};");
-                    item.snippet_edit(cap, TextEdit::replace(replacement_range, snippet));
-                }
-                None => {
-                    decl.push_str(&wc);
-                    item.text_edit(TextEdit::replace(replacement_range, decl));
-                }
+            if let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap {
+                let snippet = format!("{decl}$0{wc};");
+                item.snippet_edit(
+                    completion_snippet_cap,
+                    TextEdit::replace(replacement_range, snippet),
+                );
+            } else {
+                decl.push_str(&wc);
+                item.text_edit(TextEdit::replace(replacement_range, decl));
             };
             item.add_to(acc, ctx.db);
         }
@@ -473,12 +473,13 @@ fn add_const_impl(
                     exact_name_match: true,
                     ..Default::default()
                 });
-            match ctx.config.snippet_cap {
-                Some(cap) => item.snippet_edit(
-                    cap,
+            if let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap {
+                item.snippet_edit(
+                    completion_snippet_cap,
                     TextEdit::replace(replacement_range, format!("{replacement}$0;")),
-                ),
-                None => item.text_edit(TextEdit::replace(replacement_range, replacement)),
+                )
+            } else {
+                item.text_edit(TextEdit::replace(replacement_range, replacement))
             };
             item.add_to(acc, ctx.db);
         }

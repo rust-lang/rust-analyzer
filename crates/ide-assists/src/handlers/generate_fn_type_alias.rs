@@ -111,10 +111,13 @@ pub(crate) fn generate_fn_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>)
                     ],
                 );
 
-                if let Some(cap) = ctx.config.snippet_cap
+                if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
                     && let Some(name) = ty_alias.name()
                 {
-                    editor.add_annotation(name.syntax(), builder.make_placeholder_snippet(cap));
+                    editor.add_annotation(
+                        name.syntax(),
+                        builder.make_placeholder_snippet(workspace_snippet_cap),
+                    );
                 }
 
                 builder.add_file_edits(ctx.vfs_file_id(), editor);

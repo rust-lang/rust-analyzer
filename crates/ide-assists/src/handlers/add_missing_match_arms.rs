@@ -278,22 +278,31 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
             arms_edit.add_comma_after_last_arm(ctx, &make, &editor);
             arms_edit.append_arms(&missing_arms, &make, &editor);
 
-            if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                 if let Some(it) = missing_arms
                     .first()
                     .and_then(|arm| arm.syntax().descendants().find_map(ast::WildcardPat::cast))
                 {
-                    editor.add_annotation(it.syntax(), builder.make_placeholder_snippet(cap));
+                    editor.add_annotation(
+                        it.syntax(),
+                        builder.make_placeholder_snippet(workspace_snippet_cap),
+                    );
                 }
 
                 for arm in &missing_arms {
                     if let Some(expr) = arm.expr() {
-                        editor.add_annotation(expr.syntax(), builder.make_placeholder_snippet(cap));
+                        editor.add_annotation(
+                            expr.syntax(),
+                            builder.make_placeholder_snippet(workspace_snippet_cap),
+                        );
                     }
                 }
 
                 if let Some(arm) = missing_arms.last() {
-                    editor.add_annotation(arm.syntax(), builder.make_tabstop_after(cap));
+                    editor.add_annotation(
+                        arm.syntax(),
+                        builder.make_tabstop_after(workspace_snippet_cap),
+                    );
                 }
             }
 

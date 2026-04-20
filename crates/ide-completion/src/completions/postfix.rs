@@ -5,7 +5,7 @@ mod format_like;
 use base_db::SourceDatabase;
 use hir::{HirDisplay, ItemInNs, Semantics};
 use ide_db::{
-    RootDatabase, SnippetCap,
+    CompletionSnippetCap, RootDatabase,
     documentation::{Documentation, HasDocs},
     imports::insert_use::ImportScope,
     syntax_helpers::suggest_name::NameGenerator,
@@ -57,14 +57,14 @@ pub(crate) fn complete_postfix(
     let receiver_text =
         get_receiver_text(&ctx.sema, dot_receiver, receiver_is_ambiguous_float_literal);
 
-    let cap = match ctx.config.snippet_cap {
-        Some(it) => it,
-        None => return,
+    let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap else {
+        return;
     };
 
-    let postfix_snippet = match build_postfix_snippet_builder(ctx, cap, dot_receiver) {
-        Some(it) => it,
-        None => return,
+    let Some(postfix_snippet) =
+        build_postfix_snippet_builder(ctx, completion_snippet_cap, dot_receiver)
+    else {
+        return;
     };
     let semi =
         if expr_ctx.in_block_expr && ctx.token.next_token().is_none_or(|it| it.kind() != T![;]) {
@@ -100,11 +100,11 @@ pub(crate) fn complete_postfix(
     let (dot_receiver_including_refs, prefix) = include_references(&receiver_accessor);
     let mut receiver_text = receiver_text;
     receiver_text.insert_str(0, &prefix);
-    let postfix_snippet =
-        match build_postfix_snippet_builder(ctx, cap, &dot_receiver_including_refs) {
-            Some(it) => it,
-            None => return,
-        };
+    let Some(postfix_snippet) =
+        build_postfix_snippet_builder(ctx, completion_snippet_cap, &dot_receiver_including_refs)
+    else {
+        return;
+    };
 
     if !ctx.config.snippets.is_empty() {
         add_custom_postfix_completions(acc, ctx, &postfix_snippet, &receiver_text);
@@ -336,7 +336,14 @@ pub(crate) fn complete_postfix(
     if let ast::Expr::Literal(literal) = dot_receiver.clone()
         && let Some(literal_text) = ast::String::cast(literal.token())
     {
-        add_format_like_completions(acc, ctx, dot_receiver, cap, &literal_text, semi);
+        add_format_like_completions(
+            acc,
+            ctx,
+            dot_receiver,
+            completion_snippet_cap,
+            &literal_text,
+            semi,
+        );
     }
 
     postfix_snippet("return", "return expr", format!("return {receiver_text}{semi}"))
@@ -472,7 +479,7 @@ fn include_references(initial_element: &ast::Expr) -> (ast::Expr, String) {
 
 fn build_postfix_snippet_builder<'ctx>(
     ctx: &'ctx CompletionContext<'_>,
-    cap: SnippetCap,
+    completion_snippet_cap: CompletionSnippetCap,
     receiver: &'ctx ast::Expr,
 ) -> Option<impl Fn(&str, &str, String) -> Builder + 'ctx> {
     let receiver_range = ctx.sema.original_range_opt(receiver.syntax())?.range;
@@ -488,7 +495,7 @@ fn build_postfix_snippet_builder<'ctx>(
     // can't be annotated for the closure, hence fix it by constructing it without the Option first
     fn build<'ctx>(
         ctx: &'ctx CompletionContext<'_>,
-        cap: SnippetCap,
+        completion_snippet_cap: CompletionSnippetCap,
         delete_range: TextRange,
     ) -> impl Fn(&str, &str, String) -> Builder + 'ctx {
         move |label, detail, snippet| {
@@ -499,7 +506,7 @@ fn build_postfix_snippet_builder<'ctx>(
                 label,
                 ctx.edition,
             );
-            item.detail(detail).snippet_edit(cap, edit);
+            item.detail(detail).snippet_edit(completion_snippet_cap, edit);
             let postfix_match = if ctx.original_token.text() == label {
                 cov_mark::hit!(postfix_exact_match_is_high_priority);
                 Some(CompletionRelevancePostfixMatch::Exact)
@@ -512,7 +519,7 @@ fn build_postfix_snippet_builder<'ctx>(
             item
         }
     }
-    Some(build(ctx, cap, delete_range))
+    Some(build(ctx, completion_snippet_cap, delete_range))
 }
 
 fn add_custom_postfix_completions(

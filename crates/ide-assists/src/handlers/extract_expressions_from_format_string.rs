@@ -134,7 +134,7 @@ pub(crate) fn extract_expressions_from_format_string(
             let new_tt = make.token_tree(tt_delimiter, new_tt_bits);
             editor.replace(tt.syntax(), new_tt.syntax());
 
-            if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                 // Add placeholder snippets over placeholder args
                 for pos in placeholder_indexes {
                     // Skip the opening delimiter
@@ -145,7 +145,7 @@ pub(crate) fn extract_expressions_from_format_string(
                     };
 
                     if stdx::always!(placeholder.kind() == T![_]) {
-                        let annotation = edit.make_placeholder_snippet(cap);
+                        let annotation = edit.make_placeholder_snippet(workspace_snippet_cap);
                         editor.add_annotation(placeholder, annotation);
                     }
                 }
@@ -154,7 +154,7 @@ pub(crate) fn extract_expressions_from_format_string(
                 if let Some(NodeOrToken::Token(literal)) =
                     new_tt.token_trees_and_tokens().nth(1 + format_string_index)
                 {
-                    let annotation = edit.make_tabstop_after(cap);
+                    let annotation = edit.make_tabstop_after(workspace_snippet_cap);
                     editor.add_annotation(literal, annotation);
                 }
             }
@@ -179,7 +179,7 @@ fn format_str_index(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{check_assist, check_assist_no_snippet_cap};
+    use crate::tests::{check_assist, check_assist_no_workspace_snippet_cap};
 
     #[test]
     fn multiple_middle_arg() {
@@ -347,7 +347,7 @@ fn main() {
 
     #[test]
     fn without_snippets() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             extract_expressions_from_format_string,
             r#"
 //- minicore: fmt

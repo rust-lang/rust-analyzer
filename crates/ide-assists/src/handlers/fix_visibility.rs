@@ -102,8 +102,11 @@ fn add_vis_to_referenced_module_def(acc: &mut Assists, ctx: &AssistContext<'_>) 
             );
         }
 
-        if let Some(cap) = ctx.config.snippet_cap {
-            editor.add_annotation(missing_visibility.syntax(), builder.make_tabstop_before(cap));
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+            editor.add_annotation(
+                missing_visibility.syntax(),
+                builder.make_tabstop_before(workspace_snippet_cap),
+            );
         }
 
         builder.add_file_edits(target_file, editor);

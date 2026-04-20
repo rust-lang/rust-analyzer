@@ -1,12 +1,8 @@
 //! Settings for tweaking assists.
-//!
-//! The fun thing here is `SnippetCap` -- this type can only be created in this
-//! module, and we use to statically check that we only produce snippet
-//! assists if we are allowed to.
 
 use hir::FindPathConfig;
 use ide_db::{
-    SnippetCap,
+    WorkspaceSnippetCap,
     assists::ExprFillDefaultMode,
     imports::{import_assets::ImportPathConfig, insert_use::InsertUseConfig},
     rename::RenameConfig,
@@ -16,7 +12,7 @@ use crate::AssistKind;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistConfig {
-    pub snippet_cap: Option<SnippetCap>,
+    pub workspace_snippet_cap: Option<WorkspaceSnippetCap>,
     pub allowed: Option<Vec<AssistKind>>,
     pub insert_use: InsertUseConfig,
     pub prefer_no_std: bool,

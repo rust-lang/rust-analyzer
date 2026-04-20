@@ -53,8 +53,11 @@ pub(crate) fn add_label_to_loop(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
             ];
             editor.insert_all(Position::before(&loop_kw), elements);
 
-            if let Some(cap) = ctx.config.snippet_cap {
-                editor.add_annotation(label.syntax(), builder.make_placeholder_snippet(cap));
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+                editor.add_annotation(
+                    label.syntax(),
+                    builder.make_placeholder_snippet(workspace_snippet_cap),
+                );
             }
 
             let loop_body = loop_expr.loop_body().and_then(|it| it.stmt_list());
@@ -94,8 +97,11 @@ fn insert_label_after_token(
     let elements = vec![make.whitespace(" ").into(), label.syntax().clone().into()];
     editor.insert_all(Position::after(token), elements);
 
-    if let Some(cap) = ctx.config.snippet_cap {
-        editor.add_annotation(label.syntax(), builder.make_placeholder_snippet(cap));
+    if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+        editor.add_annotation(
+            label.syntax(),
+            builder.make_placeholder_snippet(workspace_snippet_cap),
+        );
     }
 }
 

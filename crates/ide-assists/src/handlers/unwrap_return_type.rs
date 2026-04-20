@@ -149,10 +149,10 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
                     let new_tail_expr = make.expr_unit();
                     editor.replace(path_expr.syntax(), new_tail_expr.syntax());
-                    if let Some(cap) = ctx.config.snippet_cap {
+                    if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                         editor.add_annotation(
                             new_tail_expr.syntax(),
-                            builder.make_placeholder_snippet(cap),
+                            builder.make_placeholder_snippet(workspace_snippet_cap),
                         );
 
                         final_placeholder = Some(new_tail_expr);
@@ -162,10 +162,13 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
             }
         }
 
-        if let Some(cap) = ctx.config.snippet_cap
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
             && let Some(final_placeholder) = final_placeholder
         {
-            editor.add_annotation(final_placeholder.syntax(), builder.make_tabstop_after(cap));
+            editor.add_annotation(
+                final_placeholder.syntax(),
+                builder.make_tabstop_after(workspace_snippet_cap),
+            );
         }
 
         builder.add_file_edits(ctx.vfs_file_id(), editor);

@@ -6,7 +6,7 @@
 
 use hir::FindPathConfig;
 use ide_db::{
-    SnippetCap,
+    CompletionSnippetCap,
     imports::{import_assets::ImportPathConfig, insert_use::InsertUseConfig},
     ra_fixture::RaFixtureConfig,
 };
@@ -26,7 +26,7 @@ pub struct CompletionConfig<'a> {
     pub full_function_signatures: bool,
     pub callable: Option<CallableSnippets>,
     pub add_semicolon_to_unit: bool,
-    pub snippet_cap: Option<SnippetCap>,
+    pub completion_snippet_cap: Option<CompletionSnippetCap>,
     pub insert_use: InsertUseConfig,
     pub prefer_no_std: bool,
     pub prefer_prelude: bool,

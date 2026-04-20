@@ -77,14 +77,14 @@ fn render(
         qualified_name.display_verbatim(ctx.db()).to_string(),
         qualified_name.display(ctx.db(), completion.edition).to_string(),
     );
-    let snippet_cap = ctx.snippet_cap();
+    let completion_snippet_cap = ctx.completion_snippet_cap();
 
     let mut rendered = match kind {
         StructKind::Tuple if should_add_parens => {
-            render_tuple_lit(completion, snippet_cap, &fields, &escaped_qualified_name)
+            render_tuple_lit(completion, completion_snippet_cap, &fields, &escaped_qualified_name)
         }
         StructKind::Record if should_add_parens => {
-            render_record_lit(completion, snippet_cap, &fields, &escaped_qualified_name)
+            render_record_lit(completion, completion_snippet_cap, &fields, &escaped_qualified_name)
         }
         _ => RenderedLiteral {
             literal: escaped_qualified_name.clone(),
@@ -92,7 +92,7 @@ fn render(
         },
     };
 
-    if snippet_cap.is_some() {
+    if completion_snippet_cap.is_some() {
         rendered.literal.push_str("$0");
     }
 
@@ -100,7 +100,7 @@ fn render(
     if !should_add_parens {
         kind = StructKind::Unit;
     }
-    let label = format_literal_label(&qualified_name, kind, snippet_cap);
+    let label = format_literal_label(&qualified_name, kind, completion_snippet_cap);
     let lookup = if qualified {
         format_literal_lookup(
             &short_qualified_name.display(ctx.db(), completion.edition).to_string(),
@@ -120,10 +120,11 @@ fn render(
     item.lookup_by(lookup);
     item.detail(rendered.detail);
 
-    match snippet_cap {
-        Some(snippet_cap) => item.insert_snippet(snippet_cap, rendered.literal).trigger_call_info(),
-        None => item.insert_text(rendered.literal),
-    };
+    if let Some(completion_snippet_cap) = completion_snippet_cap {
+        item.insert_snippet(completion_snippet_cap, rendered.literal).trigger_call_info();
+    } else {
+        item.insert_text(rendered.literal);
+    }
 
     item.set_documentation(thing.docs(db)).set_deprecated(thing.is_deprecated(&ctx));
 

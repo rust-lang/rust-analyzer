@@ -1,7 +1,7 @@
 //! Renderer for patterns.
 
 use hir::{Name, StructKind, db::HirDatabase};
-use ide_db::{SnippetCap, documentation::HasDocs};
+use ide_db::{CompletionSnippetCap, documentation::HasDocs};
 use itertools::Itertools;
 use syntax::{Edition, SmolStr, ToSmolStr};
 
@@ -34,7 +34,7 @@ pub(crate) fn render_struct_pat(
     let (name, escaped_name) =
         (name.as_str(), name.display(ctx.db(), ctx.completion.edition).to_smolstr());
     let kind = strukt.kind(ctx.db());
-    let label = format_literal_label(name, kind, ctx.snippet_cap());
+    let label = format_literal_label(name, kind, ctx.completion_snippet_cap());
     let lookup = format_literal_lookup(name, kind);
     let pat = render_pat(&ctx, pattern_ctx, &escaped_name, kind, &visible_fields, fields_omitted)?;
 
@@ -78,7 +78,7 @@ pub(crate) fn render_variant_pat(
         }
         _ => {
             let kind = variant.kind(ctx.db());
-            let label = format_literal_label(name.as_str(), kind, ctx.snippet_cap());
+            let label = format_literal_label(name.as_str(), kind, ctx.completion_snippet_cap());
             let lookup = format_literal_lookup(name.as_str(), kind);
             let pat = render_pat(
                 &ctx,
@@ -132,9 +132,10 @@ fn build_completion(
         .detail(&pat)
         .lookup_by(lookup)
         .set_relevance(relevance);
-    match ctx.snippet_cap() {
-        Some(snippet_cap) => item.insert_snippet(snippet_cap, pat),
-        None => item.insert_text(pat),
+    if let Some(completion_snippet_cap) = ctx.completion_snippet_cap() {
+        item.insert_snippet(completion_snippet_cap, pat)
+    } else {
+        item.insert_text(pat)
     };
     item.build(ctx.db())
 }
@@ -148,10 +149,12 @@ fn render_pat(
     fields_omitted: bool,
 ) -> Option<String> {
     let mut pat = match kind {
-        StructKind::Tuple => render_tuple_as_pat(ctx.snippet_cap(), fields, name, fields_omitted),
+        StructKind::Tuple => {
+            render_tuple_as_pat(ctx.completion_snippet_cap(), fields, name, fields_omitted)
+        }
         StructKind::Record => render_record_as_pat(
             ctx.db(),
-            ctx.snippet_cap(),
+            ctx.completion_snippet_cap(),
             fields,
             name,
             fields_omitted,
@@ -174,7 +177,7 @@ fn render_pat(
         pat.push(' ');
         pat.push_str(name);
     }
-    if ctx.snippet_cap().is_some() {
+    if ctx.completion_snippet_cap().is_some() {
         pat.push_str("$0");
     }
     Some(pat)
@@ -182,60 +185,54 @@ fn render_pat(
 
 fn render_record_as_pat(
     db: &dyn HirDatabase,
-    snippet_cap: Option<SnippetCap>,
+    completion_snippet_cap: Option<CompletionSnippetCap>,
     fields: &[hir::Field],
     name: &str,
     fields_omitted: bool,
     edition: Edition,
 ) -> String {
     let fields = fields.iter();
-    match snippet_cap {
-        Some(_) => {
-            format!(
-                "{name} {{ {}{} }}",
-                fields.enumerate().format_with(", ", |(idx, field), f| {
-                    f(&format_args!("{}${}", field.name(db).display(db, edition), idx + 1))
-                }),
-                if fields_omitted { ", .." } else { "" },
-                name = name
-            )
-        }
-        None => {
-            format!(
-                "{name} {{ {}{} }}",
-                fields.map(|field| field.name(db).display_no_db(edition).to_smolstr()).format(", "),
-                if fields_omitted { ", .." } else { "" },
-                name = name
-            )
-        }
+    if completion_snippet_cap.is_some() {
+        format!(
+            "{name} {{ {}{} }}",
+            fields.enumerate().format_with(", ", |(idx, field), f| {
+                f(&format_args!("{}${}", field.name(db).display(db, edition), idx + 1))
+            }),
+            if fields_omitted { ", .." } else { "" },
+            name = name
+        )
+    } else {
+        format!(
+            "{name} {{ {}{} }}",
+            fields.map(|field| field.name(db).display_no_db(edition).to_smolstr()).format(", "),
+            if fields_omitted { ", .." } else { "" },
+            name = name
+        )
     }
 }
 
 fn render_tuple_as_pat(
-    snippet_cap: Option<SnippetCap>,
+    completion_snippet_cap: Option<CompletionSnippetCap>,
     fields: &[hir::Field],
     name: &str,
     fields_omitted: bool,
 ) -> String {
     let fields = fields.iter();
-    match snippet_cap {
-        Some(_) => {
-            format!(
-                "{name}({}{})",
-                fields
-                    .enumerate()
-                    .format_with(", ", |(idx, _), f| { f(&format_args!("${}", idx + 1)) }),
-                if fields_omitted { ", .." } else { "" },
-                name = name
-            )
-        }
-        None => {
-            format!(
-                "{name}({}{})",
-                fields.enumerate().map(|(idx, _)| idx).format(", "),
-                if fields_omitted { ", .." } else { "" },
-                name = name
-            )
-        }
+    if completion_snippet_cap.is_some() {
+        format!(
+            "{name}({}{})",
+            fields
+                .enumerate()
+                .format_with(", ", |(idx, _), f| { f(&format_args!("${}", idx + 1)) }),
+            if fields_omitted { ", .." } else { "" },
+            name = name
+        )
+    } else {
+        format!(
+            "{name}({}{})",
+            fields.enumerate().map(|(idx, _)| idx).format(", "),
+            if fields_omitted { ", .." } else { "" },
+            name = name
+        )
     }
 }

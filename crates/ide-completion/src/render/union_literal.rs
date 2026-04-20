@@ -34,7 +34,7 @@ pub(crate) fn render_union_literal(
     let label = format_literal_label(
         &name.display_no_db(ctx.completion.edition).to_smolstr(),
         StructKind::Record,
-        ctx.snippet_cap(),
+        ctx.completion_snippet_cap(),
     );
     let lookup = format_literal_lookup(
         &name.display_no_db(ctx.completion.edition).to_smolstr(),
@@ -56,7 +56,7 @@ pub(crate) fn render_union_literal(
         return None;
     }
 
-    let literal = if ctx.snippet_cap().is_some() {
+    let literal = if ctx.completion_snippet_cap().is_some() {
         format!(
             "{} {{ ${{1|{}|}}: ${{2:()}} }}$0",
             escaped_qualified_name,
@@ -99,9 +99,10 @@ pub(crate) fn render_union_literal(
         .detail(detail)
         .set_relevance(ctx.completion_relevance());
 
-    match ctx.snippet_cap() {
-        Some(snippet_cap) => item.insert_snippet(snippet_cap, literal).trigger_call_info(),
-        None => item.insert_text(literal),
+    if let Some(completion_snippet_cap) = ctx.completion_snippet_cap() {
+        item.insert_snippet(completion_snippet_cap, literal).trigger_call_info()
+    } else {
+        item.insert_text(literal)
     };
 
     Some(item.build(ctx.db()))
