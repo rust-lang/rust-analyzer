@@ -5,7 +5,7 @@
 #[cfg(feature = "in-rust-tree")]
 extern crate rustc_driver as _;
 
-use std::{any::TypeId, mem, str::FromStr, sync};
+use std::{any::TypeId, mem, str::FromStr as _, sync};
 
 use base_db::target::TargetData;
 use base_db::{

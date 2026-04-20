@@ -10,11 +10,11 @@ extern crate rustc_driver as _;
 
 mod rustc_wrapper;
 
-use std::{env, fs, path::PathBuf, process::ExitCode, sync::Arc};
+use std::{env, fs, path::PathBuf, process::ExitCode, str::FromStr as _, sync::Arc};
 
 use anyhow::Context;
 use lsp_server::Connection;
-use paths::Utf8PathBuf;
+use paths::{Utf8Component, Utf8PathBuf, Utf8Prefix};
 use rust_analyzer::{
     cli::flags,
     config::{Config, ConfigChange, ConfigErrors},
@@ -207,6 +207,7 @@ fn run_server() -> anyhow::Result<()> {
 
     tracing::info!("InitializeParams: {}", initialize_params);
     let lsp_types::InitializeParams {
+        #[expect(deprecated, reason = "migration TODO")]
         root_uri,
         mut capabilities,
         workspace_folders,
@@ -227,9 +228,8 @@ fn run_server() -> anyhow::Result<()> {
     }
 
     let root_path = match root_uri
-        .and_then(|it| it.to_file_path().ok())
+        .map(|it| Utf8PathBuf::from(it.as_str().to_owned()))
         .map(patch_path_prefix)
-        .and_then(|it| Utf8PathBuf::from_path_buf(it).ok())
         .and_then(|it| AbsPathBuf::try_from(it).ok())
     {
         Some(it) => it,
@@ -251,9 +251,8 @@ fn run_server() -> anyhow::Result<()> {
         .map(|workspaces| {
             workspaces
                 .into_iter()
-                .filter_map(|it| it.uri.to_file_path().ok())
+                .filter_map(|it| Utf8PathBuf::from_str(it.uri.path().as_str()).ok())
                 .map(patch_path_prefix)
-                .filter_map(|it| Utf8PathBuf::from_path_buf(it).ok())
                 .filter_map(|it| AbsPathBuf::try_from(it).ok())
                 .collect::<Vec<_>>()
         })
@@ -325,8 +324,7 @@ fn run_server() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn patch_path_prefix(path: PathBuf) -> PathBuf {
-    use std::path::{Component, Prefix};
+fn patch_path_prefix(path: Utf8PathBuf) -> Utf8PathBuf {
     if cfg!(windows) {
         // VSCode might report paths with the file drive in lowercase, but this can mess
         // with env vars set by tools and build scripts executed by r-a such that it invalidates
@@ -335,17 +333,17 @@ fn patch_path_prefix(path: PathBuf) -> PathBuf {
         // (doing it conditionally is a pain because std::path::Prefix always reports uppercase letters on windows)
         let mut comps = path.components();
         match comps.next() {
-            Some(Component::Prefix(prefix)) => {
+            Some(Utf8Component::Prefix(prefix)) => {
                 let prefix = match prefix.kind() {
-                    Prefix::Disk(d) => {
+                    Utf8Prefix::Disk(d) => {
                         format!("{}:", d.to_ascii_uppercase() as char)
                     }
-                    Prefix::VerbatimDisk(d) => {
+                    Utf8Prefix::VerbatimDisk(d) => {
                         format!(r"\\?\{}:", d.to_ascii_uppercase() as char)
                     }
                     _ => return path,
                 };
-                let mut path = PathBuf::new();
+                let mut path = Utf8PathBuf::new();
                 path.push(prefix);
                 path.extend(comps);
                 path

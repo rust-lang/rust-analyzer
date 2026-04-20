@@ -1,16 +1,14 @@
 [
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/compiler/ty/list_iter.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/compiler/ty/list_iter.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -32,23 +30,30 @@
             ),
             code_description: Some(
                 CodeDescription {
-                    href: Url {
-                        scheme: "https",
-                        cannot_be_a_base: false,
-                        username: "",
-                        password: None,
-                        host: Some(
-                            Domain(
-                                "doc.rust-lang.org",
+                    href: Uri(
+                        Uri {
+                            scheme: Some(
+                                "https",
                             ),
-                        ),
-                        port: None,
-                        path: "/error-index.html",
-                        query: None,
-                        fragment: Some(
-                            "E0053",
-                        ),
-                    },
+                            authority: Some(
+                                Authority {
+                                    userinfo: None,
+                                    host: Host {
+                                        text: "doc.rust-lang.org",
+                                        data: RegName(
+                                            "doc.rust-lang.org",
+                                        ),
+                                    },
+                                    port: None,
+                                },
+                            ),
+                            path: "/error-index.html",
+                            query: None,
+                            fragment: Some(
+                                "E0053",
+                            ),
+                        },
+                    ),
                 },
             ),
             source: Some(

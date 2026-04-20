@@ -3,6 +3,7 @@ use std::{
     iter::once,
     mem,
     ops::Not as _,
+    str::FromStr as _,
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -983,7 +984,7 @@ pub(crate) fn folding_range(
     }
 }
 
-pub(crate) fn url(snap: &GlobalStateSnapshot, file_id: FileId) -> lsp_types::Url {
+pub(crate) fn url(snap: &GlobalStateSnapshot, file_id: FileId) -> lsp_types::Uri {
     snap.file_id_to_url(file_id)
 }
 
@@ -991,8 +992,8 @@ pub(crate) fn url(snap: &GlobalStateSnapshot, file_id: FileId) -> lsp_types::Url
 /// This will only happen when processing windows paths.
 ///
 /// When processing non-windows path, this is essentially the same as `Url::from_file_path`.
-pub(crate) fn url_from_abs_path(path: &AbsPath) -> lsp_types::Url {
-    let url = lsp_types::Url::from_file_path(path).unwrap();
+pub(crate) fn url_from_abs_path(path: &AbsPath) -> lsp_types::Uri {
+    let url = lsp_types::Uri::from_str(path.as_str()).unwrap();
     match path.components().next() {
         Some(Utf8Component::Prefix(prefix))
             if matches!(prefix.kind(), Utf8Prefix::Disk(_) | Utf8Prefix::VerbatimDisk(_)) =>
@@ -1014,9 +1015,9 @@ pub(crate) fn url_from_abs_path(path: &AbsPath) -> lsp_types::Url {
     // Note: lowercasing the `path` itself doesn't help, the `Url::parse`
     // machinery *also* canonicalizes the drive letter. So, just massage the
     // string in place.
-    let mut url: String = url.into();
+    let mut url: String = url.as_str().to_owned();
     url[driver_letter_range].make_ascii_lowercase();
-    lsp_types::Url::parse(&url).unwrap()
+    lsp_types::Uri::from_str(&url).unwrap()
 }
 
 pub(crate) fn optional_versioned_text_document_identifier(
@@ -1077,7 +1078,7 @@ pub(crate) fn location_link(
 fn location_info(
     snap: &GlobalStateSnapshot,
     target: NavigationTarget,
-) -> Cancellable<(lsp_types::Url, lsp_types::Range, lsp_types::Range)> {
+) -> Cancellable<(lsp_types::Uri, lsp_types::Range, lsp_types::Range)> {
     let line_index = snap.file_line_index(target.file_id)?;
 
     let target_uri = url(snap, target.file_id);
@@ -1895,7 +1896,7 @@ pub(crate) mod command {
 
     pub(crate) fn show_references(
         title: String,
-        uri: &lsp_types::Url,
+        uri: &lsp_types::Uri,
         position: lsp_types::Position,
         locations: Vec<lsp_types::Location>,
     ) -> lsp_types::Command {

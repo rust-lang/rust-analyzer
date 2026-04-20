@@ -1,7 +1,7 @@
 //! This module is responsible for implementing handlers for Language Server
 //! Protocol. This module specifically handles requests.
 
-use std::{fs, io::Write as _, ops::Not, process::Stdio};
+use std::{fs, io::Write as _, ops::Not, process::Stdio, str::FromStr as _};
 
 use anyhow::Context;
 
@@ -22,7 +22,7 @@ use lsp_types::{
     InlayHintParams, Location, LocationLink, Position, PrepareRenameResponse, Range, RenameParams,
     ResourceOp, ResourceOperationKind, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
     SemanticTokensParams, SemanticTokensRangeParams, SemanticTokensRangeResult,
-    SemanticTokensResult, SymbolInformation, SymbolTag, TextDocumentIdentifier, Url, WorkspaceEdit,
+    SemanticTokensResult, SymbolInformation, SymbolTag, TextDocumentIdentifier, Uri, WorkspaceEdit,
 };
 use paths::Utf8PathBuf;
 use project_model::{CargoWorkspace, ManifestPath, ProjectWorkspaceKind, TargetKind};
@@ -87,7 +87,7 @@ pub(crate) fn handle_analyzer_status(
         match from_proto::file_id(&snap, &tdi.uri) {
             Ok(Some(it)) => file_id = Some(it),
             Ok(None) => {}
-            Err(_) => format_to!(buf, "file {} not found in vfs", tdi.uri),
+            Err(_) => format_to!(buf, "file {} not found in vfs", tdi.uri.to_string()),
         }
     }
 
@@ -649,7 +649,7 @@ pub(crate) fn handle_document_symbol(
     fn flatten_document_symbol(
         symbol: &lsp_types::DocumentSymbol,
         container_name: Option<String>,
-        url: &Url,
+        url: &Uri,
         res: &mut Vec<SymbolInformation>,
     ) {
         #[allow(deprecated)]
@@ -772,41 +772,43 @@ pub(crate) fn handle_will_rename_files(
     let source_changes: Vec<SourceChange> = params
         .files
         .into_iter()
-        .filter_map(|file_rename| {
-            let from = Url::parse(&file_rename.old_uri).ok()?;
-            let to = Url::parse(&file_rename.new_uri).ok()?;
+        .filter_map(
+            |file_rename| -> Option<(std::option::Option<vfs::FileId>, std::string::String)> {
+                let from = Uri::from_str(&file_rename.old_uri).ok()?;
+                let to = Uri::from_str(&file_rename.new_uri).ok()?;
 
-            let from_path = from.to_file_path().ok()?;
-            let to_path = to.to_file_path().ok()?;
+                let from_path = Utf8PathBuf::from_str(&from.to_string()).ok()?;
+                let to_path = Utf8PathBuf::from_str(&to.to_string()).ok()?;
 
-            // Limit to single-level moves for now.
-            match (from_path.parent(), to_path.parent()) {
-                (Some(p1), Some(p2)) if p1 == p2 => {
-                    if from_path.is_dir() {
-                        // add '/' to end of url -- from `file://path/to/folder` to `file://path/to/folder/`
-                        let mut old_folder_name = from_path.file_stem()?.to_str()?.to_owned();
-                        old_folder_name.push('/');
-                        let from_with_trailing_slash = from.join(&old_folder_name).ok()?;
+                // Limit to single-level moves for now.
+                match (from_path.parent(), to_path.parent()) {
+                    (Some(p1), Some(p2)) if p1 == p2 => {
+                        if from_path.is_dir() {
+                            // add '/' to end of url -- from `file://path/to/folder` to `file://path/to/folder/`
+                            let file_stem = from_path.file_stem()?;
+                            let mut old_folder_name = file_stem.to_owned();
+                            old_folder_name.push('/');
+                            let from_with_trailing_slash = from_path.join(&old_folder_name);
 
-                        let imitate_from_url = from_with_trailing_slash.join("mod.rs").ok()?;
-                        let new_file_name = to_path.file_name()?.to_str()?;
-                        Some((
-                            snap.url_to_file_id(&imitate_from_url).ok()?,
-                            new_file_name.to_owned(),
-                        ))
-                    } else {
-                        let old_name = from_path.file_stem()?.to_str()?;
-                        let new_name = to_path.file_stem()?.to_str()?;
-                        match (old_name, new_name) {
-                            ("mod", _) => None,
-                            (_, "mod") => None,
-                            _ => Some((snap.url_to_file_id(&from).ok()?, new_name.to_owned())),
+                            let imitate_from_url = from_with_trailing_slash.join("mod.rs");
+                            let new_file_name = to_path.file_name()?.to_owned();
+                            let uri = Uri::from_str(imitate_from_url.as_str()).ok()?;
+                            let vfs_path = from_proto::vfs_path(&uri).ok()?;
+                            Some((snap.vfs_path_to_file_id(&vfs_path).ok()?, new_file_name))
+                        } else {
+                            let old_name = from_path.file_stem()?.to_owned();
+                            let new_name = to_path.file_stem()?.to_owned();
+                            match (old_name.as_str(), new_name.as_str()) {
+                                ("mod", _) => None,
+                                (_, "mod") => None,
+                                _ => Some((snap.url_to_file_id(&from).ok()?, new_name)),
+                            }
                         }
                     }
+                    _ => None,
                 }
-                _ => None,
-            }
-        })
+            },
+        )
         .filter_map(|(file_id, new_name)| {
             let file_id = file_id?;
             let source_root = snap.analysis.source_root_id(file_id).ok();
@@ -903,14 +905,11 @@ pub(crate) fn handle_parent_module(
     params: lsp_types::TextDocumentPositionParams,
 ) -> anyhow::Result<Option<lsp_types::GotoDefinitionResponse>> {
     let _p = tracing::info_span!("handle_parent_module").entered();
-    if let Ok(file_path) = &params.text_document.uri.to_file_path() {
+    if let Ok(file_path) = &Utf8PathBuf::from_str(params.text_document.uri.as_str()) {
         if file_path.file_name().unwrap_or_default() == "Cargo.toml" {
             // search workspaces for parent packages or fallback to workspace root
-            let abs_path_buf = match Utf8PathBuf::from_path_buf(file_path.to_path_buf())
-                .ok()
-                .map(AbsPathBuf::try_from)
-            {
-                Some(Ok(abs_path_buf)) => abs_path_buf,
+            let abs_path_buf = match AbsPathBuf::try_from(file_path.to_owned()) {
+                Ok(abs_path_buf) => abs_path_buf,
                 _ => return Ok(None),
             };
 
@@ -2077,8 +2076,8 @@ pub(crate) fn handle_open_docs(
         };
     };
 
-    let web = remote_urls.web_url.and_then(|it| Url::parse(&it).ok());
-    let local = remote_urls.local_url.and_then(|it| Url::parse(&it).ok());
+    let web = remote_urls.web_url.and_then(|it| Uri::from_str(&it).ok());
+    let local = remote_urls.local_url.and_then(|it| Uri::from_str(&it).ok());
 
     if snap.config.local_docs() {
         Ok(ExternalDocsResponse::WithLocal(ExternalDocsPair { web, local }))
@@ -2371,17 +2370,21 @@ fn run_rustfmt(
     // try to chdir to the file so we can respect `rustfmt.toml`
     // FIXME: use `rustfmt --config-path` once
     // https://github.com/rust-lang/rustfmt/issues/4660 gets fixed
-    let current_dir = match text_document.uri.to_file_path() {
+    let current_dir = match Utf8PathBuf::from_str(text_document.uri.as_str()) {
         Ok(mut path) => {
             // pop off file name
-            if path.pop() && path.is_dir() { path } else { std::env::current_dir()? }
+            if path.pop() && path.is_dir() {
+                path
+            } else {
+                Utf8PathBuf::from_path_buf(std::env::current_dir()?).unwrap()
+            }
         }
         Err(_) => {
             tracing::error!(
                 text_document = ?text_document.uri,
                 "Unable to get path, rustfmt.toml might be ignored"
             );
-            std::env::current_dir()?
+            Utf8PathBuf::from_path_buf(std::env::current_dir()?).unwrap()
         }
     };
 
@@ -2454,9 +2457,7 @@ fn run_rustfmt(
                     let cmd_path = if command.contains(std::path::MAIN_SEPARATOR)
                         || (cfg!(windows) && command.contains('/'))
                     {
-                        let project_root = Utf8PathBuf::from_path_buf(current_dir.clone())
-                            .ok()
-                            .and_then(|p| AbsPathBuf::try_from(p).ok());
+                        let project_root = AbsPathBuf::try_from(current_dir.clone());
                         let project_root = project_root
                             .as_ref()
                             .map(|dir| snap.config.workspace_root_for(dir))
@@ -2633,10 +2634,10 @@ fn crate_path(root_file_path: &VfsPath) -> Option<VfsPath> {
     None
 }
 
-fn to_url(path: VfsPath) -> Option<Url> {
+fn to_url(path: VfsPath) -> Option<Uri> {
     let path = path.as_path()?;
     let str_path = path.as_os_str().to_str()?;
-    Url::from_file_path(str_path).ok()
+    Uri::from_str(str_path).ok()
 }
 
 fn resource_ops_supported(config: &Config, kind: ResourceOperationKind) -> anyhow::Result<()> {

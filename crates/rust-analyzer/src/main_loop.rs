@@ -99,7 +99,7 @@ impl fmt::Display for Event {
 
 #[derive(Debug)]
 pub(crate) enum DeferredTask {
-    CheckIfIndexed(lsp_types::Url),
+    CheckIfIndexed(lsp_types::Uri),
     CheckProcMacroSources(Vec<FileId>),
 }
 

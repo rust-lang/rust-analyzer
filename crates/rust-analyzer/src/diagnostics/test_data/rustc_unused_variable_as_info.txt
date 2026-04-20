@@ -1,16 +1,14 @@
 [
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/driver/subcommand/repl.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/driver/subcommand/repl.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -39,17 +37,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/driver/subcommand/repl.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/driver/subcommand/repl.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 290,
@@ -75,17 +71,15 @@
         fix: None,
     },
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/driver/subcommand/repl.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/driver/subcommand/repl.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -114,17 +108,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/driver/subcommand/repl.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/driver/subcommand/repl.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 290,
@@ -170,17 +162,7 @@
                         SnippetWorkspaceEdit {
                             changes: Some(
                                 {
-                                    Url {
-                                        scheme: "file",
-                                        cannot_be_a_base: false,
-                                        username: "",
-                                        password: None,
-                                        host: None,
-                                        port: None,
-                                        path: "/test/driver/subcommand/repl.rs",
-                                        query: None,
-                                        fragment: None,
-                                    }: [
+                                    "/test/driver/subcommand/repl.rs": [
                                         TextEdit {
                                             range: Range {
                                                 start: Position {

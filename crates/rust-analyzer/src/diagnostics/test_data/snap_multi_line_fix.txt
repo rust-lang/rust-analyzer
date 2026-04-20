@@ -1,16 +1,14 @@
 [
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/src/main.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/src/main.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -32,23 +30,30 @@
             ),
             code_description: Some(
                 CodeDescription {
-                    href: Url {
-                        scheme: "https",
-                        cannot_be_a_base: false,
-                        username: "",
-                        password: None,
-                        host: Some(
-                            Domain(
-                                "rust-lang.github.io",
+                    href: Uri(
+                        Uri {
+                            scheme: Some(
+                                "https",
                             ),
-                        ),
-                        port: None,
-                        path: "/rust-clippy/master/index.html",
-                        query: None,
-                        fragment: Some(
-                            "let_and_return",
-                        ),
-                    },
+                            authority: Some(
+                                Authority {
+                                    userinfo: None,
+                                    host: Host {
+                                        text: "rust-lang.github.io",
+                                        data: RegName(
+                                            "rust-lang.github.io",
+                                        ),
+                                    },
+                                    port: None,
+                                },
+                            ),
+                            path: "/rust-clippy/master/index.html",
+                            query: None,
+                            fragment: Some(
+                                "let_and_return",
+                            ),
+                        },
+                    ),
                 },
             ),
             source: Some(
@@ -59,17 +64,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/src/main.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/src/main.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 2,
@@ -85,17 +88,15 @@
                     },
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/src/main.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/src/main.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 2,
@@ -117,17 +118,15 @@
         fix: None,
     },
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/src/main.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/src/main.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -149,23 +148,30 @@
             ),
             code_description: Some(
                 CodeDescription {
-                    href: Url {
-                        scheme: "https",
-                        cannot_be_a_base: false,
-                        username: "",
-                        password: None,
-                        host: Some(
-                            Domain(
-                                "rust-lang.github.io",
+                    href: Uri(
+                        Uri {
+                            scheme: Some(
+                                "https",
                             ),
-                        ),
-                        port: None,
-                        path: "/rust-clippy/master/index.html",
-                        query: None,
-                        fragment: Some(
-                            "let_and_return",
-                        ),
-                    },
+                            authority: Some(
+                                Authority {
+                                    userinfo: None,
+                                    host: Host {
+                                        text: "rust-lang.github.io",
+                                        data: RegName(
+                                            "rust-lang.github.io",
+                                        ),
+                                    },
+                                    port: None,
+                                },
+                            ),
+                            path: "/rust-clippy/master/index.html",
+                            query: None,
+                            fragment: Some(
+                                "let_and_return",
+                            ),
+                        },
+                    ),
                 },
             ),
             source: Some(
@@ -176,17 +182,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/src/main.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/src/main.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 3,
@@ -208,17 +212,15 @@
         fix: None,
     },
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/src/main.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/src/main.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -240,23 +242,30 @@
             ),
             code_description: Some(
                 CodeDescription {
-                    href: Url {
-                        scheme: "https",
-                        cannot_be_a_base: false,
-                        username: "",
-                        password: None,
-                        host: Some(
-                            Domain(
-                                "rust-lang.github.io",
+                    href: Uri(
+                        Uri {
+                            scheme: Some(
+                                "https",
                             ),
-                        ),
-                        port: None,
-                        path: "/rust-clippy/master/index.html",
-                        query: None,
-                        fragment: Some(
-                            "let_and_return",
-                        ),
-                    },
+                            authority: Some(
+                                Authority {
+                                    userinfo: None,
+                                    host: Host {
+                                        text: "rust-lang.github.io",
+                                        data: RegName(
+                                            "rust-lang.github.io",
+                                        ),
+                                    },
+                                    port: None,
+                                },
+                            ),
+                            path: "/rust-clippy/master/index.html",
+                            query: None,
+                            fragment: Some(
+                                "let_and_return",
+                            ),
+                        },
+                    ),
                 },
             ),
             source: Some(
@@ -267,17 +276,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/src/main.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/src/main.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 3,
@@ -333,17 +340,7 @@
                         SnippetWorkspaceEdit {
                             changes: Some(
                                 {
-                                    Url {
-                                        scheme: "file",
-                                        cannot_be_a_base: false,
-                                        username: "",
-                                        password: None,
-                                        host: None,
-                                        port: None,
-                                        path: "/test/src/main.rs",
-                                        query: None,
-                                        fragment: None,
-                                    }: [
+                                    "/test/src/main.rs": [
                                         TextEdit {
                                             range: Range {
                                                 start: Position {

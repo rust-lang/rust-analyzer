@@ -43,6 +43,8 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
                 Some(SaveOptions::default().into())
             },
         })),
+        notebook_document_sync: None,
+        selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         completion_provider: Some(CompletionOptions {
             resolve_provider: if config.client_is_neovim() {
@@ -65,7 +67,6 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             retrigger_characters: None,
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         }),
-        declaration_provider: Some(DeclarationCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
         type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
         implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
@@ -87,15 +88,14 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
                 more_trigger_character: Some(chars.map(|c| c.to_string()).collect()),
             }
         }),
-        selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
-        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         rename_provider: Some(OneOf::Right(RenameOptions {
             prepare_provider: Some(true),
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         })),
-        linked_editing_range_provider: None,
         document_link_provider: None,
         color_provider: None,
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        declaration_provider: Some(DeclarationCapability::Simple(true)),
         execute_command_provider: None,
         workspace: Some(WorkspaceServerCapabilities {
             workspace_folders: Some(WorkspaceFoldersServerCapabilities {
@@ -145,13 +145,24 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             .into(),
         ),
         moniker_provider: None,
+        linked_editing_range_provider: None,
+        inline_value_provider: None,
         inlay_hint_provider: Some(OneOf::Right(InlayHintServerCapabilities::Options(
             InlayHintOptions {
                 work_done_progress_options: Default::default(),
                 resolve_provider: Some(config.caps().inlay_hints_resolve_provider()),
             },
         ))),
-        inline_value_provider: None,
+        diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
+            lsp_types::DiagnosticOptions {
+                identifier: Some("rust-analyzer".to_owned()),
+                inter_file_dependencies: true,
+                // FIXME
+                workspace_diagnostics: false,
+                work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
+            },
+        )),
+        inline_completion_provider: None,
         experimental: Some(json!({
             "externalDocs": true,
             "hoverRange": true,
@@ -168,16 +179,6 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             "ssr": true,
             "workspaceSymbolScopeKindFiltering": true,
         })),
-        diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
-            lsp_types::DiagnosticOptions {
-                identifier: Some("rust-analyzer".to_owned()),
-                inter_file_dependencies: true,
-                // FIXME
-                workspace_diagnostics: false,
-                work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
-            },
-        )),
-        inline_completion_provider: None,
     }
 }
 

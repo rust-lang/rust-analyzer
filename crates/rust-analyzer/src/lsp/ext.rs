@@ -8,7 +8,7 @@
 
 use std::ops;
 
-use lsp_types::Url;
+use lsp_types::Uri;
 use lsp_types::request::Request;
 use lsp_types::{
     CodeActionKind, DocumentOnTypeFormattingParams, PartialResultParams, Position, Range,
@@ -64,7 +64,7 @@ pub struct AnalyzerStatusParams {
 pub struct CrateInfoResult {
     pub name: Option<String>,
     pub version: Option<String>,
-    pub path: Url,
+    pub path: Uri,
 }
 pub enum FetchDependencyList {}
 
@@ -612,7 +612,7 @@ pub struct CodeActionData {
 #[serde(rename_all = "camelCase")]
 pub struct SnippetWorkspaceEdit {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub changes: Option<FxHashMap<lsp_types::Url, Vec<lsp_types::TextEdit>>>,
+    pub changes: Option<FxHashMap<String, Vec<lsp_types::TextEdit>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document_changes: Option<Vec<SnippetDocumentChangeOperation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -710,7 +710,7 @@ impl Request for ExternalDocs {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum ExternalDocsResponse {
-    Simple(Option<lsp_types::Url>),
+    Simple(Option<lsp_types::Uri>),
     WithLocal(ExternalDocsPair),
 }
 
@@ -723,8 +723,8 @@ impl Default for ExternalDocsResponse {
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalDocsPair {
-    pub web: Option<lsp_types::Url>,
-    pub local: Option<lsp_types::Url>,
+    pub web: Option<lsp_types::Uri>,
+    pub local: Option<lsp_types::Uri>,
 }
 
 pub enum OpenCargoToml {}

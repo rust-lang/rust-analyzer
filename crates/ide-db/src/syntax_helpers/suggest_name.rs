@@ -1,6 +1,6 @@
 //! This module contains functions to suggest names for expressions, functions and other items
 
-use std::{collections::hash_map::Entry, str::FromStr};
+use std::{collections::hash_map::Entry, str::FromStr as _};
 
 use hir::{Semantics, SemanticsScope};
 use itertools::Itertools;

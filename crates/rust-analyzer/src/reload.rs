@@ -13,7 +13,7 @@
 //! project is currently loading and we don't have a full project model, we
 //! still want to respond to various  requests.
 // FIXME: This is a mess that needs some untangling work
-use std::{iter, mem, sync::atomic::AtomicUsize};
+use std::{iter, mem, str::FromStr as _, sync::atomic::AtomicUsize};
 
 use hir::{ChangeWithProcMacros, ProcMacrosBuilder, db::DefDatabase};
 use ide_db::{
@@ -591,7 +591,7 @@ impl GlobalState {
                             glob_pattern: lsp_types::GlobPattern::Relative(
                                 lsp_types::RelativePattern {
                                     base_uri: lsp_types::OneOf::Right(
-                                        lsp_types::Url::from_file_path(base).unwrap(),
+                                        lsp_types::Uri::from_str(base.as_str()).unwrap(),
                                     ),
                                     pattern: pat.to_owned(),
                                 },

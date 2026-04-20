@@ -1,7 +1,7 @@
 //! LSIF (language server index format) generator
 
-use std::env;
 use std::time::Instant;
+use std::{env, str::FromStr as _};
 
 use ide::{
     Analysis, AnalysisHost, FileId, FileRange, MonikerKind, MonikerResult, PackageInformation,
@@ -145,7 +145,7 @@ impl LsifManager<'_, '_> {
         let path = path.as_path().unwrap();
         let doc_id = self.add_vertex(lsif::Vertex::Document(lsif::Document {
             language_id: "rust".to_owned(),
-            uri: lsp_types::Url::from_file_path(path).unwrap(),
+            uri: lsp_types::Uri::from_str(path.as_str()).unwrap(),
         }));
         self.file_map.insert(id, doc_id);
         doc_id
@@ -321,7 +321,7 @@ impl flags::Lsif {
         let mut lsif = LsifManager::new(&analysis, db, &vfs, out);
         lsif.add_vertex(lsif::Vertex::MetaData(lsif::MetaData {
             version: String::from("0.5.0"),
-            project_root: lsp_types::Url::from_file_path(path).unwrap(),
+            project_root: lsp_types::Uri::from_str(path.as_str()).unwrap(),
             position_encoding: lsif::Encoding::Utf16,
             tool_info: Some(lsp_types::lsif::ToolInfo {
                 name: "rust-analyzer".to_owned(),

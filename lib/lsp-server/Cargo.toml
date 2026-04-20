@@ -14,7 +14,7 @@ serde_derive = { version = "1.0.219" }
 crossbeam-channel.workspace = true
 
 [dev-dependencies]
-lsp-types = "=0.95"
+lsp-types = "=0.97.0"
 ctrlc = "3.4.7"
 anyhow.workspace = true
 rustc-hash.workspace = true

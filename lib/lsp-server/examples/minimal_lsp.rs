@@ -101,7 +101,7 @@ use lsp_types::{
     TextDocumentSyncCapability,
     TextDocumentSyncKind,
     TextEdit,
-    Url,
+    Uri,
     // notifications
     notification::{DidChangeTextDocument, DidOpenTextDocument, PublishDiagnostics},
     // requests
@@ -149,7 +149,7 @@ fn main_loop(
     params: serde_json::Value,
 ) -> std::result::Result<(), Box<dyn Error + Sync + Send>> {
     let _init: InitializeParams = serde_json::from_value(params)?;
-    let mut docs: FxHashMap<Url, String> = FxHashMap::default();
+    let mut docs: FxHashMap<String, String> = FxHashMap::default();
 
     for msg in &connection.receiver {
         match msg {
@@ -179,20 +179,20 @@ fn main_loop(
 fn handle_notification(
     conn: &Connection,
     note: &lsp_server::Notification,
-    docs: &mut FxHashMap<Url, String>,
+    docs: &mut FxHashMap<String, String>,
 ) -> Result<()> {
     match note.method.as_str() {
         DidOpenTextDocument::METHOD => {
             let p: DidOpenTextDocumentParams = serde_json::from_value(note.params.clone())?;
             let uri = p.text_document.uri;
-            docs.insert(uri.clone(), p.text_document.text);
+            docs.insert(uri.clone().to_string(), p.text_document.text);
             publish_dummy_diag(conn, &uri)?;
         }
         DidChangeTextDocument::METHOD => {
             let p: DidChangeTextDocumentParams = serde_json::from_value(note.params.clone())?;
             if let Some(change) = p.content_changes.into_iter().next() {
                 let uri = p.text_document.uri;
-                docs.insert(uri.clone(), change.text);
+                docs.insert(uri.clone().to_string(), change.text);
                 publish_dummy_diag(conn, &uri)?;
             }
         }
@@ -208,7 +208,7 @@ fn handle_notification(
 fn handle_request(
     conn: &Connection,
     req: &ServerRequest,
-    docs: &mut FxHashMap<Url, String>,
+    docs: &mut FxHashMap<String, String>,
 ) -> Result<()> {
     match req.method.as_str() {
         GotoDefinition::METHOD => {
@@ -234,7 +234,7 @@ fn handle_request(
         }
         Formatting::METHOD => {
             let p: DocumentFormattingParams = serde_json::from_value(req.params.clone())?;
-            let uri = p.text_document.uri;
+            let uri = p.text_document.uri.to_string();
             let text = docs
                 .get(&uri)
                 .ok_or_else(|| anyhow!("document not in cache – did you send DidOpen?"))?;
@@ -255,7 +255,7 @@ fn handle_request(
 // =====================================================================
 // diagnostics
 // =====================================================================
-fn publish_dummy_diag(conn: &Connection, uri: &Url) -> Result<()> {
+fn publish_dummy_diag(conn: &Connection, uri: &Uri) -> Result<()> {
     let diag = Diagnostic {
         range: Range::new(Position::new(0, 0), Position::new(0, 1)),
         severity: Some(DiagnosticSeverity::INFORMATION),

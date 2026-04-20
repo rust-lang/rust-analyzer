@@ -1,16 +1,14 @@
 [
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/crates/hir_def/src/path.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/crates/hir_def/src/path.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -35,17 +33,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/crates/hir_def/src/path.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/crates/hir_def/src/path.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 264,
@@ -67,17 +63,15 @@
         fix: None,
     },
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/crates/hir_def/src/data.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/crates/hir_def/src/data.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -102,17 +96,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/crates/hir_def/src/path.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/crates/hir_def/src/path.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 264,
@@ -134,17 +126,15 @@
         fix: None,
     },
     MappedRustDiagnostic {
-        url: Url {
-            scheme: "file",
-            cannot_be_a_base: false,
-            username: "",
-            password: None,
-            host: None,
-            port: None,
-            path: "/test/crates/hir_def/src/path.rs",
-            query: None,
-            fragment: None,
-        },
+        url: Uri(
+            Uri {
+                scheme: None,
+                authority: None,
+                path: "/test/crates/hir_def/src/path.rs",
+                query: None,
+                fragment: None,
+            },
+        ),
         diagnostic: Diagnostic {
             range: Range {
                 start: Position {
@@ -169,17 +159,15 @@
                 [
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/crates/hir_def/src/path.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/crates/hir_def/src/path.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 271,
@@ -195,17 +183,15 @@
                     },
                     DiagnosticRelatedInformation {
                         location: Location {
-                            uri: Url {
-                                scheme: "file",
-                                cannot_be_a_base: false,
-                                username: "",
-                                password: None,
-                                host: None,
-                                port: None,
-                                path: "/test/crates/hir_def/src/data.rs",
-                                query: None,
-                                fragment: None,
-                            },
+                            uri: Uri(
+                                Uri {
+                                    scheme: None,
+                                    authority: None,
+                                    path: "/test/crates/hir_def/src/data.rs",
+                                    query: None,
+                                    fragment: None,
+                                },
+                            ),
                             range: Range {
                                 start: Position {
                                     line: 79,

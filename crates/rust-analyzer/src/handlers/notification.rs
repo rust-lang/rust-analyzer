@@ -4,6 +4,7 @@
 use std::{
     ops::{Deref, Not as _},
     panic::UnwindSafe,
+    str::FromStr as _,
 };
 
 use itertools::Itertools;
@@ -260,8 +261,8 @@ pub(crate) fn handle_did_change_workspace_folders(
     let config = Arc::make_mut(&mut state.config);
 
     for workspace in params.event.removed {
-        let Ok(path) = workspace.uri.to_file_path() else { continue };
-        let Ok(path) = Utf8PathBuf::from_path_buf(path) else { continue };
+        let path = workspace.uri.path().as_str();
+        let Ok(path) = Utf8PathBuf::from_str(path);
         let Ok(path) = AbsPathBuf::try_from(path) else { continue };
         config.remove_workspace(&path);
     }
@@ -270,8 +271,8 @@ pub(crate) fn handle_did_change_workspace_folders(
         .event
         .added
         .into_iter()
-        .filter_map(|it| it.uri.to_file_path().ok())
-        .filter_map(|it| Utf8PathBuf::from_path_buf(it).ok())
+        .map(|it| it.uri.path().to_string())
+        .filter_map(|it| Utf8PathBuf::from_str(&it).ok())
         .filter_map(|it| AbsPathBuf::try_from(it).ok());
     config.add_workspaces(added);
 

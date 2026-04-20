@@ -1,6 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     env, fs,
+    str::FromStr as _,
     sync::Once,
     time::Duration,
 };
@@ -9,7 +10,7 @@ use crossbeam_channel::{Receiver, after, select};
 use itertools::Itertools;
 use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::{
-    PublishDiagnosticsParams, TextDocumentIdentifier, Url, notification::Exit, request::Shutdown,
+    PublishDiagnosticsParams, TextDocumentIdentifier, Uri, notification::Exit, request::Shutdown,
 };
 use parking_lot::{Mutex, MutexGuard};
 use paths::{Utf8Path, Utf8PathBuf};
@@ -321,7 +322,7 @@ impl Server {
 
     pub(crate) fn doc_id(&self, rel_path: &str) -> TextDocumentIdentifier {
         let path = self.dir.path().join(rel_path);
-        TextDocumentIdentifier { uri: Url::from_file_path(path).unwrap() }
+        TextDocumentIdentifier { uri: Uri::from_str(path.as_str()).unwrap() }
     }
 
     pub(crate) fn notification<N>(&self, params: N::Params)

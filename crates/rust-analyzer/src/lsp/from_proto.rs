@@ -1,4 +1,6 @@
 //! Conversion lsp_types types to rust-analyzer specific ones.
+use std::str::FromStr as _;
+
 use anyhow::format_err;
 use ide::{Annotation, AnnotationKind, AssistKind, LineCol};
 use ide_db::{FileId, FilePosition, FileRange, line_index::WideLineCol};
@@ -12,12 +14,11 @@ use crate::{
     lsp_ext, try_default,
 };
 
-pub(crate) fn abs_path(url: &lsp_types::Url) -> anyhow::Result<AbsPathBuf> {
-    let path = url.to_file_path().map_err(|()| anyhow::format_err!("url is not a file"))?;
-    Ok(AbsPathBuf::try_from(Utf8PathBuf::from_path_buf(path).unwrap()).unwrap())
+pub(crate) fn abs_path(url: &lsp_types::Uri) -> anyhow::Result<AbsPathBuf> {
+    Ok(AbsPathBuf::try_from(Utf8PathBuf::from_str(url.path().as_str()).unwrap()).unwrap())
 }
 
-pub(crate) fn vfs_path(url: &lsp_types::Url) -> anyhow::Result<vfs::VfsPath> {
+pub(crate) fn vfs_path(url: &lsp_types::Uri) -> anyhow::Result<vfs::VfsPath> {
     abs_path(url).map(vfs::VfsPath::from)
 }
 
@@ -65,7 +66,7 @@ pub(crate) fn text_range(
 /// Returns `None` if the file was excluded.
 pub(crate) fn file_id(
     snap: &GlobalStateSnapshot,
-    url: &lsp_types::Url,
+    url: &lsp_types::Uri,
 ) -> anyhow::Result<Option<FileId>> {
     snap.url_to_file_id(url)
 }
@@ -93,7 +94,7 @@ pub(crate) fn file_range(
 /// Returns `None` if the file was excluded.
 pub(crate) fn file_range_uri(
     snap: &GlobalStateSnapshot,
-    document: &lsp_types::Url,
+    document: &lsp_types::Uri,
     range: lsp_types::Range,
 ) -> anyhow::Result<Option<FileRange>> {
     let file_id = try_default!(file_id(snap, document)?);

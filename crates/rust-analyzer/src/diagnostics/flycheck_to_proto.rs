@@ -1,6 +1,8 @@
 //! This module provides the functionality needed to convert diagnostics from
 //! `cargo check` json format to the LSP diagnostic format.
 
+use std::str::FromStr as _;
+
 use crate::flycheck::{Applicability, DiagnosticLevel, DiagnosticSpan};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -192,7 +194,7 @@ fn map_rust_child_diagnostic(
         return MappedRustChildDiagnostic::MessageLine(rd.message.clone());
     }
 
-    let mut edit_map: FxHashMap<lsp_types::Url, Vec<lsp_types::TextEdit>> = FxHashMap::default();
+    let mut edit_map: FxHashMap<String, Vec<lsp_types::TextEdit>> = FxHashMap::default();
     let mut suggested_replacements = Vec::new();
     let mut is_preferred = true;
     for &span in &spans {
@@ -211,7 +213,7 @@ fn map_rust_child_diagnostic(
                 span.suggestion_applicability,
                 None | Some(Applicability::MaybeIncorrect | Applicability::MachineApplicable)
             ) {
-                edit_map.entry(location.uri).or_default().push(edit);
+                edit_map.entry(location.uri.to_string()).or_default().push(edit);
             }
             is_preferred &=
                 matches!(span.suggestion_applicability, Some(Applicability::MachineApplicable));
@@ -263,7 +265,7 @@ fn map_rust_child_diagnostic(
 
 #[derive(Debug)]
 pub(crate) struct MappedRustDiagnostic {
-    pub(crate) url: lsp_types::Url,
+    pub(crate) url: lsp_types::Uri,
     pub(crate) diagnostic: lsp_types::Diagnostic,
     pub(crate) fix: Option<Box<Fix>>,
 }
@@ -494,7 +496,7 @@ fn rustc_code_description(code: Option<&str>) -> Option<lsp_types::CodeDescripti
             && chars.next().is_none()
     })
     .and_then(|code| {
-        lsp_types::Url::parse(&format!("https://doc.rust-lang.org/error-index.html#{code}"))
+        lsp_types::Uri::from_str(&format!("https://doc.rust-lang.org/error-index.html#{code}"))
             .ok()
             .map(|href| lsp_types::CodeDescription { href })
     })
@@ -502,7 +504,7 @@ fn rustc_code_description(code: Option<&str>) -> Option<lsp_types::CodeDescripti
 
 fn clippy_code_description(code: Option<&str>) -> Option<lsp_types::CodeDescription> {
     code.and_then(|code| {
-        lsp_types::Url::parse(&format!(
+        lsp_types::Uri::from_str(&format!(
             "https://rust-lang.github.io/rust-clippy/master/index.html#{code}"
         ))
         .ok()

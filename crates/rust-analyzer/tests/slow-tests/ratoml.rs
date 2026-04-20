@@ -1,8 +1,10 @@
+use std::str::FromStr as _;
+
 use crate::support::{Project, Server};
 use crate::testdir::TestDir;
 use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem, Url,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem, Uri,
     VersionedTextDocumentIdentifier,
     notification::{DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument},
 };
@@ -17,7 +19,7 @@ use serde_json::json;
 use test_utils::skip_slow_tests;
 
 struct RatomlTest {
-    urls: Vec<Url>,
+    urls: Vec<Uri>,
     server: Server,
     tmp_path: Utf8PathBuf,
 }
@@ -54,7 +56,7 @@ impl RatomlTest {
         case
     }
 
-    fn fixture_path(&self, fixture: &str) -> Url {
+    fn fixture_path(&self, fixture: &str) -> Uri {
         let mut lines = fixture.trim().split('\n');
 
         let mut path =
@@ -81,7 +83,7 @@ impl RatomlTest {
             path = path.join(piece);
         }
 
-        Url::parse(
+        Uri::from_str(
             format!("file://{}", path.into_string().replace("C:\\", "/c:/").replace('\\', "/"))
                 .as_str(),
         )
