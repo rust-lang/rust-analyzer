@@ -1340,6 +1340,19 @@ impl PathType {
     #[inline]
     pub fn path(&self) -> Option<Path> { support::child(&self.syntax) }
 }
+pub struct PatternType {
+    pub(crate) syntax: SyntaxNode,
+}
+impl PatternType {
+    #[inline]
+    pub fn pat(&self) -> Option<Pat> { support::child(&self.syntax) }
+    #[inline]
+    pub fn ty(&self) -> Option<Type> { support::child(&self.syntax) }
+    #[inline]
+    pub fn in_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![in]) }
+    #[inline]
+    pub fn is_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![is]) }
+}
 pub struct PrefixExpr {
     pub(crate) syntax: SyntaxNode,
 }
@@ -2289,6 +2302,7 @@ pub enum Type {
     NeverType(NeverType),
     ParenType(ParenType),
     PathType(PathType),
+    PatternType(PatternType),
     PtrType(PtrType),
     RefType(RefType),
     SliceType(SliceType),
@@ -5761,6 +5775,38 @@ impl fmt::Debug for PathType {
         f.debug_struct("PathType").field("syntax", &self.syntax).finish()
     }
 }
+impl AstNode for PatternType {
+    #[inline]
+    fn kind() -> SyntaxKind
+    where
+        Self: Sized,
+    {
+        PATTERN_TYPE
+    }
+    #[inline]
+    fn can_cast(kind: SyntaxKind) -> bool { kind == PATTERN_TYPE }
+    #[inline]
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) { Some(Self { syntax }) } else { None }
+    }
+    #[inline]
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl hash::Hash for PatternType {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) { self.syntax.hash(state); }
+}
+impl Eq for PatternType {}
+impl PartialEq for PatternType {
+    fn eq(&self, other: &Self) -> bool { self.syntax == other.syntax }
+}
+impl Clone for PatternType {
+    fn clone(&self) -> Self { Self { syntax: self.syntax.clone() } }
+}
+impl fmt::Debug for PatternType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PatternType").field("syntax", &self.syntax).finish()
+    }
+}
 impl AstNode for PrefixExpr {
     #[inline]
     fn kind() -> SyntaxKind
@@ -8691,6 +8737,10 @@ impl From<PathType> for Type {
     #[inline]
     fn from(node: PathType) -> Type { Type::PathType(node) }
 }
+impl From<PatternType> for Type {
+    #[inline]
+    fn from(node: PatternType) -> Type { Type::PatternType(node) }
+}
 impl From<PtrType> for Type {
     #[inline]
     fn from(node: PtrType) -> Type { Type::PtrType(node) }
@@ -8722,6 +8772,7 @@ impl AstNode for Type {
                 | NEVER_TYPE
                 | PAREN_TYPE
                 | PATH_TYPE
+                | PATTERN_TYPE
                 | PTR_TYPE
                 | REF_TYPE
                 | SLICE_TYPE
@@ -8741,6 +8792,7 @@ impl AstNode for Type {
             NEVER_TYPE => Type::NeverType(NeverType { syntax }),
             PAREN_TYPE => Type::ParenType(ParenType { syntax }),
             PATH_TYPE => Type::PathType(PathType { syntax }),
+            PATTERN_TYPE => Type::PatternType(PatternType { syntax }),
             PTR_TYPE => Type::PtrType(PtrType { syntax }),
             REF_TYPE => Type::RefType(RefType { syntax }),
             SLICE_TYPE => Type::SliceType(SliceType { syntax }),
@@ -8762,6 +8814,7 @@ impl AstNode for Type {
             Type::NeverType(it) => &it.syntax,
             Type::ParenType(it) => &it.syntax,
             Type::PathType(it) => &it.syntax,
+            Type::PatternType(it) => &it.syntax,
             Type::PtrType(it) => &it.syntax,
             Type::RefType(it) => &it.syntax,
             Type::SliceType(it) => &it.syntax,
@@ -10457,6 +10510,11 @@ impl std::fmt::Display for PathSegment {
     }
 }
 impl std::fmt::Display for PathType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for PatternType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }

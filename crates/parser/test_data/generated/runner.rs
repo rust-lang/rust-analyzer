@@ -504,6 +504,8 @@ mod ok {
         run_and_expect_no_errors("test_data/parser/inline/ok/path_type_with_bounds.rs");
     }
     #[test]
+    fn pattern_type() { run_and_expect_no_errors("test_data/parser/inline/ok/pattern_type.rs"); }
+    #[test]
     fn placeholder_pat() {
         run_and_expect_no_errors("test_data/parser/inline/ok/placeholder_pat.rs");
     }

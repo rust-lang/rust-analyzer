@@ -19,9 +19,12 @@ use hir_def::{
     TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, VariantId,
     builtin_type::BuiltinType,
     expr_store::{ExpressionStore, HygieneId, path::Path},
-    hir::generics::{
-        GenericParamDataRef, GenericParams, TypeOrConstParamData, TypeParamProvenance,
-        WherePredicate,
+    hir::{
+        ExprId,
+        generics::{
+            GenericParamDataRef, GenericParams, TypeOrConstParamData, TypeParamProvenance,
+            WherePredicate,
+        },
     },
     item_tree::FieldsShape,
     lang_item::LangItems,
@@ -59,7 +62,7 @@ use crate::{
     next_solver::{
         AliasTy, Binder, BoundExistentialPredicates, Clause, ClauseKind, Clauses, Const,
         DbInterner, EarlyBinder, EarlyParamRegion, ErrorGuaranteed, FxIndexMap, GenericArg,
-        GenericArgs, ParamConst, ParamEnv, PolyFnSig, Predicate, Region, SolverDefId,
+        GenericArgs, ParamConst, ParamEnv, Pattern, PolyFnSig, Predicate, Region, SolverDefId,
         StoredClauses, StoredEarlyBinder, StoredGenericArg, StoredGenericArgs, StoredPolyFnSig,
         StoredTy, TraitPredicate, TraitRef, Ty, Tys, UnevaluatedConst, abi::Safety,
         util::BottomUpFolder,
@@ -283,6 +286,13 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
     pub(crate) fn lower_const(&mut self, const_ref: ConstRef, const_type: Ty<'db>) -> Const<'db> {
         let expr_id = const_ref.expr;
+        self.lower_expr_as_const(expr_id, const_type)
+    }
+    pub(crate) fn lower_expr_as_const(
+        &mut self,
+        expr_id: ExprId,
+        const_type: Ty<'db>,
+    ) -> Const<'db> {
         let expr = &self.store[expr_id];
         match expr {
             hir_def::hir::Expr::Path(path) => self
@@ -549,6 +559,23 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                         Ty::new_error(self.interner, ErrorGuaranteed)
                     }
                 }
+            }
+            &TypeRef::PatternType(ty, pat) => {
+                let ty = self.lower_ty(ty);
+                // FIXME: Properly do the lowering here
+                let pat_kind = match self.store[pat] {
+                    hir_def::hir::Pat::Range {
+                        start: Some(start),
+                        end: Some(end),
+                        range_type: _,
+                    } => rustc_type_ir::PatternKind::Range {
+                        start: self.lower_expr_as_const(start, ty),
+                        end: self.lower_expr_as_const(end, ty),
+                    },
+                    _ => rustc_type_ir::PatternKind::NotNull,
+                };
+                let pat = Pattern::new(self.interner, pat_kind);
+                Ty::new_pat(self.interner, ty, pat)
             }
             TypeRef::Error => Ty::new_error(self.interner, ErrorGuaranteed),
         };

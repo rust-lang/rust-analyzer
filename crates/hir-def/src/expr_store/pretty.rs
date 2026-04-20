@@ -420,7 +420,7 @@ pub fn print_expr_hir(
 pub fn print_pat_hir(
     db: &dyn DefDatabase,
     store: &ExpressionStore,
-    _owner: DefWithBodyId,
+    _owner: ExpressionStoreOwnerId,
     pat: PatId,
     oneline: bool,
     edition: Edition,
@@ -1339,6 +1339,11 @@ impl Printer<'_> {
             TypeRef::DynTrait(bounds) => {
                 w!(self, "dyn ");
                 self.print_type_bounds(bounds);
+            }
+            TypeRef::PatternType(ty, pat) => {
+                self.print_type_ref(*ty);
+                w!(self, " is ");
+                self.print_pat(*pat);
             }
         }
     }

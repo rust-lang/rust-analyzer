@@ -37,6 +37,9 @@ pub use self::{adt::layout_of_adt_query, target::target_data_layout_query};
 pub(crate) mod adt;
 pub(crate) mod target;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RustcEnumVariantIdx(pub usize);
 
@@ -346,7 +349,6 @@ pub fn layout_of_ty_query(
             let fields = fields.iter().collect::<IndexVec<_, _>>();
             cx.calc.univariant(&fields, &ReprOptions::default(), StructKind::AlwaysSized)?
         }
-
         TyKind::Coroutine(_, _)
         | TyKind::CoroutineWitness(_, _)
         | TyKind::CoroutineClosure(_, _) => {
@@ -418,6 +420,3 @@ fn field_ty<'a>(
 fn scalar_unit(dl: &TargetDataLayout, value: Primitive) -> Scalar {
     Scalar::Initialized { value, valid_range: WrappingRange::full(value.size(dl)) }
 }
-
-#[cfg(test)]
-mod tests;
