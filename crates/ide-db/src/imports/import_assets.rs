@@ -314,7 +314,7 @@ pub struct LocatedImport {
     pub item_to_import: ItemInNs,
     /// The path import candidate, resolved.
     ///
-    /// Not necessary matches the import:
+    /// Not necessarily matches the import:
     /// For any associated constant from the trait, we try to access as `some::path::SomeStruct::ASSOC_`
     /// the original item is the associated constant, but the import has to be a trait that
     /// defines this constant.

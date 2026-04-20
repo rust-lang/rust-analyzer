@@ -2094,12 +2094,12 @@ fn next_non_trivia_token(e: impl Into<SyntaxElement>) -> Option<SyntaxToken> {
 }
 
 fn next_non_trivia_sibling(ele: SyntaxElement) -> Option<SyntaxElement> {
-    let mut e = ele.next_sibling_or_token();
-    while let Some(inner) = e {
-        if !inner.kind().is_trivia() {
-            return Some(inner);
+    let mut e = ele;
+    while let Some(next) = e.next_sibling_or_token() {
+        if !next.kind().is_trivia() {
+            return Some(next);
         } else {
-            e = inner.next_sibling_or_token();
+            e = next;
         }
     }
     None

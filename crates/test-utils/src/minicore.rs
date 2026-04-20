@@ -33,6 +33,7 @@
 //!     env: option
 //!     eq: sized
 //!     error: fmt
+//!     float_consts:
 //!     fmt: option, result, transmute, coerce_unsized, copy, clone, derive
 //!     fmt_before_1_93_0: fmt
 //!     fmt_before_1_89_0: fmt_before_1_93_0
@@ -2180,6 +2181,32 @@ pub mod error {
     }
 }
 // endregion:error
+
+// region:float_consts
+impl f32 {
+    pub const INFINITY: f32 = 0.0;
+    pub const NEG_INFINITY: f32 = -0.0;
+}
+
+impl f64 {
+    pub const INFINITY: f64 = 0.0;
+    pub const NEG_INFINITY: f64 = -0.0;
+}
+
+pub mod f32 {
+    #[deprecated]
+    pub const INFINITY: f32 = 0.0;
+    #[deprecated]
+    pub const NEG_INFINITY: f32 = -0.0;
+}
+
+pub mod f64 {
+    #[deprecated]
+    pub const INFINITY: f64 = 0.0;
+    #[deprecated]
+    pub const NEG_INFINITY: f64 = -0.0;
+}
+// endregion:float_consts
 
 // region:column
 #[rustc_builtin_macro]
