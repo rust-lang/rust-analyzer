@@ -7,7 +7,9 @@ use ide_db::{
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},
-        insert_use::{ImportScope, insert_use, insert_use_as_alias},
+        insert_use::{
+            ImportGranularity, ImportScope, InsertUseConfig, insert_use, insert_use_as_alias,
+        },
     },
 };
 use syntax::{AstNode, Edition, SyntaxNode, ast, match_ast};
@@ -119,14 +121,28 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let group_label = group_label(import_assets.import_candidate());
     for import in proposed_imports {
+        let is_macro = matches!(import.item_to_import, hir::ItemInNs::Macros(_));
         let import_path = import.import_path;
 
         let (assist_id, import_name) =
             (AssistId::quick_fix("auto_import"), import_path.display(ctx.db(), edition));
+        // A macro and a module can share an import path (e.g. `alloc::vec`). Merging a
+        // macro's `use` with an existing `use path::Foo;` under the same prefix yields
+        // `use path::{self, Foo};`, where `self` binds the module and shadows the macro.
+        // Insert macro imports without merging to avoid this; see issue #11278.
+        let insert_use_cfg = if is_macro {
+            InsertUseConfig {
+                granularity: ImportGranularity::Item,
+                enforce_granularity: true,
+                ..ctx.config.insert_use
+            }
+        } else {
+            ctx.config.insert_use
+        };
         let add_normal_import = |acc: &mut Assists, label| {
             acc.add_group(&group_label, assist_id, label, range, |builder| {
                 let scope = builder.make_import_scope_mut(scope.clone());
-                insert_use(&scope, mod_path_to_ast(&import_path, edition), &ctx.config.insert_use);
+                insert_use(&scope, mod_path_to_ast(&import_path, edition), &insert_use_cfg);
             })
         };
         let add_underscore_import = |acc: &mut Assists, name: &TraitImportCandidate<'_>, label| {
@@ -143,7 +159,7 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
                 insert_use_as_alias(
                     &scope,
                     mod_path_to_ast(&import_path, edition),
-                    &ctx.config.insert_use,
+                    &insert_use_cfg,
                     edition,
                 );
             });
@@ -714,6 +730,77 @@ fn main() {
 
 fn main() {
     foo
+}
+",
+        );
+    }
+
+    #[test]
+    fn macro_import_when_module_with_same_name_exists() {
+        // Regression test for https://github.com/rust-lang/rust-analyzer/issues/11278
+        // A crate exports both a module and a fn-like macro with the same path;
+        // auto-importing the macro call must offer the macro (not silently drop it
+        // in favor of the module because both share an import path).
+        check_assist(
+            auto_import,
+            r"
+//- /lib.rs crate:dep
+pub mod foo {
+    pub struct Bar;
+}
+
+#[macro_export]
+macro_rules! foo {
+    () => ()
+}
+
+//- /main.rs crate:main deps:dep
+fn main() {
+    foo$0!();
+}
+",
+            r"use dep::foo;
+
+fn main() {
+    foo!();
+}
+",
+        );
+    }
+
+    #[test]
+    fn macro_import_when_type_from_shared_path_is_already_imported() {
+        // Regression test for https://github.com/rust-lang/rust-analyzer/issues/11278
+        // When `use dep::foo::Bar;` already exists and the user auto-imports the
+        // fn-like macro `dep::foo`, the resulting use must import the *macro*, not
+        // merge into `use dep::foo::{Bar, self};` (which would bind the module).
+        check_assist(
+            auto_import,
+            r"
+//- /lib.rs crate:dep
+pub mod foo {
+    pub struct Bar;
+}
+
+#[macro_export]
+macro_rules! foo {
+    () => ()
+}
+
+//- /main.rs crate:main deps:dep
+use dep::foo::Bar;
+
+fn main() {
+    let _: Bar;
+    foo$0!();
+}
+",
+            r"use dep::foo;
+use dep::foo::Bar;
+
+fn main() {
+    let _: Bar;
+    foo!();
 }
 ",
         );
