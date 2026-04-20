@@ -881,7 +881,6 @@ impl Module {
             }
 
             let drop_maybe_dangle = (|| {
-                // FIXME: This can be simplified a lot by exposing hir-ty's utils.rs::Generics helper
                 let trait_ = trait_?;
                 let drop_trait = interner.lang_items().Drop?;
                 if drop_trait != trait_.into() {
