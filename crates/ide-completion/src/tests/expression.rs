@@ -3162,6 +3162,41 @@ fn foo() {
 }
 
 #[test]
+fn deprecated_enum_marks_variants_deprecated() {
+    // regression: rust-lang/rust-analyzer#22090 — a variant inherits the
+    // `#[deprecated]` attribute of its parent enum.
+    check(
+        r#"
+#[deprecated]
+enum Foo { Bar }
+fn main() { let _ = Foo::$0; }
+"#,
+        expect![[r#"
+            ev Bar Bar DEPRECATED
+        "#]],
+    );
+}
+
+#[test]
+fn deprecated_variant_of_undeprecated_enum_still_deprecated() {
+    // regression guard for rust-lang/rust-analyzer#22090 — the existing
+    // per-variant `#[deprecated]` behavior must keep working.
+    check(
+        r#"
+enum Foo {
+    #[deprecated] Bar,
+    Baz,
+}
+fn main() { let _ = Foo::$0; }
+"#,
+        expect![[r#"
+            ev Bar Bar DEPRECATED
+            ev Baz Baz
+        "#]],
+    );
+}
+
+#[test]
 fn non_std_test_attr_macro() {
     check(
         r#"

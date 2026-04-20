@@ -192,9 +192,7 @@ impl Variant {
             Variant::Struct(it) => {
                 ctx.is_deprecated(it, None /* structs can't be assoc items */)
             }
-            Variant::EnumVariant(it) => {
-                ctx.is_deprecated(it, None /* enum variants can't be assoc items */)
-            }
+            Variant::EnumVariant(it) => ctx.is_variant_deprecated(it),
         }
     }
 
