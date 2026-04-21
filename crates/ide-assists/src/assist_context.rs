@@ -13,7 +13,7 @@ use crate::{
     Assist, AssistId, AssistKind, AssistResolveStrategy, GroupLabel, assist_config::AssistConfig,
 };
 
-pub(crate) use ide_db::source_change::{SourceChangeBuilder, TreeMutator};
+pub(crate) use ide_db::source_change::SourceChangeBuilder;
 
 /// `AssistContext` allows to apply an assist or check if it could be applied.
 ///
