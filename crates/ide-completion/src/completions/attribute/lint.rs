@@ -12,18 +12,10 @@ pub(super) fn complete_lint(
     lints_completions: &[Lint],
 ) {
     for &Lint { label, description, .. } in lints_completions {
-        let (qual, name) = {
-            // FIXME: change `Lint`'s label to not store a path in it but split the prefix off instead?
-            let mut parts = label.split("::");
-            let ns_or_label = match parts.next() {
-                Some(it) => it,
-                None => continue,
-            };
-            let label = parts.next();
-            match label {
-                Some(label) => (Some(ns_or_label), label),
-                None => (None, ns_or_label),
-            }
+        // FIXME: change `Lint`'s label to not store a path in it but split the prefix off instead?
+        let (qual, name) = match label.split_once("::") {
+            Some((qual, name)) => (Some(qual), name),
+            None => (None, label),
         };
         if qual.is_none() && is_qualified {
             // qualified completion requested, but this lint is unqualified
@@ -56,7 +48,7 @@ pub(super) fn complete_lint(
         };
         let mut item =
             CompletionItem::new(SymbolKind::Attribute, ctx.source_range(), label, ctx.edition);
-        item.documentation(Documentation::new_owned(description.to_owned()));
+        item.documentation(Documentation::new_borrowed(description));
         item.add_to(acc, ctx.db)
     }
 }

@@ -37,7 +37,7 @@ pub(crate) use self::derive::complete_derive_path;
 pub(crate) fn complete_known_attribute_input(
     acc: &mut Completions,
     ctx: &CompletionContext<'_>,
-    &colon_prefix: &bool,
+    colon_prefix: bool,
     fake_attribute_under_caret: &ast::TokenTreeMeta,
     extern_crate: Option<&ast::ExternCrate>,
 ) -> Option<()> {
@@ -49,7 +49,7 @@ pub(crate) fn complete_known_attribute_input(
     let tt = attribute.token_tree()?;
 
     match segments.as_slice() {
-        ["repr"] => repr::complete_repr(acc, ctx, tt),
+        ["repr"] => repr::complete_repr(acc, ctx, &parse_comma_sep_expr(tt)?),
         ["feature"] => lint::complete_lint(
             acc,
             ctx,
@@ -57,12 +57,10 @@ pub(crate) fn complete_known_attribute_input(
             &parse_tt_as_comma_sep_paths(tt, ctx.edition)?,
             FEATURES,
         ),
-        ["allow"] | ["expect"] | ["deny"] | ["forbid"] | ["warn"] => {
+        ["allow" | "expect" | "deny" | "forbid" | "warn"] => {
             let existing_lints = parse_tt_as_comma_sep_paths(tt, ctx.edition)?;
 
-            let lints: Vec<Lint> = CLIPPY_LINT_GROUPS
-                .iter()
-                .map(|g| &g.lint)
+            let lints: Vec<Lint> = (CLIPPY_LINT_GROUPS.iter().map(|g| &g.lint))
                 .chain(DEFAULT_LINTS)
                 .chain(CLIPPY_LINTS)
                 .chain(RUSTDOC_LINTS)
@@ -77,7 +75,9 @@ pub(crate) fn complete_known_attribute_input(
             extern_crate,
             &parse_tt_as_comma_sep_paths(tt, ctx.edition)?,
         ),
-        ["diagnostic", "on_unimplemented"] => diagnostic::complete_on_unimplemented(acc, ctx, tt),
+        ["diagnostic", "on_unimplemented"] => {
+            diagnostic::complete_on_unimplemented(acc, ctx, &parse_comma_sep_expr(tt)?)
+        }
         _ => (),
     }
     Some(())
@@ -190,7 +190,7 @@ pub(crate) fn complete_attribute_path(
     match attributes {
         Some(applicable) => applicable
             .iter()
-            .flat_map(|name| ATTRIBUTES.binary_search_by(|attr| attr.key().cmp(name)).ok())
+            .flat_map(|name| ATTRIBUTES.binary_search_by_key(name, |attr| attr.key()).ok())
             .flat_map(|idx| ATTRIBUTES.get(idx))
             .for_each(add_completion),
         None if is_inner => ATTRIBUTES.iter().for_each(add_completion),

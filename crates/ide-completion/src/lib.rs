@@ -258,7 +258,7 @@ pub fn completions(
                 completions::attribute::complete_known_attribute_input(
                     acc,
                     ctx,
-                    colon_prefix,
+                    *colon_prefix,
                     attr,
                     extern_crate.as_ref(),
                 );
