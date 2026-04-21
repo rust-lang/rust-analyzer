@@ -9,7 +9,7 @@ use super::AttrCompletion;
 
 pub(super) fn complete_on_unimplemented(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     existing_keys: &[ast::Expr],
 ) {
     for attr in ATTRIBUTE_ARGS {

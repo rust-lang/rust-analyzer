@@ -33,7 +33,10 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 //
 // let a = A { a: 10 };
 // ```
-pub(crate) fn missing_fields(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Diagnostic {
+pub(crate) fn missing_fields(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::MissingFields,
+) -> Diagnostic {
     let mut message = String::from("missing structure fields:\n");
     for (field, _) in &d.missed_fields {
         format_to!(message, "- {}\n", field.display(ctx.sema.db, ctx.edition));
@@ -51,7 +54,7 @@ pub(crate) fn missing_fields(ctx: &DiagnosticsContext<'_>, d: &hir::MissingField
         .with_fixes(fixes(ctx, d))
 }
 
-fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Assist>> {
+fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::MissingFields) -> Option<Vec<Assist>> {
     // Note that although we could add a diagnostics to
     // fill the missing tuple field, e.g :
     // `struct A(usize);`
@@ -202,7 +205,7 @@ fn make_ty(
 }
 
 fn get_default_constructor(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::MissingFields,
     ty: &Type<'_>,
 ) -> Option<ast::Expr> {

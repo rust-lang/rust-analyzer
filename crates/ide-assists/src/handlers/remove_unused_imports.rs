@@ -33,7 +33,7 @@ use crate::{AssistContext, AssistId, Assists};
 // mod foo {
 // }
 // ```
-pub(crate) fn remove_unused_imports(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn remove_unused_imports(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     // First, grab the uses that intersect with the current selection.
     let selected_el = match ctx.covering_element() {
         syntax::NodeOrToken::Node(n) => n,
@@ -132,7 +132,7 @@ pub(crate) fn remove_unused_imports(acc: &mut Assists, ctx: &AssistContext<'_>) 
 }
 
 fn is_path_per_ns_unused_in_scope(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     u: &ast::UseTree,
     scope: &mut Vec<SearchScope>,
     path: &PathResolutionPerNs,
@@ -151,7 +151,7 @@ fn is_path_per_ns_unused_in_scope(
 }
 
 fn is_path_unused_in_scope(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     u: &ast::UseTree,
     scope: &mut Vec<SearchScope>,
     path: &[Option<PathResolution>],
@@ -167,7 +167,7 @@ fn is_path_unused_in_scope(
 }
 
 fn is_trait_unused_in_scope(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     u: &ast::UseTree,
     scope: &mut Vec<SearchScope>,
     t: &hir::Trait,
@@ -178,7 +178,7 @@ fn is_trait_unused_in_scope(
 }
 
 fn used_once_in_scope(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     def: Definition,
     rename: Option<Rename>,
     scopes: &Vec<SearchScope>,

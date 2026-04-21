@@ -5,7 +5,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 // This diagnostic is triggered if a struct expression constructs a `#[non_exhaustive]`
 // struct from another crate.
 pub(crate) fn non_exhaustive_record_expr(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::NonExhaustiveRecordExpr,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(

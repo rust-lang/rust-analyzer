@@ -51,7 +51,7 @@ use crate::assist_context::{AssistContext, Assists};
 // ```
 pub(crate) fn convert_tuple_return_type_to_struct(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     let ret_type = ctx.find_node_at_offset::<ast::RetType>()?;
     let type_ref = ret_type.ty()?;
@@ -104,7 +104,7 @@ pub(crate) fn convert_tuple_return_type_to_struct(
 /// Replaces tuple usages with the corresponding tuple struct pattern.
 fn replace_usages(
     edit: &mut SourceChangeBuilder,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     usages: &UsageSearchResult,
     struct_name: &str,
     target_module: &hir::Module,
@@ -177,7 +177,7 @@ fn node_to_pats(node: SyntaxNode) -> Option<Vec<ast::Pat>> {
 
 fn augment_references_with_imports(
     make: &SyntaxFactory,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     references: &[FileReference],
     struct_name: &str,
     target_module: &hir::Module,
@@ -232,7 +232,7 @@ fn augment_references_with_imports(
 fn add_tuple_struct_def(
     edit: &mut SourceChangeBuilder,
     syntax_factory: &SyntaxFactory,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     usages: &UsageSearchResult,
     parent: &SyntaxNode,
     tuple_ty: &ast::TupleType,

@@ -128,7 +128,7 @@ impl DeclarativeMacroExpander {
                     Some(arg) => {
                         let tt = syntax_bridge::syntax_node_to_token_tree(
                             arg.syntax(),
-                            map.as_ref(),
+                            map,
                             map.span_for_range(
                                 macro_rules.macro_rules_token().unwrap().text_range(),
                             ),
@@ -152,14 +152,14 @@ impl DeclarativeMacroExpander {
                         let args = macro_def.args().map(|args| {
                             syntax_bridge::syntax_node_to_token_tree(
                                 args.syntax(),
-                                map.as_ref(),
+                                map,
                                 span,
                                 DocCommentDesugarMode::Mbe,
                             )
                         });
                         let body = syntax_bridge::syntax_node_to_token_tree(
                             body.syntax(),
-                            map.as_ref(),
+                            map,
                             span,
                             DocCommentDesugarMode::Mbe,
                         );

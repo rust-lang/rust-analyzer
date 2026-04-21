@@ -6,7 +6,7 @@ use syntax::{AstToken, Direction, NodeOrToken, SmolStr, SyntaxKind, algo, ast::I
 
 use crate::{CompletionItem, completions::Completions, context::CompletionContext};
 
-pub(crate) fn complete_cfg(acc: &mut Completions, ctx: &CompletionContext<'_>) {
+pub(crate) fn complete_cfg(acc: &mut Completions, ctx: &CompletionContext<'_, '_>) {
     let add_completion = |item: &str| {
         let mut completion =
             CompletionItem::new(SymbolKind::BuiltinAttr, ctx.source_range(), item, ctx.edition);

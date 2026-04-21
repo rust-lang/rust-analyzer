@@ -24,7 +24,10 @@ use crate::{AssistContext, AssistId, Assists};
 //     };
 // }
 // ```
-pub(crate) fn convert_let_else_to_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn convert_let_else_to_match(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     let (editor, _) = SyntaxEditor::new(ctx.source_file().syntax().clone());
     // Should focus on the `else` token to trigger
     let let_stmt = ctx

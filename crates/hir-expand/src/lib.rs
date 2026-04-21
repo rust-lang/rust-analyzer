@@ -491,7 +491,7 @@ impl MacroCallId {
     }
 
     /// Return expansion information if it is a macro-expansion file
-    pub fn expansion_info(self, db: &dyn ExpandDatabase) -> ExpansionInfo {
+    pub fn expansion_info(self, db: &dyn ExpandDatabase) -> ExpansionInfo<'_> {
         ExpansionInfo::new(db, self)
     }
 
@@ -797,16 +797,16 @@ impl MacroCallKind {
 // FIXME: can be expensive to create, we should check the use sites and maybe replace them with
 // simpler function calls if the map is only used once
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ExpansionInfo {
+pub struct ExpansionInfo<'db> {
     expanded: InMacroFile<SyntaxNode>,
     /// The argument TokenTree or item for attributes
     arg: InFile<Option<SyntaxNode>>,
-    exp_map: Arc<ExpansionSpanMap>,
-    arg_map: SpanMap,
+    exp_map: &'db ExpansionSpanMap,
+    arg_map: SpanMap<'db>,
     loc: MacroCallLoc,
 }
 
-impl ExpansionInfo {
+impl<'db> ExpansionInfo<'db> {
     pub fn expanded(&self) -> InMacroFile<SyntaxNode> {
         self.expanded.clone()
     }
@@ -872,7 +872,7 @@ impl ExpansionInfo {
         offset: TextSize,
     ) -> (FileRange, SyntaxContext) {
         debug_assert!(self.expanded.value.text_range().contains(offset));
-        span_for_offset(db, &self.exp_map, offset)
+        span_for_offset(db, self.exp_map, offset)
     }
 
     /// Maps up the text range out of the expansion hierarchy back into the original file its from.
@@ -882,7 +882,7 @@ impl ExpansionInfo {
         range: TextRange,
     ) -> Option<(FileRange, SyntaxContext)> {
         debug_assert!(self.expanded.value.text_range().contains_range(range));
-        map_node_range_up(db, &self.exp_map, range)
+        map_node_range_up(db, self.exp_map, range)
     }
 
     /// Maps up the text range out of the expansion into its macro call.
@@ -918,14 +918,14 @@ impl ExpansionInfo {
         }
     }
 
-    pub fn new(db: &dyn ExpandDatabase, macro_file: MacroCallId) -> ExpansionInfo {
+    pub fn new(db: &'db dyn ExpandDatabase, macro_file: MacroCallId) -> ExpansionInfo<'db> {
         let _p = tracing::info_span!("ExpansionInfo::new").entered();
         let loc = db.lookup_intern_macro_call(macro_file);
 
         let arg_tt = loc.kind.arg(db);
         let arg_map = db.span_map(arg_tt.file_id);
 
-        let (parse, exp_map) = db.parse_macro_expansion(macro_file).value;
+        let (parse, exp_map) = &db.parse_macro_expansion(macro_file).value;
         let expanded = InMacroFile { file_id: macro_file, value: parse.syntax_node() };
 
         ExpansionInfo { expanded, loc, arg: arg_tt, exp_map, arg_map }

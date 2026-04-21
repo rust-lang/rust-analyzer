@@ -86,7 +86,10 @@ use syntax::{
 //     }
 // }
 // ```
-pub(crate) fn generate_delegate_trait(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn generate_delegate_trait(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     if !ctx.config.code_action_grouping {
         return None;
     }
@@ -118,7 +121,7 @@ struct Field {
 
 impl Field {
     pub(crate) fn new(
-        ctx: &AssistContext<'_>,
+        ctx: &AssistContext<'_, '_>,
         f: Either<ast::RecordField, (ast::TupleField, ast::TupleFieldList)>,
     ) -> Option<Field> {
         let db = ctx.sema.db;
@@ -202,7 +205,7 @@ impl Struct {
         Some(Struct { name, strukt: s })
     }
 
-    pub(crate) fn delegate(&self, field: Field, acc: &mut Assists, ctx: &AssistContext<'_>) {
+    pub(crate) fn delegate(&self, field: Field, acc: &mut Assists, ctx: &AssistContext<'_, '_>) {
         let db = ctx.db();
 
         for (index, delegee) in field.impls.iter().enumerate() {
@@ -249,7 +252,7 @@ impl Struct {
 }
 
 fn generate_impl(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     strukt: &Struct,
     field_ty: &ast::Type,
     field_name: &str,
@@ -412,7 +415,7 @@ fn generate_impl(
 }
 
 fn transform_impl<N: ast::AstNode>(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     strukt: &ast::Struct,
     old_impl: &ast::Impl,
     args: &Option<GenericArgList>,
@@ -638,7 +641,7 @@ fn generate_args_for_impl(
 }
 
 fn rename_strukt_args<N>(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     strukt: &ast::Struct,
     item: &N,
     args: &GenericArgList,
@@ -654,7 +657,7 @@ where
     N::cast(transform.apply(item.syntax()))
 }
 
-fn has_self_type(trait_: hir::Trait, ctx: &AssistContext<'_>) -> bool {
+fn has_self_type(trait_: hir::Trait, ctx: &AssistContext<'_, '_>) -> bool {
     ctx.sema
         .source(trait_)
         .and_then(|src| {

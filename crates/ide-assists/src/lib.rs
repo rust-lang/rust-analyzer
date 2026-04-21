@@ -102,7 +102,7 @@ pub fn assists(
 mod handlers {
     use crate::{AssistContext, Assists};
 
-    pub(crate) type Handler = fn(&mut Assists, &AssistContext<'_>) -> Option<()>;
+    pub(crate) type Handler = fn(&mut Assists, &AssistContext<'_, '_>) -> Option<()>;
 
     mod add_braces;
     mod add_explicit_dot_deref;

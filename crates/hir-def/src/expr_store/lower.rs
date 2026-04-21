@@ -15,7 +15,7 @@ use hir_expand::{
     HirFileId, InFile, MacroDefId,
     mod_path::ModPath,
     name::{AsName, Name},
-    span_map::SpanMapRef,
+    span_map::SpanMap,
 };
 use intern::{Symbol, sym};
 use rustc_hash::FxHashMap;
@@ -597,7 +597,7 @@ impl<'db> ExprCollector<'db> {
     }
 
     #[inline]
-    pub(crate) fn span_map(&self) -> SpanMapRef<'_> {
+    pub(crate) fn span_map(&self) -> SpanMap<'_> {
         self.expander.span_map()
     }
 

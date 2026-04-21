@@ -31,7 +31,7 @@ pub(crate) use self::derive::complete_derive_path;
 /// Complete inputs to known builtin attributes as well as derive attributes
 pub(crate) fn complete_known_attribute_input(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     colon_prefix: bool,
     fake_attribute_under_caret: &ast::TokenTreeMeta,
     extern_crate: Option<&ast::ExternCrate>,
@@ -70,7 +70,7 @@ pub(crate) fn complete_known_attribute_input(
 
 pub(crate) fn complete_attribute_path(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     path_ctx @ PathCompletionCtx { qualified, .. }: &PathCompletionCtx<'_>,
     &AttrCtx { kind, annotated_item_kind, ref derive_helpers }: &AttrCtx,
 ) {

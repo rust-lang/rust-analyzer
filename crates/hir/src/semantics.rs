@@ -166,7 +166,7 @@ pub struct Semantics<'db, DB: ?Sized> {
 
 pub struct SemanticsImpl<'db> {
     pub db: &'db dyn HirDatabase,
-    s2d_cache: RefCell<SourceToDefCache>,
+    s2d_cache: RefCell<SourceToDefCache<'db>>,
     /// MacroCall to its expansion's MacroCallId cache
     macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, MacroCallId>>,
 }
@@ -548,7 +548,7 @@ impl<'db> SemanticsImpl<'db> {
     }
 
     pub fn expand(&self, file_id: MacroCallId) -> ExpandResult<SyntaxNode> {
-        let res = self.db.parse_macro_expansion(file_id).map(|it| it.0.syntax_node());
+        let res = self.db.parse_macro_expansion(file_id).as_ref().map(|it| it.0.syntax_node());
         self.cache(res.value.clone(), file_id.into());
         res
     }
@@ -648,7 +648,7 @@ impl<'db> SemanticsImpl<'db> {
                 let ExpandResult { value, err } = self.db.parse_macro_expansion(file_id);
                 let root_node = value.0.syntax_node();
                 self.cache(root_node.clone(), file_id.into());
-                Some(ExpandResult { value: root_node, err })
+                Some(ExpandResult { value: root_node, err: err.clone() })
             })
             .collect();
         Some(res)

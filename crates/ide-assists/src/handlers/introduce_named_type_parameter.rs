@@ -17,7 +17,7 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 pub(crate) fn introduce_named_type_parameter(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     let impl_trait_type = ctx.find_node_at_offset::<ast::ImplTraitType>()?;
     let param = impl_trait_type.syntax().ancestors().find_map(ast::Param::cast)?;

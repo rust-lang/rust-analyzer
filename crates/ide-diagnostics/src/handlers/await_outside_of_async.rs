@@ -4,7 +4,7 @@ use crate::{Diagnostic, DiagnosticsContext, adjusted_display_range};
 //
 // This diagnostic is triggered if the `await` keyword is used outside of an async function or block
 pub(crate) fn await_outside_of_async(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::AwaitOutsideOfAsync,
 ) -> Diagnostic {
     let display_range =

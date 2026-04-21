@@ -4,7 +4,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // This diagnostic is triggered if `match` block is missing one or more match arms.
 pub(crate) fn missing_match_arms(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::MissingMatchArms,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(

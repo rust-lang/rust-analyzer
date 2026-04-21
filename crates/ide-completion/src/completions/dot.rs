@@ -18,7 +18,7 @@ use crate::{
 /// Complete dot accesses, i.e. fields or methods.
 pub(crate) fn complete_dot(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     dot_access: &DotAccess<'_>,
 ) {
     let receiver_ty = match dot_access {
@@ -126,7 +126,7 @@ pub(crate) fn complete_dot(
 
 pub(crate) fn complete_undotted_self(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     expr_ctx: &PathExprCtx<'_>,
 ) {
@@ -198,7 +198,7 @@ pub(crate) fn complete_undotted_self(
 
 fn complete_fields(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     receiver: &hir::Type<'_>,
     mut named_field: impl FnMut(&mut Completions, hir::Field, hir::Type<'_>),
     mut tuple_index: impl FnMut(&mut Completions, usize, hir::Type<'_>),
@@ -227,13 +227,13 @@ fn complete_fields(
 }
 
 fn complete_methods(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     receiver: &hir::Type<'_>,
     traits_in_scope: &FxHashSet<hir::TraitId>,
     f: impl FnMut(hir::Function),
 ) {
-    struct Callback<'a, F> {
-        ctx: &'a CompletionContext<'a>,
+    struct Callback<'a, 'db, F> {
+        ctx: &'a CompletionContext<'a, 'db>,
         f: F,
         // We deliberately deduplicate by function ID and not name, because while inherent methods cannot be
         // duplicated, trait methods can. And it is still useful to show all of them (even when there
@@ -241,7 +241,7 @@ fn complete_methods(
         seen_methods: FxHashSet<Function>,
     }
 
-    impl<F> MethodCandidateCallback for Callback<'_, F>
+    impl<F> MethodCandidateCallback for Callback<'_, '_, F>
     where
         F: FnMut(hir::Function),
     {

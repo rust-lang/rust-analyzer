@@ -12,7 +12,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_ran
 //
 // This diagnostic is triggered if a function is invoked with an incorrect amount of arguments.
 pub(crate) fn mismatched_tuple_struct_pat_arg_count(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::MismatchedTupleStructPatArgCount,
 ) -> Diagnostic {
     let s = if d.found == 1 { "" } else { "s" };
@@ -33,7 +33,7 @@ pub(crate) fn mismatched_tuple_struct_pat_arg_count(
 //
 // This diagnostic is triggered if a function is invoked with an incorrect amount of arguments.
 pub(crate) fn mismatched_arg_count(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::MismatchedArgCount,
 ) -> Diagnostic {
     let s = if d.expected == 1 { "" } else { "s" };
@@ -47,7 +47,7 @@ pub(crate) fn mismatched_arg_count(
 }
 
 fn invalid_args_range(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     source: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
     expected: usize,
     found: usize,

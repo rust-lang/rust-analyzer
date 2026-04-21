@@ -69,7 +69,7 @@ use crate::{
 //     };
 // }
 // ```
-pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let def_file = ctx.file_id();
     let vfs_def_file = ctx.vfs_file_id();
     let name = ctx.find_node_at_offset::<ast::Name>()?;
@@ -219,7 +219,7 @@ pub(super) fn split_refs_and_uses<T: ast::AstNode>(
 //         };
 // }
 // ```
-pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let name_ref: ast::NameRef = ctx.find_node_at_offset()?;
     let call_info = CallInfo::from_name_ref(
         name_ref.clone(),
@@ -350,7 +350,7 @@ fn inline(
         cov_mark::hit!(inline_call_defined_in_macro);
         let span_map = sema.db.expansion_span_map(macro_file);
         let body_prettified =
-            prettify_macro_expansion(sema.db, fn_body.syntax().clone(), &span_map, *krate);
+            prettify_macro_expansion(sema.db, fn_body.syntax().clone(), span_map, *krate);
         if let Some(body) = ast::BlockExpr::cast(body_prettified) { body } else { fn_body.clone() }
     } else {
         fn_body.clone()
@@ -496,7 +496,7 @@ fn inline(
                     let param_ty_prettified = prettify_macro_expansion(
                         sema.db,
                         param_ty.syntax().clone(),
-                        &span_map,
+                        span_map,
                         *krate,
                     );
                     ast::Type::cast(param_ty_prettified).unwrap_or(param_ty)

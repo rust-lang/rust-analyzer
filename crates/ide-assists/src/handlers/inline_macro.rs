@@ -35,7 +35,7 @@ use crate::{AssistContext, AssistId, Assists};
 //     println!("{number}");
 // }
 // ```
-pub(crate) fn inline_macro(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn inline_macro(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let unexpanded = ctx.find_node_at_offset::<ast::MacroCall>()?;
     let macro_call = ctx.sema.to_def(&unexpanded)?;
     let target_crate_id = ctx.sema.file_to_module_def(ctx.vfs_file_id())?.krate(ctx.db()).into();
@@ -51,7 +51,7 @@ pub(crate) fn inline_macro(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
             let span_map = ctx.sema.db.expansion_span_map(macro_call);
             // Don't call `prettify_macro_expansion()` outside the actual assist action; it does some heavy rowan tree manipulation,
             // which can be very costly for big macros when it is done *even without the assist being invoked*.
-            let expanded = prettify_macro_expansion(ctx.db(), expanded, &span_map, target_crate_id);
+            let expanded = prettify_macro_expansion(ctx.db(), expanded, span_map, target_crate_id);
             let expanded = ast::edit::indent(&expanded, unexpanded.indent_level());
             editor.replace(unexpanded.syntax(), expanded);
             builder.add_file_edits(ctx.vfs_file_id(), editor);

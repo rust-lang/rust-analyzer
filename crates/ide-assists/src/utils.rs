@@ -222,7 +222,7 @@ pub fn add_trait_assoc_items_to_impl(
                     let item_prettified = prettify_macro_expansion(
                         sema.db,
                         original_item.syntax().clone(),
-                        &span_map,
+                        span_map,
                         target_scope.krate().into(),
                     );
                     if let Some(formatted) = ast::AssocItem::cast(item_prettified) {
@@ -382,18 +382,21 @@ pub(crate) fn does_pat_match_variant(pat: &ast::Pat, var: &ast::Pat) -> bool {
     pat_head == var_head
 }
 
-pub(crate) fn does_pat_variant_nested_or_literal(ctx: &AssistContext<'_>, pat: &ast::Pat) -> bool {
+pub(crate) fn does_pat_variant_nested_or_literal(
+    ctx: &AssistContext<'_, '_>,
+    pat: &ast::Pat,
+) -> bool {
     check_pat_variant_nested_or_literal_with_depth(ctx, pat, 0)
 }
 
-fn check_pat_variant_from_enum(ctx: &AssistContext<'_>, pat: &ast::Pat) -> bool {
+fn check_pat_variant_from_enum(ctx: &AssistContext<'_, '_>, pat: &ast::Pat) -> bool {
     ctx.sema.type_of_pat(pat).is_none_or(|ty: hir::TypeInfo<'_>| {
         ty.adjusted().as_adt().is_some_and(|adt| matches!(adt, hir::Adt::Enum(_)))
     })
 }
 
 fn check_pat_variant_nested_or_literal_with_depth(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     pat: &ast::Pat,
     depth_after_refutable: usize,
 ) -> bool {
@@ -480,7 +483,7 @@ pub(crate) fn expr_fill_default(config: &AssistConfig) -> ast::Expr {
 ///  - `Some(None)`: no impl exists.
 ///  - `Some(Some(_))`: an impl exists, with no matching function names.
 pub(crate) fn find_struct_impl(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     adt: &ast::Adt,
     names: &[String],
 ) -> Option<Option<ast::Impl>> {
@@ -1029,7 +1032,7 @@ pub(crate) fn add_group_separators(s: &str, group_size: usize) -> String {
 
 /// Replaces the record expression, handling field shorthands including inside macros.
 pub(crate) fn replace_record_field_expr(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     edit: &mut SourceChangeBuilder,
     record_field: ast::RecordExprField,
     initializer: ast::Expr,

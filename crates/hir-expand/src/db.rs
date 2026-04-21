@@ -17,7 +17,7 @@ use crate::{
     fixup::{self, SyntaxFixupUndoInfo},
     hygiene::{span_with_call_site_ctxt, span_with_def_site_ctxt, span_with_mixed_site_ctxt},
     proc_macro::{CrateProcMacros, CustomProcMacroExpander, ProcMacros},
-    span_map::{ExpansionSpanMap, RealSpanMap, SpanMap, SpanMapRef},
+    span_map::{ExpansionSpanMap, RealSpanMap, SpanMap},
     tt,
 };
 /// This is just to ensure the types of smart_macro_arg and macro_arg are the same
@@ -67,21 +67,22 @@ pub trait ExpandDatabase: SourceDatabase {
     fn parse_or_expand(&self, file_id: HirFileId) -> SyntaxNode;
 
     /// Implementation for the macro case.
-    #[salsa::lru(512)]
+    #[salsa::transparent]
     fn parse_macro_expansion(
         &self,
         macro_file: MacroCallId,
-    ) -> ExpandResult<(Parse<SyntaxNode>, Arc<ExpansionSpanMap>)>;
+    ) -> &ExpandResult<(Parse<SyntaxNode>, ExpansionSpanMap)>;
 
     #[salsa::transparent]
     #[salsa::invoke(SpanMap::new)]
-    fn span_map(&self, file_id: HirFileId) -> SpanMap;
+    fn span_map(&self, file_id: HirFileId) -> SpanMap<'_>;
 
     #[salsa::transparent]
     #[salsa::invoke(crate::span_map::expansion_span_map)]
-    fn expansion_span_map(&self, file_id: MacroCallId) -> Arc<ExpansionSpanMap>;
+    fn expansion_span_map(&self, file_id: MacroCallId) -> &ExpansionSpanMap;
     #[salsa::invoke(crate::span_map::real_span_map)]
-    fn real_span_map(&self, file_id: EditionedFileId) -> Arc<RealSpanMap>;
+    #[salsa::transparent]
+    fn real_span_map(&self, file_id: EditionedFileId) -> &RealSpanMap;
 
     /// Macro ids. That's probably the tricksiest bit in rust-analyzer, and the
     /// reason why we use salsa at all.
@@ -181,7 +182,7 @@ pub fn expand_speculative(
     let (_, _, span) = db.macro_arg_considering_derives(actual_macro_call, &loc.kind);
 
     let span_map = RealSpanMap::absolute(span.anchor.file_id);
-    let span_map = SpanMapRef::RealSpanMap(&span_map);
+    let span_map = SpanMap::RealSpanMap(&span_map);
 
     // Build the subtree and token mapping for the speculative args
     let (mut tt, undo_info) = match &loc.kind {
@@ -358,10 +359,11 @@ fn parse_or_expand(db: &dyn ExpandDatabase, file_id: HirFileId) -> SyntaxNode {
 
 // FIXME: We should verify that the parsed node is one of the many macro node variants we expect
 // instead of having it be untyped
+#[salsa_macros::tracked(returns(ref), lru = 512)]
 fn parse_macro_expansion(
     db: &dyn ExpandDatabase,
     macro_file: MacroCallId,
-) -> ExpandResult<(Parse<SyntaxNode>, Arc<ExpansionSpanMap>)> {
+) -> ExpandResult<(Parse<SyntaxNode>, ExpansionSpanMap)> {
     let _p = tracing::info_span!("parse_macro_expansion").entered();
     let loc = db.lookup_intern_macro_call(macro_file);
     let expand_to = loc.expand_to();
@@ -377,7 +379,7 @@ fn parse_macro_expansion(
     );
     rev_token_map.matched_arm = matched_arm;
 
-    ExpandResult { value: (parse, Arc::new(rev_token_map)), err }
+    ExpandResult { value: (parse, rev_token_map), err }
 }
 
 fn parse_macro_expansion_error(
@@ -385,21 +387,21 @@ fn parse_macro_expansion_error(
     macro_call_id: MacroCallId,
 ) -> Option<Arc<ExpandResult<Arc<[SyntaxError]>>>> {
     let e: ExpandResult<Arc<[SyntaxError]>> =
-        db.parse_macro_expansion(macro_call_id).map(|it| Arc::from(it.0.errors()));
+        db.parse_macro_expansion(macro_call_id).as_ref().map(|it| Arc::from(it.0.errors()));
     if e.value.is_empty() && e.err.is_none() { None } else { Some(Arc::new(e)) }
 }
 
 pub(crate) fn parse_with_map(
     db: &dyn ExpandDatabase,
     file_id: HirFileId,
-) -> (Parse<SyntaxNode>, SpanMap) {
+) -> (Parse<SyntaxNode>, SpanMap<'_>) {
     match file_id {
         HirFileId::FileId(file_id) => {
             (file_id.parse(db).to_syntax(), SpanMap::RealSpanMap(db.real_span_map(file_id)))
         }
         HirFileId::MacroFile(macro_file) => {
-            let (parse, map) = db.parse_macro_expansion(macro_file).value;
-            (parse, SpanMap::ExpansionSpanMap(map))
+            let (parse, map) = &db.parse_macro_expansion(macro_file).value;
+            (parse.clone(), SpanMap::ExpansionSpanMap(map))
         }
     }
 }
@@ -487,7 +489,7 @@ fn macro_arg(db: &dyn ExpandDatabase, id: MacroCallId) -> MacroArgResult {
 
             let mut tt = syntax_bridge::syntax_node_to_token_tree(
                 tt.syntax(),
-                map.as_ref(),
+                map,
                 span,
                 if loc.def.is_proc_macro() {
                     DocCommentDesugarMode::ProcMacro
@@ -522,7 +524,7 @@ fn macro_arg(db: &dyn ExpandDatabase, id: MacroCallId) -> MacroArgResult {
     let (mut tt, undo_info) = attr_macro_input_to_token_tree(
         db,
         item_node.syntax(),
-        map.as_ref(),
+        map,
         span,
         is_derive,
         censor_item_tree_attr_ids,

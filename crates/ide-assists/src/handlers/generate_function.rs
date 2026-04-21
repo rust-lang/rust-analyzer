@@ -53,11 +53,11 @@ use crate::{
 // }
 //
 // ```
-pub(crate) fn generate_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn generate_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     gen_fn(acc, ctx).or_else(|| gen_method(acc, ctx))
 }
 
-fn gen_fn(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+fn gen_fn(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let path_expr: ast::PathExpr = ctx.find_node_at_offset()?;
     let call = path_expr.syntax().parent().and_then(ast::CallExpr::cast)?;
     let path = path_expr.path()?;
@@ -104,7 +104,7 @@ impl TargetInfo {
 }
 
 fn fn_target_info(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     path: ast::Path,
     call: &CallExpr,
     fn_name: &str,
@@ -134,7 +134,7 @@ fn fn_target_info(
     }
 }
 
-fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let call: ast::MethodCallExpr = ctx.find_node_at_offset()?;
     if ctx.sema.resolve_method_call(&call).is_some() {
         return None;
@@ -182,7 +182,7 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
 
 fn add_func_to_accumulator(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     text_range: TextRange,
     function_builder: FunctionBuilder,
     file: FileId,
@@ -204,7 +204,7 @@ fn add_func_to_accumulator(
 }
 
 fn get_adt_source(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     adt: &hir::Adt,
     fn_name: &str,
 ) -> Option<(Option<ast::Impl>, FileId)> {
@@ -236,7 +236,7 @@ impl FunctionBuilder {
     /// The function is generated in `target_module` or next to `call`
     fn from_call(
         make: &SyntaxFactory,
-        ctx: &AssistContext<'_>,
+        ctx: &AssistContext<'_, '_>,
         call: &ast::CallExpr,
         fn_name: &str,
         target_module: Option<Module>,
@@ -307,7 +307,7 @@ impl FunctionBuilder {
 
     fn from_method_call(
         make: &SyntaxFactory,
-        ctx: &AssistContext<'_>,
+        ctx: &AssistContext<'_, '_>,
         call: &ast::MethodCallExpr,
         name: &ast::NameRef,
         receiver_ty: Type<'_>,
@@ -399,7 +399,7 @@ impl FunctionBuilder {
 ///   user can change the `todo!` function body.
 fn make_return_type(
     make: &SyntaxFactory,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     expr: &ast::Expr,
     target_module: Module,
     necessary_generic_params: &mut FxHashSet<hir::GenericParam>,
@@ -424,7 +424,7 @@ fn make_return_type(
 
 fn make_fn_body_as_new_function(
     make: &SyntaxFactory,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     fn_name: &str,
     adt_info: &Option<AdtInfo>,
     edition: Edition,
@@ -475,7 +475,7 @@ fn make_fn_body_as_new_function(
 }
 
 fn get_fn_target_info(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     target_module: Option<Module>,
     call: CallExpr,
 ) -> Option<TargetInfo> {
@@ -484,7 +484,7 @@ fn get_fn_target_info(
 }
 
 fn get_fn_target(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     target_module: Option<Module>,
     call: CallExpr,
 ) -> Option<(GeneratedFunctionTarget, FileId)> {
@@ -501,7 +501,7 @@ fn get_fn_target(
 }
 
 fn get_method_target(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     impl_: &Option<ast::Impl>,
     adt: &Adt,
 ) -> Option<GeneratedFunctionTarget> {
@@ -513,7 +513,7 @@ fn get_method_target(
 }
 
 fn assoc_fn_target_info(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     call: &CallExpr,
     adt: hir::Adt,
     fn_name: &str,
@@ -558,7 +558,7 @@ impl GeneratedFunctionTarget {
         &self,
         edit: &mut SourceChangeBuilder,
         file: FileId,
-        ctx: &AssistContext<'_>,
+        ctx: &AssistContext<'_, '_>,
         function_builder: &FunctionBuilder,
         adt: Adt,
         cap: Option<SnippetCap>,
@@ -719,7 +719,7 @@ impl GeneratedFunctionTarget {
 fn insert_rendered_impl(
     editor: &SyntaxEditor,
     edit: &mut SourceChangeBuilder,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     function_builder: &FunctionBuilder,
     adt: Adt,
     position: Position,
@@ -801,7 +801,7 @@ impl AdtInfo {
 /// Computes parameter list for the generated function.
 fn fn_args(
     make: &SyntaxFactory,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     target_module: Module,
     call: ast::CallableExpr,
     necessary_generic_params: &mut FxHashSet<hir::GenericParam>,
@@ -837,7 +837,7 @@ fn fn_args(
 /// use the Rename functionality.
 fn fn_generic_params(
     make: &SyntaxFactory,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     necessary_params: FxHashSet<hir::GenericParam>,
     target: &GeneratedFunctionTarget,
 ) -> Option<(Option<ast::GenericParamList>, Option<ast::WhereClause>)> {
@@ -901,7 +901,7 @@ fn fn_generic_params(
 }
 
 fn params_and_where_preds_in_scope(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> (Vec<ast::GenericParam>, Vec<ast::WherePred>) {
     let Some(body) = containing_body(ctx) else {
         return Default::default();
@@ -942,7 +942,7 @@ fn params_and_where_preds_in_scope(
     (generic_params, where_clauses)
 }
 
-fn containing_body(ctx: &AssistContext<'_>) -> Option<hir::DefWithBody> {
+fn containing_body(ctx: &AssistContext<'_, '_>) -> Option<hir::DefWithBody> {
     let item: ast::Item = ctx.find_node_at_offset()?;
     let def = match item {
         ast::Item::Fn(it) => ctx.sema.to_def(&it)?.into(),
@@ -954,7 +954,7 @@ fn containing_body(ctx: &AssistContext<'_>) -> Option<hir::DefWithBody> {
 }
 
 fn get_bounds_in_scope<D>(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     def: D,
 ) -> (impl Iterator<Item = ast::GenericParam>, impl Iterator<Item = ast::WherePred>)
 where
@@ -1020,7 +1020,7 @@ struct WherePredWithParams {
 }
 
 fn compute_contained_params_in_generic_param(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     node: ast::GenericParam,
 ) -> Option<ParamBoundWithParams> {
     match &node {
@@ -1049,7 +1049,7 @@ fn compute_contained_params_in_generic_param(
 }
 
 fn compute_contained_params_in_where_pred(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     node: ast::WherePred,
 ) -> Option<WherePredWithParams> {
     let self_ty = node.ty()?;
@@ -1070,7 +1070,10 @@ fn compute_contained_params_in_where_pred(
     Some(WherePredWithParams { node, self_ty_params, other_params })
 }
 
-fn filter_generic_params(ctx: &AssistContext<'_>, node: SyntaxNode) -> Option<hir::GenericParam> {
+fn filter_generic_params(
+    ctx: &AssistContext<'_, '_>,
+    node: SyntaxNode,
+) -> Option<hir::GenericParam> {
     let path = ast::Path::cast(node)?;
     match ctx.sema.resolve_path(&path)? {
         PathResolution::TypeParam(it) => Some(it.into()),
@@ -1165,7 +1168,7 @@ fn filter_unnecessary_bounds(
 fn filter_bounds_in_scope(
     generic_params: &mut Vec<ParamBoundWithParams>,
     where_preds: &mut Vec<WherePredWithParams>,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     target: &GeneratedFunctionTarget,
 ) -> Option<()> {
     let target_impl = target.parent().ancestors().find_map(ast::Impl::cast)?;
@@ -1248,13 +1251,13 @@ fn fn_arg_name(sema: &Semantics<'_, RootDatabase>, arg_expr: &ast::Expr) -> Stri
 }
 
 fn fn_arg_type(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     target_module: Module,
     fn_arg: &ast::Expr,
     generic_params: &mut FxHashSet<hir::GenericParam>,
 ) -> String {
     fn maybe_displayed_type(
-        ctx: &AssistContext<'_>,
+        ctx: &AssistContext<'_, '_>,
         target_module: Module,
         fn_arg: &ast::Expr,
         generic_params: &mut FxHashSet<hir::GenericParam>,
@@ -1347,7 +1350,7 @@ enum Visibility {
 fn calculate_necessary_visibility(
     current_module: Module,
     target_module: Module,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Visibility {
     let db = ctx.db();
     let current_module = current_module.nearest_non_block_module(db);

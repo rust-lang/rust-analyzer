@@ -47,7 +47,10 @@ use crate::{
 //     }
 // }
 // ```
-pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn replace_if_let_with_match(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     let if_expr: ast::IfExpr = ctx.find_node_at_offset()?;
     let available_range = TextRange::new(
         if_expr.syntax().text_range().start(),
@@ -160,7 +163,7 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
 }
 
 fn make_else_arm(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     make: &SyntaxFactory,
     else_expr: Option<ast::Expr>,
     conditionals: &[(Option<ast::Pat>, Option<ast::Expr>, ast::BlockExpr)],
@@ -223,7 +226,10 @@ fn make_else_arm(
 //     }
 // }
 // ```
-pub(crate) fn replace_match_with_if_let(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn replace_match_with_if_let(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     let match_expr: ast::MatchExpr = ctx.find_node_at_offset()?;
     let match_arm_list = match_expr.match_arm_list()?;
     let available_range = TextRange::new(
@@ -397,7 +403,7 @@ fn is_sad_pat(sema: &hir::Semantics<'_, RootDatabase>, pat: &ast::Pat) -> bool {
 
 fn let_and_guard(
     cond: &ast::Expr,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<(Option<(ast::Pat, ast::Expr)>, Option<ast::Expr>)> {
     if let ast::Expr::ParenExpr(expr) = cond
         && let Some(sub_expr) = expr.expr()
@@ -454,7 +460,7 @@ fn and_bin_expr_left(expr: &ast::BinExpr) -> ast::BinExpr {
 
 fn parse_matches_macro(
     expr: &ast::Expr,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<(ast::Pat, ast::Expr, Option<ast::Expr>)> {
     let ast::Expr::MacroExpr(macro_expr) = expr else { return None };
     let macro_call = macro_expr.macro_call()?;
@@ -504,7 +510,7 @@ fn pretty_pat_inside_macro(
         let pretty_node = hir::prettify_macro_expansion(
             db,
             pat,
-            &db.expansion_span_map(file_id),
+            db.expansion_span_map(file_id),
             scope.module().krate(db).into(),
         );
         ast::Pat::cast(pretty_node)

@@ -7,7 +7,7 @@ use crate::{Completions, context::CompletionContext, item::CompletionItem};
 
 pub(super) fn complete_repr(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     existing_reprs: &[ast::Expr],
 ) {
     for &ReprCompletion { label, snippet, lookup, collides } in REPR_COMPLETIONS {

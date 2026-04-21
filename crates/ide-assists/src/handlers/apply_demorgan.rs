@@ -37,7 +37,7 @@ use crate::{AssistContext, AssistId, Assists, utils::invert_boolean_expression};
 //     if !(x == 4 && y >= 3.14) {}
 // }
 // ```
-pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let mut bin_expr = if let Some(not) = ctx.find_token_syntax_at_offset(T![!])
         && let Some(NodeOrToken::Node(next)) = not.next_sibling_or_token()
         && let Some(paren) = ast::ParenExpr::cast(next)
@@ -189,7 +189,10 @@ pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 //     }
 // }
 // ```
-pub(crate) fn apply_demorgan_iterator(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn apply_demorgan_iterator(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     let method_call: ast::MethodCallExpr = ctx.find_node_at_offset().or_else(|| {
         let parent = ctx.find_token_syntax_at_offset(T![!])?.parent()?;
         match ast::PrefixExpr::cast(parent)?.expr()? {
@@ -253,7 +256,7 @@ pub(crate) fn apply_demorgan_iterator(acc: &mut Assists, ctx: &AssistContext<'_>
 
 /// Ensures that the method call is to `Iterator::all` or `Iterator::any`.
 fn validate_method_call_expr(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     method_call: &ast::MethodCallExpr,
 ) -> Option<(ast::NameRef, ast::Expr)> {
     let name_ref = method_call.name_ref()?;

@@ -35,15 +35,15 @@ use crate::{
 };
 /// Interface for data and methods required for items rendering.
 #[derive(Debug, Clone)]
-pub(crate) struct RenderContext<'a> {
-    completion: &'a CompletionContext<'a>,
+pub(crate) struct RenderContext<'a, 'db> {
+    completion: &'a CompletionContext<'a, 'db>,
     is_private_editable: bool,
     import_to_add: Option<LocatedImport>,
     doc_aliases: Vec<SmolStr>,
 }
 
-impl<'a> RenderContext<'a> {
-    pub(crate) fn new(completion: &'a CompletionContext<'a>) -> RenderContext<'a> {
+impl<'a, 'db> RenderContext<'a, 'db> {
+    pub(crate) fn new(completion: &'a CompletionContext<'a, 'db>) -> RenderContext<'a, 'db> {
         RenderContext {
             completion,
             is_private_editable: false,
@@ -136,7 +136,7 @@ impl<'a> RenderContext<'a> {
 }
 
 pub(crate) fn render_field(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     dot_access: &DotAccess<'_>,
     receiver: Option<SmolStr>,
     field: hir::Field,
@@ -213,7 +213,7 @@ fn field_with_receiver(receiver: Option<&str>, field_name: &str) -> SmolStr {
 }
 
 pub(crate) fn render_tuple_field(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     receiver: Option<SmolStr>,
     field: usize,
     ty: &hir::Type<'_>,
@@ -235,7 +235,7 @@ pub(crate) fn render_tuple_field(
 
 pub(crate) fn render_type_inference(
     ty_string: String,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
 ) -> CompletionItem {
     let mut builder = CompletionItem::new(
@@ -254,7 +254,7 @@ pub(crate) fn render_type_inference(
 }
 
 pub(crate) fn render_path_resolution(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     local_name: hir::Name,
     resolution: ScopeDef,
@@ -263,7 +263,7 @@ pub(crate) fn render_path_resolution(
 }
 
 pub(crate) fn render_pattern_resolution(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     pattern_ctx: &PatternContext,
     local_name: hir::Name,
     resolution: ScopeDef,
@@ -272,7 +272,7 @@ pub(crate) fn render_pattern_resolution(
 }
 
 pub(crate) fn render_resolution_with_import(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     import_edit: LocatedImport,
 ) -> Option<Builder> {
@@ -285,7 +285,7 @@ pub(crate) fn render_resolution_with_import(
 }
 
 pub(crate) fn render_resolution_with_import_pat(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     pattern_ctx: &PatternContext,
     import_edit: LocatedImport,
 ) -> Option<Builder> {
@@ -295,7 +295,7 @@ pub(crate) fn render_resolution_with_import_pat(
 }
 
 pub(crate) fn render_expr(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     expr: &hir::term_search::Expr<'_>,
 ) -> Option<Builder> {
     let mut i = 1;
@@ -358,7 +358,7 @@ pub(crate) fn render_expr(
 
 fn get_import_name(
     resolution: ScopeDef,
-    ctx: &RenderContext<'_>,
+    ctx: &RenderContext<'_, '_>,
     import_edit: &LocatedImport,
 ) -> Option<hir::Name> {
     // FIXME: Temporary workaround for handling aliased import.
@@ -376,7 +376,7 @@ fn get_import_name(
 
 fn scope_def_to_name(
     resolution: ScopeDef,
-    ctx: &RenderContext<'_>,
+    ctx: &RenderContext<'_, '_>,
     import_edit: &LocatedImport,
 ) -> Option<hir::Name> {
     Some(match resolution {
@@ -388,7 +388,7 @@ fn scope_def_to_name(
 }
 
 fn render_resolution_pat(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     pattern_ctx: &PatternContext,
     local_name: hir::Name,
     import_to_add: Option<LocatedImport>,
@@ -406,7 +406,7 @@ fn render_resolution_pat(
 }
 
 fn render_resolution_path(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     local_name: hir::Name,
     import_to_add: Option<LocatedImport>,
@@ -515,7 +515,7 @@ fn render_resolution_path(
 }
 
 fn render_resolution_simple_(
-    ctx: RenderContext<'_>,
+    ctx: RenderContext<'_, '_>,
     local_name: &hir::Name,
     import_to_add: Option<LocatedImport>,
     resolution: ScopeDef,
@@ -589,7 +589,7 @@ fn scope_def_docs(db: &RootDatabase, resolution: ScopeDef) -> Option<Documentati
     }
 }
 
-fn scope_def_is_deprecated(ctx: &RenderContext<'_>, resolution: ScopeDef) -> bool {
+fn scope_def_is_deprecated(ctx: &RenderContext<'_, '_>, resolution: ScopeDef) -> bool {
     let db = ctx.db();
     match resolution {
         ScopeDef::ModuleDef(hir::ModuleDef::EnumVariant(it)) => ctx.is_variant_deprecated(it),
@@ -605,7 +605,7 @@ fn scope_def_is_deprecated(ctx: &RenderContext<'_>, resolution: ScopeDef) -> boo
 }
 
 pub(crate) fn render_type_keyword_snippet(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     label: &str,
     snippet: &str,
@@ -629,7 +629,7 @@ pub(crate) fn render_type_keyword_snippet(
 }
 
 fn adds_ret_type_arrow(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     item: &mut Builder,
     insert_text: String,
@@ -648,7 +648,7 @@ fn adds_ret_type_arrow(
 
 // FIXME: This checks types without possible coercions which some completions might want to do
 fn match_types(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     ty1: &hir::Type<'_>,
     ty2: &hir::Type<'_>,
 ) -> Option<CompletionRelevanceTypeMatch> {
@@ -662,7 +662,7 @@ fn match_types(
 }
 
 fn compute_type_match(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     completion_ty: &hir::Type<'_>,
 ) -> Option<CompletionRelevanceTypeMatch> {
     let expected_type = ctx.expected_type.as_ref()?;
@@ -696,12 +696,12 @@ fn compute_has_local_inherent_impl(
             .any(|imp| imp.trait_(db).is_none() && imp.module(db) == curr_module)
 }
 
-fn compute_exact_name_match(ctx: &CompletionContext<'_>, completion_name: &str) -> bool {
+fn compute_exact_name_match(ctx: &CompletionContext<'_, '_>, completion_name: &str) -> bool {
     ctx.expected_name.as_ref().is_some_and(|name| name.text() == completion_name)
 }
 
 fn compute_ref_match(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     completion_ty: &hir::Type<'_>,
 ) -> Option<CompletionItemRefMode> {
     let expected_type = ctx.expected_type.as_ref()?;
@@ -736,7 +736,7 @@ fn compute_ref_match(
 }
 
 fn path_ref_match(
-    completion: &CompletionContext<'_>,
+    completion: &CompletionContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     ty: &hir::Type<'_>,
     item: &mut Builder,
