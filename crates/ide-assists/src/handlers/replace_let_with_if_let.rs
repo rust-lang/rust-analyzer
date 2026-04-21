@@ -37,6 +37,10 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn replace_let_with_if_let(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let let_kw = ctx.find_token_syntax_at_offset(T![let])?;
     let let_stmt = let_kw.parent().and_then(ast::LetStmt::cast)?;
+    // Bail on malformed input (e.g. unterminated string literal in the initializer
+    // swallows the trailing `;` and subsequent tokens). `make::expr_if` would
+    // otherwise re-parse a broken format string and panic.
+    let_stmt.semicolon_token()?;
     let init = let_stmt.initializer()?;
     let original_pat = let_stmt.pat()?;
 
@@ -101,7 +105,7 @@ fn let_expr_needs_paren(expr: &ast::Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::check_assist;
+    use crate::tests::{check_assist, check_assist_not_applicable};
 
     use super::*;
 
@@ -222,6 +226,18 @@ fn main() {
     } else { unreachable!() }
 }
             ",
+        )
+    }
+
+    #[test]
+    fn replace_let_not_applicable_on_unterminated_string() {
+        check_assist_not_applicable(
+            replace_let_with_if_let,
+            r#"
+fn main() {
+    $0let s = "foo
+}
+            "#,
         )
     }
 }
