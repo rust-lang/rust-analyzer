@@ -3163,8 +3163,6 @@ fn foo() {
 
 #[test]
 fn deprecated_enum_marks_variants_deprecated() {
-    // regression: rust-lang/rust-analyzer#22090 — a variant inherits the
-    // `#[deprecated]` attribute of its parent enum.
     check(
         r#"
 #[deprecated]
