@@ -26,6 +26,7 @@ use crate::{
 mod cfg;
 mod derive;
 mod diagnostic;
+mod feature;
 mod lint;
 mod macro_use;
 mod repr;
@@ -50,7 +51,7 @@ pub(crate) fn complete_known_attribute_input(
 
     match segments.as_slice() {
         ["repr"] => repr::complete_repr(acc, ctx, &parse_comma_sep_expr(tt)?),
-        ["feature"] => lint::complete_lint(
+        ["feature"] => feature::complete_lint(
             acc,
             ctx,
             colon_prefix,
