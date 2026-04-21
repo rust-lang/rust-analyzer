@@ -229,12 +229,12 @@ pub struct SourceChangeBuilder {
     pub snippet_annotations: Vec<(AnnotationSnippet, SyntaxAnnotation)>,
 
     /// Maps the original, immutable `SyntaxNode` to a `clone_for_update` twin.
-    pub mutated_tree: Option<TreeMutator>,
+    mutated_tree: Option<TreeMutator>,
     /// Keeps track of where to place snippets
     pub snippet_builder: Option<SnippetBuilder>,
 }
 
-pub struct TreeMutator {
+struct TreeMutator {
     immutable: SyntaxNode,
     mutable_clone: SyntaxNode,
 }
@@ -246,17 +246,17 @@ pub struct SnippetBuilder {
 }
 
 impl TreeMutator {
-    pub fn new(immutable: &SyntaxNode) -> TreeMutator {
+    fn new(immutable: &SyntaxNode) -> TreeMutator {
         let immutable = immutable.ancestors().last().unwrap();
         let mutable_clone = immutable.clone_for_update();
         TreeMutator { immutable, mutable_clone }
     }
 
-    pub fn make_mut<N: AstNode>(&self, node: &N) -> N {
+    fn make_mut<N: AstNode>(&self, node: &N) -> N {
         N::cast(self.make_syntax_mut(node.syntax())).unwrap()
     }
 
-    pub fn make_syntax_mut(&self, node: &SyntaxNode) -> SyntaxNode {
+    fn make_syntax_mut(&self, node: &SyntaxNode) -> SyntaxNode {
         let ptr = SyntaxNodePtr::new(node);
         ptr.to_node(&self.mutable_clone)
     }
