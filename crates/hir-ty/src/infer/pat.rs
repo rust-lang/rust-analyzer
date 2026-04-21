@@ -241,8 +241,6 @@ impl<'db> InferenceContext<'_, 'db> {
         pat_ty
     }
 
-    /// The resolver needs to be updated to the surrounding expression when inside assignment
-    /// (because there, `Pat::Path` can refer to a variable).
     pub(super) fn infer_top_pat(
         &mut self,
         pat: PatId,
@@ -405,7 +403,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 // LHS of assignment doesn't constitute reads.
                 let expr_is_read = ExprIsRead::No;
                 let result =
-                    self.infer_expr_coerce(*expr, &Expectation::has_type(expected), expr_is_read);
+                    self.infer_expr_inner(*expr, &Expectation::has_type(expected), expr_is_read);
                 // We are returning early to avoid the unifiability check below.
                 let lhs_ty = self.insert_type_vars_shallow(result);
                 let ty = match self.coerce(

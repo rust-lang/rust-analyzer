@@ -687,7 +687,6 @@ pub enum Pat {
         slice: Option<PatId>,
         suffix: Box<[PatId]>,
     },
-    /// This might refer to a variable if a single segment path (specifically, on destructuring assignment).
     Path(Path),
     Lit(ExprId),
     Bind {

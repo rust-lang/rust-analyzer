@@ -13,6 +13,7 @@ use cfg::CfgOptions;
 use either::Either;
 use hir_expand::{
     HirFileId, InFile, MacroDefId,
+    mod_path::ModPath,
     name::{AsName, Name},
     span_map::SpanMapRef,
 };
@@ -1611,6 +1612,37 @@ impl<'db> ExprCollector<'db> {
         })
     }
 
+    /// Whether this path should be lowered as destructuring assignment, or as a normal assignment.
+    fn path_is_destructuring_assignment(&self, path: &ModPath) -> bool {
+        // rustc has access to a full resolver here, including local variables and generic params, and it checks the following
+        // criteria: a path not lowered as destructuring assignment if it can *fully resolve* to something that is *not*
+        // a const, a unit struct or a variant.
+        // We don't have access to a full resolver here. So we should do the same as rustc, but assuming that local variables
+        // could be resolved to nothing (fortunately, there cannot be a local variable shadowing a unit struct/variant/const,
+        // as that is an error). We don't need to consider const params as it's an error to refer to these in patterns.
+        let (resolution, unresolved_idx, _) = self.def_map.resolve_path_locally(
+            self.local_def_map,
+            self.db,
+            self.module,
+            path,
+            BuiltinShadowMode::Other,
+        );
+        match unresolved_idx {
+            Some(_) => {
+                // If `Some(_)`, path could be resolved to unit struct/variant/const with type information, i.e. an assoc type or const.
+                // If `None`, path could be a local variable.
+                resolution.take_types().is_some()
+            }
+            None => match resolution.take_values() {
+                // We don't need to consider non-unit structs/variants, as those are not value types.
+                Some(ModuleDefId::EnumVariantId(_))
+                | Some(ModuleDefId::AdtId(_))
+                | Some(ModuleDefId::ConstId(_)) => true,
+                _ => false,
+            },
+        }
+    }
+
     fn collect_expr_as_pat_opt(&mut self, expr: Option<ast::Expr>) -> PatId {
         match expr {
             Some(expr) => self.collect_expr_as_pat(expr),
@@ -1676,15 +1708,17 @@ impl<'db> ExprCollector<'db> {
                 self.alloc_pat_from_expr(Pat::TupleStruct { path, args, ellipsis }, syntax_ptr)
             }
             ast::Expr::PathExpr(e) => {
-                let (path, hygiene) = self
-                    .collect_expr_path(e.clone())
-                    .map(|(path, hygiene)| (Pat::Path(path), hygiene))
-                    .unwrap_or((Pat::Missing, HygieneId::ROOT));
-                let pat_id = self.alloc_pat_from_expr(path, syntax_ptr);
-                if !hygiene.is_root() {
-                    self.store.ident_hygiene.insert(pat_id.into(), hygiene);
+                let (path, hygiene) = self.collect_expr_path(e.clone())?;
+                let mod_path = path.mod_path().expect("should not lower to lang path");
+                if self.path_is_destructuring_assignment(mod_path) {
+                    let pat_id = self.alloc_pat_from_expr(Pat::Path(path), syntax_ptr);
+                    if !hygiene.is_root() {
+                        self.store.ident_hygiene.insert(pat_id.into(), hygiene);
+                    }
+                    pat_id
+                } else {
+                    return None;
                 }
-                pat_id
             }
             ast::Expr::MacroExpr(e) => {
                 let e = e.macro_call()?;
