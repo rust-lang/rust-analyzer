@@ -2,7 +2,7 @@
 use either::Either;
 
 use crate::{
-    AstNode, NodeOrToken, SyntaxKind, SyntaxNode, SyntaxToken,
+    AstNode, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken,
     ast::{
         self, HasArgList, HasAttrs, HasGenericArgs, HasGenericParams, HasLoopBody, HasName,
         HasTypeBounds, HasVisibility, Lifetime, Param, RangeItem, make,
@@ -491,6 +491,18 @@ impl SyntaxFactory {
         ast
     }
 
+    pub fn path_segment_self(&self) -> ast::PathSegment {
+        make::path_segment_self().clone_for_update()
+    }
+
+    pub fn path_segment_super(&self) -> ast::PathSegment {
+        make::path_segment_super().clone_for_update()
+    }
+
+    pub fn path_segment_crate(&self) -> ast::PathSegment {
+        make::path_segment_crate().clone_for_update()
+    }
+
     pub fn generic_ty_path_segment(
         &self,
         name_ref: ast::NameRef,
@@ -549,6 +561,14 @@ impl SyntaxFactory {
 
     pub fn ty_placeholder(&self) -> ast::Type {
         make::ty_placeholder().clone_for_update()
+    }
+
+    pub fn ty_unit(&self) -> ast::Type {
+        make::ty_unit().clone_for_update()
+    }
+
+    pub fn ty_tuple(&self, types: impl IntoIterator<Item = ast::Type>) -> ast::Type {
+        make::ty_tuple(types).clone_for_update()
     }
 
     pub fn path_segment_generics(
@@ -666,6 +686,18 @@ impl SyntaxFactory {
 
     pub fn ident_pat(&self, ref_: bool, mut_: bool, name: ast::Name) -> ast::IdentPat {
         let ast = make::ident_pat(ref_, mut_, name.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
+            builder.map_node(name.syntax().clone(), ast.name().unwrap().syntax().clone());
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
+    pub fn simple_ident_pat(&self, name: ast::Name) -> ast::IdentPat {
+        let ast = make::ext::simple_ident_pat(name.clone()).clone_for_update();
 
         if let Some(mut mapping) = self.mappings() {
             let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
@@ -2125,6 +2157,30 @@ impl SyntaxFactory {
         }
 
         ast
+    }
+
+    pub fn expr_try(&self, expr: ast::Expr) -> ast::Expr {
+        let ast = make::expr_try(expr.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
+            if let ast::Expr::TryExpr(try_expr) = &ast
+                && let Some(inner) = try_expr.expr()
+            {
+                builder.map_node(expr.syntax().clone(), inner.syntax().clone());
+            }
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
+    pub fn hacky_block_expr(
+        &self,
+        elements: impl IntoIterator<Item = SyntaxElement>,
+        tail_expr: Option<ast::Expr>,
+    ) -> ast::BlockExpr {
+        make::hacky_block_expr(elements, tail_expr).clone_for_update()
     }
 
     pub fn expr_break(&self, label: Option<Lifetime>, expr: Option<ast::Expr>) -> ast::BreakExpr {
