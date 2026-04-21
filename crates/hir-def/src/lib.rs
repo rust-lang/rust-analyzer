@@ -32,6 +32,7 @@ pub mod item_tree;
 
 pub mod builtin_derive;
 pub mod lang_item;
+pub mod unstable_features;
 
 pub mod hir;
 pub use self::hir::type_ref;

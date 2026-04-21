@@ -1,6 +1,5 @@
 //! Fallback of infer vars to `!` and `i32`/`f64`.
 
-use intern::sym;
 use petgraph::{
     Graph,
     visit::{Dfs, Walker},
@@ -80,7 +79,7 @@ impl<'db> InferenceContext<'_, 'db> {
             return DivergingFallbackBehavior::ToNever;
         }
 
-        if self.resolver.def_map().is_unstable_feature_enabled(&sym::never_type_fallback) {
+        if self.features.never_type_fallback {
             return DivergingFallbackBehavior::ContextDependent;
         }
 

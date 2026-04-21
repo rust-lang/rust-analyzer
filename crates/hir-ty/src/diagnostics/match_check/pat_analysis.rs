@@ -4,9 +4,8 @@ use std::{cell::LazyCell, fmt};
 
 use hir_def::{
     EnumId, EnumVariantId, HasModule, LocalFieldId, ModuleId, VariantId, attrs::AttrFlags,
-    signatures::VariantFields,
+    signatures::VariantFields, unstable_features::UnstableFeatures,
 };
-use intern::sym;
 use rustc_pattern_analysis::{
     IndexVec, PatCx, PrivateUninhabitedField,
     constructor::{Constructor, ConstructorSet, VariantVisibility},
@@ -82,8 +81,7 @@ pub(crate) struct MatchCheckCtx<'a, 'db> {
 impl<'a, 'db> MatchCheckCtx<'a, 'db> {
     pub(crate) fn new(module: ModuleId, infcx: &'a InferCtxt<'db>, env: ParamEnv<'db>) -> Self {
         let db = infcx.interner.db;
-        let def_map = module.crate_def_map(db);
-        let exhaustive_patterns = def_map.is_unstable_feature_enabled(&sym::exhaustive_patterns);
+        let exhaustive_patterns = UnstableFeatures::query(db, module.krate(db)).exhaustive_patterns;
         Self { module, db, exhaustive_patterns, env, infcx }
     }
 

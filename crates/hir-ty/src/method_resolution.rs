@@ -23,8 +23,9 @@ use hir_def::{
     nameres::{DefMap, block_def_map, crate_def_map},
     resolver::Resolver,
     signatures::{ConstSignature, FunctionSignature},
+    unstable_features::UnstableFeatures,
 };
-use intern::{Symbol, sym};
+use intern::Symbol;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{
     TypeVisitableExt,
@@ -57,32 +58,13 @@ pub use self::probe::{
     Candidate, CandidateKind, CandidateStep, CandidateWithPrivate, Mode, Pick, PickKind,
 };
 
-#[derive(Debug, Clone)]
-pub struct MethodResolutionUnstableFeatures {
-    arbitrary_self_types: bool,
-    arbitrary_self_types_pointers: bool,
-    supertrait_item_shadowing: bool,
-}
-
-impl MethodResolutionUnstableFeatures {
-    pub fn from_def_map(def_map: &DefMap) -> Self {
-        Self {
-            arbitrary_self_types: def_map.is_unstable_feature_enabled(&sym::arbitrary_self_types),
-            arbitrary_self_types_pointers: def_map
-                .is_unstable_feature_enabled(&sym::arbitrary_self_types_pointers),
-            supertrait_item_shadowing: def_map
-                .is_unstable_feature_enabled(&sym::supertrait_item_shadowing),
-        }
-    }
-}
-
 pub struct MethodResolutionContext<'a, 'db> {
     pub infcx: &'a InferCtxt<'db>,
     pub resolver: &'a Resolver<'db>,
     pub param_env: ParamEnv<'db>,
     pub traits_in_scope: &'a FxHashSet<TraitId>,
     pub edition: Edition,
-    pub unstable_features: &'a MethodResolutionUnstableFeatures,
+    pub features: &'a UnstableFeatures,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Update)]
@@ -201,7 +183,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             param_env: self.table.param_env,
             traits_in_scope,
             edition: self.edition,
-            unstable_features: &self.unstable_features,
+            features: self.features,
         };
         f(&ctx)
     }
