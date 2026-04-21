@@ -175,7 +175,7 @@ pub(crate) enum GenericPredicateSource {
 #[derive(Debug)]
 pub struct TyLoweringContext<'db, 'a> {
     pub db: &'db dyn HirDatabase,
-    interner: DbInterner<'db>,
+    pub(crate) interner: DbInterner<'db>,
     types: &'db crate::next_solver::DefaultAny<'db>,
     lang_items: &'db LangItems,
     resolver: &'a Resolver<'db>,
@@ -404,7 +404,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
     }
 
     pub(crate) fn lower_path_as_const(&mut self, path: &Path, const_type: Ty<'db>) -> Const<'db> {
-        self.path_to_const(path).unwrap_or_else(|| unknown_const(const_type))
+        self.path_to_const(path).unwrap_or_else(|| unknown_const(self.interner, const_type))
     }
 
     fn generics(&self) -> &Generics<'db> {
@@ -1133,8 +1133,8 @@ pub(crate) fn lower_mutability(m: hir_def::type_ref::Mutability) -> Mutability {
     }
 }
 
-fn unknown_const(_ty: Ty<'_>) -> Const<'_> {
-    Const::new(DbInterner::conjure(), ConstKind::Error(ErrorGuaranteed))
+pub(crate) fn unknown_const<'db>(interner: DbInterner<'db>, _ty: Ty<'db>) -> Const<'db> {
+    Const::new(interner, rustc_type_ir::ConstKind::Error(ErrorGuaranteed))
 }
 
 pub(crate) type Diagnostics = Option<ThinArc<(), TyLoweringDiagnostic>>;
@@ -2055,13 +2055,13 @@ impl<'db> GenericPredicates {
 
 /// A cycle can occur from malformed code.
 fn generic_predicates_cycle_result(
-    _db: &dyn HirDatabase,
+    db: &dyn HirDatabase,
     _: salsa::Id,
     _def: GenericDefId,
 ) -> (GenericPredicates, Diagnostics) {
     (
         GenericPredicates::from_explicit_own_predicates(StoredEarlyBinder::bind(
-            Clauses::default().store(),
+            Clauses::empty(DbInterner::new_no_crate(db)).store(),
         )),
         None,
     )

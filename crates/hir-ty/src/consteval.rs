@@ -23,22 +23,19 @@ use crate::{
     db::HirDatabase,
     display::DisplayTarget,
     infer::InferenceContext,
+    lower::unknown_const,
     mir::{MirEvalError, MirLowerError, pad16},
     next_solver::{
-        Allocation, Const, ConstKind, Consts, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs,
-        ScalarInt, StoredAllocation, StoredGenericArgs, Ty, TyKind, ValTreeKind, default_types,
+        Allocation, Const, ConstKind, Consts, DbInterner, GenericArg, GenericArgs, ScalarInt,
+        StoredAllocation, StoredGenericArgs, Ty, TyKind, ValTreeKind, default_types,
     },
     traits::StoredParamEnvAndCrate,
 };
 
 use super::mir::{interpret_mir, lower_body_to_mir};
 
-pub fn unknown_const<'db>(_ty: Ty<'db>) -> Const<'db> {
-    Const::new(DbInterner::conjure(), rustc_type_ir::ConstKind::Error(ErrorGuaranteed))
-}
-
-pub fn unknown_const_as_generic<'db>(ty: Ty<'db>) -> GenericArg<'db> {
-    unknown_const(ty).into()
+pub fn unknown_const_as_generic<'db>(interner: DbInterner<'db>, ty: Ty<'db>) -> GenericArg<'db> {
+    unknown_const(interner, ty).into()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
