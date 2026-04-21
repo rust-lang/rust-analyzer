@@ -3179,8 +3179,6 @@ fn main() { let _ = Foo::$0; }
 
 #[test]
 fn deprecated_variant_of_undeprecated_enum_still_deprecated() {
-    // regression guard for rust-lang/rust-analyzer#22090 — the existing
-    // per-variant `#[deprecated]` behavior must keep working.
     check(
         r#"
 enum Foo {
