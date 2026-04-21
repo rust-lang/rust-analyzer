@@ -4,13 +4,7 @@
 
 use std::sync::LazyLock;
 
-use ide_db::{
-    FxHashMap, SymbolKind,
-    generated::lints::{
-        CLIPPY_LINT_GROUPS, CLIPPY_LINTS, DEFAULT_LINTS, FEATURES, Lint, RUSTDOC_LINTS,
-    },
-    syntax_helpers::node_ext::parse_tt_as_comma_sep_paths,
-};
+use ide_db::{FxHashMap, SymbolKind, syntax_helpers::node_ext::parse_tt_as_comma_sep_paths};
 use itertools::Itertools;
 use syntax::{
     AstNode, Edition, SyntaxKind, T,
@@ -51,25 +45,15 @@ pub(crate) fn complete_known_attribute_input(
 
     match segments.as_slice() {
         ["repr"] => repr::complete_repr(acc, ctx, &parse_comma_sep_expr(tt)?),
-        ["feature"] => feature::complete_lint(
+        ["feature"] => {
+            feature::complete_feature(acc, ctx, &parse_tt_as_comma_sep_paths(tt, ctx.edition)?)
+        }
+        ["allow" | "expect" | "deny" | "forbid" | "warn"] => lint::complete_lint(
             acc,
             ctx,
             colon_prefix,
             &parse_tt_as_comma_sep_paths(tt, ctx.edition)?,
-            FEATURES,
         ),
-        ["allow" | "expect" | "deny" | "forbid" | "warn"] => {
-            let existing_lints = parse_tt_as_comma_sep_paths(tt, ctx.edition)?;
-
-            let lints: Vec<Lint> = (CLIPPY_LINT_GROUPS.iter().map(|g| &g.lint))
-                .chain(DEFAULT_LINTS)
-                .chain(CLIPPY_LINTS)
-                .chain(RUSTDOC_LINTS)
-                .cloned()
-                .collect();
-
-            lint::complete_lint(acc, ctx, colon_prefix, &existing_lints, &lints);
-        }
         ["macro_use"] => macro_use::complete_macro_use(
             acc,
             ctx,

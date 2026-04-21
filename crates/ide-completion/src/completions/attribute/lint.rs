@@ -1,5 +1,9 @@
 //! Completion for lints
-use ide_db::{SymbolKind, documentation::Documentation, generated::lints::Lint};
+use ide_db::{
+    SymbolKind,
+    documentation::Documentation,
+    generated::lints::{CLIPPY_LINT_GROUPS, CLIPPY_LINTS, DEFAULT_LINTS, Lint, RUSTDOC_LINTS},
+};
 use syntax::ast;
 
 use crate::{Completions, context::CompletionContext, item::CompletionItem};
@@ -9,9 +13,13 @@ pub(super) fn complete_lint(
     ctx: &CompletionContext<'_>,
     is_qualified: bool,
     existing_lints: &[ast::Path],
-    lints_completions: &[Lint],
 ) {
-    for &Lint { label, description, .. } in lints_completions {
+    let lints = (CLIPPY_LINT_GROUPS.iter().map(|g| &g.lint))
+        .chain(DEFAULT_LINTS)
+        .chain(CLIPPY_LINTS)
+        .chain(RUSTDOC_LINTS);
+
+    for &Lint { label, description, .. } in lints {
         // FIXME: change `Lint`'s label to not store a path in it but split the prefix off instead?
         let (qual, name) = match label.split_once("::") {
             Some((qual, name)) => (Some(qual), name),
