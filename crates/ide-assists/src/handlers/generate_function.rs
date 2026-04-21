@@ -148,7 +148,9 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
 
     let enclosing_impl = ctx.find_node_at_offset::<ast::Impl>();
     let cursor_impl = enclosing_impl.filter(|impl_| {
-        ctx.sema.to_def(impl_).map_or(false, |def| def.self_ty(ctx.sema.db).as_adt() == Some(adt))
+        ctx.sema.to_def(impl_).is_some_and(|def| {
+            def.self_ty(ctx.sema.db).as_adt() == Some(adt) && def.trait_(ctx.sema.db).is_none()
+        })
     });
 
     let (impl_, file) = if let Some(impl_) = cursor_impl {
@@ -3237,6 +3239,84 @@ impl Foo {
 
     fn method2(&self, arg: i32) {
         ${0:todo!()}
+    }
+}
+",
+        )
+    }
+
+    #[test]
+    fn generate_method_skips_trait_impl_for_inherent() {
+        // regression: rust-lang/rust-analyzer#22123
+        check_assist(
+            generate_function,
+            r"
+struct Bar;
+
+impl Bar {
+    fn func1() {}
+}
+
+trait Foo { fn foo(&self); }
+
+impl Foo for Bar {
+    fn foo(&self) {
+        self.func2$0();
+    }
+}
+",
+            r"
+struct Bar;
+
+impl Bar {
+    fn func1() {}
+
+    fn func2(&self) ${0:-> _} {
+        todo!()
+    }
+}
+
+trait Foo { fn foo(&self); }
+
+impl Foo for Bar {
+    fn foo(&self) {
+        self.func2();
+    }
+}
+",
+        )
+    }
+
+    #[test]
+    fn generate_method_from_trait_impl_creates_new_inherent_impl() {
+        // #22123: no inherent impl exists, so the assist must synthesize one
+        // instead of inserting into the trait impl.
+        check_assist(
+            generate_function,
+            r"
+struct Bar;
+
+trait Foo { fn foo(&self); }
+
+impl Foo for Bar {
+    fn foo(&self) {
+        self.func2$0();
+    }
+}
+",
+            r"
+struct Bar;
+impl Bar {
+    fn func2(&self) ${0:-> _} {
+        todo!()
+    }
+}
+
+trait Foo { fn foo(&self); }
+
+impl Foo for Bar {
+    fn foo(&self) {
+        self.func2();
     }
 }
 ",
