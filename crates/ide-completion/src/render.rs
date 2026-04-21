@@ -120,6 +120,15 @@ impl<'a> RenderContext<'a> {
                 })
     }
 
+    /// Whether an enum variant should be rendered as deprecated.
+    ///
+    /// A variant inherits deprecation from its parent enum, matching rustc's
+    /// behavior where `#[deprecated]` on an enum applies to its variants.
+    fn is_variant_deprecated(&self, variant: hir::EnumVariant) -> bool {
+        let db = self.db();
+        variant.attrs(db).is_deprecated() || variant.parent_enum(db).attrs(db).is_deprecated()
+    }
+
     // FIXME: remove this
     fn docs(&self, def: impl HasDocs) -> Option<Documentation<'a>> {
         def.docs(self.db())
@@ -583,6 +592,7 @@ fn scope_def_docs(db: &RootDatabase, resolution: ScopeDef) -> Option<Documentati
 fn scope_def_is_deprecated(ctx: &RenderContext<'_>, resolution: ScopeDef) -> bool {
     let db = ctx.db();
     match resolution {
+        ScopeDef::ModuleDef(hir::ModuleDef::EnumVariant(it)) => ctx.is_variant_deprecated(it),
         ScopeDef::ModuleDef(it) => ctx.is_deprecated(it, it.as_assoc_item(db)),
         ScopeDef::GenericParam(it) => {
             ctx.is_deprecated(it, None /* generic params can't be assoc items */)
