@@ -536,15 +536,11 @@ pub(crate) fn generate_impl_with_item(
     adt: &ast::Adt,
     body: Option<ast::AssocItemList>,
 ) -> ast::Impl {
-    generate_impl_inner_with_factory(make, false, adt, None, true, body)
+    generate_impl_inner(make, false, adt, None, true, body)
 }
 
-pub(crate) fn generate_impl_with_factory(make: &SyntaxFactory, adt: &ast::Adt) -> ast::Impl {
-    generate_impl_inner_with_factory(make, false, adt, None, true, None)
-}
-
-pub(crate) fn generate_impl(adt: &ast::Adt) -> ast::Impl {
-    generate_impl_inner(false, adt, None, true, None)
+pub(crate) fn generate_impl(make: &SyntaxFactory, adt: &ast::Adt) -> ast::Impl {
+    generate_impl_inner(make, false, adt, None, true, None)
 }
 
 /// Generates the corresponding `impl <trait> for Type {}` including type
@@ -557,7 +553,7 @@ pub(crate) fn generate_trait_impl(
     adt: &ast::Adt,
     trait_: ast::Type,
 ) -> ast::Impl {
-    generate_impl_inner_with_factory(make, is_unsafe, adt, Some(trait_), true, None)
+    generate_impl_inner(make, is_unsafe, adt, Some(trait_), true, None)
 }
 
 /// Generates the corresponding `impl <trait> for Type {}` including type
@@ -569,7 +565,7 @@ pub(crate) fn generate_trait_impl_intransitive(
     adt: &ast::Adt,
     trait_: ast::Type,
 ) -> ast::Impl {
-    generate_impl_inner_with_factory(make, false, adt, Some(trait_), false, None)
+    generate_impl_inner(make, false, adt, Some(trait_), false, None)
 }
 
 pub(crate) fn generate_trait_impl_intransitive_with_item(
@@ -578,7 +574,7 @@ pub(crate) fn generate_trait_impl_intransitive_with_item(
     trait_: ast::Type,
     body: ast::AssocItemList,
 ) -> ast::Impl {
-    generate_impl_inner_with_factory(make, false, adt, Some(trait_), false, Some(body))
+    generate_impl_inner(make, false, adt, Some(trait_), false, Some(body))
 }
 
 pub(crate) fn generate_trait_impl_with_item(
@@ -588,79 +584,10 @@ pub(crate) fn generate_trait_impl_with_item(
     trait_: ast::Type,
     body: ast::AssocItemList,
 ) -> ast::Impl {
-    generate_impl_inner_with_factory(make, is_unsafe, adt, Some(trait_), true, Some(body))
+    generate_impl_inner(make, is_unsafe, adt, Some(trait_), true, Some(body))
 }
 
 fn generate_impl_inner(
-    is_unsafe: bool,
-    adt: &ast::Adt,
-    trait_: Option<ast::Type>,
-    trait_is_transitive: bool,
-    body: Option<ast::AssocItemList>,
-) -> ast::Impl {
-    // Ensure lifetime params are before type & const params
-    let generic_params = adt.generic_param_list().map(|generic_params| {
-        let lifetime_params =
-            generic_params.lifetime_params().map(ast::GenericParam::LifetimeParam);
-        let ty_or_const_params = generic_params.type_or_const_params().filter_map(|param| {
-            let param = match param {
-                ast::TypeOrConstParam::Type(param) => {
-                    // remove defaults since they can't be specified in impls
-                    let mut bounds =
-                        param.type_bound_list().map_or_else(Vec::new, |it| it.bounds().collect());
-                    if let Some(trait_) = &trait_ {
-                        // Add the current trait to `bounds` if the trait is transitive,
-                        // meaning `impl<T> Trait for U<T>` requires `T: Trait`.
-                        if trait_is_transitive {
-                            bounds.push(make::type_bound(trait_.clone()));
-                        }
-                    };
-                    // `{ty_param}: {bounds}`
-                    let param = make::type_param(param.name()?, make::type_bound_list(bounds));
-                    ast::GenericParam::TypeParam(param)
-                }
-                ast::TypeOrConstParam::Const(param) => {
-                    // remove defaults since they can't be specified in impls
-                    let param = make::const_param(param.name()?, param.ty()?);
-                    ast::GenericParam::ConstParam(param)
-                }
-            };
-            Some(param)
-        });
-
-        make::generic_param_list(itertools::chain(lifetime_params, ty_or_const_params))
-    });
-    let generic_args =
-        generic_params.as_ref().map(|params| params.to_generic_args().clone_for_update());
-    let adt_assoc_bounds = trait_
-        .as_ref()
-        .zip(generic_params.as_ref())
-        .and_then(|(trait_, params)| generic_param_associated_bounds(adt, trait_, params));
-
-    let ty = make::ty_path(make::ext::ident_path(&adt.name().unwrap().text()));
-
-    let cfg_attrs = adt.attrs().filter(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))));
-    match trait_ {
-        Some(trait_) => make::impl_trait(
-            cfg_attrs,
-            is_unsafe,
-            None,
-            None,
-            generic_params,
-            generic_args,
-            false,
-            trait_,
-            ty,
-            adt_assoc_bounds,
-            adt.where_clause(),
-            body,
-        ),
-        None => make::impl_(cfg_attrs, generic_params, generic_args, ty, adt.where_clause(), body),
-    }
-    .clone_for_update()
-}
-
-fn generate_impl_inner_with_factory(
     make: &SyntaxFactory,
     is_unsafe: bool,
     adt: &ast::Adt,
@@ -702,10 +629,10 @@ fn generate_impl_inner_with_factory(
     });
     let generic_args =
         generic_params.as_ref().map(|params| params.to_generic_args().clone_for_update());
-    let adt_assoc_bounds =
-        trait_.as_ref().zip(generic_params.as_ref()).and_then(|(trait_, params)| {
-            generic_param_associated_bounds_with_factory(make, adt, trait_, params)
-        });
+    let adt_assoc_bounds = trait_
+        .as_ref()
+        .zip(generic_params.as_ref())
+        .and_then(|(trait_, params)| generic_param_associated_bounds(make, adt, trait_, params));
 
     let ty: ast::Type = make.ty_path(make.ident_path(&adt.name().unwrap().text())).into();
 
@@ -730,51 +657,6 @@ fn generate_impl_inner_with_factory(
 }
 
 fn generic_param_associated_bounds(
-    adt: &ast::Adt,
-    trait_: &ast::Type,
-    generic_params: &ast::GenericParamList,
-) -> Option<ast::WhereClause> {
-    let in_type_params = |name: &ast::NameRef| {
-        generic_params
-            .generic_params()
-            .filter_map(|param| match param {
-                ast::GenericParam::TypeParam(type_param) => type_param.name(),
-                _ => None,
-            })
-            .any(|param| param.text() == name.text())
-    };
-    let adt_body = match adt {
-        ast::Adt::Enum(e) => e.variant_list().map(|it| it.syntax().clone()),
-        ast::Adt::Struct(s) => s.field_list().map(|it| it.syntax().clone()),
-        ast::Adt::Union(u) => u.record_field_list().map(|it| it.syntax().clone()),
-    };
-    let mut trait_where_clause = adt_body
-        .into_iter()
-        .flat_map(|it| it.descendants())
-        .filter_map(ast::Path::cast)
-        .filter_map(|path| {
-            let qualifier = path.qualifier()?.as_single_segment()?;
-            let qualifier = qualifier
-                .name_ref()
-                .or_else(|| match qualifier.type_anchor()?.ty()? {
-                    ast::Type::PathType(path_type) => path_type.path()?.as_single_name_ref(),
-                    _ => None,
-                })
-                .filter(in_type_params)?;
-            Some((qualifier, path.segment()?.name_ref()?))
-        })
-        .map(|(qualifier, assoc_name)| {
-            let segments = [qualifier, assoc_name].map(make::path_segment);
-            let path = make::path_from_segments(segments, false);
-            let bounds = Some(make::type_bound(trait_.clone()));
-            make::where_pred(either::Either::Right(make::ty_path(path)), bounds)
-        })
-        .unique_by(|it| it.syntax().to_string())
-        .peekable();
-    trait_where_clause.peek().is_some().then(|| make::where_clause(trait_where_clause))
-}
-
-fn generic_param_associated_bounds_with_factory(
     make: &SyntaxFactory,
     adt: &ast::Adt,
     trait_: &ast::Type,

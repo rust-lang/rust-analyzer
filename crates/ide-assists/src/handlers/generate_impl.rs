@@ -7,7 +7,7 @@ use crate::{
     AssistContext, AssistId, Assists,
     utils::{
         self, DefaultMethods, IgnoreAssocItems, add_trait_assoc_items_to_impl,
-        generate_impl_with_factory, generate_trait_impl_intransitive,
+        generate_trait_impl_intransitive,
     },
 };
 
@@ -61,7 +61,7 @@ pub(crate) fn generate_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
         |edit| {
             let editor = edit.make_editor(nominal.syntax());
             let make = editor.make();
-            let impl_ = generate_impl_with_factory(make, &nominal);
+            let impl_ = utils::generate_impl(make, &nominal);
 
             let impl_ = insert_impl(&editor, &impl_, &nominal);
             // Add a tabstop after the left curly brace
