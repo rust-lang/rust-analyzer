@@ -1,8 +1,9 @@
 use hir::next_solver::{DbInterner, TypingMode};
 use hir::{HasCrate, ModuleDef, Semantics};
+use ide_db::use_trivial_constructor::use_trivial_constructor_with_factory;
 use ide_db::{
-    RootDatabase, famous_defs::FamousDefs, helpers::mod_path_to_ast,
-    imports::import_assets::item_for_path_search, use_trivial_constructor::use_trivial_constructor,
+    RootDatabase, famous_defs::FamousDefs, helpers::mod_path_to_ast_with_factory,
+    imports::import_assets::item_for_path_search,
 };
 use syntax::syntax_editor::{Position, SyntaxEditor};
 use syntax::{
@@ -197,7 +198,13 @@ fn make_constructors(
 
             let ty_path = module.find_path(db, item_for_path_search(db, item_in_ns)?, cfg)?;
 
-            use_trivial_constructor(db, mod_path_to_ast(&ty_path, edition), &ty, edition)
+            use_trivial_constructor_with_factory(
+                &make,
+                db,
+                mod_path_to_ast_with_factory(&make, &ty_path, edition),
+                &ty,
+                edition,
+            )
         })
         .collect()
 }
