@@ -11,7 +11,7 @@ use rustc_type_ir::inherent::{SliceLike, Ty as _};
 use stdx::never;
 
 use crate::{
-    InferenceDiagnostic, ValueTyDefId,
+    InferenceDiagnostic, Span, ValueTyDefId,
     infer::diagnostics::InferenceTyLoweringContext as TyLoweringContext,
     lower::{GenericPredicates, LifetimeElisionKind},
     method_resolution::{self, CandidateId, MethodError},
@@ -38,7 +38,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 }
                 ValuePathResolution::NonGeneric(ty) => return Some((value, ty)),
             };
-        let args = self.insert_type_vars(substs);
+        let args = self.insert_type_vars(substs, Span::Dummy);
 
         self.add_required_obligations_for_value_path(generic_def, args);
 
@@ -187,7 +187,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
                     let (resolution, substs) = match (def, is_before_last) {
                         (TypeNs::TraitId(trait_), true) => {
-                            let self_ty = self.table.next_ty_var();
+                            let self_ty = self.table.next_ty_var(id.into());
                             let trait_ref =
                                 path_ctx.lower_trait_ref_from_resolved_path(trait_, self_ty, true);
                             drop_ctx(ctx, no_diagnostics);
@@ -290,7 +290,7 @@ impl<'db> InferenceContext<'_, 'db> {
             return Some(result);
         }
 
-        let res = self.with_method_resolution(|ctx| {
+        let res = self.with_method_resolution(Span::Dummy, Span::Dummy, |ctx| {
             ctx.probe_for_name(method_resolution::Mode::Path, name.clone(), ty)
         });
         let (item, visible) = match res {
@@ -310,7 +310,7 @@ impl<'db> InferenceContext<'_, 'db> {
         };
         let substs = match container {
             ItemContainerId::ImplId(impl_id) => {
-                let impl_substs = self.table.fresh_args_for_item(impl_id.into());
+                let impl_substs = self.table.fresh_args_for_item(id.into(), impl_id.into());
                 let impl_self_ty =
                     self.db.impl_self_ty(impl_id).instantiate(self.interner(), impl_substs);
                 _ = self.demand_eqtype(id, impl_self_ty, ty);
@@ -318,9 +318,12 @@ impl<'db> InferenceContext<'_, 'db> {
             }
             ItemContainerId::TraitId(trait_) => {
                 // we're picking this method
-                GenericArgs::fill_rest(self.interner(), trait_.into(), [ty.into()], |_, id, _| {
-                    self.table.next_var_for_param(id)
-                })
+                GenericArgs::fill_rest(
+                    self.interner(),
+                    trait_.into(),
+                    [ty.into()],
+                    |_, param, _| self.table.var_for_def(param, id.into()),
+                )
             }
             ItemContainerId::ModuleId(_) | ItemContainerId::ExternBlockId(_) => {
                 never!("assoc item contained in module/extern block");

@@ -28,16 +28,18 @@ use rustc_type_ir::{
 use snapshot::undo_log::InferCtxtUndoLogs;
 use tracing::{debug, instrument};
 use traits::{ObligationCause, PredicateObligations};
-use type_variable::TypeVariableOrigin;
-use unify_key::{ConstVariableOrigin, ConstVariableValue, ConstVidKey};
+use unify_key::{ConstVariableValue, ConstVidKey};
 
 pub use crate::next_solver::infer::traits::ObligationInspector;
-use crate::next_solver::{
-    ArgOutlivesPredicate, BoundConst, BoundRegion, BoundTy, BoundVariableKind, Goal, Predicate,
-    SolverContext,
-    fold::BoundVarReplacerDelegate,
-    infer::{at::ToTrace, select::EvaluationResult, traits::PredicateObligation},
-    obligation_ctxt::ObligationCtxt,
+use crate::{
+    Span,
+    next_solver::{
+        ArgOutlivesPredicate, BoundConst, BoundRegion, BoundTy, BoundVariableKind, Goal, Predicate,
+        SolverContext,
+        fold::BoundVarReplacerDelegate,
+        infer::{at::ToTrace, select::EvaluationResult, traits::PredicateObligation},
+        obligation_ctxt::ObligationCtxt,
+    },
 };
 
 use super::{
@@ -364,13 +366,14 @@ impl<'db> InferCtxtBuilder<'db> {
     /// (in other words, `S(C) = V`).
     pub fn build_with_canonical<T>(
         mut self,
+        span: Span,
         input: &CanonicalQueryInput<'db, T>,
     ) -> (InferCtxt<'db>, T, CanonicalVarValues<'db>)
     where
         T: TypeFoldable<DbInterner<'db>>,
     {
         let infcx = self.build(input.typing_mode.0);
-        let (value, args) = infcx.instantiate_canonical(&input.canonical);
+        let (value, args) = infcx.instantiate_canonical(span, &input.canonical);
         (infcx, value, args)
     }
 
@@ -427,12 +430,13 @@ impl<'db> InferCtxt<'db> {
         ))
     }
 
-    pub(crate) fn insert_type_vars<T>(&self, ty: T) -> T
+    pub(crate) fn insert_type_vars<T>(&self, ty: T, span: Span) -> T
     where
         T: TypeFoldable<DbInterner<'db>>,
     {
         struct Folder<'a, 'db> {
             infcx: &'a InferCtxt<'db>,
+            span: Span,
         }
         impl<'db> TypeFolder<DbInterner<'db>> for Folder<'_, 'db> {
             fn cx(&self) -> DbInterner<'db> {
@@ -444,7 +448,11 @@ impl<'db> InferCtxt<'db> {
                     return ty;
                 }
 
-                if ty.is_ty_error() { self.infcx.next_ty_var() } else { ty.super_fold_with(self) }
+                if ty.is_ty_error() {
+                    self.infcx.next_ty_var(self.span)
+                } else {
+                    ty.super_fold_with(self)
+                }
             }
 
             fn fold_const(&mut self, ct: Const<'db>) -> Const<'db> {
@@ -453,18 +461,18 @@ impl<'db> InferCtxt<'db> {
                 }
 
                 if ct.is_ct_error() {
-                    self.infcx.next_const_var()
+                    self.infcx.next_const_var(self.span)
                 } else {
                     ct.super_fold_with(self)
                 }
             }
 
             fn fold_region(&mut self, r: Region<'db>) -> Region<'db> {
-                if r.is_error() { self.infcx.next_region_var() } else { r }
+                if r.is_error() { self.infcx.next_region_var(self.span) } else { r }
             }
         }
 
-        ty.fold_with(&mut Folder { infcx: self })
+        ty.fold_with(&mut Folder { infcx: self, span })
     }
 
     /// Evaluates whether the predicate can be satisfied in the given
@@ -737,80 +745,49 @@ impl<'db> InferCtxt<'db> {
         self.inner.borrow_mut().type_variables().num_vars()
     }
 
-    pub fn next_var_for_param(&self, id: GenericParamId) -> GenericArg<'db> {
-        match id {
-            GenericParamId::TypeParamId(_) => self.next_ty_var().into(),
-            GenericParamId::ConstParamId(_) => self.next_const_var().into(),
-            GenericParamId::LifetimeParamId(_) => self.next_region_var().into(),
-        }
-    }
-
-    pub fn next_ty_var(&self) -> Ty<'db> {
-        self.next_ty_var_with_origin(TypeVariableOrigin { param_def_id: None })
-    }
-
-    pub fn next_ty_vid(&self) -> TyVid {
-        self.inner
-            .borrow_mut()
-            .type_variables()
-            .new_var(self.universe(), TypeVariableOrigin { param_def_id: None })
-    }
-
-    pub fn next_ty_var_with_origin(&self, origin: TypeVariableOrigin) -> Ty<'db> {
-        let vid = self.inner.borrow_mut().type_variables().new_var(self.universe(), origin);
+    pub fn next_ty_var(&self, span: Span) -> Ty<'db> {
+        let vid = self.next_ty_vid(span);
         Ty::new_var(self.interner, vid)
     }
 
-    pub fn next_ty_var_id_in_universe(&self, universe: UniverseIndex) -> TyVid {
-        let origin = TypeVariableOrigin { param_def_id: None };
-        self.inner.borrow_mut().type_variables().new_var(universe, origin)
+    pub fn next_ty_vid(&self, span: Span) -> TyVid {
+        self.next_ty_var_id_in_universe(self.universe(), span)
     }
 
-    pub fn next_ty_var_in_universe(&self, universe: UniverseIndex) -> Ty<'db> {
-        let vid = self.next_ty_var_id_in_universe(universe);
+    pub fn next_ty_var_id_in_universe(&self, universe: UniverseIndex, span: Span) -> TyVid {
+        self.inner.borrow_mut().type_variables().new_var(universe, span)
+    }
+
+    pub fn next_ty_var_in_universe(&self, universe: UniverseIndex, span: Span) -> Ty<'db> {
+        let vid = self.next_ty_var_id_in_universe(universe, span);
         Ty::new_var(self.interner, vid)
     }
 
-    pub fn next_const_var(&self) -> Const<'db> {
-        self.next_const_var_with_origin(ConstVariableOrigin {})
-    }
-
-    pub fn next_const_vid(&self) -> ConstVid {
-        self.inner
-            .borrow_mut()
-            .const_unification_table()
-            .new_key(ConstVariableValue::Unknown {
-                origin: ConstVariableOrigin {},
-                universe: self.universe(),
-            })
-            .vid
-    }
-
-    pub fn next_const_var_with_origin(&self, origin: ConstVariableOrigin) -> Const<'db> {
-        let vid = self
-            .inner
-            .borrow_mut()
-            .const_unification_table()
-            .new_key(ConstVariableValue::Unknown { origin, universe: self.universe() })
-            .vid;
+    pub fn next_const_var(&self, span: Span) -> Const<'db> {
+        let vid = self.next_const_vid(span);
         Const::new_var(self.interner, vid)
     }
 
-    pub fn next_const_var_in_universe(&self, universe: UniverseIndex) -> Const<'db> {
-        let origin = ConstVariableOrigin {};
-        let vid = self
-            .inner
+    pub fn next_const_vid(&self, span: Span) -> ConstVid {
+        self.next_const_vid_in_universe(self.universe(), span)
+    }
+
+    pub fn next_const_vid_in_universe(&self, universe: UniverseIndex, span: Span) -> ConstVid {
+        self.inner
             .borrow_mut()
             .const_unification_table()
-            .new_key(ConstVariableValue::Unknown { origin, universe })
-            .vid;
+            .new_key(ConstVariableValue::Unknown { span, universe })
+            .vid
+    }
+
+    pub fn next_const_var_in_universe(&self, universe: UniverseIndex, span: Span) -> Const<'db> {
+        let vid = self.next_const_vid_in_universe(universe, span);
         Const::new_var(self.interner, vid)
     }
 
     pub fn next_int_var(&self) -> Ty<'db> {
-        let next_int_var_id =
-            self.inner.borrow_mut().int_unification_table().new_key(IntVarValue::Unknown);
-        Ty::new_int_var(self.interner, next_int_var_id)
+        let vid = self.next_int_vid();
+        Ty::new_int_var(self.interner, vid)
     }
 
     pub fn next_int_vid(&self) -> IntVid {
@@ -828,27 +805,27 @@ impl<'db> InferCtxt<'db> {
     /// Creates a fresh region variable with the next available index.
     /// The variable will be created in the maximum universe created
     /// thus far, allowing it to name any region created thus far.
-    pub fn next_region_var(&self) -> Region<'db> {
-        self.next_region_var_in_universe(self.universe())
+    pub fn next_region_var(&self, span: Span) -> Region<'db> {
+        self.next_region_var_in_universe(self.universe(), span)
     }
 
-    pub fn next_region_vid(&self) -> RegionVid {
-        self.inner.borrow_mut().unwrap_region_constraints().new_region_var(self.universe())
+    pub fn next_region_vid(&self, span: Span) -> RegionVid {
+        self.inner.borrow_mut().unwrap_region_constraints().new_region_var(self.universe(), span)
     }
 
     /// Creates a fresh region variable with the next available index
     /// in the given universe; typically, you can use
     /// `next_region_var` and just use the maximal universe.
-    pub fn next_region_var_in_universe(&self, universe: UniverseIndex) -> Region<'db> {
+    pub fn next_region_var_in_universe(&self, universe: UniverseIndex, span: Span) -> Region<'db> {
         let region_var =
-            self.inner.borrow_mut().unwrap_region_constraints().new_region_var(universe);
+            self.inner.borrow_mut().unwrap_region_constraints().new_region_var(universe, span);
         Region::new_var(self.interner, region_var)
     }
 
-    pub fn next_term_var_of_kind(&self, term: Term<'db>) -> Term<'db> {
+    pub fn next_term_var_of_kind(&self, term: Term<'db>, span: Span) -> Term<'db> {
         match term.kind() {
-            TermKind::Ty(_) => self.next_ty_var().into(),
-            TermKind::Const(_) => self.next_const_var().into(),
+            TermKind::Ty(_) => self.next_ty_var(span).into(),
+            TermKind::Const(_) => self.next_const_var(span).into(),
         }
     }
 
@@ -866,24 +843,12 @@ impl<'db> InferCtxt<'db> {
         self.inner.borrow_mut().unwrap_region_constraints().num_region_vars()
     }
 
-    /// Just a convenient wrapper of `next_region_var` for using during NLL.
-    #[instrument(skip(self), level = "debug")]
-    pub fn next_nll_region_var(&self) -> Region<'db> {
-        self.next_region_var()
-    }
-
-    /// Just a convenient wrapper of `next_region_var` for using during NLL.
-    #[instrument(skip(self), level = "debug")]
-    pub fn next_nll_region_var_in_universe(&self, universe: UniverseIndex) -> Region<'db> {
-        self.next_region_var_in_universe(universe)
-    }
-
-    fn var_for_def(&self, id: GenericParamId) -> GenericArg<'db> {
+    pub fn var_for_def(&self, id: GenericParamId, span: Span) -> GenericArg<'db> {
         match id {
             GenericParamId::LifetimeParamId(_) => {
                 // Create a region inference variable for the given
                 // region parameter definition.
-                self.next_region_var().into()
+                self.next_region_var(span).into()
             }
             GenericParamId::TypeParamId(_) => {
                 // Create a type inference variable for the given
@@ -894,41 +859,27 @@ impl<'db> InferCtxt<'db> {
                 // used in a path such as `Foo::<T, U>::new()` will
                 // use an inference variable for `C` with `[T, U]`
                 // as the generic parameters for the default, `(T, U)`.
-                let ty_var_id = self
-                    .inner
-                    .borrow_mut()
-                    .type_variables()
-                    .new_var(self.universe(), TypeVariableOrigin { param_def_id: None });
-
-                Ty::new_var(self.interner, ty_var_id).into()
+                self.next_ty_var(span).into()
             }
-            GenericParamId::ConstParamId(_) => {
-                let origin = ConstVariableOrigin {};
-                let const_var_id = self
-                    .inner
-                    .borrow_mut()
-                    .const_unification_table()
-                    .new_key(ConstVariableValue::Unknown { origin, universe: self.universe() })
-                    .vid;
-                Const::new_var(self.interner, const_var_id).into()
-            }
+            GenericParamId::ConstParamId(_) => self.next_const_var(span).into(),
         }
     }
 
     /// Given a set of generics defined on a type or impl, returns the generic parameters mapping
     /// each type/region parameter to a fresh inference variable.
-    pub fn fresh_args_for_item(&self, def_id: SolverDefId) -> GenericArgs<'db> {
-        GenericArgs::for_item(self.interner, def_id, |_index, kind, _| self.var_for_def(kind))
+    pub fn fresh_args_for_item(&self, span: Span, def_id: SolverDefId) -> GenericArgs<'db> {
+        GenericArgs::for_item(self.interner, def_id, |_index, kind, _| self.var_for_def(kind, span))
     }
 
     /// Like `fresh_args_for_item()`, but first uses the args from `first`.
     pub fn fill_rest_fresh_args(
         &self,
+        span: Span,
         def_id: SolverDefId,
         first: impl IntoIterator<Item = GenericArg<'db>>,
     ) -> GenericArgs<'db> {
         GenericArgs::fill_rest(self.interner, def_id, first, |_index, kind, _| {
-            self.var_for_def(kind)
+            self.var_for_def(kind, span)
         })
     }
 
@@ -1141,7 +1092,7 @@ impl<'db> InferCtxt<'db> {
     pub fn probe_const_var(&self, vid: ConstVid) -> Result<Const<'db>, UniverseIndex> {
         match self.inner.borrow_mut().const_unification_table().probe_value(vid) {
             ConstVariableValue::Known { value } => Ok(value),
-            ConstVariableValue::Unknown { origin: _, universe } => Err(universe),
+            ConstVariableValue::Unknown { span: _, universe } => Err(universe),
         }
     }
 
@@ -1154,6 +1105,7 @@ impl<'db> InferCtxt<'db> {
     // use [`InferCtxt::enter_forall`] instead.
     pub fn instantiate_binder_with_fresh_vars<T>(
         &self,
+        span: Span,
         _lbrct: BoundRegionConversionTime,
         value: Binder<'db, T>,
     ) -> T
@@ -1169,9 +1121,9 @@ impl<'db> InferCtxt<'db> {
 
         for bound_var_kind in bound_vars {
             let arg: GenericArg<'db> = match bound_var_kind {
-                BoundVariableKind::Ty(_) => self.next_ty_var().into(),
-                BoundVariableKind::Region(_) => self.next_region_var().into(),
-                BoundVariableKind::Const => self.next_const_var().into(),
+                BoundVariableKind::Ty(_) => self.next_ty_var(span).into(),
+                BoundVariableKind::Region(_) => self.next_region_var(span).into(),
+                BoundVariableKind::Const => self.next_const_var(span).into(),
             };
             args.push(arg);
         }

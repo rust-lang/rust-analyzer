@@ -10,7 +10,7 @@ use rustc_type_ir::inherent::{IntoKind, Ty as _};
 use tracing::debug;
 
 use crate::{
-    ParamEnvAndCrate,
+    ParamEnvAndCrate, Span,
     db::HirDatabase,
     infer::InferenceContext,
     next_solver::{
@@ -39,7 +39,7 @@ pub fn autoderef<'db>(
 ) -> impl Iterator<Item = Ty<'db>> + use<'db> {
     let interner = DbInterner::new_with(db, env.krate);
     let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
-    let (ty, _) = infcx.instantiate_canonical(&ty);
+    let (ty, _) = infcx.instantiate_canonical(Span::Dummy, &ty);
     let autoderef = Autoderef::new(&infcx, env.param_env, ty);
     let mut v = Vec::new();
     for (ty, _steps) in autoderef {

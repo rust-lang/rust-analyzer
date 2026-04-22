@@ -26,7 +26,7 @@ use span::Edition;
 use tracing::{debug, instrument, trace};
 
 use crate::{
-    BindingMode, InferenceDiagnostic,
+    BindingMode, InferenceDiagnostic, Span,
     infer::{
         AllowTwoPhase, ByRef, Expectation, InferenceContext, PatAdjust, PatAdjustment,
         TypeMismatch, expr::ExprIsRead,
@@ -928,7 +928,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 // `x` is assigned a value of type `&M T`, hence `&M T <: typeof(x)`
                 // is required. However, we use equality, which is stronger.
                 // See (note_1) for an explanation.
-                self.new_ref_ty(mutbl, expected)
+                self.new_ref_ty(pat.into(), mutbl, expected)
             }
             // Otherwise, the type of x is the expected type `T`.
             ByRef::No => expected, // As above, `T <: typeof(x)` is required, but we use equality, see (note_1).
@@ -1110,7 +1110,9 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         }
         let max_len = cmp::max(expected_len, elements.len());
 
-        let element_tys_iter = (0..max_len).map(|_| self.table.next_ty_var());
+        let element_tys_iter = (0..max_len).map(|i| {
+            self.table.next_ty_var(elements.get(i).copied().map(Span::PatId).unwrap_or(Span::Dummy))
+        });
         let element_tys = Tys::new_from_iter(interner, element_tys_iter);
         let pat_ty = Ty::new(interner, TyKind::Tuple(element_tys));
         if self.demand_eqtype(pat.into(), expected, pat_ty).is_err() {
@@ -1249,7 +1251,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
             .map(|()| {
                 // Here, `demand::subtype` is good enough, but I don't
                 // think any errors can be introduced by using `demand::eqtype`.
-                let inner_ty = self.table.next_ty_var();
+                let inner_ty = self.table.next_ty_var(inner.into());
                 let box_ty = Ty::new_box(interner, inner_ty);
                 _ = self.demand_eqtype(pat.into(), expected, box_ty);
                 (box_ty, inner_ty)
@@ -1472,8 +1474,8 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
                         (expected, r_ty)
                     }
                     _ => {
-                        let inner_ty = self.table.next_ty_var();
-                        let ref_ty = self.new_ref_ty(pat_mutbl, inner_ty);
+                        let inner_ty = self.table.next_ty_var(inner.into());
+                        let ref_ty = self.new_ref_ty(inner.into(), pat_mutbl, inner_ty);
                         debug!("check_pat_ref: demanding {:?} = {:?}", expected, ref_ty);
                         _ = self.demand_eqtype(pat.into(), expected, ref_ty);
 
@@ -1492,8 +1494,8 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
     }
 
     /// Create a reference or pinned reference type with a fresh region variable.
-    fn new_ref_ty(&self, mutbl: Mutability, ty: Ty<'db>) -> Ty<'db> {
-        let region = self.table.next_region_var();
+    fn new_ref_ty(&self, span: Span, mutbl: Mutability, ty: Ty<'db>) -> Ty<'db> {
+        let region = self.table.next_region_var(span);
         Ty::new_ref(self.interner(), region, ty, mutbl)
     }
 
@@ -1501,6 +1503,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         &self,
         before: &[PatId],
         slice: Option<PatId>,
+        pat: PatId,
     ) -> Option<Ty<'db>> {
         if slice.is_some() {
             return None;
@@ -1508,7 +1511,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
 
         let interner = self.interner();
         let len = before.len();
-        let inner_ty = self.table.next_ty_var();
+        let inner_ty = self.table.next_ty_var(pat.into());
 
         Some(Ty::new_array(interner, inner_ty, len.try_into().unwrap()))
     }
@@ -1576,7 +1579,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         // to an array if the given pattern allows it. See issue #76342
         if self.pat_is_irrefutable(pat_info.pat_origin)
             && expected.is_ty_var()
-            && let Some(resolved_arr_ty) = self.try_resolve_slice_ty_to_array_ty(before, slice)
+            && let Some(resolved_arr_ty) = self.try_resolve_slice_ty_to_array_ty(before, slice, pat)
         {
             debug!(?resolved_arr_ty);
             let _ = self.demand_eqtype(pat.into(), expected, resolved_arr_ty);

@@ -6,7 +6,10 @@ use std::marker::PhantomData;
 use ena::unify::{NoError, UnifyKey, UnifyValue};
 use rustc_type_ir::{ConstVid, RegionKind, RegionVid, UniverseIndex, inherent::IntoKind};
 
-use crate::next_solver::{Const, Region};
+use crate::{
+    Span,
+    next_solver::{Const, Region},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) enum RegionVariableValue<'db> {
@@ -89,13 +92,10 @@ impl<'db> UnifyValue for RegionVariableValue<'db> {
 
 // Generic consts.
 
-#[derive(Copy, Clone, Debug)]
-pub struct ConstVariableOrigin {}
-
 #[derive(Clone, Debug)]
 pub(crate) enum ConstVariableValue<'db> {
     Known { value: Const<'db> },
-    Unknown { origin: ConstVariableOrigin, universe: UniverseIndex },
+    Unknown { span: Span, universe: UniverseIndex },
 }
 
 impl<'db> ConstVariableValue<'db> {
@@ -158,8 +158,8 @@ impl<'db> UnifyValue for ConstVariableValue<'db> {
 
             // If both sides are *unknown*, it hardly matters, does it?
             (
-                ConstVariableValue::Unknown { origin, universe: universe1 },
-                ConstVariableValue::Unknown { origin: _, universe: universe2 },
+                ConstVariableValue::Unknown { span: origin, universe: universe1 },
+                ConstVariableValue::Unknown { span: _, universe: universe2 },
             ) => {
                 // If we unify two unbound variables, ?T and ?U, then whatever
                 // value they wind up taking (which must be the same value) must
@@ -167,7 +167,7 @@ impl<'db> UnifyValue for ConstVariableValue<'db> {
                 // universe is the minimum of the two universes, because that is
                 // the one which contains the fewest names in scope.
                 let universe = cmp::min(*universe1, *universe2);
-                Ok(ConstVariableValue::Unknown { origin: *origin, universe })
+                Ok(ConstVariableValue::Unknown { span: *origin, universe })
             }
         }
     }

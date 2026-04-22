@@ -180,7 +180,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 // e.g., adding `&'a T` and `&'b T`, given `&'x T: Add<&'x T>`, will result
                 // in `&'a T <: &'x T` and `&'b T <: &'x T`, instead of `'a = 'b = 'x`.
                 let lhs_ty = self.infer_expr_no_expect(lhs_expr, ExprIsRead::Yes);
-                let fresh_var = self.table.next_ty_var();
+                let fresh_var = self.table.next_ty_var(lhs_expr.into());
                 self.demand_coerce(lhs_expr, lhs_ty, fresh_var, AllowTwoPhase::No, ExprIsRead::Yes)
             }
         };
@@ -192,7 +192,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // using this variable as the expected type, which sometimes lets
         // us do better coercions than we would be able to do otherwise,
         // particularly for things like `String + &String`.
-        let rhs_ty_var = self.table.next_ty_var();
+        let rhs_ty_var = self.table.next_ty_var(rhs_expr.into());
         let result = self.lookup_op_method(
             lhs_ty,
             Some((rhs_expr, rhs_ty_var)),

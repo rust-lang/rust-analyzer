@@ -21,6 +21,7 @@ use rustc_type_ir::{
 };
 
 use crate::{
+    Span,
     db::HirDatabase,
     next_solver::{
         DbInterner, GenericArgs, ParamEnv, StoredClauses, Ty, TyKind,
@@ -121,7 +122,7 @@ pub fn implements_trait_unique<'db>(
     trait_: TraitId,
 ) -> bool {
     implements_trait_unique_impl(db, env, trait_, &mut |infcx| {
-        infcx.fill_rest_fresh_args(trait_.into(), [ty.into()])
+        infcx.fill_rest_fresh_args(Span::Dummy, trait_.into(), [ty.into()])
     })
 }
 

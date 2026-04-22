@@ -82,7 +82,7 @@ impl<'db> InferenceContext<'_, 'db> {
             }
 
             Some(CallStep::Builtin(callee_ty)) => {
-                self.confirm_builtin_call(call_expr, callee_ty, arg_exprs, expected)
+                self.confirm_builtin_call(callee_expr, call_expr, callee_ty, arg_exprs, expected)
             }
 
             Some(CallStep::DeferredClosure(_def_id, fn_sig)) => {
@@ -128,6 +128,7 @@ impl<'db> InferenceContext<'_, 'db> {
             {
                 let closure_sig = args.as_closure().sig();
                 let closure_sig = autoderef.ctx().infcx().instantiate_binder_with_fresh_vars(
+                    callee_expr.into(),
                     BoundRegionConversionTime::FnCall,
                     closure_sig,
                 );
@@ -158,15 +159,16 @@ impl<'db> InferenceContext<'_, 'db> {
                 let closure_args = args.as_coroutine_closure();
                 let coroutine_closure_sig =
                     autoderef.ctx().infcx().instantiate_binder_with_fresh_vars(
+                        callee_expr.into(),
                         BoundRegionConversionTime::FnCall,
                         closure_args.coroutine_closure_sig(),
                     );
-                let tupled_upvars_ty = autoderef.ctx().table.next_ty_var();
+                let tupled_upvars_ty = autoderef.ctx().table.next_ty_var(call_expr.into());
                 // We may actually receive a coroutine back whose kind is different
                 // from the closure that this dispatched from. This is because when
                 // we have no captures, we automatically implement `FnOnce`. This
                 // impl forces the closure kind to `FnOnce` i.e. `u8`.
-                let kind_ty = autoderef.ctx().table.next_ty_var();
+                let kind_ty = autoderef.ctx().table.next_ty_var(call_expr.into());
                 let interner = autoderef.ctx().interner();
                 let call_sig = interner.mk_fn_sig(
                     [coroutine_closure_sig.tupled_inputs_ty],
@@ -297,7 +299,7 @@ impl<'db> InferenceContext<'_, 'db> {
             let opt_input_type = opt_arg_exprs.map(|arg_exprs| {
                 Ty::new_tup_from_iter(
                     self.interner(),
-                    arg_exprs.iter().map(|_| self.table.next_ty_var()),
+                    arg_exprs.iter().map(|&arg| self.table.next_ty_var(arg.into())),
                 )
             });
 
@@ -388,6 +390,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
     fn confirm_builtin_call(
         &mut self,
+        callee_expr: ExprId,
         call_expr: ExprId,
         callee_ty: Ty<'db>,
         arg_exprs: &[ExprId],
@@ -411,9 +414,11 @@ impl<'db> InferenceContext<'_, 'db> {
         // renormalize the associated types at this point, since they
         // previously appeared within a `Binder<>` and hence would not
         // have been normalized before.
-        let fn_sig = self
-            .infcx()
-            .instantiate_binder_with_fresh_vars(BoundRegionConversionTime::FnCall, fn_sig);
+        let fn_sig = self.infcx().instantiate_binder_with_fresh_vars(
+            callee_expr.into(),
+            BoundRegionConversionTime::FnCall,
+            fn_sig,
+        );
 
         let indices_to_skip = self.check_legacy_const_generics(def_id, arg_exprs);
         self.check_call_arguments(

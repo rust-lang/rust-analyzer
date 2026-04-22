@@ -29,9 +29,10 @@ pub(super) enum PlaceOp {
 impl<'a, 'db> InferenceContext<'a, 'db> {
     pub(super) fn try_overloaded_deref(
         &self,
+        expr: ExprId,
         base_ty: Ty<'db>,
     ) -> Option<InferOk<'db, MethodCallee<'db>>> {
-        self.try_overloaded_place_op(base_ty, None, PlaceOp::Deref)
+        self.try_overloaded_place_op(expr, base_ty, None, PlaceOp::Deref)
     }
 
     /// For the overloaded place expressions (`*x`, `x[3]`), the trait
@@ -57,7 +58,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             return Some(ty);
         }
 
-        let ok = self.try_overloaded_deref(oprnd_ty)?;
+        let ok = self.try_overloaded_deref(expr, oprnd_ty)?;
         let method = self.table.register_infer_ok(ok);
         if let TyKind::Ref(_, _, Mutability::Not) = method.sig.inputs_and_output.inputs()[0].kind()
         {
@@ -81,6 +82,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         &mut self,
         expr: ExprId,
         base_expr: ExprId,
+        index_expr: ExprId,
         base_ty: Ty<'db>,
         idx_ty: Ty<'db>,
     ) -> Option<(/*index type*/ Ty<'db>, /*element type*/ Ty<'db>)> {
@@ -91,7 +93,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         let mut autoderef = InferenceContextAutoderef::new_from_inference_context(self, base_ty);
         let mut result = None;
         while result.is_none() && autoderef.next().is_some() {
-            result = Self::try_index_step(expr, base_expr, &mut autoderef, idx_ty);
+            result = Self::try_index_step(expr, base_expr, index_expr, &mut autoderef, idx_ty);
         }
         result
     }
@@ -104,6 +106,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
     fn try_index_step(
         expr: ExprId,
         base_expr: ExprId,
+        index_expr: ExprId,
         autoderef: &mut InferenceContextAutoderef<'_, 'a, 'db>,
         index_ty: Ty<'db>,
     ) -> Option<(/*index type*/ Ty<'db>, /*element type*/ Ty<'db>)> {
@@ -136,9 +139,13 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             // If some lookup succeeds, write callee into table and extract index/element
             // type from the method signature.
             // If some lookup succeeded, install method in table
-            let input_ty = autoderef.ctx().table.next_ty_var();
-            let method =
-                autoderef.ctx().try_overloaded_place_op(self_ty, Some(input_ty), PlaceOp::Index);
+            let input_ty = autoderef.ctx().table.next_ty_var(index_expr.into());
+            let method = autoderef.ctx().try_overloaded_place_op(
+                expr,
+                self_ty,
+                Some(input_ty),
+                PlaceOp::Index,
+            );
 
             if let Some(result) = method {
                 debug!("try_index_step: success, using overloaded indexing");
@@ -180,6 +187,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
     /// `convert_place_derefs_to_mutable`.
     pub(super) fn try_overloaded_place_op(
         &self,
+        expr: ExprId,
         base_ty: Ty<'db>,
         opt_rhs_ty: Option<Ty<'db>>,
         op: PlaceOp,
@@ -198,7 +206,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // opaque types as rigid here to support `impl Deref<Target = impl Index<usize>>`.
         let treat_opaques = TreatNotYetDefinedOpaques::AsInfer;
         self.table.lookup_method_for_operator(
-            ObligationCause::new(),
+            ObligationCause::with_span(expr.into()),
             imm_op,
             imm_tr,
             base_ty,
@@ -209,6 +217,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
     pub(super) fn try_mutable_overloaded_place_op(
         table: &InferenceTable<'db>,
+        expr: ExprId,
         base_ty: Ty<'db>,
         opt_rhs_ty: Option<Ty<'db>>,
         op: PlaceOp,
@@ -230,7 +239,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // of the opaque.
         let treat_opaques = TreatNotYetDefinedOpaques::AsInfer;
         table.lookup_method_for_operator(
-            ObligationCause::new(),
+            ObligationCause::with_span(expr.into()),
             mut_op,
             mut_tr,
             base_ty,
@@ -276,7 +285,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 ))
             }
         };
-        let method = Self::try_mutable_overloaded_place_op(&self.table, base_ty, arg_ty, op);
+        let method = Self::try_mutable_overloaded_place_op(&self.table, expr, base_ty, arg_ty, op);
         let method = match method {
             Some(ok) => self.table.register_infer_ok(ok),
             // Couldn't find the mutable variant of the place op, keep the

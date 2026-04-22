@@ -15,7 +15,7 @@ use tracing::debug;
 
 use crate::{
     Adjust, Adjustment, AutoBorrow, IncorrectGenericsLenKind, InferenceDiagnostic,
-    LifetimeElisionKind, PointerCast,
+    LifetimeElisionKind, PointerCast, Span,
     db::HirDatabase,
     infer::{AllowTwoPhase, AutoBorrowMutability, InferenceContext, TypeMismatch},
     lower::{
@@ -190,7 +190,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             self.ctx.table.register_infer_ok(autoderef.adjust_steps_as_infer_ok());
         match pick.autoref_or_ptr_adjustment {
             Some(probe::AutorefOrPtrAdjustment::Autoref { mutbl, unsize }) => {
-                let region = self.infcx().next_region_var();
+                let region = self.infcx().next_region_var(self.expr.into());
                 // Type we're wrapping in a reference, used later for unsizing
                 let base_ty = target;
 
@@ -254,7 +254,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
     ) -> GenericArgs<'db> {
         match pick.kind {
             probe::InherentImplPick(impl_def_id) => {
-                self.infcx().fresh_args_for_item(impl_def_id.into())
+                self.infcx().fresh_args_for_item(self.expr.into(), impl_def_id.into())
             }
 
             probe::ObjectPick(trait_def_id) => {
@@ -296,7 +296,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                 // the process we will unify the transformed-self-type
                 // of the method with the actual type in order to
                 // unify some of these variables.
-                self.infcx().fresh_args_for_item(trait_def_id.into())
+                self.infcx().fresh_args_for_item(self.expr.into(), trait_def_id.into())
             }
 
             probe::WhereClausePick(poly_trait_ref) => {
@@ -414,7 +414,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             ) -> Const<'db> {
                 match arg {
                     TypeLikeConst::Path(path) => self.ctx.make_path_as_body_const(path, const_ty),
-                    TypeLikeConst::Infer => self.ctx.table.next_const_var(),
+                    TypeLikeConst::Infer => self.ctx.table.next_const_var(Span::Dummy),
                 }
             }
 
@@ -428,7 +428,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             ) -> GenericArg<'db> {
                 // Always create an inference var, even when `infer_args == false`. This helps with diagnostics,
                 // and I think it's also required in the presence of `impl Trait` (that must be inferred).
-                self.ctx.table.next_var_for_param(param_id)
+                self.ctx.table.var_for_def(param_id, Span::Dummy)
             }
 
             fn parent_arg(&mut self, param_idx: u32, _param_id: GenericParamId) -> GenericArg<'db> {
@@ -609,6 +609,10 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
     where
         T: TypeFoldable<DbInterner<'db>> + Copy,
     {
-        self.infcx().instantiate_binder_with_fresh_vars(BoundRegionConversionTime::FnCall, value)
+        self.infcx().instantiate_binder_with_fresh_vars(
+            self.expr.into(),
+            BoundRegionConversionTime::FnCall,
+            value,
+        )
     }
 }

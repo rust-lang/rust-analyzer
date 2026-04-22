@@ -13,7 +13,7 @@ use rustc_type_ir::UniverseIndex;
 use rustc_type_ir::inherent::Ty as _;
 use tracing::debug;
 
-use crate::next_solver::SolverDefId;
+use crate::Span;
 use crate::next_solver::Ty;
 use crate::next_solver::infer::{InferCtxtUndoLogs, iter_idx_range};
 
@@ -94,17 +94,9 @@ pub(crate) struct TypeVariableTable<'a, 'db> {
     undo_log: &'a mut InferCtxtUndoLogs<'db>,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct TypeVariableOrigin {
-    /// `DefId` of the type parameter this was instantiated for, if any.
-    ///
-    /// This should only be used for diagnostics.
-    pub param_def_id: Option<SolverDefId>,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct TypeVariableData {
-    origin: TypeVariableOrigin,
+    span: Span,
 }
 
 #[derive(Clone, Debug)]
@@ -152,12 +144,12 @@ impl<'db> TypeVariableStorage<'db> {
 }
 
 impl<'db> TypeVariableTable<'_, 'db> {
-    /// Returns the origin that was given when `vid` was created.
+    /// Returns the span that was given when `vid` was created.
     ///
     /// Note that this function does not return care whether
     /// `vid` has been unified with something else or not.
-    pub(crate) fn var_origin(&self, vid: TyVid) -> TypeVariableOrigin {
-        self.storage.values[vid].origin
+    pub(crate) fn var_span(&self, vid: TyVid) -> Span {
+        self.storage.values[vid].span
     }
 
     /// Records that `a == b`, depending on `dir`.
@@ -195,26 +187,16 @@ impl<'db> TypeVariableTable<'_, 'db> {
         self.eq_relations().union_value(vid, TypeVariableValue::Known { value: ty });
     }
 
-    /// Creates a new type variable.
-    ///
-    /// - `diverging`: indicates if this is a "diverging" type
-    ///   variable, e.g.,  one created as the type of a `return`
-    ///   expression. The code in this module doesn't care if a
-    ///   variable is diverging, but the main Rust type-checker will
-    ///   sometimes "unify" such variables with the `!` or `()` types.
-    /// - `origin`: indicates *why* the type variable was created.
-    ///   The code in this module doesn't care, but it can be useful
-    ///   for improving error messages.
-    pub(crate) fn new_var(&mut self, universe: UniverseIndex, origin: TypeVariableOrigin) -> TyVid {
+    pub(crate) fn new_var(&mut self, universe: UniverseIndex, span: Span) -> TyVid {
         let eq_key = self.eq_relations().new_key(TypeVariableValue::Unknown { universe });
 
         let sub_key = self.sub_unification_table().new_key(());
         debug_assert_eq!(eq_key.vid, sub_key.vid);
 
-        let index = self.storage.values.push(TypeVariableData { origin });
+        let index = self.storage.values.push(TypeVariableData { span });
         debug_assert_eq!(eq_key.vid, index);
 
-        debug!("new_var(index={:?}, universe={:?}, origin={:?})", eq_key.vid, universe, origin);
+        debug!("new_var(index={:?}, universe={:?}, span={:?})", eq_key.vid, universe, span);
 
         index
     }
@@ -268,12 +250,9 @@ impl<'db> TypeVariableTable<'_, 'db> {
     }
 
     /// Returns a range of the type variables created during the snapshot.
-    pub(crate) fn vars_since_snapshot(
-        &mut self,
-        value_count: usize,
-    ) -> (Range<TyVid>, Vec<TypeVariableOrigin>) {
+    pub(crate) fn vars_since_snapshot(&mut self, value_count: usize) -> (Range<TyVid>, Vec<Span>) {
         let range = TyVid::from_usize(value_count)..TyVid::from_usize(self.num_vars());
-        (range.clone(), iter_idx_range(range).map(|index| self.var_origin(index)).collect())
+        (range.clone(), iter_idx_range(range).map(|index| self.var_span(index)).collect())
     }
 
     /// Returns indices of all variables that are not yet

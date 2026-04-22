@@ -15,9 +15,12 @@ use self::CombineMapType::*;
 use self::UndoLog::*;
 use super::MemberConstraint;
 use super::unify_key::RegionVidKey;
-use crate::next_solver::infer::snapshot::undo_log::{InferCtxtUndoLogs, Snapshot};
 use crate::next_solver::infer::unify_key::RegionVariableValue;
 use crate::next_solver::{AliasTy, Binder, DbInterner, ParamTy, PlaceholderType, Region, Ty};
+use crate::{
+    Span,
+    next_solver::infer::snapshot::undo_log::{InferCtxtUndoLogs, Snapshot},
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct RegionConstraintStorage<'db> {
@@ -281,6 +284,7 @@ pub struct RegionVariableInfo {
     // This would be currently unsound as it would cause us to drop the universe
     // changes in `lexical_region_resolve`.
     pub universe: UniverseIndex,
+    pub span: Span,
 }
 
 pub(crate) struct RegionSnapshot {
@@ -372,8 +376,8 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         self.storage.any_unifications = snapshot.any_unifications;
     }
 
-    pub(super) fn new_region_var(&mut self, universe: UniverseIndex) -> RegionVid {
-        let vid = self.storage.var_infos.push(RegionVariableInfo { universe });
+    pub(super) fn new_region_var(&mut self, universe: UniverseIndex, span: Span) -> RegionVid {
+        let vid = self.storage.var_infos.push(RegionVariableInfo { universe, span });
 
         let u_vid = self.unification_table_mut().new_key(RegionVariableValue::Unknown { universe });
         assert_eq!(vid, u_vid.vid);
@@ -459,6 +463,7 @@ impl<'db> RegionConstraintCollector<'db, '_> {
     pub(super) fn lub_regions(
         &mut self,
         db: DbInterner<'db>,
+        origin: Span,
         a: Region<'db>,
         b: Region<'db>,
     ) -> Region<'db> {
@@ -470,13 +475,14 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         } else if a == b {
             a // LUB(a,a) = a
         } else {
-            self.combine_vars(db, Lub, a, b)
+            self.combine_vars(db, Lub, a, b, origin)
         }
     }
 
     pub(super) fn glb_regions(
         &mut self,
         db: DbInterner<'db>,
+        origin: Span,
         a: Region<'db>,
         b: Region<'db>,
     ) -> Region<'db> {
@@ -490,7 +496,7 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         } else if a == b {
             a // GLB(a,a) = a
         } else {
-            self.combine_vars(db, Glb, a, b)
+            self.combine_vars(db, Glb, a, b, origin)
         }
     }
 
@@ -529,6 +535,7 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         t: CombineMapType,
         a: Region<'db>,
         b: Region<'db>,
+        origin: Span,
     ) -> Region<'db> {
         let vars = TwoRegions { a, b };
         if let Some(c) = self.combine_map(t.clone()).get(&vars) {
@@ -537,7 +544,7 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         let a_universe = self.universe(a);
         let b_universe = self.universe(b);
         let c_universe = cmp::max(a_universe, b_universe);
-        let c = self.new_region_var(c_universe);
+        let c = self.new_region_var(c_universe, origin);
         self.combine_map(t.clone()).insert(vars.clone(), c);
         self.undo_log.push(AddCombination(t.clone(), vars));
         let new_r = Region::new_var(cx, c);
@@ -567,8 +574,15 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         }
     }
 
-    pub fn vars_since_snapshot(&self, value_count: usize) -> Range<RegionVid> {
-        RegionVid::from(value_count)..RegionVid::from(self.storage.unification_table.len())
+    pub fn vars_since_snapshot(&self, value_count: usize) -> (Range<RegionVid>, Vec<Span>) {
+        let range =
+            RegionVid::from(value_count)..RegionVid::from(self.storage.unification_table.len());
+        (
+            range.clone(),
+            (range.start.as_usize()..range.end.as_usize())
+                .map(|index| self.storage.var_infos[RegionVid::from_usize(index)].span)
+                .collect(),
+        )
     }
 
     /// See `InferCtxt::region_constraints_added_in_snapshot`.

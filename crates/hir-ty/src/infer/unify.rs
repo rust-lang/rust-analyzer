@@ -7,12 +7,13 @@ use hir_def::{ExpressionStoreOwnerId, GenericParamId, TraitId};
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{
     TyVid, TypeFoldable, TypeVisitableExt,
-    inherent::{Const as _, GenericArg as _, IntoKind, Ty as _},
+    inherent::{GenericArg as _, IntoKind, Ty as _},
     solve::Certainty,
 };
 use smallvec::SmallVec;
 
 use crate::{
+    Span,
     db::HirDatabase,
     next_solver::{
         Canonical, ClauseKind, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs,
@@ -40,6 +41,10 @@ struct NestedObligationsForSelfTy<'a, 'db> {
 
 impl<'a, 'db> ProofTreeVisitor<'db> for NestedObligationsForSelfTy<'a, 'db> {
     type Result = ();
+
+    fn span(&self) -> Span {
+        self.root_cause.span()
+    }
 
     fn config(&self) -> InspectConfig {
         // Using an intentionally low depth to minimize the chance of future
@@ -112,7 +117,7 @@ fn could_unify_impl<'db>(
     let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
     let cause = ObligationCause::dummy();
     let at = infcx.at(&cause, env.param_env);
-    let ((ty1_with_vars, ty2_with_vars), _) = infcx.instantiate_canonical(tys);
+    let ((ty1_with_vars, ty2_with_vars), _) = infcx.instantiate_canonical(Span::Dummy, tys);
     let mut ctxt = ObligationCtxt::new(&infcx);
     let can_unify = at
         .eq(ty1_with_vars, ty2_with_vars)
@@ -245,12 +250,12 @@ impl<'db> InferenceTable<'db> {
         self.diverging_type_vars.insert(ty);
     }
 
-    pub(crate) fn next_ty_var(&self) -> Ty<'db> {
-        self.infer_ctxt.next_ty_var()
+    pub(crate) fn next_ty_var(&self, span: Span) -> Ty<'db> {
+        self.infer_ctxt.next_ty_var(span)
     }
 
-    pub(crate) fn next_const_var(&self) -> Const<'db> {
-        self.infer_ctxt.next_const_var()
+    pub(crate) fn next_const_var(&self, span: Span) -> Const<'db> {
+        self.infer_ctxt.next_const_var(span)
     }
 
     pub(crate) fn next_int_var(&self) -> Ty<'db> {
@@ -261,18 +266,18 @@ impl<'db> InferenceTable<'db> {
         self.infer_ctxt.next_float_var()
     }
 
-    pub(crate) fn new_maybe_never_var(&mut self) -> Ty<'db> {
-        let var = self.next_ty_var();
+    pub(crate) fn new_maybe_never_var(&mut self, span: Span) -> Ty<'db> {
+        let var = self.next_ty_var(span);
         self.set_diverging(var);
         var
     }
 
-    pub(crate) fn next_region_var(&self) -> Region<'db> {
-        self.infer_ctxt.next_region_var()
+    pub(crate) fn next_region_var(&self, span: Span) -> Region<'db> {
+        self.infer_ctxt.next_region_var(span)
     }
 
-    pub(crate) fn next_var_for_param(&self, id: GenericParamId) -> GenericArg<'db> {
-        self.infer_ctxt.next_var_for_param(id)
+    pub(crate) fn var_for_def(&self, id: GenericParamId, span: Span) -> GenericArg<'db> {
+        self.infer_ctxt.var_for_def(id, span)
     }
 
     pub(crate) fn resolve_completely<T>(&mut self, value: T) -> T
@@ -319,8 +324,8 @@ impl<'db> InferenceTable<'db> {
     }
 
     /// Create a `GenericArgs` full of infer vars for `def`.
-    pub(crate) fn fresh_args_for_item(&self, def: SolverDefId) -> GenericArgs<'db> {
-        self.infer_ctxt.fresh_args_for_item(def)
+    pub(crate) fn fresh_args_for_item(&self, span: Span, def: SolverDefId) -> GenericArgs<'db> {
+        self.infer_ctxt.fresh_args_for_item(span, def)
     }
 
     /// Try to resolve `ty` to a structural type, normalizing aliases.
@@ -421,11 +426,11 @@ impl<'db> InferenceTable<'db> {
         }
     }
 
-    pub(super) fn insert_type_vars<T>(&mut self, ty: T) -> T
+    pub(super) fn insert_type_vars<T>(&mut self, ty: T, span: Span) -> T
     where
         T: TypeFoldable<DbInterner<'db>>,
     {
-        self.infer_ctxt.insert_type_vars(ty)
+        self.infer_ctxt.insert_type_vars(ty, span)
     }
 
     /// Whenever you lower a user-written type, you should call this.
@@ -437,17 +442,12 @@ impl<'db> InferenceTable<'db> {
     /// The difference of this method from `process_user_written_ty()` is that this method doesn't register a well-formed obligation,
     /// while `process_user_written_ty()` should (but doesn't currently).
     pub(crate) fn process_remote_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        let ty = self.insert_type_vars(ty);
+        let ty = self.insert_type_vars(ty, Span::Dummy);
         // See https://github.com/rust-lang/rust/blob/cdb45c87e2cd43495379f7e867e3cc15dcee9f93/compiler/rustc_hir_typeck/src/fn_ctxt/mod.rs#L487-L495:
         // Even though the new solver only lazily normalizes usually, here we eagerly normalize so that not everything needs
         // to normalize before inspecting the `TyKind`.
         // FIXME(next-solver): We should not deeply normalize here, only shallowly.
         self.try_structurally_resolve_type(ty)
-    }
-
-    /// Replaces ConstScalar::Unknown by a new type var, so we can maybe still infer it.
-    pub(super) fn insert_const_vars_shallow(&mut self, c: Const<'db>) -> Const<'db> {
-        if c.is_ct_error() { self.next_const_var() } else { c }
     }
 }
 

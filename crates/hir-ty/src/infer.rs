@@ -54,7 +54,7 @@ use rustc_ast_ir::Mutability;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{
     AliasTyKind, TypeFoldable,
-    inherent::{AdtDef, IntoKind, Ty as _},
+    inherent::{AdtDef, Const as _, IntoKind, Ty as _},
 };
 use smallvec::SmallVec;
 use span::Edition;
@@ -62,7 +62,7 @@ use stdx::never;
 use thin_vec::ThinVec;
 
 use crate::{
-    ImplTraitId, IncorrectGenericsLenKind, PathLoweringDiagnostic, TargetFeatures,
+    ImplTraitId, IncorrectGenericsLenKind, PathLoweringDiagnostic, Span, TargetFeatures,
     closure_analysis::PlaceBase,
     collect_type_inference_vars,
     db::{HirDatabase, InternedOpaqueTyId},
@@ -1537,7 +1537,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                     GenericArgs::for_item_with_defaults(
                         self.interner(),
                         va_list.into(),
-                        |_, id, _| self.table.next_var_for_param(id),
+                        |_, id, _| self.table.var_for_def(id, Span::Dummy),
                     ),
                 ),
                 None => self.err_ty(),
@@ -1545,7 +1545,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
 
             param_tys.push(va_list_ty);
         }
-        let mut param_tys = param_tys.into_iter().chain(iter::repeat(self.table.next_ty_var()));
+        let mut param_tys =
+            param_tys.into_iter().chain(iter::repeat(self.table.next_ty_var(Span::Dummy)));
         if let Some(self_param) = self_param
             && let Some(ty) = param_tys.next()
         {
@@ -1602,7 +1603,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     /// but if we return a new var, mark it so that no diagnostics will be issued on it.
     fn insert_type_vars_shallow(&mut self, ty: Ty<'db>) -> Ty<'db> {
         if ty.is_ty_error() {
-            let var = self.table.next_ty_var();
+            let var = self.table.next_ty_var(Span::Dummy);
 
             // Suppress future errors on this var. Add more things here when we add more diagnostics.
             self.vars_emitted_type_must_be_known_for.insert(var);
@@ -1611,6 +1612,10 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         } else {
             ty
         }
+    }
+
+    pub(super) fn insert_const_vars_shallow(&mut self, c: Const<'db>) -> Const<'db> {
+        if c.is_ct_error() { self.table.next_const_var(Span::Dummy) } else { c }
     }
 
     fn infer_body(&mut self, body_expr: ExprId) {
@@ -1786,7 +1791,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             LifetimeElisionKind::Infer,
             |ctx| ctx.lower_const(const_ref, ty),
         );
-        self.insert_type_vars(const_)
+        self.insert_type_vars(const_, Span::Dummy)
     }
 
     pub(crate) fn make_path_as_body_const(&mut self, path: &Path, ty: Ty<'db>) -> Const<'db> {
@@ -1796,7 +1801,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             LifetimeElisionKind::Infer,
             |ctx| ctx.lower_path_as_const(path, ty),
         );
-        self.insert_type_vars(const_)
+        self.insert_type_vars(const_, Span::Dummy)
     }
 
     fn err_ty(&self) -> Ty<'db> {
@@ -1810,14 +1815,14 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             LifetimeElisionKind::Infer,
             |ctx| ctx.lower_lifetime(lifetime_ref),
         );
-        self.insert_type_vars(lt)
+        self.insert_type_vars(lt, Span::Dummy)
     }
 
-    fn insert_type_vars<T>(&mut self, ty: T) -> T
+    fn insert_type_vars<T>(&mut self, ty: T, span: Span) -> T
     where
         T: TypeFoldable<DbInterner<'db>>,
     {
-        self.table.insert_type_vars(ty)
+        self.table.insert_type_vars(ty, span)
     }
 
     /// Attempts to returns the deeply last field of nested structures, but
@@ -2036,7 +2041,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                     .associated_type_by_name(segments.first().unwrap().name)
             {
                 // `<Self>::AssocType`
-                let args = self.infcx().fill_rest_fresh_args(assoc_type.into(), trait_ref.args);
+                let args = self.infcx().fill_rest_fresh_args(
+                    node.into(),
+                    assoc_type.into(),
+                    trait_ref.args,
+                );
                 let alias = Ty::new_alias(
                     self.interner(),
                     AliasTy::new_from_args(
@@ -2090,14 +2099,14 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                             .db
                             .ty(var.lookup(self.db).parent.into())
                             .instantiate(interner, args);
-                        let ty = self.insert_type_vars(ty);
+                        let ty = self.insert_type_vars(ty, Span::Dummy);
                         return (ty, Some(var.into()));
                     }
                     ValueNs::StructId(strukt) => {
                         let args = path_ctx.substs_from_path(strukt.into(), true, false);
                         drop(ctx);
                         let ty = self.db.ty(strukt.into()).instantiate(interner, args);
-                        let ty = self.insert_type_vars(ty);
+                        let ty = self.insert_type_vars(ty, Span::Dummy);
                         return (ty, Some(strukt.into()));
                     }
                     ValueNs::ImplSelf(impl_id) => (TypeNs::SelfType(impl_id), None),
@@ -2119,21 +2128,21 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 let args = path_ctx.substs_from_path(strukt.into(), true, false);
                 drop(ctx);
                 let ty = self.db.ty(strukt.into()).instantiate(interner, args);
-                let ty = self.insert_type_vars(ty);
+                let ty = self.insert_type_vars(ty, Span::Dummy);
                 forbid_unresolved_segments(self, (ty, Some(strukt.into())), unresolved)
             }
             TypeNs::AdtId(AdtId::UnionId(u)) => {
                 let args = path_ctx.substs_from_path(u.into(), true, false);
                 drop(ctx);
                 let ty = self.db.ty(u.into()).instantiate(interner, args);
-                let ty = self.insert_type_vars(ty);
+                let ty = self.insert_type_vars(ty, Span::Dummy);
                 forbid_unresolved_segments(self, (ty, Some(u.into())), unresolved)
             }
             TypeNs::EnumVariantId(var) => {
                 let args = path_ctx.substs_from_path(var.into(), true, false);
                 drop(ctx);
                 let ty = self.db.ty(var.lookup(self.db).parent.into()).instantiate(interner, args);
-                let ty = self.insert_type_vars(ty);
+                let ty = self.insert_type_vars(ty, Span::Dummy);
                 forbid_unresolved_segments(self, (ty, Some(var.into())), unresolved)
             }
             TypeNs::SelfType(impl_id) => {
@@ -2256,7 +2265,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 drop(ctx);
                 let interner = DbInterner::conjure();
                 let ty = self.db.ty(it.into()).instantiate(interner, args);
-                let ty = self.insert_type_vars(ty);
+                let ty = self.insert_type_vars(ty, Span::Dummy);
 
                 self.resolve_variant_on_alias(ty, unresolved, mod_path)
             }
@@ -2487,8 +2496,8 @@ impl<'db> Expectation<'db> {
         }
     }
 
-    fn coercion_target_type(&self, table: &mut unify::InferenceTable<'db>) -> Ty<'db> {
-        self.only_has_type(table).unwrap_or_else(|| table.next_ty_var())
+    fn coercion_target_type(&self, table: &mut unify::InferenceTable<'db>, span: Span) -> Ty<'db> {
+        self.only_has_type(table).unwrap_or_else(|| table.next_ty_var(span))
     }
 
     /// Comment copied from rustc:

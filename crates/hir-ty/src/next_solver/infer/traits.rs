@@ -16,9 +16,12 @@ use rustc_type_ir::{
 };
 use tracing::debug;
 
-use crate::next_solver::{
-    Clause, DbInterner, Goal, ParamEnv, PolyTraitPredicate, Predicate, Span, TraitPredicate,
-    TraitRef, Ty,
+use crate::{
+    Span,
+    next_solver::{
+        Clause, DbInterner, Goal, ParamEnv, PolyTraitPredicate, Predicate, TraitPredicate,
+        TraitRef, Ty,
+    },
 };
 
 use super::InferCtxt;
@@ -33,15 +36,18 @@ use super::InferCtxt;
 /// only live for a short period of time.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObligationCause {
-    // FIXME: This should contain an `ExprId`/`PatId` etc., and a cause code. But for now we
-    // don't report trait solving diagnostics, so this is irrelevant.
-    _private: (),
+    span: Span,
 }
 
 impl ObligationCause {
     #[inline]
     pub fn new() -> ObligationCause {
-        ObligationCause { _private: () }
+        ObligationCause { span: Span::Dummy }
+    }
+
+    #[inline]
+    pub fn with_span(span: Span) -> ObligationCause {
+        ObligationCause { span }
     }
 
     #[inline]
@@ -52,6 +58,11 @@ impl ObligationCause {
     #[inline]
     pub fn misc() -> ObligationCause {
         ObligationCause::new()
+    }
+
+    #[inline]
+    pub(crate) fn span(&self) -> Span {
+        self.span
     }
 }
 

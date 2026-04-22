@@ -15,7 +15,7 @@ use rustc_type_ir::{
 use tracing::debug;
 
 use crate::{
-    ParamEnvAndCrate,
+    ParamEnvAndCrate, Span,
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, GenericArgs,
         ParamEnv, Predicate, PredicateKind, SubtypePredicate, Ty, TyKind, UnevaluatedConst,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 use super::{
-    Const, DbInterner, ErrorGuaranteed, GenericArg, SolverDefId, Span,
+    Const, DbInterner, ErrorGuaranteed, GenericArg, SolverDefId,
     infer::{DbInternerInferExt, InferCtxt, canonical::instantiate::CanonicalExt},
 };
 
@@ -63,15 +63,15 @@ impl<'db> SolverDelegate for SolverContext<'db> {
     where
         V: rustc_type_ir::TypeFoldable<Self::Interner>,
     {
-        let (infcx, value, vars) = cx.infer_ctxt().build_with_canonical(canonical);
+        let (infcx, value, vars) = cx.infer_ctxt().build_with_canonical(Span::Dummy, canonical);
         (SolverContext(infcx), value, vars)
     }
 
-    fn fresh_var_for_kind_with_span(&self, arg: GenericArg<'db>, _span: Span) -> GenericArg<'db> {
+    fn fresh_var_for_kind_with_span(&self, arg: GenericArg<'db>, span: Span) -> GenericArg<'db> {
         match arg.kind() {
-            GenericArgKind::Lifetime(_) => self.next_region_var().into(),
-            GenericArgKind::Type(_) => self.next_ty_var().into(),
-            GenericArgKind::Const(_) => self.next_const_var().into(),
+            GenericArgKind::Lifetime(_) => self.next_region_var(span).into(),
+            GenericArgKind::Type(_) => self.next_ty_var(span).into(),
+            GenericArgKind::Const(_) => self.next_const_var(span).into(),
         }
     }
 
@@ -124,11 +124,11 @@ impl<'db> SolverDelegate for SolverContext<'db> {
     fn instantiate_canonical_var(
         &self,
         kind: CanonicalVarKind<'db>,
-        _span: <Self::Interner as Interner>::Span,
+        span: Span,
         var_values: &[GenericArg<'db>],
         universe_map: impl Fn(rustc_type_ir::UniverseIndex) -> rustc_type_ir::UniverseIndex,
     ) -> GenericArg<'db> {
-        self.0.instantiate_canonical_var(kind, var_values, universe_map)
+        self.0.instantiate_canonical_var(span, kind, var_values, universe_map)
     }
 
     fn add_item_bounds_for_hidden_type(
