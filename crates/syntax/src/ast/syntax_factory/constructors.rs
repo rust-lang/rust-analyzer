@@ -671,6 +671,23 @@ impl SyntaxFactory {
         ast
     }
 
+    pub fn path_qualified(&self, qual: ast::Path, segment: ast::PathSegment) -> ast::Path {
+        let ast = make::path_qualified(qual.clone(), segment.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
+            if let Some(out_qual) = ast.qualifier() {
+                builder.map_node(qual.syntax().clone(), out_qual.syntax().clone());
+            }
+            if let Some(out_segment) = ast.segment() {
+                builder.map_node(segment.syntax().clone(), out_segment.syntax().clone());
+            }
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
     pub fn path_from_segments(
         &self,
         segments: impl IntoIterator<Item = ast::PathSegment>,
