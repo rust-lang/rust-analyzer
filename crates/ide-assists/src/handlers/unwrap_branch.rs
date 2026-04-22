@@ -68,9 +68,12 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
             }
         };
     };
+    let is_branch =
+        !block.is_standalone() || block.syntax().parent().and_then(ast::MatchArm::cast).is_some();
+    let label = if is_branch { "Unwrap branch" } else { "Unwrap block" };
     let replacement = replacement.stmt_list()?;
 
-    acc.add(AssistId::refactor_rewrite("unwrap_branch"), "Unwrap branch", target, |builder| {
+    acc.add(AssistId::refactor_rewrite("unwrap_branch"), label, target, |builder| {
         let editor = builder.make_editor(block.syntax());
         let replacement = replacement.dedent(from_indent).indent(into_indent);
         let container = prefer_container.unwrap_or(container);
@@ -134,7 +137,7 @@ fn extract_statements(stmt_list: ast::StmtList) -> Vec<SyntaxElement> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{check_assist, check_assist_not_applicable};
+    use crate::tests::{check_assist, check_assist_not_applicable, check_assist_with_label};
 
     use super::*;
 
@@ -924,6 +927,69 @@ fn main() {
     bar;
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn unwrap_block_labels() {
+        check_assist_with_label(
+            unwrap_branch,
+            r#"
+fn main() {
+    $0{
+        bar;
+    }
+}
+"#,
+            "Unwrap block",
+        );
+        check_assist_with_label(
+            unwrap_branch,
+            r#"
+fn main() {
+    let x = $0{
+        bar()
+    };
+}
+"#,
+            "Unwrap block",
+        );
+        check_assist_with_label(
+            unwrap_branch,
+            r#"
+fn main() {
+    let x = if true $0{
+        bar()
+    };
+}
+"#,
+            "Unwrap branch",
+        );
+        check_assist_with_label(
+            unwrap_branch,
+            r#"
+fn main() {
+    let x = match () {
+        () => $0{
+            bar(),
+        }
+    };
+}
+"#,
+            "Unwrap branch",
+        );
+        check_assist_with_label(
+            unwrap_branch,
+            r#"
+fn main() {
+    match () {
+        () => $0{
+            bar(),
+        }
+    }
+}
+"#,
+            "Unwrap branch",
         );
     }
 }
