@@ -88,15 +88,12 @@ fn check_impl(
                 let file_range = FileRange { file_id, range };
                 if only_types {
                     types.insert(file_range, expected);
-                } else if expected.starts_with("type: ") {
-                    types.insert(file_range, expected.trim_start_matches("type: ").to_owned());
+                } else if let Some(ty) = expected.strip_prefix("type: ") {
+                    types.insert(file_range, ty.to_owned());
                 } else if expected.starts_with("expected") {
                     mismatches.insert(file_range, expected);
-                } else if expected.starts_with("adjustments:") {
-                    adjustments.insert(
-                        file_range,
-                        expected.trim_start_matches("adjustments:").trim().to_owned(),
-                    );
+                } else if let Some(adjs) = expected.strip_prefix("adjustments:") {
+                    adjustments.insert(file_range, adjs.trim().to_owned());
                 } else {
                     panic!("unexpected annotation: {expected} @ {range:?}");
                 }
