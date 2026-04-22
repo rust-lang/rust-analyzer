@@ -491,6 +491,18 @@ impl SyntaxFactory {
         ast
     }
 
+    pub fn path_segment_self(&self) -> ast::PathSegment {
+        make::path_segment_self().clone_for_update()
+    }
+
+    pub fn path_segment_super(&self) -> ast::PathSegment {
+        make::path_segment_super().clone_for_update()
+    }
+
+    pub fn path_segment_crate(&self) -> ast::PathSegment {
+        make::path_segment_crate().clone_for_update()
+    }
+
     pub fn generic_ty_path_segment(
         &self,
         name_ref: ast::NameRef,

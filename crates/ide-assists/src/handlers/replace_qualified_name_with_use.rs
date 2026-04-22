@@ -1,11 +1,11 @@
 use hir::{AsAssocItem, ModuleDef, PathResolution};
 use ide_db::{
-    helpers::mod_path_to_ast,
-    imports::insert_use::{ImportScope, insert_use},
+    helpers::mod_path_to_ast_with_factory,
+    imports::insert_use::{ImportScope, insert_use_with_editor},
 };
 use syntax::{
     AstNode, Edition, SyntaxNode,
-    ast::{self, HasGenericArgs, make},
+    ast::{self, HasGenericArgs},
     match_ast,
     syntax_editor::SyntaxEditor,
 };
@@ -75,7 +75,7 @@ pub(crate) fn replace_qualified_name_with_use(
             let scope_node = scope.as_syntax_node();
             let editor = builder.make_editor(scope_node);
             shorten_paths(&editor, scope_node, &original_path);
-            builder.add_file_edits(ctx.vfs_file_id(), editor);
+            let make = editor.make();
             let path = drop_generic_args(&original_path);
             let edition = ctx
                 .sema
@@ -83,13 +83,14 @@ pub(crate) fn replace_qualified_name_with_use(
                 .map(|semantics_scope| semantics_scope.krate().edition(ctx.db()))
                 .unwrap_or(Edition::CURRENT);
             // stick the found import in front of the to be replaced path
-            let path =
-                match path_to_qualifier.and_then(|it| mod_path_to_ast(&it, edition).qualifier()) {
-                    Some(qualifier) => make::path_concat(qualifier, path),
-                    None => path,
-                };
-            let scope = builder.make_import_scope_mut(scope);
-            insert_use(&scope, path, &ctx.config.insert_use);
+            let path = match path_to_qualifier
+                .and_then(|it| mod_path_to_ast_with_factory(make, &it, edition).qualifier())
+            {
+                Some(qualifier) => make.path_concat(qualifier, path),
+                None => path,
+            };
+            insert_use_with_editor(&scope, path, &ctx.config.insert_use, &editor);
+            builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
 }
