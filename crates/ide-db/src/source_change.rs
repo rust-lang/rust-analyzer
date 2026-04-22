@@ -1,7 +1,7 @@
 //! This modules defines type to represent changes to the source code, that flow
 //! from the server to the client.
 //!
-//! It can be viewed as a dual for `Change`.
+//! It can be viewed as a dual for [`Change`][vfs::Change].
 
 use std::{collections::hash_map::Entry, fmt, iter, mem};
 
