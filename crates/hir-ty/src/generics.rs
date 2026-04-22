@@ -131,11 +131,6 @@ impl<'db> Generics<'db> {
         self.parent_generics().map_or(0, Generics::len)
     }
 
-    /// Returns numbers of generic parameters excluding those from parent.
-    pub(crate) fn len_self(&self) -> usize {
-        self.params.len()
-    }
-
     pub(crate) fn len_lifetimes_self(&self) -> usize {
         self.params.len_lifetimes()
     }

@@ -12,13 +12,11 @@ use stdx::never;
 
 use crate::{
     InferenceDiagnostic, ValueTyDefId,
-    generics::generics,
     infer::diagnostics::InferenceTyLoweringContext as TyLoweringContext,
     lower::{GenericPredicates, LifetimeElisionKind},
     method_resolution::{self, CandidateId, MethodError},
     next_solver::{
-        GenericArg, GenericArgs, TraitRef, Ty,
-        infer::traits::{Obligation, ObligationCause},
+        GenericArg, GenericArgs, TraitRef, Ty, infer::traits::ObligationCause,
         util::clauses_as_obligations,
     },
 };
@@ -239,25 +237,6 @@ impl<'db> InferenceContext<'_, 'db> {
             ObligationCause::new(),
             param_env,
         ));
-
-        // We need to add `Self: Trait` obligation when `def` is a trait assoc item.
-        let container = match def {
-            GenericDefId::FunctionId(id) => id.lookup(self.db).container,
-            GenericDefId::ConstId(id) => id.lookup(self.db).container,
-            _ => return,
-        };
-
-        if let ItemContainerId::TraitId(trait_) = container {
-            let parent_len = generics(self.db, def).parent_generics().map_or(0, |g| g.len_self());
-            let parent_subst = GenericArgs::new_from_slice(&subst.as_slice()[..parent_len]);
-            let trait_ref = TraitRef::new_from_args(interner, trait_.into(), parent_subst);
-            self.table.register_predicate(Obligation::new(
-                interner,
-                ObligationCause::new(),
-                param_env,
-                trait_ref,
-            ));
-        }
     }
 
     fn resolve_trait_assoc_item(
@@ -339,20 +318,9 @@ impl<'db> InferenceContext<'_, 'db> {
             }
             ItemContainerId::TraitId(trait_) => {
                 // we're picking this method
-                let args = GenericArgs::fill_rest(
-                    self.interner(),
-                    trait_.into(),
-                    [ty.into()],
-                    |_, id, _| self.table.next_var_for_param(id),
-                );
-                let trait_ref = TraitRef::new_from_args(self.interner(), trait_.into(), args);
-                self.table.register_predicate(Obligation::new(
-                    self.interner(),
-                    ObligationCause::new(),
-                    self.table.param_env,
-                    trait_ref,
-                ));
-                args
+                GenericArgs::fill_rest(self.interner(), trait_.into(), [ty.into()], |_, id, _| {
+                    self.table.next_var_for_param(id)
+                })
             }
             ItemContainerId::ModuleId(_) | ItemContainerId::ExternBlockId(_) => {
                 never!("assoc item contained in module/extern block");
