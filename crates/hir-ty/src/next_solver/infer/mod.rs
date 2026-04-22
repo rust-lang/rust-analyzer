@@ -537,9 +537,9 @@ impl<'db> InferCtxt<'db> {
     /// and it is more convenient and safer when your `params` are inside a [`Binder`].
     ///
     /// [Obligation]: traits::Obligation
-    /// [`evaluate_obligation`]: crate::traits::query::evaluate_obligation::InferCtxtExt::evaluate_obligation
-    /// [`predicate_must_hold_modulo_regions`]: crate::traits::query::evaluate_obligation::InferCtxtExt::predicate_must_hold_modulo_regions
-    /// [`Binder`]: ty::Binder
+    /// [`evaluate_obligation`]: InferCtxt::evaluate_obligation
+    /// [`predicate_must_hold_modulo_regions`]: InferCtxt::predicate_must_hold_modulo_regions
+    /// [`Binder`]: rustc_type_ir::Binder
     #[instrument(level = "debug", skip(self, params), ret)]
     pub fn type_implements_trait(
         &self,
