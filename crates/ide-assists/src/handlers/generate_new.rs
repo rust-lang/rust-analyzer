@@ -1,6 +1,6 @@
 use ide_db::{
     imports::import_assets::item_for_path_search, syntax_helpers::suggest_name::NameGenerator,
-    use_trivial_constructor::use_trivial_constructor,
+    use_trivial_constructor::use_trivial_constructor_with_factory,
 };
 use syntax::{
     ast::{self, AstNode, HasName, HasVisibility, StructKind, edit::AstNodeEdit},
@@ -90,9 +90,10 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
 
                 let edition = current_module.krate(ctx.db()).edition(ctx.db());
 
-                let expr = use_trivial_constructor(
+                let expr = use_trivial_constructor_with_factory(
+                    make,
                     ctx.sema.db,
-                    ide_db::helpers::mod_path_to_ast(&type_path, edition),
+                    ide_db::helpers::mod_path_to_ast_with_factory(make, &type_path, edition),
                     &ty,
                     edition,
                 )?;

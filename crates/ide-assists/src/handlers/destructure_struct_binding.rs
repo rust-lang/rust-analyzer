@@ -3,7 +3,7 @@ use ide_db::{
     FxHashMap, FxHashSet, RootDatabase,
     assists::AssistId,
     defs::Definition,
-    helpers::mod_path_to_ast,
+    helpers::mod_path_to_ast_with_factory,
     search::{FileReference, SearchScope},
 };
 use itertools::Itertools;
@@ -276,7 +276,7 @@ fn destructure_pat(
     field_names: &[(SmolStr, SmolStr)],
 ) {
     let make = editor.make();
-    let struct_path = mod_path_to_ast(&data.struct_def_path, data.edition);
+    let struct_path = mod_path_to_ast_with_factory(make, &data.struct_def_path, data.edition);
     let is_ref = data.target.is_ref();
     let is_mut = data.target.is_mut();
 

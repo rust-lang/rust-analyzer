@@ -5,7 +5,7 @@ use hir::{EnumVariant, HasCrate, Module, ModuleDef, Name};
 use ide_db::{
     FxHashSet, RootDatabase,
     defs::Definition,
-    helpers::mod_path_to_ast,
+    helpers::mod_path_to_ast_with_factory,
     imports::insert_use::{ImportScope, InsertUseConfig, insert_use_with_editor},
     path_transform::PathTransform,
     search::FileReference,
@@ -401,7 +401,12 @@ fn apply_references(
 ) {
     let make = editor.make();
     if let Some((scope, path)) = import {
-        insert_use_with_editor(&scope, mod_path_to_ast(&path, edition), &insert_use_cfg, editor);
+        insert_use_with_editor(
+            &scope,
+            mod_path_to_ast_with_factory(make, &path, edition),
+            &insert_use_cfg,
+            editor,
+        );
     }
     // deep clone to prevent cycle
     let path = make.path_from_segments(iter::once(segment.clone()), false);

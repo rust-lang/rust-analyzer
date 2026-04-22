@@ -4,7 +4,7 @@ use ide_db::{
     FxHashSet,
     assists::AssistId,
     defs::Definition,
-    helpers::mod_path_to_ast,
+    helpers::mod_path_to_ast_with_factory,
     imports::insert_use::{ImportScope, insert_use_with_editor},
     search::{FileReference, UsageSearchResult},
     source_change::SourceChangeBuilder,
@@ -176,7 +176,7 @@ fn node_to_pats(node: SyntaxNode) -> Option<Vec<ast::Pat>> {
 }
 
 fn augment_references_with_imports(
-    syntax_factory: &SyntaxFactory,
+    make: &SyntaxFactory,
     ctx: &AssistContext<'_>,
     references: &[FileReference],
     struct_name: &str,
@@ -208,12 +208,13 @@ fn augment_references_with_imports(
                         cfg,
                     )
                     .map(|mod_path| {
-                        syntax_factory.path_concat(
-                            mod_path_to_ast(
+                        make.path_concat(
+                            mod_path_to_ast_with_factory(
+                                make,
                                 &mod_path,
                                 target_module.krate(ctx.db()).edition(ctx.db()),
                             ),
-                            syntax_factory.path_from_text(struct_name),
+                            make.path_from_text(struct_name),
                         )
                     });
 

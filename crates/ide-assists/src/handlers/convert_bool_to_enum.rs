@@ -5,7 +5,7 @@ use ide_db::{
     FxHashSet,
     assists::AssistId,
     defs::Definition,
-    helpers::mod_path_to_ast,
+    helpers::mod_path_to_ast_with_factory,
     imports::insert_use::{ImportScope, insert_use},
     search::{FileReference, UsageSearchResult},
     source_change::SourceChangeBuilder,
@@ -373,7 +373,7 @@ fn augment_references_with_imports(
                             )
                             .map(|mod_path| {
                                 make.path_concat(
-                                    mod_path_to_ast(&mod_path, edition),
+                                    mod_path_to_ast_with_factory(make, &mod_path, edition),
                                     make.path_from_text("Bool"),
                                 )
                             })?;
