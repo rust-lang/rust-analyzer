@@ -3,7 +3,7 @@
 mod format_like;
 
 use base_db::SourceDatabase;
-use hir::{ItemInNs, Semantics};
+use hir::{HirDisplay, ItemInNs, Semantics};
 use ide_db::{
     RootDatabase, SnippetCap,
     documentation::{Documentation, HasDocs},
@@ -116,6 +116,34 @@ pub(crate) fn complete_postfix(
     postfix_snippet("dbgr", "dbg!(&expr)", &format!("dbg!(&{receiver_text})")).add_to(acc, ctx.db);
     postfix_snippet("call", "function(expr)", &format!("${{1}}({receiver_text})"))
         .add_to(acc, ctx.db);
+
+    if let Some(expected_ty) = ctx.expected_type.as_ref() {
+        let is_valid_new = expected_ty
+            .iterate_assoc_items(ctx.db, |item| {
+                if let hir::AssocItem::Function(func) = item
+                    && func.name(ctx.db).as_str() == "new"
+                    && !func.has_self_param(ctx.db)
+                {
+                    let params = func.params_without_self(ctx.db);
+                    if params.len() == 1 {
+                        return Some(());
+                    }
+                }
+                None
+            })
+            .is_some();
+
+        if is_valid_new {
+            let ty_name = expected_ty.display(ctx.db, ctx.display_target).to_string();
+
+            postfix_snippet(
+                "new",
+                &format!("{}::new(expr)", ty_name),
+                &format!("{}::new({}$0)", ty_name, receiver_text),
+            )
+            .add_to(acc, ctx.db);
+        }
+    }
 
     let try_enum = TryEnum::from_ty(&ctx.sema, receiver_ty);
     let is_in_cond = is_in_condition(&dot_receiver_including_refs);
@@ -1557,6 +1585,37 @@ fn foo(x: Option<i32>, y: Option<i32>) {
     .and(y)
     .map(|it| it+2);
     };
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn postfix_new() {
+        check_edit(
+            "new",
+            r#"
+struct OtherThing;
+struct RefCell<T>(T);
+impl<T> RefCell<T> {
+    fn new(t: T) -> Self { RefCell(t) }
+}
+
+fn main() {
+    let other_thing = OtherThing;
+    let thing: RefCell<OtherThing> = other_thing.$0;
+}
+"#,
+            r#"
+struct OtherThing;
+struct RefCell<T>(T);
+impl<T> RefCell<T> {
+    fn new(t: T) -> Self { RefCell(t) }
+}
+
+fn main() {
+    let other_thing = OtherThing;
+    let thing: RefCell<OtherThing> = RefCell<OtherThing>::new(other_thing$0);
 }
 "#,
         );
