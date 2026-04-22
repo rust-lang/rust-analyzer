@@ -4,7 +4,7 @@ use hir_def::{hir::ExprId, signatures::VariantFields};
 use rustc_type_ir::inherent::{IntoKind, Ty as _};
 
 use crate::{
-    BindingMode,
+    BindingMode, ByRef,
     mir::{
         LocalId, MutBorrowKind, Operand, OperandKind,
         lower::{
@@ -104,7 +104,7 @@ impl<'db> MirLowerCtx<'_, 'db> {
     ) -> Result<'db, (BasicBlockId, Option<BasicBlockId>)> {
         self.pattern_match_binding(
             id,
-            BindingMode::Move,
+            BindingMode(ByRef::No, rustc_ast_ir::Mutability::Not),
             local.into(),
             MirSpan::SelfParam,
             current,
@@ -385,7 +385,7 @@ impl<'db> MirLowerCtx<'_, 'db> {
                         self.push_match_assignment(
                             current,
                             local,
-                            BindingMode::Move,
+                            BindingMode(ByRef::No, rustc_ast_ir::Mutability::Not),
                             cond_place,
                             pattern.into(),
                         );
@@ -535,13 +535,13 @@ impl<'db> MirLowerCtx<'_, 'db> {
             current,
             target_place.into(),
             match mode {
-                BindingMode::Move => {
+                BindingMode(ByRef::No, _) => {
                     Operand { kind: OperandKind::Copy(cond_place), span: None }.into()
                 }
-                BindingMode::Ref(rustc_ast_ir::Mutability::Not) => {
+                BindingMode(ByRef::Yes(rustc_ast_ir::Mutability::Not), _) => {
                     Rvalue::Ref(BorrowKind::Shared, cond_place)
                 }
-                BindingMode::Ref(rustc_ast_ir::Mutability::Mut) => {
+                BindingMode(ByRef::Yes(rustc_ast_ir::Mutability::Mut), _) => {
                     Rvalue::Ref(BorrowKind::Mut { kind: MutBorrowKind::Default }, cond_place)
                 }
             },

@@ -63,7 +63,7 @@ pub enum NotConstEvaluatable {
 ///     so they are noops when unioned with a definite error, and within
 ///     the categories it's easy to see that the unions are correct.
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
-pub(crate) enum EvaluationResult {
+pub enum EvaluationResult {
     /// Evaluation successful.
     EvaluatedToOk,
     /// Evaluation successful, but there were unevaluated region obligations.

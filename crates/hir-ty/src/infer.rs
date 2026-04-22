@@ -34,11 +34,12 @@ use std::{cell::OnceCell, convert::identity, fmt, iter, ops::Deref};
 use base_db::{Crate, FxIndexMap};
 use either::Either;
 use hir_def::{
-    AdtId, AssocItemId, ConstId, ConstParamId, DefWithBodyId, ExpressionStoreOwnerId, FieldId,
-    FunctionId, GenericDefId, GenericParamId, ItemContainerId, LocalFieldId, Lookup, TraitId,
-    TupleFieldId, TupleId, TypeAliasId, TypeOrConstParamId, VariantId,
+    AdtId, AssocItemId, AttrDefId, ConstId, ConstParamId, DefWithBodyId, ExpressionStoreOwnerId,
+    FieldId, FunctionId, GenericDefId, GenericParamId, HasModule, ItemContainerId, LocalFieldId,
+    Lookup, TraitId, TupleFieldId, TupleId, TypeAliasId, TypeOrConstParamId, VariantId,
+    attrs::AttrFlags,
     expr_store::{Body, ExpressionStore, HygieneId, RootExprOrigin, path::Path},
-    hir::{BindingAnnotation, BindingId, ExprId, ExprOrPatId, LabelId, PatId},
+    hir::{BindingId, ExprId, ExprOrPatId, LabelId, PatId},
     lang_item::LangItems,
     layout::Integer,
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
@@ -75,6 +76,7 @@ use crate::{
         coerce::{CoerceMany, DynamicCoerceMany},
         diagnostics::{Diagnostics, InferenceTyLoweringContext as TyLoweringContext},
         expr::ExprIsRead,
+        pat::PatOrigin,
     },
     lower::{
         ImplTraitIdx, ImplTraitLoweringMode, LifetimeElisionKind, diagnostics::TyLoweringDiagnostic,
@@ -283,24 +285,20 @@ fn infer_finalize(mut ctx: InferenceContext<'_, '_>) -> InferenceResult {
 
     ctx.resolve_all()
 }
-/// Binding modes inferred for patterns.
-/// <https://doc.rust-lang.org/reference/patterns.html#binding-modes>
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
-pub enum BindingMode {
-    #[default]
-    Move,
-    Ref(Mutability),
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ByRef {
+    Yes(Mutability),
+    No,
 }
 
-impl BindingMode {
-    fn convert(annotation: BindingAnnotation) -> BindingMode {
-        match annotation {
-            BindingAnnotation::Unannotated | BindingAnnotation::Mutable => BindingMode::Move,
-            BindingAnnotation::Ref => BindingMode::Ref(Mutability::Not),
-            BindingAnnotation::RefMut => BindingMode::Ref(Mutability::Mut),
-        }
-    }
-}
+/// The mode of a binding (`mut`, `ref mut`, etc).
+/// Used for both the explicit binding annotations given in the HIR for a binding
+/// and the final binding mode that we infer after type inference/match ergonomics.
+/// `.0` is the by-reference mode (`ref`, `ref mut`, or by value),
+/// `.1` is the mutability of the binding.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct BindingMode(pub ByRef, pub Mutability);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum InferenceTyDiagnosticSource {
@@ -357,7 +355,7 @@ pub enum InferenceDiagnostic {
         found: usize,
     },
     MismatchedTupleStructPatArgCount {
-        pat: ExprOrPatId,
+        pat: PatId,
         expected: usize,
         found: usize,
     },
@@ -576,6 +574,27 @@ pub enum PointerCast {
     Unsize,
 }
 
+/// Represents an implicit coercion applied to the scrutinee of a match before testing a pattern
+/// against it. Currently, this is used only for implicit dereferences.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatAdjustment {
+    pub kind: PatAdjust,
+    /// The type of the scrutinee before the adjustment is applied, or the "adjusted type" of the
+    /// pattern.
+    pub source: StoredTy,
+}
+
+/// Represents implicit coercions of patterns' types, rather than values' types.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PatAdjust {
+    /// An implicit dereference before matching, such as when matching the pattern `0` against a
+    /// scrutinee of type `&u8` or `&mut u8`.
+    BuiltinDeref,
+    /// An implicit call to `Deref(Mut)::deref(_mut)` before matching, such as when matching the
+    /// pattern `[..]` against a scrutinee of type `Vec<T>`.
+    OverloadedDeref,
+}
+
 /// The result of type inference: A mapping from expressions and patterns to types.
 ///
 /// When you add a field that stores types (including `Substitution` and the like), don't forget
@@ -621,7 +640,7 @@ pub struct InferenceResult {
 
     pub(crate) expr_adjustments: FxHashMap<ExprId, Box<[Adjustment]>>,
     /// Stores the types which were implicitly dereferenced in pattern binding modes.
-    pub(crate) pat_adjustments: FxHashMap<PatId, Vec<StoredTy>>,
+    pub(crate) pat_adjustments: FxHashMap<PatId, Vec<PatAdjustment>>,
     /// Stores the binding mode (`ref` in `let ref x = 2`) of bindings.
     ///
     /// This one is tied to the `PatId` instead of `BindingId`, because in some rare cases, a binding in an
@@ -636,6 +655,10 @@ pub struct InferenceResult {
     /// ```
     /// the first `rest` has implicit `ref` binding mode, but the second `rest` binding mode is `move`.
     pub(crate) binding_modes: ArenaMap<PatId, BindingMode>,
+
+    /// Set of reference patterns that match against a match-ergonomics inserted reference
+    /// (as opposed to against a reference in the scrutinee type).
+    skipped_ref_pats: FxHashSet<PatId>,
 
     pub(crate) coercion_casts: FxHashSet<ExprId>,
 
@@ -909,6 +932,7 @@ impl InferenceResult {
             type_of_type_placeholder: Default::default(),
             type_of_opaque: Default::default(),
             type_mismatches: Default::default(),
+            skipped_ref_pats: Default::default(),
             has_errors: Default::default(),
             error_ty: error_ty.store(),
             pat_adjustments: Default::default(),
@@ -1008,10 +1032,10 @@ impl InferenceResult {
             None => self.type_of_expr.get(id).map(|it| it.as_ref()),
         }
     }
-    pub fn type_of_pat_with_adjust<'db>(&self, id: PatId) -> Option<Ty<'db>> {
+    pub fn type_of_pat_with_adjust<'db>(&self, id: PatId) -> Ty<'db> {
         match self.pat_adjustments.get(&id).and_then(|adjustments| adjustments.last()) {
-            Some(adjusted) => Some(adjusted.as_ref()),
-            None => self.type_of_pat.get(id).map(|it| it.as_ref()),
+            Some(adjusted) => adjusted.source.as_ref(),
+            None => self.pat_ty(id),
         }
     }
     pub fn is_erroneous(&self) -> bool {
@@ -1026,7 +1050,7 @@ impl InferenceResult {
         self.tuple_field_access_types[id.0 as usize].as_ref()
     }
 
-    pub fn pat_adjustment(&self, id: PatId) -> Option<&[StoredTy]> {
+    pub fn pat_adjustment(&self, id: PatId) -> Option<&[PatAdjustment]> {
         self.pat_adjustments.get(&id).map(|it| &**it)
     }
 
@@ -1034,8 +1058,8 @@ impl InferenceResult {
         self.expr_adjustments.get(&id).map(|it| &**it)
     }
 
-    pub fn binding_mode(&self, id: PatId) -> Option<BindingMode> {
-        self.binding_modes.get(id).copied()
+    pub fn binding_mode(&self, id: PatId) -> BindingMode {
+        self.binding_modes[id]
     }
 
     // This method is consumed by external tools to run rust-analyzer as a library. Don't remove, please.
@@ -1100,6 +1124,10 @@ impl InferenceResult {
             .min_captures
             .values()
             .flat_map(|captures| captures.iter().map(|capture| capture.captured_ty(db)))
+    }
+
+    pub fn is_skipped_ref_pat(&self, pat: PatId) -> bool {
+        self.skipped_ref_pats.contains(&pat)
     }
 }
 
@@ -1316,6 +1344,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             type_of_binding,
             type_of_type_placeholder,
             type_of_opaque,
+            skipped_ref_pats,
             type_mismatches,
             closures_data,
             has_errors,
@@ -1328,6 +1357,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             diagnostics: _,
         } = &mut result;
 
+        skipped_ref_pats.shrink_to_fit();
         for ty in type_of_expr.values_mut() {
             *ty = table.resolve_completely(ty.as_ref()).store();
             *has_errors = *has_errors || ty.as_ref().references_non_lt_error();
@@ -1404,9 +1434,12 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             *has_errors = *has_errors || adjustment.target.as_ref().references_non_lt_error();
         }
         expr_adjustments.shrink_to_fit();
-        for adjustment in pat_adjustments.values_mut().flatten() {
-            *adjustment = table.resolve_completely(adjustment.as_ref()).store();
-            *has_errors = *has_errors || adjustment.as_ref().references_non_lt_error();
+        for adjustments in pat_adjustments.values_mut() {
+            for adjustment in &mut *adjustments {
+                adjustment.source = table.resolve_completely(adjustment.source.as_ref()).store();
+                *has_errors = *has_errors || adjustment.source.as_ref().references_non_lt_error();
+            }
+            adjustments.shrink_to_fit();
         }
         pat_adjustments.shrink_to_fit();
         for closure_data in closures_data.values_mut() {
@@ -1515,7 +1548,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         for (ty, pat) in param_tys.zip(params) {
             let ty = self.process_user_written_ty(ty);
 
-            self.infer_top_pat(*pat, ty, None);
+            self.infer_top_pat(*pat, ty, PatOrigin::Param);
         }
         self.return_ty = match data.ret_type {
             Some(return_ty) => {
@@ -1587,13 +1620,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 entry.insert(adjustments);
             }
         }
-    }
-
-    fn write_pat_adj(&mut self, pat: PatId, adjustments: Box<[StoredTy]>) {
-        if adjustments.is_empty() {
-            return;
-        }
-        self.result.pat_adjustments.entry(pat).or_default().extend(adjustments);
     }
 
     pub(crate) fn write_method_resolution(
@@ -1882,15 +1908,24 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         result.map_err(drop)
     }
 
-    fn demand_suptype(&mut self, expected: Ty<'db>, actual: Ty<'db>) {
+    fn demand_suptype(
+        &mut self,
+        id: ExprOrPatId,
+        expected: Ty<'db>,
+        actual: Ty<'db>,
+    ) -> Result<(), ()> {
         let result = self
             .table
             .at(&ObligationCause::new())
             .sup(expected, actual)
             .map(|infer_ok| self.table.register_infer_ok(infer_ok));
-        if let Err(_err) = result {
-            // FIXME: Emit diagnostic.
+        if result.is_err() {
+            self.result
+                .type_mismatches
+                .get_or_insert_default()
+                .insert(id, TypeMismatch { expected: expected.store(), actual: actual.store() });
         }
+        result.map_err(drop)
     }
 
     fn demand_coerce(
@@ -1901,7 +1936,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         allow_two_phase: AllowTwoPhase,
         expr_is_read: ExprIsRead,
     ) -> Ty<'db> {
-        let result = self.coerce(expr.into(), checked_ty, expected, allow_two_phase, expr_is_read);
+        let result = self.coerce(expr, checked_ty, expected, allow_two_phase, expr_is_read);
         if let Err(_err) = result {
             // FIXME: Emit diagnostic.
         }
@@ -1966,13 +2001,9 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     fn resolve_variant(
         &mut self,
         node: ExprOrPatId,
-        path: Option<&Path>,
+        path: &Path,
         value_ns: bool,
     ) -> (Ty<'db>, Option<VariantId>) {
-        let path = match path {
-            Some(path) => path,
-            None => return (self.err_ty(), None),
-        };
         let mut ctx = TyLoweringContext::new(
             self.db,
             &self.resolver,
@@ -2372,6 +2403,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         } else {
             Either::Right(&self.traits_in_scope)
         }
+    }
+
+    fn has_applicable_non_exhaustive(&self, def: AttrDefId) -> bool {
+        AttrFlags::query(self.db, def).contains(AttrFlags::NON_EXHAUSTIVE)
+            && def.krate(self.db) != self.krate()
     }
 }
 

@@ -218,9 +218,7 @@ impl<'db> ExprValidator<'db> {
         // Note: Skipping the entire diagnostic rather than just not including a faulty match arm is
         // preferred to avoid the chance of false positives.
         for arm in arms {
-            let Some(pat_ty) = self.infer.type_of_pat_with_adjust(arm.pat) else {
-                return;
-            };
+            let pat_ty = self.infer.type_of_pat_with_adjust(arm.pat);
             if pat_ty.references_non_lt_error() {
                 return;
             }

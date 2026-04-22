@@ -131,7 +131,7 @@ impl<'db> CastCheck<'db> {
         // This should always come first so that we apply the coercion, which impacts infer vars.
         if ctx
             .coerce(
-                self.source_expr.into(),
+                self.source_expr,
                 self.expr_ty,
                 self.cast_ty,
                 AllowTwoPhase::No,
@@ -167,7 +167,7 @@ impl<'db> CastCheck<'db> {
                         let sig = self.expr_ty.fn_sig(ctx.interner());
                         let fn_ptr = Ty::new_fn_ptr(ctx.interner(), sig);
                         match ctx.coerce(
-                            self.source_expr.into(),
+                            self.source_expr,
                             self.expr_ty,
                             fn_ptr,
                             AllowTwoPhase::No,
@@ -275,7 +275,7 @@ impl<'db> CastCheck<'db> {
             let array_ptr_type = Ty::new_ptr(ctx.interner(), t_expr, m_expr);
             if ctx
                 .coerce(
-                    self.source_expr.into(),
+                    self.source_expr,
                     self.expr_ty,
                     array_ptr_type,
                     AllowTwoPhase::No,

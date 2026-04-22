@@ -183,6 +183,35 @@ impl<'db> Ty<'db> {
         )
     }
 
+    /// Note: this needs an interner with crate.
+    pub fn new_array(interner: DbInterner<'db>, ty: Ty<'db>, n: u128) -> Ty<'db> {
+        Ty::new(
+            interner,
+            TyKind::Array(
+                ty,
+                crate::consteval::usize_const(interner.db, Some(n), interner.expect_crate()),
+            ),
+        )
+    }
+
+    fn new_generic_adt(interner: DbInterner<'db>, adt_id: AdtId, ty_param: Ty<'db>) -> Ty<'db> {
+        let args = GenericArgs::fill_with_defaults(
+            interner,
+            adt_id.into(),
+            [ty_param.into()],
+            |_, _, _| panic!("all params except the first should have defaults"),
+        );
+        Ty::new_adt(interner, adt_id, args)
+    }
+
+    /// Note: Unlike most other constructors, this require the interner to have a crate, because this needs lang items.
+    pub fn new_box(interner: DbInterner<'db>, ty: Ty<'db>) -> Ty<'db> {
+        let Some(def_id) = interner.lang_items().OwnedBox else {
+            return Ty::new_error(interner, ErrorGuaranteed);
+        };
+        Ty::new_generic_adt(interner, def_id.into(), ty)
+    }
+
     /// Returns the `Size` for primitive types (bool, uint, int, char, float).
     pub fn primitive_size(self, interner: DbInterner<'db>) -> Size {
         match self.kind() {

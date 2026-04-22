@@ -506,7 +506,11 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // Build a tuple (U0..Un) of the final upvar types U0..Un
         // and unify the upvar tuple type in the closure with it:
         let final_tupled_upvars_type = Ty::new_tup(self.interner(), &final_upvar_tys);
-        self.demand_suptype(args.tupled_upvars_ty(), final_tupled_upvars_type);
+        _ = self.demand_suptype(
+            closure_expr_id.into(),
+            args.tupled_upvars_ty(),
+            final_tupled_upvars_type,
+        );
 
         let fake_reads = delegate.fake_reads;
 

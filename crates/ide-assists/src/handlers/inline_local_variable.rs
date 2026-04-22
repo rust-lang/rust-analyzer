@@ -724,6 +724,7 @@ fn foo() {
         check_assist(
             inline_local_variable,
             r"
+//- minicore: iterator
 fn foo() {
     let a$0 = vec![10, 20];
     for i in a {}

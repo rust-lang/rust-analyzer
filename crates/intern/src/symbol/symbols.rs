@@ -194,6 +194,7 @@ define_symbols! {
     Default,
     deprecated,
     deref_mut,
+    deref_pure,
     deref_target,
     deref,
     derive_const,
@@ -578,4 +579,8 @@ define_symbols! {
     field,
     field_base,
     field_type,
+    ref_pat_eat_one_layer_2024,
+    ref_pat_eat_one_layer_2024_structural,
+    deref_patterns,
+    mut_ref,
 }

@@ -1787,7 +1787,7 @@ fn main() {
             // * `?`
             check_in_place_assist(
                 r#"
-//- minicore: option
+//- minicore: try, option
 fn f1(v: i32) {}
 fn f2(v: &i32) {}
 trait T {

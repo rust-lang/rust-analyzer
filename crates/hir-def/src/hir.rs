@@ -259,7 +259,7 @@ pub enum Expr {
         expr: Option<ExprId>,
     },
     RecordLit {
-        path: Option<Box<Path>>,
+        path: Path,
         fields: Box<[RecordLitField]>,
         spread: RecordSpread,
     },
@@ -673,7 +673,7 @@ pub enum Pat {
     },
     Or(Box<[PatId]>),
     Record {
-        path: Option<Box<Path>>,
+        path: Path,
         args: Box<[RecordFieldPat]>,
         ellipsis: bool,
     },
@@ -694,7 +694,7 @@ pub enum Pat {
         subpat: Option<PatId>,
     },
     TupleStruct {
-        path: Option<Box<Path>>,
+        path: Path,
         args: Box<[PatId]>,
         ellipsis: Option<u32>,
     },

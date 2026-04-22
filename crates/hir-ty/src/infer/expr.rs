@@ -24,12 +24,9 @@ use syntax::ast::RangeOp;
 use tracing::debug;
 
 use crate::{
-    Adjust, Adjustment, CallableDefId, DeclContext, DeclOrigin, Rawness, consteval,
+    Adjust, Adjustment, CallableDefId, Rawness, consteval,
     generics::generics,
-    infer::{
-        AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable,
-        pat::contains_explicit_ref_binding,
-    },
+    infer::{AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable, pat::PatOrigin},
     lower::{GenericPredicates, lower_mutability},
     method_resolution::{self, CandidateId, MethodCallee, MethodError},
     next_solver::{
@@ -92,7 +89,7 @@ impl<'db> InferenceContext<'_, 'db> {
     ) -> Ty<'db> {
         let ty = self.infer_expr_inner(expr, expected, is_read);
         if let Some(target) = expected.only_has_type(&mut self.table) {
-            match self.coerce(expr.into(), ty, target, AllowTwoPhase::No, is_read) {
+            match self.coerce(expr, ty, target, AllowTwoPhase::No, is_read) {
                 Ok(res) => res,
                 Err(_) => {
                     self.result.type_mismatches.get_or_insert_default().insert(
@@ -279,7 +276,7 @@ impl<'db> InferenceContext<'_, 'db> {
             }
 
             if let Some(target) = expected.only_has_type(&mut self.table) {
-                self.coerce(expr.into(), ty, target, AllowTwoPhase::No, ExprIsRead::Yes)
+                self.coerce(expr, ty, target, AllowTwoPhase::No, ExprIsRead::Yes)
                     .expect("never-to-any coercion should always succeed")
             } else {
                 ty
@@ -366,11 +363,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     ExprIsRead::No
                 };
                 let input_ty = self.infer_expr(expr, &Expectation::none(), child_is_read);
-                self.infer_top_pat(
-                    pat,
-                    input_ty,
-                    Some(DeclContext { origin: DeclOrigin::LetExpr }),
-                );
+                self.infer_top_pat(pat, input_ty, PatOrigin::LetExpr);
                 self.types.types.bool
             }
             Expr::Block { statements, tail, label, id: _ } => {
@@ -449,7 +442,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     let matchee_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
                     let mut all_arms_diverge = Diverges::Always;
                     for arm in arms.iter() {
-                        self.infer_top_pat(arm.pat, input_ty, None);
+                        self.infer_top_pat(arm.pat, input_ty, PatOrigin::MatchArm);
                     }
 
                     let expected = expected.adjust_for_branches(&mut self.table);
@@ -566,7 +559,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     } else {
                         let unit = self.types.types.unit;
                         let _ = self.coerce(
-                            tgt_expr.into(),
+                            tgt_expr,
                             unit,
                             yield_ty,
                             AllowTwoPhase::No,
@@ -586,7 +579,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 self.types.types.never
             }
             Expr::RecordLit { path, fields, spread, .. } => {
-                let (ty, def_id) = self.resolve_variant(tgt_expr.into(), path.as_deref(), false);
+                let (ty, def_id) = self.resolve_variant(tgt_expr.into(), path, false);
 
                 if let Some(t) = expected.only_has_type(&mut self.table) {
                     self.unify(ty, t);
@@ -727,7 +720,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     let resolver_guard =
                         self.resolver.update_to_inner_scope(self.db, self.owner, tgt_expr);
                     self.inside_assignment = true;
-                    self.infer_top_pat(target, rhs_ty, None);
+                    self.infer_top_pat(target, rhs_ty, PatOrigin::DestructuringAssignment);
                     self.inside_assignment = false;
                     self.resolver.reset_to_guard(resolver_guard);
                 }
@@ -959,7 +952,7 @@ impl<'db> InferenceContext<'_, 'db> {
                                         .instantiate(this.interner(), parameters),
                                 );
                                 _ = this.coerce(
-                                    expr.into(),
+                                    expr,
                                     ty,
                                     fnptr_ty,
                                     AllowTwoPhase::No,
@@ -969,7 +962,7 @@ impl<'db> InferenceContext<'_, 'db> {
                             TyKind::Ref(_, base_ty, mutbl) => {
                                 let ptr_ty = Ty::new_ptr(this.interner(), base_ty, mutbl);
                                 _ = this.coerce(
-                                    expr.into(),
+                                    expr,
                                     ty,
                                     ptr_ty,
                                     AllowTwoPhase::No,
@@ -1100,7 +1093,7 @@ impl<'db> InferenceContext<'_, 'db> {
     fn infer_expr_path(&mut self, path: &Path, id: ExprOrPatId, scope_id: ExprId) -> Ty<'db> {
         let g = self.resolver.update_to_inner_scope(self.db, self.owner, scope_id);
         let ty = match self.infer_path(path, id) {
-            Some(ty) => ty,
+            Some((_, ty)) => ty,
             None => {
                 if path.mod_path().is_some_and(|mod_path| mod_path.is_ident() || mod_path.is_self())
                 {
@@ -1288,16 +1281,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 .unwrap_or_else(Expectation::none);
 
             let inner_ty = self.infer_expr_inner(inner_expr, &inner_exp, ExprIsRead::Yes);
-            Ty::new_adt(
-                self.interner(),
-                box_id,
-                GenericArgs::fill_with_defaults(
-                    self.interner(),
-                    box_id.into(),
-                    [inner_ty.into()],
-                    |_, id, _| self.table.next_var_for_param(id),
-                ),
-            )
+            Ty::new_box(self.interner(), inner_ty)
         } else {
             self.err_ty()
         }
@@ -1333,7 +1317,7 @@ impl<'db> InferenceContext<'_, 'db> {
                                     } else {
                                         ExprIsRead::No
                                     };
-                                let ty = if contains_explicit_ref_binding(this.store, *pat) {
+                                let ty = if this.contains_explicit_ref_binding(*pat) {
                                     this.infer_expr(
                                         *expr,
                                         &Expectation::has_type(decl_ty),
@@ -1351,11 +1335,11 @@ impl<'db> InferenceContext<'_, 'db> {
                                 decl_ty
                             };
 
-                            let decl = DeclContext {
-                                origin: DeclOrigin::LocalDecl { has_else: else_branch.is_some() },
-                            };
-
-                            this.infer_top_pat(*pat, ty, Some(decl));
+                            this.infer_top_pat(
+                                *pat,
+                                ty,
+                                PatOrigin::LetStmt { has_else: else_branch.is_some() },
+                            );
                             if let Some(expr) = else_branch {
                                 let previous_diverges =
                                     mem::replace(&mut this.diverges, Diverges::Maybe);
@@ -1399,7 +1383,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     } else if let Some(t) = expected.only_has_type(&mut this.table) {
                         if this
                             .coerce(
-                                expr.into(),
+                                expr,
                                 this.types.types.unit,
                                 t,
                                 AllowTwoPhase::No,
@@ -1893,13 +1877,7 @@ impl<'db> InferenceContext<'_, 'db> {
             let coerced_ty = this.table.resolve_vars_with_obligations(coerced_ty);
 
             let coerce_error = this
-                .coerce(
-                    provided_arg.into(),
-                    checked_ty,
-                    coerced_ty,
-                    AllowTwoPhase::Yes,
-                    ExprIsRead::Yes,
-                )
+                .coerce(provided_arg, checked_ty, coerced_ty, AllowTwoPhase::Yes, ExprIsRead::Yes)
                 .err();
             if coerce_error.is_some() {
                 return Err((coerce_error, coerced_ty, checked_ty));

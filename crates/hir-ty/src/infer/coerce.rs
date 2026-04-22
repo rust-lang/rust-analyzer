@@ -38,10 +38,7 @@
 use std::ops::ControlFlow;
 
 use hir_def::{
-    CallableDefId, TraitId,
-    attrs::AttrFlags,
-    hir::{ExprId, ExprOrPatId},
-    signatures::FunctionSignature,
+    CallableDefId, TraitId, attrs::AttrFlags, hir::ExprId, signatures::FunctionSignature,
 };
 use rustc_ast_ir::Mutability;
 use rustc_type_ir::{
@@ -894,7 +891,7 @@ impl<'db> InferenceContext<'_, 'db> {
     /// The expressions *must not* have any preexisting adjustments.
     pub(crate) fn coerce(
         &mut self,
-        expr: ExprOrPatId,
+        expr: ExprId,
         expr_ty: Ty<'db>,
         mut target: Ty<'db>,
         allow_two_phase: AllowTwoPhase,
@@ -905,13 +902,7 @@ impl<'db> InferenceContext<'_, 'db> {
         debug!("coercion::try({:?}: {:?} -> {:?})", expr, source, target);
 
         let cause = ObligationCause::new();
-        let coerce_never = match expr {
-            ExprOrPatId::ExprId(idx) => {
-                self.expr_guaranteed_to_constitute_read_for_never(idx, expr_is_read)
-            }
-            // `PatId` is passed for `PatKind::Path`.
-            ExprOrPatId::PatId(_) => false,
-        };
+        let coerce_never = self.expr_guaranteed_to_constitute_read_for_never(expr, expr_is_read);
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
             cause,
@@ -922,11 +913,7 @@ impl<'db> InferenceContext<'_, 'db> {
         let ok = coerce.commit_if_ok(|coerce| coerce.coerce(source, target))?;
 
         let (adjustments, _) = self.table.register_infer_ok(ok);
-        match expr {
-            ExprOrPatId::ExprId(expr) => self.write_expr_adj(expr, adjustments.into_boxed_slice()),
-            ExprOrPatId::PatId(pat) => self
-                .write_pat_adj(pat, adjustments.into_iter().map(|adjust| adjust.target).collect()),
-        }
+        self.write_expr_adj(expr, adjustments.into_boxed_slice());
         Ok(target)
     }
 
@@ -1335,7 +1322,7 @@ impl<'db, 'exprs> CoerceMany<'db, 'exprs> {
                 // To be honest, I'm not entirely sure why we do this.
                 // We don't allow two-phase borrows, see comment in try_find_coercion_lub for why
                 icx.coerce(
-                    expression.into(),
+                    expression,
                     expression_ty,
                     self.expected_ty,
                     AllowTwoPhase::No,

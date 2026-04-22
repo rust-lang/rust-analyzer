@@ -38,7 +38,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             && !rhs_ty.is_ty_var()
             && is_builtin_binop(lhs_ty, rhs_ty, category)
         {
-            self.enforce_builtin_binop_types(lhs_ty, rhs_ty, category);
+            self.enforce_builtin_binop_types(expr, lhs_ty, rhs_ty, category);
             self.types.types.unit
         } else {
             return_ty
@@ -107,7 +107,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                     && is_builtin_binop(lhs_ty, rhs_ty, category)
                 {
                     let builtin_return_ty =
-                        self.enforce_builtin_binop_types(lhs_ty, rhs_ty, category);
+                        self.enforce_builtin_binop_types(expr, lhs_ty, rhs_ty, category);
                     _ = self.demand_eqtype(expr.into(), builtin_return_ty, return_ty);
                     builtin_return_ty
                 } else {
@@ -119,6 +119,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
     fn enforce_builtin_binop_types(
         &mut self,
+        expr: ExprId,
         lhs_ty: Ty<'db>,
         rhs_ty: Ty<'db>,
         category: BinOpCategory,
@@ -131,8 +132,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
         match category {
             BinOpCategory::Shortcircuit => {
-                self.demand_suptype(self.types.types.bool, lhs_ty);
-                self.demand_suptype(self.types.types.bool, rhs_ty);
+                _ = self.demand_suptype(expr.into(), self.types.types.bool, lhs_ty);
+                _ = self.demand_suptype(expr.into(), self.types.types.bool, rhs_ty);
                 self.types.types.bool
             }
 
@@ -143,13 +144,13 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
             BinOpCategory::Math | BinOpCategory::Bitwise => {
                 // both LHS and RHS and result will have the same type
-                self.demand_suptype(lhs_ty, rhs_ty);
+                _ = self.demand_suptype(expr.into(), lhs_ty, rhs_ty);
                 lhs_ty
             }
 
             BinOpCategory::Comparison => {
                 // both LHS and RHS and result will have the same type
-                self.demand_suptype(lhs_ty, rhs_ty);
+                _ = self.demand_suptype(expr.into(), lhs_ty, rhs_ty);
                 self.types.types.bool
             }
         }
