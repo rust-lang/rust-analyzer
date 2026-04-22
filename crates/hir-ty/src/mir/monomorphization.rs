@@ -65,6 +65,9 @@ impl<'db> FallibleTypeFolder<DbInterner<'db>> for Filler<'db> {
                         ty,
                     )
                     .map_err(|_| MirLowerError::NotSupported("can't normalize alias".to_owned()))?;
+                // Normalization could introduce infer vars (for example, if the alias cannot be normalized),
+                // and we must not have infer vars in the body.
+                let ty = ty.replace_infer_with_error(self.infcx.interner);
                 ty.try_super_fold_with(self)
             }
             TyKind::Param(param) => Ok(self
