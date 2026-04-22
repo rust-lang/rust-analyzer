@@ -7,12 +7,11 @@ use std::sync::Arc;
 
 pub use BoundRegionConversionTime::*;
 use ena::unify as ut;
-use hir_def::GenericParamId;
+use hir_def::{GenericParamId, TraitId};
 use opaque_types::{OpaqueHiddenType, OpaqueTypeStorage};
 use region_constraints::{RegionConstraintCollector, RegionConstraintStorage};
 use rustc_next_trait_solver::solve::{GoalEvaluation, SolverDelegateEvalExt};
 use rustc_pattern_analysis::Captures;
-use rustc_type_ir::solve::{NoSolution, inspect};
 use rustc_type_ir::{
     ClosureKind, ConstVid, FloatVarValue, FloatVid, GenericArgKind, InferConst, InferTy,
     IntVarValue, IntVid, OutlivesPredicate, RegionVid, TermKind, TyVid, TypeFoldable, TypeFolder,
@@ -21,6 +20,10 @@ use rustc_type_ir::{
     inherent::{
         Const as _, GenericArg as _, GenericArgs as _, IntoKind, SliceLike, Term as _, Ty as _,
     },
+};
+use rustc_type_ir::{
+    Upcast,
+    solve::{NoSolution, inspect},
 };
 use snapshot::undo_log::InferCtxtUndoLogs;
 use tracing::{debug, instrument};
@@ -507,6 +510,52 @@ impl<'db> InferCtxt<'db> {
     #[expect(dead_code, reason = "this is used in rustc")]
     fn predicate_must_hold_modulo_regions(&self, obligation: &PredicateObligation<'db>) -> bool {
         self.evaluate_obligation(obligation).must_apply_modulo_regions()
+    }
+
+    /// Check whether a `ty` implements given trait(trait_def_id) without side-effects.
+    ///
+    /// The inputs are:
+    ///
+    /// - the def-id of the trait
+    /// - the type parameters of the trait, including the self-type
+    /// - the parameter environment
+    ///
+    /// Invokes `evaluate_obligation`, so in the event that evaluating
+    /// `Ty: Trait` causes overflow, EvaluatedToAmbigStackDependent will be returned.
+    ///
+    /// `type_implements_trait` is a convenience function for simple cases like
+    ///
+    /// ```ignore (illustrative)
+    /// let copy_trait = infcx.tcx.require_lang_item(LangItem::Copy, span);
+    /// let implements_copy = infcx.type_implements_trait(copy_trait, [ty], param_env)
+    /// .must_apply_modulo_regions();
+    /// ```
+    ///
+    /// In most cases you should instead create an [Obligation] and check whether
+    ///  it holds via [`evaluate_obligation`] or one of its helper functions like
+    /// [`predicate_must_hold_modulo_regions`], because it properly handles higher ranked traits
+    /// and it is more convenient and safer when your `params` are inside a [`Binder`].
+    ///
+    /// [Obligation]: traits::Obligation
+    /// [`evaluate_obligation`]: crate::traits::query::evaluate_obligation::InferCtxtExt::evaluate_obligation
+    /// [`predicate_must_hold_modulo_regions`]: crate::traits::query::evaluate_obligation::InferCtxtExt::predicate_must_hold_modulo_regions
+    /// [`Binder`]: ty::Binder
+    #[instrument(level = "debug", skip(self, params), ret)]
+    pub fn type_implements_trait(
+        &self,
+        trait_def_id: TraitId,
+        params: impl IntoIterator<Item: Into<GenericArg<'db>>>,
+        param_env: ParamEnv<'db>,
+    ) -> EvaluationResult {
+        let trait_ref = TraitRef::new(self.interner, trait_def_id.into(), params);
+
+        let obligation = traits::Obligation {
+            cause: traits::ObligationCause::dummy(),
+            param_env,
+            recursion_depth: 0,
+            predicate: trait_ref.upcast(self.interner),
+        };
+        self.evaluate_obligation(&obligation)
     }
 
     /// Evaluate a given predicate, capturing overflow and propagating it back.

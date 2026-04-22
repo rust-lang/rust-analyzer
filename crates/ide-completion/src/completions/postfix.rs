@@ -1186,7 +1186,9 @@ fn main() {
         );
         check_edit(
             kind,
-            r#"fn main() { for i in 0..10 {}.$0 }"#,
+            r#"
+//- minicore: iterator
+fn main() { for i in 0..10 {}.$0 }"#,
             &format!("fn main() {{ {kind} {{ for i in 0..10 {{}} }} }}"),
         );
         check_edit(

@@ -26,29 +26,36 @@ use crate::{
 use super::{ExprOrPatId, InferenceContext, InferenceTyDiagnosticSource};
 
 impl<'db> InferenceContext<'_, 'db> {
-    pub(super) fn infer_path(&mut self, path: &Path, id: ExprOrPatId) -> Option<Ty<'db>> {
-        let (value_def, generic_def, substs) = match self.resolve_value_path(path, id)? {
-            ValuePathResolution::GenericDef(value_def, generic_def, substs) => {
-                (value_def, generic_def, substs)
-            }
-            ValuePathResolution::NonGeneric(ty) => return Some(ty),
-        };
+    pub(super) fn infer_path(
+        &mut self,
+        path: &Path,
+        id: ExprOrPatId,
+    ) -> Option<(ValueNs, Ty<'db>)> {
+        let (value, self_subst) = self.resolve_value_path_inner(path, id, false)?;
+
+        let (value_def, generic_def, substs) =
+            match self.resolve_value_path(path, id, value, self_subst)? {
+                ValuePathResolution::GenericDef(value_def, generic_def, substs) => {
+                    (value_def, generic_def, substs)
+                }
+                ValuePathResolution::NonGeneric(ty) => return Some((value, ty)),
+            };
         let args = self.insert_type_vars(substs);
 
         self.add_required_obligations_for_value_path(generic_def, args);
 
         let ty = self.db.value_ty(value_def)?.instantiate(self.interner(), args);
         let ty = self.process_remote_user_written_ty(ty);
-        Some(ty)
+        Some((value, ty))
     }
 
     fn resolve_value_path(
         &mut self,
         path: &Path,
         id: ExprOrPatId,
+        value: ValueNs,
+        self_subst: Option<GenericArgs<'db>>,
     ) -> Option<ValuePathResolution<'db>> {
-        let (value, self_subst) = self.resolve_value_path_inner(path, id, false)?;
-
         let value_def: ValueTyDefId = match value {
             ValueNs::FunctionId(it) => it.into(),
             ValueNs::ConstId(it) => it.into(),

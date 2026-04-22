@@ -409,7 +409,7 @@ impl<'db> SourceAnalyzer<'db> {
             ExprOrPatId::PatId(idx) => infer
                 .pat_adjustment(idx)
                 .and_then(|adjusts| adjusts.last())
-                .map(|adjust| adjust.as_ref()),
+                .map(|adjust| adjust.source.as_ref()),
         };
 
         let ty = infer.expr_or_pat_ty(expr_or_pat_id);
@@ -449,12 +449,12 @@ impl<'db> SourceAnalyzer<'db> {
     ) -> Option<BindingMode> {
         let id = self.pat_id(&pat.clone().into())?;
         let infer = self.infer()?;
-        infer.binding_mode(id.as_pat()?).map(|bm| match bm {
-            hir_ty::BindingMode::Move => BindingMode::Move,
-            hir_ty::BindingMode::Ref(hir_ty::next_solver::Mutability::Mut) => {
+        Some(match infer.binding_mode(id.as_pat()?) {
+            hir_ty::BindingMode(hir_ty::ByRef::No, _) => BindingMode::Move,
+            hir_ty::BindingMode(hir_ty::ByRef::Yes(hir_ty::next_solver::Mutability::Mut), _) => {
                 BindingMode::Ref(Mutability::Mut)
             }
-            hir_ty::BindingMode::Ref(hir_ty::next_solver::Mutability::Not) => {
+            hir_ty::BindingMode(hir_ty::ByRef::Yes(hir_ty::next_solver::Mutability::Not), _) => {
                 BindingMode::Ref(Mutability::Shared)
             }
         })
@@ -470,7 +470,7 @@ impl<'db> SourceAnalyzer<'db> {
             infer
                 .pat_adjustment(pat_id.as_pat()?)?
                 .iter()
-                .map(|ty| Type::new_with_resolver(db, &self.resolver, ty.as_ref()))
+                .map(|adjust| Type::new_with_resolver(db, &self.resolver, adjust.source.as_ref()))
                 .collect(),
         )
     }

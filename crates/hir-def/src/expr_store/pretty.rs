@@ -668,10 +668,7 @@ impl Printer<'_> {
                 }
             }
             Expr::RecordLit { path, fields, spread } => {
-                match path {
-                    Some(path) => self.print_path(path),
-                    None => w!(self, "�"),
-                }
+                self.print_path(path);
 
                 w!(self, "{{");
                 let edition = self.edition;
@@ -923,10 +920,7 @@ impl Printer<'_> {
                 w!(self, ")");
             }
             Pat::Record { path, args, ellipsis } => {
-                match path {
-                    Some(path) => self.print_path(path),
-                    None => w!(self, "�"),
-                }
+                self.print_path(path);
 
                 w!(self, " {{");
                 let edition = self.edition;
@@ -1004,10 +998,7 @@ impl Printer<'_> {
                 }
             }
             Pat::TupleStruct { path, args, ellipsis } => {
-                match path {
-                    Some(path) => self.print_path(path),
-                    None => w!(self, "�"),
-                }
+                self.print_path(path);
                 w!(self, "(");
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 {

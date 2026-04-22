@@ -1348,8 +1348,10 @@ impl<'db> ExprCollector<'db> {
             ast::Expr::RecordExpr(e) => {
                 let path = e
                     .path()
-                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator))
-                    .map(Box::new);
+                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
+                let Some(path) = path else {
+                    return Some(self.missing_expr());
+                };
                 let record_lit = if let Some(nfl) = e.record_expr_field_list() {
                     let fields = nfl
                         .fields()
@@ -1702,8 +1704,10 @@ impl<'db> ExprCollector<'db> {
                 let path = collect_path(self, e.expr()?)?;
                 let path = path
                     .path()
-                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator))
-                    .map(Box::new);
+                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
+                let Some(path) = path else {
+                    return Some(self.missing_pat());
+                };
                 let (ellipsis, args) = collect_tuple(self, e.arg_list()?.args());
                 self.alloc_pat_from_expr(Pat::TupleStruct { path, args, ellipsis }, syntax_ptr)
             }
@@ -1733,8 +1737,10 @@ impl<'db> ExprCollector<'db> {
             ast::Expr::RecordExpr(e) => {
                 let path = e
                     .path()
-                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator))
-                    .map(Box::new);
+                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
+                let Some(path) = path else {
+                    return Some(self.missing_pat());
+                };
                 let record_field_list = e.record_expr_field_list()?;
                 let ellipsis = record_field_list.dotdot_token().is_some();
                 // FIXME: Report an error here if `record_field_list.spread().is_some()`.
@@ -1988,24 +1994,27 @@ impl<'db> ExprCollector<'db> {
     /// ```
     fn collect_for_loop(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::ForExpr) -> ExprId {
         let lang_items = self.lang_items();
-        let into_iter_fn = self.lang_path(lang_items.IntoIterIntoIter);
-        let iter_next_fn = self.lang_path(lang_items.IteratorNext);
-        let option_some = self.lang_path(lang_items.OptionSome);
-        let option_none = self.lang_path(lang_items.OptionNone);
+        let (Some(into_iter_fn), Some(iter_next_fn), Some(option_some), Some(option_none)) = (
+            self.lang_path(lang_items.IntoIterIntoIter),
+            self.lang_path(lang_items.IteratorNext),
+            self.lang_path(lang_items.OptionSome),
+            self.lang_path(lang_items.OptionNone),
+        ) else {
+            return self.missing_expr();
+        };
         let head = self.collect_expr_opt(e.iterable());
-        let into_iter_fn_expr =
-            self.alloc_expr(into_iter_fn.map_or(Expr::Missing, Expr::Path), syntax_ptr);
+        let into_iter_fn_expr = self.alloc_expr(Expr::Path(into_iter_fn), syntax_ptr);
         let iterator = self.alloc_expr(
             Expr::Call { callee: into_iter_fn_expr, args: Box::new([head]) },
             syntax_ptr,
         );
         let none_arm = MatchArm {
-            pat: self.alloc_pat_desugared(option_none.map_or(Pat::Missing, Pat::Path)),
+            pat: self.alloc_pat_desugared(Pat::Path(option_none)),
             guard: None,
             expr: self.alloc_expr(Expr::Break { expr: None, label: None }, syntax_ptr),
         };
         let some_pat = Pat::TupleStruct {
-            path: option_some.map(Box::new),
+            path: option_some,
             args: Box::new([self.collect_pat_top(e.pat())]),
             ellipsis: None,
         };
@@ -2025,8 +2034,7 @@ impl<'db> ExprCollector<'db> {
             Expr::Ref { expr: iter_expr, rawness: Rawness::Ref, mutability: Mutability::Mut },
             syntax_ptr,
         );
-        let iter_next_fn_expr =
-            self.alloc_expr(iter_next_fn.map_or(Expr::Missing, Expr::Path), syntax_ptr);
+        let iter_next_fn_expr = self.alloc_expr(Expr::Path(iter_next_fn), syntax_ptr);
         let iter_next_expr = self.alloc_expr(
             Expr::Call { callee: iter_next_fn_expr, args: Box::new([iter_expr_mut]) },
             syntax_ptr,
@@ -2074,11 +2082,15 @@ impl<'db> ExprCollector<'db> {
     /// ```
     fn collect_try_operator(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::TryExpr) -> ExprId {
         let lang_items = self.lang_items();
-        let try_branch = self.lang_path(lang_items.TryTraitBranch);
-        let cf_continue = self.lang_path(lang_items.ControlFlowContinue);
-        let cf_break = self.lang_path(lang_items.ControlFlowBreak);
+        let (Some(try_branch), Some(cf_continue), Some(cf_break)) = (
+            self.lang_path(lang_items.TryTraitBranch),
+            self.lang_path(lang_items.ControlFlowContinue),
+            self.lang_path(lang_items.ControlFlowBreak),
+        ) else {
+            return self.missing_expr();
+        };
         let operand = self.collect_expr_opt(e.expr());
-        let try_branch = self.alloc_expr(try_branch.map_or(Expr::Missing, Expr::Path), syntax_ptr);
+        let try_branch = self.alloc_expr(Expr::Path(try_branch), syntax_ptr);
         let expr = self
             .alloc_expr(Expr::Call { callee: try_branch, args: Box::new([operand]) }, syntax_ptr);
         let continue_name = self.generate_new_name();
@@ -2092,7 +2104,7 @@ impl<'db> ExprCollector<'db> {
         self.add_definition_to_binding(continue_binding, continue_bpat);
         let continue_arm = MatchArm {
             pat: self.alloc_pat_desugared(Pat::TupleStruct {
-                path: cf_continue.map(Box::new),
+                path: cf_continue,
                 args: Box::new([continue_bpat]),
                 ellipsis: None,
             }),
@@ -2106,7 +2118,7 @@ impl<'db> ExprCollector<'db> {
         self.add_definition_to_binding(break_binding, break_bpat);
         let break_arm = MatchArm {
             pat: self.alloc_pat_desugared(Pat::TupleStruct {
-                path: cf_break.map(Box::new),
+                path: cf_break,
                 args: Box::new([break_bpat]),
                 ellipsis: None,
             }),
@@ -2499,8 +2511,10 @@ impl<'db> ExprCollector<'db> {
             ast::Pat::TupleStructPat(p) => {
                 let path = p
                     .path()
-                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator))
-                    .map(Box::new);
+                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
+                let Some(path) = path else {
+                    return self.missing_pat();
+                };
                 let (args, ellipsis) = self.collect_tuple_pat(
                     p.fields(),
                     comma_follows_token(p.l_paren_token()),
@@ -2565,8 +2579,10 @@ impl<'db> ExprCollector<'db> {
             ast::Pat::RecordPat(p) => {
                 let path = p
                     .path()
-                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator))
-                    .map(Box::new);
+                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
+                let Some(path) = path else {
+                    return self.missing_pat();
+                };
                 let record_pat_field_list =
                     &p.record_pat_field_list().expect("every struct should have a field list");
                 let args = record_pat_field_list

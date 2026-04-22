@@ -886,13 +886,12 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                     RecordSpread::FieldDefaults => not_supported!("empty record spread"),
                 };
                 let variant_id =
-                    self.infer.variant_resolution_for_expr(expr_id).ok_or_else(|| match path {
-                        Some(p) => MirLowerError::UnresolvedName(
-                            hir_display_with_store(&**p, self.store)
+                    self.infer.variant_resolution_for_expr(expr_id).ok_or_else(|| {
+                        MirLowerError::UnresolvedName(
+                            hir_display_with_store(path, self.store)
                                 .display(self.db, self.display_target())
                                 .to_string(),
-                        ),
-                        None => MirLowerError::RecordLiteralWithoutPath,
+                        )
                     })?;
                 let subst = match self.expr_ty_without_adjust(expr_id).kind() {
                     TyKind::Adt(_, s) => s,

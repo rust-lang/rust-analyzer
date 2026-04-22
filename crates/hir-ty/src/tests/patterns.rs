@@ -133,8 +133,8 @@ fn infer_literal_pattern() {
             55..72 'let "f... any()': bool
             59..64 '"foo"': &'static str
             59..64 '"foo"': &'static str
-            67..70 'any': fn any<&'static str>() -> &'static str
-            67..72 'any()': &'static str
+            67..70 'any': fn any<&'? str>() -> &'? str
+            67..72 'any()': &'? str
             73..75 '{}': ()
             80..99 'if let...y() {}': ()
             83..96 'let 1 = any()': bool
@@ -193,31 +193,27 @@ fn infer_literal_pattern() {
 fn infer_range_pattern() {
     check_infer_with_mismatches(
         r#"
-//- minicore: range
-fn test(x..y: &core::ops::Range<u32>) {
+fn test() {
     if let 1..76 = 2u32 {}
     if let 1..=76 = 2u32 {}
 }
         "#,
         expect![[r#"
-            8..9 'x': Range<u32>
-            8..12 'x..y': Range<u32>
-            11..12 'y': Range<u32>
-            38..96 '{     ...2 {} }': ()
-            44..66 'if let...u32 {}': ()
-            47..63 'let 1....= 2u32': bool
-            51..52 '1': u32
-            51..56 '1..76': u32
+            10..68 '{     ...2 {} }': ()
+            16..38 'if let...u32 {}': ()
+            19..35 'let 1....= 2u32': bool
+            23..24 '1': u32
+            23..28 '1..76': u32
+            26..28 '76': u32
+            31..35 '2u32': u32
+            36..38 '{}': ()
+            43..66 'if let...u32 {}': ()
+            46..63 'let 1....= 2u32': bool
+            50..51 '1': u32
+            50..56 '1..=76': u32
             54..56 '76': u32
             59..63 '2u32': u32
             64..66 '{}': ()
-            71..94 'if let...u32 {}': ()
-            74..91 'let 1....= 2u32': bool
-            78..79 '1': u32
-            78..84 '1..=76': u32
-            82..84 '76': u32
-            87..91 '2u32': u32
-            92..94 '{}': ()
         "#]],
     );
     check_no_mismatches(
@@ -265,7 +261,6 @@ fn infer_pattern_match_ergonomics() {
 
 #[test]
 fn infer_pattern_match_ergonomics_ref() {
-    cov_mark::check!(match_ergonomics_ref);
     check_infer(
         r#"
         fn test() {
@@ -409,7 +404,7 @@ fn infer_pattern_match_byte_string_literal() {
             209..233 'if let...[S] {}': ()
             212..230 'let b"... &v[S]': bool
             216..222 'b"foo"': &'static [u8]
-            216..222 'b"foo"': &'static [u8]
+            216..222 'b"foo"': &'static [u8; 3]
             225..230 '&v[S]': &'? [u8]
             226..227 'v': [u8; 3]
             226..230 'v[S]': [u8]
@@ -825,6 +820,8 @@ fn box_pattern() {
     );
     check_infer(
         r#"
+        #![feature(lang_items)]
+
         #[lang = "owned_box"]
         pub struct Box<T>(T);
 
@@ -835,12 +832,13 @@ fn box_pattern() {
         }
         "#,
         expect![[r#"
-            52..58 'params': Box<i32>
-            70..124 '{     ...   } }': ()
-            76..122 'match ...     }': ()
-            82..88 'params': Box<i32>
-            99..110 'box integer': Box<i32>
-            114..116 '{}': ()
+            77..83 'params': Box<i32>
+            95..149 '{     ...   } }': ()
+            101..147 'match ...     }': ()
+            107..113 'params': Box<i32>
+            124..135 'box integer': Box<i32>
+            128..135 'integer': i32
+            139..141 '{}': ()
         "#]],
     );
 }

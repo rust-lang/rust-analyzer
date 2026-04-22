@@ -1956,7 +1956,7 @@ fn main() {
     Alias::Braced;
   //^^^^^^^^^^^^^ {unknown}
     let Alias::Braced = loop {};
-      //^^^^^^^^^^^^^ !
+      //^^^^^^^^^^^^^ {unknown}
   let Alias::Braced(..) = loop {};
     //^^^^^^^^^^^^^^^^^ Enum
 

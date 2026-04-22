@@ -88,4 +88,8 @@ define_unstable_features! {
     never_type_fallback,
     specialization,
     min_specialization,
+    ref_pat_eat_one_layer_2024,
+    ref_pat_eat_one_layer_2024_structural,
+    deref_patterns,
+    mut_ref,
 }

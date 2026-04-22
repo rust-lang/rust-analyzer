@@ -448,6 +448,7 @@ fn main() {
     fn macro_expand_match_ast_inside_let_statement() {
         check(
             r#"
+//- minicore: try
 macro_rules! match_ast {
     (match $node:ident { $($tt:tt)* }) => { match_ast!(match ($node) { $($tt)* }) };
     (match ($node:expr) {}) => {{}};

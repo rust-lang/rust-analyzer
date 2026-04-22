@@ -300,7 +300,7 @@ fn main() {
     }
     match (true, false) {
         (true, false, true) => (),
-      //^^^^^^^^^^^^^^^^^^^ error: expected (bool, bool), found (bool, bool, bool)
+      //^^^^^^^^^^^^^^^^^^^ error: expected (bool, bool), found (bool, bool, {unknown})
         (true) => (),
       // ^^^^  error: expected (bool, bool), found bool
     }
@@ -1197,5 +1197,21 @@ fn main() {
             "#,
             );
         }
+    }
+
+    #[test]
+    fn no_overloaded_deref_is_not_projection() {
+        check_diagnostics(
+            r#"
+const FOO: &str = "";
+
+fn foo() {
+    match "" {
+        FOO => {}
+        _ => {}
+    }
+}
+        "#,
+        );
     }
 }

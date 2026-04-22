@@ -20,7 +20,7 @@ use tracing::debug;
 use crate::{
     FnAbi,
     db::{InternedClosure, InternedClosureId, InternedCoroutineClosureId, InternedCoroutineId},
-    infer::{BreakableKind, Diverges, coerce::CoerceMany},
+    infer::{BreakableKind, Diverges, coerce::CoerceMany, pat::PatOrigin},
     next_solver::{
         AliasTy, Binder, ClauseKind, DbInterner, ErrorGuaranteed, FnSig, GenericArgs, PolyFnSig,
         PolyProjectionPredicate, Predicate, PredicateKind, SolverDefId, Ty, TyKind,
@@ -263,7 +263,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         // Now go through the argument patterns
         for (arg_pat, arg_ty) in args.iter().zip(bound_sig.skip_binder().inputs()) {
-            self.infer_top_pat(*arg_pat, *arg_ty, None);
+            self.infer_top_pat(*arg_pat, *arg_ty, PatOrigin::Param);
         }
 
         // FIXME: lift these out into a struct

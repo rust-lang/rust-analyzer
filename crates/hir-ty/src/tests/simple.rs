@@ -3460,15 +3460,13 @@ struct TS(usize);
 fn main() {
     let x;
     [x,] = &[1,];
-  //^^^^expected &'? [i32; 1], got [{unknown}]
 
     let x;
     [(x,),] = &[(1,),];
-  //^^^^^^^expected &'? [(i32,); 1], got [{unknown}]
 
     let x;
     ((x,),) = &((1,),);
-  //^^^^^^^expected &'? ((i32,),), got (({unknown},),)
+  //^^^^^^^expected &'? ((i32,),), got ({unknown},)
 
     let x;
     (x,) = &(1,);
@@ -3476,7 +3474,7 @@ fn main() {
 
     let x;
     (S { a: x },) = &(S { a: 42 },);
-  //^^^^^^^^^^^^^expected &'? (S,), got (S,)
+  //^^^^^^^^^^^^^expected &'? (S,), got ({unknown},)
 
     let x;
     S { a: x } = &S { a: 42 };

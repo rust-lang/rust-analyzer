@@ -21,11 +21,13 @@ use rustc_type_ir::{
 };
 use smallvec::{SmallVec, smallvec};
 use syntax::ast::{BinaryOp, UnaryOp};
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, trace};
 
 use crate::{
-    Adjust, Adjustment, AutoBorrow, BindingMode,
-    infer::{CaptureSourceStack, InferenceContext, UpvarCapture, closure::analysis::BorrowKind},
+    Adjust, Adjustment, AutoBorrow,
+    infer::{
+        ByRef, CaptureSourceStack, InferenceContext, UpvarCapture, closure::analysis::BorrowKind,
+    },
     method_resolution::CandidateId,
     next_solver::{DbInterner, ErrorGuaranteed, StoredTy, Ty, TyKind},
     upvars::UpvarsRef,
@@ -947,12 +949,12 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                     // In a cases of pattern like `let pat = upvar`, don't use the span
                     // of the pattern, as this just looks confusing, instead use the span
                     // of the discriminant.
-                    match this.cx.result.binding_mode(pat) {
-                        Some(BindingMode::Ref(m)) => {
+                    match this.cx.result.binding_mode(pat).0 {
+                        ByRef::Yes(m) => {
                             let bk = BorrowKind::from_mutbl(m);
                             this.delegate.borrow(place, bk, this.cx);
                         }
-                        None | Some(BindingMode::Move) => {
+                        ByRef::No => {
                             debug!("walk_pat binding consuming pat");
                             this.consume_or_copy(place);
                         }
@@ -1194,18 +1196,48 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
         // that these are never attached to binding patterns, so
         // actually this is somewhat "disjoint" from the code below
         // that aims to account for `ref x`.
-        if let Some(vec) = self.cx.result.pat_adjustments.get(&pat)
-            && let Some(first_adjust) = vec.first()
+        if let Some(vec) = self.cx.result.pat_adjustment(pat) {
+            if let Some(first_adjust) = vec.first() {
+                debug!("pat_ty(pat={:?}) found adjustment `{:?}`", pat, first_adjust);
+                return Ok(first_adjust.source.as_ref());
+            }
+        } else if let Pat::Ref { pat: subpat, .. } = self.cx.store[pat]
+            && self.cx.result.is_skipped_ref_pat(pat)
         {
-            debug!("pat_ty(pat={:?}) found adjustment `{:?}`", pat, first_adjust);
-            return Ok(first_adjust.as_ref());
+            return self.pat_ty_adjusted(subpat);
         }
+
         self.pat_ty_unadjusted(pat)
     }
 
     /// Like [`Self::pat_ty_adjusted`], but ignores implicit `&` patterns.
     fn pat_ty_unadjusted(&mut self, pat: PatId) -> Result<Ty<'db>> {
-        Ok(self.cx.result.pat_ty(pat))
+        let base_ty = self.node_ty(pat.into())?;
+        trace!(?base_ty);
+
+        // This code detects whether we are looking at a `ref x`,
+        // and if so, figures out what the type *being borrowed* is.
+        match self.cx.store[pat] {
+            Pat::Bind { .. } => {
+                let bm = self.cx.result.binding_mode(pat);
+
+                if let ByRef::Yes(_) = bm.0 {
+                    // a bind-by-ref means that the base_ty will be the type of the ident itself,
+                    // but what we want here is the type of the underlying value being borrowed.
+                    // So peel off one-level, turning the &T into T.
+                    match self.cx.table.structurally_resolve_type(base_ty).builtin_deref(false) {
+                        Some(ty) => Ok(ty),
+                        None => {
+                            debug!("By-ref binding of non-derefable type: {base_ty:?}");
+                            Err(ErrorGuaranteed)
+                        }
+                    }
+                } else {
+                    Ok(base_ty)
+                }
+            }
+            _ => Ok(base_ty),
+        }
     }
 
     fn cat_expr(&mut self, expr: ExprId) -> Result<PlaceWithOrigin> {
@@ -1602,7 +1634,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
                     .builtin_index()
                 else {
                     debug!("explicit index of non-indexable type {:?}", place_with_id);
-                    panic!("explicit index of non-indexable type");
+                    return Err(ErrorGuaranteed);
                 };
                 let elt_place = self.cat_projection(
                     pat.into(),

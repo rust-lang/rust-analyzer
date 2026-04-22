@@ -716,16 +716,10 @@ impl<'db> AnyDiagnostic<'db> {
                 TypedHole { expr, expected: Type::new(db, def, expected.as_ref()) }.into()
             }
             &InferenceDiagnostic::MismatchedTupleStructPatArgCount { pat, expected, found } => {
-                let expr_or_pat = match pat {
-                    ExprOrPatId::ExprId(expr) => expr_syntax(expr)?,
-                    ExprOrPatId::PatId(pat) => {
-                        let InFile { file_id, value } = pat_syntax(pat)?;
-
-                        // cast from Either<Pat, SelfParam> -> Either<_, Pat>
-                        let ptr = AstPtr::try_from_raw(value.syntax_node_ptr())?;
-                        InFile { file_id, value: ptr }
-                    }
-                };
+                let InFile { file_id, value } = pat_syntax(pat)?;
+                // cast from Either<Pat, SelfParam> -> Either<_, Pat>
+                let ptr = AstPtr::try_from_raw(value.syntax_node_ptr())?;
+                let expr_or_pat = InFile { file_id, value: ptr };
                 MismatchedTupleStructPatArgCount { expr_or_pat, expected, found }.into()
             }
             InferenceDiagnostic::CastToUnsized { expr, cast_ty } => {

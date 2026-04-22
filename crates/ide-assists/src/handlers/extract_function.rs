@@ -2499,6 +2499,7 @@ fn $0fun_name() {
         check_assist(
             extract_function,
             r#"
+//- minicore: iterator
 fn foo() {
     $0for v in &[0, 1] { }$0
 }
@@ -4746,7 +4747,7 @@ async fn some_function() {
         check_assist(
             extract_function,
             r#"
-//- minicore: future, result
+//- minicore: future, result, try
 async fn foo() -> Result<(), ()> {
     $0async {}.await;
     Err(())?$0

@@ -365,9 +365,10 @@ language_item_table! { LangItems =>
 
     Deref,                   sym::deref,               TraitId;
     DerefMut,                sym::deref_mut,           TraitId;
+    DerefPure,               sym::deref_pure,          TraitId;
     DerefTarget,             sym::deref_target,        TypeAliasId;
     Receiver,                sym::receiver,            TraitId;
-    ReceiverTarget,           sym::receiver_target,    TypeAliasId;
+    ReceiverTarget,          sym::receiver_target,     TypeAliasId;
 
     Fn,                      sym::fn_,                 TraitId;
     FnMut,                   sym::fn_mut,              TraitId;

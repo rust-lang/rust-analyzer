@@ -867,11 +867,14 @@ impl<'db> ExprCollector<'db> {
             };
             let width =
                 RecordLitField { name: Name::new_symbol_root(sym::width), expr: width_expr };
-            self.alloc_expr_desugared(Expr::RecordLit {
-                path: self.lang_path(lang_items.FormatPlaceholder).map(Box::new),
-                fields: Box::new([position, flags, precision, width]),
-                spread: RecordSpread::None,
-            })
+            match self.lang_path(lang_items.FormatPlaceholder) {
+                Some(path) => self.alloc_expr_desugared(Expr::RecordLit {
+                    path,
+                    fields: Box::new([position, flags, precision, width]),
+                    spread: RecordSpread::None,
+                }),
+                None => self.missing_expr(),
+            }
         } else {
             let format_placeholder_new =
                 self.ty_rel_lang_path_desugared_expr(lang_items.FormatPlaceholder, sym::new);

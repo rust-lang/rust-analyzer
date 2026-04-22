@@ -91,7 +91,7 @@ use crate::{
 
 pub use autoderef::autoderef;
 pub use infer::{
-    Adjust, Adjustment, AutoBorrow, BindingMode, InferenceDiagnostic, InferenceResult,
+    Adjust, Adjustment, AutoBorrow, BindingMode, ByRef, InferenceDiagnostic, InferenceResult,
     InferenceTyDiagnosticSource, OverloadedDeref, PointerCast, cast::CastError, could_coerce,
     could_unify, could_unify_deeply, infer_query_with_inspect,
 };
@@ -658,23 +658,6 @@ pub fn known_const_to_ast<'db>(
     display_target: DisplayTarget,
 ) -> Option<ConstArg> {
     Some(make::expr_const_value(konst.display(db, display_target).to_string().as_str()))
-}
-
-#[derive(Debug, Copy, Clone)]
-pub(crate) enum DeclOrigin {
-    LetExpr,
-    /// from `let x = ..`
-    LocalDecl {
-        has_else: bool,
-    },
-}
-
-/// Provides context for checking patterns in declarations. More specifically this
-/// allows us to infer array types if the pattern is irrefutable and allows us to infer
-/// the size of the array. See issue rust-lang/rust#76342.
-#[derive(Debug, Copy, Clone)]
-pub(crate) struct DeclContext {
-    pub(crate) origin: DeclOrigin,
 }
 
 pub fn setup_tracing() -> Option<tracing::subscriber::DefaultGuard> {
