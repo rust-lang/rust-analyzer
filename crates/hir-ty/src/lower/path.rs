@@ -300,8 +300,10 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                 prohibit_generics_on_resolved(GenericArgsProhibitedReason::SelfTy);
 
                 if self.ctx.lowering_param_default.is_some() {
-                    // Generic defaults are not allowed to refer to `Self`.
-                    // FIXME: Emit an error.
+                    let segment = self.current_segment_u32();
+                    self.on_diagnostic(PathLoweringDiagnostic::GenericDefaultRefersToSelf {
+                        segment,
+                    });
                     return false;
                 }
             }

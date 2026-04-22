@@ -57,6 +57,7 @@ diagnostics![AnyDiagnostic<'db> ->
     BreakOutsideOfLoop,
     CastToUnsized<'db>,
     ExpectedFunction<'db>,
+    GenericDefaultRefersToSelf,
     InactiveCode,
     IncoherentImpl,
     IncorrectCase,
@@ -463,6 +464,12 @@ impl GenericArgKind {
 pub struct IncorrectGenericsOrder {
     pub provided_arg: InFile<AstPtr<ast::GenericArg>>,
     pub expected_kind: GenericArgKind,
+}
+
+#[derive(Debug)]
+pub struct GenericDefaultRefersToSelf {
+    /// The `Self` segment.
+    pub segment: InFile<AstPtr<ast::PathSegment>>,
 }
 
 impl<'db> AnyDiagnostic<'db> {
@@ -887,6 +894,11 @@ impl<'db> AnyDiagnostic<'db> {
                     hard_error,
                 }
                 .into()
+            }
+            PathLoweringDiagnostic::GenericDefaultRefersToSelf { segment } => {
+                let segment = hir_segment_to_ast_segment(&path.value, segment)?;
+                let segment = path.with_value(AstPtr::new(&segment));
+                GenericDefaultRefersToSelf { segment }.into()
             }
         })
     }

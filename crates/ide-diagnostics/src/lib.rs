@@ -35,6 +35,7 @@ mod handlers {
     pub(crate) mod elided_lifetimes_in_path;
     pub(crate) mod expected_function;
     pub(crate) mod generic_args_prohibited;
+    pub(crate) mod generic_default_refers_to_self;
     pub(crate) mod inactive_code;
     pub(crate) mod incoherent_impl;
     pub(crate) mod incorrect_case;
@@ -477,6 +478,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::IncorrectGenericsOrder(d) => handlers::incorrect_generics_order::incorrect_generics_order(&ctx, &d),
             AnyDiagnostic::MissingLifetime(d) => handlers::missing_lifetime::missing_lifetime(&ctx, &d),
             AnyDiagnostic::ElidedLifetimesInPath(d) => handlers::elided_lifetimes_in_path::elided_lifetimes_in_path(&ctx, &d),
+            AnyDiagnostic::GenericDefaultRefersToSelf(d) => handlers::generic_default_refers_to_self::generic_default_refers_to_self(&ctx, &d),
         };
         res.push(d)
     }
