@@ -568,7 +568,18 @@ impl SyntaxFactory {
     }
 
     pub fn ty_tuple(&self, types: impl IntoIterator<Item = ast::Type>) -> ast::Type {
-        make::ty_tuple(types).clone_for_update()
+        let (types, input) = iterator_input(types);
+        let ast = make::ty_tuple(types).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings()
+            && let ast::Type::TupleType(tuple_ty) = &ast
+        {
+            let mut builder = SyntaxMappingBuilder::new(tuple_ty.syntax().clone());
+            builder.map_children(input, tuple_ty.fields().map(|ty| ty.syntax().clone()));
+            builder.finish(&mut mapping);
+        }
+
+        ast
     }
 
     pub fn path_segment_generics(
@@ -2180,7 +2191,30 @@ impl SyntaxFactory {
         elements: impl IntoIterator<Item = SyntaxElement>,
         tail_expr: Option<ast::Expr>,
     ) -> ast::BlockExpr {
-        make::hacky_block_expr(elements, tail_expr).clone_for_update()
+        let elements = elements.into_iter().collect::<Vec<_>>();
+        let ast =
+            make::hacky_block_expr(elements.iter().cloned(), tail_expr.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings()
+            && let Some(stmt_list) = ast.stmt_list()
+        {
+            let mut builder = SyntaxMappingBuilder::new(stmt_list.syntax().clone());
+            builder.map_children(
+                elements.into_iter().filter_map(|node_or_token| match node_or_token {
+                    NodeOrToken::Node(node) => Some(node),
+                    NodeOrToken::Token(_) => None,
+                }),
+                stmt_list.syntax().children(),
+            );
+            if let Some(tail_expr) = tail_expr
+                && let Some(output_tail_expr) = stmt_list.tail_expr()
+            {
+                builder.map_node(tail_expr.syntax().clone(), output_tail_expr.syntax().clone());
+            }
+            builder.finish(&mut mapping);
+        }
+
+        ast
     }
 
     pub fn expr_break(&self, label: Option<Lifetime>, expr: Option<ast::Expr>) -> ast::BreakExpr {
