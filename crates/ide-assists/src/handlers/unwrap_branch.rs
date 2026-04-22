@@ -10,7 +10,7 @@ use syntax::{
 
 use crate::{AssistContext, AssistId, Assists};
 
-// Assist: unwrap_block
+// Assist: unwrap_branch
 //
 // This assist removes if...else, for, while and loop control statements to just keep the body.
 //
@@ -27,7 +27,7 @@ use crate::{AssistContext, AssistId, Assists};
 //     println!("foo");
 // }
 // ```
-pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let l_curly_token = ctx.find_token_syntax_at_offset(T!['{'])?;
     let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
     let target = block.syntax().text_range();
@@ -70,7 +70,7 @@ pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     };
     let replacement = replacement.stmt_list()?;
 
-    acc.add(AssistId::refactor_rewrite("unwrap_block"), "Unwrap block", target, |builder| {
+    acc.add(AssistId::refactor_rewrite("unwrap_branch"), "Unwrap branch", target, |builder| {
         let editor = builder.make_editor(block.syntax());
         let replacement = replacement.dedent(from_indent).indent(into_indent);
         let container = prefer_container.unwrap_or(container);
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn unwrap_tail_expr_block() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     $0{
@@ -160,7 +160,7 @@ fn main() {
     #[test]
     fn unwrap_stmt_expr_block() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     $0{
@@ -178,7 +178,7 @@ fn main() {
         );
         // Pedantically, we should add an `;` here...
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     $0{
@@ -199,7 +199,7 @@ fn main() {
     #[test]
     fn simple_if() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     bar();
@@ -228,7 +228,7 @@ fn main() {
     #[test]
     fn simple_if_else() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     bar();
@@ -260,7 +260,7 @@ fn main() {
     #[test]
     fn simple_if_else_if() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     // bar();
@@ -294,7 +294,7 @@ fn main() {
     #[test]
     fn simple_if_else_if_nested() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     // bar();
@@ -330,7 +330,7 @@ fn main() {
     #[test]
     fn simple_if_else_if_nested_else() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     // bar();
@@ -370,7 +370,7 @@ fn main() {
     #[test]
     fn simple_if_else_if_nested_middle() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     // bar();
@@ -408,7 +408,7 @@ fn main() {
     #[test]
     fn simple_if_bad_cursor_position() {
         check_assist_not_applicable(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     bar();$0
@@ -428,7 +428,7 @@ fn main() {
     #[test]
     fn simple_for() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     for i in 0..5 {$0
@@ -461,7 +461,7 @@ fn main() {
     #[test]
     fn simple_if_in_for() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     for i in 0..5 {
@@ -492,7 +492,7 @@ fn main() {
     #[test]
     fn simple_loop() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     loop {$0
@@ -525,7 +525,7 @@ fn main() {
     #[test]
     fn simple_while() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     while true {$0
@@ -558,7 +558,7 @@ fn main() {
     #[test]
     fn simple_let_else() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     let Some(2) = None else {$0
@@ -573,7 +573,7 @@ fn main() {
 "#,
         );
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     let Some(2) = None else {$0
@@ -592,7 +592,7 @@ fn main() {
     #[test]
     fn unwrap_match_arm() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     match rel_path {
@@ -616,7 +616,7 @@ fn main() {
     #[test]
     fn unwrap_match_arm_in_let() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     let value = match rel_path {
@@ -640,7 +640,7 @@ fn main() {
     #[test]
     fn simple_if_in_while_bad_cursor_position() {
         check_assist_not_applicable(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     while true {
@@ -661,7 +661,7 @@ fn main() {
     #[test]
     fn simple_single_line() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     {$0 0 }
@@ -678,7 +678,7 @@ fn main() {
     #[test]
     fn simple_nested_block() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     $0{
@@ -701,7 +701,7 @@ fn main() {
     #[test]
     fn nested_single_line() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     {$0 { println!("foo"); } }
@@ -715,7 +715,7 @@ fn main() {
         );
 
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     {$0 { 0 } }
@@ -732,7 +732,7 @@ fn main() {
     #[test]
     fn simple_if_single_line() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     if true {$0 /* foo */ foo() } else { bar() /* bar */}
@@ -749,7 +749,7 @@ fn main() {
     #[test]
     fn if_single_statement() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     if true {$0
@@ -768,7 +768,7 @@ fn main() {
     #[test]
     fn multiple_statements() {
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() -> i32 {
     if 2 > 1 {$0
@@ -792,7 +792,7 @@ fn main() -> i32 {
     fn unwrap_block_in_let_initializers() {
         // https://github.com/rust-lang/rust-analyzer/issues/13679
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     let x = {$0
@@ -807,7 +807,7 @@ fn main() {
 "#,
         );
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() -> i32 {
     let _ = {$01; 2};
@@ -820,7 +820,7 @@ fn main() -> i32 {
 "#,
         );
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() -> i32 {
     let mut a = {$01; 2};
@@ -833,7 +833,7 @@ fn main() -> i32 {
 "#,
         );
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() -> i32 {
     let mut a = {$0
@@ -857,7 +857,7 @@ fn main() -> i32 {
     fn unwrap_if_in_let_initializers() {
         // https://github.com/rust-lang/rust-analyzer/issues/13679
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     let a = 1;
@@ -881,7 +881,7 @@ fn main() {
     fn unwrap_block_with_modifiers() {
         // https://github.com/rust-lang/rust-analyzer/issues/17964
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     unsafe $0{
@@ -896,7 +896,7 @@ fn main() {
 "#,
         );
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     async move $0{
@@ -911,7 +911,7 @@ fn main() {
 "#,
         );
         check_assist(
-            unwrap_block,
+            unwrap_branch,
             r#"
 fn main() {
     try $0{
