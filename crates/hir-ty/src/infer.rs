@@ -1791,10 +1791,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.table.insert_type_vars(ty)
     }
 
-    fn unify(&mut self, ty1: Ty<'db>, ty2: Ty<'db>) -> bool {
-        self.table.unify(ty1, ty2)
-    }
-
     /// Attempts to returns the deeply last field of nested structures, but
     /// does not apply any normalization in its search. Returns the same type
     /// if input `ty` is not a structure at all.

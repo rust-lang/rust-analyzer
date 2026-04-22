@@ -1434,7 +1434,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
                 // NB: this should *not* coerce.
                 //     tail calls don't support any coercions except lifetimes ones (like `&'static u8 -> &'a u8`).
-                self.unify(call_expr_ty, ret_ty);
+                _ = self.demand_eqtype(expr.into(), call_expr_ty, ret_ty);
             }
             None => {
                 // FIXME: diagnose `become` outside of functions

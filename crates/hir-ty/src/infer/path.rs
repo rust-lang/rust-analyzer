@@ -334,7 +334,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 let impl_substs = self.table.fresh_args_for_item(impl_id.into());
                 let impl_self_ty =
                     self.db.impl_self_ty(impl_id).instantiate(self.interner(), impl_substs);
-                self.unify(impl_self_ty, ty);
+                _ = self.demand_eqtype(id, impl_self_ty, ty);
                 impl_substs
             }
             ItemContainerId::TraitId(trait_) => {

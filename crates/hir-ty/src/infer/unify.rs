@@ -20,8 +20,8 @@ use crate::{
         TypingMode,
         fulfill::{FulfillmentCtxt, NextSolverError},
         infer::{
-            DbInternerInferExt, InferCtxt, InferOk, InferResult,
-            at::{At, ToTrace},
+            DbInternerInferExt, InferCtxt, InferOk,
+            at::At,
             snapshot::CombinedSnapshot,
             traits::{Obligation, ObligationCause, PredicateObligation},
         },
@@ -291,17 +291,6 @@ impl<'db> InferenceTable<'db> {
         // FIXME(next-solver): Handle `goals`.
 
         value.fold_with(&mut resolve_completely::Resolver::new(self, true, &mut goals))
-    }
-
-    /// Unify two relatable values (e.g. `Ty`) and register new trait goals that arise from that.
-    pub(crate) fn unify<T: ToTrace<'db>>(&mut self, ty1: T, ty2: T) -> bool {
-        self.try_unify(ty1, ty2).map(|infer_ok| self.register_infer_ok(infer_ok)).is_ok()
-    }
-
-    /// Unify two relatable values (e.g. `Ty`) and return new trait goals arising from it, so the
-    /// caller needs to deal with them.
-    pub(crate) fn try_unify<T: ToTrace<'db>>(&mut self, t1: T, t2: T) -> InferResult<'db, ()> {
-        self.at(&ObligationCause::new()).eq(t1, t2)
     }
 
     pub(crate) fn at<'a>(&'a self, cause: &'a ObligationCause) -> At<'a, 'db> {
