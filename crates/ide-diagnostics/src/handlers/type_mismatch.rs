@@ -10,6 +10,7 @@ use syntax::{
     ast::{
         self, BlockExpr, Expr, ExprStmt, HasArgList,
         edit::{AstNodeEdit, IndentLevel},
+        syntax_factory::SyntaxFactory,
     },
 };
 
@@ -93,10 +94,14 @@ fn add_reference(
         return None;
     }
 
-    let ampersands = format!("&{}", mutability.as_keyword_for_ref());
-
-    let edit = TextEdit::insert(range.range.start(), ampersands);
-    let source_change = SourceChange::from_text_edit(range.file_id, edit);
+    let mut builder =
+        SourceChangeBuilder::new(expr_ptr.file_id.original_file(ctx.db()).file_id(ctx.db()));
+    let expr = expr_ptr.to_node(ctx.db());
+    // TODO: should this be `with_mappings` instead?
+    let syntax_factory = SyntaxFactory::without_mappings();
+    let expr_with_ref = syntax_factory.expr_ref(expr.clone_for_update(), mutability.is_mut());
+    builder.replace_ast(expr, expr_with_ref);
+    let source_change = builder.finish();
     acc.push(fix("add_reference_here", "Add reference here", source_change, range.range));
     Some(())
 }
