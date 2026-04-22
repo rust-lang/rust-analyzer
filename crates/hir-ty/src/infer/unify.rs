@@ -312,6 +312,10 @@ impl<'db> InferenceTable<'db> {
         self.infer_ctxt.shallow_resolve(ty)
     }
 
+    pub(crate) fn resolve_vars_if_possible<T: TypeFoldable<DbInterner<'db>>>(&self, t: T) -> T {
+        self.infer_ctxt.resolve_vars_if_possible(t)
+    }
+
     pub(crate) fn resolve_vars_with_obligations<T>(&mut self, t: T) -> T
     where
         T: rustc_type_ir::TypeFoldable<DbInterner<'db>>,

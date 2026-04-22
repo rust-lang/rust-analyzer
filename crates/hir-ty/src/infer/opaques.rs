@@ -68,7 +68,7 @@ impl<'db> InferenceContext<'_, 'db> {
         mut opaque_types: Vec<(OpaqueTypeKey<'db>, OpaqueHiddenType<'db>)>,
     ) {
         for entry in opaque_types.iter_mut() {
-            *entry = self.table.infer_ctxt.resolve_vars_if_possible(*entry);
+            *entry = self.resolve_vars_if_possible(*entry);
         }
         debug!(?opaque_types);
 

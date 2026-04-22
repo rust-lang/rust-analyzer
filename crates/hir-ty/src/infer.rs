@@ -1871,6 +1871,10 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.table.shallow_resolve(ty)
     }
 
+    pub(crate) fn resolve_vars_if_possible<T: TypeFoldable<DbInterner<'db>>>(&self, t: T) -> T {
+        self.table.resolve_vars_if_possible(t)
+    }
+
     fn resolve_associated_type(
         &mut self,
         inner_ty: Ty<'db>,
@@ -2489,7 +2493,7 @@ impl<'db> Expectation<'db> {
 
     fn only_has_type(&self, table: &mut unify::InferenceTable<'db>) -> Option<Ty<'db>> {
         match self {
-            Expectation::HasType(t) => Some(table.shallow_resolve(*t)),
+            Expectation::HasType(t) => Some(table.resolve_vars_if_possible(*t)),
             Expectation::Castable(_) | Expectation::RValueLikeUnsized(_) | Expectation::None => {
                 None
             }
