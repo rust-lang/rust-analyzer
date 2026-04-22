@@ -4,7 +4,7 @@ use either::Either;
 use hir::{Adt, AsAssocItem, Crate, FindPathConfig, HasAttrs, ModuleDef, Semantics};
 use ide_db::RootDatabase;
 use ide_db::syntax_helpers::suggest_name;
-use ide_db::{famous_defs::FamousDefs, helpers::mod_path_to_ast};
+use ide_db::{famous_defs::FamousDefs, helpers::mod_path_to_ast_with_factory};
 use itertools::Itertools;
 use syntax::ast::edit::IndentLevel;
 use syntax::ast::syntax_factory::SyntaxFactory;
@@ -602,7 +602,11 @@ fn build_pat(
                     false,
                 )
             } else {
-                mod_path_to_ast(&module.find_path(db, ModuleDef::from(var), cfg)?, edition)
+                mod_path_to_ast_with_factory(
+                    make,
+                    &module.find_path(db, ModuleDef::from(var), cfg)?,
+                    edition,
+                )
             };
             let fields = var.fields(db);
             let pat: ast::Pat = match var.kind(db) {
