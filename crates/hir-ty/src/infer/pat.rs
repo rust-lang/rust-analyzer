@@ -311,6 +311,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         };
         let adjust_mode = self.calc_adjust_mode(pat, opt_path_res);
         let ty = self.infer_pat_inner(pat_id, opt_path_res, adjust_mode, expected, pat_info);
+        let ty = self.insert_type_vars_shallow(ty);
         self.write_pat_ty(pat_id, ty);
 
         // If we implicitly inserted overloaded dereferences before matching check the pattern to
@@ -457,7 +458,9 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 ty
             }
             Pat::Lit(expr) => self.infer_lit_pat(expr, expected),
-            Pat::Range { start: lhs, end: rhs, .. } => self.infer_range_pat(lhs, rhs, expected),
+            Pat::Range { start: lhs, end: rhs, .. } => {
+                self.infer_range_pat(pat, lhs, rhs, expected)
+            }
             Pat::Bind { id: var_id, subpat } => {
                 self.infer_bind_pat(pat, var_id, subpat, expected, pat_info)
             }
@@ -755,7 +758,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // types `[u8]` or `[u8; N]`, in order to type, e.g., `deref!(b"..."): Vec<u8>`.
         let mut pat_ty = ty;
         if matches!(literal, Literal::ByteString(_)) {
-            let expected = self.table.structurally_resolve_type(expected);
+            let expected = self.structurally_resolve_type(expr.into(), expected);
             match expected.kind() {
                 // Allow `b"...": &[u8]`
                 TyKind::Ref(_, inner_ty, _)
@@ -806,8 +809,9 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
     fn infer_range_pat(
         &mut self,
-        lhs: Option<ExprId>,
-        rhs: Option<ExprId>,
+        pat: PatId,
+        lhs_expr: Option<ExprId>,
+        rhs_expr: Option<ExprId>,
         expected: Ty<'db>,
     ) -> Ty<'db> {
         let mut calc_side = |opt_expr: Option<ExprId>| match opt_expr {
@@ -826,8 +830,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 Some((fail, ty, expr))
             }
         };
-        let mut lhs = calc_side(lhs);
-        let mut rhs = calc_side(rhs);
+        let mut lhs = calc_side(lhs_expr);
+        let mut rhs = calc_side(rhs_expr);
 
         if let (Some((true, ..)), _) | (_, Some((true, ..))) = (lhs, rhs) {
             // There exists a side that didn't meet our criteria that the end-point
@@ -854,7 +858,10 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // This check is needed if both sides are inference variables.
         // We require types to be resolved here so that we emit inference failure
         // rather than "_ is not a char or numeric".
-        let ty = self.table.structurally_resolve_type(expected);
+        let ty = self.structurally_resolve_type(
+            lhs_expr.or(rhs_expr).map(ExprOrPatId::ExprId).unwrap_or(pat.into()),
+            expected,
+        );
         if !(ty.is_numeric() || ty.is_char() || ty.references_error()) {
             // FIXME: Emit an error.
             return self.types.types.error;
@@ -1096,7 +1103,8 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         let mut expected_len = elements.len();
         if ddpos.is_some() {
             // Require known type only when `..` is present.
-            if let TyKind::Tuple(tys) = self.table.structurally_resolve_type(expected).kind() {
+            if let TyKind::Tuple(tys) = self.structurally_resolve_type(pat.into(), expected).kind()
+            {
                 expected_len = tys.len();
             }
         }
@@ -1574,7 +1582,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
             let _ = self.demand_eqtype(pat.into(), expected, resolved_arr_ty);
         }
 
-        let expected = self.table.structurally_resolve_type(expected);
+        let expected = self.structurally_resolve_type(pat.into(), expected);
         debug!(?expected);
 
         let (element_ty, opt_slice_ty, inferred) = match expected.kind() {

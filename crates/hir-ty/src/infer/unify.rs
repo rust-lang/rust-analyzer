@@ -343,11 +343,6 @@ impl<'db> InferenceTable<'db> {
         }
     }
 
-    pub(crate) fn structurally_resolve_type(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        self.try_structurally_resolve_type(ty)
-        // FIXME: Err if it still contain infer vars.
-    }
-
     pub(crate) fn snapshot(&mut self) -> CombinedSnapshot {
         self.infer_ctxt.start_snapshot()
     }
@@ -431,11 +426,6 @@ impl<'db> InferenceTable<'db> {
         T: TypeFoldable<DbInterner<'db>>,
     {
         self.infer_ctxt.insert_type_vars(ty)
-    }
-
-    /// Replaces `Ty::Error` by a new type var, so we can maybe still infer it.
-    pub(super) fn insert_type_vars_shallow(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        if ty.is_ty_error() { self.next_ty_var() } else { ty }
     }
 
     /// Whenever you lower a user-written type, you should call this.

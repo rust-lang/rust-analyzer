@@ -108,7 +108,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         index_ty: Ty<'db>,
     ) -> Option<(/*index type*/ Ty<'db>, /*element type*/ Ty<'db>)> {
         let ty = autoderef.final_ty();
-        let adjusted_ty = autoderef.ctx().table.structurally_resolve_type(ty);
+        let adjusted_ty = autoderef.ctx().structurally_resolve_type(base_expr.into(), ty);
         debug!(
             "try_index_step(expr={:?}, base_expr={:?}, adjusted_ty={:?}, \
              index_ty={:?})",

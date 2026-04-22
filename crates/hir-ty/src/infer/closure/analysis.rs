@@ -741,7 +741,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             };
 
             let Some(min_cap_list) = root_var_min_capture_list.get_mut(&var_hir_id) else {
-                let mutability = self.determine_capture_mutability(&place);
+                let mutability = self.determine_capture_mutability(closure_def_id, &place);
                 let min_cap_list = vec![CapturedPlace { place, info: capture_info, mutability }];
                 root_var_min_capture_list.insert(var_hir_id, min_cap_list);
                 continue;
@@ -850,7 +850,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
             // Only need to insert when we don't have an ancestor in the existing min capture list
             if !ancestor_found {
-                let mutability = self.determine_capture_mutability(&place);
+                let mutability = self.determine_capture_mutability(closure_def_id, &place);
                 let captured_place =
                     CapturedPlace { place, info: updated_capture_info, mutability };
                 min_cap_list.push(captured_place);
@@ -1016,7 +1016,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
     /// A captured place is mutable if
     /// 1. Projections don't include a Deref of an immut-borrow, **and**
     /// 2. PlaceBase is mut or projections include a Deref of a mut-borrow.
-    fn determine_capture_mutability(&mut self, place: &Place) -> Mutability {
+    fn determine_capture_mutability(&mut self, closure_expr: ExprId, place: &Place) -> Mutability {
         let var_hir_id = match place.base {
             PlaceBase::Upvar { var_id, .. } => var_id,
             _ => unreachable!(),
@@ -1029,7 +1029,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         };
 
         for pointer_ty in place.deref_tys() {
-            match self.table.structurally_resolve_type(pointer_ty).kind() {
+            match self.structurally_resolve_type(closure_expr.into(), pointer_ty).kind() {
                 // We don't capture derefs of raw ptrs
                 TyKind::RawPtr(_, _) => unreachable!(),
 

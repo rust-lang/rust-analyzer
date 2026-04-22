@@ -8,7 +8,7 @@ use either::Either;
 use hir_def::{
     DefWithBodyId, GenericParamId, SyntheticSyntax,
     expr_store::{
-        ExprOrPatPtr, ExpressionStoreSourceMap, hir_assoc_type_binding_to_ast,
+        ExprOrPatPtr, ExprOrPatSource, ExpressionStoreSourceMap, hir_assoc_type_binding_to_ast,
         hir_generic_arg_to_ast, hir_segment_to_ast_segment,
     },
     hir::ExprOrPatId,
@@ -108,6 +108,7 @@ diagnostics![AnyDiagnostic<'db> ->
     IncorrectGenericsOrder,
     MissingLifetime,
     ElidedLifetimesInPath,
+    TypeMustBeKnown,
 ];
 
 #[derive(Debug)]
@@ -442,6 +443,11 @@ pub struct ElidedLifetimesInPath {
     pub expected: u32,
     pub def: GenericDef,
     pub hard_error: bool,
+}
+
+#[derive(Debug)]
+pub struct TypeMustBeKnown {
+    pub at_point: ExprOrPatSource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -799,6 +805,9 @@ impl<'db> AnyDiagnostic<'db> {
             &InferenceDiagnostic::InvalidLhsOfAssignment { lhs } => {
                 let lhs = expr_syntax(lhs)?;
                 InvalidLhsOfAssignment { lhs }.into()
+            }
+            &InferenceDiagnostic::TypeMustBeKnown { at_point } => {
+                TypeMustBeKnown { at_point: expr_or_pat_syntax(at_point)? }.into()
             }
         })
     }
