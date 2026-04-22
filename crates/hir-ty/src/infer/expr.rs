@@ -4,7 +4,7 @@ use std::{iter::repeat_with, mem};
 
 use either::Either;
 use hir_def::{
-    AdtId, FieldId, GenericDefId, ItemContainerId, Lookup, TupleFieldId, TupleId, VariantId,
+    AdtId, FieldId, TupleFieldId, TupleId, VariantId,
     expr_store::path::{GenericArgs as HirGenericArgs, Path},
     hir::{
         Array, AsmOperand, AsmOptions, BinaryOp, BindingAnnotation, Expr, ExprId, ExprOrPatId,
@@ -28,18 +28,16 @@ use tracing::debug;
 
 use crate::{
     Adjust, Adjustment, CallableDefId, Rawness, consteval,
-    generics::generics,
     infer::{AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable, pat::PatOrigin},
-    lower::{GenericPredicates, lower_mutability},
+    lower::lower_mutability,
     method_resolution::{self, CandidateId, MethodCallee, MethodError},
     next_solver::{
-        ClauseKind, FnSig, GenericArg, GenericArgs, TraitRef, Ty, TyKind, TypeError,
+        ClauseKind, FnSig, GenericArg, GenericArgs, Ty, TyKind, TypeError,
         infer::{
             BoundRegionConversionTime, InferOk,
             traits::{Obligation, ObligationCause},
         },
         obligation_ctxt::ObligationCtxt,
-        util::clauses_as_obligations,
     },
 };
 
@@ -1732,7 +1730,7 @@ impl<'db> InferenceContext<'_, 'db> {
         MethodCallee { def_id, args, sig }
     }
 
-    fn check_call(
+    fn infer_method_call_as_call(
         &mut self,
         tgt_expr: ExprId,
         args: &[ExprId],
@@ -1743,7 +1741,14 @@ impl<'db> InferenceContext<'_, 'db> {
         is_varargs: bool,
         expected: &Expectation<'db>,
     ) -> Ty<'db> {
-        self.register_obligations_for_call(callee_ty);
+        if let TyKind::FnDef(def_id, args) = callee_ty.kind() {
+            let def_id = match def_id.0 {
+                CallableDefId::FunctionId(it) => it.into(),
+                CallableDefId::StructId(it) => it.into(),
+                CallableDefId::EnumVariantId(it) => it.loc(self.db).parent.into(),
+            };
+            self.add_required_obligations_for_value_path(def_id, args);
+        }
 
         self.check_call_arguments(
             tgt_expr,
@@ -1849,7 +1854,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     }),
                 };
                 match recovered {
-                    Some((callee_ty, sig, strip_first)) => self.check_call(
+                    Some((callee_ty, sig, strip_first)) => self.infer_method_call_as_call(
                         tgt_expr,
                         args,
                         callee_ty,
@@ -2135,40 +2140,6 @@ impl<'db> InferenceContext<'_, 'db> {
         }
 
         if !args_count_matches {}
-    }
-
-    fn register_obligations_for_call(&mut self, callable_ty: Ty<'db>) {
-        let callable_ty = self.table.try_structurally_resolve_type(callable_ty);
-        if let TyKind::FnDef(fn_def, parameters) = callable_ty.kind() {
-            let generic_predicates = GenericPredicates::query_all(
-                self.db,
-                GenericDefId::from_callable(self.db, fn_def.0),
-            );
-            let param_env = self.table.param_env;
-            self.table.register_predicates(clauses_as_obligations(
-                generic_predicates.iter_instantiated(self.interner(), parameters.as_slice()),
-                ObligationCause::new(),
-                param_env,
-            ));
-            // add obligation for trait implementation, if this is a trait method
-            match fn_def.0 {
-                CallableDefId::FunctionId(f) => {
-                    if let ItemContainerId::TraitId(trait_) = f.lookup(self.db).container {
-                        // construct a TraitRef
-                        let trait_params_len = generics(self.db, trait_.into()).len();
-                        let substs =
-                            GenericArgs::new_from_slice(&parameters.as_slice()[..trait_params_len]);
-                        self.table.register_predicate(Obligation::new(
-                            self.interner(),
-                            ObligationCause::new(),
-                            self.table.param_env,
-                            TraitRef::new_from_args(self.interner(), trait_.into(), substs),
-                        ));
-                    }
-                }
-                CallableDefId::StructId(_) | CallableDefId::EnumVariantId(_) => {}
-            }
-        }
     }
 
     pub(super) fn with_breakable_ctx<T>(

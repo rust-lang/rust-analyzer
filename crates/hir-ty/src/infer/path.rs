@@ -226,7 +226,7 @@ impl<'db> InferenceContext<'_, 'db> {
         }
     }
 
-    fn add_required_obligations_for_value_path(
+    pub(super) fn add_required_obligations_for_value_path(
         &mut self,
         def: GenericDefId,
         subst: GenericArgs<'db>,
