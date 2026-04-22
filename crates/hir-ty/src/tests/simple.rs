@@ -2271,6 +2271,7 @@ fn infer_generic_from_later_assignment() {
             89..127 'loop {...     }': !
             94..127 '{     ...     }': ()
             104..107 'end': Option<bool>
+            104..107 'end': Option<bool>
             104..120 'end = ...(true)': ()
             110..114 'Some': fn Some<bool>(bool) -> Option<bool>
             110..120 'Some(true)': Option<bool>

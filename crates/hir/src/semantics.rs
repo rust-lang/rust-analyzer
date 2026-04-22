@@ -17,7 +17,7 @@ use hir_def::{
     TraitId, VariantId,
     attrs::parse_extra_crate_attrs,
     expr_store::{Body, ExprOrPatSource, ExpressionStore, HygieneId, path::Path},
-    hir::{BindingId, Expr, ExprId, ExprOrPatId, Pat},
+    hir::{BindingId, Expr, ExprId, ExprOrPatId},
     nameres::{ModuleOrigin, crate_def_map},
     resolver::{self, HasResolver, Resolver, TypeNs, ValueNs},
     type_ref::Mutability,
@@ -2409,13 +2409,7 @@ impl<'db> SemanticsImpl<'db> {
                         None
                     }
                 }
-                ExprOrPatId::PatId(pat_id) => {
-                    if let Pat::Path(path) = &store[pat_id] {
-                        Some(path)
-                    } else {
-                        None
-                    }
-                }
+                ExprOrPatId::PatId(_) => None,
             };
 
             if let Some(path) = path
@@ -2797,15 +2791,6 @@ impl RenameConflictsVisitor<'_> {
             Expr::Path(path) => {
                 let guard = self.resolver.update_to_inner_scope(self.db, self.owner, expr);
                 self.resolve_path(expr.into(), path);
-                self.resolver.reset_to_guard(guard);
-            }
-            &Expr::Assignment { target, .. } => {
-                let guard = self.resolver.update_to_inner_scope(self.db, self.owner, expr);
-                self.body.walk_pats(target, &mut |pat| {
-                    if let Pat::Path(path) = &self.body[pat] {
-                        self.resolve_path(pat.into(), path);
-                    }
-                });
                 self.resolver.reset_to_guard(guard);
             }
             _ => {}

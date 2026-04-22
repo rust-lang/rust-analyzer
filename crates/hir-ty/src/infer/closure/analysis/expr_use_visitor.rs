@@ -446,14 +446,6 @@ pub(crate) struct ExprUseVisitor<'a, 'b, 'db, D: Delegate<'db>> {
     upvars: UpvarsRef<'db>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PatWalkMode {
-    /// `let`, `match`.
-    Declaration,
-    /// Destructuring assignment.
-    Assignment,
-}
-
 impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
     /// Creates the ExprUseVisitor, configuring it with the various options provided:
     ///
@@ -477,7 +469,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
             let param_place = self.cat_rvalue(param.into(), param_ty);
 
             self.fake_read_scrutinee(param_place.clone(), false);
-            self.walk_pat(param_place, param, false, PatWalkMode::Declaration)?;
+            self.walk_pat(param_place, param, false)?;
         }
 
         self.consume_expr(body)?;
@@ -701,7 +693,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                 let expr_place = self.cat_expr(value)?;
                 let update_guard =
                     self.cx.resolver.update_to_inner_scope(self.cx.db, self.cx.owner, expr);
-                self.walk_pat(expr_place, target, false, PatWalkMode::Assignment)?;
+                self.walk_pat(expr_place, target, false)?;
                 self.cx.resolver.reset_to_guard(update_guard);
             }
 
@@ -784,7 +776,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
         let expr_place = self.cat_expr(expr)?;
         f(self)?;
         self.fake_read_scrutinee(expr_place.clone(), els.is_some());
-        self.walk_pat(expr_place, pat, false, PatWalkMode::Declaration)?;
+        self.walk_pat(expr_place, pat, false)?;
         if let Some(els) = els {
             self.walk_expr(els)?;
         }
@@ -896,7 +888,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
     }
 
     fn walk_arm(&mut self, discr_place: PlaceWithOrigin, arm: &MatchArm) -> Result {
-        self.walk_pat(discr_place, arm.pat, arm.guard.is_some(), PatWalkMode::Declaration)?;
+        self.walk_pat(discr_place, arm.pat, arm.guard.is_some())?;
 
         if let Some(e) = arm.guard {
             self.consume_expr(e)?;
@@ -920,13 +912,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
     /// Do note that discrepancies like these do still create obscure corners
     /// in the semantics of the language, and should be avoided if possible.
     #[instrument(skip(self), level = "debug")]
-    fn walk_pat(
-        &mut self,
-        discr_place: PlaceWithOrigin,
-        pat: PatId,
-        has_guard: bool,
-        mode: PatWalkMode,
-    ) -> Result {
+    fn walk_pat(&mut self, discr_place: PlaceWithOrigin, pat: PatId, has_guard: bool) -> Result {
         self.cat_pattern(discr_place.clone(), pat, &mut |this, place, pat| {
             debug!("walk_pat: pat.kind={:?}", this.cx.store[pat]);
             let read_discriminant = {
@@ -987,13 +973,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                         this.cx.store.pat_path_hygiene(pat),
                     );
                     let is_normal_const = matches!(resolution, Some(ValueNs::ConstId(_)));
-                    if mode == PatWalkMode::Assignment
-                        && let Some(ValueNs::LocalBinding(local)) = resolution
-                    {
-                        let pat_ty = this.pat_ty(pat)?;
-                        let place = this.cat_local(pat.into(), pat_ty, local)?;
-                        this.delegate.mutate(place, this.cx);
-                    } else if is_assoc_const || is_normal_const {
+                    if is_assoc_const || is_normal_const {
                         // Named constants have to be equated with the value
                         // being matched, so that's a read of the value being matched.
                         //
@@ -1035,7 +1015,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                         read_discriminant(this);
                     }
                 }
-                Pat::Expr(expr) if mode == PatWalkMode::Assignment => {
+                Pat::Expr(expr) => {
                     // Destructuring assignment.
                     this.mutate_expr(expr)?;
                 }
@@ -1050,7 +1030,6 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                     // If the PatKind is Missing, Wild or Err, any relevant accesses are made when processing
                     // the other patterns that are part of the match
                 }
-                Pat::Expr(_) => {}
             }
 
             Ok(())
@@ -1194,10 +1173,6 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
 
     fn expr_ty(&mut self, expr: ExprId) -> Result<Ty<'db>> {
         self.node_ty(expr.into())
-    }
-
-    fn pat_ty(&mut self, pat: PatId) -> Result<Ty<'db>> {
-        self.node_ty(pat.into())
     }
 
     fn expr_ty_adjusted(&mut self, expr: ExprId) -> Result<Ty<'db>> {

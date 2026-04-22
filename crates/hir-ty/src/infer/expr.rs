@@ -299,7 +299,7 @@ impl<'db> InferenceContext<'_, 'db> {
     }
 
     #[tracing::instrument(level = "debug", skip(self, is_read), ret)]
-    fn infer_expr_inner(
+    pub(super) fn infer_expr_inner(
         &mut self,
         tgt_expr: ExprId,
         expected: &Expectation<'db>,
@@ -714,29 +714,6 @@ impl<'db> InferenceContext<'_, 'db> {
                     // LHS of assignment doesn't constitute reads.
                     &Pat::Expr(expr) => {
                         Some(self.infer_expr(expr, &Expectation::none(), ExprIsRead::No))
-                    }
-                    Pat::Path(path) => {
-                        let resolver_guard =
-                            self.resolver.update_to_inner_scope(self.db, self.owner, tgt_expr);
-                        let resolution = self.resolver.resolve_path_in_value_ns_fully(
-                            self.db,
-                            path,
-                            self.store.pat_path_hygiene(target),
-                        );
-                        self.resolver.reset_to_guard(resolver_guard);
-
-                        if matches!(
-                            resolution,
-                            Some(
-                                ValueNs::ConstId(_)
-                                    | ValueNs::StructId(_)
-                                    | ValueNs::EnumVariantId(_)
-                            )
-                        ) {
-                            None
-                        } else {
-                            Some(self.infer_expr_path(path, target.into(), tgt_expr))
-                        }
                     }
                     _ => None,
                 };
