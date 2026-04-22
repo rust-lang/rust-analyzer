@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import * as lc from "vscode-languageclient";
 import * as ra from "./lsp_ext";
-import * as os from "os";
 import * as path from "path";
 
 import type { Ctx, Cmd, CtxInit } from "./ctx";
@@ -1041,8 +1040,10 @@ async function promptForNewProjectParentFolder(): Promise<vscode.Uri | undefined
     return selectedFolder[0];
 }
 
-// Keep local validation intentionally narrow: reject obviously invalid folder names up front,
-// then let `cargo new` remain the source of truth for package-name-specific rules.
+const CARGO_MANIFEST_NAME_PATTERN = /^[\p{Alphabetic}\p{Number}_-]+$/u;
+
+// Keep local validation focused on stable checks that can be reported in the input box, then let
+// `cargo new` remain the source of truth for package-name-specific identifier and keyword rules.
 export function validateNewProjectName(
     value: string,
     existingNames: readonly string[],
@@ -1057,26 +1058,13 @@ export function validateNewProjectName(
     if (trimmedValue === "." || trimmedValue === "..") {
         return "Project name cannot be '.' or '..'.";
     }
+    if (!CARGO_MANIFEST_NAME_PATTERN.test(trimmedValue)) {
+        return "Project name can contain only alphanumeric characters, '-' or '_'.";
+    }
     if (existingNames.includes(trimmedValue)) {
         return "A file or folder with this name already exists.";
     }
     return undefined;
-}
-
-/**
- * Formats the selected parent folder for user-facing prompts, shortening home-relative paths to
- * `~` to keep the input box text readable.
- */
-function displayProjectBasePath(parentFolder: vscode.Uri): string {
-    const fsPath = parentFolder.fsPath;
-    const home = os.homedir();
-    if (fsPath === home) {
-        return "~";
-    }
-    if (fsPath.startsWith(`${home}${path.sep}`)) {
-        return `~${path.sep}${path.relative(home, fsPath)}`;
-    }
-    return fsPath;
 }
 
 /**
@@ -1097,7 +1085,7 @@ async function promptForNewProjectName(parentFolder: vscode.Uri): Promise<string
     }
 
     const projectName = await vscode.window.showInputBox({
-        prompt: `Enter the new project name to create inside ${displayProjectBasePath(parentFolder)}`,
+        prompt: `Enter the new project name to create inside ${parentFolder.fsPath}`,
         validateInput: async (value) => validateNewProjectName(value, existingNames),
     });
     return projectName?.trim();

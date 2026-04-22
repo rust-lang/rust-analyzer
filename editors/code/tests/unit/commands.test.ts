@@ -30,6 +30,21 @@ export async function getTests(ctx: Context) {
             );
         });
 
+        suite.addTest("rejects invalid Cargo package name characters", async () => {
+            assert.equal(
+                validateNewProjectName("foo.bar", []),
+                "Project name can contain only alphanumeric characters, '-' or '_'.",
+            );
+            assert.equal(
+                validateNewProjectName("foo bar", []),
+                "Project name can contain only alphanumeric characters, '-' or '_'.",
+            );
+            assert.equal(
+                validateNewProjectName("foo+bar", []),
+                "Project name can contain only alphanumeric characters, '-' or '_'.",
+            );
+        });
+
         suite.addTest("rejects existing child folder collisions", async () => {
             assert.equal(
                 validateNewProjectName("demo", ["demo"]),
