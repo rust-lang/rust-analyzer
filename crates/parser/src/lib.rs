@@ -104,8 +104,8 @@ impl TopEntryPoint {
         };
         let mut p = parser::Parser::new(input);
         entry_point(&mut p);
-        let events = p.finish();
-        let res = event::process(events);
+        let (events, errors) = p.finish();
+        let res = event::process(events, errors);
 
         if cfg!(debug_assertions) {
             let mut depth = 0;
@@ -169,8 +169,8 @@ impl PrefixEntryPoint {
         };
         let mut p = parser::Parser::new(input);
         entry_point(&mut p);
-        let events = p.finish();
-        event::process(events)
+        let (events, errors) = p.finish();
+        event::process(events, errors)
     }
 }
 
@@ -195,7 +195,7 @@ impl Reparser {
         let Reparser(r) = self;
         let mut p = parser::Parser::new(tokens);
         r(&mut p);
-        let events = p.finish();
-        event::process(events)
+        let (events, errors) = p.finish();
+        event::process(events, errors)
     }
 }
