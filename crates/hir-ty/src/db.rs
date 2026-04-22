@@ -37,33 +37,44 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
 
     // FXME: Collapse `mir_body_for_closure` into `mir_body`
     // and `monomorphized_mir_body_for_closure` into `monomorphized_mir_body`
-    #[salsa::invoke(crate::mir::mir_body_query)]
-    #[salsa::cycle(cycle_result = crate::mir::mir_body_cycle_result)]
-    fn mir_body(&self, def: DefWithBodyId) -> Result<Arc<MirBody>, MirLowerError>;
+    #[salsa::transparent]
+    fn mir_body(&self, def: DefWithBodyId) -> Result<&MirBody, MirLowerError> {
+        crate::mir::mir_body_query(self, def).as_ref().map_err(|err| err.clone())
+    }
 
-    #[salsa::invoke(crate::mir::mir_body_for_closure_query)]
-    fn mir_body_for_closure(&self, def: InternedClosureId) -> Result<Arc<MirBody>, MirLowerError>;
+    #[salsa::transparent]
+    fn mir_body_for_closure(&self, def: InternedClosureId) -> Result<&MirBody, MirLowerError> {
+        crate::mir::mir_body_for_closure_query(self, def).as_ref().map_err(|err| err.clone())
+    }
 
-    #[salsa::invoke(crate::mir::monomorphized_mir_body_query)]
-    #[salsa::cycle(cycle_result = crate::mir::monomorphized_mir_body_cycle_result)]
+    #[salsa::transparent]
     fn monomorphized_mir_body(
         &self,
         def: DefWithBodyId,
         subst: StoredGenericArgs,
         env: StoredParamEnvAndCrate,
-    ) -> Result<Arc<MirBody>, MirLowerError>;
+    ) -> Result<&MirBody, MirLowerError> {
+        crate::mir::monomorphized_mir_body_query(self, def, subst, env)
+            .as_ref()
+            .map_err(|err| err.clone())
+    }
 
-    #[salsa::invoke(crate::mir::monomorphized_mir_body_for_closure_query)]
+    #[salsa::transparent]
     fn monomorphized_mir_body_for_closure(
         &self,
         def: InternedClosureId,
         subst: StoredGenericArgs,
         env: StoredParamEnvAndCrate,
-    ) -> Result<Arc<MirBody>, MirLowerError>;
+    ) -> Result<&MirBody, MirLowerError> {
+        crate::mir::monomorphized_mir_body_for_closure_query(self, def, subst, env)
+            .as_ref()
+            .map_err(|err| err.clone())
+    }
 
-    #[salsa::invoke(crate::mir::borrowck_query)]
-    #[salsa::lru(2024)]
-    fn borrowck(&self, def: DefWithBodyId) -> Result<Arc<[BorrowckResult]>, MirLowerError>;
+    #[salsa::transparent]
+    fn borrowck(&self, def: DefWithBodyId) -> Result<&[BorrowckResult], MirLowerError> {
+        crate::mir::borrowck_query(self, def).as_ref().map(|it| &**it).map_err(|err| err.clone())
+    }
 
     #[salsa::invoke(crate::consteval::const_eval)]
     #[salsa::transparent]
@@ -110,8 +121,10 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
         env: StoredParamEnvAndCrate,
     ) -> Result<Arc<Layout>, LayoutError>;
 
-    #[salsa::invoke(crate::layout::target_data_layout_query)]
-    fn target_data_layout(&self, krate: Crate) -> Result<Arc<TargetDataLayout>, TargetLoadError>;
+    #[salsa::transparent]
+    fn target_data_layout(&self, krate: Crate) -> Result<&TargetDataLayout, TargetLoadError> {
+        crate::layout::target_data_layout_query(self, krate).as_ref().map_err(|err| err.clone())
+    }
 
     #[salsa::invoke(crate::dyn_compatibility::dyn_compatibility_of_trait_query)]
     fn dyn_compatibility_of_trait(&self, trait_: TraitId) -> Option<DynCompatibilityViolation>;

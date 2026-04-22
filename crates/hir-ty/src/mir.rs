@@ -47,9 +47,6 @@ pub use monomorphization::{
     monomorphized_mir_body_for_closure_query, monomorphized_mir_body_query,
 };
 
-pub(crate) use lower::mir_body_cycle_result;
-pub(crate) use monomorphization::monomorphized_mir_body_cycle_result;
-
 use super::consteval::try_const_usize;
 
 pub type BasicBlockId = Idx<BasicBlock>;

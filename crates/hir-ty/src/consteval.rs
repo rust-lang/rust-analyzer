@@ -16,7 +16,6 @@ use rustc_abi::Size;
 use rustc_apfloat::Float;
 use rustc_type_ir::inherent::IntoKind;
 use stdx::never;
-use triomphe::Arc;
 
 use crate::{
     LifetimeElisionKind, ParamEnvAndCrate, TyLoweringContext,
@@ -300,7 +299,7 @@ pub(crate) fn eval_to_const<'db>(expr: ExprId, ctx: &mut InferenceContext<'_, 'd
     if let Some(body_owner) = ctx.owner.as_def_with_body()
         && let Ok(mir_body) =
             lower_body_to_mir(ctx.db, body_owner, Body::of(ctx.db, body_owner), &infer, expr)
-        && let Ok((Ok(result), _)) = interpret_mir(ctx.db, Arc::new(mir_body), true, None)
+        && let Ok((Ok(result), _)) = interpret_mir(ctx.db, &mir_body, true, None)
     {
         return Const::new_from_allocation(
             ctx.interner(),

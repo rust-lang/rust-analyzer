@@ -56,11 +56,12 @@ pub(super) fn trivial<'a, 'lt, 'db, DB: HirDatabase>(
                     let borrowck = db.borrowck(it.parent.as_def_with_body()?).ok()?;
 
                     let invalid = borrowck.iter().any(|b| {
+                        let mir_body = b.mir_body(ctx.sema.db);
                         b.partially_moved.iter().any(|moved| {
-                            Some(&moved.local) == b.mir_body.binding_locals.get(it.binding_id)
+                            Some(&moved.local) == mir_body.binding_locals.get(it.binding_id)
                         }) || b.borrow_regions.iter().any(|region| {
                             // Shared borrows are fine
-                            Some(&region.local) == b.mir_body.binding_locals.get(it.binding_id)
+                            Some(&region.local) == mir_body.binding_locals.get(it.binding_id)
                                 && region.kind != BorrowKind::Shared
                         })
                     });

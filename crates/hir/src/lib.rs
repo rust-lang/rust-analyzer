@@ -1120,7 +1120,7 @@ fn macro_call_diagnostics<'db>(
     let Some(e) = db.parse_macro_expansion_error(macro_call_id) else {
         return;
     };
-    let ValueResult { value: parse_errors, err } = &*e;
+    let ValueResult { value: parse_errors, err } = e;
     if let Some(err) = err {
         let loc = db.lookup_intern_macro_call(macro_call_id);
         let file_id = loc.kind.file_id();
@@ -1436,7 +1436,7 @@ impl Field {
         Type::new(db, var_id, ty)
     }
 
-    pub fn layout(&self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
+    pub fn layout<'db>(&self, db: &'db dyn HirDatabase) -> Result<Layout<'db>, LayoutError> {
         db.layout_of_ty(
             self.ty(db).ty.store(),
             param_env_from_has_crate(
@@ -1696,7 +1696,7 @@ impl Enum {
         self.variants(db).iter().any(|v| !matches!(v.kind(db), StructKind::Unit))
     }
 
-    pub fn layout(self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
+    pub fn layout<'db>(self, db: &'db dyn HirDatabase) -> Result<Layout<'db>, LayoutError> {
         Adt::from(self).layout(db)
     }
 
@@ -1783,7 +1783,7 @@ impl EnumVariant {
         db.const_eval_discriminant(self.into())
     }
 
-    pub fn layout(&self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
+    pub fn layout<'db>(&self, db: &'db dyn HirDatabase) -> Result<Layout<'db>, LayoutError> {
         let parent_enum = self.parent_enum(db);
         let parent_layout = parent_enum.layout(db)?;
         Ok(match &parent_layout.0.variants {
@@ -1866,7 +1866,7 @@ impl Adt {
         has_non_default_type_params(db, self.into())
     }
 
-    pub fn layout(self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
+    pub fn layout<'db>(self, db: &'db dyn HirDatabase) -> Result<Layout<'db>, LayoutError> {
         let interner = DbInterner::new_no_crate(db);
         let adt_id = AdtId::from(self);
         let args = GenericArgs::for_item_with_defaults(interner, adt_id.into(), |_, id, _| {
@@ -2211,7 +2211,7 @@ impl DefWithBody {
 
         if let Ok(borrowck_results) = db.borrowck(id) {
             for borrowck_result in borrowck_results.iter() {
-                let mir_body = &borrowck_result.mir_body;
+                let mir_body = borrowck_result.mir_body(db);
                 for moof in &borrowck_result.moved_out_of_ref {
                     let span: InFile<SyntaxNodePtr> = match moof.span {
                         mir::MirSpan::ExprId(e) => match source_map.expr_syntax(e) {
@@ -6530,7 +6530,7 @@ impl<'db> Type<'db> {
             .collect()
     }
 
-    pub fn layout(&self, db: &'db dyn HirDatabase) -> Result<Layout, LayoutError> {
+    pub fn layout(&self, db: &'db dyn HirDatabase) -> Result<Layout<'db>, LayoutError> {
         db.layout_of_ty(self.ty.store(), self.env.store())
             .map(|layout| Layout(layout, db.target_data_layout(self.env.krate).unwrap()))
     }
@@ -6702,9 +6702,9 @@ impl<'db> Callable<'db> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Layout(Arc<TyLayout>, Arc<TargetDataLayout>);
+pub struct Layout<'db>(Arc<TyLayout>, &'db TargetDataLayout);
 
-impl Layout {
+impl<'db> Layout<'db> {
     pub fn size(&self) -> u64 {
         self.0.size.bytes()
     }
@@ -6714,7 +6714,7 @@ impl Layout {
     }
 
     pub fn niches(&self) -> Option<u128> {
-        Some(self.0.largest_niche?.available(&*self.1))
+        Some(self.0.largest_niche?.available(self.1))
     }
 
     pub fn field_offset(&self, field: Field) -> Option<u64> {
@@ -6803,7 +6803,7 @@ impl Layout {
         let tag_size =
             if let layout::Variants::Multiple { tag, tag_encoding, .. } = &self.0.variants {
                 match tag_encoding {
-                    TagEncoding::Direct => tag.size(&*self.1).bytes_usize(),
+                    TagEncoding::Direct => tag.size(self.1).bytes_usize(),
                     TagEncoding::Niche { .. } => 0,
                 }
             } else {
