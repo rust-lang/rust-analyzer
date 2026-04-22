@@ -130,11 +130,6 @@ pub(crate) struct InferenceTable<'db> {
     pub(super) diverging_type_vars: FxHashSet<Ty<'db>>,
 }
 
-pub(crate) struct InferenceTableSnapshot<'db> {
-    ctxt_snapshot: CombinedSnapshot,
-    obligations: FulfillmentCtxt<'db>,
-}
-
 impl<'db> InferenceTable<'db> {
     /// Inside hir-ty you should use this for inference only, and always pass `owner`.
     /// Outside it, always pass `owner = None`.
@@ -353,16 +348,13 @@ impl<'db> InferenceTable<'db> {
         // FIXME: Err if it still contain infer vars.
     }
 
-    pub(crate) fn snapshot(&mut self) -> InferenceTableSnapshot<'db> {
-        let ctxt_snapshot = self.infer_ctxt.start_snapshot();
-        let obligations = self.fulfillment_cx.clone();
-        InferenceTableSnapshot { ctxt_snapshot, obligations }
+    pub(crate) fn snapshot(&mut self) -> CombinedSnapshot {
+        self.infer_ctxt.start_snapshot()
     }
 
     #[tracing::instrument(skip_all)]
-    pub(crate) fn rollback_to(&mut self, snapshot: InferenceTableSnapshot<'db>) {
-        self.infer_ctxt.rollback_to(snapshot.ctxt_snapshot);
-        self.fulfillment_cx = snapshot.obligations;
+    pub(crate) fn rollback_to(&mut self, snapshot: CombinedSnapshot) {
+        self.infer_ctxt.rollback_to(snapshot);
     }
 
     pub(crate) fn commit_if_ok<T, E>(
@@ -372,10 +364,8 @@ impl<'db> InferenceTable<'db> {
         let snapshot = self.snapshot();
         let result = f(self);
         match result {
-            Ok(_) => {}
-            Err(_) => {
-                self.rollback_to(snapshot);
-            }
+            Ok(_) => self.infer_ctxt.commit_from(snapshot),
+            Err(_) => self.rollback_to(snapshot),
         }
         result
     }
