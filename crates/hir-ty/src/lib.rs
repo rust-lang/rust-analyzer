@@ -71,7 +71,7 @@ use macros::GenericTypeVisitable;
 use mir::{MirEvalError, VTableMap};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use rustc_type_ir::{
-    BoundVarIndexKind, TypeSuperVisitable, TypeVisitableExt, UpcastFrom,
+    BoundVarIndexKind, TypeSuperVisitable, TypeVisitableExt,
     inherent::{IntoKind, Ty as _},
 };
 use syntax::ast::{ConstArg, make};
@@ -80,12 +80,17 @@ use traits::FnTrait;
 use crate::{
     db::HirDatabase,
     display::{DisplayTarget, HirDisplay},
-    infer::unify::InferenceTable,
     lower::SupertraitsInfo,
     next_solver::{
         AliasTy, Binder, BoundConst, BoundRegion, BoundRegionKind, BoundTy, BoundTyKind, Canonical,
-        CanonicalVarKind, CanonicalVarKinds, ClauseKind, Const, ConstKind, DbInterner, FnSig,
-        GenericArgs, PolyFnSig, Predicate, Region, RegionKind, TraitRef, Ty, TyKind, Tys, abi,
+        CanonicalVarKind, CanonicalVarKinds, ClauseKind, Const, ConstKind, DbInterner, GenericArgs,
+        PolyFnSig, Region, RegionKind, TraitRef, Ty, TyKind, TypingMode,
+        abi::Safety,
+        infer::{
+            DbInternerInferExt,
+            traits::{Obligation, ObligationCause},
+        },
+        obligation_ctxt::ObligationCtxt,
     },
 };
 
@@ -525,68 +530,64 @@ pub fn associated_type_shorthand_candidates(
 /// To be used from `hir` only.
 pub fn callable_sig_from_fn_trait<'db>(
     self_ty: Ty<'db>,
-    trait_env: ParamEnvAndCrate<'db>,
+    param_env: ParamEnvAndCrate<'db>,
     db: &'db dyn HirDatabase,
 ) -> Option<(FnTrait, PolyFnSig<'db>)> {
-    let mut table = InferenceTable::new(db, trait_env.param_env, trait_env.krate, None);
-    let lang_items = table.interner().lang_items();
+    let ParamEnvAndCrate { param_env, krate } = param_env;
+    let interner = DbInterner::new_with(db, krate);
+    let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
+    let lang_items = interner.lang_items();
+    let cause = ObligationCause::dummy();
 
-    let fn_once_trait = FnTrait::FnOnce.get_id(lang_items)?;
+    let impls_trait = |trait_: FnTrait| {
+        let mut ocx = ObligationCtxt::new(&infcx);
+        let tupled_args = infcx.next_ty_var();
+        let args = GenericArgs::new_from_slice(&[self_ty.into(), tupled_args.into()]);
+        let trait_id = trait_.get_id(lang_items)?;
+        let trait_ref = TraitRef::new_from_args(interner, trait_id.into(), args);
+        let obligation = Obligation::new(interner, cause.clone(), param_env, trait_ref);
+        ocx.register_obligation(obligation);
+        if !ocx.try_evaluate_obligations().is_empty() {
+            return None;
+        }
+        let tupled_args =
+            infcx.resolve_vars_if_possible(tupled_args).replace_infer_with_error(interner);
+        if tupled_args.is_tuple() { Some(tupled_args) } else { None }
+    };
+
+    let (trait_, args) = 'find_trait: {
+        for trait_ in [FnTrait::Fn, FnTrait::FnMut, FnTrait::FnOnce] {
+            if let Some(args) = impls_trait(trait_) {
+                break 'find_trait (trait_, args);
+            }
+        }
+        return None;
+    };
+
+    let fn_once_trait = lang_items.FnOnce?;
     let output_assoc_type = fn_once_trait
         .trait_items(db)
         .associated_type_by_name(&Name::new_symbol_root(sym::Output))?;
-
-    // Register two obligations:
-    // - Self: FnOnce<?args_ty>
-    // - <Self as FnOnce<?args_ty>>::Output == ?ret_ty
-    let args_ty = table.next_ty_var();
-    let args = GenericArgs::new_from_slice(&[self_ty.into(), args_ty.into()]);
-    let trait_ref = TraitRef::new_from_args(table.interner(), fn_once_trait.into(), args);
-    let projection = Ty::new_alias(
-        table.interner(),
-        AliasTy::new_from_args(
-            table.interner(),
+    let output_projection = Ty::new_alias(
+        interner,
+        AliasTy::new(
+            interner,
             rustc_type_ir::Projection { def_id: output_assoc_type.into() },
-            args,
+            [self_ty, args],
         ),
     );
+    let mut ocx = ObligationCtxt::new(&infcx);
+    let ret = ocx.structurally_normalize_ty(&cause, param_env, output_projection).ok()?;
+    let ret = ret.replace_infer_with_error(interner);
 
-    let pred = Predicate::upcast_from(trait_ref, table.interner());
-    if !table.try_obligation(pred).no_solution() {
-        table.register_obligation(pred);
-        let return_ty = table.normalize_alias_ty(projection);
-        for fn_x in [FnTrait::Fn, FnTrait::FnMut, FnTrait::FnOnce] {
-            let fn_x_trait = fn_x.get_id(lang_items)?;
-            let trait_ref = TraitRef::new_from_args(table.interner(), fn_x_trait.into(), args);
-            if !table
-                .try_obligation(Predicate::upcast_from(trait_ref, table.interner()))
-                .no_solution()
-            {
-                let ret_ty = table.resolve_completely(return_ty);
-                let args_ty = table.resolve_completely(args_ty);
-                let TyKind::Tuple(params) = args_ty.kind() else {
-                    return None;
-                };
-                let inputs_and_output = Tys::new_from_iter(
-                    table.interner(),
-                    params.iter().chain(std::iter::once(ret_ty)),
-                );
-
-                return Some((
-                    fn_x,
-                    Binder::dummy(FnSig {
-                        inputs_and_output,
-                        c_variadic: false,
-                        safety: abi::Safety::Safe,
-                        abi: FnAbi::RustCall,
-                    }),
-                ));
-            }
-        }
-        unreachable!("It should at least implement FnOnce at this point");
-    } else {
-        None
-    }
+    let sig = Binder::dummy(interner.mk_fn_sig(
+        args.tuple_fields(),
+        ret,
+        false,
+        Safety::Safe,
+        FnAbi::Rust,
+    ));
+    Some((trait_, sig))
 }
 
 struct ParamCollector {

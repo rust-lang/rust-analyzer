@@ -15,18 +15,15 @@ use hir_def::{
 };
 use hir_expand::name::Name;
 use intern::sym;
-use rustc_next_trait_solver::solve::{HasChanged, SolverDelegateEvalExt};
 use rustc_type_ir::{
     TypingMode,
-    inherent::{AdtDef, BoundExistentialPredicates, IntoKind, Span as _},
-    solve::Certainty,
+    inherent::{AdtDef, BoundExistentialPredicates, IntoKind},
 };
 
 use crate::{
     db::HirDatabase,
     next_solver::{
-        Canonical, DbInterner, GenericArgs, Goal, ParamEnv, Predicate, SolverContext, Span,
-        StoredClauses, Ty, TyKind,
+        DbInterner, GenericArgs, ParamEnv, StoredClauses, Ty, TyKind,
         infer::{
             DbInternerInferExt, InferCtxt,
             traits::{Obligation, ObligationCause},
@@ -77,91 +74,6 @@ pub fn structurally_normalize_ty<'db>(
     let mut ocx = ObligationCtxt::new(infcx);
     let ty = ocx.structurally_normalize_ty(&ObligationCause::dummy(), env, ty).unwrap_or(ty);
     ty.replace_infer_with_error(infcx.interner)
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum NextTraitSolveResult {
-    Certain,
-    Uncertain,
-    NoSolution,
-}
-
-impl NextTraitSolveResult {
-    pub fn no_solution(&self) -> bool {
-        matches!(self, NextTraitSolveResult::NoSolution)
-    }
-
-    pub fn certain(&self) -> bool {
-        matches!(self, NextTraitSolveResult::Certain)
-    }
-
-    pub fn uncertain(&self) -> bool {
-        matches!(self, NextTraitSolveResult::Uncertain)
-    }
-}
-
-pub fn next_trait_solve_canonical_in_ctxt<'db>(
-    infer_ctxt: &InferCtxt<'db>,
-    goal: Canonical<'db, Goal<'db, Predicate<'db>>>,
-) -> NextTraitSolveResult {
-    infer_ctxt.probe(|_| {
-        let context = <&SolverContext<'db>>::from(infer_ctxt);
-
-        tracing::info!(?goal);
-
-        let (goal, var_values) = context.instantiate_canonical(&goal);
-        tracing::info!(?var_values);
-
-        let res = context.evaluate_root_goal(goal, Span::dummy(), None);
-
-        let obligation = Obligation {
-            cause: ObligationCause::dummy(),
-            param_env: goal.param_env,
-            recursion_depth: 0,
-            predicate: goal.predicate,
-        };
-        infer_ctxt.inspect_evaluated_obligation(&obligation, &res, || {
-            Some(context.evaluate_root_goal_for_proof_tree(goal, Span::dummy()).1)
-        });
-
-        let res = res.map(|r| (r.has_changed, r.certainty));
-
-        tracing::debug!("solve_nextsolver({:?}) => {:?}", goal, res);
-
-        match res {
-            Err(_) => NextTraitSolveResult::NoSolution,
-            Ok((_, Certainty::Yes)) => NextTraitSolveResult::Certain,
-            Ok((_, Certainty::Maybe { .. })) => NextTraitSolveResult::Uncertain,
-        }
-    })
-}
-
-/// Solve a trait goal using next trait solver.
-pub fn next_trait_solve_in_ctxt<'db, 'a>(
-    infer_ctxt: &'a InferCtxt<'db>,
-    goal: Goal<'db, Predicate<'db>>,
-) -> Result<(HasChanged, Certainty), rustc_type_ir::solve::NoSolution> {
-    tracing::info!(?goal);
-
-    let context = <&SolverContext<'db>>::from(infer_ctxt);
-
-    let res = context.evaluate_root_goal(goal, Span::dummy(), None);
-
-    let obligation = Obligation {
-        cause: ObligationCause::dummy(),
-        param_env: goal.param_env,
-        recursion_depth: 0,
-        predicate: goal.predicate,
-    };
-    infer_ctxt.inspect_evaluated_obligation(&obligation, &res, || {
-        Some(context.evaluate_root_goal_for_proof_tree(goal, Span::dummy()).1)
-    });
-
-    let res = res.map(|r| (r.has_changed, r.certainty));
-
-    tracing::debug!("solve_nextsolver({:?}) => {:?}", goal, res);
-
-    res
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, salsa::Update)]
@@ -235,10 +147,9 @@ fn implements_trait_unique_impl<'db>(
 
     let args = create_args(&infcx);
     let trait_ref = rustc_type_ir::TraitRef::new_from_args(interner, trait_.into(), args);
-    let goal = Goal::new(interner, env.param_env, trait_ref);
 
-    let result = crate::traits::next_trait_solve_in_ctxt(&infcx, goal);
-    matches!(result, Ok((_, Certainty::Yes)))
+    let obligation = Obligation::new(interner, ObligationCause::dummy(), env.param_env, trait_ref);
+    infcx.predicate_must_hold_modulo_regions(&obligation)
 }
 
 pub fn is_inherent_impl_coherent(db: &dyn HirDatabase, def_map: &DefMap, impl_id: ImplId) -> bool {

@@ -6561,21 +6561,13 @@ impl<'db> TypeNs<'db> {
         );
         let trait_ref =
             hir_ty::next_solver::TraitRef::new_from_args(infcx.interner, trait_.id.into(), args);
-
-        let pred_kind = rustc_type_ir::Binder::dummy(rustc_type_ir::PredicateKind::Clause(
-            rustc_type_ir::ClauseKind::Trait(rustc_type_ir::TraitPredicate {
-                trait_ref,
-                polarity: rustc_type_ir::PredicatePolarity::Positive,
-            }),
-        ));
-        let predicate = hir_ty::next_solver::Predicate::new(infcx.interner, pred_kind);
-        let goal = hir_ty::next_solver::Goal::new(
+        let obligation = hir_ty::next_solver::infer::traits::Obligation::new(
             infcx.interner,
-            hir_ty::next_solver::ParamEnv::empty(),
-            predicate,
+            hir_ty::next_solver::infer::traits::ObligationCause::dummy(),
+            self.env.param_env,
+            trait_ref,
         );
-        let res = hir_ty::traits::next_trait_solve_in_ctxt(&infcx, goal);
-        res.map_or(false, |res| matches!(res.1, rustc_type_ir::solve::Certainty::Yes))
+        infcx.predicate_must_hold_modulo_regions(&obligation)
     }
 
     pub fn is_bool(&self) -> bool {

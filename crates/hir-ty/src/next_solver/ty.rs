@@ -626,6 +626,10 @@ impl<'db> Ty<'db> {
         }
     }
 
+    pub fn is_tuple(self) -> bool {
+        matches!(self.kind(), TyKind::Tuple(_))
+    }
+
     pub fn as_tuple(self) -> Option<Tys<'db>> {
         match self.kind() {
             TyKind::Tuple(tys) => Some(tys),

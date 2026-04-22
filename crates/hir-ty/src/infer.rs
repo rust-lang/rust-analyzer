@@ -1240,7 +1240,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 db.trait_environment(ExpressionStoreOwnerId::VariantFields(variant_id))
             }
         };
-        let table = unify::InferenceTable::new(db, trait_env, resolver.krate(), Some(owner));
+        let table = unify::InferenceTable::new(db, trait_env, resolver.krate(), owner);
         let types = crate::next_solver::default_types(db);
         InferenceContext {
             result: InferenceResult::new(types.types.error),
