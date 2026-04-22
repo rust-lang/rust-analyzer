@@ -601,10 +601,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 self.infer_record_expr(tgt_expr, expected, path, fields, *spread)
             }
             Expr::Field { expr, name } => self.infer_field_access(tgt_expr, *expr, name, expected),
-            Expr::Await { expr } => {
-                let inner_ty = self.infer_expr_inner(*expr, &Expectation::none(), ExprIsRead::Yes);
-                self.resolve_associated_type(inner_ty, self.resolve_future_future_output())
-            }
+            Expr::Await { expr } => self.infer_await_expr(*expr),
             Expr::Cast { expr, type_ref } => {
                 let cast_ty = self.make_body_ty(*type_ref);
                 let expr_ty =
@@ -969,6 +966,18 @@ impl<'db> InferenceContext<'_, 'db> {
             self.diverges = Diverges::Always;
         }
         ty
+    }
+
+    fn infer_await_expr(&mut self, awaitee: ExprId) -> Ty<'db> {
+        let awaitee_ty = self.infer_expr_no_expect(awaitee, ExprIsRead::Yes);
+        let (Some(into_future), Some(into_future_output)) =
+            (self.lang_items.IntoFuture, self.lang_items.IntoFutureOutput)
+        else {
+            return self.types.types.error;
+        };
+        self.table.register_bound(awaitee_ty, into_future, ObligationCause::new());
+        // Do not eagerly normalize.
+        Ty::new_projection(self.interner(), into_future_output.into(), [awaitee_ty])
     }
 
     fn infer_record_expr(

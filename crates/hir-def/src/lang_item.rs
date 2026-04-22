@@ -7,8 +7,8 @@ use intern::{Symbol, sym};
 use stdx::impl_from;
 
 use crate::{
-    AdtId, AssocItemId, AttrDefId, Crate, EnumId, EnumVariantId, FunctionId, ImplId, MacroId,
-    ModuleDefId, StaticId, StructId, TraitId, TypeAliasId, UnionId,
+    AdtId, AssocItemId, AttrDefId, Crate, EnumId, EnumVariantId, FunctionId, ImplId,
+    ItemContainerId, MacroId, ModuleDefId, StaticId, StructId, TraitId, TypeAliasId, UnionId,
     attrs::AttrFlags,
     db::DefDatabase,
     nameres::{DefMap, assoc::TraitItems, crate_def_map, crate_local_def_map},
@@ -102,6 +102,8 @@ pub fn crate_lang_items(db: &dyn DefDatabase, krate: Crate) -> Option<Box<LangIt
         lang_items.fill_non_lang_core_items(db, crate_def_map);
     }
 
+    lang_items.resolve_manually(db);
+
     if lang_items.is_empty() { None } else { Some(Box::new(lang_items)) }
 }
 
@@ -190,6 +192,23 @@ fn resolve_core_macro(
     current.scope.makro(&Name::new_symbol_root(name))
 }
 
+impl LangItems {
+    fn resolve_manually(&mut self, db: &dyn DefDatabase) {
+        (|| {
+            let into_future_into_future = self.IntoFutureIntoFuture?;
+            let ItemContainerId::TraitId(into_future) = into_future_into_future.loc(db).container
+            else {
+                return None;
+            };
+            self.IntoFuture = Some(into_future);
+            self.IntoFutureOutput = into_future
+                .trait_items(db)
+                .associated_type_by_name(&Name::new_symbol_root(sym::Output));
+            Some(())
+        })();
+    }
+}
+
 #[salsa::tracked(returns(as_deref))]
 pub(crate) fn crate_notable_traits(db: &dyn DefDatabase, krate: Crate) -> Option<Box<[TraitId]>> {
     let mut traits = Vec::new();
@@ -221,6 +240,10 @@ macro_rules! language_item_table {
         @non_lang_core_macros:
 
         $( core::$($non_lang_macro_module:ident)::*, $non_lang_macro:ident, $non_lang_macro_field:ident; )*
+
+        @resolve_manually:
+
+        $( $resolve_manually:ident, $resolve_manually_type:ident; )*
     ) => {
         #[allow(non_snake_case)] // FIXME: Should we remove this?
         #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
@@ -235,6 +258,9 @@ macro_rules! language_item_table {
             $(
                 pub $non_lang_macro_field: Option<MacroId>,
             )*
+            $(
+                pub $resolve_manually: Option<$resolve_manually_type>,
+            )*
         }
 
         impl LangItems {
@@ -247,6 +273,7 @@ macro_rules! language_item_table {
                 $( self.$lang_item = self.$lang_item.or(other.$lang_item); )*
                 $( self.$non_lang_trait = self.$non_lang_trait.or(other.$non_lang_trait); )*
                 $( self.$non_lang_macro_field = self.$non_lang_macro_field.or(other.$non_lang_macro_field); )*
+                $( self.$resolve_manually = self.$resolve_manually.or(other.$resolve_manually); )*
             }
 
             fn assign_lang_item(&mut self, name: Symbol, target: LangItemTarget) {
@@ -538,4 +565,8 @@ language_item_table! { LangItems =>
     core::marker, CoercePointee, CoercePointeeDerive;
     core::marker, Copy, CopyDerive;
     core::clone, Clone, CloneDerive;
+
+    @resolve_manually:
+    IntoFuture,               TraitId;
+    IntoFutureOutput,         TypeAliasId;
 }
