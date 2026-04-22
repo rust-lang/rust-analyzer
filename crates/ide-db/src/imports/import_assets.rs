@@ -454,6 +454,7 @@ impl<'db> ImportAssets<'db> {
                 |trait_to_import| {
                     !scope_definitions
                         .contains(&ScopeDef::ModuleDef(ModuleDef::Trait(trait_to_import)))
+                        && !scope.can_use_trait_methods(trait_to_import)
                 },
             ),
         }

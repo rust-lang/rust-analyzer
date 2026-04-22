@@ -888,6 +888,33 @@ mod tests {
     }
 
     #[test]
+    fn trait_imported_as_underscore_should_not_appear_auto_import_again() {
+        // make sure there has no `requires_import`
+        // see https://github.com/rust-lang/rust-analyzer/issues/19767
+        check_relevance(
+            r#"
+//- /dep.rs crate:dep
+pub trait MyTrait {
+    fn my_method(&self);
+}
+
+//- /main.rs crate:main deps:dep
+use dep::MyTrait as _;
+struct MyStruct;
+impl dep::MyTrait for MyStruct {
+    fn my_method(&self) {}
+}
+fn main() {
+    MyStruct::my_method$0
+}
+"#,
+            expect![[r#"
+                me my_method(…) fn(&self) []
+            "#]],
+        );
+    }
+
+    #[test]
     fn set_struct_type_completion_info() {
         check_relevance(
             r#"
