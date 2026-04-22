@@ -2582,6 +2582,15 @@ impl Function {
         ret_type.derived(EarlyBinder::bind(ret_type.ty).instantiate(interner, args))
     }
 
+    pub(crate) fn can_instantiate_with_args(
+        self,
+        db: &dyn HirDatabase,
+        provided_args: usize,
+    ) -> bool {
+        let (_, sig) = self.fn_sig(db);
+        !sig_has_unsubstituted_params(sig, provided_args)
+    }
+
     fn adapt_generic_args<'db>(
         self,
         interner: DbInterner<'db>,
@@ -7335,6 +7344,38 @@ fn generic_args_from_tys<'db>(
             next_solver::GenericArg::error_from_id(interner, id)
         }
     })
+}
+
+fn sig_has_unsubstituted_params<'db>(sig: PolyFnSig<'db>, provided_args: usize) -> bool {
+    struct Visitor {
+        provided_args: usize,
+    }
+
+    impl<'db> TypeVisitor<DbInterner<'db>> for Visitor {
+        type Result = ControlFlow<()>;
+
+        fn visit_ty(&mut self, ty: Ty<'db>) -> Self::Result {
+            if let TyKind::Param(param) = ty.kind()
+                && param.index as usize >= self.provided_args
+            {
+                return ControlFlow::Break(());
+            }
+
+            ty.super_visit_with(self)
+        }
+
+        fn visit_const(&mut self, konst: hir_ty::next_solver::Const<'db>) -> Self::Result {
+            if let ConstKind::Param(param) = konst.kind()
+                && param.index as usize >= self.provided_args
+            {
+                return ControlFlow::Break(());
+            }
+
+            konst.super_visit_with(self)
+        }
+    }
+
+    sig.visit_with(&mut Visitor { provided_args }).is_break()
 }
 
 fn has_non_default_type_params(db: &dyn HirDatabase, generic_def: GenericDefId) -> bool {

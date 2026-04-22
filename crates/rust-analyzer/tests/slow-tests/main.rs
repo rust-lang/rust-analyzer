@@ -25,14 +25,14 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 use ide_db::FxHashMap;
 use lsp_types::{
     CodeActionContext, CodeActionParams, CompletionParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, DocumentRangeFormattingParams, FileRename, FormattingOptions,
-    GotoDefinitionParams, HoverParams, InlayHint, InlayHintLabel, InlayHintParams,
-    PartialResultParams, Position, Range, RenameFilesParams, TextDocumentItem,
+    DocumentDiagnosticParams, DocumentFormattingParams, DocumentRangeFormattingParams, FileRename,
+    FormattingOptions, GotoDefinitionParams, HoverParams, InlayHint, InlayHintLabel,
+    InlayHintParams, PartialResultParams, Position, Range, RenameFilesParams, TextDocumentItem,
     TextDocumentPositionParams, WorkDoneProgressParams,
     notification::DidOpenTextDocument,
     request::{
-        CodeActionRequest, Completion, Formatting, GotoTypeDefinition, HoverRequest,
-        InlayHintRequest, InlayHintResolveRequest, RangeFormatting, WillRenameFiles,
+        CodeActionRequest, Completion, DocumentDiagnosticRequest, Formatting, GotoTypeDefinition,
+        HoverRequest, InlayHintRequest, InlayHintResolveRequest, RangeFormatting, WillRenameFiles,
         WorkspaceSymbolRequest,
     },
 };
@@ -78,6 +78,50 @@ use std::collections::Spam;
         work_done_progress_params: WorkDoneProgressParams::default(),
     });
     assert!(res.to_string().contains("HashMap"));
+}
+
+#[test]
+fn typed_hole_diagnostic_on_incomplete_code() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+use std::time::Duration;
+
+fn some_fn() {
+    let
+
+    for _ in 0..2 {}
+}
+"#,
+    )
+    .with_config(serde_json::json!({
+        "cargo": { "sysroot": "discover" },
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    let res = server.send_request::<DocumentDiagnosticRequest>(DocumentDiagnosticParams {
+        text_document: server.doc_id("src/lib.rs"),
+        identifier: Some("rust-analyzer".to_owned()),
+        previous_result_id: None,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    });
+
+    assert_eq!(res["kind"], "full", "{res}");
+    assert!(
+        res["items"].as_array().is_some_and(|items| !items.is_empty()),
+        "Expected some diagnostics"
+    );
 }
 
 #[test]

@@ -363,6 +363,10 @@ pub(super) fn free_function<'a, 'lt, 'db, DB: HirDatabase>(
                             })
                             .collect::<Option<_>>()?;
 
+                        if !it.can_instantiate_with_args(db, generics.len()) {
+                            return None;
+                        }
+
                         let ret_ty = it.ret_type_with_args(db, generics.iter().cloned());
                         // Filter out private and unsafe functions
                         if !it.is_visible_from(db, module)
@@ -489,6 +493,10 @@ pub(super) fn impl_method<'a, 'lt, 'db, DB: HirDatabase>(
             // Ignore functions with generics for now as they kill the performance
             // Also checking bounds for generics is problematic
             if !fn_generics.type_or_const_params(db).is_empty() {
+                return None;
+            }
+
+            if !it.can_instantiate_with_args(db, ty.type_arguments().count()) {
                 return None;
             }
 
@@ -687,6 +695,10 @@ pub(super) fn impl_static_method<'a, 'lt, 'db, DB: HirDatabase>(
             // Ignore functions with generics for now as they kill the performance
             // Also checking bounds for generics is problematic
             if !fn_generics.type_or_const_params(db).is_empty() {
+                return None;
+            }
+
+            if !it.can_instantiate_with_args(db, ty.type_arguments().count()) {
                 return None;
             }
 
