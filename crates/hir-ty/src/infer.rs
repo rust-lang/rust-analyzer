@@ -399,6 +399,9 @@ pub enum InferenceDiagnostic {
         /// Whether the `GenericArgs` contains a `Self` arg.
         has_self_arg: bool,
     },
+    InvalidLhsOfAssignment {
+        lhs: ExprId,
+    },
 }
 
 /// A mismatch between an expected and an inferred type.

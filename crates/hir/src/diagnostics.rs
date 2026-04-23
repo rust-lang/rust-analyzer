@@ -63,6 +63,7 @@ diagnostics![AnyDiagnostic<'db> ->
     IncorrectCase,
     InvalidCast<'db>,
     InvalidDeriveTarget,
+    InvalidLhsOfAssignment,
     MacroDefError,
     MacroError,
     MacroExpansionParseError,
@@ -472,6 +473,11 @@ pub struct GenericDefaultRefersToSelf {
     pub segment: InFile<AstPtr<ast::PathSegment>>,
 }
 
+#[derive(Debug)]
+pub struct InvalidLhsOfAssignment {
+    pub lhs: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
+}
+
 impl<'db> AnyDiagnostic<'db> {
     pub(crate) fn body_validation_diagnostic(
         db: &'db dyn HirDatabase,
@@ -789,6 +795,10 @@ impl<'db> AnyDiagnostic<'db> {
                 let provided_arg = InFile::new(file_id, AstPtr::new(&provided_arg));
                 let expected_kind = GenericArgKind::from_id(param_id);
                 IncorrectGenericsOrder { provided_arg, expected_kind }.into()
+            }
+            &InferenceDiagnostic::InvalidLhsOfAssignment { lhs } => {
+                let lhs = expr_syntax(lhs)?;
+                InvalidLhsOfAssignment { lhs }.into()
             }
         })
     }
