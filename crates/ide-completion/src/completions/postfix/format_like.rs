@@ -73,7 +73,7 @@ pub(crate) fn add_format_like_completions(
                 format!(r#"{}({}, {}){semi}"#, macro_name, out, exprs.join(", "))
             };
 
-            postfix_snippet(label, macro_name, &snippet).add_to(acc, ctx.db);
+            postfix_snippet(label, macro_name, snippet).add_to(acc, ctx.db);
         }
     }
 }
