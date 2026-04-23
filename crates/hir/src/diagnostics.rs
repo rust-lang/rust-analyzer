@@ -543,59 +543,47 @@ impl<'db> AnyDiagnostic<'db> {
                 }
             }
             BodyValidationDiagnostic::MissingMatchArms { match_expr, uncovered_patterns } => {
-                match source_map.expr_syntax(match_expr) {
-                    Ok(source_ptr) => {
-                        let root = source_ptr.file_syntax(db);
-                        if let Either::Left(ast::Expr::MatchExpr(match_expr)) =
-                            &source_ptr.value.to_node(&root)
-                        {
-                            match match_expr.expr() {
-                                Some(scrut_expr) if match_expr.match_arm_list().is_some() => {
-                                    return Some(
-                                        MissingMatchArms {
-                                            scrutinee_expr: InFile::new(
-                                                source_ptr.file_id,
-                                                AstPtr::new(&scrut_expr),
-                                            ),
-                                            uncovered_patterns,
-                                        }
-                                        .into(),
-                                    );
-                                }
-                                _ => {}
-                            }
+                if let Ok(source_ptr) = source_map.expr_syntax(match_expr)
+                    && let root = source_ptr.file_syntax(db)
+                    && let Either::Left(ast::Expr::MatchExpr(match_expr)) =
+                        source_ptr.value.to_node(&root)
+                    && let Some(scrut_expr) = match_expr.expr()
+                    && match_expr.match_arm_list().is_some()
+                {
+                    return Some(
+                        MissingMatchArms {
+                            scrutinee_expr: InFile::new(
+                                source_ptr.file_id,
+                                AstPtr::new(&scrut_expr),
+                            ),
+                            uncovered_patterns,
                         }
-                    }
-                    Err(SyntheticSyntax) => (),
+                        .into(),
+                    );
                 }
             }
             BodyValidationDiagnostic::NonExhaustiveLet { pat, uncovered_patterns } => {
-                match source_map.pat_syntax(pat) {
-                    Ok(source_ptr) => {
-                        if let Some(ast_pat) = source_ptr.value.cast::<ast::Pat>() {
-                            return Some(
-                                NonExhaustiveLet {
-                                    pat: InFile::new(source_ptr.file_id, ast_pat),
-                                    uncovered_patterns,
-                                }
-                                .into(),
-                            );
+                if let Ok(source_ptr) = source_map.pat_syntax(pat)
+                    && let Some(ast_pat) = source_ptr.value.cast::<ast::Pat>()
+                {
+                    return Some(
+                        NonExhaustiveLet {
+                            pat: InFile::new(source_ptr.file_id, ast_pat),
+                            uncovered_patterns,
                         }
-                    }
-                    Err(SyntheticSyntax) => {}
+                        .into(),
+                    );
                 }
             }
             BodyValidationDiagnostic::RemoveTrailingReturn { return_expr } => {
-                if let Ok(source_ptr) = source_map.expr_syntax(return_expr) {
+                if let Ok(source_ptr) = source_map.expr_syntax(return_expr)
                     // Filters out desugared return expressions (e.g. desugared try operators).
-                    if let Some(ptr) = source_ptr.value.cast::<ast::ReturnExpr>() {
-                        return Some(
-                            RemoveTrailingReturn {
-                                return_expr: InFile::new(source_ptr.file_id, ptr),
-                            }
+                    && let Some(ptr) = source_ptr.value.cast::<ast::ReturnExpr>()
+                {
+                    return Some(
+                        RemoveTrailingReturn { return_expr: InFile::new(source_ptr.file_id, ptr) }
                             .into(),
-                        );
-                    }
+                    );
                 }
             }
             BodyValidationDiagnostic::RemoveUnnecessaryElse { if_expr } => {
