@@ -1218,9 +1218,9 @@ async function promptForNewProjectOpenAction(
     const openNewWindow = "Open in New Window";
     const choices = [open, openNewWindow];
 
-    const addToWorkspace = "Add to Workspace";
+    const addToWorkspace = "Add to VS Code Workspace";
     if (hasWorkspaceFolders) {
-        message = `Would you like to open ${projectName}, or add it to the current workspace?`;
+        message = `Would you like to open ${projectName}, or add it to the current VS Code workspace?`;
         choices.push(addToWorkspace);
     }
 
