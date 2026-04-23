@@ -58,7 +58,7 @@ pub mod relate;
 pub mod resolve;
 pub mod select;
 pub(crate) mod snapshot;
-pub(crate) mod traits;
+pub mod traits;
 mod type_variable;
 mod unify_key;
 
@@ -494,8 +494,7 @@ impl<'db> InferCtxt<'db> {
     ///     check::<&'_ T>();
     /// }
     /// ```
-    #[expect(dead_code, reason = "this is used in rustc")]
-    fn predicate_must_hold_considering_regions(
+    pub fn predicate_must_hold_considering_regions(
         &self,
         obligation: &PredicateObligation<'db>,
     ) -> bool {
@@ -507,8 +506,10 @@ impl<'db> InferCtxt<'db> {
     /// not entirely accurate if inference variables are involved.
     ///
     /// This version ignores all outlives constraints.
-    #[expect(dead_code, reason = "this is used in rustc")]
-    fn predicate_must_hold_modulo_regions(&self, obligation: &PredicateObligation<'db>) -> bool {
+    pub fn predicate_must_hold_modulo_regions(
+        &self,
+        obligation: &PredicateObligation<'db>,
+    ) -> bool {
         self.evaluate_obligation(obligation).must_apply_modulo_regions()
     }
 
@@ -608,6 +609,13 @@ impl<'db> InferCtxt<'db> {
         // moves_by_default has a cache, which we want to use in other
         // cases.
         traits::type_known_to_meet_bound_modulo_regions(self, param_env, ty, copy_def_id)
+    }
+
+    pub fn type_is_sized_modulo_regions(&self, param_env: ParamEnv<'db>, ty: Ty<'db>) -> bool {
+        let Some(sized_def_id) = self.interner.lang_items().Sized else {
+            return true;
+        };
+        traits::type_known_to_meet_bound_modulo_regions(self, param_env, ty, sized_def_id)
     }
 
     pub fn type_is_use_cloned_modulo_regions(&self, param_env: ParamEnv<'db>, ty: Ty<'db>) -> bool {

@@ -21,11 +21,14 @@ use crate::{
     db::{HirDatabase, InternedOpaqueTyId},
     lower::{GenericPredicates, associated_ty_item_bounds},
     next_solver::{
-        AliasTy, Binder, Clause, Clauses, DbInterner, EarlyBinder, GenericArgs, Goal, ParamEnv,
-        ParamTy, SolverDefId, TraitPredicate, TraitRef, Ty, TypingMode, infer::DbInternerInferExt,
+        AliasTy, Binder, Clause, Clauses, DbInterner, EarlyBinder, GenericArgs, ParamEnv, ParamTy,
+        SolverDefId, TraitPredicate, TraitRef, Ty, TypingMode,
+        infer::{
+            DbInternerInferExt,
+            traits::{Obligation, ObligationCause},
+        },
         mk_param,
     },
-    traits::next_trait_solve_in_ctxt,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -474,12 +477,11 @@ fn receiver_is_dispatchable<'db>(
     // Receiver: DispatchFromDyn<Receiver[Self => U]>
     let predicate =
         TraitRef::new(interner, dispatch_from_dyn_did.into(), [receiver_ty, unsized_receiver_ty]);
-    let goal = Goal::new(interner, param_env, predicate);
+    let obligation = Obligation::new(interner, ObligationCause::dummy(), param_env, predicate);
 
     let infcx = interner.infer_ctxt().build(TypingMode::non_body_analysis());
     // the receiver is dispatchable iff the obligation holds
-    let res = next_trait_solve_in_ctxt(&infcx, goal);
-    res.map_or(false, |res| matches!(res.1, rustc_type_ir::solve::Certainty::Yes))
+    infcx.predicate_must_hold_modulo_regions(&obligation)
 }
 
 fn receiver_for_self_ty<'db>(

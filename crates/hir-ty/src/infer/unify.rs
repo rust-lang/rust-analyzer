@@ -3,10 +3,10 @@
 use std::fmt;
 
 use base_db::Crate;
-use hir_def::{AdtId, ExpressionStoreOwnerId, GenericParamId, TraitId};
+use hir_def::{ExpressionStoreOwnerId, GenericParamId, TraitId};
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{
-    TyVid, TypeFoldable, TypeVisitableExt, UpcastFrom,
+    TyVid, TypeFoldable, TypeVisitableExt,
     inherent::{Const as _, GenericArg as _, IntoKind, Ty as _},
     solve::Certainty,
 };
@@ -15,23 +15,20 @@ use smallvec::SmallVec;
 use crate::{
     db::HirDatabase,
     next_solver::{
-        Canonical, ClauseKind, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs, Goal,
+        Canonical, ClauseKind, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs,
         ParamEnv, Predicate, PredicateKind, Region, SolverDefId, Term, TraitRef, Ty, TyKind,
         TypingMode,
         fulfill::{FulfillmentCtxt, NextSolverError},
         infer::{
-            DbInternerInferExt, InferCtxt, InferOk, InferResult,
-            at::{At, ToTrace},
+            DbInternerInferExt, InferCtxt, InferOk,
+            at::At,
             snapshot::CombinedSnapshot,
             traits::{Obligation, ObligationCause, PredicateObligation},
         },
         inspect::{InspectConfig, InspectGoal, ProofTreeVisitor},
         obligation_ctxt::ObligationCtxt,
     },
-    traits::{
-        NextTraitSolveResult, ParamEnvAndCrate, next_trait_solve_canonical_in_ctxt,
-        next_trait_solve_in_ctxt,
-    },
+    traits::ParamEnvAndCrate,
 };
 
 struct NestedObligationsForSelfTy<'a, 'db> {
@@ -133,11 +130,6 @@ pub(crate) struct InferenceTable<'db> {
     pub(super) diverging_type_vars: FxHashSet<Ty<'db>>,
 }
 
-pub(crate) struct InferenceTableSnapshot<'db> {
-    ctxt_snapshot: CombinedSnapshot,
-    obligations: FulfillmentCtxt<'db>,
-}
-
 impl<'db> InferenceTable<'db> {
     /// Inside hir-ty you should use this for inference only, and always pass `owner`.
     /// Outside it, always pass `owner = None`.
@@ -145,14 +137,10 @@ impl<'db> InferenceTable<'db> {
         db: &'db dyn HirDatabase,
         trait_env: ParamEnv<'db>,
         krate: Crate,
-        owner: Option<ExpressionStoreOwnerId>,
+        owner: ExpressionStoreOwnerId,
     ) -> Self {
         let interner = DbInterner::new_with(db, krate);
-        let typing_mode = match owner {
-            Some(owner) => TypingMode::typeck_for_body(interner, owner.into()),
-            // IDE things wants to reveal opaque types.
-            None => TypingMode::PostAnalysis,
-        };
+        let typing_mode = TypingMode::typeck_for_body(interner, owner.into());
         let infer_ctxt = interner.infer_ctxt().build(typing_mode);
         InferenceTable {
             db,
@@ -170,6 +158,10 @@ impl<'db> InferenceTable<'db> {
 
     pub(crate) fn type_is_copy_modulo_regions(&self, ty: Ty<'db>) -> bool {
         self.infer_ctxt.type_is_copy_modulo_regions(self.param_env, ty)
+    }
+
+    pub(crate) fn type_is_sized_modulo_regions(&self, ty: Ty<'db>) -> bool {
+        self.infer_ctxt.type_is_sized_modulo_regions(self.param_env, ty)
     }
 
     pub(crate) fn type_is_use_cloned_modulo_regions(&self, ty: Ty<'db>) -> bool {
@@ -253,23 +245,6 @@ impl<'db> InferenceTable<'db> {
         self.diverging_type_vars.insert(ty);
     }
 
-    pub(crate) fn canonicalize<T>(&mut self, t: T) -> rustc_type_ir::Canonical<DbInterner<'db>, T>
-    where
-        T: TypeFoldable<DbInterner<'db>>,
-    {
-        // try to resolve obligations before canonicalizing, since this might
-        // result in new knowledge about variables
-        self.select_obligations_where_possible();
-        self.infer_ctxt.canonicalize_response(t)
-    }
-
-    pub(crate) fn normalize_alias_ty(&mut self, alias: Ty<'db>) -> Ty<'db> {
-        self.infer_ctxt
-            .at(&ObligationCause::new(), self.param_env)
-            .structurally_normalize_ty(alias, &mut self.fulfillment_cx)
-            .unwrap_or(alias)
-    }
-
     pub(crate) fn next_ty_var(&self) -> Ty<'db> {
         self.infer_ctxt.next_ty_var()
     }
@@ -313,23 +288,16 @@ impl<'db> InferenceTable<'db> {
         value.fold_with(&mut resolve_completely::Resolver::new(self, true, &mut goals))
     }
 
-    /// Unify two relatable values (e.g. `Ty`) and register new trait goals that arise from that.
-    pub(crate) fn unify<T: ToTrace<'db>>(&mut self, ty1: T, ty2: T) -> bool {
-        self.try_unify(ty1, ty2).map(|infer_ok| self.register_infer_ok(infer_ok)).is_ok()
-    }
-
-    /// Unify two relatable values (e.g. `Ty`) and return new trait goals arising from it, so the
-    /// caller needs to deal with them.
-    pub(crate) fn try_unify<T: ToTrace<'db>>(&mut self, t1: T, t2: T) -> InferResult<'db, ()> {
-        self.at(&ObligationCause::new()).eq(t1, t2)
-    }
-
     pub(crate) fn at<'a>(&'a self, cause: &'a ObligationCause) -> At<'a, 'db> {
         self.infer_ctxt.at(cause, self.param_env)
     }
 
     pub(crate) fn shallow_resolve(&self, ty: Ty<'db>) -> Ty<'db> {
         self.infer_ctxt.shallow_resolve(ty)
+    }
+
+    pub(crate) fn resolve_vars_if_possible<T: TypeFoldable<DbInterner<'db>>>(&self, t: T) -> T {
+        self.infer_ctxt.resolve_vars_if_possible(t)
     }
 
     pub(crate) fn resolve_vars_with_obligations<T>(&mut self, t: T) -> T
@@ -380,16 +348,13 @@ impl<'db> InferenceTable<'db> {
         // FIXME: Err if it still contain infer vars.
     }
 
-    pub(crate) fn snapshot(&mut self) -> InferenceTableSnapshot<'db> {
-        let ctxt_snapshot = self.infer_ctxt.start_snapshot();
-        let obligations = self.fulfillment_cx.clone();
-        InferenceTableSnapshot { ctxt_snapshot, obligations }
+    pub(crate) fn snapshot(&mut self) -> CombinedSnapshot {
+        self.infer_ctxt.start_snapshot()
     }
 
     #[tracing::instrument(skip_all)]
-    pub(crate) fn rollback_to(&mut self, snapshot: InferenceTableSnapshot<'db>) {
-        self.infer_ctxt.rollback_to(snapshot.ctxt_snapshot);
-        self.fulfillment_cx = snapshot.obligations;
+    pub(crate) fn rollback_to(&mut self, snapshot: CombinedSnapshot) {
+        self.infer_ctxt.rollback_to(snapshot);
     }
 
     pub(crate) fn commit_if_ok<T, E>(
@@ -399,49 +364,10 @@ impl<'db> InferenceTable<'db> {
         let snapshot = self.snapshot();
         let result = f(self);
         match result {
-            Ok(_) => {}
-            Err(_) => {
-                self.rollback_to(snapshot);
-            }
+            Ok(_) => self.infer_ctxt.commit_from(snapshot),
+            Err(_) => self.rollback_to(snapshot),
         }
         result
-    }
-
-    /// Checks an obligation without registering it. Useful mostly to check
-    /// whether a trait *might* be implemented before deciding to 'lock in' the
-    /// choice (during e.g. method resolution or deref).
-    #[tracing::instrument(level = "debug", skip(self))]
-    pub(crate) fn try_obligation(&mut self, predicate: Predicate<'db>) -> NextTraitSolveResult {
-        let goal = Goal { param_env: self.param_env, predicate };
-        let canonicalized = self.canonicalize(goal);
-
-        next_trait_solve_canonical_in_ctxt(&self.infer_ctxt, canonicalized)
-    }
-
-    pub(crate) fn register_obligation(&mut self, predicate: Predicate<'db>) {
-        let goal = Goal { param_env: self.param_env, predicate };
-        self.register_obligation_in_env(goal)
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    fn register_obligation_in_env(&mut self, goal: Goal<'db, Predicate<'db>>) {
-        let result = next_trait_solve_in_ctxt(&self.infer_ctxt, goal);
-        tracing::debug!(?result);
-        match result {
-            Ok((_, Certainty::Yes)) => {}
-            Err(rustc_type_ir::solve::NoSolution) => {}
-            Ok((_, Certainty::Maybe { .. })) => {
-                self.fulfillment_cx.register_predicate_obligation(
-                    &self.infer_ctxt,
-                    Obligation::new(
-                        self.interner(),
-                        ObligationCause::new(),
-                        goal.param_env,
-                        goal.predicate,
-                    ),
-                );
-            }
-        }
     }
 
     pub(crate) fn register_bound(&mut self, ty: Ty<'db>, def_id: TraitId, cause: ObligationCause) {
@@ -532,70 +458,6 @@ impl<'db> InferenceTable<'db> {
     /// Replaces ConstScalar::Unknown by a new type var, so we can maybe still infer it.
     pub(super) fn insert_const_vars_shallow(&mut self, c: Const<'db>) -> Const<'db> {
         if c.is_ct_error() { self.next_const_var() } else { c }
-    }
-
-    /// Check if given type is `Sized` or not
-    pub(crate) fn is_sized(&mut self, ty: Ty<'db>) -> bool {
-        fn short_circuit_trivial_tys(ty: Ty<'_>) -> Option<bool> {
-            match ty.kind() {
-                TyKind::Bool
-                | TyKind::Char
-                | TyKind::Int(_)
-                | TyKind::Uint(_)
-                | TyKind::Float(_)
-                | TyKind::Ref(..)
-                | TyKind::RawPtr(..)
-                | TyKind::Never
-                | TyKind::FnDef(..)
-                | TyKind::Array(..)
-                | TyKind::FnPtr(..) => Some(true),
-                TyKind::Slice(..) | TyKind::Str | TyKind::Dynamic(..) => Some(false),
-                _ => None,
-            }
-        }
-
-        let mut ty = ty;
-        ty = self.try_structurally_resolve_type(ty);
-        if let Some(sized) = short_circuit_trivial_tys(ty) {
-            return sized;
-        }
-
-        {
-            let mut structs = SmallVec::<[_; 8]>::new();
-            // Must use a loop here and not recursion because otherwise users will conduct completely
-            // artificial examples of structs that have themselves as the tail field and complain r-a crashes.
-            while let Some((AdtId::StructId(id), subst)) = ty.as_adt() {
-                let struct_data = id.fields(self.db);
-                if let Some((last_field, _)) = struct_data.fields().iter().next_back() {
-                    let last_field_ty = self.db.field_types(id.into())[last_field]
-                        .get()
-                        .instantiate(self.interner(), subst);
-                    if structs.contains(&ty) {
-                        // A struct recursively contains itself as a tail field somewhere.
-                        return true; // Don't overload the users with too many errors.
-                    }
-                    structs.push(ty);
-                    // Structs can have DST as its last field and such cases are not handled
-                    // as unsized by the chalk, so we do this manually.
-                    ty = last_field_ty;
-                    ty = self.try_structurally_resolve_type(ty);
-                    if let Some(sized) = short_circuit_trivial_tys(ty) {
-                        return sized;
-                    }
-                } else {
-                    break;
-                };
-            }
-        }
-
-        let Some(sized) = self.interner().lang_items().Sized else {
-            return false;
-        };
-        let sized_pred = Predicate::upcast_from(
-            TraitRef::new(self.interner(), sized.into(), [ty]),
-            self.interner(),
-        );
-        self.try_obligation(sized_pred).certain()
     }
 }
 

@@ -440,8 +440,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         .eq(inferred_fnptr_sig, generalized_fnptr_sig)
                         .map(|infer_ok| self.table.register_infer_ok(infer_ok));
 
-                    let resolved_sig =
-                        self.table.infer_ctxt.resolve_vars_if_possible(generalized_fnptr_sig);
+                    let resolved_sig = self.resolve_vars_if_possible(generalized_fnptr_sig);
 
                     if resolved_sig.visit_with(&mut MentionsTy { expected_ty }).is_continue() {
                         expected_sig = Some(resolved_sig.fn_sig(self.interner()));
@@ -531,7 +530,7 @@ impl<'db> InferenceContext<'_, 'db> {
         &self,
         projection: PolyProjectionPredicate<'db>,
     ) -> Option<PolyFnSig<'db>> {
-        let projection = self.table.infer_ctxt.resolve_vars_if_possible(projection);
+        let projection = self.resolve_vars_if_possible(projection);
 
         let arg_param_ty = projection.skip_binder().projection_term.args.type_at(1);
         debug!(?arg_param_ty);
@@ -576,7 +575,7 @@ impl<'db> InferenceContext<'_, 'db> {
         &mut self,
         projection: PolyProjectionPredicate<'db>,
     ) -> Option<PolyFnSig<'db>> {
-        let projection = self.table.infer_ctxt.resolve_vars_if_possible(projection);
+        let projection = self.resolve_vars_if_possible(projection);
 
         let arg_param_ty = projection.skip_binder().projection_term.args.type_at(1);
         debug!(?arg_param_ty);
@@ -822,11 +821,8 @@ impl<'db> InferenceContext<'_, 'db> {
                     .eq(expected_sigs.liberated_sig.output(), supplied_output_ty)?;
             all_obligations.extend(obligations);
 
-            let inputs = supplied_sig
-                .inputs()
-                .iter()
-                .copied()
-                .map(|ty| table.infer_ctxt.resolve_vars_if_possible(ty));
+            let inputs =
+                supplied_sig.inputs().iter().copied().map(|ty| table.resolve_vars_if_possible(ty));
 
             expected_sigs.liberated_sig = table.interner().mk_fn_sig(
                 inputs,

@@ -152,10 +152,8 @@ where
         let snapshot = self.infcx().start_snapshot();
         let result = f(self);
         match result {
-            Ok(_) => {}
-            Err(_) => {
-                self.infcx().rollback_to(snapshot);
-            }
+            Ok(_) => self.infcx().commit_from(snapshot),
+            Err(_) => self.infcx().rollback_to(snapshot),
         }
         result
     }

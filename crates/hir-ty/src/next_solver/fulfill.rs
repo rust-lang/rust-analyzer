@@ -44,7 +44,6 @@ pub struct FulfillmentCtxt<'db> {
     /// outside of this snapshot leads to subtle bugs if the snapshot
     /// gets rolled back. Because of this we explicitly check that we only
     /// use the context in exactly this snapshot.
-    #[expect(unused)]
     usable_in_snapshot: usize,
     try_evaluate_obligations_scratch: PendingObligations<'db>,
 }
@@ -120,24 +119,22 @@ impl<'db> FulfillmentCtxt<'db> {
 }
 
 impl<'db> FulfillmentCtxt<'db> {
-    #[tracing::instrument(level = "trace", skip(self, _infcx))]
+    #[tracing::instrument(level = "trace", skip(self, infcx))]
     pub(crate) fn register_predicate_obligation(
         &mut self,
-        _infcx: &InferCtxt<'db>,
+        infcx: &InferCtxt<'db>,
         obligation: PredicateObligation<'db>,
     ) {
-        // FIXME: See the comment in `try_evaluate_obligations()`.
-        // assert_eq!(self.usable_in_snapshot, infcx.num_open_snapshots());
+        assert_eq!(self.usable_in_snapshot, infcx.num_open_snapshots());
         self.obligations.register(obligation, None);
     }
 
     pub(crate) fn register_predicate_obligations(
         &mut self,
-        _infcx: &InferCtxt<'db>,
+        infcx: &InferCtxt<'db>,
         obligations: impl IntoIterator<Item = PredicateObligation<'db>>,
     ) {
-        // FIXME: See the comment in `try_evaluate_obligations()`.
-        // assert_eq!(self.usable_in_snapshot, infcx.num_open_snapshots());
+        assert_eq!(self.usable_in_snapshot, infcx.num_open_snapshots());
         obligations.into_iter().for_each(|obligation| self.obligations.register(obligation, None));
     }
 
@@ -157,11 +154,7 @@ impl<'db> FulfillmentCtxt<'db> {
         &mut self,
         infcx: &InferCtxt<'db>,
     ) -> Vec<NextSolverError<'db>> {
-        // FIXME(next-solver): We should bring this assertion back. Currently it panics because
-        // there are places which use `InferenceTable` and open a snapshot and register obligations
-        // and select. They should use a different `ObligationCtxt` instead. Then we'll be also able
-        // to not put the obligations queue in `InferenceTable`'s snapshots.
-        // assert_eq!(self.usable_in_snapshot, infcx.num_open_snapshots());
+        assert_eq!(self.usable_in_snapshot, infcx.num_open_snapshots());
         self.try_evaluate_obligations_scratch.clear();
         let mut errors = Vec::new();
         loop {

@@ -147,7 +147,8 @@ impl<'db> CastCheck<'db> {
             return Ok(());
         }
 
-        if !self.cast_ty.has_infer_types() && !ctx.table.is_sized(self.cast_ty) {
+        if !self.cast_ty.has_infer_types() && !ctx.table.type_is_sized_modulo_regions(self.cast_ty)
+        {
             return Err(InferenceDiagnostic::CastToUnsized {
                 expr: self.expr,
                 cast_ty: self.cast_ty.store(),
@@ -199,7 +200,7 @@ impl<'db> CastCheck<'db> {
                             // array-ptr-cast
                             CastTy::Ptr(t, m) => {
                                 let t = ctx.table.try_structurally_resolve_type(t);
-                                if !ctx.table.is_sized(t) {
+                                if !ctx.table.type_is_sized_modulo_regions(t) {
                                     return Err(CastError::IllegalCast);
                                 }
                                 self.check_ref_cast(ctx, inner_ty, mutbl, t, m)
@@ -520,7 +521,7 @@ fn pointer_kind<'db>(
 ) -> Result<Option<PointerKind<'db>>, ()> {
     let ty = ctx.table.try_structurally_resolve_type(ty);
 
-    if ctx.table.is_sized(ty) {
+    if ctx.table.type_is_sized_modulo_regions(ty) {
         return Ok(Some(PointerKind::Thin));
     }
 

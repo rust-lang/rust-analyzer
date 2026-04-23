@@ -185,12 +185,12 @@ impl<'db> PredicateObligation<'db> {
 
 impl<'db, O> Obligation<'db, O> {
     pub fn new(
-        tcx: DbInterner<'db>,
+        interner: DbInterner<'db>,
         cause: ObligationCause,
         param_env: ParamEnv<'db>,
         predicate: impl Upcast<DbInterner<'db>, O>,
     ) -> Obligation<'db, O> {
-        Self::with_depth(tcx, cause, 0, param_env, predicate)
+        Self::with_depth(interner, cause, 0, param_env, predicate)
     }
 
     /// We often create nested obligations without setting the correct depth.
@@ -202,13 +202,13 @@ impl<'db, O> Obligation<'db, O> {
     }
 
     pub fn with_depth(
-        tcx: DbInterner<'db>,
+        interner: DbInterner<'db>,
         cause: ObligationCause,
         recursion_depth: usize,
         param_env: ParamEnv<'db>,
         predicate: impl Upcast<DbInterner<'db>, O>,
     ) -> Obligation<'db, O> {
-        let predicate = predicate.upcast(tcx);
+        let predicate = predicate.upcast(interner);
         Obligation { cause, param_env, recursion_depth, predicate }
     }
 

@@ -4,11 +4,12 @@ use std::{iter::repeat_with, mem};
 
 use either::Either;
 use hir_def::{
-    FieldId, GenericDefId, ItemContainerId, Lookup, TupleFieldId, TupleId,
+    AdtId, FieldId, TupleFieldId, TupleId, VariantId,
     expr_store::path::{GenericArgs as HirGenericArgs, Path},
     hir::{
         Array, AsmOperand, AsmOptions, BinaryOp, BindingAnnotation, Expr, ExprId, ExprOrPatId,
-        InlineAsmKind, LabelId, Literal, Pat, PatId, RecordSpread, Statement, UnaryOp,
+        InlineAsmKind, LabelId, Literal, Pat, PatId, RecordLitField, RecordSpread, Statement,
+        UnaryOp,
     },
     resolver::ValueNs,
     signatures::VariantFields,
@@ -16,27 +17,27 @@ use hir_def::{
 use hir_def::{FunctionId, hir::ClosureKind};
 use hir_expand::name::Name;
 use rustc_ast_ir::Mutability;
+use rustc_hash::FxHashMap;
 use rustc_type_ir::{
     InferTy, Interner,
     inherent::{AdtDef, GenericArgs as _, IntoKind, Ty as _},
 };
+use stdx::never;
 use syntax::ast::RangeOp;
 use tracing::debug;
 
 use crate::{
     Adjust, Adjustment, CallableDefId, Rawness, consteval,
-    generics::generics,
     infer::{AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable, pat::PatOrigin},
-    lower::{GenericPredicates, lower_mutability},
+    lower::lower_mutability,
     method_resolution::{self, CandidateId, MethodCallee, MethodError},
     next_solver::{
-        ClauseKind, FnSig, GenericArg, GenericArgs, TraitRef, Ty, TyKind, TypeError,
+        ClauseKind, FnSig, GenericArg, GenericArgs, Ty, TyKind, TypeError,
         infer::{
             BoundRegionConversionTime, InferOk,
             traits::{Obligation, ObligationCause},
         },
         obligation_ctxt::ObligationCtxt,
-        util::clauses_as_obligations,
     },
 };
 
@@ -60,15 +61,39 @@ impl<'db> InferenceContext<'_, 'db> {
     ) -> Ty<'db> {
         let ty = self.infer_expr_inner(tgt_expr, expected, is_read);
         if let Some(expected_ty) = expected.only_has_type(&mut self.table) {
-            let could_unify = self.unify(ty, expected_ty);
-            if !could_unify {
-                self.result.type_mismatches.get_or_insert_default().insert(
-                    tgt_expr.into(),
-                    TypeMismatch { expected: expected_ty.store(), actual: ty.store() },
-                );
-            }
+            _ = self.demand_eqtype(tgt_expr.into(), expected_ty, ty);
         }
         ty
+    }
+
+    pub(crate) fn infer_expr_suptype_coerce_never(
+        &mut self,
+        expr: ExprId,
+        expected: &Expectation<'db>,
+        is_read: ExprIsRead,
+    ) -> Ty<'db> {
+        let ty = self.infer_expr_inner(expr, expected, is_read);
+        if ty.is_never() {
+            if let Some(adjustments) = self.result.expr_adjustments.get(&expr) {
+                return if let [Adjustment { kind: Adjust::NeverToAny, target }] = &**adjustments {
+                    target.as_ref()
+                } else {
+                    self.err_ty()
+                };
+            }
+
+            if let Some(target) = expected.only_has_type(&mut self.table) {
+                self.coerce(expr, ty, target, AllowTwoPhase::No, ExprIsRead::Yes)
+                    .expect("never-to-any coercion should always succeed")
+            } else {
+                ty
+            }
+        } else {
+            if let Some(expected_ty) = expected.only_has_type(&mut self.table) {
+                _ = self.demand_suptype(expr.into(), expected_ty, ty);
+            }
+            ty
+        }
     }
 
     pub(crate) fn infer_expr_no_expect(
@@ -283,13 +308,7 @@ impl<'db> InferenceContext<'_, 'db> {
             }
         } else {
             if let Some(expected_ty) = expected.only_has_type(&mut self.table) {
-                let could_unify = self.unify(ty, expected_ty);
-                if !could_unify {
-                    self.result.type_mismatches.get_or_insert_default().insert(
-                        expr.into(),
-                        TypeMismatch { expected: expected_ty.store(), actual: ty.store() },
-                    );
-                }
+                _ = self.demand_eqtype(expr.into(), ty, expected_ty);
             }
             ty
         }
@@ -579,80 +598,10 @@ impl<'db> InferenceContext<'_, 'db> {
                 self.types.types.never
             }
             Expr::RecordLit { path, fields, spread, .. } => {
-                let (ty, def_id) = self.resolve_variant(tgt_expr.into(), path, false);
-
-                if let Some(t) = expected.only_has_type(&mut self.table) {
-                    self.unify(ty, t);
-                }
-
-                let substs = ty.as_adt().map(|(_, s)| s).unwrap_or(self.types.empty.generic_args);
-                if let Some(variant) = def_id {
-                    self.write_variant_resolution(tgt_expr.into(), variant);
-                }
-                match def_id {
-                    _ if fields.is_empty() => {}
-                    Some(def) => {
-                        let field_types = self.db.field_types(def);
-                        let variant_data = def.fields(self.db);
-                        let visibilities = VariantFields::field_visibilities(self.db, def);
-                        for field in fields.iter() {
-                            let field_def = {
-                                match variant_data.field(&field.name) {
-                                    Some(local_id) => {
-                                        if !visibilities[local_id]
-                                            .is_visible_from(self.db, self.resolver.module())
-                                        {
-                                            self.push_diagnostic(
-                                                InferenceDiagnostic::NoSuchField {
-                                                    field: field.expr.into(),
-                                                    private: Some(local_id),
-                                                    variant: def,
-                                                },
-                                            );
-                                        }
-                                        Some(local_id)
-                                    }
-                                    None => {
-                                        self.push_diagnostic(InferenceDiagnostic::NoSuchField {
-                                            field: field.expr.into(),
-                                            private: None,
-                                            variant: def,
-                                        });
-                                        None
-                                    }
-                                }
-                            };
-                            let field_ty = field_def.map_or(self.err_ty(), |it| {
-                                field_types[it].get().instantiate(self.interner(), &substs)
-                            });
-
-                            // Field type might have some unknown types
-                            // FIXME: we may want to emit a single type variable for all instance of type fields?
-                            let field_ty = self.insert_type_vars(field_ty);
-                            self.infer_expr_coerce(
-                                field.expr,
-                                &Expectation::has_type(field_ty),
-                                ExprIsRead::Yes,
-                            );
-                        }
-                    }
-                    None => {
-                        for field in fields.iter() {
-                            // Field projections don't constitute reads.
-                            self.infer_expr_coerce(field.expr, &Expectation::None, ExprIsRead::No);
-                        }
-                    }
-                }
-                if let RecordSpread::Expr(expr) = *spread {
-                    self.infer_expr_coerce_never(expr, &Expectation::has_type(ty), ExprIsRead::Yes);
-                }
-                ty
+                self.infer_record_expr(tgt_expr, expected, path, fields, *spread)
             }
             Expr::Field { expr, name } => self.infer_field_access(tgt_expr, *expr, name, expected),
-            Expr::Await { expr } => {
-                let inner_ty = self.infer_expr_inner(*expr, &Expectation::none(), ExprIsRead::Yes);
-                self.resolve_associated_type(inner_ty, self.resolve_future_future_output())
-            }
+            Expr::Await { expr } => self.infer_await_expr(*expr),
             Expr::Cast { expr, type_ref } => {
                 let cast_ty = self.make_body_ty(*type_ref);
                 let expr_ty =
@@ -1019,6 +968,243 @@ impl<'db> InferenceContext<'_, 'db> {
         ty
     }
 
+    fn infer_await_expr(&mut self, awaitee: ExprId) -> Ty<'db> {
+        let awaitee_ty = self.infer_expr_no_expect(awaitee, ExprIsRead::Yes);
+        let (Some(into_future), Some(into_future_output)) =
+            (self.lang_items.IntoFuture, self.lang_items.IntoFutureOutput)
+        else {
+            return self.types.types.error;
+        };
+        self.table.register_bound(awaitee_ty, into_future, ObligationCause::new());
+        // Do not eagerly normalize.
+        Ty::new_projection(self.interner(), into_future_output.into(), [awaitee_ty])
+    }
+
+    fn infer_record_expr(
+        &mut self,
+        expr: ExprId,
+        expected: &Expectation<'db>,
+        path: &Path,
+        fields: &[RecordLitField],
+        base_expr: RecordSpread,
+    ) -> Ty<'db> {
+        // Find the relevant variant
+        let (adt_ty, Some(variant)) = self.resolve_variant(expr.into(), path, false) else {
+            // FIXME: Emit an error.
+            for field in fields {
+                self.infer_expr_no_expect(field.expr, ExprIsRead::Yes);
+            }
+
+            return self.types.types.error;
+        };
+        self.write_variant_resolution(expr.into(), variant);
+
+        // Prohibit struct expressions when non-exhaustive flag is set.
+        if self.has_applicable_non_exhaustive(variant.into()) {
+            // FIXME: Emit an error.
+        }
+
+        self.check_record_expr_fields(adt_ty, expected, expr, variant, fields, base_expr);
+
+        self.require_type_is_sized(adt_ty);
+        adt_ty
+    }
+
+    fn check_record_expr_fields(
+        &mut self,
+        adt_ty: Ty<'db>,
+        expected: &Expectation<'db>,
+        expr: ExprId,
+        variant: VariantId,
+        hir_fields: &[RecordLitField],
+        base_expr: RecordSpread,
+    ) {
+        let interner = self.interner();
+
+        let adt_ty = self.table.try_structurally_resolve_type(adt_ty);
+        let adt_ty_hint = expected.only_has_type(&mut self.table).and_then(|expected| {
+            self.infcx()
+                .fudge_inference_if_ok(|| {
+                    let mut ocx = ObligationCtxt::new(self.infcx());
+                    ocx.sup(&ObligationCause::new(), self.table.param_env, expected, adt_ty)?;
+                    if !ocx.try_evaluate_obligations().is_empty() {
+                        return Err(TypeError::Mismatch);
+                    }
+                    Ok(self.resolve_vars_if_possible(adt_ty))
+                })
+                .ok()
+        });
+        if let Some(adt_ty_hint) = adt_ty_hint {
+            // re-link the variables that the fudging above can create.
+            _ = self.demand_eqtype(expr.into(), adt_ty_hint, adt_ty);
+        }
+
+        let TyKind::Adt(adt, args) = adt_ty.kind() else {
+            never!("non-ADT passed to check_struct_expr_fields");
+            return;
+        };
+        let adt_id = adt.def_id().0;
+
+        let variant_fields = variant.fields(self.db);
+        let variant_field_tys = self.db.field_types(variant);
+        let variant_field_vis = VariantFields::field_visibilities(self.db, variant);
+        let mut remaining_fields = variant_fields
+            .fields()
+            .iter()
+            .map(|(i, field)| (field.name.clone(), i))
+            .collect::<FxHashMap<_, _>>();
+
+        let mut seen_fields = FxHashMap::default();
+
+        // Type-check each field.
+        for field in hir_fields {
+            let name = &field.name;
+            let field_type = if let Some(i) = remaining_fields.remove(name) {
+                seen_fields.insert(name, i);
+
+                if !self.resolver.is_visible(self.db, variant_field_vis[i]) {
+                    self.push_diagnostic(InferenceDiagnostic::NoSuchField {
+                        field: field.expr.into(),
+                        private: Some(i),
+                        variant,
+                    });
+                }
+
+                variant_field_tys[i].get().instantiate(interner, args)
+            } else {
+                if let Some(field_idx) = seen_fields.get(&name) {
+                    // FIXME: Emit an error: duplicate field.
+                    variant_field_tys[*field_idx].get().instantiate(interner, args)
+                } else {
+                    self.push_diagnostic(InferenceDiagnostic::NoSuchField {
+                        field: field.expr.into(),
+                        private: None,
+                        variant,
+                    });
+                    self.types.types.error
+                }
+            };
+
+            // Check that the expected field type is WF. Otherwise, we emit no use-site error
+            // in the case of coercions for non-WF fields, which leads to incorrect error
+            // tainting. See issue #126272.
+            self.table.register_wf_obligation(field_type.into(), ObligationCause::new());
+
+            // Make sure to give a type to the field even if there's
+            // an error, so we can continue type-checking.
+            self.infer_expr_coerce(field.expr, &Expectation::has_type(field_type), ExprIsRead::Yes);
+        }
+
+        // Make sure the programmer specified correct number of fields.
+        if matches!(adt_id, AdtId::UnionId(_)) && hir_fields.len() != 1 {
+            // FIXME: Emit an error: unions must specify exactly one field.
+        }
+
+        match base_expr {
+            RecordSpread::FieldDefaults => {
+                let mut missing_mandatory_fields = Vec::new();
+                let mut missing_optional_fields = Vec::new();
+                for (field_idx, field) in variant_fields.fields().iter() {
+                    if remaining_fields.remove(&field.name).is_some() {
+                        if field.default_value.is_none() {
+                            missing_mandatory_fields.push(field_idx);
+                        } else {
+                            missing_optional_fields.push(field_idx);
+                        }
+                    }
+                }
+                if !missing_mandatory_fields.is_empty() {
+                    // FIXME: Emit an error: missing fields.
+                }
+            }
+            RecordSpread::Expr(base_expr) => {
+                // FIXME: We are currently creating two branches here in order to maintain
+                // consistency. But they should be merged as much as possible.
+                if self.features.type_changing_struct_update {
+                    if matches!(adt_id, AdtId::StructId(_)) {
+                        // Make some fresh generic parameters for our ADT type.
+                        let fresh_args = self.table.fresh_args_for_item(adt_id.into());
+                        // We do subtyping on the FRU fields first, so we can
+                        // learn exactly what types we expect the base expr
+                        // needs constrained to be compatible with the struct
+                        // type we expect from the expectation value.
+                        for (field_idx, field) in variant_fields.fields().iter() {
+                            let fru_ty = variant_field_tys[field_idx]
+                                .get()
+                                .instantiate(interner, fresh_args);
+                            if remaining_fields.remove(&field.name).is_some() {
+                                let target_ty =
+                                    variant_field_tys[field_idx].get().instantiate(interner, args);
+                                let cause = ObligationCause::new();
+                                match self.table.at(&cause).sup(target_ty, fru_ty) {
+                                    Ok(InferOk { obligations, value: () }) => {
+                                        self.table.register_predicates(obligations)
+                                    }
+                                    Err(_) => {
+                                        never!(
+                                            "subtyping remaining fields of type changing FRU \
+                                                failed: {target_ty:?} != {fru_ty:?}: {:?}",
+                                            field.name,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        // The use of fresh args that we have subtyped against
+                        // our base ADT type's fields allows us to guide inference
+                        // along so that, e.g.
+                        // ```
+                        // MyStruct<'a, F1, F2, const C: usize> {
+                        //     f: F1,
+                        //     // Other fields that reference `'a`, `F2`, and `C`
+                        // }
+                        //
+                        // let x = MyStruct {
+                        //    f: 1usize,
+                        //    ..other_struct
+                        // };
+                        // ```
+                        // will have the `other_struct` expression constrained to
+                        // `MyStruct<'a, _, F2, C>`, as opposed to just `_`...
+                        // This is important to allow coercions to happen in
+                        // `other_struct` itself. See `coerce-in-base-expr.rs`.
+                        let fresh_base_ty = Ty::new_adt(self.interner(), adt_id, fresh_args);
+                        self.infer_expr_suptype_coerce_never(
+                            base_expr,
+                            &Expectation::has_type(self.resolve_vars_if_possible(fresh_base_ty)),
+                            ExprIsRead::Yes,
+                        );
+                    } else {
+                        // Check the base_expr, regardless of a bad expected adt_ty, so we can get
+                        // type errors on that expression, too.
+                        self.infer_expr_no_expect(base_expr, ExprIsRead::Yes);
+                        // FIXME: Emit an error: functional update syntax on non-struct.
+                    }
+                } else {
+                    self.infer_expr_suptype_coerce_never(
+                        base_expr,
+                        &Expectation::has_type(adt_ty),
+                        ExprIsRead::Yes,
+                    );
+                    if !matches!(adt_id, AdtId::StructId(_)) {
+                        // FIXME: Emit an error: functional update syntax on non-struct.
+                    }
+                }
+            }
+            RecordSpread::None => {
+                if !matches!(adt_id, AdtId::UnionId(_))
+                    && !remaining_fields.is_empty()
+                    //~ non_exhaustive already reported, which will only happen for extern modules
+                    && !self.has_applicable_non_exhaustive(adt_id.into())
+                {
+                    debug!(?remaining_fields);
+
+                    // FIXME: Emit an error: missing fields.
+                }
+            }
+        }
+    }
+
     fn demand_scrutinee_type(
         &mut self,
         scrut: ExprId,
@@ -1255,7 +1441,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
                 // NB: this should *not* coerce.
                 //     tail calls don't support any coercions except lifetimes ones (like `&'static u8 -> &'a u8`).
-                self.unify(call_expr_ty, ret_ty);
+                _ = self.demand_eqtype(expr.into(), call_expr_ty, ret_ty);
             }
             None => {
                 // FIXME: diagnose `become` outside of functions
@@ -1553,7 +1739,7 @@ impl<'db> InferenceContext<'_, 'db> {
         MethodCallee { def_id, args, sig }
     }
 
-    fn check_call(
+    fn infer_method_call_as_call(
         &mut self,
         tgt_expr: ExprId,
         args: &[ExprId],
@@ -1564,7 +1750,14 @@ impl<'db> InferenceContext<'_, 'db> {
         is_varargs: bool,
         expected: &Expectation<'db>,
     ) -> Ty<'db> {
-        self.register_obligations_for_call(callee_ty);
+        if let TyKind::FnDef(def_id, args) = callee_ty.kind() {
+            let def_id = match def_id.0 {
+                CallableDefId::FunctionId(it) => it.into(),
+                CallableDefId::StructId(it) => it.into(),
+                CallableDefId::EnumVariantId(it) => it.loc(self.db).parent.into(),
+            };
+            self.add_required_obligations_for_value_path(def_id, args);
+        }
 
         self.check_call_arguments(
             tgt_expr,
@@ -1670,7 +1863,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     }),
                 };
                 match recovered {
-                    Some((callee_ty, sig, strip_first)) => self.check_call(
+                    Some((callee_ty, sig, strip_first)) => self.infer_method_call_as_call(
                         tgt_expr,
                         args,
                         callee_ty,
@@ -1956,40 +2149,6 @@ impl<'db> InferenceContext<'_, 'db> {
         }
 
         if !args_count_matches {}
-    }
-
-    fn register_obligations_for_call(&mut self, callable_ty: Ty<'db>) {
-        let callable_ty = self.table.try_structurally_resolve_type(callable_ty);
-        if let TyKind::FnDef(fn_def, parameters) = callable_ty.kind() {
-            let generic_predicates = GenericPredicates::query_all(
-                self.db,
-                GenericDefId::from_callable(self.db, fn_def.0),
-            );
-            let param_env = self.table.param_env;
-            self.table.register_predicates(clauses_as_obligations(
-                generic_predicates.iter_instantiated(self.interner(), parameters.as_slice()),
-                ObligationCause::new(),
-                param_env,
-            ));
-            // add obligation for trait implementation, if this is a trait method
-            match fn_def.0 {
-                CallableDefId::FunctionId(f) => {
-                    if let ItemContainerId::TraitId(trait_) = f.lookup(self.db).container {
-                        // construct a TraitRef
-                        let trait_params_len = generics(self.db, trait_.into()).len();
-                        let substs =
-                            GenericArgs::new_from_slice(&parameters.as_slice()[..trait_params_len]);
-                        self.table.register_predicate(Obligation::new(
-                            self.interner(),
-                            ObligationCause::new(),
-                            self.table.param_env,
-                            TraitRef::new_from_args(self.interner(), trait_.into(), substs),
-                        ));
-                    }
-                }
-                CallableDefId::StructId(_) | CallableDefId::EnumVariantId(_) => {}
-            }
-        }
     }
 
     pub(super) fn with_breakable_ctx<T>(

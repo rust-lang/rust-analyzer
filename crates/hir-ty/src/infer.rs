@@ -35,8 +35,8 @@ use base_db::{Crate, FxIndexMap};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, AttrDefId, ConstId, ConstParamId, DefWithBodyId, ExpressionStoreOwnerId,
-    FieldId, FunctionId, GenericDefId, GenericParamId, HasModule, ItemContainerId, LocalFieldId,
-    Lookup, TraitId, TupleFieldId, TupleId, TypeAliasId, TypeOrConstParamId, VariantId,
+    FieldId, FunctionId, GenericDefId, GenericParamId, HasModule, LocalFieldId, Lookup, TraitId,
+    TupleFieldId, TupleId, TypeOrConstParamId, VariantId,
     attrs::AttrFlags,
     expr_store::{Body, ExpressionStore, HygieneId, RootExprOrigin, path::Path},
     hir::{BindingId, ExprId, ExprOrPatId, LabelId, PatId},
@@ -49,7 +49,6 @@ use hir_def::{
 };
 use hir_expand::{mod_path::ModPath, name::Name};
 use indexmap::IndexSet;
-use intern::sym;
 use la_arena::ArenaMap;
 use rustc_ast_ir::Mutability;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -83,8 +82,8 @@ use crate::{
     },
     method_resolution::CandidateId,
     next_solver::{
-        AliasTy, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs, Region,
-        StoredGenericArgs, StoredTy, StoredTys, Ty, TyKind, Tys,
+        AliasTy, Const, DbInterner, ErrorGuaranteed, GenericArgs, Region, StoredGenericArgs,
+        StoredTy, StoredTys, Ty, TyKind, Tys,
         abi::Safety,
         infer::{InferCtxt, ObligationInspector, traits::ObligationCause},
     },
@@ -1240,7 +1239,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 db.trait_environment(ExpressionStoreOwnerId::VariantFields(variant_id))
             }
         };
-        let table = unify::InferenceTable::new(db, trait_env, resolver.krate(), Some(owner));
+        let table = unify::InferenceTable::new(db, trait_env, resolver.krate(), owner);
         let types = crate::next_solver::default_types(db);
         InferenceContext {
             result: InferenceResult::new(types.types.error),
@@ -1791,10 +1790,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.table.insert_type_vars(ty)
     }
 
-    fn unify(&mut self, ty1: Ty<'db>, ty2: Ty<'db>) -> bool {
-        self.table.unify(ty1, ty2)
-    }
-
     /// Attempts to returns the deeply last field of nested structures, but
     /// does not apply any normalization in its search. Returns the same type
     /// if input `ty` is not a structure at all.
@@ -1871,12 +1866,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.table.shallow_resolve(ty)
     }
 
-    fn resolve_associated_type(
-        &mut self,
-        inner_ty: Ty<'db>,
-        assoc_ty: Option<TypeAliasId>,
-    ) -> Ty<'db> {
-        self.resolve_associated_type_with_params(inner_ty, assoc_ty, &[])
+    pub(crate) fn resolve_vars_if_possible<T: TypeFoldable<DbInterner<'db>>>(&self, t: T) -> T {
+        self.table.resolve_vars_if_possible(t)
     }
 
     fn demand_eqtype(
@@ -1972,30 +1963,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             ty = Some(it.target.as_ref());
         }
         ty.unwrap_or_else(|| self.expr_ty(e))
-    }
-
-    fn resolve_associated_type_with_params(
-        &mut self,
-        inner_ty: Ty<'db>,
-        assoc_ty: Option<TypeAliasId>,
-        // FIXME(GATs): these are args for the trait ref, args for assoc type itself should be
-        // handled when we support them.
-        params: &[GenericArg<'db>],
-    ) -> Ty<'db> {
-        match assoc_ty {
-            Some(res_assoc_ty) => {
-                let alias = Ty::new_alias(
-                    self.interner(),
-                    AliasTy::new(
-                        self.interner(),
-                        AliasTyKind::Projection { def_id: res_assoc_ty.into() },
-                        iter::once(inner_ty.into()).chain(params.iter().copied()),
-                    ),
-                );
-                self.table.try_structurally_resolve_type(alias)
-            }
-            None => self.err_ty(),
-        }
     }
 
     fn resolve_variant(
@@ -2323,19 +2290,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         }
     }
 
-    fn resolve_output_on(&self, trait_: TraitId) -> Option<TypeAliasId> {
-        trait_.trait_items(self.db).associated_type_by_name(&Name::new_symbol_root(sym::Output))
-    }
-
-    fn resolve_future_future_output(&self) -> Option<TypeAliasId> {
-        let ItemContainerId::TraitId(trait_) =
-            self.lang_items.IntoFutureIntoFuture?.lookup(self.db).container
-        else {
-            return None;
-        };
-        self.resolve_output_on(trait_)
-    }
-
     fn resolve_boxed_box(&self) -> Option<AdtId> {
         let struct_ = self.lang_items.OwnedBox?;
         Some(struct_.into())
@@ -2489,7 +2443,7 @@ impl<'db> Expectation<'db> {
 
     fn only_has_type(&self, table: &mut unify::InferenceTable<'db>) -> Option<Ty<'db>> {
         match self {
-            Expectation::HasType(t) => Some(table.shallow_resolve(*t)),
+            Expectation::HasType(t) => Some(table.resolve_vars_if_possible(*t)),
             Expectation::Castable(_) | Expectation::RValueLikeUnsized(_) | Expectation::None => {
                 None
             }
