@@ -34,7 +34,8 @@ use crate::{
     CompletionContext, CompletionItem, CompletionItemKind,
     context::{
         DotAccess, ItemListKind, NameContext, NameKind, NameRefContext, NameRefKind,
-        PathCompletionCtx, PathKind, PatternContext, TypeAscriptionTarget, TypeLocation, Visible,
+        PathCompletionCtx, PathKind, PatternContext, Qualified, TypeAscriptionTarget, TypeLocation,
+        Visible,
     },
     item::Builder,
     render::{
@@ -752,6 +753,7 @@ pub(super) fn complete_name_ref(
                             if let TypeAscriptionTarget::RetType { item: Some(item), .. } =
                                 ascription
                                 && path_ctx.required_thin_arrow().is_some()
+                                && matches!(path_ctx.qualified, Qualified::No)
                             {
                                 keyword::complete_for_and_where(acc, ctx, &item.clone().into());
                             }

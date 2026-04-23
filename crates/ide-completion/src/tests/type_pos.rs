@@ -142,6 +142,26 @@ fn x() $0
             kw where
         "#]],
     );
+
+    check_with_base_items(
+        r#"
+mod foo { pub struct Bar; }
+fn x() foo::$0
+"#,
+        expect![[r#"
+            st Bar (adds ->) Bar
+        "#]],
+    );
+
+    check_with_base_items(
+        r#"
+mod foo { pub struct Bar; }
+fn x() foo::b$0
+"#,
+        expect![[r#"
+            st Bar (adds ->) Bar
+        "#]],
+    );
 }
 
 #[test]
