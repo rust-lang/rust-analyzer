@@ -190,7 +190,13 @@ pub(crate) fn apply_demorgan(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 // }
 // ```
 pub(crate) fn apply_demorgan_iterator(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let method_call: ast::MethodCallExpr = ctx.find_node_at_offset()?;
+    let method_call: ast::MethodCallExpr = ctx.find_node_at_offset().or_else(|| {
+        let parent = ctx.find_token_syntax_at_offset(T![!])?.parent()?;
+        match ast::PrefixExpr::cast(parent)?.expr()? {
+            ast::Expr::MethodCallExpr(method_call) => Some(method_call),
+            _ => None,
+        }
+    })?;
     let (name, arg_expr) = validate_method_call_expr(ctx, &method_call)?;
 
     let ast::Expr::ClosureExpr(closure_expr) = arg_expr else { return None };
@@ -391,6 +397,26 @@ fn f() { if let 1 = 1 &&$0 true { } }
             "fn f() { $0!(1 || 3 && 4 || 5) }",
             "fn f() { !1 && !(3 && 4) && !5 }",
         )
+    }
+
+    #[test]
+    fn demorgan_iterator_on_not() {
+        check_assist(
+            apply_demorgan_iterator,
+            r#"
+//- minicore: iterator
+fn main() {
+    let arr = [1, 2, 3];
+    let cond = $0!arr.into_iter().all(|num| num != 4);
+}
+"#,
+            r#"
+fn main() {
+    let arr = [1, 2, 3];
+    let cond = arr.into_iter().any(|num| num == 4);
+}
+"#,
+        );
     }
 
     #[test]
