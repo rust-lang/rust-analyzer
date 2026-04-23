@@ -3,7 +3,7 @@
 
 use core::fmt;
 
-use hir::{Adt, AsAssocItem, Crate, HirDisplay, MacroKind, Semantics};
+use hir::{Adt, AsAssocItem, Crate, HirDisplay, MacroKind, Module, Semantics};
 use ide_db::{
     FilePosition, RootDatabase,
     base_db::{CrateOrigin, LangCrateOrigin},
@@ -102,7 +102,7 @@ impl fmt::Display for MonikerIdentifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MonikerKind {
     Import,
     Export,
@@ -113,14 +113,14 @@ pub enum MonikerResult {
     /// Uniquely identifies a definition.
     Moniker(Moniker),
     /// Specifies that the definition is a local, and so does not have a unique identifier. Provides
-    /// a unique identifier for the container.
-    Local { enclosing_moniker: Option<Moniker> },
+    /// unique identifiers for containers, from the closest to the farthest.
+    Local { enclosing_monikers: Vec<Moniker> },
 }
 
-impl MonikerResult {
-    pub fn from_def(db: &RootDatabase, def: Definition, from_crate: Crate) -> Option<Self> {
-        def_to_moniker(db, def, from_crate)
-    }
+// moniker is relative to root, root is either crate root or block module
+struct PartialMonikerResult {
+    moniker: Moniker,
+    root: Module,
 }
 
 /// Information which uniquely identifies a definition which might be referenceable outside of the
@@ -160,7 +160,7 @@ pub(crate) fn moniker(
     })?;
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
         return doc_comment.get_definition_with_descend_at(sema, offset, |def, _, _| {
-            let m = def_to_moniker(db, def, current_crate)?;
+            let m = def_to_moniker(sema, def, current_crate)?;
             Some(RangeInfo::new(original_token.text_range(), vec![m]))
         });
     }
@@ -168,9 +168,9 @@ pub(crate) fn moniker(
         .descend_into_macros_exact(original_token.clone())
         .into_iter()
         .filter_map(|token| {
-            IdentClass::classify_token(sema, &token).map(IdentClass::definitions_no_ops).map(|it| {
-                it.into_iter().flat_map(|def| def_to_moniker(sema.db, def, current_crate))
-            })
+            IdentClass::classify_token(sema, &token)
+                .map(IdentClass::definitions_no_ops)
+                .map(|it| it.into_iter().flat_map(|def| def_to_moniker(sema, def, current_crate)))
         })
         .flatten()
         .unique()
@@ -242,47 +242,57 @@ pub(crate) fn def_to_kind(db: &RootDatabase, def: Definition) -> SymbolInformati
 ///
 /// * `Some(MonikerResult::Moniker(_))` provides a unique `Moniker` which refers to a definition.
 ///
-/// * `Some(MonikerResult::Local { .. })` provides a `Moniker` for the definition enclosing a local.
+/// * `Some(MonikerResult::Local { .. })` provides a `Moniker` for the definitions enclosing a local.
 ///
 /// * `None` is returned for definitions which are not in a module: `BuiltinAttr`, `BuiltinType`,
 ///   `BuiltinLifetime`, `TupleField`, `ToolModule`, and `InlineAsmRegOrRegClass`. TODO: it might be
 ///   sensible to provide monikers that refer to some non-existent crate of compiler builtin
 ///   definitions.
 pub(crate) fn def_to_moniker(
-    db: &RootDatabase,
+    sema: &Semantics<'_, RootDatabase>,
     definition: Definition,
     from_crate: Crate,
 ) -> Option<MonikerResult> {
-    match definition {
+    let db = sema.db;
+    let mut local = false;
+    let mut def = definition;
+    match def {
         Definition::Local(_) | Definition::Label(_) | Definition::GenericParam(_) => {
-            return Some(MonikerResult::Local {
-                enclosing_moniker: enclosing_def_to_moniker(db, definition, from_crate),
-            });
+            local = true;
+            def = def.enclosing_definition(db)?;
         }
         _ => {}
     }
-    Some(MonikerResult::Moniker(def_to_non_local_moniker(db, definition, from_crate)?))
-}
-
-fn enclosing_def_to_moniker(
-    db: &RootDatabase,
-    mut def: Definition,
-    from_crate: Crate,
-) -> Option<Moniker> {
+    let mut enclosing_monikers = vec![];
     loop {
-        let enclosing_def = def.enclosing_definition(db)?;
-        if let Some(enclosing_moniker) = def_to_non_local_moniker(db, enclosing_def, from_crate) {
-            return Some(enclosing_moniker);
+        let result = def_to_moniker_step(sema, def, from_crate)?;
+        let PartialMonikerResult { moniker, root } = result;
+        enclosing_monikers.push(moniker);
+        if root.is_crate_root(db) {
+            break;
+        } else if let Some(block_expr) = root.block(db) {
+            let expr = block_expr.into();
+            def = sema.enclosing_body(&expr)?.try_into().ok()?;
+        } else {
+            break;
         }
-        def = enclosing_def;
+    }
+    if enclosing_monikers.len() == 1 && !local {
+        Some(MonikerResult::Moniker(enclosing_monikers[0].clone()))
+    } else {
+        if !local {
+            enclosing_monikers.remove(0);
+        }
+        Some(MonikerResult::Local { enclosing_monikers })
     }
 }
 
-fn def_to_non_local_moniker(
-    db: &RootDatabase,
+fn def_to_moniker_step(
+    sema: &Semantics<'_, RootDatabase>,
     definition: Definition,
     from_crate: Crate,
-) -> Option<Moniker> {
+) -> Option<PartialMonikerResult> {
+    let db = sema.db;
     let module = match definition {
         Definition::Module(module) if module.is_crate_root(db) => module,
         _ => definition.module(db)?,
@@ -290,6 +300,7 @@ fn def_to_non_local_moniker(
     let krate = module.krate(db);
     let edition = krate.edition(db);
 
+    let mut root = None;
     // Add descriptors for this definition and every enclosing definition.
     let mut reverse_description = vec![];
     let mut def = definition;
@@ -330,6 +341,12 @@ fn def_to_non_local_moniker(
                                     desc: MonikerDescriptorKind::Namespace,
                                 });
                             }
+                            root = Some(module);
+                            break;
+                        }
+                        Definition::Module(module) if module.block(db).is_some() => {
+                            root = Some(module);
+                            break;
                         }
                         _ => {
                             tracing::error!(?def, "Encountered enclosing definition with no name");
@@ -349,7 +366,8 @@ fn def_to_non_local_moniker(
     reverse_description.reverse();
     let description = reverse_description;
 
-    Some(Moniker {
+    let root = root?;
+    let moniker = Moniker {
         identifier: MonikerIdentifier {
             crate_name: krate.display_name(db)?.crate_name().to_string(),
             description,
@@ -381,7 +399,9 @@ fn def_to_non_local_moniker(
             };
             PackageInformation { name: name.as_str().to_owned(), repo, version }
         },
-    })
+    };
+
+    Some(PartialMonikerResult { moniker, root })
 }
 
 fn display<'db, T: HirDisplay<'db>>(db: &'db RootDatabase, module: hir::Module, it: T) -> String {
@@ -414,24 +434,27 @@ mod tests {
         }
     }
 
+    struct MonikerExpectation<'a> {
+        identifier: &'a str,
+        package: &'a str,
+        kind: MonikerKind,
+    }
+
     #[track_caller]
     fn check_local_moniker(
         #[rust_analyzer::rust_fixture] ra_fixture: &str,
-        identifier: &str,
-        package: &str,
-        kind: MonikerKind,
+        expected_list: &[MonikerExpectation<'_>],
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
         let x = analysis.moniker(position).unwrap().expect("no moniker found").info;
         assert_eq!(x.len(), 1);
         match x.into_iter().next().unwrap() {
-            MonikerResult::Local { enclosing_moniker: Some(x) } => {
-                assert_eq!(identifier, x.identifier.to_string());
-                assert_eq!(package, format!("{:?}", x.package_information));
-                assert_eq!(kind, x.kind);
-            }
-            MonikerResult::Local { enclosing_moniker: None } => {
-                panic!("Unexpected local with no enclosing moniker");
+            MonikerResult::Local { enclosing_monikers } => {
+                for (actual, expected) in enclosing_monikers.iter().zip(expected_list) {
+                    assert_eq!(actual.identifier.to_string(), expected.identifier);
+                    assert_eq!(format!("{:?}", actual.package_information), expected.package);
+                    assert_eq!(actual.kind, expected.kind);
+                }
             }
             MonikerResult::Moniker(_) => {
                 panic!("Unexpected non-local moniker");
@@ -450,8 +473,8 @@ mod tests {
         let x = analysis.moniker(position).unwrap().expect("no moniker found").info;
         assert_eq!(x.len(), 1);
         match x.into_iter().next().unwrap() {
-            MonikerResult::Local { enclosing_moniker } => {
-                panic!("Unexpected local enclosed in {enclosing_moniker:?}");
+            MonikerResult::Local { enclosing_monikers } => {
+                panic!("Unexpected local enclosed in {enclosing_monikers:?}");
             }
             MonikerResult::Moniker(x) => {
                 assert_eq!(identifier, x.identifier.to_string());
@@ -605,9 +628,28 @@ pub mod module {
     }
 }
 "#,
-            "foo::module::func",
-            r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
-            MonikerKind::Export,
+            &[MonikerExpectation {
+                identifier: "foo::module::func",
+                package: r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+                kind: MonikerKind::Export,
+            }],
+        );
+    }
+
+    #[test]
+    fn nested() {
+        check_local_moniker(
+            r#"
+//- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
+fn func() {
+    fn nested$0() {}
+}
+"#,
+            &[MonikerExpectation {
+                identifier: "foo::func",
+                package: r#"PackageInformation { name: "foo", repo: Some("https://a.b/foo.git"), version: Some("0.1.0") }"#,
+                kind: MonikerKind::Export,
+            }],
         );
     }
 }

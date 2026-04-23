@@ -629,6 +629,11 @@ impl Module {
         Some(Module { id: parent_id })
     }
 
+    pub fn block(self, db: &dyn HirDatabase) -> Option<ast::BlockExpr> {
+        let block_id = self.id.block(db)?;
+        Some(block_id.loc(db).ast_id.to_node(db))
+    }
+
     /// Finds nearest non-block ancestor `Module` (`self` included).
     pub fn nearest_non_block_module(self, db: &dyn HirDatabase) -> Module {
         let mut id = self.id;

@@ -302,9 +302,6 @@ Known rust-analyzer bugs that can cause this:
   * Definitions in crate example binaries which have the same symbol as definitions in the library
     or some other example.
 
-  * Struct/enum/const/static/impl definitions nested in a function do not mention the function name.
-    See #18771.
-
 Duplicate symbols encountered:
 ";
 
@@ -456,13 +453,13 @@ impl SymbolGenerator {
                             _ => false,
                         },
                     },
-                    MonikerResult::Local { enclosing_moniker } => {
+                    MonikerResult::Local { enclosing_monikers } => {
                         let local_symbol = scip::types::Symbol::new_local(local_count);
                         local_count += 1;
                         TokenSymbols {
                             symbol: scip::symbol::format_symbol(local_symbol),
-                            enclosing_symbol: enclosing_moniker
-                                .as_ref()
+                            enclosing_symbol: enclosing_monikers
+                                .last()
                                 .map(moniker_to_symbol)
                                 .map(scip::symbol::format_symbol),
                             is_inherent_impl: false,
@@ -563,14 +560,12 @@ mod test {
                         Some(MonikerResult::Moniker(moniker)) => {
                             Some(scip::symbol::format_symbol(moniker_to_symbol(moniker)))
                         }
-                        Some(MonikerResult::Local { enclosing_moniker: Some(moniker) }) => {
+                        Some(MonikerResult::Local { enclosing_monikers }) => {
+                            let moniker = enclosing_monikers.last().unwrap();
                             Some(format!(
                                 "local enclosed by {}",
                                 scip::symbol::format_symbol(moniker_to_symbol(moniker))
                             ))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: None }) => {
-                            Some("unenclosed local".to_owned())
                         }
                     };
                     break;
@@ -834,7 +829,6 @@ pub mod example_mod {
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_nested_function() {
         check_symbol(
@@ -844,13 +838,10 @@ pub mod example_mod {
        pub fn inner_func$0() {}
     }
     "#,
-            "rust-analyzer cargo main . inner_func().",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_struct_in_function() {
         check_symbol(
@@ -860,13 +851,10 @@ pub mod example_mod {
        struct SomeStruct$0 {}
     }
     "#,
-            "rust-analyzer cargo main . SomeStruct#",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_const_in_function() {
         check_symbol(
@@ -876,13 +864,10 @@ pub mod example_mod {
        const SOME_CONST$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_CONST.",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
-    // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_static_in_function() {
         check_symbol(
@@ -892,9 +877,7 @@ pub mod example_mod {
        static SOME_STATIC$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . SOME_STATIC.",
-            // FIXME: This should be a local:
-            // "local enclosed by rust-analyzer cargo main . func().",
+            "local enclosed by rust-analyzer cargo main . func().",
         );
     }
 
