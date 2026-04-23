@@ -27,12 +27,12 @@ use stdx::never;
 use crate::{
     GenericArgsProhibitedReason, IncorrectGenericsLenKind, PathGenericsSource,
     PathLoweringDiagnostic, TyDefId, ValueTyDefId,
-    consteval::{unknown_const, unknown_const_as_generic},
+    consteval::unknown_const_as_generic,
     db::HirDatabase,
     generics::{Generics, generics},
     lower::{
         AssocTypeShorthandResolution, GenericPredicateSource, LifetimeElisionKind,
-        PathDiagnosticCallbackData,
+        PathDiagnosticCallbackData, unknown_const,
     },
     next_solver::{
         Binder, Clause, Const, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg, GenericArgs,
@@ -57,7 +57,7 @@ pub(crate) struct PathDiagnosticCallback<'a, 'db> {
 }
 
 pub(crate) struct PathLoweringContext<'a, 'b, 'db> {
-    ctx: &'a mut TyLoweringContext<'db, 'b>,
+    pub(crate) ctx: &'a mut TyLoweringContext<'db, 'b>,
     on_diagnostic: PathDiagnosticCallback<'a, 'db>,
     path: &'a Path,
     segments: PathSegments<'a>,
@@ -741,7 +741,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             ) -> Const<'db> {
                 match arg {
                     TypeLikeConst::Path(path) => self.ctx.ctx.lower_path_as_const(path, const_ty),
-                    TypeLikeConst::Infer => unknown_const(const_ty),
+                    TypeLikeConst::Infer => unknown_const(self.ctx.ctx.interner, const_ty),
                 }
             }
 
@@ -783,7 +783,10 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         let GenericParamId::ConstParamId(const_id) = param_id else {
                             unreachable!("non-const param ID for const param");
                         };
-                        unknown_const_as_generic(const_param_ty_query(self.ctx.ctx.db, const_id))
+                        unknown_const_as_generic(
+                            self.ctx.ctx.interner,
+                            const_param_ty_query(self.ctx.ctx.db, const_id),
+                        )
                     }
                 }
             }
@@ -793,9 +796,10 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     GenericParamId::TypeParamId(_) => {
                         Ty::new_error(self.ctx.ctx.interner, ErrorGuaranteed).into()
                     }
-                    GenericParamId::ConstParamId(const_id) => {
-                        unknown_const_as_generic(const_param_ty_query(self.ctx.ctx.db, const_id))
-                    }
+                    GenericParamId::ConstParamId(const_id) => unknown_const_as_generic(
+                        self.ctx.ctx.interner,
+                        const_param_ty_query(self.ctx.ctx.db, const_id),
+                    ),
                     GenericParamId::LifetimeParamId(_) => {
                         Region::new(self.ctx.ctx.interner, rustc_type_ir::ReError(ErrorGuaranteed))
                             .into()
@@ -1334,7 +1338,7 @@ fn unknown_subst<'db>(interner: DbInterner<'db>, def: impl Into<GenericDefId>) -
         params.iter_id().map(|id| match id {
             GenericParamId::TypeParamId(_) => Ty::new_error(interner, ErrorGuaranteed).into(),
             GenericParamId::ConstParamId(id) => {
-                unknown_const_as_generic(const_param_ty_query(interner.db(), id))
+                unknown_const_as_generic(interner, const_param_ty_query(interner.db(), id))
             }
             GenericParamId::LifetimeParamId(_) => Region::error(interner).into(),
         }),

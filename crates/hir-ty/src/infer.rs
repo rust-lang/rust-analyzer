@@ -2249,8 +2249,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                     return (self.err_ty(), None);
                 };
                 let args = path_ctx.substs_from_path_segment(it.into(), true, None, false);
+                let interner = path_ctx.ctx.interner;
                 drop(ctx);
-                let interner = DbInterner::conjure();
                 let ty = self.db.ty(it.into()).instantiate(interner, args);
                 let ty = self.insert_type_vars(ty);
 
