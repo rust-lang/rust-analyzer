@@ -30,18 +30,18 @@ pub(crate) fn type_mismatch(
     let display_range = adjusted_display_range(ctx, d.expr_or_pat, &|node| {
         let Either::Left(expr) = node else { return None };
         let salient_token_range = match expr {
-   ast::Expr::IfExpr(it) => {
-    // Determine the appropriate text range for if-expression type mismatch diagnostics.
-    // In if-else expressions, type mismatches commonly arise from branches with
-    // incompatible types. By prioritizing the else branch range when present,
-    // we ensure diagnostics and quickfixes highlight the actual error location
-    // rather than just the `if` keyword, improving user experience.
-    if let Some(else_branch) = it.else_branch() {
-        else_branch.syntax().text_range()
-    } else {
-        it.if_token()?.text_range()
-    }
-},
+            ast::Expr::IfExpr(it) => {
+                // Determine the appropriate text range for if-expression type mismatch diagnostics.
+                // In if-else expressions, type mismatches commonly arise from branches with
+                // incompatible types. By prioritizing the else branch range when present,
+                // we ensure diagnostics and quickfixes highlight the actual error location
+                // rather than just the `if` keyword, improving user experience.
+                if let Some(else_branch) = it.else_branch() {
+                    else_branch.syntax().text_range()
+                } else {
+                    it.if_token()?.text_range()
+                }
+            }
             ast::Expr::LoopExpr(it) => it.loop_token()?.text_range(),
             ast::Expr::ForExpr(it) => it.for_token()?.text_range(),
             ast::Expr::WhileExpr(it) => it.while_token()?.text_range(),
