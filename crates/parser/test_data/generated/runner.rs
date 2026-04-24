@@ -584,6 +584,8 @@ mod ok {
         run_and_expect_no_errors("test_data/parser/inline/ok/reference_type.rs");
     }
     #[test]
+    fn return_attr() { run_and_expect_no_errors("test_data/parser/inline/ok/return_attr.rs"); }
+    #[test]
     fn return_expr() { run_and_expect_no_errors("test_data/parser/inline/ok/return_expr.rs"); }
     #[test]
     fn return_type_syntax_in_path() {
