@@ -87,7 +87,6 @@ pub(crate) fn unused_mut(ctx: &DiagnosticsContext<'_>, d: &hir::UnusedMut) -> Op
             use_range,
         )])
     })();
-    let ast = d.local.primary_source(ctx.sema.db).syntax_ptr();
     Some(
         Diagnostic::new_with_syntax_node_ptr(
             ctx,
