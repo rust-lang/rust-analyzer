@@ -43,6 +43,7 @@ mod handlers {
     pub(crate) mod incorrect_generics_order;
     pub(crate) mod invalid_cast;
     pub(crate) mod invalid_derive_target;
+    pub(crate) mod invalid_lhs_of_assignment;
     pub(crate) mod macro_error;
     pub(crate) mod malformed_derive;
     pub(crate) mod mismatched_arg_count;
@@ -479,6 +480,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::MissingLifetime(d) => handlers::missing_lifetime::missing_lifetime(&ctx, &d),
             AnyDiagnostic::ElidedLifetimesInPath(d) => handlers::elided_lifetimes_in_path::elided_lifetimes_in_path(&ctx, &d),
             AnyDiagnostic::GenericDefaultRefersToSelf(d) => handlers::generic_default_refers_to_self::generic_default_refers_to_self(&ctx, &d),
+            AnyDiagnostic::InvalidLhsOfAssignment(d) => handlers::invalid_lhs_of_assignment::invalid_lhs_of_assignment(&ctx, &d),
         };
         res.push(d)
     }

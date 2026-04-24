@@ -273,13 +273,12 @@ impl<'db> InferenceContext<'_, 'db> {
         }
     }
 
-    #[expect(clippy::needless_return)]
     pub(crate) fn check_lhs_assignable(&self, lhs: ExprId) {
         if self.is_syntactic_place_expr(lhs) {
             return;
         }
 
-        // FIXME: Emit diagnostic.
+        self.push_diagnostic(InferenceDiagnostic::InvalidLhsOfAssignment { lhs });
     }
 
     fn infer_expr_coerce_never(
