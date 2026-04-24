@@ -135,7 +135,6 @@ fn check_licenses(sh: &Shell) {
         "(MIT OR Apache-2.0) AND Unicode-3.0",
         "0BSD OR MIT OR Apache-2.0",
         "Apache-2.0 / MIT",
-        "Apache-2.0 OR BSL-1.0",
         "Apache-2.0 OR MIT",
         "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
         "Apache-2.0 WITH LLVM-exception",
@@ -154,6 +153,7 @@ fn check_licenses(sh: &Shell) {
         "Unicode-3.0",
         "Unlicense OR MIT",
         "Unlicense/MIT",
+        "Zlib OR Apache-2.0 OR MIT",
         "Zlib",
     ];
 
