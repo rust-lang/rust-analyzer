@@ -258,18 +258,13 @@ impl<'db> PredicateEmittingRelation<InferCtxt<'db>> for LatticeOp<'_, 'db> {
         preds: impl IntoIterator<Item: Upcast<DbInterner<'db>, Predicate<'db>>>,
     ) {
         self.obligations.extend(preds.into_iter().map(|pred| {
-            Obligation::new(self.infcx.interner, self.trace.cause.clone(), self.param_env, pred)
+            Obligation::new(self.infcx.interner, self.trace.cause, self.param_env, pred)
         }))
     }
 
     fn register_goals(&mut self, goals: impl IntoIterator<Item = Goal<'db, Predicate<'db>>>) {
         self.obligations.extend(goals.into_iter().map(|goal| {
-            Obligation::new(
-                self.infcx.interner,
-                self.trace.cause.clone(),
-                goal.param_env,
-                goal.predicate,
-            )
+            Obligation::new(self.infcx.interner, self.trace.cause, goal.param_env, goal.predicate)
         }))
     }
 

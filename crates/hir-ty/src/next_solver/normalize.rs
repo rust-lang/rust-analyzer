@@ -102,7 +102,7 @@ impl<'db> NormalizationFolder<'_, 'db> {
         let infer_term = infcx.next_term_var_of_kind(alias_term, self.at.cause.span());
         let obligation = Obligation::new(
             interner,
-            self.at.cause.clone(),
+            *self.at.cause,
             self.at.param_env,
             PredicateKind::AliasRelate(alias_term, infer_term, AliasRelationDirection::Equate),
         );

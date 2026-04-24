@@ -553,7 +553,7 @@ pub fn callable_sig_from_fn_trait<'db>(
         let args = GenericArgs::new_from_slice(&[self_ty.into(), tupled_args.into()]);
         let trait_id = trait_.get_id(lang_items)?;
         let trait_ref = TraitRef::new_from_args(interner, trait_id.into(), args);
-        let obligation = Obligation::new(interner, cause.clone(), param_env, trait_ref);
+        let obligation = Obligation::new(interner, cause, param_env, trait_ref);
         ocx.register_obligation(obligation);
         if !ocx.try_evaluate_obligations().is_empty() {
             return None;

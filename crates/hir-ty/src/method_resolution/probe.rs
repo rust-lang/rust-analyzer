@@ -1660,7 +1660,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                     }
                     let obligation = Obligation::new(
                         self.interner(),
-                        cause.clone(),
+                        *cause,
                         self.param_env(),
                         Binder::dummy(trait_ref),
                     );
@@ -1734,7 +1734,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
             if let Some(xform_ret_ty) = xform_ret_ty {
                 ocx.register_obligation(Obligation::new(
                     self.interner(),
-                    cause.clone(),
+                    *cause,
                     self.param_env(),
                     ClauseKind::WellFormed(xform_ret_ty.into()),
                 ));

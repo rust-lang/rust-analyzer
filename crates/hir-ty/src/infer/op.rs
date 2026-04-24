@@ -301,7 +301,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // to allow more code to compile.
         let treat_opaques = TreatNotYetDefinedOpaques::AsInfer;
         let method = self.table.lookup_method_for_operator(
-            cause.clone(),
+            cause,
             opname,
             trait_did,
             lhs_ty,

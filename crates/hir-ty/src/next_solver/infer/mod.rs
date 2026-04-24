@@ -1352,7 +1352,7 @@ impl TyOrConstInferVar {
 impl<'db> TypeTrace<'db> {
     pub fn types(cause: &ObligationCause, a: Ty<'db>, b: Ty<'db>) -> TypeTrace<'db> {
         TypeTrace {
-            cause: cause.clone(),
+            cause: *cause,
             values: ValuePairs::Terms(ExpectedFound::new(a.into(), b.into())),
         }
     }
@@ -1362,12 +1362,12 @@ impl<'db> TypeTrace<'db> {
         a: TraitRef<'db>,
         b: TraitRef<'db>,
     ) -> TypeTrace<'db> {
-        TypeTrace { cause: cause.clone(), values: ValuePairs::TraitRefs(ExpectedFound::new(a, b)) }
+        TypeTrace { cause: *cause, values: ValuePairs::TraitRefs(ExpectedFound::new(a, b)) }
     }
 
     pub fn consts(cause: &ObligationCause, a: Const<'db>, b: Const<'db>) -> TypeTrace<'db> {
         TypeTrace {
-            cause: cause.clone(),
+            cause: *cause,
             values: ValuePairs::Terms(ExpectedFound::new(a.into(), b.into())),
         }
     }

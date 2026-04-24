@@ -34,7 +34,7 @@ use super::InferCtxt;
 ///
 /// We do not want to intern this as there are a lot of obligation causes which
 /// only live for a short period of time.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ObligationCause {
     span: Span,
 }
@@ -118,7 +118,7 @@ impl<'db> Elaboratable<DbInterner<'db>> for PredicateObligation<'db> {
 
     fn child(&self, clause: Clause<'db>) -> Self {
         Obligation {
-            cause: self.cause.clone(),
+            cause: self.cause,
             param_env: self.param_env,
             recursion_depth: 0,
             predicate: clause.as_predicate(),
@@ -186,7 +186,7 @@ impl<'db> PredicateObligation<'db> {
     /// Given `T: Trait` predicate it returns `T: !Trait` and given `T: !Trait` returns `T: Trait`.
     pub fn flip_polarity(&self, _interner: DbInterner<'db>) -> Option<PredicateObligation<'db>> {
         Some(PredicateObligation {
-            cause: self.cause.clone(),
+            cause: self.cause,
             param_env: self.param_env,
             predicate: self.predicate.flip_polarity()?,
             recursion_depth: self.recursion_depth,
@@ -228,7 +228,7 @@ impl<'db, O> Obligation<'db, O> {
         tcx: DbInterner<'db>,
         value: impl Upcast<DbInterner<'db>, P>,
     ) -> Obligation<'db, P> {
-        Obligation::with_depth(tcx, self.cause.clone(), self.recursion_depth, self.param_env, value)
+        Obligation::with_depth(tcx, self.cause, self.recursion_depth, self.param_env, value)
     }
 }
 

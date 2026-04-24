@@ -324,7 +324,7 @@ where
                 if source_ty != target_ty {
                     obligations.push(Obligation::new(
                         self.interner(),
-                        self.cause.clone(),
+                        self.cause,
                         self.param_env(),
                         Binder::dummy(PredicateKind::Coerce(CoercePredicate {
                             a: source_ty,
@@ -669,7 +669,7 @@ where
         )?;
 
         // Create an obligation for `Source: CoerceUnsized<Target>`.
-        let cause = self.cause.clone();
+        let cause = self.cause;
         let pred = TraitRef::new(
             self.interner(),
             coerce_unsized_did.into(),

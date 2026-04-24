@@ -41,7 +41,7 @@ impl<'db> At<'_, 'db> {
         // (or a not-yet-defined opaque in scope).
         let obligation = Obligation::new(
             self.infcx.interner,
-            self.cause.clone(),
+            *self.cause,
             self.param_env,
             PredicateKind::AliasRelate(term, new_infer, AliasRelationDirection::Equate),
         );

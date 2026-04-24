@@ -65,7 +65,7 @@ impl<'a, 'db> ProofTreeVisitor<'db> for NestedObligationsForSelfTy<'a, 'db> {
         if self.ctx.predicate_has_self_ty(goal.predicate, self.self_ty) {
             self.obligations_for_self_ty.push(Obligation::new(
                 db,
-                self.root_cause.clone(),
+                *self.root_cause,
                 goal.param_env,
                 goal.predicate,
             ));

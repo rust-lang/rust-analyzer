@@ -256,7 +256,7 @@ impl<'db> InferenceTable<'db> {
 
         let obligation = Obligation::new(
             self.interner(),
-            cause.clone(),
+            cause,
             self.param_env,
             TraitRef::new_from_args(self.interner(), trait_def_id.into(), args),
         );
@@ -330,7 +330,7 @@ impl<'db> InferenceTable<'db> {
         for ty in fn_sig.inputs_and_output {
             obligations.push(Obligation::new(
                 interner,
-                obligation.cause.clone(),
+                obligation.cause,
                 self.param_env,
                 Binder::dummy(PredicateKind::Clause(ClauseKind::WellFormed(ty.into()))),
             ));
