@@ -888,6 +888,10 @@ fn return_expr(p: &mut Parser<'_>) -> CompletedMarker {
     let m = p.start();
     p.bump(T![return]);
     if p.at_ts(EXPR_FIRST) {
+        // test return_attr
+        // fn foo() {
+        //     return #[attr] 1;
+        // }
         expr(p);
     }
     m.complete(p, RETURN_EXPR)
