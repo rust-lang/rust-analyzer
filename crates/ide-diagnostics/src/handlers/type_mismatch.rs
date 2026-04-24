@@ -31,11 +31,7 @@ pub(crate) fn type_mismatch(
         let Either::Left(expr) = node else { return None };
         let salient_token_range = match expr {
             ast::Expr::IfExpr(it) => {
-                // Determine the appropriate text range for if-expression type mismatch diagnostics.
-                // In if-else expressions, type mismatches commonly arise from branches with
-                // incompatible types. By prioritizing the else branch range when present,
-                // we ensure diagnostics and quickfixes highlight the actual error location
-                // rather than just the `if` keyword, improving user experience.
+                // Prioritize else branch in if-else for accurate diagnostics.
                 if let Some(else_branch) = it.else_branch() {
                     else_branch.syntax().text_range()
                 } else {
