@@ -36,7 +36,7 @@ use stdx::impl_from;
 use triomphe::Arc;
 
 use crate::{
-    all_super_traits,
+    Span, all_super_traits,
     db::HirDatabase,
     infer::{InferenceContext, unify::InferenceTable},
     lower::GenericPredicates,
@@ -65,6 +65,8 @@ pub struct MethodResolutionContext<'a, 'db> {
     pub traits_in_scope: &'a FxHashSet<TraitId>,
     pub edition: Edition,
     pub features: &'a UnstableFeatures,
+    pub call_span: Span,
+    pub receiver_span: Span,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Update)]
@@ -134,7 +136,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         receiver: ExprId,
         call_expr: ExprId,
     ) -> Result<(MethodCallee<'db>, bool), MethodError<'db>> {
-        let (pick, is_visible) = match self.lookup_probe(name, self_ty) {
+        let (pick, is_visible) = match self.lookup_probe(call_expr, receiver, name, self_ty) {
             Ok(it) => (it, true),
             Err(MethodError::PrivateMatch(it)) => {
                 // FIXME: Report error.
@@ -159,10 +161,12 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
     #[instrument(level = "debug", skip(self))]
     pub(crate) fn lookup_probe(
         &self,
+        call_expr: ExprId,
+        receiver: ExprId,
         method_name: Name,
         self_ty: Ty<'db>,
     ) -> probe::PickResult<'db> {
-        self.with_method_resolution(|ctx| {
+        self.with_method_resolution(call_expr.into(), receiver.into(), |ctx| {
             let pick = ctx.probe_for_name(probe::Mode::MethodCall, method_name, self_ty)?;
             Ok(pick)
         })
@@ -170,6 +174,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
     pub(crate) fn with_method_resolution<R>(
         &self,
+        call_span: Span,
+        receiver_span: Span,
         f: impl FnOnce(&MethodResolutionContext<'_, 'db>) -> R,
     ) -> R {
         let traits_in_scope = self.get_traits_in_scope();
@@ -184,6 +190,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             traits_in_scope,
             edition: self.edition,
             features: self.features,
+            call_span,
+            receiver_span,
         };
         f(&ctx)
     }
@@ -240,7 +248,7 @@ impl<'db> InferenceTable<'db> {
                         // FIXME: We should stop passing `None` for the failure case
                         // when probing for call exprs. I.e. `opt_rhs_ty` should always
                         // be set when it needs to be.
-                        self.next_var_for_param(param_id)
+                        self.var_for_def(param_id, cause.span())
                     }
                 }
             },
@@ -248,7 +256,7 @@ impl<'db> InferenceTable<'db> {
 
         let obligation = Obligation::new(
             self.interner(),
-            cause,
+            cause.clone(),
             self.param_env,
             TraitRef::new_from_args(self.interner(), trait_def_id.into(), args),
         );
@@ -291,9 +299,11 @@ impl<'db> InferenceTable<'db> {
         // with bound regions.
         let fn_sig =
             self.db.callable_item_signature(method_item.into()).instantiate(interner, args);
-        let fn_sig = self
-            .infer_ctxt
-            .instantiate_binder_with_fresh_vars(BoundRegionConversionTime::FnCall, fn_sig);
+        let fn_sig = self.infer_ctxt.instantiate_binder_with_fresh_vars(
+            cause.span(),
+            BoundRegionConversionTime::FnCall,
+            fn_sig,
+        );
 
         // Register obligations for the parameters. This will include the
         // `Self` parameter, which in turn has a bound of the main trait,

@@ -65,19 +65,19 @@ impl<'db> InferenceContext<'_, 'db> {
         let (expected_sig, expected_kind) = match expected.to_option(&mut self.table) {
             Some(ty) => {
                 let ty = self.table.try_structurally_resolve_type(ty);
-                self.deduce_closure_signature(ty, closure_kind)
+                self.deduce_closure_signature(closure_expr, ty, closure_kind)
             }
             None => (None, None),
         };
 
         let ClosureSignatures { bound_sig, mut liberated_sig } =
-            self.sig_of_closure(arg_types, ret_type, expected_sig);
+            self.sig_of_closure(closure_expr, arg_types, ret_type, expected_sig);
 
         debug!(?bound_sig, ?liberated_sig);
 
         let parent_args = GenericArgs::identity_for_item(interner, self.generic_def.into());
 
-        let tupled_upvars_ty = self.table.next_ty_var();
+        let tupled_upvars_ty = self.table.next_ty_var(closure_expr.into());
 
         // FIXME: We could probably actually just unify this further --
         // instead of having a `FnSig` and a `Option<CoroutineTypes>`,
@@ -103,7 +103,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     Some(kind) => Ty::from_closure_kind(interner, kind),
                     // Create a type variable (for now) to represent the closure kind.
                     // It will be unified during the upvar inference phase (`upvar.rs`)
-                    None => self.table.next_ty_var(),
+                    None => self.table.next_ty_var(closure_expr.into()),
                 };
 
                 let closure_args = ClosureArgs::new(
@@ -123,7 +123,7 @@ impl<'db> InferenceContext<'_, 'db> {
             }
             ClosureKind::Coroutine(_) | ClosureKind::AsyncBlock { .. } => {
                 let yield_ty = match closure_kind {
-                    ClosureKind::Coroutine(_) => self.table.next_ty_var(),
+                    ClosureKind::Coroutine(_) => self.table.next_ty_var(closure_expr.into()),
                     ClosureKind::AsyncBlock { .. } => self.types.types.unit,
                     _ => unreachable!(),
                 };
@@ -138,7 +138,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 // ty of `().`
                 let kind_ty = match closure_kind {
                     ClosureKind::AsyncBlock { source: CoroutineSource::Closure } => {
-                        self.table.next_ty_var()
+                        self.table.next_ty_var(closure_expr.into())
                     }
                     _ => self.types.types.unit,
                 };
@@ -169,17 +169,17 @@ impl<'db> InferenceContext<'_, 'db> {
                 let (bound_return_ty, bound_yield_ty) =
                     (bound_sig.skip_binder().output(), self.types.types.unit);
                 // Compute all of the variables that will be used to populate the coroutine.
-                let resume_ty = self.table.next_ty_var();
+                let resume_ty = self.table.next_ty_var(closure_expr.into());
 
                 let closure_kind_ty = match expected_kind {
                     Some(kind) => Ty::from_closure_kind(interner, kind),
 
                     // Create a type variable (for now) to represent the closure kind.
                     // It will be unified during the upvar inference phase (`upvar.rs`)
-                    None => self.table.next_ty_var(),
+                    None => self.table.next_ty_var(closure_expr.into()),
                 };
 
-                let coroutine_captures_by_ref_ty = self.table.next_ty_var();
+                let coroutine_captures_by_ref_ty = self.table.next_ty_var(closure_expr.into());
 
                 let closure_args = CoroutineClosureArgs::new(
                     interner,
@@ -214,10 +214,10 @@ impl<'db> InferenceContext<'_, 'db> {
 
                     // Create a type variable (for now) to represent the closure kind.
                     // It will be unified during the upvar inference phase (`upvar.rs`)
-                    None => self.table.next_ty_var(),
+                    None => self.table.next_ty_var(closure_expr.into()),
                 };
 
-                let coroutine_upvars_ty = self.table.next_ty_var();
+                let coroutine_upvars_ty = self.table.next_ty_var(closure_expr.into());
 
                 let coroutine_closure_id = InternedCoroutineClosureId::new(
                     self.db,
@@ -316,12 +316,14 @@ impl<'db> InferenceContext<'_, 'db> {
     /// are about to type check:
     fn deduce_closure_signature(
         &mut self,
+        closure_expr: ExprId,
         expected_ty: Ty<'db>,
         closure_kind: ClosureKind,
     ) -> (Option<PolyFnSig<'db>>, Option<rustc_type_ir::ClosureKind>) {
         match expected_ty.kind() {
             TyKind::Alias(AliasTy { kind: rustc_type_ir::Opaque { def_id }, args, .. }) => self
                 .deduce_closure_signature_from_predicates(
+                    closure_expr,
                     expected_ty,
                     closure_kind,
                     def_id
@@ -333,7 +335,7 @@ impl<'db> InferenceContext<'_, 'db> {
             TyKind::Dynamic(object_type, ..) => {
                 let sig = object_type.projection_bounds().into_iter().find_map(|pb| {
                     let pb = pb.with_self_ty(self.interner(), Ty::new_unit(self.interner()));
-                    self.deduce_sig_from_projection(closure_kind, pb)
+                    self.deduce_sig_from_projection(closure_expr, closure_kind, pb)
                 });
                 let kind = object_type
                     .principal_def_id()
@@ -342,6 +344,7 @@ impl<'db> InferenceContext<'_, 'db> {
             }
             TyKind::Infer(rustc_type_ir::TyVar(vid)) => self
                 .deduce_closure_signature_from_predicates(
+                    closure_expr,
                     Ty::new_var(self.interner(), self.table.infer_ctxt.root_var(vid)),
                     closure_kind,
                     self.table.obligations_for_self_ty(vid).into_iter().map(|obl| obl.predicate),
@@ -361,6 +364,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
     fn deduce_closure_signature_from_predicates(
         &mut self,
+        closure_expr: ExprId,
         expected_ty: Ty<'db>,
         closure_kind: ClosureKind,
         predicates: impl DoubleEndedIterator<Item = Predicate<'db>>,
@@ -388,6 +392,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     bound_predicate.skip_binder()
             {
                 let inferred_sig = self.deduce_sig_from_projection(
+                    closure_expr,
                     closure_kind,
                     bound_predicate.rebind(proj_predicate),
                 );
@@ -430,7 +435,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     //    This is a bit weird and means we may wind up discarding the goal due to it naming `expected_ty`
                     //    even though the normalized form may not name `expected_ty`. However, this matches the existing
                     //    behaviour of the old solver and would be technically a breaking change to fix.
-                    let generalized_fnptr_sig = self.table.next_ty_var();
+                    let generalized_fnptr_sig = self.table.next_ty_var(closure_expr.into());
                     let inferred_fnptr_sig = Ty::new_fn_ptr(self.interner(), inferred_sig);
                     // FIXME: Report diagnostics.
                     _ = self
@@ -500,6 +505,7 @@ impl<'db> InferenceContext<'_, 'db> {
     /// know that.
     fn deduce_sig_from_projection(
         &mut self,
+        closure_expr: ExprId,
         closure_kind: ClosureKind,
         projection: PolyProjectionPredicate<'db>,
     ) -> Option<PolyFnSig<'db>> {
@@ -518,7 +524,7 @@ impl<'db> InferenceContext<'_, 'db> {
             // `F: FnOnce() -> Fut, Fut: Future<Output = T>` style bound. Let's still
             // guide inference here, since it's beneficial for the user.
             ClosureKind::AsyncClosure if Some(def_id) == self.lang_items.FnOnceOutput => {
-                self.extract_sig_from_projection_and_future_bound(projection)
+                self.extract_sig_from_projection_and_future_bound(closure_expr, projection)
             }
             _ => None,
         }
@@ -573,6 +579,7 @@ impl<'db> InferenceContext<'_, 'db> {
     /// projection, and the output will be an unconstrained type variable instead.
     fn extract_sig_from_projection_and_future_bound(
         &mut self,
+        closure_expr: ExprId,
         projection: PolyProjectionPredicate<'db>,
     ) -> Option<PolyFnSig<'db>> {
         let projection = self.resolve_vars_if_possible(projection);
@@ -624,7 +631,7 @@ impl<'db> InferenceContext<'_, 'db> {
         //
         // FIXME: We probably should store this signature inference output in a way
         // that does not misuse a `FnSig` type, but that can be done separately.
-        let return_ty = return_ty.unwrap_or_else(|| self.table.next_ty_var());
+        let return_ty = return_ty.unwrap_or_else(|| self.table.next_ty_var(closure_expr.into()));
 
         let sig = projection.rebind(self.interner().mk_fn_sig_safe_rust_abi(input_tys, return_ty));
 
@@ -633,14 +640,15 @@ impl<'db> InferenceContext<'_, 'db> {
 
     fn sig_of_closure(
         &mut self,
+        closure_expr: ExprId,
         decl_inputs: &[Option<TypeRefId>],
         decl_output: Option<TypeRefId>,
         expected_sig: Option<PolyFnSig<'db>>,
     ) -> ClosureSignatures<'db> {
         if let Some(e) = expected_sig {
-            self.sig_of_closure_with_expectation(decl_inputs, decl_output, e)
+            self.sig_of_closure_with_expectation(closure_expr, decl_inputs, decl_output, e)
         } else {
-            self.sig_of_closure_no_expectation(decl_inputs, decl_output)
+            self.sig_of_closure_no_expectation(closure_expr, decl_inputs, decl_output)
         }
     }
 
@@ -648,10 +656,11 @@ impl<'db> InferenceContext<'_, 'db> {
     /// types that the user gave into a signature.
     fn sig_of_closure_no_expectation(
         &mut self,
+        closure_expr: ExprId,
         decl_inputs: &[Option<TypeRefId>],
         decl_output: Option<TypeRefId>,
     ) -> ClosureSignatures<'db> {
-        let bound_sig = self.supplied_sig_of_closure(decl_inputs, decl_output);
+        let bound_sig = self.supplied_sig_of_closure(closure_expr, decl_inputs, decl_output);
 
         self.closure_sigs(bound_sig)
     }
@@ -705,6 +714,7 @@ impl<'db> InferenceContext<'_, 'db> {
     ///   regions with depth 1, which are bound then by the closure.
     fn sig_of_closure_with_expectation(
         &mut self,
+        closure_expr: ExprId,
         decl_inputs: &[Option<TypeRefId>],
         decl_output: Option<TypeRefId>,
         expected_sig: PolyFnSig<'db>,
@@ -713,7 +723,7 @@ impl<'db> InferenceContext<'_, 'db> {
         // expectation if things don't see to match up with what we
         // expect.
         if expected_sig.c_variadic() {
-            return self.sig_of_closure_no_expectation(decl_inputs, decl_output);
+            return self.sig_of_closure_no_expectation(closure_expr, decl_inputs, decl_output);
         } else if expected_sig.skip_binder().inputs_and_output.len() != decl_inputs.len() + 1 {
             return self
                 .sig_of_closure_with_mismatched_number_of_arguments(decl_inputs, decl_output);
@@ -745,9 +755,14 @@ impl<'db> InferenceContext<'_, 'db> {
         // Along the way, it also writes out entries for types that the user
         // wrote into our typeck results, which are then later used by the privacy
         // check.
-        match self.merge_supplied_sig_with_expectation(decl_inputs, decl_output, closure_sigs) {
+        match self.merge_supplied_sig_with_expectation(
+            closure_expr,
+            decl_inputs,
+            decl_output,
+            closure_sigs,
+        ) {
             Ok(infer_ok) => self.table.register_infer_ok(infer_ok),
-            Err(_) => self.sig_of_closure_no_expectation(decl_inputs, decl_output),
+            Err(_) => self.sig_of_closure_no_expectation(closure_expr, decl_inputs, decl_output),
         }
     }
 
@@ -766,6 +781,7 @@ impl<'db> InferenceContext<'_, 'db> {
     /// strategy.
     fn merge_supplied_sig_with_expectation(
         &mut self,
+        closure_expr: ExprId,
         decl_inputs: &[Option<TypeRefId>],
         decl_output: Option<TypeRefId>,
         mut expected_sigs: ClosureSignatures<'db>,
@@ -774,7 +790,7 @@ impl<'db> InferenceContext<'_, 'db> {
         //
         // (See comment on `sig_of_closure_with_expectation` for the
         // meaning of these letters.)
-        let supplied_sig = self.supplied_sig_of_closure(decl_inputs, decl_output);
+        let supplied_sig = self.supplied_sig_of_closure(closure_expr, decl_inputs, decl_output);
 
         debug!(?supplied_sig);
 
@@ -795,6 +811,7 @@ impl<'db> InferenceContext<'_, 'db> {
         self.table.commit_if_ok(|table| {
             let mut all_obligations = PredicateObligations::new();
             let supplied_sig = table.infer_ctxt.instantiate_binder_with_fresh_vars(
+                closure_expr.into(),
                 BoundRegionConversionTime::FnCall,
                 supplied_sig,
             );
@@ -842,25 +859,20 @@ impl<'db> InferenceContext<'_, 'db> {
     /// Also, record this closure signature for later.
     fn supplied_sig_of_closure(
         &mut self,
+        closure_expr: ExprId,
         decl_inputs: &[Option<TypeRefId>],
         decl_output: Option<TypeRefId>,
     ) -> PolyFnSig<'db> {
         let interner = self.interner();
 
         let supplied_return = match decl_output {
-            Some(output) => {
-                let output = self.make_body_ty(output);
-                self.process_user_written_ty(output)
-            }
-            None => self.table.next_ty_var(),
+            Some(output) => self.make_body_ty(output),
+            None => self.table.next_ty_var(closure_expr.into()),
         };
         // First, convert the types that the user supplied (if any).
         let supplied_arguments = decl_inputs.iter().map(|&input| match input {
-            Some(input) => {
-                let input = self.make_body_ty(input);
-                self.process_user_written_ty(input)
-            }
-            None => self.table.next_ty_var(),
+            Some(input) => self.make_body_ty(input),
+            None => self.table.next_ty_var(closure_expr.into()),
         });
 
         Binder::dummy(interner.mk_fn_sig(

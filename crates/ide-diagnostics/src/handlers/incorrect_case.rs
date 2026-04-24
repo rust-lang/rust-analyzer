@@ -1006,18 +1006,18 @@ fn func() {
 #![allow(unused_variables)]
 #[warn(nonstandard_style)]
 fn foo() {
-    let BAR;
+    let BAR: i32;
      // ^^^ 💡 warn: Variable `BAR` should have snake_case name, e.g. `bar`
     #[allow(non_snake_case)]
-    let FOO;
+    let FOO: i32;
 }
 
 #[warn(nonstandard_style)]
 fn foo() {
-    let BAR;
+    let BAR: i32;
      // ^^^ 💡 warn: Variable `BAR` should have snake_case name, e.g. `bar`
     #[expect(non_snake_case)]
-    let FOO;
+    let FOO: i32;
     #[allow(non_snake_case)]
     struct qux;
         // ^^^ 💡 warn: Structure `qux` should have UpperCamelCase name, e.g. `Qux`
@@ -1060,7 +1060,7 @@ mod FINE_WITH_BAD_CASE;
 struct QUX;
 const foo: i32 = 0;
 fn BAR() {
-    let BAZ;
+    let BAZ: i32;
     _ = BAZ;
 }
         "#,

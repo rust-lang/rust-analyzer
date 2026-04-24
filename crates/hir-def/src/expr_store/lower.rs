@@ -2622,15 +2622,7 @@ impl<'db> ExprCollector<'db> {
                 let expr_id = self.alloc_expr(expr, expr_ptr);
                 Pat::Lit(expr_id)
             }
-            ast::Pat::RestPat(_) => {
-                // `RestPat` requires special handling and should not be mapped
-                // to a Pat. Here we are using `Pat::Missing` as a fallback for
-                // when `RestPat` is mapped to `Pat`, which can easily happen
-                // when the source code being analyzed has a malformed pattern
-                // which includes `..` in a place where it isn't valid.
-
-                Pat::Missing
-            }
+            ast::Pat::RestPat(_) => Pat::Rest,
             ast::Pat::BoxPat(boxpat) => {
                 let inner = self.collect_pat_opt(boxpat.pat(), binding_list);
                 Pat::Box { inner }

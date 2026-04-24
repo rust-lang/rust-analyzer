@@ -284,7 +284,8 @@ impl<'a, 'db> MethodResolutionContext<'a, 'db> {
                 // special handling for this "trivial case" is a good idea.
 
                 let infcx = self.infcx;
-                let (self_ty, var_values) = infcx.instantiate_canonical(&query_input);
+                let (self_ty, var_values) =
+                    infcx.instantiate_canonical(self.call_span, &query_input);
                 debug!(?self_ty, ?query_input, "probe_op: Mode::Path");
                 let prev_opaque_entries =
                     self.infcx.inner.borrow_mut().opaque_types().num_entries();
@@ -380,7 +381,8 @@ impl<'a, 'db> MethodResolutionContext<'a, 'db> {
             // chain to support recursive calls. We do error if the final
             // infer var is not an opaque.
             let infcx = self.infcx;
-            let (self_ty, inference_vars) = infcx.instantiate_canonical(self_ty);
+            let (self_ty, inference_vars) =
+                infcx.instantiate_canonical(self.receiver_span, self_ty);
             let prev_opaque_entries = infcx.inner.borrow_mut().opaque_types().num_entries();
 
             let self_ty_is_opaque = |ty: Ty<'_>| {
@@ -921,7 +923,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                     // will still match the original object type, but it won't pollute our
                     // type variables in any form, so just do that!
                     let (QueryResponse { value: generalized_self_ty, .. }, _ignored_var_values) =
-                        self.infcx().instantiate_canonical(self_ty);
+                        self.infcx().instantiate_canonical(self.ctx.call_span, self_ty);
 
                     self.assemble_inherent_candidates_from_object(generalized_self_ty);
                     self.assemble_inherent_impl_candidates_for_type(
@@ -1117,7 +1119,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
 
     #[instrument(level = "debug", skip(self))]
     fn assemble_extension_candidates_for_trait(&mut self, trait_def_id: TraitId) {
-        let trait_args = self.infcx().fresh_args_for_item(trait_def_id.into());
+        let trait_args = self.infcx().fresh_args_for_item(self.ctx.call_span, trait_def_id.into());
         let trait_ref = TraitRef::new_from_args(self.interner(), trait_def_id.into(), trait_args);
 
         self.with_trait_item(trait_def_id, |this, item| {
@@ -1510,6 +1512,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
             }
             TraitCandidate(trait_ref) => self.infcx().probe(|_| {
                 let trait_ref = self.infcx().instantiate_binder_with_fresh_vars(
+                    self.ctx.call_span,
                     BoundRegionConversionTime::FnCall,
                     trait_ref,
                 );
@@ -1574,7 +1577,8 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
 
             match probe.kind {
                 InherentImplCandidate { impl_def_id, .. } => {
-                    let impl_args = self.infcx().fresh_args_for_item(impl_def_id.into());
+                    let impl_args =
+                        self.infcx().fresh_args_for_item(self.ctx.call_span, impl_def_id.into());
                     let impl_ty =
                         self.db().impl_self_ty(impl_def_id).instantiate(self.interner(), impl_args);
                     (xform_self_ty, xform_ret_ty) =
@@ -1632,6 +1636,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                     }
 
                     let trait_ref = self.infcx().instantiate_binder_with_fresh_vars(
+                        self.ctx.call_span,
                         BoundRegionConversionTime::FnCall,
                         poly_trait_ref,
                     );
@@ -1667,6 +1672,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                 }
                 ObjectCandidate(poly_trait_ref) | WhereClauseCandidate(poly_trait_ref) => {
                     let trait_ref = self.infcx().instantiate_binder_with_fresh_vars(
+                        self.ctx.call_span,
                         BoundRegionConversionTime::FnCall,
                         poly_trait_ref,
                     );
@@ -2029,8 +2035,12 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                                 // In general, during probe we erase regions.
                                 Region::new_erased(self.interner()).into()
                             }
-                            GenericParamId::TypeParamId(_) => self.infcx().next_ty_var().into(),
-                            GenericParamId::ConstParamId(_) => self.infcx().next_const_var().into(),
+                            GenericParamId::TypeParamId(_) => {
+                                self.infcx().next_ty_var(self.ctx.call_span).into()
+                            }
+                            GenericParamId::ConstParamId(_) => {
+                                self.infcx().next_const_var(self.ctx.call_span).into()
+                            }
                         }
                     }
                 },

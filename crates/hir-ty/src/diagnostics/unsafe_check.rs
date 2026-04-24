@@ -258,7 +258,7 @@ impl<'db> UnsafeVisitor<'db> {
                     self.on_unsafe_op(current.into(), UnsafetyReason::UnionField)
                 }
                 // `Or` only wraps other patterns, and `Missing`/`Wild` do not constitute a read.
-                Pat::Missing | Pat::Wild | Pat::Or(_) => {}
+                Pat::Missing | Pat::Rest | Pat::Wild | Pat::Or(_) => {}
             }
         }
 

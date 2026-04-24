@@ -6,7 +6,7 @@ use hir_def::{
 };
 use rustc_next_trait_solver::delegate::SolverDelegate;
 use rustc_type_ir::{
-    AliasTyKind, GenericArgKind, InferCtxtLike, Interner, PredicatePolarity, TypeFlags,
+    AliasTyKind, GenericArgKind, InferCtxtLike, InferTy, Interner, PredicatePolarity, TypeFlags,
     TypeVisitableExt,
     inherent::{IntoKind, Term as _, Ty as _},
     lang_items::SolverTraitLangItem,
@@ -15,7 +15,7 @@ use rustc_type_ir::{
 use tracing::debug;
 
 use crate::{
-    ParamEnvAndCrate,
+    ParamEnvAndCrate, Span,
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, GenericArgs,
         ParamEnv, Predicate, PredicateKind, SubtypePredicate, Ty, TyKind, UnevaluatedConst,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 use super::{
-    Const, DbInterner, ErrorGuaranteed, GenericArg, SolverDefId, Span,
+    Const, DbInterner, ErrorGuaranteed, GenericArg, SolverDefId,
     infer::{DbInternerInferExt, InferCtxt, canonical::instantiate::CanonicalExt},
 };
 
@@ -63,15 +63,15 @@ impl<'db> SolverDelegate for SolverContext<'db> {
     where
         V: rustc_type_ir::TypeFoldable<Self::Interner>,
     {
-        let (infcx, value, vars) = cx.infer_ctxt().build_with_canonical(canonical);
+        let (infcx, value, vars) = cx.infer_ctxt().build_with_canonical(Span::Dummy, canonical);
         (SolverContext(infcx), value, vars)
     }
 
-    fn fresh_var_for_kind_with_span(&self, arg: GenericArg<'db>, _span: Span) -> GenericArg<'db> {
+    fn fresh_var_for_kind_with_span(&self, arg: GenericArg<'db>, span: Span) -> GenericArg<'db> {
         match arg.kind() {
-            GenericArgKind::Lifetime(_) => self.next_region_var().into(),
-            GenericArgKind::Type(_) => self.next_ty_var().into(),
-            GenericArgKind::Const(_) => self.next_const_var().into(),
+            GenericArgKind::Lifetime(_) => self.next_region_var(span).into(),
+            GenericArgKind::Type(_) => self.next_ty_var(span).into(),
+            GenericArgKind::Const(_) => self.next_const_var(span).into(),
         }
     }
 
@@ -124,11 +124,11 @@ impl<'db> SolverDelegate for SolverContext<'db> {
     fn instantiate_canonical_var(
         &self,
         kind: CanonicalVarKind<'db>,
-        _span: <Self::Interner as Interner>::Span,
+        span: Span,
         var_values: &[GenericArg<'db>],
         universe_map: impl Fn(rustc_type_ir::UniverseIndex) -> rustc_type_ir::UniverseIndex,
     ) -> GenericArg<'db> {
-        self.0.instantiate_canonical_var(kind, var_values, universe_map)
+        self.0.instantiate_canonical_var(span, kind, var_values, universe_map)
     }
 
     fn add_item_bounds_for_hidden_type(
@@ -293,10 +293,10 @@ impl<'db> SolverDelegate for SolverContext<'db> {
             }
 
             if trait_pred.polarity() == PredicatePolarity::Positive {
-                match self.0.cx().as_trait_lang_item(trait_pred.def_id()) {
+                match self.0.interner.as_trait_lang_item(trait_pred.def_id()) {
                     Some(SolverTraitLangItem::Sized) | Some(SolverTraitLangItem::MetaSized) => {
                         let predicate = self.resolve_vars_if_possible(goal.predicate);
-                        if sizedness_fast_path(self.cx(), predicate, goal.param_env) {
+                        if sizedness_fast_path(self.interner, predicate, goal.param_env) {
                             return Some(Certainty::Yes);
                         }
                     }
@@ -322,17 +322,31 @@ impl<'db> SolverDelegate for SolverContext<'db> {
 
         let pred = goal.predicate.kind();
         match pred.no_bound_vars()? {
-            PredicateKind::Clause(ClauseKind::RegionOutlives(_outlives)) => Some(Certainty::Yes),
-            PredicateKind::Clause(ClauseKind::TypeOutlives(_outlives)) => Some(Certainty::Yes),
+            PredicateKind::DynCompatible(def_id)
+                if self.0.interner.trait_is_dyn_compatible(def_id) =>
+            {
+                Some(Certainty::Yes)
+            }
+            PredicateKind::Clause(ClauseKind::RegionOutlives(outlives)) => {
+                self.0.sub_regions(outlives.1, outlives.0);
+                Some(Certainty::Yes)
+            }
+            PredicateKind::Clause(ClauseKind::TypeOutlives(outlives)) => {
+                self.0.register_type_outlives_constraint(outlives.0, outlives.1);
+
+                Some(Certainty::Yes)
+            }
             PredicateKind::Subtype(SubtypePredicate { a, b, .. })
             | PredicateKind::Coerce(CoercePredicate { a, b }) => {
-                if self.shallow_resolve(a).is_ty_var() && self.shallow_resolve(b).is_ty_var() {
-                    // FIXME: We also need to register a subtype relation between these vars
-                    // when those are added, and if they aren't in the same sub root then
-                    // we should mark this goal as `has_changed`.
-                    Some(Certainty::AMBIGUOUS)
-                } else {
-                    None
+                match (self.shallow_resolve(a).kind(), self.shallow_resolve(b).kind()) {
+                    (
+                        TyKind::Infer(InferTy::TyVar(a_vid)),
+                        TyKind::Infer(InferTy::TyVar(b_vid)),
+                    ) => {
+                        self.sub_unify_ty_vids_raw(a_vid, b_vid);
+                        Some(Certainty::AMBIGUOUS)
+                    }
+                    _ => None,
                 }
             }
             PredicateKind::Clause(ClauseKind::ConstArgHasType(ct, _)) => {
@@ -343,6 +357,7 @@ impl<'db> SolverDelegate for SolverContext<'db> {
                 }
             }
             PredicateKind::Clause(ClauseKind::WellFormed(arg)) => {
+                let arg = self.shallow_resolve_term(arg);
                 if arg.is_trivially_wf(self.interner) {
                     Some(Certainty::Yes)
                 } else if arg.is_infer() {

@@ -2379,7 +2379,7 @@ fn push_const_arg_has_type_predicates<'db>(
                     interner,
                     ParamConst { id: param_id, index: (param_index + const_params_offset) as u32 },
                 ),
-                db.const_param_ty_ns(param_id),
+                db.const_param_ty(param_id),
             )
             .upcast(interner),
         ));

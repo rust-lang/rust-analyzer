@@ -62,7 +62,10 @@ use std::{hash::Hash, ops::ControlFlow};
 
 use hir_def::{
     CallableDefId, ExpressionStoreOwnerId, GenericDefId, TypeAliasId, TypeOrConstParamId,
-    TypeParamId, resolver::TypeNs, type_ref::Rawness,
+    TypeParamId,
+    hir::{ExprId, ExprOrPatId, PatId},
+    resolver::TypeNs,
+    type_ref::{Rawness, TypeRefId},
 };
 use hir_expand::name::Name;
 use indexmap::{IndexMap, map::Entry};
@@ -74,6 +77,7 @@ use rustc_type_ir::{
     BoundVarIndexKind, TypeSuperVisitable, TypeVisitableExt,
     inherent::{IntoKind, Ty as _},
 };
+use stdx::impl_from;
 use syntax::ast::{ConstArg, make};
 use traits::FnTrait;
 
@@ -541,7 +545,7 @@ pub fn callable_sig_from_fn_trait<'db>(
 
     let impls_trait = |trait_: FnTrait| {
         let mut ocx = ObligationCtxt::new(&infcx);
-        let tupled_args = infcx.next_ty_var();
+        let tupled_args = infcx.next_ty_var(Span::Dummy);
         let args = GenericArgs::new_from_slice(&[self_ty.into(), tupled_args.into()]);
         let trait_id = trait_.get_id(lang_items)?;
         let trait_ref = TraitRef::new_from_args(interner, trait_id.into(), args);
@@ -659,6 +663,42 @@ pub fn known_const_to_ast<'db>(
     display_target: DisplayTarget,
 ) -> Option<ConstArg> {
     Some(make::expr_const_value(konst.display(db, display_target).to_string().as_str()))
+}
+
+/// A `Span` represents some location in lowered code - a type, expression or pattern.
+///
+/// It has no meaning outside its body therefore it should not exit the pass it was created in
+/// (e.g. inference). It is usually associated with a solver obligation or an infer var, which
+/// should also not cross the pass they were created in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Span {
+    ExprId(ExprId),
+    PatId(PatId),
+    TypeRefId(TypeRefId),
+    /// An unimportant location. Errors on this will be suppressed.
+    Dummy,
+}
+impl_from!(ExprId, PatId, TypeRefId for Span);
+
+impl From<ExprOrPatId> for Span {
+    fn from(value: ExprOrPatId) -> Self {
+        match value {
+            ExprOrPatId::ExprId(idx) => idx.into(),
+            ExprOrPatId::PatId(idx) => idx.into(),
+        }
+    }
+}
+
+impl Span {
+    pub(crate) fn pick_best(a: Span, b: Span) -> Span {
+        // We prefer dummy spans to minimize the risk of false errors.
+        if b.is_dummy() { b } else { a }
+    }
+
+    #[inline]
+    pub fn is_dummy(&self) -> bool {
+        matches!(self, Self::Dummy)
+    }
 }
 
 pub fn setup_tracing() -> Option<tracing::subscriber::DefaultGuard> {

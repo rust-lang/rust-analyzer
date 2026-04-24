@@ -36,20 +36,19 @@ use hir_ty::{
     diagnostics::unsafe_operations,
     infer_query_with_inspect,
     next_solver::{
-        AnyImplId, DbInterner, Span,
+        AnyImplId, DbInterner,
         format_proof_tree::{ProofTreeData, dump_proof_tree_structured},
     },
 };
 use intern::{Interned, Symbol, sym};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_type_ir::inherent::Span as _;
 use smallvec::{SmallVec, smallvec};
 use span::{FileId, SyntaxContext};
 use stdx::{TupleExt, always};
 use syntax::{
-    AstNode, AstToken, Direction, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind, SyntaxNode,
-    SyntaxNodePtr, SyntaxToken, T, TextRange, TextSize,
+    AstNode, AstPtr, AstToken, Direction, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind,
+    SyntaxNode, SyntaxNodePtr, SyntaxToken, T, TextRange, TextSize,
     algo::skip_trivia_token,
     ast::{self, HasAttrs as _, HasGenericParams},
 };
@@ -542,6 +541,10 @@ impl<'db> SemanticsImpl<'db> {
         let node = self.db.parse_or_expand(file_id);
         self.cache(node.clone(), file_id);
         node
+    }
+
+    pub fn to_node<N: AstNode>(&self, ptr: InFile<AstPtr<N>>) -> N {
+        ptr.value.to_node(&self.parse_or_expand(ptr.file_id))
     }
 
     pub fn expand(&self, file_id: MacroCallId) -> ExpandResult<SyntaxNode> {
@@ -2459,7 +2462,8 @@ impl<'db> SemanticsImpl<'db> {
                         if result.is_err()
                             && let Some(tree) = proof_tree
                         {
-                            let data = dump_proof_tree_structured(tree, Span::dummy(), infer_ctxt);
+                            let data =
+                                dump_proof_tree_structured(tree, hir_ty::Span::Dummy, infer_ctxt);
                             RESULT.with(|ctx| ctx.borrow_mut().push(data));
                         }
                     }),

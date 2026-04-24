@@ -1026,7 +1026,8 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                 | Pat::Ref { .. }
                 | Pat::Tuple { .. }
                 | Pat::Wild
-                | Pat::Missing => {
+                | Pat::Missing
+                | Pat::Rest => {
                     // If the PatKind is Or, Box, Ref, Guard, or Tuple, the relevant accesses
                     // are made later as these patterns contains subpatterns.
                     // If the PatKind is Missing, Wild or Err, any relevant accesses are made when processing
@@ -1671,6 +1672,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
             | Pat::ConstBlock(..)
             | Pat::Range { .. }
             | Pat::Missing
+            | Pat::Rest
             | Pat::Wild => {
                 // always ok
             }

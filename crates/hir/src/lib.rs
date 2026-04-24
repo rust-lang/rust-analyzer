@@ -1525,7 +1525,7 @@ impl Struct {
     }
 
     pub fn instantiate_infer<'db>(self, infer_ctxt: &InferCtxt<'db>) -> InstantiatedStruct<'db> {
-        let args = infer_ctxt.fresh_args_for_item(self.id.into());
+        let args = infer_ctxt.fresh_args_for_item(hir_ty::Span::Dummy, self.id.into());
         InstantiatedStruct { inner: self, args }
     }
 }
@@ -1804,8 +1804,10 @@ impl EnumVariant {
     }
 
     pub fn instantiate_infer<'db>(self, infer_ctxt: &InferCtxt<'db>) -> InstantiatedVariant<'db> {
-        let args =
-            infer_ctxt.fresh_args_for_item(self.parent_enum(infer_ctxt.interner.db()).id.into());
+        let args = infer_ctxt.fresh_args_for_item(
+            hir_ty::Span::Dummy,
+            self.parent_enum(infer_ctxt.interner.db()).id.into(),
+        );
         InstantiatedVariant { inner: self, args }
     }
 }
@@ -4793,7 +4795,7 @@ impl ConstParam {
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type<'_> {
-        Type::new(db, self.id.parent(), db.const_param_ty_ns(self.id))
+        Type::new(db, self.id.parent(), db.const_param_ty(self.id))
     }
 
     pub fn default(
@@ -6191,6 +6193,8 @@ impl<'db> Type<'db> {
             traits_in_scope,
             edition: resolver.krate().data(db).edition,
             features,
+            call_span: hir_ty::Span::Dummy,
+            receiver_span: hir_ty::Span::Dummy,
         };
         f(&ctx)
     }
@@ -6217,7 +6221,7 @@ impl<'db> Type<'db> {
         self.with_method_resolution(db, scope.resolver(), traits_in_scope, |ctx| {
             // There should be no inference vars in types passed here
             let canonical = hir_ty::replace_errors_with_variables(ctx.infcx.interner, &self.ty);
-            let (self_ty, _) = ctx.infcx.instantiate_canonical(&canonical);
+            let (self_ty, _) = ctx.infcx.instantiate_canonical(hir_ty::Span::Dummy, &canonical);
 
             match name {
                 Some(name) => {
@@ -6325,7 +6329,7 @@ impl<'db> Type<'db> {
         self.with_method_resolution(db, scope.resolver(), traits_in_scope, |ctx| {
             // There should be no inference vars in types passed here
             let canonical = hir_ty::replace_errors_with_variables(ctx.infcx.interner, &self.ty);
-            let (self_ty, _) = ctx.infcx.instantiate_canonical(&canonical);
+            let (self_ty, _) = ctx.infcx.instantiate_canonical(hir_ty::Span::Dummy, &canonical);
 
             match name {
                 Some(name) => {

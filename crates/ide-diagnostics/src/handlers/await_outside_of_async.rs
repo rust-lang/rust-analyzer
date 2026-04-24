@@ -52,6 +52,7 @@ async fn bar() {
     fn await_inside_closure() {
         check_diagnostics(
             r#"
+//- minicore: future
 async fn foo() {}
 
 async fn bar() {
@@ -66,6 +67,7 @@ async fn bar() {
     fn await_inside_async_block() {
         check_diagnostics(
             r#"
+//- minicore: future
 async fn foo() {}
 
 fn bar() {
@@ -79,6 +81,7 @@ fn bar() {
     fn await_in_complex_context() {
         check_diagnostics(
             r#"
+//- minicore: future
 async fn foo() {}
 
 fn bar() {

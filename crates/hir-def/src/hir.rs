@@ -666,6 +666,8 @@ pub struct RecordFieldPat {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Pat {
     Missing,
+    /// A rest pattern. Not valid outside special context.
+    Rest,
     Wild,
     Tuple {
         args: Box<[PatId]>,
@@ -721,6 +723,7 @@ impl Pat {
             | Pat::ConstBlock(..)
             | Pat::Wild
             | Pat::Missing
+            | Pat::Rest
             | Pat::Expr(_) => {}
             Pat::Bind { subpat, .. } => {
                 subpat.iter().copied().for_each(f);

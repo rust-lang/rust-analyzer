@@ -27,7 +27,7 @@ use syntax::ast::RangeOp;
 use tracing::debug;
 
 use crate::{
-    Adjust, Adjustment, CallableDefId, Rawness, consteval,
+    Adjust, Adjustment, CallableDefId, Rawness, Span, consteval,
     infer::{AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable, pat::PatOrigin},
     lower::lower_mutability,
     method_resolution::{self, CandidateId, MethodCallee, MethodError},
@@ -176,7 +176,7 @@ impl<'db> InferenceContext<'_, 'db> {
     fn pat_guaranteed_to_constitute_read_for_never(&self, pat: PatId) -> bool {
         match &self.store[pat] {
             // Does not constitute a read.
-            Pat::Wild => false,
+            Pat::Wild | Pat::Rest => false,
 
             // This is unnecessarily restrictive when the pattern that doesn't
             // constitute a read is unreachable.
@@ -343,7 +343,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     coercion_sites[1] = else_branch;
                 }
                 let mut coerce = CoerceMany::with_coercion_sites(
-                    expected.coercion_target_type(&mut self.table),
+                    expected.coercion_target_type(&mut self.table, then_branch.into()),
                     &coercion_sites,
                 );
                 coerce.coerce(self, &ObligationCause::new(), then_branch, then_ty, ExprIsRead::Yes);
@@ -397,7 +397,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 .1
             }
             &Expr::Loop { body, label } => {
-                let ty = expected.coercion_target_type(&mut self.table);
+                let ty = expected.coercion_target_type(&mut self.table, tgt_expr.into());
                 let (breaks, ()) =
                     self.with_breakable_ctx(BreakableKind::Loop, Some(ty), label, |this| {
                         this.infer_expr(
@@ -466,7 +466,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         // We don't coerce to `()` so that if the match expression is a
                         // statement it's branches can have any consistent type.
                         Expectation::HasType(ty) if *ty != self.types.types.unit => *ty,
-                        _ => self.table.next_ty_var(),
+                        _ => self.table.next_ty_var((*expr).into()),
                     };
                     let mut coerce = CoerceMany::new(result_ty);
 
@@ -629,7 +629,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 match rawness {
                     Rawness::RawPtr => Ty::new_ptr(self.interner(), inner_ty, mutability),
                     Rawness::Ref => {
-                        let lt = self.table.next_region_var();
+                        let lt = self.table.next_region_var(tgt_expr.into());
                         Ty::new_ref(self.interner(), lt, inner_ty, mutability)
                     }
                 }
@@ -675,7 +675,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     // However, rustc lowers destructuring assignments into blocks, and blocks return `!` if they have no tail
                     // expression and they diverge. Therefore, we have to do the same here, even though we don't lower destructuring
                     // assignments into blocks.
-                    self.table.new_maybe_never_var()
+                    self.table.new_maybe_never_var(value.into())
                 } else {
                     self.types.types.unit
                 }
@@ -731,7 +731,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 let idx_t = self.infer_expr_no_expect(*index, ExprIsRead::Yes);
 
                 let base_t = self.structurally_resolve_type((*base).into(), base_t);
-                match self.lookup_indexing(tgt_expr, *base, base_t, idx_t) {
+                match self.lookup_indexing(tgt_expr, *base, *index, base_t, idx_t) {
                     Some((trait_index_ty, trait_element_ty)) => {
                         // two-phase not needed because index_ty is never mutable
                         self.demand_coerce(
@@ -755,10 +755,10 @@ impl<'db> InferenceContext<'_, 'db> {
                 {
                     Some(TyKind::Tuple(substs)) => substs
                         .iter()
-                        .chain(repeat_with(|| self.table.next_ty_var()))
+                        .chain(repeat_with(|| self.table.next_ty_var(Span::Dummy)))
                         .take(exprs.len())
                         .collect::<Vec<_>>(),
-                    _ => (0..exprs.len()).map(|_| self.table.next_ty_var()).collect(),
+                    _ => exprs.iter().map(|&expr| self.table.next_ty_var(expr.into())).collect(),
                 };
 
                 for (expr, ty) in exprs.iter().zip(tys.iter_mut()) {
@@ -768,7 +768,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
                 Ty::new_tup(self.interner(), &tys)
             }
-            Expr::Array(array) => self.infer_expr_array(array, expected),
+            Expr::Array(array) => self.infer_expr_array(tgt_expr, array, expected),
             Expr::Literal(lit) => match lit {
                 Literal::Bool(..) => self.types.types.bool,
                 Literal::String(..) => self.types.types.static_str_ref,
@@ -1119,7 +1119,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 if self.features.type_changing_struct_update {
                     if matches!(adt_id, AdtId::StructId(_)) {
                         // Make some fresh generic parameters for our ADT type.
-                        let fresh_args = self.table.fresh_args_for_item(adt_id.into());
+                        let fresh_args = self.table.fresh_args_for_item(expr.into(), adt_id.into());
                         // We do subtyping on the FRU fields first, so we can
                         // learn exactly what types we expect the base expr
                         // needs constrained to be compatible with the struct
@@ -1266,7 +1266,7 @@ impl<'db> InferenceContext<'_, 'db> {
             // ...but otherwise we want to use any supertype of the
             // scrutinee. This is sort of a workaround, see note (*) in
             // `check_pat` for some details.
-            let scrut_ty = self.table.next_ty_var();
+            let scrut_ty = self.table.next_ty_var(scrut.into());
             self.infer_expr_coerce_never(scrut, &Expectation::HasType(scrut_ty), scrutinee_is_read);
             scrut_ty
         }
@@ -1328,13 +1328,19 @@ impl<'db> InferenceContext<'_, 'db> {
         }
         oprnd_t
     }
-    fn infer_expr_array(&mut self, array: &Array, expected: &Expectation<'db>) -> Ty<'db> {
+
+    fn infer_expr_array(
+        &mut self,
+        expr: ExprId,
+        array: &Array,
+        expected: &Expectation<'db>,
+    ) -> Ty<'db> {
         let elem_ty = match expected
             .to_option(&mut self.table)
             .map(|t| self.table.try_structurally_resolve_type(t).kind())
         {
             Some(TyKind::Array(st, _) | TyKind::Slice(st)) => st,
-            _ => self.table.next_ty_var(),
+            _ => self.table.next_ty_var(expr.into()),
         };
 
         let krate = self.resolver.krate();
@@ -1371,7 +1377,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 let len = match self.store[repeat] {
                     Expr::Underscore => {
                         self.write_expr_ty(repeat, usize);
-                        self.table.next_const_var()
+                        self.table.next_const_var(repeat.into())
                     }
                     _ => {
                         self.infer_expr(repeat, &Expectation::HasType(usize), ExprIsRead::Yes);
@@ -1383,7 +1389,7 @@ impl<'db> InferenceContext<'_, 'db> {
             }
         };
         // Try to evaluate unevaluated constant, and insert variable if is not possible.
-        let len = self.table.insert_const_vars_shallow(len);
+        let len = self.insert_const_vars_shallow(len);
         Ty::new_array_with_const_len(self.interner(), elem_ty, len)
     }
 
@@ -1477,7 +1483,7 @@ impl<'db> InferenceContext<'_, 'db> {
         label: Option<LabelId>,
         expected: &Expectation<'db>,
     ) -> Ty<'db> {
-        let coerce_ty = expected.coercion_target_type(&mut self.table);
+        let coerce_ty = expected.coercion_target_type(&mut self.table, expr.into());
         let g = self.resolver.update_to_inner_scope(self.db, self.owner, expr);
 
         let (break_ty, ty) =
@@ -1488,7 +1494,7 @@ impl<'db> InferenceContext<'_, 'db> {
                             let decl_ty = type_ref
                                 .as_ref()
                                 .map(|&tr| this.make_body_ty(tr))
-                                .unwrap_or_else(|| this.table.next_ty_var());
+                                .unwrap_or_else(|| this.table.next_ty_var((*pat).into()));
 
                             let ty = if let Some(expr) = initializer {
                                 // If we have a subpattern that performs a read, we want to consider this
@@ -1561,7 +1567,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     // `!`).
                     if this.diverges.is_always() {
                         // we don't even make an attempt at coercion
-                        this.table.new_maybe_never_var()
+                        this.table.new_maybe_never_var(expr.into())
                     } else if let Some(t) = expected.only_has_type(&mut this.table) {
                         if this
                             .coerce(
@@ -1728,10 +1734,13 @@ impl<'db> InferenceContext<'_, 'db> {
     fn instantiate_erroneous_method(&mut self, def_id: FunctionId) -> MethodCallee<'db> {
         // FIXME: Using fresh infer vars for the method args isn't optimal,
         // we can do better by going thorough the full probe/confirm machinery.
-        let args = self.table.fresh_args_for_item(def_id.into());
+        let args = self.table.fresh_args_for_item(Span::Dummy, def_id.into());
         let sig = self.db.callable_item_signature(def_id.into()).instantiate(self.interner(), args);
-        let sig =
-            self.infcx().instantiate_binder_with_fresh_vars(BoundRegionConversionTime::FnCall, sig);
+        let sig = self.infcx().instantiate_binder_with_fresh_vars(
+            Span::Dummy,
+            BoundRegionConversionTime::FnCall,
+            sig,
+        );
         MethodCallee { def_id, args, sig }
     }
 
@@ -1810,20 +1819,21 @@ impl<'db> InferenceContext<'_, 'db> {
                     None => None,
                 };
 
-                let assoc_func_with_same_name = self.with_method_resolution(|ctx| {
-                    if !matches!(
-                        receiver_ty.kind(),
-                        TyKind::Infer(InferTy::TyVar(_)) | TyKind::Error(_)
-                    ) {
-                        ctx.probe_for_name(
-                            method_resolution::Mode::Path,
-                            method_name.clone(),
-                            receiver_ty,
-                        )
-                    } else {
-                        Err(MethodError::ErrorReported)
-                    }
-                });
+                let assoc_func_with_same_name =
+                    self.with_method_resolution(tgt_expr.into(), receiver.into(), |ctx| {
+                        if !matches!(
+                            receiver_ty.kind(),
+                            TyKind::Infer(InferTy::TyVar(_)) | TyKind::Error(_)
+                        ) {
+                            ctx.probe_for_name(
+                                method_resolution::Mode::Path,
+                                method_name.clone(),
+                                receiver_ty,
+                            )
+                        } else {
+                            Err(MethodError::ErrorReported)
+                        }
+                    });
                 let assoc_func_with_same_name = match assoc_func_with_same_name {
                     Ok(method_resolution::Pick {
                         item: CandidateId::FunctionId(def_id), ..
@@ -1928,7 +1938,7 @@ impl<'db> InferenceContext<'_, 'db> {
         let formal_input_tys: Vec<_> = formal_input_tys
             .iter()
             .map(|&ty| {
-                let generalized_ty = self.table.next_ty_var();
+                let generalized_ty = self.table.next_ty_var(call_expr.into());
                 let _ = self.demand_eqtype(call_expr.into(), ty, generalized_ty);
                 generalized_ty
             })

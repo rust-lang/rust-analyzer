@@ -52,7 +52,7 @@ use smallvec::SmallVec;
 use tracing::{debug, instrument};
 
 use crate::{
-    Adjust, Adjustment, AutoBorrow, ParamEnvAndCrate, PointerCast, TargetFeatures,
+    Adjust, Adjustment, AutoBorrow, ParamEnvAndCrate, PointerCast, Span, TargetFeatures,
     autoderef::Autoderef,
     db::{HirDatabase, InternedClosure, InternedClosureId},
     infer::{
@@ -316,7 +316,8 @@ where
 
         if b.is_infer() {
             // Two unresolved type variables: create a `Coerce` predicate.
-            let target_ty = if self.use_lub { self.infcx().next_ty_var() } else { b };
+            let target_ty =
+                if self.use_lub { self.infcx().next_ty_var(self.cause.span()) } else { b };
 
             let mut obligations = PredicateObligations::with_capacity(2);
             for &source_ty in &[a, b] {
@@ -463,7 +464,7 @@ where
             } else {
                 if r_borrow_var.is_none() {
                     // create var lazily, at most once
-                    let r = self.infcx().next_region_var();
+                    let r = self.infcx().next_region_var(self.cause.span());
                     r_borrow_var = Some(r); // [4] above
                 }
                 r_borrow_var.unwrap()
@@ -624,7 +625,7 @@ where
             (TyKind::Ref(_, ty_a, mutbl_a), TyKind::Ref(_, _, mutbl_b)) => {
                 coerce_mutbls(mutbl_a, mutbl_b)?;
 
-                let r_borrow = self.infcx().next_region_var();
+                let r_borrow = self.infcx().next_region_var(self.cause.span());
 
                 // We don't allow two-phase borrows here, at least for initial
                 // implementation. If it happens that this coercion is a function argument,
@@ -658,7 +659,7 @@ where
         // the `CoerceUnsized` target type and the expected type.
         // We only have the latter, so we use an inference variable
         // for the former and let type inference do the rest.
-        let coerce_target = self.infcx().next_ty_var();
+        let coerce_target = self.infcx().next_ty_var(self.cause.span());
 
         let mut coercion = self.unify_and(
             coerce_target,
@@ -688,6 +689,7 @@ where
                     errored: false,
                     unsize_did,
                     coerce_unsized_did,
+                    span: self.cause.span(),
                 },
             )
             .is_break()
@@ -899,7 +901,7 @@ impl<'db> InferenceContext<'_, 'db> {
         target = self.table.try_structurally_resolve_type(target);
         debug!("coercion::try({:?}: {:?} -> {:?})", expr, source, target);
 
-        let cause = ObligationCause::new();
+        let cause = ObligationCause::with_span(expr.into());
         let coerce_never = self.expr_guaranteed_to_constitute_read_for_never(expr, expr_is_read);
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
@@ -974,8 +976,12 @@ impl<'db> InferenceContext<'_, 'db> {
                         match self.table.commit_if_ok(|table| {
                             // We need to eagerly handle nested obligations due to lazy norm.
                             let mut ocx = ObligationCtxt::new(&table.infer_ctxt);
-                            let value =
-                                ocx.lub(&ObligationCause::new(), table.param_env, prev_ty, new_ty)?;
+                            let value = ocx.lub(
+                                &ObligationCause::with_span(new.into()),
+                                table.param_env,
+                                prev_ty,
+                                new_ty,
+                            )?;
                             if ocx.try_evaluate_obligations().is_empty() {
                                 Ok(InferOk { value, obligations: ocx.into_pending_obligations() })
                             } else {
@@ -1023,7 +1029,7 @@ impl<'db> InferenceContext<'_, 'db> {
             let sig = self
                 .table
                 .infer_ctxt
-                .at(&ObligationCause::new(), self.table.param_env)
+                .at(&ObligationCause::with_span(new.into()), self.table.param_env)
                 .lub(a_sig, b_sig)
                 .map(|ok| self.table.register_infer_ok(ok))?;
 
@@ -1069,7 +1075,7 @@ impl<'db> InferenceContext<'_, 'db> {
         // operate on values and not places, so a never coercion is valid.
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
-            cause: ObligationCause::new(),
+            cause: ObligationCause::with_span(new.into()),
             allow_two_phase: AllowTwoPhase::No,
             coerce_never: true,
             use_lub: true,
@@ -1105,7 +1111,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         .commit_if_ok(|table| {
                             table
                                 .infer_ctxt
-                                .at(&ObligationCause::new(), table.param_env)
+                                .at(&ObligationCause::with_span(new.into()), table.param_env)
                                 .lub(prev_ty, new_ty)
                         })
                         .unwrap_err())
@@ -1451,7 +1457,7 @@ fn coerce<'db>(
 ) -> Result<(Vec<Adjustment>, Ty<'db>), TypeError<DbInterner<'db>>> {
     let interner = DbInterner::new_with(db, env.krate);
     let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
-    let ((ty1_with_vars, ty2_with_vars), vars) = infcx.instantiate_canonical(tys);
+    let ((ty1_with_vars, ty2_with_vars), vars) = infcx.instantiate_canonical(Span::Dummy, tys);
 
     let cause = ObligationCause::new();
     // FIXME: Target features.
@@ -1611,10 +1617,15 @@ struct CoerceVisitor<'a, D> {
     errored: bool,
     unsize_did: TraitId,
     coerce_unsized_did: TraitId,
+    span: Span,
 }
 
 impl<'a, 'db, D: CoerceDelegate<'db>> ProofTreeVisitor<'db> for CoerceVisitor<'a, D> {
     type Result = ControlFlow<()>;
+
+    fn span(&self) -> Span {
+        self.span
+    }
 
     fn visit_goal(&mut self, goal: &InspectGoal<'_, 'db>) -> Self::Result {
         let Some(pred) = goal.goal().predicate.as_trait_clause() else {

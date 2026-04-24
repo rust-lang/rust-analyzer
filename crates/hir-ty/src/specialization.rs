@@ -7,6 +7,7 @@ use hir_def::{
 use tracing::debug;
 
 use crate::{
+    Span,
     db::HirDatabase,
     lower::GenericPredicates,
     next_solver::{
@@ -91,7 +92,7 @@ fn specializes_query(
 
     let mut ocx = ObligationCtxt::new(&infcx);
 
-    let parent_args = infcx.fresh_args_for_item(parent_impl_def_id.into());
+    let parent_args = infcx.fresh_args_for_item(Span::Dummy, parent_impl_def_id.into());
     let parent_impl_trait_ref = db
         .impl_trait(parent_impl_def_id)
         .expect("expected source impl to be a trait impl")

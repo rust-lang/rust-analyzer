@@ -99,7 +99,7 @@ impl<'db> NormalizationFolder<'_, 'db> {
 
         self.depth += 1;
 
-        let infer_term = infcx.next_term_var_of_kind(alias_term);
+        let infer_term = infcx.next_term_var_of_kind(alias_term, self.at.cause.span());
         let obligation = Obligation::new(
             interner,
             self.at.cause.clone(),

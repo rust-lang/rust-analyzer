@@ -34,7 +34,7 @@ impl<'db> At<'_, 'db> {
             return Ok(term);
         }
 
-        let new_infer = self.infcx.next_term_var_of_kind(term);
+        let new_infer = self.infcx.next_term_var_of_kind(term, self.cause.span());
 
         // We simply emit an `alias-eq` goal here, since that will take care of
         // normalizing the LHS of the projection until it is a rigid projection

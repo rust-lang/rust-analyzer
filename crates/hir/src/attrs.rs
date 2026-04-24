@@ -504,6 +504,8 @@ fn resolve_impl_trait_item<'db>(
         traits_in_scope: &traits_in_scope,
         edition: krate.edition(db),
         features,
+        call_span: hir_ty::Span::Dummy,
+        receiver_span: hir_ty::Span::Dummy,
     };
     let resolution = ctx.probe_for_name(method_resolution::Mode::Path, name.clone(), ty.ty);
     let resolution = match resolution {

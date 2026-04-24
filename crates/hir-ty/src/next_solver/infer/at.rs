@@ -28,13 +28,12 @@
 use rustc_type_ir::{
     FnSig, GenericArgKind, TypeFoldable, TypingMode, Variance,
     error::ExpectedFound,
-    inherent::Span as _,
     relate::{Relate, TypeRelation, solver_relating::RelateExt},
 };
 
 use crate::next_solver::{
     AliasTerm, AliasTy, Binder, Const, DbInterner, GenericArg, Goal, ParamEnv,
-    PolyExistentialProjection, PolyExistentialTraitRef, PolyFnSig, Predicate, Region, Span, Term,
+    PolyExistentialProjection, PolyExistentialTraitRef, PolyFnSig, Predicate, Region, Term,
     TraitRef, Ty,
     fulfill::NextSolverError,
     infer::relate::lattice::{LatticeOp, LatticeOpKind},
@@ -109,7 +108,7 @@ impl<'a, 'db> At<'a, 'db> {
             expected,
             Variance::Contravariant,
             actual,
-            Span::dummy(),
+            self.cause.span(),
         )
         .map(|goals| self.goals_to_obligations(goals))
     }
@@ -125,7 +124,7 @@ impl<'a, 'db> At<'a, 'db> {
             expected,
             Variance::Covariant,
             actual,
-            Span::dummy(),
+            self.cause.span(),
         )
         .map(|goals| self.goals_to_obligations(goals))
     }
@@ -141,7 +140,7 @@ impl<'a, 'db> At<'a, 'db> {
             expected,
             Variance::Invariant,
             actual,
-            Span::dummy(),
+            self.cause.span(),
         )
         .map(|goals| self.goals_to_obligations(goals))
     }

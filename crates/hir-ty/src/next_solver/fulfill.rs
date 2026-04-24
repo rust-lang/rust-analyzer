@@ -9,17 +9,20 @@ use rustc_next_trait_solver::{
 };
 use rustc_type_ir::{
     Interner, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor,
-    inherent::{IntoKind, Span as _},
+    inherent::IntoKind,
     solve::{Certainty, NoSolution},
 };
 
-use crate::next_solver::{
-    DbInterner, SolverContext, SolverDefId, Span, Ty, TyKind, TypingMode,
-    infer::{
-        InferCtxt,
-        traits::{PredicateObligation, PredicateObligations},
+use crate::{
+    Span,
+    next_solver::{
+        DbInterner, SolverContext, SolverDefId, Ty, TyKind, TypingMode,
+        infer::{
+            InferCtxt,
+            traits::{PredicateObligation, PredicateObligations},
+        },
+        inspect::ProofTreeVisitor,
     },
-    inspect::ProofTreeVisitor,
 };
 
 type PendingObligations<'db> =
@@ -97,7 +100,7 @@ impl<'db> ObligationStorage<'db> {
                         let goal = o.as_goal();
                         let result = <&SolverContext<'db>>::from(infcx).evaluate_root_goal(
                             goal,
-                            Span::dummy(),
+                            o.cause.span(),
                             stalled_on.take(),
                         );
                         matches!(result, Ok(GoalEvaluation { has_changed: HasChanged::Yes, .. }))
@@ -169,7 +172,9 @@ impl<'db> FulfillmentCtxt<'db> {
 
                 let goal = obligation.as_goal();
                 let delegate = <&SolverContext<'db>>::from(infcx);
-                if let Some(certainty) = delegate.compute_goal_fast_path(goal, Span::dummy()) {
+                if let Some(certainty) =
+                    delegate.compute_goal_fast_path(goal, obligation.cause.span())
+                {
                     match certainty {
                         Certainty::Yes => {}
                         Certainty::Maybe { .. } => {
@@ -179,9 +184,11 @@ impl<'db> FulfillmentCtxt<'db> {
                     continue;
                 }
 
-                let result = delegate.evaluate_root_goal(goal, Span::dummy(), stalled_on);
+                let result = delegate.evaluate_root_goal(goal, obligation.cause.span(), stalled_on);
                 infcx.inspect_evaluated_obligation(&obligation, &result, || {
-                    Some(delegate.evaluate_root_goal_for_proof_tree(goal, Span::dummy()).1)
+                    Some(
+                        delegate.evaluate_root_goal_for_proof_tree(goal, obligation.cause.span()).1,
+                    )
                 });
                 let GoalEvaluation { goal: _, certainty, has_changed, stalled_on } = match result {
                     Ok(result) => result,
@@ -259,6 +266,7 @@ impl<'db> FulfillmentCtxt<'db> {
                             obl.as_goal(),
                             &mut StalledOnCoroutines {
                                 stalled_coroutines,
+                                span: obl.cause.span(),
                                 cache: Default::default(),
                             },
                         )
@@ -280,11 +288,16 @@ impl<'db> FulfillmentCtxt<'db> {
 /// so we want to keep this visitor *precise* too.
 pub struct StalledOnCoroutines<'a, 'db> {
     pub stalled_coroutines: &'a [SolverDefId],
+    pub span: Span,
     pub cache: FxHashSet<Ty<'db>>,
 }
 
 impl<'db> ProofTreeVisitor<'db> for StalledOnCoroutines<'_, 'db> {
     type Result = ControlFlow<()>;
+
+    fn span(&self) -> Span {
+        self.span
+    }
 
     fn visit_goal(&mut self, inspect_goal: &super::inspect::InspectGoal<'_, 'db>) -> Self::Result {
         inspect_goal.goal().predicate.visit_with(self)?;

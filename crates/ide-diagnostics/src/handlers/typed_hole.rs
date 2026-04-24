@@ -166,6 +166,8 @@ fn t<T>() -> T { loop {} }
             r#"
 fn main() {
     let _x = [(); _];
+               // ^ error: type annotations needed
+               // | full type: `[(); _]`
     // FIXME: This should trigger error
     // let _y: [(); 10] = [(); _];
     _ = 0;

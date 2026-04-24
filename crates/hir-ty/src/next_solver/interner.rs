@@ -37,7 +37,7 @@ use rustc_type_ir::{
 };
 
 use crate::{
-    FnAbi,
+    FnAbi, Span,
     db::{HirDatabase, InternedClosure, InternedCoroutineId},
     lower::GenericPredicates,
     method_resolution::TraitImpls,
@@ -382,13 +382,9 @@ impl<'db> DbInterner<'db> {
     }
 }
 
-// This is intentionally left as `()`
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct Span(());
-
 impl<'db> inherent::Span<DbInterner<'db>> for Span {
     fn dummy() -> Self {
-        Span(())
+        Span::Dummy
     }
 }
 

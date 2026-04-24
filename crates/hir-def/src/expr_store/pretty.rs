@@ -895,6 +895,7 @@ impl Printer<'_> {
 
         match pat {
             Pat::Missing => w!(self, "�"),
+            Pat::Rest => w!(self, ".."),
             Pat::Wild => w!(self, "_"),
             Pat::Tuple { args, ellipsis } => {
                 w!(self, "(");
