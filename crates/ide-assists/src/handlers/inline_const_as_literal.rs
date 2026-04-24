@@ -774,13 +774,13 @@ mod tests {
     fn inline_const_as_literal_omits_suffix_outside_method_call_receiver() {
         check_assist(
             inline_const_as_literal,
-            r#"
+        r#"
             const N: i32 = 24;
             fn main() { let x: i32 = N$0; }
             "#,
-            r#"
+        r#"
             const N: i32 = 24;
             fn main() { let x: i32 = 24; }
             "#,
-        );
-    }
+    );
+}
