@@ -39,10 +39,20 @@ pub(crate) fn inline_const_as_literal(acc: &mut Assists, ctx: &AssistContext<'_>
         // FIXME: Add support to handle type aliases for builtin scalar types.
         validate_type_recursively(ctx, Some(&konst_ty), false, fuel)?;
 
-        let value = konst
+        let mut value = konst
             .eval(ctx.sema.db)
             .ok()?
             .render(ctx.sema.db, konst.krate(ctx.sema.db).to_display_target(ctx.sema.db));
+
+        // When this path is the receiver of a method call and the const is a numeric primitive,
+        // preserve the type suffix (24i32 rather than 24). Without it the bare literal is 
+        // {integer}/{float} and the method resolves with E0689 (see #22051).
+        if is_method_call_receiver(&variable)
+            && let Some(builtin) = konst_ty.as_builtin()
+            && (builtin.is_int() || builtin.is_uint() || builtin.is_float())
+        {
+            value.push_str(builtin.name().as_str());
+        }
 
         let id = AssistId::refactor_inline("inline_const_as_literal");
 
@@ -54,6 +64,12 @@ pub(crate) fn inline_const_as_literal(acc: &mut Assists, ctx: &AssistContext<'_>
         });
     }
     None
+}
+
+fn is_method_call_reciever(path_expr: &ast::PathExpr) -> bool {
+    let Some(parent) = path_expr.syntax().parent() else { return false };
+    let Some(call) = ast::MethodCallExpr::cast(parent) else { return false };
+    call.receiver().is_some_and(|rcv| rcv.syntax() == path_expr.syntax())
 }
 
 fn validate_type_recursively(
@@ -704,6 +720,67 @@ mod tests {
             fn something() -> &'static str {
                 STRING $0
             }
+            "#,
+        );
+    }
+}
+
+    #[test]
+    fn inline_const_as_literal_preserves_suffix_in_method_call_receiver() {
+        check_assist(
+            inline_const_as_literal,
+            r#"
+            const BASE: i32 = 24i32;
+            fn main() { let result = BA$0SE.wrapping_add(7i32); }
+            "#,
+            r#"
+            const BASE: i32 = 24i32;
+            fn main() { let result = 24i32.wrapping_add(7i32); }
+            "#,
+        );
+    }
+
+    #[test]
+    fn inline_const_as_literal_preserves_suffix_for_float_receiver() {
+        check_assist(
+            inline_const_as_literal,
+            r#"
+            const PI: f64 = 3.14;
+            fn main() { let x = P$0I.floor(); }
+            "#,
+            r#"
+            const PI: f64 = 3.14;
+            fn main() { let x = 3.14f64.floor(); }
+            "#,
+        );
+    }
+
+    #[test]
+    fn inline_const_as_literal_preserves_suffix_for_unsigned_receiver() {
+        check_assist(
+            inline_const_as_literal,
+            r#"
+            const N: u64 = 42;
+            fn main() { let x = N$0.count_ones(); }
+            "#,
+            r#"
+            const N: u64 = 42;
+            fn main() { let x = 42u64.count_ones(); }
+            "#,
+        );
+    }
+
+    #[test]
+    fn inline_const_as_literal_omits_suffix_outside_method_call_receiver() {
+        check_assist(
+            inline_const_as_literal,
+            r#"
+            const N: i32 = 24;
+            fn main() { let x: i32 = N$0; }
+            "#,
+            r#"
+            const N: i32 = 24;
+            fn main() { let x: i32 = 24; }
             "#,
         );
     }
