@@ -6,9 +6,9 @@
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_def::{
-    DefWithBodyId, GenericParamId, SyntheticSyntax,
+    DefWithBodyId, GenericParamId, HasModule, SyntheticSyntax,
     expr_store::{
-        ExprOrPatPtr, ExprOrPatSource, ExpressionStoreSourceMap, hir_assoc_type_binding_to_ast,
+        ExprOrPatPtr, ExpressionStoreSourceMap, hir_assoc_type_binding_to_ast,
         hir_generic_arg_to_ast, hir_segment_to_ast_segment,
     },
     hir::ExprOrPatId,
@@ -19,6 +19,7 @@ use hir_ty::{
     PathLoweringDiagnostic, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
     db::HirDatabase,
     diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
+    display::{DisplayTarget, HirDisplay},
 };
 use syntax::{
     AstNode, AstPtr, SyntaxError, SyntaxNodePtr, TextRange,
@@ -108,7 +109,7 @@ diagnostics![AnyDiagnostic<'db> ->
     IncorrectGenericsOrder,
     MissingLifetime,
     ElidedLifetimesInPath,
-    TypeMustBeKnown,
+    TypeMustBeKnown<'db>,
 ];
 
 #[derive(Debug)]
@@ -446,8 +447,9 @@ pub struct ElidedLifetimesInPath {
 }
 
 #[derive(Debug)]
-pub struct TypeMustBeKnown {
-    pub at_point: ExprOrPatSource,
+pub struct TypeMustBeKnown<'db> {
+    pub at_point: InFile<AstPtr<Either<ast::Type, Either<ast::Expr, ast::Pat>>>>,
+    pub top_term: Option<Either<Type<'db>, String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -631,6 +633,12 @@ impl<'db> AnyDiagnostic<'db> {
                 .inspect_err(|_| stdx::never!("inference diagnostic in desugared pattern"))
                 .ok()
         };
+        let type_syntax = |pat| {
+            source_map
+                .type_syntax(pat)
+                .inspect_err(|_| stdx::never!("inference diagnostic in desugared type"))
+                .ok()
+        };
         let expr_or_pat_syntax = |id| match id {
             ExprOrPatId::ExprId(expr) => expr_syntax(expr),
             ExprOrPatId::PatId(pat) => pat_syntax(pat),
@@ -806,8 +814,29 @@ impl<'db> AnyDiagnostic<'db> {
                 let lhs = expr_syntax(lhs)?;
                 InvalidLhsOfAssignment { lhs }.into()
             }
-            &InferenceDiagnostic::TypeMustBeKnown { at_point } => {
-                TypeMustBeKnown { at_point: expr_or_pat_syntax(at_point)? }.into()
+            &InferenceDiagnostic::TypeMustBeKnown { at_point, ref top_term } => {
+                let at_point = match at_point {
+                    hir_ty::Span::ExprId(idx) => expr_syntax(idx)?.map(|it| it.wrap_right()),
+                    hir_ty::Span::PatId(idx) => pat_syntax(idx)?.map(|it| it.wrap_right()),
+                    hir_ty::Span::TypeRefId(idx) => type_syntax(idx)?.map(|it| it.wrap_left()),
+                    hir_ty::Span::Dummy => unreachable!(
+                        "should never create TypeMustBeKnown diagnostic for dummy spans"
+                    ),
+                };
+                let top_term = top_term.as_ref().map(|top_term| match top_term.as_ref().kind() {
+                    rustc_type_ir::GenericArgKind::Type(ty) => Either::Left(Type {
+                        ty,
+                        env: crate::body_param_env_from_has_crate(db, def),
+                    }),
+                    // FIXME: Printing the const to string is definitely not the correct thing to do here.
+                    rustc_type_ir::GenericArgKind::Const(konst) => Either::Right(
+                        konst.display(db, DisplayTarget::from_crate(db, def.krate(db))).to_string(),
+                    ),
+                    rustc_type_ir::GenericArgKind::Lifetime(_) => {
+                        unreachable!("we currently don't emit TypeMustBeKnown for lifetimes")
+                    }
+                });
+                TypeMustBeKnown { at_point, top_term }.into()
             }
         })
     }

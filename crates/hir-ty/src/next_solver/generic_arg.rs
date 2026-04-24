@@ -194,6 +194,25 @@ impl std::fmt::Debug for StoredGenericArg {
     }
 }
 
+impl<'db> TypeVisitable<DbInterner<'db>> for StoredGenericArg {
+    fn visit_with<V: TypeVisitor<DbInterner<'db>>>(&self, visitor: &mut V) -> V::Result {
+        self.as_ref().visit_with(visitor)
+    }
+}
+
+impl<'db> TypeFoldable<DbInterner<'db>> for StoredGenericArg {
+    fn try_fold_with<F: FallibleTypeFolder<DbInterner<'db>>>(
+        self,
+        folder: &mut F,
+    ) -> Result<Self, F::Error> {
+        Ok(self.as_ref().try_fold_with(folder)?.store())
+    }
+
+    fn fold_with<F: TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
+        self.as_ref().fold_with(folder).store()
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct GenericArg<'db> {
     ptr: GenericArgImpl<'db>,
@@ -456,6 +475,25 @@ interned_slice!(
 impl_foldable_for_interned_slice!(GenericArgs);
 
 impl<'db> rustc_type_ir::inherent::GenericArg<DbInterner<'db>> for GenericArg<'db> {}
+
+impl<'db> TypeVisitable<DbInterner<'db>> for StoredGenericArgs {
+    fn visit_with<V: TypeVisitor<DbInterner<'db>>>(&self, visitor: &mut V) -> V::Result {
+        self.as_ref().visit_with(visitor)
+    }
+}
+
+impl<'db> TypeFoldable<DbInterner<'db>> for StoredGenericArgs {
+    fn try_fold_with<F: FallibleTypeFolder<DbInterner<'db>>>(
+        self,
+        folder: &mut F,
+    ) -> Result<Self, F::Error> {
+        Ok(self.as_ref().try_fold_with(folder)?.store())
+    }
+
+    fn fold_with<F: TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
+        self.as_ref().fold_with(folder).store()
+    }
+}
 
 impl<'db> GenericArgs<'db> {
     /// Creates an `GenericArgs` for generic parameter definitions,

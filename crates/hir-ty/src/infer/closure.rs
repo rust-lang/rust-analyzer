@@ -866,18 +866,12 @@ impl<'db> InferenceContext<'_, 'db> {
         let interner = self.interner();
 
         let supplied_return = match decl_output {
-            Some(output) => {
-                let output = self.make_body_ty(output);
-                self.process_user_written_ty(output)
-            }
+            Some(output) => self.make_body_ty(output),
             None => self.table.next_ty_var(closure_expr.into()),
         };
         // First, convert the types that the user supplied (if any).
         let supplied_arguments = decl_inputs.iter().map(|&input| match input {
-            Some(input) => {
-                let input = self.make_body_ty(input);
-                self.process_user_written_ty(input)
-            }
+            Some(input) => self.make_body_ty(input),
             None => self.table.next_ty_var(closure_expr.into()),
         });
 

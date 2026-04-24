@@ -47,8 +47,8 @@ use smallvec::{SmallVec, smallvec};
 use span::{FileId, SyntaxContext};
 use stdx::{TupleExt, always};
 use syntax::{
-    AstNode, AstToken, Direction, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind, SyntaxNode,
-    SyntaxNodePtr, SyntaxToken, T, TextRange, TextSize,
+    AstNode, AstPtr, AstToken, Direction, SmolStr, SmolStrBuilder, SyntaxElement, SyntaxKind,
+    SyntaxNode, SyntaxNodePtr, SyntaxToken, T, TextRange, TextSize,
     algo::skip_trivia_token,
     ast::{self, HasAttrs as _, HasGenericParams},
 };
@@ -541,6 +541,10 @@ impl<'db> SemanticsImpl<'db> {
         let node = self.db.parse_or_expand(file_id);
         self.cache(node.clone(), file_id);
         node
+    }
+
+    pub fn to_node<N: AstNode>(&self, ptr: InFile<AstPtr<N>>) -> N {
+        ptr.value.to_node(&self.parse_or_expand(ptr.file_id))
     }
 
     pub fn expand(&self, file_id: MacroCallId) -> ExpandResult<SyntaxNode> {

@@ -736,6 +736,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
 
             fn provided_type_like_const(
                 &mut self,
+                _type_ref: TypeRefId,
                 const_ty: Ty<'db>,
                 arg: TypeLikeConst<'_>,
             ) -> Const<'db> {
@@ -1002,8 +1003,12 @@ pub(crate) trait GenericArgsLowerer<'db> {
         arg: &HirGenericArg,
     ) -> GenericArg<'db>;
 
-    fn provided_type_like_const(&mut self, const_ty: Ty<'db>, arg: TypeLikeConst<'_>)
-    -> Const<'db>;
+    fn provided_type_like_const(
+        &mut self,
+        type_ref: TypeRefId,
+        const_ty: Ty<'db>,
+        arg: TypeLikeConst<'_>,
+    ) -> Const<'db>;
 
     fn inferred_kind(
         &mut self,
@@ -1225,7 +1230,8 @@ pub(crate) fn substs_from_args_and_bindings<'db>(
                             panic!("unmatching param kinds");
                         };
                         let const_ty = const_param_ty_query(db, param_id);
-                        substs.push(ctx.provided_type_like_const(const_ty, konst).into());
+                        substs
+                            .push(ctx.provided_type_like_const(*type_ref, const_ty, konst).into());
                         args.next();
                         params.next();
                     } else {

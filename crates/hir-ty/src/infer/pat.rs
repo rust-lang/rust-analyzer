@@ -446,7 +446,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                     pat_info,
                 )
             }
-            Pat::Missing | Pat::Wild => expected,
+            Pat::Missing => self.types.types.error,
+            Pat::Wild | Pat::Rest => expected,
             // We allow any type here; we ensure that the type is uninhabited during match checking.
             // Pat::Never => expected,
             Pat::Path(_) => {
@@ -658,8 +659,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             Pat::Ref { .. }
             // No need to do anything on a missing pattern.
             | Pat::Missing
-            // A `_` pattern works with any expected type, so there's no need to do anything.
-            | Pat::Wild
+            // A `_`/`..` pattern works with any expected type, so there's no need to do anything.
+            | Pat::Wild | Pat::Rest
             // Bindings also work with whatever the expected type is,
             // and moreover if we peel references off, that will give us the wrong binding type.
             // Also, we can have a subpattern `binding @ pat`.

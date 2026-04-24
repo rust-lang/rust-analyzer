@@ -176,7 +176,7 @@ impl<'db> InferenceContext<'_, 'db> {
     fn pat_guaranteed_to_constitute_read_for_never(&self, pat: PatId) -> bool {
         match &self.store[pat] {
             // Does not constitute a read.
-            Pat::Wild => false,
+            Pat::Wild | Pat::Rest => false,
 
             // This is unnecessarily restrictive when the pattern that doesn't
             // constitute a read is unreachable.

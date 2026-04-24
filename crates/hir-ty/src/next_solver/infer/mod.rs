@@ -946,8 +946,8 @@ impl<'db> InferCtxt<'db> {
         use self::type_variable::TypeVariableValue;
 
         match self.inner.borrow_mut().type_variables().probe(vid) {
-            TypeVariableValue::Known { value } => Ok(value),
-            TypeVariableValue::Unknown { universe } => Err(universe),
+            TypeVariableValue::Known { value, .. } => Ok(value),
+            TypeVariableValue::Unknown { universe, .. } => Err(universe),
         }
     }
 
@@ -1012,6 +1012,13 @@ impl<'db> InferCtxt<'db> {
             | ConstKind::Value(_)
             | ConstKind::Error(_)
             | ConstKind::Expr(_) => ct,
+        }
+    }
+
+    pub fn shallow_resolve_term(&self, term: Term<'db>) -> Term<'db> {
+        match term.kind() {
+            TermKind::Ty(ty) => self.shallow_resolve(ty).into(),
+            TermKind::Const(ct) => self.shallow_resolve_const(ct).into(),
         }
     }
 
@@ -1093,6 +1100,21 @@ impl<'db> InferCtxt<'db> {
         match self.inner.borrow_mut().const_unification_table().probe_value(vid) {
             ConstVariableValue::Known { value } => Ok(value),
             ConstVariableValue::Unknown { span: _, universe } => Err(universe),
+        }
+    }
+
+    /// Returns the span of the type variable identified by `vid`.
+    ///
+    /// No attempt is made to resolve `vid` to its root variable.
+    pub fn type_var_span(&self, vid: TyVid) -> Span {
+        self.inner.borrow_mut().type_variables().var_span(vid)
+    }
+
+    /// Returns the span of the const variable identified by `vid`
+    pub fn const_var_span(&self, vid: ConstVid) -> Option<Span> {
+        match self.inner.borrow_mut().const_unification_table().probe_value(vid) {
+            ConstVariableValue::Known { .. } => None,
+            ConstVariableValue::Unknown { span, .. } => Some(span),
         }
     }
 

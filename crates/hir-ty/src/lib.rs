@@ -689,6 +689,18 @@ impl From<ExprOrPatId> for Span {
     }
 }
 
+impl Span {
+    pub(crate) fn pick_best(a: Span, b: Span) -> Span {
+        // We prefer dummy spans to minimize the risk of false errors.
+        if b.is_dummy() { b } else { a }
+    }
+
+    #[inline]
+    pub fn is_dummy(&self) -> bool {
+        matches!(self, Self::Dummy)
+    }
+}
+
 pub fn setup_tracing() -> Option<tracing::subscriber::DefaultGuard> {
     use std::env;
     use std::sync::LazyLock;

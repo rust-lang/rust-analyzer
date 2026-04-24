@@ -4795,7 +4795,7 @@ impl ConstParam {
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type<'_> {
-        Type::new(db, self.id.parent(), db.const_param_ty_ns(self.id))
+        Type::new(db, self.id.parent(), db.const_param_ty(self.id))
     }
 
     pub fn default(

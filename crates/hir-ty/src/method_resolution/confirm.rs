@@ -5,6 +5,7 @@ use hir_def::{
     FunctionId, GenericDefId, GenericParamId, ItemContainerId, TraitId,
     expr_store::path::{GenericArg as HirGenericArg, GenericArgs as HirGenericArgs},
     hir::{ExprId, generics::GenericParamDataRef},
+    type_ref::TypeRefId,
 };
 use rustc_type_ir::{
     TypeFoldable,
@@ -400,7 +401,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                         let GenericParamId::ConstParamId(const_id) = param_id else {
                             unreachable!("non-const param ID for const param");
                         };
-                        let const_ty = self.ctx.db.const_param_ty_ns(const_id);
+                        let const_ty = self.ctx.db.const_param_ty(const_id);
                         self.ctx.make_body_const(*konst, const_ty).into()
                     }
                     _ => unreachable!("unmatching param kinds were passed to `provided_kind()`"),
@@ -409,11 +410,14 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
 
             fn provided_type_like_const(
                 &mut self,
+                type_ref: TypeRefId,
                 const_ty: Ty<'db>,
                 arg: TypeLikeConst<'_>,
             ) -> Const<'db> {
                 match arg {
-                    TypeLikeConst::Path(path) => self.ctx.make_path_as_body_const(path, const_ty),
+                    TypeLikeConst::Path(path) => {
+                        self.ctx.make_path_as_body_const(type_ref, path, const_ty)
+                    }
                     TypeLikeConst::Infer => self.ctx.table.next_const_var(Span::Dummy),
                 }
             }

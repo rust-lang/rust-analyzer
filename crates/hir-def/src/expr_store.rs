@@ -561,6 +561,7 @@ impl ExpressionStore {
             | Pat::ConstBlock(..)
             | Pat::Wild
             | Pat::Missing
+            | Pat::Rest
             | Pat::Expr(_) => {}
             &Pat::Bind { subpat, .. } => {
                 if let Some(subpat) = subpat {

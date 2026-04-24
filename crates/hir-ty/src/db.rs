@@ -147,7 +147,7 @@ pub trait HirDatabase: DefDatabase + std::fmt::Debug {
 
     #[salsa::invoke(crate::lower::const_param_ty_query)]
     #[salsa::transparent]
-    fn const_param_ty_ns<'db>(&'db self, def: ConstParamId) -> Ty<'db>;
+    fn const_param_ty<'db>(&'db self, def: ConstParamId) -> Ty<'db>;
 
     #[salsa::invoke(crate::lower::impl_trait_with_diagnostics)]
     #[salsa::transparent]

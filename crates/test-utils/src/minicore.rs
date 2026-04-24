@@ -67,7 +67,7 @@
 //!     size_of: sized
 //!     sized:
 //!     slice:
-//!     str:
+//!     str: sized, result
 //!     sync: sized
 //!     transmute:
 //!     try: infallible
@@ -1726,6 +1726,22 @@ pub mod iter {
             }
         }
 
+        pub struct Map<I, F> {
+            iter: I,
+            f: F,
+        }
+        impl<B, I: Iterator, F> Iterator for Map<I, F>
+        where
+            F: FnMut(I::Item) -> B,
+        {
+            type Item = B;
+
+            #[inline]
+            fn next(&mut self) -> B {
+                loop {}
+            }
+        }
+
         pub struct FilterMap<I, F> {
             iter: I,
             f: F,
@@ -1797,6 +1813,13 @@ pub mod iter {
                 where
                     Self: Sized,
                     P: FnMut(&Self::Item) -> bool,
+                {
+                    loop {}
+                }
+                fn map<B, F>(self, _f: F) -> crate::iter::Map<Self, F>
+                where
+                    Self: Sized,
+                    F: FnMut(Self::Item) -> B,
                 {
                     loop {}
                 }

@@ -136,7 +136,7 @@ impl<'db> Region<'db> {
             }
             RegionKind::ReError(..) => {
                 flags |= TypeFlags::HAS_FREE_REGIONS;
-                flags |= TypeFlags::HAS_ERROR;
+                flags |= TypeFlags::HAS_RE_ERROR;
             }
         }
 

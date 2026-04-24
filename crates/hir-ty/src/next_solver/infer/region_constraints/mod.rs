@@ -354,8 +354,12 @@ impl<'db> RegionConstraintCollector<'db, '_> {
             *any_unifications = false;
             // Manually inlined `self.unification_table_mut()` as `self` is used in the closure.
             ut::UnificationTable::with_log(&mut self.storage.unification_table, &mut self.undo_log)
-                .reset_unifications(|key| RegionVariableValue::Unknown {
-                    universe: self.storage.var_infos[key.vid].universe,
+                .reset_unifications(|key| {
+                    let var_info = &self.storage.var_infos[key.vid];
+                    RegionVariableValue::Unknown {
+                        universe: var_info.universe,
+                        span: var_info.span,
+                    }
                 });
         }
 
@@ -379,7 +383,8 @@ impl<'db> RegionConstraintCollector<'db, '_> {
     pub(super) fn new_region_var(&mut self, universe: UniverseIndex, span: Span) -> RegionVid {
         let vid = self.storage.var_infos.push(RegionVariableInfo { universe, span });
 
-        let u_vid = self.unification_table_mut().new_key(RegionVariableValue::Unknown { universe });
+        let u_vid =
+            self.unification_table_mut().new_key(RegionVariableValue::Unknown { universe, span });
         assert_eq!(vid, u_vid.vid);
         self.undo_log.push(AddVar(vid));
         debug!("created new region variable {:?} in {:?}", vid, universe);
@@ -413,7 +418,7 @@ impl<'db> RegionConstraintCollector<'db, '_> {
                     debug!("make_eqregion: unifying {:?} with {:?}", vid, b);
                     if self
                         .unification_table_mut()
-                        .unify_var_value(vid, RegionVariableValue::Known { value: b })
+                        .unify_var_value(vid, RegionVariableValue::Known { value: b, span: None })
                         .is_ok()
                     {
                         self.storage.any_unifications = true;
@@ -423,7 +428,7 @@ impl<'db> RegionConstraintCollector<'db, '_> {
                     debug!("make_eqregion: unifying {:?} with {:?}", a, vid);
                     if self
                         .unification_table_mut()
-                        .unify_var_value(vid, RegionVariableValue::Known { value: a })
+                        .unify_var_value(vid, RegionVariableValue::Known { value: a, span: None })
                         .is_ok()
                     {
                         self.storage.any_unifications = true;
@@ -510,15 +515,15 @@ impl<'db> RegionConstraintCollector<'db, '_> {
         let mut ut = self.unification_table_mut();
         let root_vid = ut.find(vid).vid;
         match ut.probe_value(root_vid) {
-            RegionVariableValue::Known { value } => value,
+            RegionVariableValue::Known { value, .. } => value,
             RegionVariableValue::Unknown { .. } => Region::new_var(cx, root_vid),
         }
     }
 
     pub fn probe_value(&mut self, vid: RegionVid) -> Result<Region<'db>, UniverseIndex> {
         match self.unification_table_mut().probe_value(vid) {
-            RegionVariableValue::Known { value } => Ok(value),
-            RegionVariableValue::Unknown { universe } => Err(universe),
+            RegionVariableValue::Known { value, .. } => Ok(value),
+            RegionVariableValue::Unknown { universe, .. } => Err(universe),
         }
     }
 

@@ -581,7 +581,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                                         ParamConst { id: p, index },
                                     )
                                     .store(),
-                                    ty: self.db.const_param_ty_ns(p).store(),
+                                    ty: self.db.const_param_ty(p).store(),
                                 },
                                 span: None,
                             }),

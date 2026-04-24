@@ -38,7 +38,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 }
                 ValuePathResolution::NonGeneric(ty) => return Some((value, ty)),
             };
-        let args = self.insert_type_vars(substs, Span::Dummy);
+        let args = self.insert_type_vars(substs, id.into());
 
         self.add_required_obligations_for_value_path(generic_def, args);
 
@@ -91,7 +91,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 };
             }
             ValueNs::GenericParam(it) => {
-                return Some(ValuePathResolution::NonGeneric(self.db.const_param_ty_ns(it)));
+                return Some(ValuePathResolution::NonGeneric(self.db.const_param_ty(it)));
             }
         };
 
@@ -157,12 +157,12 @@ impl<'db> InferenceContext<'_, 'db> {
             let last = path.segments().last()?;
 
             let (ty, orig_ns) = path_ctx.ty_ctx().lower_ty_ext(type_ref);
-            let ty = self.table.process_user_written_ty(ty);
+            let ty = self.table.process_user_written_ty(type_ref.into(), ty);
 
             path_ctx.ignore_last_segment();
             let (ty, _) = path_ctx.lower_ty_relative_path(ty, orig_ns, true);
             drop_ctx(ctx, no_diagnostics);
-            let ty = self.table.process_user_written_ty(ty);
+            let ty = self.table.process_user_written_ty(id.into(), ty);
             self.resolve_ty_assoc_item(ty, last.name, id).map(|(it, substs)| (it, Some(substs)))?
         } else {
             let hygiene = self.store.expr_or_pat_path_hygiene(id);
@@ -205,7 +205,7 @@ impl<'db> InferenceContext<'_, 'db> {
                                 return None;
                             }
 
-                            let ty = self.process_user_written_ty(ty);
+                            let ty = self.process_user_written_ty(id.into(), ty);
 
                             self.resolve_ty_assoc_item(ty, last_segment.name, id)
                         }

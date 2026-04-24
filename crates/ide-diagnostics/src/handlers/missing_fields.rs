@@ -293,12 +293,15 @@ fn baz(s: S) -> i32 {
     #[test]
     fn missing_record_pat_field_box() {
         check_diagnostics(
-            r"
+            r#"
+#![feature(lang_items)]
+#[lang = "owned_box"]
+struct Box<T>(T);
 struct S { s: Box<u32> }
 fn x(a: S) {
     let S { box s } = a;
 }
-",
+"#,
         )
     }
 

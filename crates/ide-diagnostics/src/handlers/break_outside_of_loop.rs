@@ -147,7 +147,7 @@ fn test() {
             r#"
 //- minicore: option, try
 fn test() {
-    try {
+    let _: Option<_> = try {
         || {
             let x = Some(2);
             Some(x?)

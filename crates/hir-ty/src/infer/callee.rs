@@ -5,7 +5,9 @@ use std::iter;
 use intern::sym;
 use tracing::debug;
 
-use hir_def::{CallableDefId, hir::ExprId, signatures::FunctionSignature};
+use hir_def::{
+    CallableDefId, ConstParamId, TypeOrConstParamId, hir::ExprId, signatures::FunctionSignature,
+};
 use rustc_type_ir::{
     InferTy, Interner,
     inherent::{GenericArgs as _, IntoKind, Ty as _},
@@ -20,7 +22,7 @@ use crate::{
     },
     method_resolution::{MethodCallee, TreatNotYetDefinedOpaques},
     next_solver::{
-        FnSig, Ty, TyKind,
+        ConstKind, FnSig, Ty, TyKind,
         infer::{BoundRegionConversionTime, traits::ObligationCause},
     },
 };
@@ -349,12 +351,26 @@ impl<'db> InferenceContext<'_, 'db> {
     fn check_legacy_const_generics(
         &mut self,
         callee: Option<CallableDefId>,
+        callee_ty: Ty<'db>,
         args: &[ExprId],
     ) -> Box<[u32]> {
-        let func = match callee {
-            Some(CallableDefId::FunctionId(func)) => func,
+        let (func, fn_generic_args) = match (callee, callee_ty.kind()) {
+            (Some(CallableDefId::FunctionId(func)), TyKind::FnDef(_, fn_generic_args)) => {
+                (func, fn_generic_args)
+            }
             _ => return Default::default(),
         };
+        let generics = crate::generics::generics(self.db, func.into());
+        let const_params = generics
+            .iter_self_type_or_consts()
+            .filter(|(_, param_data)| param_data.const_param().is_some())
+            .map(|(idx, _)| {
+                ConstParamId::from_unchecked(TypeOrConstParamId {
+                    parent: func.into(),
+                    local_id: idx,
+                })
+            })
+            .collect::<Vec<_>>();
 
         let data = FunctionSignature::of(self.db, func);
         let Some(legacy_const_generics_indices) = data.legacy_const_generics_indices(self.db, func)
@@ -376,11 +392,29 @@ impl<'db> InferenceContext<'_, 'db> {
         }
 
         // check legacy const parameters
-        for arg_idx in legacy_const_generics_indices.iter().copied() {
+        for (const_idx, arg_idx) in legacy_const_generics_indices.iter().copied().enumerate() {
             if arg_idx >= args.len() as u32 {
                 continue;
             }
-            let expected = Expectation::none(); // FIXME use actual const ty, when that is lowered correctly
+
+            if let Some(const_arg) = fn_generic_args.get(const_idx).and_then(|it| it.konst())
+                && let ConstKind::Infer(_) = const_arg.kind()
+            {
+                // Instantiate the generic arg with an error type, to prevent errors from it.
+                // FIXME: Actually lower the expression as const.
+                _ = self
+                    .table
+                    .at(&ObligationCause::dummy())
+                    .eq(self.types.consts.error, const_arg)
+                    .map(|infer_ok| self.table.register_infer_ok(infer_ok));
+            }
+
+            let expected = if let Some(&const_param) = const_params.get(const_idx) {
+                Expectation::has_type(self.db.const_param_ty(const_param))
+            } else {
+                Expectation::None
+            };
+
             self.infer_expr(args[arg_idx as usize], &expected, ExprIsRead::Yes);
             // FIXME: evaluate and unify with the const
         }
@@ -420,7 +454,7 @@ impl<'db> InferenceContext<'_, 'db> {
             fn_sig,
         );
 
-        let indices_to_skip = self.check_legacy_const_generics(def_id, arg_exprs);
+        let indices_to_skip = self.check_legacy_const_generics(def_id, callee_ty, arg_exprs);
         self.check_call_arguments(
             call_expr,
             fn_sig.inputs(),

@@ -459,11 +459,11 @@ impl<'db> TypeRelation<DbInterner<'db>> for Generalizer<'_, 'db> {
                 } else {
                     let probe = inner.type_variables().probe(vid);
                     match probe {
-                        TypeVariableValue::Known { value: u } => {
+                        TypeVariableValue::Known { value: u, .. } => {
                             drop(inner);
                             self.relate(u, u)
                         }
-                        TypeVariableValue::Unknown { universe } => {
+                        TypeVariableValue::Unknown { universe, .. } => {
                             match self.ambient_variance {
                                 // Invariant: no need to make a fresh type variable
                                 // if we can name the universe.

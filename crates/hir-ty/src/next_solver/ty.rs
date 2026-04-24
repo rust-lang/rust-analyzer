@@ -17,7 +17,7 @@ use rustc_type_ir::{
     IntVid, Interner, TyVid, TypeFoldable, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
     TypeVisitableExt, TypeVisitor, UintTy, Upcast, WithCachedTypeInfo,
     inherent::{
-        AdtDef as _, BoundExistentialPredicates, Const as _, GenericArgs as _, IntoKind, ParamLike,
+        AdtDef as _, BoundExistentialPredicates, GenericArgs as _, IntoKind, ParamLike,
         Safety as _, SliceLike, Ty as _,
     },
     relate::Relate,
@@ -31,8 +31,8 @@ use crate::{
     lower::GenericPredicates,
     next_solver::{
         AdtDef, AliasTy, Binder, CallableIdWrapper, Clause, ClauseKind, ClosureIdWrapper, Const,
-        CoroutineClosureIdWrapper, CoroutineIdWrapper, FnSig, GenericArgKind, PolyFnSig, Region,
-        TraitRef, TypeAliasIdWrapper,
+        CoroutineClosureIdWrapper, CoroutineIdWrapper, FnSig, GenericArgKind, PolyFnSig, Predicate,
+        Region, TraitRef, TypeAliasIdWrapper,
         abi::Safety,
         impl_foldable_for_interned_slice, impl_stored_interned, interned_slice,
         util::{CoroutineArgsExt, IntegerTypeExt},
@@ -817,25 +817,11 @@ impl<'db> Ty<'db> {
 }
 
 pub fn references_non_lt_error<'db, T: TypeVisitableExt<DbInterner<'db>>>(t: &T) -> bool {
-    t.references_error() && t.visit_with(&mut ReferencesNonLifetimeError).is_break()
-}
-
-struct ReferencesNonLifetimeError;
-
-impl<'db> TypeVisitor<DbInterner<'db>> for ReferencesNonLifetimeError {
-    type Result = ControlFlow<()>;
-
-    fn visit_ty(&mut self, ty: Ty<'db>) -> Self::Result {
-        if ty.is_ty_error() { ControlFlow::Break(()) } else { ty.super_visit_with(self) }
-    }
-
-    fn visit_const(&mut self, c: Const<'db>) -> Self::Result {
-        if c.is_ct_error() { ControlFlow::Break(()) } else { c.super_visit_with(self) }
-    }
+    t.has_non_region_error()
 }
 
 pub fn references_only_ty_error<'db, T: TypeVisitableExt<DbInterner<'db>>>(t: &T) -> bool {
-    t.references_error() && t.visit_with(&mut ReferencesOnlyTyError).is_break()
+    references_non_lt_error(t) && t.visit_with(&mut ReferencesOnlyTyError).is_break()
 }
 
 struct ReferencesOnlyTyError;
@@ -844,7 +830,29 @@ impl<'db> TypeVisitor<DbInterner<'db>> for ReferencesOnlyTyError {
     type Result = ControlFlow<()>;
 
     fn visit_ty(&mut self, ty: Ty<'db>) -> Self::Result {
-        if ty.is_ty_error() { ControlFlow::Break(()) } else { ty.super_visit_with(self) }
+        if !ty.references_non_lt_error() {
+            ControlFlow::Continue(())
+        } else if ty.is_ty_error() {
+            ControlFlow::Break(())
+        } else {
+            ty.super_visit_with(self)
+        }
+    }
+
+    fn visit_const(&mut self, c: Const<'db>) -> Self::Result {
+        if !references_non_lt_error(&c) {
+            ControlFlow::Continue(())
+        } else {
+            c.super_visit_with(self)
+        }
+    }
+
+    fn visit_predicate(&mut self, p: Predicate<'db>) -> Self::Result {
+        if !references_non_lt_error(&p) {
+            ControlFlow::Continue(())
+        } else {
+            p.super_visit_with(self)
+        }
     }
 }
 
@@ -877,6 +885,15 @@ impl<'db> TypeVisitable<DbInterner<'db>> for Ty<'db> {
         visitor: &mut V,
     ) -> V::Result {
         visitor.visit_ty(*self)
+    }
+}
+
+impl<'db> TypeVisitable<DbInterner<'db>> for StoredTy {
+    fn visit_with<V: rustc_type_ir::TypeVisitor<DbInterner<'db>>>(
+        &self,
+        visitor: &mut V,
+    ) -> V::Result {
+        self.as_ref().visit_with(visitor)
     }
 }
 
@@ -943,6 +960,18 @@ impl<'db> TypeFoldable<DbInterner<'db>> for Ty<'db> {
     }
     fn fold_with<F: rustc_type_ir::TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
         folder.fold_ty(self)
+    }
+}
+
+impl<'db> TypeFoldable<DbInterner<'db>> for StoredTy {
+    fn try_fold_with<F: rustc_type_ir::FallibleTypeFolder<DbInterner<'db>>>(
+        self,
+        folder: &mut F,
+    ) -> Result<Self, F::Error> {
+        Ok(self.as_ref().try_fold_with(folder)?.store())
+    }
+    fn fold_with<F: rustc_type_ir::TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
+        self.as_ref().fold_with(folder).store()
     }
 }
 

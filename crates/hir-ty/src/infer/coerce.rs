@@ -901,7 +901,7 @@ impl<'db> InferenceContext<'_, 'db> {
         target = self.table.try_structurally_resolve_type(target);
         debug!("coercion::try({:?}: {:?} -> {:?})", expr, source, target);
 
-        let cause = ObligationCause::new();
+        let cause = ObligationCause::with_span(expr.into());
         let coerce_never = self.expr_guaranteed_to_constitute_read_for_never(expr, expr_is_read);
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
@@ -976,8 +976,12 @@ impl<'db> InferenceContext<'_, 'db> {
                         match self.table.commit_if_ok(|table| {
                             // We need to eagerly handle nested obligations due to lazy norm.
                             let mut ocx = ObligationCtxt::new(&table.infer_ctxt);
-                            let value =
-                                ocx.lub(&ObligationCause::new(), table.param_env, prev_ty, new_ty)?;
+                            let value = ocx.lub(
+                                &ObligationCause::with_span(new.into()),
+                                table.param_env,
+                                prev_ty,
+                                new_ty,
+                            )?;
                             if ocx.try_evaluate_obligations().is_empty() {
                                 Ok(InferOk { value, obligations: ocx.into_pending_obligations() })
                             } else {
@@ -1025,7 +1029,7 @@ impl<'db> InferenceContext<'_, 'db> {
             let sig = self
                 .table
                 .infer_ctxt
-                .at(&ObligationCause::new(), self.table.param_env)
+                .at(&ObligationCause::with_span(new.into()), self.table.param_env)
                 .lub(a_sig, b_sig)
                 .map(|ok| self.table.register_infer_ok(ok))?;
 
@@ -1071,7 +1075,7 @@ impl<'db> InferenceContext<'_, 'db> {
         // operate on values and not places, so a never coercion is valid.
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
-            cause: ObligationCause::new(),
+            cause: ObligationCause::with_span(new.into()),
             allow_two_phase: AllowTwoPhase::No,
             coerce_never: true,
             use_lub: true,
@@ -1107,7 +1111,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         .commit_if_ok(|table| {
                             table
                                 .infer_ctxt
-                                .at(&ObligationCause::new(), table.param_env)
+                                .at(&ObligationCause::with_span(new.into()), table.param_env)
                                 .lub(prev_ty, new_ty)
                         })
                         .unwrap_err())
