@@ -66,7 +66,7 @@ pub(crate) fn inline_const_as_literal(acc: &mut Assists, ctx: &AssistContext<'_>
     None
 }
 
-fn is_method_call_reciever(path_expr: &ast::PathExpr) -> bool {
+fn is_method_call_receiver(path_expr: &ast::PathExpr) -> bool {
     let Some(parent) = path_expr.syntax().parent() else { return false };
     let Some(call) = ast::MethodCallExpr::cast(parent) else { return false };
     call.receiver().is_some_and(|rcv| rcv.syntax() == path_expr.syntax())
