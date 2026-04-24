@@ -2,7 +2,7 @@
 //!
 //! Except for use items which are tested in [super::use_tree] and mod declarations with are tested
 //! in [crate::completions::mod_].
-use expect_test::expect;
+use expect_test::{Expect, expect};
 
 use crate::tests::{check, check_edit, check_with_base_items};
 
@@ -135,6 +135,12 @@ fn completes_where() {
         "#]],
     );
     check_with_base_items(
+        r"fn func() -> foo::Bar $0",
+        expect![[r#"
+            kw where
+        "#]],
+    );
+    check_with_base_items(
         r"enum Enum $0",
         expect![[r#"
         kw where
@@ -147,6 +153,62 @@ fn completes_where() {
     "#]],
     );
     check_with_base_items(
+        r"trait Trait $0 {}",
+        expect![[r#"
+        kw where
+    "#]],
+    );
+}
+
+#[test]
+fn completes_where_in_stmt_list() {
+    fn check_in_stmt_list(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
+        check(&format!("const _: () = {{{ra_fixture}}};"), expect);
+    }
+    check_in_stmt_list(
+        r"struct Struct $0",
+        expect![[r#"
+        kw where
+    "#]],
+    );
+    check_in_stmt_list(
+        r"struct Struct $0 {}",
+        expect![[r#"
+        kw where
+    "#]],
+    );
+    check_in_stmt_list(
+        r"fn func() $0",
+        expect![[r#"
+            bt u32 (adds ->) u32
+            kw crate:: (adds ->)
+            kw dyn (adds ->)
+            kw fn (adds ->)
+            kw for (adds ->)
+            kw impl (adds ->)
+            kw self:: (adds ->)
+            kw where
+        "#]],
+    );
+    check_in_stmt_list(
+        r"fn func() -> foo::Bar $0",
+        expect![[r#"
+            kw where
+        "#]],
+    );
+    check_in_stmt_list(
+        r"enum Enum $0",
+        expect![[r#"
+        kw where
+    "#]],
+    );
+    check_in_stmt_list(
+        r"enum Enum $0 {}",
+        expect![[r#"
+        kw where
+    "#]],
+    );
+    check_in_stmt_list(
         r"trait Trait $0 {}",
         expect![[r#"
         kw where
