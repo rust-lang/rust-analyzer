@@ -3731,9 +3731,9 @@ mod std { pub mod ops { pub trait Add { fn add(self, _: Self) {} } impl Add for 
 }
 
 #[test]
-fn doctest_unwrap_block() {
+fn doctest_unwrap_branch() {
     check_doc_test(
-        "unwrap_block",
+        "unwrap_branch",
         r#####"
 fn foo() {
     if true {$0
