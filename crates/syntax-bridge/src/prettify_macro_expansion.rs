@@ -3,8 +3,7 @@ use syntax::{
     NodeOrToken,
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, T, WalkEvent,
-    ast::make,
-    ted::{self, Position},
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +28,7 @@ pub fn prettify_macro_expansion(
     let mut last: Option<SyntaxKind> = None;
     let mut mods = Vec::new();
     let mut dollar_crate_replacements = Vec::new();
-    let syn = syn.clone_subtree().clone_for_update();
+    let (editor, syn) = SyntaxEditor::new(syn);
 
     let before = Position::before;
     let after = Position::after;
@@ -110,7 +109,9 @@ pub fn prettify_macro_expansion(
                 if indent > 0 {
                     mods.push(do_indent(after, tok, indent));
                 }
-                mods.push(do_nl(after, tok));
+                if tok.text_range().end() != syn.text_range().end() {
+                    mods.push(do_nl(after, tok));
+                }
             }
             T![=] if is_next(|it| it == T![>], false) => {
                 // FIXME: this branch is for `=>` in macro_rules!, which is currently parsed as
@@ -139,24 +140,24 @@ pub fn prettify_macro_expansion(
 
     inspect_mods(&mods);
     for (pos, insert) in mods {
-        ted::insert_raw(
+        editor.insert(
             pos,
             match insert {
-                PrettifyWsKind::Space => make::tokens::single_space(),
-                PrettifyWsKind::Indent(indent) => make::tokens::whitespace(&" ".repeat(4 * indent)),
-                PrettifyWsKind::Newline => make::tokens::single_newline(),
+                PrettifyWsKind::Space => editor.make().whitespace(" "),
+                PrettifyWsKind::Indent(indent) => editor.make().whitespace(&" ".repeat(4 * indent)),
+                PrettifyWsKind::Newline => editor.make().whitespace("\n"),
             },
         );
     }
     for (old, new) in dollar_crate_replacements {
-        ted::replace(old, new);
+        editor.replace(old, new);
     }
 
     if let Some(it) = syn.last_token().filter(|it| it.kind() == SyntaxKind::WHITESPACE) {
-        ted::remove(it);
+        editor.delete(it);
     }
 
-    syn
+    editor.finish().new_root().clone()
 }
 
 fn is_text(k: SyntaxKind) -> bool {
@@ -173,9 +174,8 @@ mod tests {
     fn check_pretty(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
         let ra_fixture = stdx::trim_indent(ra_fixture);
         let source_file = syntax::ast::SourceFile::parse(&ra_fixture, span::Edition::CURRENT);
-        let syn = source_file.syntax_node().clone_for_update();
+        let syn = remove_whitespaces(&source_file.syntax_node());
 
-        remove_whitespaces(&syn);
         let pretty = prettify_macro_expansion(syn, &mut |_| None, |_| ());
         let mut pretty = pretty.to_string();
         if pretty.contains('\n') {
@@ -183,15 +183,15 @@ mod tests {
         }
         expect.assert_eq(&pretty);
 
-        fn remove_whitespaces(node: &SyntaxNode) {
-            let mut to_remove = vec![];
+        fn remove_whitespaces(node: &SyntaxNode) -> SyntaxNode {
+            let (editor, node) = SyntaxEditor::new(node.clone());
             node.preorder_with_tokens().for_each(|it| match it {
                 WalkEvent::Enter(NodeOrToken::Token(tok)) if tok.kind().is_trivia() => {
-                    to_remove.push(tok);
+                    editor.delete(tok);
                 }
                 _ => (),
             });
-            to_remove.iter().for_each(ted::remove)
+            editor.finish().new_root().clone()
         }
     }
 
