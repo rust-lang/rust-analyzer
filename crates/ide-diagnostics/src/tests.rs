@@ -335,3 +335,15 @@ fn minicore_smoke_test() {
     eprintln!("Checking all minicore flags");
     check(MiniCore::from_flags(MiniCore::available_flags(MiniCore::RAW_SOURCE)))
 }
+#[test]
+fn test_if_else_diagnostic_position_on_else() {
+    check_diagnostics(
+        r#"
+fn main() {
+    if true { 42 } else { String::new() };
+    if true { String::new() } else { 42 };
+    if false { 42 } else { String::new() };
+}
+"#,
+    );
+}
