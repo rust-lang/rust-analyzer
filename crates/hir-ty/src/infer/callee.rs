@@ -47,9 +47,15 @@ impl<'db> InferenceContext<'_, 'db> {
 
         let mut autoderef = GeneralAutoderef::new_from_inference_context(self, expr_ty);
         let mut result = None;
+        let mut error_reported = false;
         while result.is_none() && autoderef.next().is_some() {
-            result =
-                Self::try_overloaded_call_step(call_expr, callee_expr, arg_exprs, &mut autoderef);
+            result = Self::try_overloaded_call_step(
+                call_expr,
+                callee_expr,
+                arg_exprs,
+                &mut autoderef,
+                &mut error_reported,
+            );
         }
 
         // FIXME: rustc does some ABI checks here, but the ABI mapping is in rustc_target and we don't have access to that crate.
@@ -65,10 +71,12 @@ impl<'db> InferenceContext<'_, 'db> {
                     self.infer_expr_no_expect(arg, ExprIsRead::Yes);
                 }
 
-                self.push_diagnostic(InferenceDiagnostic::ExpectedFunction {
-                    call_expr,
-                    found: original_callee_ty.store(),
-                });
+                if !error_reported {
+                    self.push_diagnostic(InferenceDiagnostic::ExpectedFunction {
+                        call_expr,
+                        found: original_callee_ty.store(),
+                    });
+                }
 
                 self.types.types.error
             }
@@ -97,6 +105,7 @@ impl<'db> InferenceContext<'_, 'db> {
         callee_expr: ExprId,
         arg_exprs: &[ExprId],
         autoderef: &mut InferenceContextAutoderef<'_, '_, 'db>,
+        error_reported: &mut bool,
     ) -> Option<CallStep<'db>> {
         let final_ty = autoderef.final_ty();
         let adjusted_ty = autoderef.ctx().table.try_structurally_resolve_type(final_ty);
@@ -211,6 +220,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     autoderef
                         .ctx()
                         .type_must_be_known_at_this_point(callee_expr.into(), adjusted_ty);
+                    *error_reported = true;
                     return None;
                 }
 

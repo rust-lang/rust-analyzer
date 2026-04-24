@@ -397,9 +397,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 .1
             }
             &Expr::Loop { body, label } => {
-                // FIXME: should be:
-                // let ty = expected.coercion_target_type(&mut self.table);
-                let ty = self.table.next_ty_var();
+                let ty = expected.coercion_target_type(&mut self.table);
                 let (breaks, ()) =
                     self.with_breakable_ctx(BreakableKind::Loop, Some(ty), label, |this| {
                         this.infer_expr(
@@ -732,7 +730,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 let base_t = self.infer_expr_no_expect(*base, ExprIsRead::Yes);
                 let idx_t = self.infer_expr_no_expect(*index, ExprIsRead::Yes);
 
-                let base_t = self.table.structurally_resolve_type(base_t);
+                let base_t = self.structurally_resolve_type((*base).into(), base_t);
                 match self.lookup_indexing(tgt_expr, *base, base_t, idx_t) {
                     Some((trait_index_ty, trait_element_ty)) => {
                         // two-phase not needed because index_ty is never mutable
@@ -890,7 +888,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     // allows them to be inferred based on how they are used later in the
                     // function.
                     if is_input {
-                        let ty = this.table.structurally_resolve_type(ty);
+                        let ty = this.structurally_resolve_type(expr.into(), ty);
                         match ty.kind() {
                             TyKind::FnDef(def, parameters) => {
                                 let fnptr_ty = Ty::new_fn_ptr(
@@ -955,7 +953,6 @@ impl<'db> InferenceContext<'_, 'db> {
                 }
             }
         };
-        // use a new type variable if we got unknown here
         let ty = self.insert_type_vars_shallow(ty);
         self.write_expr_ty(tgt_expr, ty);
         if self.shallow_resolve(ty).is_never()
@@ -1304,7 +1301,7 @@ impl<'db> InferenceContext<'_, 'db> {
         };
         let mut oprnd_t = self.infer_expr_inner(oprnd, expected_inner, ExprIsRead::Yes);
 
-        oprnd_t = self.table.structurally_resolve_type(oprnd_t);
+        oprnd_t = self.structurally_resolve_type(oprnd.into(), oprnd_t);
         match unop {
             UnaryOp::Deref => {
                 if let Some(ty) = self.lookup_derefing(expr, oprnd, oprnd_t) {
@@ -1681,7 +1678,7 @@ impl<'db> InferenceContext<'_, 'db> {
     ) -> Ty<'db> {
         // Field projections don't constitute reads.
         let receiver_ty = self.infer_expr_inner(receiver, &Expectation::none(), ExprIsRead::No);
-        let receiver_ty = self.table.structurally_resolve_type(receiver_ty);
+        let receiver_ty = self.structurally_resolve_type(receiver.into(), receiver_ty);
 
         if name.is_missing() {
             // Bail out early, don't even try to look up field. Also, we don't issue an unresolved
@@ -1979,38 +1976,39 @@ impl<'db> InferenceContext<'_, 'db> {
             .unwrap_or_default();
 
         // If the arguments should be wrapped in a tuple (ex: closures), unwrap them here
-        let (formal_input_tys, expected_input_tys) =
-            if tuple_arguments == TupleArgumentsFlag::TupleArguments {
-                let tuple_type = self.table.structurally_resolve_type(formal_input_tys[0]);
-                match tuple_type.kind() {
-                    // We expected a tuple and got a tuple
-                    TyKind::Tuple(arg_types) => {
-                        // Argument length differs
-                        if arg_types.len() != provided_args.len() {
-                            // FIXME: Emit an error.
-                        }
-                        let expected_input_tys = match expected_input_tys {
-                            Some(expected_input_tys) => match expected_input_tys.first() {
-                                Some(ty) => match ty.kind() {
-                                    TyKind::Tuple(tys) => Some(tys.iter().collect()),
-                                    _ => None,
-                                },
-                                None => None,
+        let (formal_input_tys, expected_input_tys) = if tuple_arguments
+            == TupleArgumentsFlag::TupleArguments
+        {
+            let tuple_type = self.structurally_resolve_type(call_expr.into(), formal_input_tys[0]);
+            match tuple_type.kind() {
+                // We expected a tuple and got a tuple
+                TyKind::Tuple(arg_types) => {
+                    // Argument length differs
+                    if arg_types.len() != provided_args.len() {
+                        // FIXME: Emit an error.
+                    }
+                    let expected_input_tys = match expected_input_tys {
+                        Some(expected_input_tys) => match expected_input_tys.first() {
+                            Some(ty) => match ty.kind() {
+                                TyKind::Tuple(tys) => Some(tys.iter().collect()),
+                                _ => None,
                             },
                             None => None,
-                        };
-                        (arg_types.iter().collect(), expected_input_tys)
-                    }
-                    _ => {
-                        // Otherwise, there's a mismatch, so clear out what we're expecting, and set
-                        // our input types to err_args so we don't blow up the error messages
-                        // FIXME: Emit an error.
-                        (vec![self.types.types.error; provided_args.len()], None)
-                    }
+                        },
+                        None => None,
+                    };
+                    (arg_types.iter().collect(), expected_input_tys)
                 }
-            } else {
-                (formal_input_tys.to_vec(), expected_input_tys)
-            };
+                _ => {
+                    // Otherwise, there's a mismatch, so clear out what we're expecting, and set
+                    // our input types to err_args so we don't blow up the error messages
+                    // FIXME: Emit an error.
+                    (vec![self.types.types.error; provided_args.len()], None)
+                }
+            }
+        } else {
+            (formal_input_tys.to_vec(), expected_input_tys)
+        };
 
         // If there are no external expectations at the call site, just use the types from the function defn
         let expected_input_tys = if let Some(expected_input_tys) = expected_input_tys {

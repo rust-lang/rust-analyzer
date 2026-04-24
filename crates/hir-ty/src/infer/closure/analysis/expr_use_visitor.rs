@@ -797,7 +797,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
 
         // Select just those fields of the `with`
         // expression that will actually be used
-        match self.cx.table.structurally_resolve_type(with_place.place.ty()).kind() {
+        match self.cx.structurally_resolve_type(with_expr.into(), with_place.place.ty()).kind() {
             TyKind::Adt(adt, args) if adt.is_struct() => {
                 let AdtId::StructId(adt) = adt.def_id().0 else { unreachable!() };
                 let adt_fields = VariantId::from(adt).fields(self.cx.db).fields();
@@ -982,7 +982,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                         // FIXME: Does the MIR code skip this read when matching on a ZST?
                         // If so, we can also skip it here.
                         read_discriminant(this);
-                    } else if this.is_multivariant_adt(place.place.ty()) {
+                    } else if this.is_multivariant_adt(pat.into(), place.place.ty()) {
                         // Otherwise, this is a struct/enum variant, and so it's
                         // only a read if we need to read the discriminant.
                         read_discriminant(this);
@@ -1001,7 +1001,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                     read_discriminant(this);
                 }
                 Pat::Record { .. } | Pat::TupleStruct { .. } => {
-                    if this.is_multivariant_adt(place.place.ty()) {
+                    if this.is_multivariant_adt(pat.into(), place.place.ty()) {
                         read_discriminant(this);
                     }
                 }
@@ -1225,7 +1225,11 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
                     // a bind-by-ref means that the base_ty will be the type of the ident itself,
                     // but what we want here is the type of the underlying value being borrowed.
                     // So peel off one-level, turning the &T into T.
-                    match self.cx.table.structurally_resolve_type(base_ty).builtin_deref(false) {
+                    match self
+                        .cx
+                        .structurally_resolve_type(pat.into(), base_ty)
+                        .builtin_deref(false)
+                    {
                         Some(ty) => Ok(ty),
                         None => {
                             debug!("By-ref binding of non-derefable type: {base_ty:?}");
@@ -1430,7 +1434,8 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
         let place_ty = self.expr_ty(expr)?;
         let base_ty = self.expr_ty_adjusted(base)?;
 
-        let TyKind::Ref(region, _, mutbl) = self.cx.table.structurally_resolve_type(base_ty).kind()
+        let TyKind::Ref(region, _, mutbl) =
+            self.cx.structurally_resolve_type(base.into(), base_ty).kind()
         else {
             return Err(ErrorGuaranteed);
         };
@@ -1447,7 +1452,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
     ) -> Result<PlaceWithOrigin> {
         let base_curr_ty = base_place.place.ty();
         let Some(deref_ty) =
-            self.cx.table.structurally_resolve_type(base_curr_ty).builtin_deref(true)
+            self.cx.structurally_resolve_type(node, base_curr_ty).builtin_deref(true)
         else {
             debug!("explicit deref of non-derefable type: {:?}", base_curr_ty);
             return Err(ErrorGuaranteed);
@@ -1474,7 +1479,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
     /// Here `pat_hir_id` is the ExprId of the pattern itself.
     fn total_fields_in_tuple(&mut self, pat_id: PatId) -> usize {
         let ty = self.cx.result.pat_ty(pat_id);
-        match self.cx.table.structurally_resolve_type(ty).kind() {
+        match self.cx.structurally_resolve_type(pat_id.into(), ty).kind() {
             TyKind::Tuple(args) => args.len(),
             _ => panic!("tuple pattern not applied to a tuple"),
         }
@@ -1629,8 +1634,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
             Pat::Slice { prefix: ref before, slice, suffix: ref after } => {
                 let Some(element_ty) = self
                     .cx
-                    .table
-                    .structurally_resolve_type(place_with_id.place.ty())
+                    .structurally_resolve_type(pat.into(), place_with_id.place.ty())
                     .builtin_index()
                 else {
                     debug!("explicit index of non-indexable type {:?}", place_with_id);
@@ -1689,8 +1693,8 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
     /// FIXME(never_patterns): update this comment once the aforementioned MIR builder
     /// code is changed to be insensitive to inhhabitedness.
     #[instrument(skip(self), level = "debug")]
-    fn is_multivariant_adt(&mut self, ty: Ty<'db>) -> bool {
-        if let TyKind::Adt(def, _) = self.cx.table.structurally_resolve_type(ty).kind() {
+    fn is_multivariant_adt(&mut self, node: ExprOrPatId, ty: Ty<'db>) -> bool {
+        if let TyKind::Adt(def, _) = self.cx.structurally_resolve_type(node, ty).kind() {
             // Note that if a non-exhaustive SingleVariant is defined in another crate, we need
             // to assume that more cases will be added to the variant in the future. This mean
             // that we should handle non-exhaustive SingleVariant the same way we would handle

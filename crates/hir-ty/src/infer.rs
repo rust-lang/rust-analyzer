@@ -401,6 +401,9 @@ pub enum InferenceDiagnostic {
     InvalidLhsOfAssignment {
         lhs: ExprId,
     },
+    TypeMustBeKnown {
+        at_point: ExprOrPatId,
+    },
 }
 
 /// A mismatch between an expected and an inferred type.
@@ -1178,6 +1181,7 @@ pub(crate) struct InferenceContext<'body, 'db> {
     deferred_call_resolutions: FxHashMap<ExprId, Vec<DeferredCallResolution<'db>>>,
 
     diagnostics: Diagnostics,
+    vars_emitted_type_must_be_known_for: FxHashSet<Ty<'db>>,
 }
 
 #[derive(Clone, Debug)]
@@ -1267,6 +1271,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             deferred_cast_checks: Vec::new(),
             inside_assignment: false,
             diagnostics: Diagnostics::default(),
+            vars_emitted_type_must_be_known_for: FxHashSet::default(),
             deferred_call_resolutions: FxHashMap::default(),
         }
     }
@@ -1581,6 +1586,33 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         &self.table.infer_ctxt
     }
 
+    /// If `ty` is an error, returns an infer var instead. Otherwise, returns it.
+    ///
+    /// "Refreshing" types like this is useful for getting better types, but it is also
+    /// very dangerous: we might create duplicate diagnostics, for example if we try
+    /// to resolve it and fail. rustc doesn't do that for this reason (and is in general
+    /// more strict with how it uses error types; an error type in inputs will almost
+    /// always cause it to infer an error type in output, while we infer some type as much
+    /// as we can).
+    ///
+    /// Unfortunately, we cannot allow ourselves to do that. Not only we more often work
+    /// with incomplete code, we also have assists, for example "Generate constant", that
+    /// will assume the inferred type is the expected type even if the expression itself
+    /// cannot be inferred. Therefore, we choose a middle ground: refresh the type,
+    /// but if we return a new var, mark it so that no diagnostics will be issued on it.
+    fn insert_type_vars_shallow(&mut self, ty: Ty<'db>) -> Ty<'db> {
+        if ty.is_ty_error() {
+            let var = self.table.next_ty_var();
+
+            // Suppress future errors on this var. Add more things here when we add more diagnostics.
+            self.vars_emitted_type_must_be_known_for.insert(var);
+
+            var
+        } else {
+            ty
+        }
+    }
+
     fn infer_body(&mut self, body_expr: ExprId) {
         match self.return_coercion {
             Some(_) => self.infer_return(body_expr),
@@ -1781,11 +1813,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.insert_type_vars(lt)
     }
 
-    /// Replaces `Ty::Error` by a new type var, so we can maybe still infer it.
-    fn insert_type_vars_shallow(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        self.table.insert_type_vars_shallow(ty)
-    }
-
     fn insert_type_vars<T>(&mut self, ty: T) -> T
     where
         T: TypeFoldable<DbInterner<'db>>,
@@ -1873,6 +1900,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.table.resolve_vars_if_possible(t)
     }
 
+    pub(crate) fn structurally_resolve_type(&mut self, node: ExprOrPatId, ty: Ty<'db>) -> Ty<'db> {
+        let result = self.table.try_structurally_resolve_type(ty);
+        if result.is_ty_var() { self.type_must_be_known_at_this_point(node, ty) } else { result }
+    }
+
     fn demand_eqtype(
         &mut self,
         id: ExprOrPatId,
@@ -1938,11 +1970,13 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     }
 
     pub(crate) fn type_must_be_known_at_this_point(
-        &self,
-        _id: ExprOrPatId,
-        _ty: Ty<'db>,
+        &mut self,
+        node: ExprOrPatId,
+        ty: Ty<'db>,
     ) -> Ty<'db> {
-        // FIXME: Emit an diagnostic.
+        if self.vars_emitted_type_must_be_known_for.insert(ty) {
+            self.push_diagnostic(InferenceDiagnostic::TypeMustBeKnown { at_point: node });
+        }
         self.types.types.error
     }
 
@@ -2477,7 +2511,7 @@ impl<'db> Expectation<'db> {
     fn adjust_for_branches(&self, table: &mut unify::InferenceTable<'db>) -> Expectation<'db> {
         match *self {
             Expectation::HasType(ety) => {
-                let ety = table.structurally_resolve_type(ety);
+                let ety = table.try_structurally_resolve_type(ety);
                 if ety.is_ty_var() { Expectation::None } else { Expectation::HasType(ety) }
             }
             Expectation::RValueLikeUnsized(ety) => Expectation::RValueLikeUnsized(ety),

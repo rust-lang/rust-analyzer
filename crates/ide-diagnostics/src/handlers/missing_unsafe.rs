@@ -485,7 +485,7 @@ fn main() {
 
     let b = &raw const x.a;
 
-    let tmp = Vec::from([1, 2, 3]);
+    let tmp = [1, 2, 3];
 
     let c = &raw const tmp[x.a];
                         // ^^^ 💡 error: access to union field is unsafe and requires an unsafe function or block

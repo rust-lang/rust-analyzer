@@ -66,6 +66,7 @@ mod handlers {
     pub(crate) mod trait_impl_orphan;
     pub(crate) mod trait_impl_redundant_assoc_item;
     pub(crate) mod type_mismatch;
+    pub(crate) mod type_must_be_known;
     pub(crate) mod typed_hole;
     pub(crate) mod undeclared_label;
     pub(crate) mod unimplemented_builtin_macro;
@@ -481,6 +482,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::ElidedLifetimesInPath(d) => handlers::elided_lifetimes_in_path::elided_lifetimes_in_path(&ctx, &d),
             AnyDiagnostic::GenericDefaultRefersToSelf(d) => handlers::generic_default_refers_to_self::generic_default_refers_to_self(&ctx, &d),
             AnyDiagnostic::InvalidLhsOfAssignment(d) => handlers::invalid_lhs_of_assignment::invalid_lhs_of_assignment(&ctx, &d),
+            AnyDiagnostic::TypeMustBeKnown(d) => handlers::type_must_be_known::type_must_be_known(&ctx, &d),
         };
         res.push(d)
     }
