@@ -361,6 +361,64 @@ fn hover_offset(
             };
             render::type_info_of(sema, config, &Either::Left(call_expr), edition, display_target)
         };
+        // When the cursor is inside a call's argument list, also surface the
+        // hover for the called function itself if the call has a generic
+        // substitution. Without this, hovering on an argument like `42` only
+        // shows `i32`, hiding the resolved generic types of the enclosing
+        // call.
+        let enclosing_call_subst = || {
+            let arg_list = token
+                .parent_ancestors()
+                .take_while(|n| !ast::Item::can_cast(n.kind()))
+                .find_map(ast::ArgList::cast)?;
+            let name_ref = match arg_list.syntax().parent().and_then(|p| {
+                syntax::match_ast! {
+                    match p {
+                        ast::CallExpr(call) => {
+                            call.expr().and_then(|e| match e {
+                                ast::Expr::PathExpr(p) => p
+                                    .path()
+                                    .and_then(|p| p.segment())
+                                    .and_then(|s| s.name_ref()),
+                                _ => None,
+                            })
+                        },
+                        ast::MethodCallExpr(call) => call.name_ref(),
+                        _ => None,
+                    }
+                }
+            }) {
+                Some(it) => it,
+                None => return None,
+            };
+            IdentClass::classify_node(sema, name_ref.syntax())?
+                .definitions()
+                .into_iter()
+                .filter(|(_, subst)| {
+                    subst
+                        .as_ref()
+                        .is_some_and(|s| s.types(sema.db).iter().any(|(_, ty)| !ty.is_unknown()))
+                })
+                .map(|(def, subst)| {
+                    hover_for_definition(
+                        sema,
+                        file_id,
+                        def,
+                        subst,
+                        name_ref.syntax(),
+                        None,
+                        false,
+                        config,
+                        edition,
+                        display_target,
+                    )
+                })
+                .reduce(|mut acc: HoverResult, HoverResult { markup, actions }| {
+                    acc.actions.extend(actions);
+                    acc.markup = Markup::from(format!("{}\n\n---\n{markup}", acc.markup));
+                    acc
+                })
+        };
         let closure = || {
             if !is_same_kind || token.kind() != T![|] {
                 return None;
@@ -380,6 +438,9 @@ fn hover_offset(
             .or_else(literal)
         {
             res.push(result)
+        }
+        if let Some(result) = enclosing_call_subst() {
+            res.push(result);
         }
     }
 

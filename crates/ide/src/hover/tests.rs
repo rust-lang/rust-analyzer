@@ -10236,6 +10236,182 @@ fn bar() {
 }
 
 #[test]
+fn subst_inside_call_arg_list() {
+    // Regression test for https://github.com/rust-lang/rust-analyzer/issues/22164.
+    // Hovering inside the argument list of a generic function call should
+    // surface the call's generic substitution, regardless of whether the
+    // cursor lands on `(`, `)` or one of the arguments.
+
+    // Cursor right after `(` of a no-argument call.
+    check(
+        r#"
+fn foo<T>() -> T { loop {} }
+
+fn bar() {
+    let _: i32 = foo($0);
+}
+        "#,
+        expect![[r#"
+            *)*
+            ```rust
+            i32
+            ```
+
+            ---
+
+            ```rust
+            ra_test_fixture
+            ```
+
+            ```rust
+            fn foo<T>() -> T
+            ```
+
+            ---
+
+            `T` = `i32`
+        "#]],
+    );
+    // Cursor on an argument literal of a call with arguments.
+    check(
+        r#"
+fn foo<T>(v: i32) -> T { loop {} }
+
+fn bar() {
+    let _: i32 = foo($042);
+}
+        "#,
+        expect![[r#"
+            *42*
+            ```rust
+            i32
+            ```
+            ---
+
+            value of literal: ` 42 (0x2A|0b101010) `
+
+            ---
+
+            ```rust
+            ra_test_fixture
+            ```
+
+            ```rust
+            fn foo<T>(v: i32) -> T
+            ```
+
+            ---
+
+            `T` = `i32`
+        "#]],
+    );
+    // Cursor after the last argument of a call with arguments.
+    check(
+        r#"
+fn foo<T>(v: i32) -> T { loop {} }
+
+fn bar() {
+    let _: i32 = foo(42$0);
+}
+        "#,
+        expect![[r#"
+            *42*
+            ```rust
+            i32
+            ```
+            ---
+
+            value of literal: ` 42 (0x2A|0b101010) `
+
+            ---
+
+            ```rust
+            ra_test_fixture
+            ```
+
+            ```rust
+            fn foo<T>(v: i32) -> T
+            ```
+
+            ---
+
+            `T` = `i32`
+        "#]],
+    );
+    // Nested calls: cursor inside the inner call's arg list should expose the
+    // inner call's substitution, not the outer's.
+    check(
+        r#"
+fn inner<T>(v: T) -> T { v }
+fn outer<U>(v: U) -> U { v }
+
+fn bar() {
+    let _: i32 = outer(inner(42$0));
+}
+        "#,
+        expect![[r#"
+            *42*
+            ```rust
+            i32
+            ```
+            ---
+
+            value of literal: ` 42 (0x2A|0b101010) `
+
+            ---
+
+            ```rust
+            ra_test_fixture
+            ```
+
+            ```rust
+            fn inner<T>(v: T) -> T
+            ```
+
+            ---
+
+            `T` = `i32`
+        "#]],
+    );
+    // Method calls should behave the same way.
+    check(
+        r#"
+struct S;
+impl S {
+    fn foo<T>(&self, v: i32) -> T { loop {} }
+}
+
+fn bar() {
+    let _: i32 = S.foo($042);
+}
+        "#,
+        expect![[r#"
+            *42*
+            ```rust
+            i32
+            ```
+            ---
+
+            value of literal: ` 42 (0x2A|0b101010) `
+
+            ---
+
+            ```rust
+            ra_test_fixture::S
+            ```
+
+            ```rust
+            fn foo<T>(&self, v: i32) -> T
+            ```
+
+            ---
+
+            `T` = `i32`
+        "#]],
+    );
+}
+
+#[test]
 fn subst_record_constructor() {
     check(
         r#"
