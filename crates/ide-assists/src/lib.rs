@@ -380,6 +380,7 @@ mod handlers {
             unmerge_imports::unmerge_imports,
             unnecessary_async::unnecessary_async,
             unqualify_method_call::unqualify_method_call,
+            unwrap_branch::unwrap_block,
             unwrap_branch::unwrap_branch,
             unwrap_return_type::unwrap_return_type,
             unwrap_tuple::unwrap_tuple,

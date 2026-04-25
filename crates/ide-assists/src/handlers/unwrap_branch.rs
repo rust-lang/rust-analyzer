@@ -1,3 +1,4 @@
+use either::Either;
 use syntax::{
     AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T,
     ast::{
@@ -85,6 +86,55 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
     })
 }
 
+// Assist: unwrap_block
+//
+// This assist removes braces and unwrap single expressions block.
+//
+// ```
+// fn foo() {
+//     match () {
+//         _ => {$0
+//             bar()
+//         }
+//     }
+// }
+// ```
+// ->
+// ```
+// fn foo() {
+//     match () {
+//         _ => bar(),
+//     }
+// }
+// ```
+pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let l_curly_token = ctx.find_token_syntax_at_offset(T!['{'])?;
+    let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
+    let target = block.syntax().text_range();
+    let tail_expr = block.tail_expr()?;
+    let stmt_list = block.stmt_list()?;
+    let container = Either::<ast::MatchArm, ast::ClosureExpr>::cast(block.syntax().parent()?)?;
+
+    if stmt_list.statements().next().is_some() {
+        return None;
+    }
+
+    acc.add(AssistId::refactor_rewrite("unwrap_block"), "Unwrap block", target, |builder| {
+        let editor = builder.make_editor(block.syntax());
+        let replacement = stmt_list.dedent(tail_expr.indent_level()).indent(block.indent_level());
+        let mut replacement = extract_statements(replacement);
+
+        if container.left().is_some_and(|it| it.comma_token().is_none())
+            && !tail_expr.is_block_like()
+        {
+            replacement.push(editor.make().token(T![,]).into());
+        }
+
+        editor.replace_with_many(block.syntax(), replacement);
+        builder.add_file_edits(ctx.vfs_file_id(), editor);
+    })
+}
+
 fn delete_else_before(container: SyntaxNode, editor: &SyntaxEditor) {
     let make = editor.make();
     let Some(else_token) = container
@@ -137,7 +187,10 @@ fn extract_statements(stmt_list: ast::StmtList) -> Vec<SyntaxElement> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{check_assist, check_assist_not_applicable, check_assist_with_label};
+    use crate::tests::{
+        check_assist, check_assist_by_label, check_assist_not_applicable,
+        check_assist_not_applicable_by_label, check_assist_with_label,
+    };
 
     use super::*;
 
@@ -990,6 +1043,116 @@ fn main() {
 }
 "#,
             "Unwrap branch",
+        );
+    }
+
+    #[test]
+    fn unwrap_block_in_branch() {
+        check_assist_by_label(
+            unwrap_block,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) => {$0
+            if true {
+                foo()
+            }
+        }
+        Err(_) => None,
+    }
+}
+"#,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) => if true {
+            foo()
+        }
+        Err(_) => None,
+    }
+}
+"#,
+            "Unwrap block",
+        );
+
+        check_assist_by_label(
+            unwrap_block,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) => {$0
+            1 + 2
+        }
+        Err(_) => None,
+    }
+}
+"#,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) => 1 + 2,
+        Err(_) => None,
+    }
+}
+"#,
+            "Unwrap block",
+        );
+    }
+
+    #[test]
+    fn unwrap_block_in_branch_non_standalone() {
+        check_assist_not_applicable_by_label(
+            unwrap_block,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) => {
+            if true {$0
+                foo()
+            }
+        }
+        Err(_) => None,
+    }
+}
+"#,
+            "Unwrap block",
+        );
+    }
+
+    #[test]
+    fn unwrap_block_in_branch_non_tail_expr_only() {
+        check_assist_not_applicable_by_label(
+            unwrap_block,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) => {$0
+            x;
+            y
+        }
+        Err(_) => None,
+    }
+}
+"#,
+            "Unwrap block",
+        );
+    }
+
+    #[test]
+    fn unwrap_block_in_closure() {
+        check_assist_by_label(
+            unwrap_block,
+            r#"
+fn main() {
+    let f = || {$0 foo() };
+}
+"#,
+            r#"
+fn main() {
+    let f = || foo();
+}
+"#,
+            "Unwrap block",
         );
     }
 }
