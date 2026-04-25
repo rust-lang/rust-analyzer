@@ -3,7 +3,7 @@
 use crate::{
     AstToken, Direction, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
     algo::neighbor,
-    ast::{self, AstNode, Fn, GenericParam, HasGenericParams, HasName, edit::IndentLevel, make},
+    ast::{self, AstNode, HasGenericParams, HasName, edit::IndentLevel, make},
     syntax_editor::{Position, SyntaxEditor},
 };
 
@@ -109,64 +109,79 @@ impl GetOrCreateWhereClause for ast::Enum {
 }
 
 impl SyntaxEditor {
-    /// Adds a new generic param to the function using `SyntaxEditor`
-    pub fn add_generic_param(&self, function: &Fn, new_param: GenericParam) {
-        match function.generic_param_list() {
-            Some(generic_param_list) => match generic_param_list.generic_params().last() {
-                Some(last_param) => {
-                    // There exists a generic param list and it's not empty
-                    let position = generic_param_list.r_angle_token().map_or_else(
-                        || Position::last_child_of(function.syntax()),
-                        Position::before,
-                    );
+    /// Adds a new generic param to the node using `SyntaxEditor`
+    pub fn add_generic_param(
+        &self,
+        node: &impl ast::HasGenericParams,
+        new_param: ast::GenericParam,
+    ) {
+        let make = self.make();
+        match node.generic_param_list() {
+            Some(generic_param_list) => {
+                let is_lifetime = matches!(new_param, ast::GenericParam::LifetimeParam(_));
 
-                    if last_param
-                        .syntax()
-                        .next_sibling_or_token()
-                        .is_some_and(|it| it.kind() == SyntaxKind::COMMA)
-                    {
-                        self.insert(
-                            Position::after(last_param.syntax()),
-                            new_param.syntax().clone(),
-                        );
-                        self.insert(
-                            Position::after(last_param.syntax()),
-                            make::token(SyntaxKind::WHITESPACE),
-                        );
-                        self.insert(
-                            Position::after(last_param.syntax()),
-                            make::token(SyntaxKind::COMMA),
-                        );
+                if let Some(first_param) = generic_param_list.generic_params().next() {
+                    let last_lifetime = generic_param_list
+                        .generic_params()
+                        .filter(|p| matches!(p, ast::GenericParam::LifetimeParam(_)))
+                        .last();
+
+                    if is_lifetime {
+                        if let Some(last_lt) = last_lifetime {
+                            let elements = vec![
+                                make.token(SyntaxKind::COMMA).into(),
+                                make.token(SyntaxKind::WHITESPACE).into(),
+                                new_param.syntax().clone().into(),
+                            ];
+                            self.insert_all(Position::after(last_lt.syntax()), elements);
+                        } else {
+                            // Insert before the first parameter
+                            let elements = vec![
+                                new_param.syntax().clone().into(),
+                                make.token(SyntaxKind::COMMA).into(),
+                                make.token(SyntaxKind::WHITESPACE).into(),
+                            ];
+                            self.insert_all(Position::before(first_param.syntax()), elements);
+                        }
                     } else {
+                        let last_param = generic_param_list.generic_params().last().unwrap();
                         let elements = vec![
-                            make::token(SyntaxKind::COMMA).into(),
-                            make::token(SyntaxKind::WHITESPACE).into(),
+                            make.token(SyntaxKind::COMMA).into(),
+                            make.token(SyntaxKind::WHITESPACE).into(),
                             new_param.syntax().clone().into(),
                         ];
-                        self.insert_all(position, elements);
+                        self.insert_all(Position::after(last_param.syntax()), elements);
+                    }
+                } else {
+                    if let Some(l_angle) = generic_param_list.l_angle_token() {
+                        self.insert(Position::after(l_angle), new_param.syntax().clone());
                     }
                 }
-                None => {
-                    // There exists a generic param list but it's empty
-                    let position = Position::after(generic_param_list.l_angle_token().unwrap());
-                    self.insert(position, new_param.syntax());
-                }
-            },
+            }
             None => {
-                // There was no generic param list
-                let position = if let Some(name) = function.name() {
-                    Position::after(name.syntax)
-                } else if let Some(fn_token) = function.fn_token() {
-                    Position::after(fn_token)
-                } else if let Some(param_list) = function.param_list() {
-                    Position::before(param_list.syntax)
-                } else {
-                    Position::last_child_of(function.syntax())
-                };
+                let position =
+                    if let Some(name) = node.syntax().children().find_map(ast::Name::cast) {
+                        Position::after(name.syntax())
+                    } else if let Some(impl_node) = ast::Impl::cast(node.syntax().clone()) {
+                        impl_node
+                            .impl_token()
+                            .map_or_else(|| Position::last_child_of(node.syntax()), Position::after)
+                    } else if let Some(fn_node) = ast::Fn::cast(node.syntax().clone()) {
+                        if let Some(fn_token) = fn_node.fn_token() {
+                            Position::after(fn_token)
+                        } else if let Some(param_list) = fn_node.param_list() {
+                            Position::before(param_list.syntax())
+                        } else {
+                            Position::last_child_of(node.syntax())
+                        }
+                    } else {
+                        Position::last_child_of(node.syntax())
+                    };
+
                 let elements = vec![
-                    make::token(SyntaxKind::L_ANGLE).into(),
+                    make.token(SyntaxKind::L_ANGLE).into(),
                     new_param.syntax().clone().into(),
-                    make::token(SyntaxKind::R_ANGLE).into(),
+                    make.token(SyntaxKind::R_ANGLE).into(),
                 ];
                 self.insert_all(position, elements);
             }
