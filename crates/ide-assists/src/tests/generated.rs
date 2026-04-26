@@ -3731,6 +3731,29 @@ mod std { pub mod ops { pub trait Add { fn add(self, _: Self) {} } impl Add for 
 }
 
 #[test]
+fn doctest_unwrap_block() {
+    check_doc_test(
+        "unwrap_block",
+        r#####"
+fn foo() {
+    match () {
+        _ => {$0
+            bar()
+        }
+    }
+}
+"#####,
+        r#####"
+fn foo() {
+    match () {
+        _ => bar(),
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_unwrap_branch() {
     check_doc_test(
         "unwrap_branch",
