@@ -3,6 +3,7 @@ use syntax::{
     ast::{
         self,
         edit::{AstNodeEdit, IndentLevel},
+        syntax_factory::SyntaxFactory,
     },
     match_ast,
     syntax_editor::{Element, Position, SyntaxEditor},
@@ -28,14 +29,15 @@ use crate::{AssistContext, AssistId, Assists};
 // }
 // ```
 pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let l_curly_token = ctx.find_token_syntax_at_offset(T!['{'])?;
-    let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
-    let target = block.syntax().text_range();
-    let mut container = block.syntax().clone();
+    let (editor, _) = SyntaxEditor::new(ctx.source_file().syntax().clone());
+    let place = unwrap_branch_place(ctx)?;
+    let target = place.syntax().text_range();
+    let block = wrap_block_raw(&place, editor.make());
+    let mut container = place.syntax().clone();
     let mut replacement = block.clone();
     let mut prefer_container = None;
 
-    let from_indent = block.indent_level();
+    let from_indent = place.indent_level();
     let into_indent = loop {
         let parent = container.parent()?;
         container = match_ast! {
@@ -69,12 +71,11 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
         };
     };
     let is_branch =
-        !block.is_standalone() || block.syntax().parent().and_then(ast::MatchArm::cast).is_some();
+        !block.is_standalone() || place.syntax().parent().and_then(ast::MatchArm::cast).is_some();
     let label = if is_branch { "Unwrap branch" } else { "Unwrap block" };
     let replacement = replacement.stmt_list()?;
 
     acc.add(AssistId::refactor_rewrite("unwrap_branch"), label, target, |builder| {
-        let editor = builder.make_editor(block.syntax());
         let replacement = replacement.dedent(from_indent).indent(into_indent);
         let container = prefer_container.unwrap_or(container);
 
@@ -124,6 +125,18 @@ fn wrap_let(assign: &ast::LetStmt, replacement: ast::BlockExpr) -> ast::BlockExp
     try_wrap_assign().unwrap_or(replacement)
 }
 
+fn unwrap_branch_place(ctx: &AssistContext<'_>) -> Option<ast::Expr> {
+    if let Some(l_curly_token) = ctx.find_token_syntax_at_offset(T!['{']) {
+        let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
+        Some(block.into())
+    } else if let Some(fat_arrow_token) = ctx.find_token_syntax_at_offset(T![=>]) {
+        let match_arm = fat_arrow_token.parent().and_then(ast::MatchArm::cast)?;
+        match_arm.expr()
+    } else {
+        None
+    }
+}
+
 fn extract_statements(stmt_list: ast::StmtList) -> Vec<SyntaxElement> {
     let mut elements = stmt_list
         .syntax()
@@ -133,6 +146,14 @@ fn extract_statements(stmt_list: ast::StmtList) -> Vec<SyntaxElement> {
         .collect::<Vec<_>>();
     while elements.pop_if(|it| it.kind() == SyntaxKind::WHITESPACE).is_some() {}
     elements
+}
+
+fn wrap_block_raw(expr: &ast::Expr, make: &SyntaxFactory) -> ast::BlockExpr {
+    if let ast::Expr::BlockExpr(block) = expr {
+        block.clone()
+    } else {
+        make.tail_only_block_expr(expr.indent(1.into()))
+    }
 }
 
 #[cfg(test)]
@@ -635,6 +656,30 @@ fn main() {
 fn main() {
     let rel_path = RelativePathBuf::from_path(rel_path).ok()?;
     let value = Some((*id, rel_path));
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn unwrap_match_arm_without_block() {
+        check_assist(
+            unwrap_branch,
+            r#"
+fn main() {
+    match rel_path {
+        Ok(rel_path) $0=> Foo {
+            rel_path,
+        },
+        Err(_) => None,
+    }
+}
+"#,
+            r#"
+fn main() {
+    Foo {
+        rel_path,
+    }
 }
 "#,
         );
