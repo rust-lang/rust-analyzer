@@ -327,8 +327,16 @@ fn str_ref_to_owned(
     let hir::FileRange { file_id, range } = ctx.sema.original_range_opt(expr.syntax())?;
 
     let to_owned = ".to_owned()".to_owned();
-
-    let edit = TextEdit::insert(range.end(), to_owned);
+    let mut edit_expr = expr.clone();
+    while let ast::Expr::BlockExpr(block) = edit_expr.clone() {
+        match block.tail_expr() {
+            Some(tail) => edit_expr = tail,
+            None => break,
+        }
+    }
+    let hir::FileRange { range: edit_range, .. } =
+        ctx.sema.original_range_opt(edit_expr.syntax())?;
+    let edit = TextEdit::insert(edit_range.end(), to_owned);
     let source_change = SourceChange::from_text_edit(file_id.file_id(ctx.sema.db), edit);
     acc.push(fix("str_ref_to_owned", "Add .to_owned() here", source_change, range));
 
@@ -340,6 +348,39 @@ mod tests {
     use crate::tests::{
         check_diagnostics, check_diagnostics_with_disabled, check_fix, check_has_fix, check_no_fix,
     };
+
+    #[test]
+    fn str_ref_to_owned_in_block() {
+        check_has_fix(
+            r#"
+struct String;
+fn main() {
+    if true { String } else { "" }$0;
+}
+            "#,
+            r#"
+struct String;
+fn main() {
+    if true { String } else { "".to_owned() };
+}
+            "#,
+        );
+
+        check_has_fix(
+            r#"
+struct String;
+fn main() {
+    if true { String } else { { "" } }$0;
+}
+            "#,
+            r#"
+struct String;
+fn main() {
+    if true { String } else { { "".to_owned() } };
+}
+            "#,
+        );
+    }
 
     #[test]
     fn missing_reference() {
