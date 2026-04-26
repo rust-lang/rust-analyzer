@@ -127,7 +127,7 @@ async fn test() {
 fn infer_async_gen_closure() {
     check(
         r#"
-//- minicore: async_iterator, fn
+//- minicore: async_iterator, fn, add, builtin_impls
 //- /main.rs edition:2024
 fn test() {
     let f = async gen move |x: i32| {
