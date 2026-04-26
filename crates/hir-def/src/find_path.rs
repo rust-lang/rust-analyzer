@@ -414,19 +414,6 @@ fn find_in_sysroot(
         });
 }
 
-/// Computes the maximum path length allowed for a container module when searching for an item.
-///
-/// When `prefer_prelude` is false and the current best path goes through a `prelude` module,
-/// we relax the limit by 1 so that non-prelude paths one segment longer can still be found
-/// and then preferred by `Choice::try_select`.
-fn container_max_len(prefer_prelude: bool, max_len: usize, best_choice: &Option<Choice>) -> usize {
-    match best_choice {
-        Some(best) if !prefer_prelude && best.has_prelude_segment => best.path.len(),
-        Some(best) => best.path.len() - 1,
-        None => max_len,
-    }
-}
-
 fn find_in_dep(
     ctx: &FindPathCtx<'_>,
     visited_modules: &mut FxHashSet<(ItemInNs, ModuleId)>,
@@ -447,13 +434,7 @@ fn find_in_dep(
 
         // Determine best path for containing module and append last segment from `info`.
         // FIXME: we should guide this to look up the path locally, or from the same crate again?
-        let choice = find_path_for_module(
-            ctx,
-            visited_modules,
-            info.container,
-            true,
-            container_max_len(ctx.cfg.prefer_prelude, max_len, best_choice),
-        );
+        let choice = find_path_for_module(ctx, visited_modules, info.container, true, max_len - 1);
         let Some(mut choice) = choice else {
             continue;
         };
@@ -479,15 +460,11 @@ fn calculate_best_path_local(
 ) {
     // FIXME: cache the `find_local_import_locations` output?
     find_local_import_locations(ctx, item, visited_modules, |visited_modules, name, module_id| {
-        // we are looking for paths of length up to best_path_len, any longer will make it be
-        // less optimal. The -1 is due to us pushing name onto it afterwards.
-        if let Some(choice) = find_path_for_module(
-            ctx,
-            visited_modules,
-            module_id,
-            false,
-            container_max_len(ctx.cfg.prefer_prelude, max_len, best_choice),
-        ) {
+        // The container path may be at most `max_len - 1` segments since we push
+        // `name` on top of it.
+        if let Some(choice) =
+            find_path_for_module(ctx, visited_modules, module_id, false, max_len - 1)
+        {
             Choice::try_select(best_choice, choice, ctx.cfg.prefer_prelude, name.clone());
         }
     });
