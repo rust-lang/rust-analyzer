@@ -265,6 +265,12 @@ fn match_attr_flags(attr_flags: &mut AttrFlags, attr: ast::Meta) -> ControlFlow<
                         }
                         _ => {}
                     },
+                    "diagnostic" => match &*second_segment {
+                        "do_not_recommend" => {
+                            attr_flags.insert(AttrFlags::DIAGNOSTIC_DO_NOT_RECOMMEND)
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 },
             }
@@ -339,6 +345,8 @@ bitflags::bitflags! {
         const PREFER_UNDERSCORE_IMPORT = 1 << 49;
 
         const IS_MUST_USE = 1 << 50;
+
+        const DIAGNOSTIC_DO_NOT_RECOMMEND = 1 << 51;
     }
 }
 

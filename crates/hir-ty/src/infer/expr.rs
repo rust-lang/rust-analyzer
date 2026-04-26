@@ -42,7 +42,7 @@ use crate::{
 };
 
 use super::{
-    BreakableContext, Diverges, Expectation, InferenceContext, InferenceDiagnostic, TypeMismatch,
+    BreakableContext, Diverges, Expectation, InferenceContext, InferenceDiagnostic,
     cast::CastCheck, find_breakable,
 };
 
@@ -117,10 +117,7 @@ impl<'db> InferenceContext<'_, 'db> {
             match self.coerce(expr, ty, target, AllowTwoPhase::No, is_read) {
                 Ok(res) => res,
                 Err(_) => {
-                    self.result.type_mismatches.get_or_insert_default().insert(
-                        expr.into(),
-                        TypeMismatch { expected: target.store(), actual: ty.store() },
-                    );
+                    self.emit_type_mismatch(expr.into(), target, ty);
                     target
                 }
             }
@@ -1592,13 +1589,7 @@ impl<'db> InferenceContext<'_, 'db> {
                             )
                             .is_err()
                         {
-                            this.result.type_mismatches.get_or_insert_default().insert(
-                                expr.into(),
-                                TypeMismatch {
-                                    expected: t.store(),
-                                    actual: this.types.types.unit.store(),
-                                },
-                            );
+                            this.emit_type_mismatch(expr.into(), t, this.types.types.unit);
                         }
                         t
                     } else {
@@ -2161,10 +2152,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     && args_count_matches
                 {
                     // Don't report type mismatches if there is a mismatch in args count.
-                    self.result.type_mismatches.get_or_insert_default().insert(
-                        (*arg).into(),
-                        TypeMismatch { expected: expected.store(), actual: found.store() },
-                    );
+                    self.emit_type_mismatch((*arg).into(), expected, found);
                 }
             }
         }

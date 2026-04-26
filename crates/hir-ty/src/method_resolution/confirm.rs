@@ -18,7 +18,7 @@ use crate::{
     Adjust, Adjustment, AutoBorrow, IncorrectGenericsLenKind, InferenceDiagnostic,
     LifetimeElisionKind, PointerCast, Span,
     db::HirDatabase,
-    infer::{AllowTwoPhase, AutoBorrowMutability, InferenceContext, TypeMismatch},
+    infer::{AllowTwoPhase, AutoBorrowMutability, InferenceContext},
     lower::{
         GenericPredicates,
         path::{GenericArgsLowerer, TypeLikeConst, substs_from_args_and_bindings},
@@ -492,10 +492,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             }
             Err(_) => {
                 if self.ctx.features.arbitrary_self_types {
-                    self.ctx.result.type_mismatches.get_or_insert_default().insert(
-                        self.call_expr.into(),
-                        TypeMismatch { expected: method_self_ty.store(), actual: self_ty.store() },
-                    );
+                    self.ctx.emit_type_mismatch(self.call_expr.into(), method_self_ty, self_ty);
                 }
             }
         }

@@ -36,9 +36,9 @@ use syntax::{
 use test_fixture::WithFixture;
 
 use crate::{
-    InferenceResult,
+    InferenceDiagnostic, InferenceResult,
     display::{DisplayTarget, HirDisplay},
-    infer::{Adjustment, TypeMismatch},
+    infer::Adjustment,
     next_solver::Ty,
     setup_tracing,
     test_db::TestDB,
@@ -195,7 +195,14 @@ fn check_impl(
                 }
             }
 
-            for (expr_or_pat, mismatch) in inference_result.type_mismatches() {
+            let type_mismatches =
+                inference_result.diagnostics().iter().filter_map(|diag| match diag {
+                    InferenceDiagnostic::TypeMismatch { node, expected, found } => {
+                        Some((*node, expected.as_ref(), found.as_ref()))
+                    }
+                    _ => None,
+                });
+            for (expr_or_pat, expected, actual) in type_mismatches {
                 let Some(node) = (match expr_or_pat {
                     hir_def::hir::ExprOrPatId::ExprId(expr) => {
                         expr_node(body_source_map, expr, &db)
@@ -207,8 +214,8 @@ fn check_impl(
                 let range = node.as_ref().original_file_range_rooted(&db);
                 let actual = format!(
                     "expected {}, got {}",
-                    mismatch.expected.as_ref().display_test(&db, display_target),
-                    mismatch.actual.as_ref().display_test(&db, display_target)
+                    expected.display_test(&db, display_target),
+                    actual.display_test(&db, display_target)
                 );
                 match mismatches.remove(&range) {
                     Some(annotation) => assert_eq!(actual, annotation),
@@ -326,7 +333,17 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
                              krate: Crate| {
             let display_target = DisplayTarget::from_crate(&db, krate);
             let mut types: Vec<(InFile<SyntaxNode>, Ty<'_>)> = Vec::new();
-            let mut mismatches: Vec<(InFile<SyntaxNode>, &TypeMismatch)> = Vec::new();
+            let type_mismatch_for_node = inference_result
+                .diagnostics()
+                .iter()
+                .filter_map(|diag| match diag {
+                    InferenceDiagnostic::TypeMismatch { node, expected, found } => {
+                        Some((*node, (expected.as_ref(), found.as_ref())))
+                    }
+                    _ => None,
+                })
+                .collect::<FxHashMap<_, _>>();
+            let mut mismatches: Vec<(InFile<SyntaxNode>, (Ty<'_>, Ty<'_>))> = Vec::new();
 
             if let Some((binding_id, syntax_ptr)) = self_param {
                 let ty = &inference_result.type_of_binding[binding_id];
@@ -349,8 +366,8 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
                     Err(SyntheticSyntax) => continue,
                 };
                 types.push((node.clone(), ty.as_ref()));
-                if let Some(mismatch) = inference_result.type_mismatch_for_pat(pat) {
-                    mismatches.push((node, mismatch));
+                if let Some(mismatch) = type_mismatch_for_node.get(&pat.into()) {
+                    mismatches.push((node, *mismatch));
                 }
             }
 
@@ -363,8 +380,8 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
                     Err(SyntheticSyntax) => continue,
                 };
                 types.push((node.clone(), ty.as_ref()));
-                if let Some(mismatch) = inference_result.type_mismatch_for_expr(expr) {
-                    mismatches.push((node, mismatch));
+                if let Some(mismatch) = type_mismatch_for_node.get(&expr.into()) {
+                    mismatches.push((node, *mismatch));
                 }
             }
 
@@ -395,7 +412,7 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
                     let range = node.value.text_range();
                     (range.start(), range.end())
                 });
-                for (src_ptr, mismatch) in &mismatches {
+                for (src_ptr, (expected, actual)) in &mismatches {
                     let range = src_ptr.value.text_range();
                     let macro_prefix = if src_ptr.file_id != file_id { "!" } else { "" };
                     format_to!(
@@ -403,8 +420,8 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
                         "{}{:?}: expected {}, got {}\n",
                         macro_prefix,
                         range,
-                        mismatch.expected.as_ref().display_test(&db, display_target),
-                        mismatch.actual.as_ref().display_test(&db, display_target),
+                        expected.display_test(&db, display_target),
+                        actual.display_test(&db, display_target),
                     );
                 }
             }

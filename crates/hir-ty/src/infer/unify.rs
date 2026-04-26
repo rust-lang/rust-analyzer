@@ -11,9 +11,10 @@ use rustc_type_ir::{
     solve::Certainty,
 };
 use smallvec::SmallVec;
+use thin_vec::ThinVec;
 
 use crate::{
-    Span,
+    InferenceDiagnostic, Span,
     db::HirDatabase,
     next_solver::{
         Canonical, ClauseKind, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs,
@@ -29,6 +30,7 @@ use crate::{
         inspect::{InspectConfig, InspectGoal, ProofTreeVisitor},
         obligation_ctxt::ObligationCtxt,
     },
+    solver_errors::SolverDiagnostic,
     traits::ParamEnvAndCrate,
 };
 
@@ -133,6 +135,7 @@ pub(crate) struct InferenceTable<'db> {
     pub(crate) infer_ctxt: InferCtxt<'db>,
     pub(super) fulfillment_cx: FulfillmentCtxt<'db>,
     pub(super) diverging_type_vars: FxHashSet<Ty<'db>>,
+    trait_errors: Vec<NextSolverError<'db>>,
 }
 
 impl<'db> InferenceTable<'db> {
@@ -153,6 +156,7 @@ impl<'db> InferenceTable<'db> {
             fulfillment_cx: FulfillmentCtxt::new(&infer_ctxt),
             infer_ctxt,
             diverging_type_vars: FxHashSet::default(),
+            trait_errors: Vec::new(),
         }
     }
 
@@ -328,7 +332,10 @@ impl<'db> InferenceTable<'db> {
                 .structurally_normalize_ty(ty, &mut self.fulfillment_cx);
             match result {
                 Ok(normalized_ty) => normalized_ty,
-                Err(_errors) => Ty::new_error(self.interner(), ErrorGuaranteed),
+                Err(errors) => {
+                    self.trait_errors.extend(errors);
+                    Ty::new_error(self.interner(), ErrorGuaranteed)
+                }
             }
         } else {
             self.resolve_vars_with_obligations(ty)
@@ -376,7 +383,8 @@ impl<'db> InferenceTable<'db> {
     }
 
     pub(crate) fn select_obligations_where_possible(&mut self) {
-        self.fulfillment_cx.try_evaluate_obligations(&self.infer_ctxt);
+        let errors = self.fulfillment_cx.try_evaluate_obligations(&self.infer_ctxt);
+        self.trait_errors.extend(errors);
     }
 
     pub(super) fn register_predicate(&mut self, obligation: PredicateObligation<'db>) {
@@ -433,6 +441,16 @@ impl<'db> InferenceTable<'db> {
         // to normalize before inspecting the `TyKind`.
         self.try_structurally_resolve_type(Span::Dummy, ty)
     }
+
+    fn emit_trait_errors(&mut self, diagnostics: &mut ThinVec<InferenceDiagnostic>) {
+        diagnostics.extend(std::mem::take(&mut self.trait_errors).into_iter().filter_map(
+            |error| {
+                let error = error.into_fulfillment_error(&self.infer_ctxt);
+                SolverDiagnostic::from_fulfillment_error(&error)
+                    .map(InferenceDiagnostic::SolverDiagnostic)
+            },
+        ));
+    }
 }
 
 impl fmt::Debug for InferenceTable<'_> {
@@ -455,7 +473,7 @@ pub(super) mod resolve_completely {
 
     use crate::{
         InferenceDiagnostic, Span,
-        infer::{TypeMismatch, unify::InferenceTable},
+        infer::unify::InferenceTable,
         next_solver::{
             Const, ConstKind, DbInterner, DefaultAny, GenericArg, Goal, Predicate, Region, Term,
             TermKind, Ty, TyKind,
@@ -505,14 +523,6 @@ pub(super) mod resolve_completely {
             }
         }
 
-        pub(crate) fn resolve_type_mismatch(&mut self, value_ref: &mut TypeMismatch) {
-            // Ignore diagnostics from type mismatches, which are diagnostics themselves.
-            // FIXME: We should make type mismatches just regular diagnostics.
-            let prev_diagnostics_len = self.diagnostics.len();
-            self.resolve_completely(value_ref);
-            self.diagnostics.truncate(prev_diagnostics_len);
-        }
-
         pub(crate) fn resolve_completely<T>(&mut self, value_ref: &mut T)
         where
             T: TypeFoldable<DbInterner<'db>>,
@@ -537,6 +547,8 @@ pub(super) mod resolve_completely {
 
         pub(crate) fn resolve_diagnostics(mut self) -> (ThinVec<InferenceDiagnostic>, bool) {
             let has_errors = self.has_errors;
+
+            self.table.emit_trait_errors(&mut self.diagnostics);
 
             // Ignore diagnostics made from resolving diagnostics.
             let mut diagnostics = std::mem::take(&mut self.diagnostics);
@@ -706,8 +718,8 @@ pub(super) mod resolve_completely {
                         self.nested_goals.extend(goals);
                         value
                     }
-                    Err(_errors) => {
-                        // FIXME: Report the error.
+                    Err(errors) => {
+                        self.ctx.table.trait_errors.extend(errors);
                         value
                     }
                 }

@@ -2121,6 +2121,7 @@ impl DefWithBody {
             return;
         };
         let krate = self.module(db).id.krate(db);
+        let env = body_param_env_from_has_crate(db, id);
 
         let (body, source_map) = Body::with_source_map(db, id);
         let sig_source_map = match self {
@@ -2144,34 +2145,14 @@ impl DefWithBody {
 
         let infer = InferenceResult::of(db, id);
         for d in infer.diagnostics() {
-            acc.extend(AnyDiagnostic::inference_diagnostic(db, id, d, source_map, sig_source_map));
-        }
-
-        for (pat_or_expr, mismatch) in infer.type_mismatches() {
-            let expr_or_pat = match pat_or_expr {
-                ExprOrPatId::ExprId(expr) => source_map.expr_syntax(expr).map(Either::Left),
-                ExprOrPatId::PatId(pat) => source_map.pat_syntax(pat).map(Either::Right),
-            };
-            let expr_or_pat = match expr_or_pat {
-                Ok(Either::Left(expr)) => expr,
-                Ok(Either::Right(InFile { file_id, value: pat })) => {
-                    // cast from Either<Pat, SelfParam> -> Either<_, Pat>
-                    let Some(ptr) = AstPtr::try_from_raw(pat.syntax_node_ptr()) else {
-                        continue;
-                    };
-                    InFile { file_id, value: ptr }
-                }
-                Err(SyntheticSyntax) => continue,
-            };
-
-            acc.push(
-                TypeMismatch {
-                    expr_or_pat,
-                    expected: Type::new(db, id, mismatch.expected.as_ref()),
-                    actual: Type::new(db, id, mismatch.actual.as_ref()),
-                }
-                .into(),
-            );
+            acc.extend(AnyDiagnostic::inference_diagnostic(
+                db,
+                id,
+                d,
+                source_map,
+                sig_source_map,
+                env,
+            ));
         }
 
         let missing_unsafe = hir_ty::diagnostics::missing_unsafe(db, id);
@@ -6932,6 +6913,33 @@ pub trait HasVisibility {
     fn is_visible_from(&self, db: &dyn HirDatabase, module: Module) -> bool {
         let vis = self.visibility(db);
         vis.is_visible_from(db, module.id)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PredicatePolarity {
+    /// `T: Trait`
+    Positive,
+    /// `T: !Trait`
+    Negative,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitPredicate<'db> {
+    inner: hir_ty::next_solver::TraitPredicate<'db>,
+    env: ParamEnvAndCrate<'db>,
+}
+
+impl<'db> TraitPredicate<'db> {
+    pub fn polarity(&self) -> PredicatePolarity {
+        match self.inner.polarity {
+            rustc_type_ir::PredicatePolarity::Positive => PredicatePolarity::Positive,
+            rustc_type_ir::PredicatePolarity::Negative => PredicatePolarity::Negative,
+        }
+    }
+
+    pub fn trait_ref(&self) -> TraitRef<'db> {
+        TraitRef { env: self.env, trait_ref: self.inner.trait_ref }
     }
 }
 

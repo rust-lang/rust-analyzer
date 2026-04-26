@@ -390,7 +390,7 @@ struct Bar;
 
 impl Foo for Bar {}
 
-fn to_raw<T>(_: *mut T) -> *mut () {
+fn to_raw<T: ?Sized>(_: *mut T) -> *mut () {
     loop {}
 }
 

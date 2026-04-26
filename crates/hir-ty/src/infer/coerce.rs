@@ -55,9 +55,7 @@ use crate::{
     Adjust, Adjustment, AutoBorrow, ParamEnvAndCrate, PointerCast, Span, TargetFeatures,
     autoderef::Autoderef,
     db::{HirDatabase, InternedClosure, InternedClosureId},
-    infer::{
-        AllowTwoPhase, AutoBorrowMutability, InferenceContext, TypeMismatch, expr::ExprIsRead,
-    },
+    infer::{AllowTwoPhase, AutoBorrowMutability, InferenceContext, expr::ExprIsRead},
     next_solver::{
         Binder, BoundConst, BoundRegion, BoundRegionKind, BoundTy, BoundTyKind, CallableIdWrapper,
         Canonical, CoercePredicate, Const, ConstKind, DbInterner, ErrorGuaranteed, GenericArgs,
@@ -1393,14 +1391,11 @@ impl<'db, 'exprs> CoerceMany<'db, 'exprs> {
 
                 self.final_ty = Some(icx.types.types.error);
 
-                icx.result.type_mismatches.get_or_insert_default().insert(
-                    expression.into(),
-                    if label_expression_as_expected {
-                        TypeMismatch { expected: found.store(), actual: expected.store() }
-                    } else {
-                        TypeMismatch { expected: expected.store(), actual: found.store() }
-                    },
-                );
+                if label_expression_as_expected {
+                    icx.emit_type_mismatch(expression.into(), found, expected);
+                } else {
+                    icx.emit_type_mismatch(expression.into(), expected, found);
+                }
             }
         }
 

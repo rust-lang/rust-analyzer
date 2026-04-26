@@ -333,7 +333,7 @@ fn foo(x: usize) -> u8 {
     }
 }
 "#,
-            std::iter::once("remove-unnecessary-else".to_owned()),
+            &["remove-unnecessary-else"],
         );
         check_fix(
             r#"

@@ -53,6 +53,7 @@ use super::{
 pub mod at;
 pub mod canonical;
 mod context;
+pub mod errors;
 pub mod opaque_types;
 mod outlives;
 pub mod region_constraints;

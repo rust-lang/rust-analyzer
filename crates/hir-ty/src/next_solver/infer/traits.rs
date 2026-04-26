@@ -27,8 +27,9 @@ use crate::{
 use super::InferCtxt;
 
 /// The reason why we incurred this obligation; used for error reporting.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TypeVisitable, TypeFoldable)]
 pub struct ObligationCause {
+    #[type_visitable(ignore)]
     span: Span,
 }
 

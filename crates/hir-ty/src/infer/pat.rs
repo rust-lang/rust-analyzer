@@ -29,7 +29,7 @@ use crate::{
     BindingMode, InferenceDiagnostic, Span,
     infer::{
         AllowTwoPhase, ByRef, Expectation, InferenceContext, PatAdjust, PatAdjustment,
-        TypeMismatch, expr::ExprIsRead,
+        expr::ExprIsRead,
     },
     next_solver::{
         Const, TraitRef, Ty, TyKind, Tys,
@@ -1695,10 +1695,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         match self.coerce(expr, expected, lhs_ty, AllowTwoPhase::No, expr_is_read) {
             Ok(ty) => ty,
             Err(_) => {
-                self.result.type_mismatches.get_or_insert_default().insert(
-                    expr.into(),
-                    TypeMismatch { expected: expected.store(), actual: lhs_ty.store() },
-                );
+                self.emit_type_mismatch(expr.into(), expected, lhs_ty);
                 // `rhs_ty` is returned so no further type mismatches are
                 // reported because of this mismatch.
                 expected

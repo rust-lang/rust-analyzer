@@ -31,6 +31,7 @@ pub type ExistentialPredicate<'db> = ty::ExistentialPredicate<DbInterner<'db>>;
 pub type ExistentialTraitRef<'db> = ty::ExistentialTraitRef<DbInterner<'db>>;
 pub type ExistentialProjection<'db> = ty::ExistentialProjection<DbInterner<'db>>;
 pub type TraitPredicate<'db> = ty::TraitPredicate<DbInterner<'db>>;
+pub type HostEffectPredicate<'db> = ty::HostEffectPredicate<DbInterner<'db>>;
 pub type ClauseKind<'db> = ty::ClauseKind<DbInterner<'db>>;
 pub type PredicateKind<'db> = ty::PredicateKind<DbInterner<'db>>;
 pub type NormalizesTo<'db> = ty::NormalizesTo<DbInterner<'db>>;

@@ -50,6 +50,7 @@ pub mod layout;
 pub mod method_resolution;
 pub mod mir;
 pub mod primitive;
+pub mod solver_errors;
 pub mod traits;
 pub mod upvars;
 

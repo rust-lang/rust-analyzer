@@ -24,6 +24,8 @@ use crate::{
     },
 };
 
+pub(crate) use rustc_next_trait_solver::solve::inspect::*;
+
 pub(crate) struct InspectConfig {
     pub(crate) max_depth: usize,
 }
@@ -317,6 +319,10 @@ impl<'a, 'db> InspectGoal<'a, 'db> {
 
     pub(crate) fn result(&self) -> Result<Certainty, NoSolution> {
         self.result
+    }
+
+    pub(crate) fn source(&self) -> GoalSource {
+        self.source
     }
 
     pub(crate) fn depth(&self) -> usize {

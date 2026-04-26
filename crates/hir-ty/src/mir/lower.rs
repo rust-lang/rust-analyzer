@@ -33,7 +33,7 @@ use crate::{
     display::{DisplayTarget, HirDisplay, hir_display_with_store},
     generics::generics,
     infer::{
-        CaptureSourceStack, CapturedPlace, TypeMismatch, UpvarCapture,
+        CaptureSourceStack, CapturedPlace, UpvarCapture,
         cast::CastTy,
         closure::analysis::expr_use_visitor::{
             Place as HirPlace, PlaceBase as HirPlaceBase, ProjectionKind as HirProjectionKind,
@@ -110,7 +110,6 @@ pub enum MirLowerError {
     UnresolvedField,
     UnsizedTemporary(StoredTy),
     MissingFunctionDefinition(DefWithBodyId, ExprId),
-    TypeMismatch(TypeMismatch),
     HasErrors,
     /// This should never happen. Type mismatch should catch everything.
     TypeError(&'static str),
@@ -197,12 +196,6 @@ impl MirLowerError {
                 )?;
             }
             MirLowerError::HasErrors => writeln!(f, "Type inference result contains errors")?,
-            MirLowerError::TypeMismatch(e) => writeln!(
-                f,
-                "Type mismatch: Expected {}, found {}",
-                e.expected.as_ref().display(db, display_target),
-                e.actual.as_ref().display(db, display_target),
-            )?,
             MirLowerError::GenericArgNotProvided(id, subst) => {
                 let param_name = match *id {
                     GenericParamId::TypeParamId(id) => {
@@ -2402,7 +2395,7 @@ pub fn lower_to_mir_with_store<'db>(
     self_param: Option<(BindingId, Ty<'db>)>,
     is_root: bool,
 ) -> Result<'db, MirBody> {
-    if infer.type_mismatches().next().is_some() || infer.is_erroneous() {
+    if infer.has_type_mismatches() || infer.is_erroneous() {
         return Err(MirLowerError::HasErrors);
     }
     let mut ctx = MirLowerCtx::new(db, owner, store, infer);
