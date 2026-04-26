@@ -7,7 +7,7 @@ use hir::{
     sym,
 };
 use ide_db::{
-    EditionedFileId, RootDatabase,
+    EditionedFileId, FileId, FxHashMap, RootDatabase,
     base_db::Crate,
     defs::Definition,
     imports::insert_use::remove_use_tree_if_simple,
@@ -107,6 +107,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
             let mut usages = usages.all();
             let current_file_usage = usages.references.remove(&def_file);
 
+            let mut file_editors: FxHashMap<FileId, SyntaxEditor> = FxHashMap::default();
             let mut remove_def = true;
             let mut inline_refs_for_file = |file_id: EditionedFileId, refs: Vec<FileReference>| {
                 let file_id = file_id.file_id(ctx.db());
@@ -126,12 +127,14 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     .map(|ci| ci.node.syntax().clone())
                     .or_else(|| use_trees.first().map(|ut| ut.syntax().clone()));
                 if let Some(anchor) = anchor {
-                    let mut editor = builder.make_editor(&anchor);
+                    let editor =
+                        file_editors.entry(file_id).or_insert_with(|| builder.make_editor(&anchor));
                     let replaced = call_infos
                         .into_iter()
                         .map(|call_info| {
                             let replacement = inline(
                                 &ctx.sema, def_file, function, &func_body, &params, &call_info,
+                                editor,
                             );
                             editor.replace(call_info.node.syntax(), replacement.syntax());
                         })
@@ -139,12 +142,11 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     if replaced + use_trees.len() == count {
                         // we replaced all usages in this file, so we can remove the imports
                         for use_tree in &use_trees {
-                            remove_use_tree_if_simple(use_tree, &mut editor);
+                            remove_use_tree_if_simple(use_tree, editor);
                         }
                     } else {
                         remove_def = false;
                     }
-                    builder.add_file_edits(file_id, editor);
                 } else if use_trees.len() != count {
                     remove_def = false;
                 }
@@ -157,9 +159,13 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                 None => builder.edit_file(vfs_def_file),
             }
             if remove_def {
-                let mut editor = builder.make_editor(ast_func.syntax());
+                let editor = file_editors
+                    .entry(vfs_def_file)
+                    .or_insert_with(|| builder.make_editor(ast_func.syntax()));
                 editor.delete(ast_func.syntax());
-                builder.add_file_edits(vfs_def_file, editor);
+            }
+            for (file_id, editor) in file_editors {
+                builder.add_file_edits(file_id, editor);
             }
         },
     )
@@ -245,14 +251,11 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let syntax = call_info.node.syntax().clone();
     acc.add(AssistId::refactor_inline("inline_call"), label, syntax.text_range(), |builder| {
-        let replacement = inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info);
-        builder.replace_ast(
-            match call_info.node {
-                ast::CallableExpr::Call(it) => ast::Expr::CallExpr(it),
-                ast::CallableExpr::MethodCall(it) => ast::Expr::MethodCallExpr(it),
-            },
-            replacement,
-        );
+        let mut editor = builder.make_editor(call_info.node.syntax());
+        let replacement =
+            inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, &mut editor);
+        editor.replace(call_info.node.syntax(), replacement.syntax());
+        builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
 }
 
@@ -328,7 +331,9 @@ fn inline(
     fn_body: &ast::BlockExpr,
     params: &[(ast::Pat, Option<ast::Type>, hir::Param<'_>)],
     CallInfo { node, arguments, generic_arg_list, krate }: &CallInfo,
+    file_editor: &mut SyntaxEditor,
 ) -> ast::Expr {
+    let factory = SyntaxFactory::with_mappings();
     let file_id = sema.hir_file_for(fn_body.syntax());
     let body_to_clone = if let Some(macro_file) = file_id.macro_file() {
         cov_mark::hit!(inline_call_defined_in_macro);
@@ -340,15 +345,8 @@ fn inline(
         fn_body.clone()
     };
 
-    // Capture indent level before SyntaxEditor re-roots via clone_subtree.
-    // For non-macro bodies, body_to_clone still has its parent, so from_node
-    // finds the whitespace before `{` and returns the correct source indent level.
-    // For macro/prettified bodies (already re-rooted at 0), from_node returns 0,
-    // which is also correct since prettify_macro_expansion rebuilds indent from 0.
+    // Capture before `with_ast_node` re-roots and loses the source-relative position.
     let original_body_indent = IndentLevel::from_node(body_to_clone.syntax());
-
-    // The original body's start offset — needed to adjust FileReference ranges
-    // since SyntaxEditor::with_ast_node re-roots the tree to offset 0
     let body_offset = body_to_clone.syntax().text_range().start();
     let (mut editor, body) = SyntaxEditor::with_ast_node(&body_to_clone);
 
@@ -424,20 +422,22 @@ fn inline(
             .filter(|tok| tok.kind() == SyntaxKind::SELF_TYPE_KW)
             .collect();
         for self_tok in self_tokens {
-            let mut replace_with = t.syntax().clone_subtree();
-            if !is_in_type_path(&self_tok)
-                && let Some(ty) = ast::Type::cast(replace_with.clone())
-                && let Some(generic_arg_list) = ty.generic_arg_list()
+            let replace_with = if !is_in_type_path(&self_tok)
+                && let Some(generic_arg_list) = t.generic_arg_list()
             {
-                // Build replacement without generics using a sub-editor
-                let (mut sub_editor, sub_root) = SyntaxEditor::new(replace_with.clone());
-                let generic_node = sub_root
-                    .descendants()
-                    .find(|n| n.text_range() == generic_arg_list.syntax().text_range())
-                    .unwrap();
-                sub_editor.delete(generic_node);
-                replace_with = sub_editor.finish().new_root().clone();
-            }
+                // Strip the outer generic arg list and reparse, since turbofish-less
+                // generics aren't valid in expression position. The outermost
+                // `GenericArgList` text is unique within `t`'s text (any inner generics
+                // are nested inside it), so `replacen(.., 1)` is safe.
+                let stripped = t.syntax().text().to_string().replacen(
+                    &generic_arg_list.syntax().text().to_string(),
+                    "",
+                    1,
+                );
+                factory.ty(&stripped).syntax().clone()
+            } else {
+                t.syntax().clone()
+            };
             editor.replace(self_tok, replace_with);
         }
     }
@@ -458,6 +458,14 @@ fn inline(
     }
 
     let mut let_stmts: Vec<ast::Stmt> = Vec::new();
+
+    let this_token =
+        factory.name_ref("this").syntax().first_token().expect("NameRef should have had a token.");
+    let rewrite_self_to_this = |editor: &mut SyntaxEditor| {
+        for usage in &self_token_usages {
+            editor.replace(usage.clone(), this_token.clone());
+        }
+    };
 
     // Inline parameter expressions or generate `let` statements depending on whether inlining works or not.
     for ((pat, param_ty, param), usages, expr) in izip!(params, param_use_nodes, arguments) {
@@ -487,7 +495,7 @@ fn inline(
             let is_self = param.name(sema.db).is_some_and(|name| name == sym::self_);
 
             if is_self {
-                let mut this_pat = make::ident_pat(false, false, make::name("this"));
+                let mut this_pat = factory.ident_pat(false, false, factory.name("this"));
                 let mut expr = expr.clone();
                 if let Pat::IdentPat(pat) = pat {
                     match (pat.ref_token(), pat.mut_token()) {
@@ -495,11 +503,11 @@ fn inline(
                         (None, None) => {}
                         // mut self => let mut this = obj
                         (None, Some(_)) => {
-                            this_pat = make::ident_pat(false, true, make::name("this"));
+                            this_pat = factory.ident_pat(false, true, factory.name("this"));
                         }
                         // &self => let this = &obj
                         (Some(_), None) => {
-                            expr = make::expr_ref(expr, false);
+                            expr = factory.expr_ref(expr, false);
                         }
                         // let foo = &mut X; &mut self => let this = &mut obj
                         // let mut foo = X;  &mut self => let this = &mut *obj (reborrow)
@@ -508,16 +516,16 @@ fn inline(
                                 .type_of_expr(&expr)
                                 .map(|ty| ty.original.is_mutable_reference());
                             expr = if let Some(true) = should_reborrow {
-                                make::expr_reborrow(expr)
+                                factory.expr_reborrow(expr)
                             } else {
-                                make::expr_ref(expr, true)
+                                factory.expr_ref(expr, true)
                             };
                         }
                     }
                 };
-                let_stmts.push(make::let_stmt(this_pat.into(), ty, Some(expr)).into())
+                let_stmts.push(factory.let_stmt(this_pat.into(), ty, Some(expr)).into())
             } else {
-                let_stmts.push(make::let_stmt(pat.clone(), ty, Some(expr.clone())).into());
+                let_stmts.push(factory.let_stmt(pat.clone(), ty, Some(expr.clone())).into());
             }
         };
 
@@ -528,13 +536,7 @@ fn inline(
         // if it does then emit a let statement and continue
         if func_let_vars.contains(&expr.syntax().text().to_string()) {
             if is_self_param {
-                for usage in &self_token_usages {
-                    let this_token = make::name_ref("this")
-                        .syntax()
-                        .first_token()
-                        .expect("NameRef should have had a token.");
-                    editor.replace(usage.clone(), this_token);
-                }
+                rewrite_self_to_this(&mut editor);
             }
             insert_let_stmt();
             continue;
@@ -545,7 +547,6 @@ fn inline(
                 if let Some(field) = path_expr_as_record_field(usage) {
                     cov_mark::hit!(inline_call_inline_direct_field);
                     let field_name = field.field_name().unwrap();
-                    let factory = SyntaxFactory::without_mappings();
                     let new_field = factory.record_expr_field(
                         factory.name_ref(&field_name.text()),
                         Some(replacement.clone()),
@@ -563,7 +564,7 @@ fn inline(
                     && usage.syntax().parent().and_then(ast::Expr::cast).is_some() =>
             {
                 cov_mark::hit!(inline_call_inline_closure);
-                let expr = make::expr_paren(expr.clone()).into();
+                let expr = factory.expr_paren(expr.clone()).into();
                 inline_direct(&mut editor, usage, &expr);
             }
             // inline single use literals
@@ -580,14 +581,7 @@ fn inline(
             _ => {
                 if is_self_param {
                     // Rename all `self` tokens to `this` so the let binding matches.
-                    for usage in &self_token_usages {
-                        let this_token = make::name_ref("this")
-                            .syntax()
-                            .clone_subtree()
-                            .first_token()
-                            .expect("NameRef should have had a token.");
-                        editor.replace(usage.clone(), this_token);
-                    }
+                    rewrite_self_to_this(&mut editor);
                 }
                 insert_let_stmt();
             }
@@ -610,11 +604,10 @@ fn inline(
         body = new_body;
     }
 
-    let factory = SyntaxFactory::without_mappings();
     let is_async_fn = function.is_async(sema.db);
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
-        body = make::async_move_block_expr(body.statements(), body.tail_expr());
+        body = factory.async_move_block_expr(body.statements(), body.tail_expr());
 
         // Arguments should be evaluated outside the async block, and then moved into it.
         if !let_stmts.is_empty() {
@@ -635,7 +628,7 @@ fn inline(
     body = body.dedent(original_body_indent).indent(original_indentation);
 
     let no_stmts = body.statements().next().is_none();
-    match body.tail_expr() {
+    let result = match body.tail_expr() {
         Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts => {
             factory.expr_paren(expr).into()
         }
@@ -651,7 +644,9 @@ fn inline(
             }
             _ => ast::Expr::BlockExpr(body),
         },
-    }
+    };
+    file_editor.add_mappings(factory.finish_with_mappings());
+    result
 }
 
 fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
