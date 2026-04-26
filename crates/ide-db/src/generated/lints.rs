@@ -1238,6 +1238,13 @@ pub const DEFAULT_LINTS: &[Lint] = &[
         deny_since: None,
     },
     Lint {
+        label: "tail_call_track_caller",
+        description: r##"detects tail calls of functions marked with `#[track_caller]`"##,
+        default_severity: Severity::Warning,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
         label: "tail_expr_drop_order",
         description: r##"Detect and warn on significant change in drop order in tail expression location"##,
         default_severity: Severity::Allow,
@@ -4313,7 +4320,7 @@ defined in Rust. They may be called both from within Rust and via FFI.
 pub unsafe extern "C" fn add(n: usize, mut args: ...) -> usize {
     let mut sum = 0;
     for _ in 0..n {
-        sum += args.arg::<usize>();
+        sum += args.next_arg::<usize>();
     }
     sum
 }
@@ -4798,22 +4805,6 @@ extern {
 
 
 This feature has no tracking issue, and is therefore likely internal to the compiler, not being intended for general use.
-
-------------------------
-"##,
-        default_severity: Severity::Allow,
-        warn_since: None,
-        deny_since: None,
-    },
-    Lint {
-        label: "char_max_len",
-        description: r##"# `char_max_len`
-
-
-
-The tracking issue for this feature is: [#121714]
-
-[#121714]: https://github.com/rust-lang/rust/issues/121714
 
 ------------------------
 "##,
@@ -6004,6 +5995,22 @@ This feature has no tracking issue, and is therefore likely internal to the comp
         deny_since: None,
     },
     Lint {
+        label: "core_io",
+        description: r##"# `core_io`
+
+
+
+The tracking issue for this feature is: [#154046]
+
+[#154046]: https://github.com/rust-lang/rust/issues/154046
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
         label: "core_io_borrowed_buf",
         description: r##"# `core_io_borrowed_buf`
 
@@ -6012,6 +6019,20 @@ This feature has no tracking issue, and is therefore likely internal to the comp
 The tracking issue for this feature is: [#117693]
 
 [#117693]: https://github.com/rust-lang/rust/issues/117693
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
+        label: "core_io_internals",
+        description: r##"# `core_io_internals`
+
+
+
+This feature has no tracking issue, and is therefore likely internal to the compiler, not being intended for general use.
 
 ------------------------
 "##,
@@ -6986,13 +7007,96 @@ The tracking issue for this feature is: [#143874]
         label: "diagnostic_on_move",
         description: r##"# `diagnostic_on_move`
 
-Allows giving on-move borrowck custom diagnostic messages for a type
-
 The tracking issue for this feature is: [#154181]
 
-[#154181]: https://github.com/rust-lang/rust/issues/154181
-
 ------------------------
+
+The `diagnostic_on_move` feature allows use of the `#[diagnostic::on_move]` attribute. It should be
+placed on struct, enum and union declarations, though it is not an error to be located in other
+positions. This attribute is a hint to the compiler to supplement the error message when the
+annotated type is involved in a borrowcheck error.
+
+For example, [`File`] is annotated as such:
+```rust
+#![feature(diagnostic_on_move)]
+
+#[diagnostic::on_move(note = "you can use `File::try_clone` \
+                             to duplicate a `File` instance")]
+pub struct File {
+    // ...
+}
+```
+
+When you try to use a `File` after it's already been moved, it will helpfully tell you about `try_clone`.
+
+The message and label can also be customized:
+
+```rust
+#![feature(diagnostic_on_move)]
+
+use std::marker::PhantomData;
+
+#[diagnostic::on_move(
+    message = "`{Self}` cannot be used multiple times",
+    label = "this token may only be used once",
+    note = "you can create a new `Token` with `Token::conjure()`"
+)]
+pub struct Token<'brand> {
+    spooky: PhantomData<&'brand ()>,
+}
+
+impl Token<'_> {
+    pub fn conjure<'u>() -> Token<'u> {
+        Token {
+            spooky: PhantomData,
+        }
+    }
+}
+```
+The user may try to use it like this:
+```rust,compile_fail,E0382
+# #![feature(diagnostic_on_move)]
+#
+# use std::marker::PhantomData;
+#
+# #[diagnostic::on_move(
+#     message = "`{Self}` cannot be used multiple times",
+#     label = "this token may only be used once",
+#     note = "you can create a new `Token` with `Token::conjure()`"
+# )]
+# pub struct Token<'brand> {
+#     spooky: PhantomData<&'brand ()>,
+# }
+#
+# impl Token<'_> {
+#     pub fn conjure<'u>() -> Token<'u> {
+#         Token {
+#             spooky: PhantomData,
+#         }
+#     }
+# }
+# fn main() {
+let token = Token::conjure();
+let _ = (token, token);
+# }
+```
+This will result in the following error:
+```text
+error[E0382]: `Token` cannot be used multiple times
+  --> src/main.rs:24:21
+   |
+ 1 |     let token = Token::conjure();
+   |         ----- this token may only be used once
+ 2 |     let _ = (token, token);
+   |              -----  ^^^^^ value used here after move
+   |              |
+   |              value moved here
+   |
+   = note: you can create a new `Token` with `Token::conjure()`
+```
+
+[`File`]: https://doc.rust-lang.org/nightly/std/fs/struct.File.html "File in std::fs"
+[#154181]: https://github.com/rust-lang/rust/issues/154181 "Tracking Issue for #[diagnostic::on_move]"
 "##,
         default_severity: Severity::Allow,
         warn_since: None,
@@ -7009,6 +7113,66 @@ The tracking issue for this feature is: [#152900]
 [#152900]: https://github.com/rust-lang/rust/issues/152900
 
 ------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
+        label: "diagnostic_on_unmatch_args",
+        description: r##"# `diagnostic_on_unmatch_args`
+
+The tracking issue for this feature is: [#155642]
+
+[#155642]: https://github.com/rust-lang/rust/issues/155642
+
+------------------------
+
+The `diagnostic_on_unmatch_args` feature adds the
+`#[diagnostic::on_unmatch_args(...)]` attribute for declarative macros.
+It lets a macro definition customize diagnostics for matcher failures after all arms have been
+tried, such as incomplete invocations or trailing extra arguments.
+
+This attribute currently applies to declarative macros such as `macro_rules!` and `pub macro`.
+It is currently used for errors emitted by declarative macro matching itself; fragment parser
+errors still use their existing diagnostics.
+
+```rust,compile_fail
+#![feature(diagnostic_on_unmatch_args)]
+
+#[diagnostic::on_unmatch_args(
+    message = "invalid arguments to {This} macro invocation",
+    label = "expected a type and value here",
+    note = "this macro expects a type and a value, like `pair!(u8, 0)`",
+    note = "see <link/to/docs>",
+)]
+macro_rules! pair {
+    ($ty:ty, $value:expr) => {};
+}
+
+pair!(u8);
+```
+
+This emits output like:
+
+```text
+error: invalid arguments to pair macro invocation
+  --> example.rs:13:9
+   |
+9  | macro_rules! pair {
+   | ----------------- when calling this macro
+...
+13 | pair!(u8);
+   |         ^ expected a type and value here
+   |
+note: while trying to match `,`
+  --> example.rs:10:12
+   |
+10 |     ($ty:ty, $value:expr) => {};
+   |            ^
+   = note: this macro expects a type and a value, like `pair!(u8, 0)`
+   = note: see <link/to/docs>
+```
 "##,
         default_severity: Severity::Allow,
         warn_since: None,
@@ -8077,6 +8241,22 @@ The tracking issue for this feature is: [#99842]
         deny_since: None,
     },
     Lint {
+        label: "float_masks",
+        description: r##"# `float_masks`
+
+
+
+The tracking issue for this feature is: [#154064]
+
+[#154064]: https://github.com/rust-lang/rust/issues/154064
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
         label: "float_minimum_maximum",
         description: r##"# `float_minimum_maximum`
 
@@ -9026,6 +9206,22 @@ The tracking issue for this feature is: [#88581]
 The tracking issue for this feature is: [#99069]
 
 [#99069]: https://github.com/rust-lang/rust/issues/99069
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
+        label: "integer_cast_extras",
+        description: r##"# `integer_cast_extras`
+
+
+
+The tracking issue for this feature is: [#154650]
+
+[#154650]: https://github.com/rust-lang/rust/issues/154650
 
 ------------------------
 "##,
@@ -14912,7 +15108,7 @@ pub fn main() {
     foo(&1);
 
     // Use trait alias for trait objects.
-    let a: &Bar = &123;
+    let a: &dyn Bar = &123;
     println!("{:?}", a);
     let b = Box::new(456) as Box<dyn Foo>;
     println!("{:?}", b);
