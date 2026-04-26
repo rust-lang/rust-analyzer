@@ -125,17 +125,18 @@ async fn test() {
 
 #[test]
 fn infer_async_gen_closure() {
-    check_types(
+    check(
         r#"
 //- minicore: async_iterator, fn
 //- /main.rs edition:2024
 fn test() {
     let f = async gen move |x: i32| {
         yield x + 42;
+            //^^^^^^ expected Poll<Option<{unknown}>>, got i32
     };
     let a = f(4);
     a;
-//  ^ impl AsyncIterator<Item = i32>
+//  ^ type: impl AsyncIterator<Item = {unknown}>
 }
 "#,
     );
