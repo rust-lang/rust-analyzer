@@ -14,7 +14,7 @@ use crate::{
     StaticLoc, StructId, StructLoc, TraitId, TraitLoc, TypeAliasId, TypeAliasLoc, UnionId,
     UnionLoc, UseId, UseLoc,
     attrs::AttrFlags,
-    item_tree::{ItemTree, file_item_tree_query},
+    item_tree::{ItemTree, file_item_tree},
     nameres::crate_def_map,
     visibility::{self, Visibility},
 };
@@ -87,7 +87,7 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + SourceDatabase {
     fn expand_proc_attr_macros(&self) -> bool;
 
     /// Computes an [`ItemTree`] for the given file or macro expansion.
-    #[salsa::invoke(file_item_tree_query)]
+    #[salsa::invoke(file_item_tree)]
     #[salsa::transparent]
     fn file_item_tree(&self, file_id: HirFileId, krate: Crate) -> &ItemTree;
 
