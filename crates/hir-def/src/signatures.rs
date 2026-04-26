@@ -652,9 +652,19 @@ impl FunctionSignature {
         }
 
         let name = as_name_opt(source.value.name());
-        let abi = source.value.abi().map(|abi| {
-            abi.abi_string().map_or_else(|| sym::C, |it| Symbol::intern(it.text_without_quotes()))
-        });
+        let abi = source
+            .value
+            .abi()
+            .map(|abi| {
+                abi.abi_string()
+                    .map_or_else(|| sym::C, |it| Symbol::intern(it.text_without_quotes()))
+            })
+            .or_else(|| match loc.container {
+                ItemContainerId::ExternBlockId(extern_block) => extern_block_abi(db, extern_block),
+                ItemContainerId::ModuleId(_)
+                | ItemContainerId::ImplId(_)
+                | ItemContainerId::TraitId(_) => None,
+            });
         let (store, source_map, generic_params, params, ret_type, self_param, variadic) =
             lower_function(db, module, source, id);
         if self_param {
@@ -738,15 +748,7 @@ impl FunctionSignature {
         let data = FunctionSignature::of(db, id);
         data.flags.contains(FnFlags::RUSTC_INTRINSIC)
             // Keep this around for a bit until extern "rustc-intrinsic" abis are no longer used
-            || match &data.abi {
-                Some(abi) => *abi == sym::rust_dash_intrinsic,
-                None => match id.lookup(db).container {
-                    ItemContainerId::ExternBlockId(block) => {
-                        block.abi(db) == Some(sym::rust_dash_intrinsic)
-                    }
-                    _ => false,
-                },
-            }
+            || data.abi.as_ref().is_some_and(|abi| *abi == sym::rust_dash_intrinsic)
     }
 }
 
