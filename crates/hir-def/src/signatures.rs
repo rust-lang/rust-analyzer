@@ -128,13 +128,11 @@ impl StructSignature {
             source_map,
         )
     }
-}
 
-impl StructSignature {
     #[inline]
     pub fn repr(&self, db: &dyn DefDatabase, id: StructId) -> Option<ReprOptions> {
         if self.flags.contains(StructFlags::HAS_REPR) {
-            AttrFlags::repr(db, id.into())
+            AttrFlags::repr_assume_has(db, id.into())
         } else {
             None
         }
@@ -202,6 +200,15 @@ impl UnionSignature {
             source_map,
         )
     }
+
+    #[inline]
+    pub fn repr(&self, db: &dyn DefDatabase, id: UnionId) -> Option<ReprOptions> {
+        if self.flags.contains(StructFlags::HAS_REPR) {
+            AttrFlags::repr_assume_has(db, id.into())
+        } else {
+            None
+        }
+    }
 }
 
 bitflags! {
@@ -211,6 +218,8 @@ bitflags! {
         const HAS_REPR = 1 << 0;
         /// Indicates whether the enum has a `#[rustc_has_incoherent_inherent_impls]` attribute.
         const RUSTC_HAS_INCOHERENT_INHERENT_IMPLS  = 1 << 1;
+        /// Whether this enum has `#[fundamental]`.
+        const FUNDAMENTAL = 1 << 2;
     }
 }
 
@@ -242,6 +251,9 @@ impl EnumSignature {
         }
         if attrs.contains(AttrFlags::HAS_REPR) {
             flags |= EnumFlags::HAS_REPR;
+        }
+        if attrs.contains(AttrFlags::FUNDAMENTAL) {
+            flags |= EnumFlags::FUNDAMENTAL;
         }
 
         let InFile { file_id, value: source } = loc.source(db);
@@ -276,7 +288,11 @@ impl EnumSignature {
 
     #[inline]
     pub fn repr(&self, db: &dyn DefDatabase, id: EnumId) -> Option<ReprOptions> {
-        if self.flags.contains(EnumFlags::HAS_REPR) { AttrFlags::repr(db, id.into()) } else { None }
+        if self.flags.contains(EnumFlags::HAS_REPR) {
+            AttrFlags::repr_assume_has(db, id.into())
+        } else {
+            None
+        }
     }
 }
 bitflags::bitflags! {

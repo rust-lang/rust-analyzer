@@ -20,7 +20,7 @@ use rustc_ast_ir::Mutability;
 use rustc_hash::FxHashMap;
 use rustc_type_ir::{
     InferTy, Interner,
-    inherent::{AdtDef, GenericArgs as _, IntoKind, Ty as _},
+    inherent::{GenericArgs as _, IntoKind, Ty as _},
 };
 use stdx::never;
 use syntax::ast::RangeOp;
@@ -1039,7 +1039,7 @@ impl<'db> InferenceContext<'_, 'db> {
             never!("non-ADT passed to check_struct_expr_fields");
             return;
         };
-        let adt_id = adt.def_id().0;
+        let adt_id = adt.def_id();
 
         let variant_fields = variant.fields(self.db);
         let variant_field_tys = self.db.field_types(variant);
@@ -1623,7 +1623,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         })
                     });
                 }
-                TyKind::Adt(adt, parameters) => match adt.def_id().0 {
+                TyKind::Adt(adt, parameters) => match adt.def_id() {
                     hir_def::AdtId::StructId(s) => {
                         let local_id = s.fields(self.db).field(name)?;
                         let field = FieldId { parent: s.into(), local_id };

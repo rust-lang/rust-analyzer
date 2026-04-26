@@ -177,7 +177,7 @@ pub fn layout_of_ty_query(
         .unwrap_or(ty.as_ref());
     let result = match ty.kind() {
         TyKind::Adt(def, args) => {
-            match def.inner().id {
+            match def.def_id() {
                 hir_def::AdtId::StructId(s) => {
                     let repr = AttrFlags::repr(db, s.into()).unwrap_or_default();
                     if repr.simd() {
@@ -193,7 +193,7 @@ pub fn layout_of_ty_query(
                 }
                 _ => {}
             }
-            return db.layout_of_adt(def.inner().id, args.store(), trait_env);
+            return db.layout_of_adt(def.def_id(), args.store(), trait_env);
         }
         TyKind::Bool => Layout::scalar(
             dl,
@@ -374,7 +374,7 @@ pub(crate) fn layout_of_ty_cycle_result(
 fn struct_tail_erasing_lifetimes<'a>(db: &'a dyn HirDatabase, pointee: Ty<'a>) -> Ty<'a> {
     match pointee.kind() {
         TyKind::Adt(def, args) => {
-            let struct_id = match def.inner().id {
+            let struct_id = match def.def_id() {
                 AdtId::StructId(id) => id,
                 _ => return pointee,
             };

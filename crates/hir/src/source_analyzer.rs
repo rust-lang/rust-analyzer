@@ -47,7 +47,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{
     AliasTyKind,
-    inherent::{AdtDef, IntoKind, Ty as _},
+    inherent::{IntoKind, Ty as _},
 };
 use smallvec::SmallVec;
 use stdx::never;
@@ -956,7 +956,7 @@ impl<'db> SourceAnalyzer<'db> {
                         handle_variants(VariantId::from(variant_id), subst, &mut container)?
                     }
                     Either::Right(container_ty) => match container_ty.kind() {
-                        TyKind::Adt(adt_def, subst) => match adt_def.def_id().0 {
+                        TyKind::Adt(adt_def, subst) => match adt_def.def_id() {
                             AdtId::StructId(id) => {
                                 handle_variants(id.into(), subst, &mut container)?
                             }
@@ -1286,7 +1286,7 @@ impl<'db> SourceAnalyzer<'db> {
                 let env = self.trait_environment(db);
                 let (subst, expected_resolution) = match ty.kind() {
                     TyKind::Adt(adt_def, subst) => {
-                        let adt_id = adt_def.def_id().0;
+                        let adt_id = adt_def.def_id();
                         (
                             GenericSubstitution::new(adt_id.into(), subst, env),
                             PathResolution::Def(ModuleDef::Adt(adt_id.into())),

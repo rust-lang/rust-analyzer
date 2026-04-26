@@ -6,7 +6,7 @@ use hir_def::{
 };
 use hir_expand::{HirFileId, files::InFileWrapper};
 use itertools::Itertools;
-use rustc_type_ir::inherent::{AdtDef as _, IntoKind};
+use rustc_type_ir::inherent::IntoKind;
 use span::{Edition, TextRange};
 use stdx::{format_to, never};
 use syntax::{AstNode, AstPtr};
@@ -42,7 +42,7 @@ fn display_place(db: &TestDB, store: &ExpressionStore, place: &Place, local: Bin
                 match ty.kind() {
                     TyKind::Tuple(_) => format_to!(result, ".{field_idx}"),
                     TyKind::Adt(adt_def, _) => {
-                        let variant = match adt_def.def_id().0 {
+                        let variant = match adt_def.def_id() {
                             AdtId::StructId(id) => VariantId::from(id),
                             AdtId::UnionId(id) => id.into(),
                             AdtId::EnumId(id) => {

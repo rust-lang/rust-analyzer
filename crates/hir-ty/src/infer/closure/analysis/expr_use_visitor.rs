@@ -17,7 +17,7 @@ use hir_def::{
 use rustc_ast_ir::{try_visit, visit::VisitorResult};
 use rustc_type_ir::{
     FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor,
-    inherent::{AdtDef, IntoKind, Ty as _},
+    inherent::{IntoKind, Ty as _},
 };
 use smallvec::{SmallVec, smallvec};
 use syntax::ast::{BinaryOp, UnaryOp};
@@ -799,7 +799,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
         // expression that will actually be used
         match self.cx.structurally_resolve_type(with_expr.into(), with_place.place.ty()).kind() {
             TyKind::Adt(adt, args) if adt.is_struct() => {
-                let AdtId::StructId(adt) = adt.def_id().0 else { unreachable!() };
+                let AdtId::StructId(adt) = adt.def_id() else { unreachable!() };
                 let adt_fields = VariantId::from(adt).fields(self.cx.db).fields();
                 let adt_field_types = self.cx.db.field_types(adt.into());
                 // Consume those fields of the with expression that are needed.
@@ -1701,7 +1701,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
             // to assume that more cases will be added to the variant in the future. This mean
             // that we should handle non-exhaustive SingleVariant the same way we would handle
             // a MultiVariant.
-            match def.def_id().0 {
+            match def.def_id() {
                 AdtId::StructId(_) | AdtId::UnionId(_) => false,
                 AdtId::EnumId(did) => {
                     let has_foreign_non_exhaustive = || {

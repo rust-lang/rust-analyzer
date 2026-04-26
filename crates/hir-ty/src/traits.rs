@@ -17,7 +17,7 @@ use hir_expand::name::Name;
 use intern::sym;
 use rustc_type_ir::{
     TypingMode,
-    inherent::{AdtDef, BoundExistentialPredicates, IntoKind},
+    inherent::{BoundExistentialPredicates, IntoKind},
 };
 
 use crate::{
@@ -171,7 +171,7 @@ pub fn is_inherent_impl_coherent(db: &dyn HirDatabase, def_map: &DefMap, impl_id
         | TyKind::Uint(_)
         | TyKind::Float(_) => def_map.is_rustc_coherence_is_core(),
 
-        TyKind::Adt(adt_def, _) => adt_def.def_id().0.module(db).krate(db) == def_map.krate(),
+        TyKind::Adt(adt_def, _) => adt_def.def_id().module(db).krate(db) == def_map.krate(),
         TyKind::Dynamic(it, _) => it
             .principal_def_id()
             .is_some_and(|trait_id| trait_id.0.module(db).krate(db) == def_map.krate()),
@@ -194,7 +194,7 @@ pub fn is_inherent_impl_coherent(db: &dyn HirDatabase, def_map: &DefMap, impl_id
             | TyKind::Uint(_)
             | TyKind::Float(_) => true,
 
-            TyKind::Adt(adt_def, _) => match adt_def.def_id().0 {
+            TyKind::Adt(adt_def, _) => match adt_def.def_id() {
                 hir_def::AdtId::StructId(id) => StructSignature::of(db, id)
                     .flags
                     .contains(StructFlags::RUSTC_HAS_INCOHERENT_INHERENT_IMPLS),
@@ -259,7 +259,7 @@ pub fn check_orphan_rules<'db>(db: &'db dyn HirDatabase, impl_: ImplId) -> bool 
             match ty.kind() {
                 TyKind::Ref(_, referenced, _) => ty = referenced,
                 TyKind::Adt(adt_def, subs) => {
-                    let AdtId::StructId(s) = adt_def.def_id().0 else {
+                    let AdtId::StructId(s) = adt_def.def_id() else {
                         break ty;
                     };
                     let struct_signature = StructSignature::of(db, s);
@@ -282,7 +282,7 @@ pub fn check_orphan_rules<'db>(db: &'db dyn HirDatabase, impl_: ImplId) -> bool 
     // FIXME: param coverage
     //   - No uncovered type parameters `P1..=Pn` may appear in `T0..Ti`` (excluding `Ti`)
     let is_not_orphan = trait_ref.args.types().any(|ty| match unwrap_fundamental(ty).kind() {
-        TyKind::Adt(adt_def, _) => is_local(adt_def.def_id().0.module(db).krate(db)),
+        TyKind::Adt(adt_def, _) => is_local(adt_def.def_id().module(db).krate(db)),
         TyKind::Error(_) => true,
         TyKind::Dynamic(it, _) => {
             it.principal_def_id().is_some_and(|trait_id| is_local(trait_id.0.module(db).krate(db)))

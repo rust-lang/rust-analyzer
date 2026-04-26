@@ -70,7 +70,7 @@ fn has_drop_glue_impl<'db>(
     let db = infcx.interner.db;
     match ty.kind() {
         TyKind::Adt(adt_def, subst) => {
-            let adt_id = adt_def.def_id().0;
+            let adt_id = adt_def.def_id();
             if adt_def.destructor(infcx.interner).is_some() {
                 return DropGlue::HasDropGlue;
             }

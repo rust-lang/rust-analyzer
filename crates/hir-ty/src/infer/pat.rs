@@ -20,7 +20,7 @@ use rustc_ast_ir::Mutability;
 use rustc_hash::FxHashMap;
 use rustc_type_ir::{
     TypeVisitableExt as _,
-    inherent::{AdtDef as _, IntoKind as _, Ty as _},
+    inherent::{IntoKind as _, Ty as _},
 };
 use span::Edition;
 use tracing::{debug, instrument, trace};
@@ -725,7 +725,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             && let TyKind::Adt(scrutinee_adt, _) = expected.kind()
             // Don't peel if the pattern type already matches the scrutinee. E.g., stop here if
             // matching on a `Cow<'a, T>` scrutinee with a `Cow::Owned(_)` pattern.
-            && until_adt != Some(scrutinee_adt.def_id().0)
+            && until_adt != Some(scrutinee_adt.def_id())
             // At this point, the pattern isn't able to match `expected` without peeling. Check
             // that it implements `Deref` before assuming it's a smart pointer, to get a normal
             // type error instead of a missing impl error if not. This only checks for `Deref`,

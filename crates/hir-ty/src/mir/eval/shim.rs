@@ -6,7 +6,7 @@ use std::cmp::{self, Ordering};
 use hir_def::{attrs::AttrFlags, signatures::FunctionSignature};
 use hir_expand::name::Name;
 use intern::sym;
-use rustc_type_ir::inherent::{AdtDef, GenericArgs as _, IntoKind, SliceLike, Ty as _};
+use rustc_type_ir::inherent::{GenericArgs as _, IntoKind, SliceLike, Ty as _};
 use stdx::never;
 
 use crate::{
@@ -1360,7 +1360,7 @@ impl<'db> Evaluator<'db> {
                 "dyn concrete type",
             )?,
             TyKind::Adt(adt_def, subst) => {
-                let id = adt_def.def_id().0;
+                let id = adt_def.def_id();
                 let layout = self.layout_adt(id, subst)?;
                 let id = match id {
                     AdtId::StructId(s) => s,

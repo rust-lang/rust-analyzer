@@ -22,7 +22,7 @@ use itertools::{EitherOrBoth, Itertools};
 use la_arena::ArenaMap;
 use rustc_apfloat::Float;
 use rustc_hash::FxHashMap;
-use rustc_type_ir::inherent::{AdtDef, Const as _, GenericArgs as _, IntoKind, Ty as _};
+use rustc_type_ir::inherent::{Const as _, GenericArgs as _, IntoKind, Ty as _};
 use span::{Edition, FileId};
 use syntax::TextRange;
 use triomphe::Arc;
@@ -2097,7 +2097,7 @@ fn convert_closure_capture_projections(
                 }
                 TyKind::Adt(adt_def, _) => {
                     let local_field_id = LocalFieldId::from_raw(RawIdx::from_u32(field_idx));
-                    let field = match adt_def.def_id().0 {
+                    let field = match adt_def.def_id() {
                         AdtId::StructId(id) => {
                             FieldId { parent: id.into(), local_id: local_field_id }
                         }
