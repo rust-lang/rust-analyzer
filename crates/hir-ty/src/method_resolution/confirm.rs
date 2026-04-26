@@ -39,7 +39,7 @@ use crate::{
 struct ConfirmContext<'a, 'b, 'db> {
     ctx: &'a mut InferenceContext<'b, 'db>,
     candidate: FunctionId,
-    expr: ExprId,
+    call_expr: ExprId,
 }
 
 #[derive(Debug)]
@@ -74,9 +74,9 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
     fn new(
         ctx: &'a mut InferenceContext<'b, 'db>,
         candidate: FunctionId,
-        expr: ExprId,
+        call_expr: ExprId,
     ) -> ConfirmContext<'a, 'b, 'db> {
-        ConfirmContext { ctx, candidate, expr }
+        ConfirmContext { ctx, candidate, call_expr }
     }
 
     #[inline]
@@ -181,7 +181,8 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
     ) -> (Ty<'db>, Box<[Adjustment]>) {
         // Commit the autoderefs by calling `autoderef` again, but this
         // time writing the results into the various typeck results.
-        let mut autoderef = self.ctx.table.autoderef_with_tracking(unadjusted_self_ty);
+        let mut autoderef =
+            self.ctx.table.autoderef_with_tracking(unadjusted_self_ty, self.call_expr.into());
         let Some((mut target, n)) = autoderef.nth(pick.autoderefs) else {
             return (Ty::new_error(self.interner(), ErrorGuaranteed), Box::new([]));
         };
@@ -191,7 +192,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             self.ctx.table.register_infer_ok(autoderef.adjust_steps_as_infer_ok());
         match pick.autoref_or_ptr_adjustment {
             Some(probe::AutorefOrPtrAdjustment::Autoref { mutbl, unsize }) => {
-                let region = self.infcx().next_region_var(self.expr.into());
+                let region = self.infcx().next_region_var(self.call_expr.into());
                 // Type we're wrapping in a reference, used later for unsizing
                 let base_ty = target;
 
@@ -255,7 +256,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
     ) -> GenericArgs<'db> {
         match pick.kind {
             probe::InherentImplPick(impl_def_id) => {
-                self.infcx().fresh_args_for_item(self.expr.into(), impl_def_id.into())
+                self.infcx().fresh_args_for_item(self.call_expr.into(), impl_def_id.into())
             }
 
             probe::ObjectPick(trait_def_id) => {
@@ -297,7 +298,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                 // the process we will unify the transformed-self-type
                 // of the method with the actual type in order to
                 // unify some of these variables.
-                self.infcx().fresh_args_for_item(self.expr.into(), trait_def_id.into())
+                self.infcx().fresh_args_for_item(self.call_expr.into(), trait_def_id.into())
             }
 
             probe::WhereClausePick(poly_trait_ref) => {
@@ -317,7 +318,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
         // yield an object-type (e.g., `&Object` or `Box<Object>`
         // etc).
 
-        let mut autoderef = self.ctx.table.autoderef(self_ty);
+        let mut autoderef = self.ctx.table.autoderef(self_ty, self.call_expr.into());
 
         // We don't need to gate this behind arbitrary self types
         // per se, but it does make things a bit more gated.
@@ -466,7 +467,11 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             LifetimeElisionKind::Infer,
             false,
             None,
-            &mut LowererCtx { ctx: self.ctx, expr: self.expr, parent_args: parent_args.as_slice() },
+            &mut LowererCtx {
+                ctx: self.ctx,
+                expr: self.call_expr,
+                parent_args: parent_args.as_slice(),
+            },
         )
     }
 
@@ -480,7 +485,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             "unify_receivers: self_ty={:?} method_self_ty={:?} pick={:?}",
             self_ty, method_self_ty, pick
         );
-        let cause = ObligationCause::new();
+        let cause = ObligationCause::new(self.call_expr);
         match self.ctx.table.at(&cause).sup(method_self_ty, self_ty) {
             Ok(infer_ok) => {
                 self.ctx.table.register_infer_ok(infer_ok);
@@ -488,7 +493,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
             Err(_) => {
                 if self.ctx.features.arbitrary_self_types {
                     self.ctx.result.type_mismatches.get_or_insert_default().insert(
-                        self.expr.into(),
+                        self.call_expr.into(),
                         TypeMismatch { expected: method_self_ty.store(), actual: self_ty.store() },
                     );
                 }
@@ -513,7 +518,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
         let method_predicates = clauses_as_obligations(
             GenericPredicates::query_all(self.db(), def_id.into())
                 .iter_instantiated(self.interner(), all_args),
-            ObligationCause::new(),
+            ObligationCause::new(self.call_expr),
             self.ctx.table.param_env,
         );
 
@@ -539,13 +544,13 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
 
         // this is a projection from a trait reference, so we have to
         // make sure that the trait reference inputs are well-formed.
-        self.ctx.table.add_wf_bounds(all_args);
+        self.ctx.table.add_wf_bounds(self.call_expr.into(), all_args);
 
         // the function type must also be well-formed (this is not
         // implied by the args being well-formed because of inherent
         // impls and late-bound regions - see issue #28609).
         for ty in sig.inputs_and_output {
-            self.ctx.table.register_wf_obligation(ty.into(), ObligationCause::new());
+            self.ctx.table.register_wf_obligation(ty.into(), ObligationCause::new(self.call_expr));
         }
     }
 
@@ -614,7 +619,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
         T: TypeFoldable<DbInterner<'db>> + Copy,
     {
         self.infcx().instantiate_binder_with_fresh_vars(
-            self.expr.into(),
+            self.call_expr.into(),
             BoundRegionConversionTime::FnCall,
             value,
         )

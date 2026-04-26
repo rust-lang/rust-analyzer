@@ -339,7 +339,7 @@ impl<'a, 'db> MethodResolutionContext<'a, 'db> {
                 let ty = self
                     .infcx
                     .instantiate_query_response_and_region_obligations(
-                        &ObligationCause::new(),
+                        &ObligationCause::new(self.receiver_span),
                         self.param_env,
                         &orig_values,
                         ty,
@@ -403,7 +403,8 @@ impl<'a, 'db> MethodResolutionContext<'a, 'db> {
             // converted to, in order to find out which of those methods might actually
             // be callable.
             let mut autoderef_via_deref =
-                Autoderef::new(infcx, self.param_env, self_ty).include_raw_pointers();
+                Autoderef::new(infcx, self.param_env, self_ty, self.receiver_span)
+                    .include_raw_pointers();
 
             let mut reached_raw_pointer = false;
             let arbitrary_self_types_enabled =
@@ -412,9 +413,10 @@ impl<'a, 'db> MethodResolutionContext<'a, 'db> {
                 let reachable_via_deref =
                     autoderef_via_deref.by_ref().map(|_| true).chain(std::iter::repeat(false));
 
-                let mut autoderef_via_receiver = Autoderef::new(infcx, self.param_env, self_ty)
-                    .include_raw_pointers()
-                    .use_receiver_trait();
+                let mut autoderef_via_receiver =
+                    Autoderef::new(infcx, self.param_env, self_ty, self.receiver_span)
+                        .include_raw_pointers()
+                        .use_receiver_trait();
                 let steps = autoderef_via_receiver
                     .by_ref()
                     .zip(reachable_via_deref)
@@ -1270,7 +1272,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                 let InferOk { value: self_ty, obligations: instantiate_self_ty_obligations } = self
                     .infcx()
                     .instantiate_query_response_and_region_obligations(
-                        &ObligationCause::new(),
+                        &ObligationCause::new(self.ctx.receiver_span),
                         self.param_env(),
                         self.orig_steps_var_values,
                         &step.self_ty,
@@ -1497,8 +1499,12 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
         &self,
         trait_ref: TraitRef<'db>,
     ) -> SelectionResult<'db, Selection<'db>> {
-        let obligation =
-            Obligation::new(self.interner(), ObligationCause::new(), self.param_env(), trait_ref);
+        let obligation = Obligation::new(
+            self.interner(),
+            ObligationCause::new(self.ctx.call_span),
+            self.param_env(),
+            trait_ref,
+        );
         self.infcx().select(&obligation)
     }
 
@@ -1525,7 +1531,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                 // up with the `self` parameter of the method.
                 let _ = self
                     .infcx()
-                    .at(&ObligationCause::dummy(), self.param_env())
+                    .at(&ObligationCause::new(self.ctx.call_span), self.param_env())
                     .sup(xform_self_ty, self_ty);
                 match self.select_trait_candidate(trait_ref) {
                     Ok(Some(ImplSource::UserDefined(ref impl_data))) => {
@@ -1556,7 +1562,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
     ) -> ProbeResult {
         self.infcx().probe(|_| {
             let mut result = ProbeResult::Match;
-            let cause = &ObligationCause::new();
+            let cause = &ObligationCause::new(self.ctx.call_span);
             let mut ocx = ObligationCtxt::new(self.infcx());
 
             // Subtle: we're not *really* instantiating the current self type while
@@ -1600,7 +1606,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                     let impl_bounds = GenericPredicates::query_all(self.db(), impl_def_id.into());
                     let impl_bounds = clauses_as_obligations(
                         impl_bounds.iter_instantiated(self.interner(), impl_args.as_slice()),
-                        ObligationCause::new(),
+                        ObligationCause::new(self.ctx.call_span),
                         self.param_env(),
                     );
                     // Convert the bounds into obligations.
@@ -1805,7 +1811,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                     // reachable. In this case we don't care about opaque
                     // types there.
                     let Ok(ok) = self.infcx().instantiate_query_response_and_region_obligations(
-                        &ObligationCause::new(),
+                        &ObligationCause::new(self.ctx.receiver_span),
                         self.param_env(),
                         self.orig_steps_var_values,
                         &step.self_ty,

@@ -63,7 +63,7 @@ use std::{hash::Hash, ops::ControlFlow};
 use hir_def::{
     CallableDefId, ExpressionStoreOwnerId, GenericDefId, LifetimeParamId, TypeAliasId,
     TypeOrConstParamId, TypeParamId,
-    hir::{ExprId, ExprOrPatId, PatId},
+    hir::{BindingId, ExprId, ExprOrPatId, PatId},
     resolver::TypeNs,
     type_ref::{Rawness, TypeRefId},
 };
@@ -678,11 +678,12 @@ pub fn known_const_to_ast<'db>(
 pub enum Span {
     ExprId(ExprId),
     PatId(PatId),
+    BindingId(BindingId),
     TypeRefId(TypeRefId),
     /// An unimportant location. Errors on this will be suppressed.
     Dummy,
 }
-impl_from!(ExprId, PatId, TypeRefId for Span);
+impl_from!(ExprId, PatId, BindingId, TypeRefId for Span);
 
 impl From<ExprOrPatId> for Span {
     fn from(value: ExprOrPatId) -> Self {

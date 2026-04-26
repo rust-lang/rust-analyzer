@@ -851,6 +851,10 @@ impl<'db> AnyDiagnostic<'db> {
                     hir_ty::Span::ExprId(idx) => expr_syntax(idx)?.map(|it| it.wrap_right()),
                     hir_ty::Span::PatId(idx) => pat_syntax(idx)?.map(|it| it.wrap_right()),
                     hir_ty::Span::TypeRefId(idx) => type_syntax(idx)?.map(|it| it.wrap_left()),
+                    hir_ty::Span::BindingId(idx) => {
+                        pat_syntax(source_map.patterns_for_binding(idx)[0])?
+                            .map(|it| it.wrap_right())
+                    }
                     hir_ty::Span::Dummy => unreachable!(
                         "should never create TypeMustBeKnown diagnostic for dummy spans"
                     ),

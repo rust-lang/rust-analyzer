@@ -18,7 +18,7 @@ use rustc_type_ir::{
 use tracing::debug;
 
 use crate::{
-    FnAbi,
+    FnAbi, Span,
     db::{InternedClosure, InternedClosureId, InternedCoroutineClosureId, InternedCoroutineId},
     infer::{BreakableKind, Diverges, coerce::CoerceMany, pat::PatOrigin},
     next_solver::{
@@ -80,14 +80,14 @@ impl<'db> InferenceContext<'_, 'db> {
         // type, and see if can glean a closure kind from there.
         let (expected_sig, expected_kind) = match expected.to_option(&mut self.table) {
             Some(ty) => {
-                let ty = self.table.try_structurally_resolve_type(ty);
+                let ty = self.table.try_structurally_resolve_type(closure_expr.into(), ty);
                 self.deduce_closure_signature(closure_expr, ty, closure_kind)
             }
             None => (None, None),
         };
 
         let ClosureSignatures { bound_sig, mut liberated_sig } =
-            self.sig_of_closure(closure_expr, arg_types, ret_type, expected_sig);
+            self.sig_of_closure(closure_expr, args, arg_types, ret_type, expected_sig);
 
         debug!(?bound_sig, ?liberated_sig);
 
@@ -143,7 +143,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     ClosureKind::OldCoroutine(_)
                     | ClosureKind::Coroutine { kind: CoroutineKind::Gen, .. } => {
                         let yield_ty = self.table.next_ty_var(closure_expr.into());
-                        self.require_type_is_sized(yield_ty);
+                        self.require_type_is_sized(yield_ty, closure_expr.into());
                         yield_ty
                     }
                     ClosureKind::Coroutine { kind: CoroutineKind::Async, .. } => {
@@ -151,7 +151,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     }
                     ClosureKind::Coroutine { kind: CoroutineKind::AsyncGen, .. } => {
                         let yield_ty = self.table.next_ty_var(closure_expr.into());
-                        self.require_type_is_sized(yield_ty);
+                        self.require_type_is_sized(yield_ty, closure_expr.into());
                         self.poll_option_ty(yield_ty)
                     }
                     _ => unreachable!(),
@@ -475,7 +475,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     _ = self
                         .table
                         .infer_ctxt
-                        .at(&ObligationCause::new(), self.table.param_env)
+                        .at(&ObligationCause::new(closure_expr), self.table.param_env)
                         .eq(inferred_fnptr_sig, generalized_fnptr_sig)
                         .map(|infer_ok| self.table.register_infer_ok(infer_ok));
 
@@ -681,14 +681,21 @@ impl<'db> InferenceContext<'_, 'db> {
     fn sig_of_closure(
         &mut self,
         closure_expr: ExprId,
-        decl_inputs: &[Option<TypeRefId>],
-        decl_output: Option<TypeRefId>,
+        decl_inputs: &[PatId],
+        decl_input_tys: &[Option<TypeRefId>],
+        decl_output_ty: Option<TypeRefId>,
         expected_sig: Option<PolyFnSig<'db>>,
     ) -> ClosureSignatures<'db> {
         if let Some(e) = expected_sig {
-            self.sig_of_closure_with_expectation(closure_expr, decl_inputs, decl_output, e)
+            self.sig_of_closure_with_expectation(
+                closure_expr,
+                decl_inputs,
+                decl_input_tys,
+                decl_output_ty,
+                e,
+            )
         } else {
-            self.sig_of_closure_no_expectation(closure_expr, decl_inputs, decl_output)
+            self.sig_of_closure_no_expectation(closure_expr, decl_input_tys, decl_output_ty)
         }
     }
 
@@ -755,18 +762,25 @@ impl<'db> InferenceContext<'_, 'db> {
     fn sig_of_closure_with_expectation(
         &mut self,
         closure_expr: ExprId,
-        decl_inputs: &[Option<TypeRefId>],
-        decl_output: Option<TypeRefId>,
+        decl_inputs: &[PatId],
+        decl_input_tys: &[Option<TypeRefId>],
+        decl_output_ty: Option<TypeRefId>,
         expected_sig: PolyFnSig<'db>,
     ) -> ClosureSignatures<'db> {
         // Watch out for some surprises and just ignore the
         // expectation if things don't see to match up with what we
         // expect.
         if expected_sig.c_variadic() {
-            return self.sig_of_closure_no_expectation(closure_expr, decl_inputs, decl_output);
-        } else if expected_sig.skip_binder().inputs_and_output.len() != decl_inputs.len() + 1 {
-            return self
-                .sig_of_closure_with_mismatched_number_of_arguments(decl_inputs, decl_output);
+            return self.sig_of_closure_no_expectation(
+                closure_expr,
+                decl_input_tys,
+                decl_output_ty,
+            );
+        } else if expected_sig.skip_binder().inputs_and_output.len() != decl_input_tys.len() + 1 {
+            return self.sig_of_closure_with_mismatched_number_of_arguments(
+                decl_input_tys,
+                decl_output_ty,
+            );
         }
 
         // Create a `PolyFnSig`. Note the oddity that late bound
@@ -798,11 +812,14 @@ impl<'db> InferenceContext<'_, 'db> {
         match self.merge_supplied_sig_with_expectation(
             closure_expr,
             decl_inputs,
-            decl_output,
+            decl_input_tys,
+            decl_output_ty,
             closure_sigs,
         ) {
             Ok(infer_ok) => self.table.register_infer_ok(infer_ok),
-            Err(_) => self.sig_of_closure_no_expectation(closure_expr, decl_inputs, decl_output),
+            Err(_) => {
+                self.sig_of_closure_no_expectation(closure_expr, decl_input_tys, decl_output_ty)
+            }
         }
     }
 
@@ -822,15 +839,17 @@ impl<'db> InferenceContext<'_, 'db> {
     fn merge_supplied_sig_with_expectation(
         &mut self,
         closure_expr: ExprId,
-        decl_inputs: &[Option<TypeRefId>],
-        decl_output: Option<TypeRefId>,
+        decl_inputs: &[PatId],
+        decl_input_tys: &[Option<TypeRefId>],
+        decl_output_ty: Option<TypeRefId>,
         mut expected_sigs: ClosureSignatures<'db>,
     ) -> InferResult<'db, ClosureSignatures<'db>> {
         // Get the signature S that the user gave.
         //
         // (See comment on `sig_of_closure_with_expectation` for the
         // meaning of these letters.)
-        let supplied_sig = self.supplied_sig_of_closure(closure_expr, decl_inputs, decl_output);
+        let supplied_sig =
+            self.supplied_sig_of_closure(closure_expr, decl_input_tys, decl_output_ty);
 
         debug!(?supplied_sig);
 
@@ -858,19 +877,21 @@ impl<'db> InferenceContext<'_, 'db> {
 
             // The liberated version of this signature should be a subtype
             // of the liberated form of the expectation.
-            for (supplied_ty, expected_ty) in iter::zip(
-                supplied_sig.inputs().iter().copied(),
+            for ((decl_input, supplied_ty), expected_ty) in iter::zip(
+                iter::zip(decl_inputs, supplied_sig.inputs().iter().copied()),
                 expected_sigs.liberated_sig.inputs().iter().copied(),
             ) {
                 // Check that E' = S'.
-                let cause = ObligationCause::new();
+                let cause = ObligationCause::new(*decl_input);
                 let InferOk { value: (), obligations } =
                     table.infer_ctxt.at(&cause, table.param_env).eq(expected_ty, supplied_ty)?;
                 all_obligations.extend(obligations);
             }
 
             let supplied_output_ty = supplied_sig.output();
-            let cause = ObligationCause::new();
+            let cause = ObligationCause::new(
+                decl_output_ty.map(Span::TypeRefId).unwrap_or(closure_expr.into()),
+            );
             let InferOk { value: (), obligations } =
                 table
                     .infer_ctxt

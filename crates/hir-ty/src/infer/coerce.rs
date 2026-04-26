@@ -377,7 +377,8 @@ where
 
         let mut first_error = None;
         let mut r_borrow_var = None;
-        let mut autoderef = Autoderef::new_with_tracking(self.infcx(), self.param_env(), a);
+        let mut autoderef =
+            Autoderef::new_with_tracking(self.infcx(), self.param_env(), a, self.cause.span());
         let mut found = None;
 
         for (referent_ty, autoderefs) in autoderef.by_ref() {
@@ -897,11 +898,11 @@ impl<'db> InferenceContext<'_, 'db> {
         allow_two_phase: AllowTwoPhase,
         expr_is_read: ExprIsRead,
     ) -> RelateResult<'db, Ty<'db>> {
-        let source = self.table.try_structurally_resolve_type(expr_ty);
-        target = self.table.try_structurally_resolve_type(target);
+        let source = self.table.try_structurally_resolve_type(expr.into(), expr_ty);
+        target = self.table.try_structurally_resolve_type(expr.into(), target);
         debug!("coercion::try({:?}: {:?} -> {:?})", expr, source, target);
 
-        let cause = ObligationCause::with_span(expr.into());
+        let cause = ObligationCause::new(expr);
         let coerce_never = self.expr_guaranteed_to_constitute_read_for_never(expr, expr_is_read);
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
@@ -930,8 +931,8 @@ impl<'db> InferenceContext<'_, 'db> {
         new: ExprId,
         new_ty: Ty<'db>,
     ) -> RelateResult<'db, Ty<'db>> {
-        let prev_ty = self.table.try_structurally_resolve_type(prev_ty);
-        let new_ty = self.table.try_structurally_resolve_type(new_ty);
+        let prev_ty = self.table.try_structurally_resolve_type(new.into(), prev_ty);
+        let new_ty = self.table.try_structurally_resolve_type(new.into(), new_ty);
         debug!(
             "coercion::try_find_coercion_lub({:?}, {:?}, exprs={:?} exprs)",
             prev_ty,
@@ -977,7 +978,7 @@ impl<'db> InferenceContext<'_, 'db> {
                             // We need to eagerly handle nested obligations due to lazy norm.
                             let mut ocx = ObligationCtxt::new(&table.infer_ctxt);
                             let value = ocx.lub(
-                                &ObligationCause::with_span(new.into()),
+                                &ObligationCause::new(new),
                                 table.param_env,
                                 prev_ty,
                                 new_ty,
@@ -1029,7 +1030,7 @@ impl<'db> InferenceContext<'_, 'db> {
             let sig = self
                 .table
                 .infer_ctxt
-                .at(&ObligationCause::with_span(new.into()), self.table.param_env)
+                .at(&ObligationCause::new(new), self.table.param_env)
                 .lub(a_sig, b_sig)
                 .map(|ok| self.table.register_infer_ok(ok))?;
 
@@ -1075,7 +1076,7 @@ impl<'db> InferenceContext<'_, 'db> {
         // operate on values and not places, so a never coercion is valid.
         let mut coerce = Coerce {
             delegate: InferenceCoercionDelegate(self),
-            cause: ObligationCause::with_span(new.into()),
+            cause: ObligationCause::new(new),
             allow_two_phase: AllowTwoPhase::No,
             coerce_never: true,
             use_lub: true,
@@ -1111,7 +1112,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         .commit_if_ok(|table| {
                             table
                                 .infer_ctxt
-                                .at(&ObligationCause::with_span(new.into()), table.param_env)
+                                .at(&ObligationCause::new(new), table.param_env)
                                 .lub(prev_ty, new_ty)
                         })
                         .unwrap_err())
@@ -1459,7 +1460,7 @@ fn coerce<'db>(
     let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
     let ((ty1_with_vars, ty2_with_vars), vars) = infcx.instantiate_canonical(Span::Dummy, tys);
 
-    let cause = ObligationCause::new();
+    let cause = ObligationCause::dummy();
     // FIXME: Target features.
     let target_features = TargetFeatures::default();
     let mut coerce = Coerce {

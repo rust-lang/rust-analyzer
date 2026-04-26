@@ -27,13 +27,6 @@ use crate::{
 use super::InferCtxt;
 
 /// The reason why we incurred this obligation; used for error reporting.
-///
-/// Non-misc `ObligationCauseCode`s are stored on the heap. This gives the
-/// best trade-off between keeping the type small (which makes copies cheaper)
-/// while not doing too many heap allocations.
-///
-/// We do not want to intern this as there are a lot of obligation causes which
-/// only live for a short period of time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ObligationCause {
     span: Span,
@@ -41,35 +34,18 @@ pub struct ObligationCause {
 
 impl ObligationCause {
     #[inline]
-    pub fn new() -> ObligationCause {
-        ObligationCause { span: Span::Dummy }
-    }
-
-    #[inline]
-    pub fn with_span(span: Span) -> ObligationCause {
-        ObligationCause { span }
+    pub fn new<S: Into<Span>>(span: S) -> ObligationCause {
+        ObligationCause { span: span.into() }
     }
 
     #[inline]
     pub fn dummy() -> ObligationCause {
-        ObligationCause::new()
-    }
-
-    #[inline]
-    pub fn misc() -> ObligationCause {
-        ObligationCause::new()
+        ObligationCause::new(Span::Dummy)
     }
 
     #[inline]
     pub(crate) fn span(&self) -> Span {
         self.span
-    }
-}
-
-impl Default for ObligationCause {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -128,11 +104,11 @@ impl<'db> Elaboratable<DbInterner<'db>> for PredicateObligation<'db> {
     fn child_with_derived_cause(
         &self,
         clause: Clause<'db>,
-        _span: Span,
+        span: Span,
         _parent_trait_pred: PolyTraitPredicate<'db>,
         _index: usize,
     ) -> Self {
-        let cause = ObligationCause::new();
+        let cause = ObligationCause::new(span);
         Obligation {
             cause,
             param_env: self.param_env,

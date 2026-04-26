@@ -316,7 +316,7 @@ impl<'db> InferenceTable<'db> {
         let bounds = GenericPredicates::query_all(self.db, method_item.into());
         let bounds = clauses_as_obligations(
             bounds.iter_instantiated(interner, args.as_slice()),
-            ObligationCause::new(),
+            cause,
             self.param_env,
         );
 

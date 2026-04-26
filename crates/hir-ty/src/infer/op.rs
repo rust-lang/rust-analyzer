@@ -194,6 +194,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // particularly for things like `String + &String`.
         let rhs_ty_var = self.table.next_ty_var(rhs_expr.into());
         let result = self.lookup_op_method(
+            expr,
             lhs_ty,
             Some((rhs_expr, rhs_ty_var)),
             self.lang_item_for_bin_op(op),
@@ -265,7 +266,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         operand_ty: Ty<'db>,
         op: UnaryOp,
     ) -> Ty<'db> {
-        match self.lookup_op_method(operand_ty, None, self.lang_item_for_unop(op)) {
+        match self.lookup_op_method(ex, operand_ty, None, self.lang_item_for_unop(op)) {
             Ok(method) => {
                 self.write_method_resolution(ex, method.def_id, method.args);
                 method.sig.output()
@@ -279,6 +280,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
     fn lookup_op_method(
         &mut self,
+        expr: ExprId,
         lhs_ty: Ty<'db>,
         opt_rhs: Option<(ExprId, Ty<'db>)>,
         (opname, trait_did): (Symbol, Option<TraitId>),
@@ -294,7 +296,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         );
 
         let opt_rhs_ty = opt_rhs.map(|it| it.1);
-        let cause = ObligationCause::new();
+        let cause = ObligationCause::new(expr);
 
         // We don't consider any other candidates if this lookup fails
         // so we can freely treat opaque types as inference variables here

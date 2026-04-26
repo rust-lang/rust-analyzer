@@ -771,7 +771,7 @@ fn render_const_scalar<'db>(
 ) -> Result {
     let param_env = ParamEnv::empty();
     let infcx = f.interner.infer_ctxt().build(TypingMode::PostAnalysis);
-    let ty = infcx.at(&ObligationCause::new(), param_env).deeply_normalize(ty).unwrap_or(ty);
+    let ty = infcx.at(&ObligationCause::dummy(), param_env).deeply_normalize(ty).unwrap_or(ty);
     render_const_scalar_inner(f, b, memory_map, ty, param_env)
 }
 
@@ -1056,7 +1056,7 @@ fn render_const_scalar_from_valtree<'db>(
 ) -> Result {
     let param_env = ParamEnv::empty();
     let infcx = f.interner.infer_ctxt().build(TypingMode::PostAnalysis);
-    let ty = infcx.at(&ObligationCause::new(), param_env).deeply_normalize(ty).unwrap_or(ty);
+    let ty = infcx.at(&ObligationCause::dummy(), param_env).deeply_normalize(ty).unwrap_or(ty);
     render_const_scalar_from_valtree_inner(f, ty, valtree, param_env)
 }
 

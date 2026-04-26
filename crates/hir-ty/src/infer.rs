@@ -1934,7 +1934,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     }
 
     pub(crate) fn structurally_resolve_type(&mut self, node: ExprOrPatId, ty: Ty<'db>) -> Ty<'db> {
-        let result = self.table.try_structurally_resolve_type(ty);
+        let result = self.table.try_structurally_resolve_type(node.into(), ty);
         if result.is_ty_var() { self.type_must_be_known_at_this_point(node, ty) } else { result }
     }
 
@@ -1944,14 +1944,18 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         expected: Ty<'db>,
         actual: Ty<'db>,
     ) -> Result<(), ()> {
-        let result = self.demand_eqtype_fixme_no_diag(expected, actual);
+        let result = self
+            .table
+            .at(&ObligationCause::new(id))
+            .eq(expected, actual)
+            .map(|infer_ok| self.table.register_infer_ok(infer_ok));
         if result.is_err() {
             self.result
                 .type_mismatches
                 .get_or_insert_default()
                 .insert(id, TypeMismatch { expected: expected.store(), actual: actual.store() });
         }
-        result
+        result.map_err(drop)
     }
 
     fn demand_eqtype_fixme_no_diag(
@@ -1961,7 +1965,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     ) -> Result<(), ()> {
         let result = self
             .table
-            .at(&ObligationCause::new())
+            .at(&ObligationCause::dummy())
             .eq(expected, actual)
             .map(|infer_ok| self.table.register_infer_ok(infer_ok));
         result.map_err(drop)
@@ -1975,7 +1979,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     ) -> Result<(), ()> {
         let result = self
             .table
-            .at(&ObligationCause::new())
+            .at(&ObligationCause::new(id))
             .sup(expected, actual)
             .map(|infer_ok| self.table.register_infer_ok(infer_ok));
         if result.is_err() {
@@ -2016,11 +2020,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.types.types.error
     }
 
-    pub(crate) fn require_type_is_sized(&mut self, ty: Ty<'db>) {
+    pub(crate) fn require_type_is_sized(&mut self, ty: Ty<'db>, span: Span) {
         if !ty.references_non_lt_error()
             && let Some(sized_trait) = self.lang_items.Sized
         {
-            self.table.register_bound(ty, sized_trait, ObligationCause::new());
+            self.table.register_bound(ty, sized_trait, ObligationCause::new(span));
         }
     }
 
@@ -2085,7 +2089,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                         args,
                     ),
                 );
-                ty = self.table.try_structurally_resolve_type(alias);
+                ty = self.table.try_structurally_resolve_type(node.into(), alias);
                 segments = segments.skip(1);
             }
 
@@ -2185,7 +2189,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                         never!("resolver should always resolve lang item paths");
                         return (self.err_ty(), None);
                     };
-                    return self.resolve_variant_on_alias(ty, None, mod_path);
+                    return self.resolve_variant_on_alias(node, ty, None, mod_path);
                 };
 
                 let mut remaining_segments = path.segments().skip(remaining_idx);
@@ -2298,7 +2302,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 let ty = self.db.ty(it.into()).instantiate(interner, args);
                 let ty = self.insert_type_vars(ty, Span::Dummy);
 
-                self.resolve_variant_on_alias(ty, unresolved, mod_path)
+                self.resolve_variant_on_alias(node, ty, unresolved, mod_path)
             }
             TypeNs::AdtSelfType(_) => {
                 // FIXME this could happen in array size expressions, once we're checking them
@@ -2330,12 +2334,13 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
 
     fn resolve_variant_on_alias(
         &mut self,
+        node: ExprOrPatId,
         ty: Ty<'db>,
         unresolved: Option<usize>,
         path: &ModPath,
     ) -> (Ty<'db>, Option<VariantId>) {
         let remaining = unresolved.map(|it| path.segments()[it..].len()).filter(|it| it > &0);
-        let ty = self.table.try_structurally_resolve_type(ty);
+        let ty = self.table.try_structurally_resolve_type(node.into(), ty);
         match remaining {
             None => {
                 let variant = ty.as_adt().and_then(|(adt_id, _)| match adt_id {
@@ -2548,10 +2553,14 @@ impl<'db> Expectation<'db> {
     /// an expected type. Otherwise, we might write parts of the type
     /// when checking the 'then' block which are incompatible with the
     /// 'else' branch.
-    fn adjust_for_branches(&self, table: &mut unify::InferenceTable<'db>) -> Expectation<'db> {
+    fn adjust_for_branches(
+        &self,
+        table: &mut unify::InferenceTable<'db>,
+        span: Span,
+    ) -> Expectation<'db> {
         match *self {
             Expectation::HasType(ety) => {
-                let ety = table.try_structurally_resolve_type(ety);
+                let ety = table.try_structurally_resolve_type(span, ety);
                 if ety.is_ty_var() { Expectation::None } else { Expectation::HasType(ety) }
             }
             Expectation::RValueLikeUnsized(ety) => Expectation::RValueLikeUnsized(ety),
