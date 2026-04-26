@@ -65,7 +65,7 @@ impl<'db> Ctx<'db> {
     }
 
     pub(super) fn lower_module_items(mut self, item_owner: &dyn HasModuleItem) -> ItemTree {
-        self.top_level = item_owner.items().flat_map(|item| self.lower_mod_item(&item)).collect();
+        self.top_level = item_owner.items().filter_map(|item| self.lower_mod_item(&item)).collect();
         self.tree.vis.arena = self.visibilities.into_iter().collect();
         self.tree.top_level = self.top_level.into_boxed_slice();
         self.tree
@@ -89,7 +89,7 @@ impl<'db> Ctx<'db> {
                     _ => None,
                 }
             })
-            .flat_map(|item| self.lower_mod_item(&item))
+            .filter_map(|item| self.lower_mod_item(&item))
             .collect();
 
         if let Some(ast::Expr::MacroExpr(tail_macro)) = stmts.expr()
@@ -245,7 +245,9 @@ impl<'db> Ctx<'db> {
             ModKind::Inline {
                 items: module
                     .item_list()
-                    .map(|list| list.items().flat_map(|item| self.lower_mod_item(&item)).collect())
+                    .map(|list| {
+                        list.items().filter_map(|item| self.lower_mod_item(&item)).collect()
+                    })
                     .unwrap_or_else(|| {
                         cov_mark::hit!(name_res_works_for_broken_modules);
                         Box::new([]) as Box<[_]>
