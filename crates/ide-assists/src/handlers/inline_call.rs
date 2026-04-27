@@ -22,7 +22,6 @@ use syntax::{
         self, HasArgList, HasGenericArgs, Pat, PathExpr,
         edit::{AstNodeEdit, IndentLevel},
         make,
-        syntax_factory::SyntaxFactory,
     },
     syntax_editor::SyntaxEditor,
 };
@@ -251,9 +250,9 @@ pub(crate) fn inline_call(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let syntax = call_info.node.syntax().clone();
     acc.add(AssistId::refactor_inline("inline_call"), label, syntax.text_range(), |builder| {
-        let mut editor = builder.make_editor(call_info.node.syntax());
+        let editor = builder.make_editor(call_info.node.syntax());
         let replacement =
-            inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, &mut editor);
+            inline(&ctx.sema, file_id, function, &fn_body, &params, &call_info, &editor);
         editor.replace(call_info.node.syntax(), replacement.syntax());
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
@@ -331,9 +330,9 @@ fn inline(
     fn_body: &ast::BlockExpr,
     params: &[(ast::Pat, Option<ast::Type>, hir::Param<'_>)],
     CallInfo { node, arguments, generic_arg_list, krate }: &CallInfo,
-    file_editor: &mut SyntaxEditor,
+    file_editor: &SyntaxEditor,
 ) -> ast::Expr {
-    let factory = SyntaxFactory::with_mappings();
+    let factory = file_editor.make();
     let file_id = sema.hir_file_for(fn_body.syntax());
     let body_to_clone = if let Some(macro_file) = file_id.macro_file() {
         cov_mark::hit!(inline_call_defined_in_macro);
@@ -348,7 +347,7 @@ fn inline(
     // Capture before `with_ast_node` re-roots and loses the source-relative position.
     let original_body_indent = IndentLevel::from_node(body_to_clone.syntax());
     let body_offset = body_to_clone.syntax().text_range().start();
-    let (mut editor, body) = SyntaxEditor::with_ast_node(&body_to_clone);
+    let (editor, body) = SyntaxEditor::with_ast_node(&body_to_clone);
 
     let usages_for_locals = |local| {
         Definition::Local(local)
@@ -461,7 +460,7 @@ fn inline(
 
     let this_token =
         factory.name_ref("this").syntax().first_token().expect("NameRef should have had a token.");
-    let rewrite_self_to_this = |editor: &mut SyntaxEditor| {
+    let rewrite_self_to_this = |editor: &SyntaxEditor| {
         for usage in &self_token_usages {
             editor.replace(usage.clone(), this_token.clone());
         }
@@ -536,26 +535,25 @@ fn inline(
         // if it does then emit a let statement and continue
         if func_let_vars.contains(&expr.syntax().text().to_string()) {
             if is_self_param {
-                rewrite_self_to_this(&mut editor);
+                rewrite_self_to_this(&editor);
             }
             insert_let_stmt();
             continue;
         }
 
-        let inline_direct =
-            |editor: &mut SyntaxEditor, usage: &PathExpr, replacement: &ast::Expr| {
-                if let Some(field) = path_expr_as_record_field(usage) {
-                    cov_mark::hit!(inline_call_inline_direct_field);
-                    let field_name = field.field_name().unwrap();
-                    let new_field = factory.record_expr_field(
-                        factory.name_ref(&field_name.text()),
-                        Some(replacement.clone()),
-                    );
-                    editor.replace(field.syntax(), new_field.syntax());
-                } else {
-                    editor.replace(usage.syntax(), replacement.syntax());
-                }
-            };
+        let inline_direct = |editor: &SyntaxEditor, usage: &PathExpr, replacement: &ast::Expr| {
+            if let Some(field) = path_expr_as_record_field(usage) {
+                cov_mark::hit!(inline_call_inline_direct_field);
+                let field_name = field.field_name().unwrap();
+                let new_field = factory.record_expr_field(
+                    factory.name_ref(&field_name.text()),
+                    Some(replacement.clone()),
+                );
+                editor.replace(field.syntax(), new_field.syntax());
+            } else {
+                editor.replace(usage.syntax(), replacement.syntax());
+            }
+        };
 
         match usages {
             // inline single use closure arguments
@@ -565,23 +563,23 @@ fn inline(
             {
                 cov_mark::hit!(inline_call_inline_closure);
                 let expr = factory.expr_paren(expr.clone()).into();
-                inline_direct(&mut editor, usage, &expr);
+                inline_direct(&editor, usage, &expr);
             }
             // inline single use literals
             [usage] if matches!(expr, ast::Expr::Literal(_)) => {
                 cov_mark::hit!(inline_call_inline_literal);
-                inline_direct(&mut editor, usage, expr);
+                inline_direct(&editor, usage, expr);
             }
             // inline direct local arguments
             [_, ..] if expr_as_name_ref(expr).is_some() => {
                 cov_mark::hit!(inline_call_inline_locals);
-                usages.iter().for_each(|usage| inline_direct(&mut editor, usage, expr));
+                usages.iter().for_each(|usage| inline_direct(&editor, usage, expr));
             }
             // can't inline, emit a let statement
             _ => {
                 if is_self_param {
                     // Rename all `self` tokens to `this` so the let binding matches.
-                    rewrite_self_to_this(&mut editor);
+                    rewrite_self_to_this(&editor);
                 }
                 insert_let_stmt();
             }
@@ -628,7 +626,7 @@ fn inline(
     body = body.dedent(original_body_indent).indent(original_indentation);
 
     let no_stmts = body.statements().next().is_none();
-    let result = match body.tail_expr() {
+    match body.tail_expr() {
         Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts => {
             factory.expr_paren(expr).into()
         }
@@ -644,9 +642,7 @@ fn inline(
             }
             _ => ast::Expr::BlockExpr(body),
         },
-    };
-    file_editor.add_mappings(factory.finish_with_mappings());
-    result
+    }
 }
 
 fn is_in_type_path(self_tok: &syntax::SyntaxToken) -> bool {
