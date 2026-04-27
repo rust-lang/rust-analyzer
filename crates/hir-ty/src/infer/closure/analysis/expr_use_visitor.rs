@@ -949,7 +949,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                     // In a cases of pattern like `let pat = upvar`, don't use the span
                     // of the pattern, as this just looks confusing, instead use the span
                     // of the discriminant.
-                    match this.cx.result.binding_mode(pat).0 {
+                    match this.cx.result.binding_mode(pat).ok_or(ErrorGuaranteed)?.0 {
                         ByRef::Yes(m) => {
                             let bk = BorrowKind::from_mutbl(m);
                             this.delegate.borrow(place, bk, this.cx);
@@ -1220,7 +1220,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
         // and if so, figures out what the type *being borrowed* is.
         match self.cx.store[pat] {
             Pat::Bind { .. } => {
-                let bm = self.cx.result.binding_mode(pat);
+                let bm = self.cx.result.binding_mode(pat).ok_or(ErrorGuaranteed)?;
 
                 if let ByRef::Yes(_) = bm.0 {
                     // a bind-by-ref means that the base_ty will be the type of the ident itself,
