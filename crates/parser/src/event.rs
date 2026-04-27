@@ -18,7 +18,7 @@ use crate::{
 /// `forward_parent` uses `NonZeroU32` so `Option` is niche-optimised away
 /// (the offset is always ≥ 1 because the forward parent sits later in the
 /// event stream).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum Event {
     /// This event signifies the start of the node.
     /// It should be either abandoned (in which case the
@@ -93,7 +93,7 @@ pub(super) fn process(mut events: Vec<Event>, mut errors: Vec<String>) -> Output
     let mut forward_parents = Vec::new();
 
     for i in 0..events.len() {
-        match mem::replace(&mut events[i], Event::tombstone()) {
+        match events[i] {
             Event::Start { kind, forward_parent } => {
                 // For events[A, B, C], B is A's forward_parent, C is B's forward_parent,
                 // in the normal control flow, the parent-child relation: `A -> B -> C`,
