@@ -1269,13 +1269,13 @@ impl<'db> Interner for DbInterner<'db> {
             SolverDefId::TypeAliasId(it) => it.lookup(self.db()).container,
             SolverDefId::ConstId(it) => it.lookup(self.db()).container,
             SolverDefId::InternedClosureId(it) => {
-                return it.loc(self.db).0.generic_def(self.db()).into();
+                return it.loc(self.db).owner.generic_def(self.db()).into();
             }
             SolverDefId::InternedCoroutineId(it) => {
-                return it.loc(self.db).0.generic_def(self.db()).into();
+                return it.loc(self.db).owner.generic_def(self.db()).into();
             }
             SolverDefId::InternedCoroutineClosureId(it) => {
-                return it.loc(self.db).0.generic_def(self.db()).into();
+                return it.loc(self.db).owner.generic_def(self.db()).into();
             }
             SolverDefId::StaticId(_)
             | SolverDefId::AdtId(_)
@@ -1313,7 +1313,7 @@ impl<'db> Interner for DbInterner<'db> {
     fn coroutine_movability(self, def_id: Self::CoroutineId) -> rustc_ast_ir::Movability {
         // FIXME: Make this a query? I don't believe this can be accessed from bodies other than
         // the current infer query, except with revealed opaques - is it rare enough to not matter?
-        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
+        let InternedClosure { owner, expr: expr_id } = def_id.0.loc(self.db);
         let store = ExpressionStore::of(self.db, owner);
         let expr = &store[expr_id];
         match *expr {
@@ -1330,9 +1330,9 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn coroutine_for_closure(self, def_id: Self::CoroutineClosureId) -> Self::CoroutineId {
-        let InternedClosure(owner, coroutine_closure_expr) = def_id.0.loc(self.db);
+        let InternedClosure { owner, expr: coroutine_closure_expr } = def_id.0.loc(self.db);
         let coroutine_expr = ExpressionStore::coroutine_for_closure(coroutine_closure_expr);
-        InternedCoroutineId::new(self.db, InternedClosure(owner, coroutine_expr)).into()
+        InternedCoroutineId::new(self.db, InternedClosure { owner, expr: coroutine_expr }).into()
     }
 
     fn generics_require_sized_self(self, def_id: Self::DefId) -> bool {
@@ -1938,7 +1938,7 @@ impl<'db> Interner for DbInterner<'db> {
     fn is_general_coroutine(self, def_id: Self::CoroutineId) -> bool {
         // FIXME: Make this a query? I don't believe this can be accessed from bodies other than
         // the current infer query, except with revealed opaques - is it rare enough to not matter?
-        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
+        let InternedClosure { owner, expr: expr_id } = def_id.0.loc(self.db);
         let store = ExpressionStore::of(self.db, owner);
         matches!(
             store[expr_id],
@@ -1952,7 +1952,7 @@ impl<'db> Interner for DbInterner<'db> {
     fn coroutine_is_async(self, def_id: Self::CoroutineId) -> bool {
         // FIXME: Make this a query? I don't believe this can be accessed from bodies other than
         // the current infer query, except with revealed opaques - is it rare enough to not matter?
-        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
+        let InternedClosure { owner, expr: expr_id } = def_id.0.loc(self.db);
         let store = ExpressionStore::of(self.db, owner);
         matches!(
             store[expr_id],
@@ -2114,7 +2114,7 @@ impl<'db> Interner for DbInterner<'db> {
             ) {
                 let coroutine = InternedCoroutineId::new(
                     self.db,
-                    InternedClosure(ExpressionStoreOwnerId::Body(def_id), expr_id),
+                    InternedClosure { owner: ExpressionStoreOwnerId::Body(def_id), expr: expr_id },
                 );
                 result.push(coroutine.into());
             }

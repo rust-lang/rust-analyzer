@@ -132,8 +132,10 @@ impl<'db> InferenceContext<'_, 'db> {
                     },
                 );
 
-                let closure_id =
-                    InternedClosureId::new(self.db, InternedClosure(self.owner, closure_expr));
+                let closure_id = InternedClosureId::new(
+                    self.db,
+                    InternedClosure { owner: self.owner, expr: closure_expr },
+                );
 
                 (Ty::new_closure(interner, closure_id.into(), closure_args.args), None)
             }
@@ -183,8 +185,10 @@ impl<'db> InferenceContext<'_, 'db> {
                     },
                 );
 
-                let coroutine_id =
-                    InternedCoroutineId::new(self.db, InternedClosure(self.owner, closure_expr));
+                let coroutine_id = InternedCoroutineId::new(
+                    self.db,
+                    InternedClosure { owner: self.owner, expr: closure_expr },
+                );
 
                 (
                     Ty::new_coroutine(interner, coroutine_id.into(), coroutine_args.args),
@@ -258,7 +262,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
                 let coroutine_closure_id = InternedCoroutineClosureId::new(
                     self.db,
-                    InternedClosure(self.owner, closure_expr),
+                    InternedClosure { owner: self.owner, expr: closure_expr },
                 );
 
                 // We need to turn the liberated signature that we got from HIR, which

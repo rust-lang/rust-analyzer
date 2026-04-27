@@ -1726,7 +1726,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
             }
             TyKind::Infer(..) => write!(f, "_")?,
             TyKind::Coroutine(coroutine_id, subst) => {
-                let InternedClosure(owner, expr_id) = coroutine_id.0.loc(db);
+                let InternedClosure { owner, expr: expr_id } = coroutine_id.0.loc(db);
                 let CoroutineArgsParts { resume_ty, yield_ty, return_ty, .. } =
                     subst.split_coroutine_args();
                 let body = ExpressionStore::of(db, owner);

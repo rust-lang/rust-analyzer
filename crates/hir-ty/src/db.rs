@@ -230,7 +230,10 @@ pub struct InternedOpaqueTyId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InternedClosure(pub ExpressionStoreOwnerId, pub ExprId);
+pub struct InternedClosure {
+    pub owner: ExpressionStoreOwnerId,
+    pub expr: ExprId,
+}
 
 #[salsa_macros::interned(constructor = new_impl, no_lifetime, debug, revisions = usize::MAX)]
 #[derive(PartialOrd, Ord)]
@@ -242,8 +245,8 @@ impl InternedClosureId {
     #[inline]
     pub fn new(db: &dyn HirDatabase, loc: InternedClosure) -> Self {
         if cfg!(debug_assertions) {
-            let store = ExpressionStore::of(db, loc.0);
-            let expr = &store[loc.1];
+            let store = ExpressionStore::of(db, loc.owner);
+            let expr = &store[loc.expr];
             assert!(
                 matches!(
                     expr,
@@ -270,8 +273,8 @@ impl InternedCoroutineId {
     #[inline]
     pub fn new(db: &dyn HirDatabase, loc: InternedClosure) -> Self {
         if cfg!(debug_assertions) {
-            let store = ExpressionStore::of(db, loc.0);
-            let expr = &store[loc.1];
+            let store = ExpressionStore::of(db, loc.owner);
+            let expr = &store[loc.expr];
             assert!(
                 matches!(
                     expr,
@@ -299,8 +302,8 @@ impl InternedCoroutineClosureId {
     #[inline]
     pub fn new(db: &dyn HirDatabase, loc: InternedClosure) -> Self {
         if cfg!(debug_assertions) {
-            let store = ExpressionStore::of(db, loc.0);
-            let expr = &store[loc.1];
+            let store = ExpressionStore::of(db, loc.owner);
+            let expr = &store[loc.expr];
             assert!(
                 matches!(
                     expr,
