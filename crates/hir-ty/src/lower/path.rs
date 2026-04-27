@@ -30,8 +30,8 @@ use crate::{
     db::HirDatabase,
     generics::{Generics, generics},
     lower::{
-        AssocTypeShorthandResolution, GenericPredicateSource, LifetimeElisionKind,
-        PathDiagnosticCallbackData,
+        AssocTypeShorthandResolution, ForbidParamsAfterReason, GenericPredicateSource,
+        LifetimeElisionKind, PathDiagnosticCallbackData, const_param_ty,
     },
     next_solver::{
         Binder, Clause, Const, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg, GenericArgs,
@@ -41,7 +41,7 @@ use crate::{
 
 use super::{
     ImplTraitLoweringMode, TyLoweringContext,
-    associated_type_by_name_including_super_traits_allow_ambiguity, const_param_ty_query, ty_query,
+    associated_type_by_name_including_super_traits_allow_ambiguity, ty_query,
 };
 
 type CallbackData<'a> =
@@ -288,7 +288,11 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             TypeNs::AdtSelfType(_) => {
                 prohibit_generics_on_resolved(GenericArgsProhibitedReason::SelfTy);
 
-                if self.ctx.lowering_param_default.is_some() {
+                if self.ctx.forbid_params_after.is_some()
+                    && self.ctx.forbid_params_after_reason
+                        == ForbidParamsAfterReason::LoweringParamDefault
+                {
+                    // FIXME: Handle other reasons.
                     let segment = self.current_segment_u32();
                     self.on_diagnostic(PathLoweringDiagnostic::GenericDefaultRefersToSelf {
                         segment,
@@ -469,7 +473,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
     fn select_associated_type(&mut self, res: Option<TypeNs>, infer_args: bool) -> Ty<'db> {
         let interner = self.ctx.interner;
         let db = self.ctx.db;
-        let def = self.ctx.def;
+        let def = self.ctx.generic_def;
         let segment = self.current_or_prev_segment;
         let assoc_name = segment.name;
         let error_ty = || Ty::new_error(self.ctx.interner, ErrorGuaranteed);
@@ -718,7 +722,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         };
                         self.ctx
                             .ctx
-                            .lower_const(konst, const_param_ty_query(self.ctx.ctx.db, const_id))
+                            .lower_const(konst, const_param_ty(self.ctx.ctx.db, const_id))
                             .into()
                     }
                     _ => unreachable!("unmatching param kinds were passed to `provided_kind()`"),
@@ -775,7 +779,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         let GenericParamId::ConstParamId(const_id) = param_id else {
                             unreachable!("non-const param ID for const param");
                         };
-                        unknown_const_as_generic(const_param_ty_query(self.ctx.ctx.db, const_id))
+                        unknown_const_as_generic(const_param_ty(self.ctx.ctx.db, const_id))
                     }
                 }
             }
@@ -786,7 +790,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         Ty::new_error(self.ctx.ctx.interner, ErrorGuaranteed).into()
                     }
                     GenericParamId::ConstParamId(const_id) => {
-                        unknown_const_as_generic(const_param_ty_query(self.ctx.ctx.db, const_id))
+                        unknown_const_as_generic(const_param_ty(self.ctx.ctx.db, const_id))
                     }
                     GenericParamId::LifetimeParamId(_) => {
                         Region::new(self.ctx.ctx.interner, rustc_type_ir::ReError(ErrorGuaranteed))
@@ -1220,7 +1224,7 @@ pub(crate) fn substs_from_args_and_bindings<'db>(
                         let GenericParamId::ConstParamId(param_id) = param_id else {
                             panic!("unmatching param kinds");
                         };
-                        let const_ty = const_param_ty_query(db, param_id);
+                        let const_ty = const_param_ty(db, param_id);
                         substs
                             .push(ctx.provided_type_like_const(*type_ref, const_ty, konst).into());
                         args.next();

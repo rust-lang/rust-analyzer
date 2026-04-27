@@ -19,6 +19,23 @@ pub(crate) fn generics(interner: DbInterner<'_>, def: SolverDefId) -> Generics<'
         (_, SolverDefId::BuiltinDeriveImplId(id)) => {
             return crate::builtin_derive::generics_of(interner, id);
         }
+        (_, SolverDefId::AnonConstId(id)) => {
+            let loc = id.loc(db);
+            let generic_def = loc.owner.generic_def(db);
+            return if loc.allow_using_generic_params {
+                Generics::from_generic_def(db, generic_def)
+            } else {
+                #[expect(
+                    deprecated,
+                    reason = "`Generics` only exposes an iterator over `GenericParamId`, \
+                        so you cannot exploit the erroneous `crate::generics::Generics`"
+                )]
+                Generics {
+                    generics: crate::generics::Generics::empty(generic_def),
+                    additional_param: None,
+                }
+            };
+        }
         _ => panic!("No generics for {def:?}"),
     };
 

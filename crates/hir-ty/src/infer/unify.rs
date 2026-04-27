@@ -128,7 +128,6 @@ fn could_unify_impl<'db>(
     can_unify && select(&mut ctxt).is_empty()
 }
 
-#[derive(Clone)]
 pub(crate) struct InferenceTable<'db> {
     pub(crate) db: &'db dyn HirDatabase,
     pub(crate) param_env: ParamEnv<'db>,

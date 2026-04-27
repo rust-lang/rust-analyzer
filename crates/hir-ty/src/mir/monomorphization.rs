@@ -7,14 +7,13 @@
 //!
 //! So the monomorphization should be called even if the substitution is empty.
 
-use hir_def::DefWithBodyId;
 use rustc_type_ir::inherent::IntoKind;
 use rustc_type_ir::{
     FallibleTypeFolder, TypeFlags, TypeFoldable, TypeSuperFoldable, TypeVisitableExt,
 };
 
 use crate::{
-    ParamEnvAndCrate,
+    InferBodyId, ParamEnvAndCrate,
     next_solver::{
         Allocation, AllocationData, Const, ConstKind, Region, RegionKind, StoredConst,
         StoredGenericArgs, StoredTy,
@@ -242,7 +241,7 @@ impl<'db> Filler<'db> {
 #[salsa_macros::tracked(returns(ref), cycle_result = monomorphized_mir_body_cycle_result)]
 pub fn monomorphized_mir_body_query(
     db: &dyn HirDatabase,
-    owner: DefWithBodyId,
+    owner: InferBodyId,
     subst: StoredGenericArgs,
     trait_env: StoredParamEnvAndCrate,
 ) -> Result<MirBody, MirLowerError> {
@@ -256,7 +255,7 @@ pub fn monomorphized_mir_body_query(
 fn monomorphized_mir_body_cycle_result(
     _db: &dyn HirDatabase,
     _: salsa::Id,
-    _: DefWithBodyId,
+    _: InferBodyId,
     _: StoredGenericArgs,
     _: StoredParamEnvAndCrate,
 ) -> Result<MirBody, MirLowerError> {

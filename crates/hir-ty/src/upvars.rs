@@ -110,10 +110,7 @@ pub fn upvars_mentioned_impl(
     owner: ExpressionStoreOwnerId,
 ) -> Option<Box<FxHashMap<ExprId, Upvars>>> {
     let store = ExpressionStore::of(db, owner);
-    if store.const_expr_origins().is_empty() {
-        // Save constructing a Resolver.
-        return None;
-    }
+    store.expr_roots().next()?;
     let mut resolver = owner.resolver(db);
     let mut result = FxHashMap::default();
     for root_expr in store.expr_roots() {

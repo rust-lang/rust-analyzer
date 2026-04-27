@@ -12,9 +12,12 @@ use hir_def::{
 use rustc_type_ir::inherent;
 use stdx::impl_from;
 
-use crate::db::{
-    AnonConstId, GeneralConstId, InternedClosureId, InternedCoroutineClosureId,
-    InternedCoroutineId, InternedOpaqueTyId,
+use crate::{
+    InferBodyId,
+    db::{
+        AnonConstId, GeneralConstId, InternedClosureId, InternedCoroutineClosureId,
+        InternedCoroutineId, InternedOpaqueTyId,
+    },
 };
 
 use super::DbInterner;
@@ -174,6 +177,16 @@ impl From<DefWithBodyId> for SolverDefId {
     }
 }
 
+impl From<InferBodyId> for SolverDefId {
+    #[inline]
+    fn from(value: InferBodyId) -> Self {
+        match value {
+            InferBodyId::DefWithBodyId(id) => id.into(),
+            InferBodyId::AnonConstId(id) => id.into(),
+        }
+    }
+}
+
 impl From<VariantId> for SolverDefId {
     #[inline]
     fn from(value: VariantId) -> Self {
@@ -241,6 +254,32 @@ impl TryFrom<SolverDefId> for DefWithBodyId {
             | SolverDefId::InternedCoroutineClosureId(_)
             | SolverDefId::Ctor(Ctor::Struct(_))
             | SolverDefId::AnonConstId(_)
+            | SolverDefId::AdtId(_) => return Err(()),
+        };
+        Ok(id)
+    }
+}
+
+impl TryFrom<SolverDefId> for InferBodyId {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: SolverDefId) -> Result<Self, Self::Error> {
+        let id = match value {
+            SolverDefId::ConstId(id) => id.into(),
+            SolverDefId::FunctionId(id) => id.into(),
+            SolverDefId::StaticId(id) => id.into(),
+            SolverDefId::EnumVariantId(id) | SolverDefId::Ctor(Ctor::Enum(id)) => id.into(),
+            SolverDefId::AnonConstId(id) => id.into(),
+            SolverDefId::InternedOpaqueTyId(_)
+            | SolverDefId::TraitId(_)
+            | SolverDefId::TypeAliasId(_)
+            | SolverDefId::ImplId(_)
+            | SolverDefId::BuiltinDeriveImplId(_)
+            | SolverDefId::InternedClosureId(_)
+            | SolverDefId::InternedCoroutineId(_)
+            | SolverDefId::InternedCoroutineClosureId(_)
+            | SolverDefId::Ctor(Ctor::Struct(_))
             | SolverDefId::AdtId(_) => return Err(()),
         };
         Ok(id)

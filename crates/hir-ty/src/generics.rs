@@ -282,6 +282,18 @@ impl<'db> Generics<'db> {
             + u32::from(has_trait_self)
             + param.local_id.into_raw().into_u32()
     }
+
+    #[deprecated = "don't use this; it's easy to expose an erroneous `Generics` with this"]
+    pub(crate) fn empty(def: GenericDefId) -> Self {
+        let mut chain = ArrayVec::new();
+        chain.push(SingleGenerics {
+            def,
+            preceding_params_len: 0,
+            params: GenericParams::empty(),
+            store: ExpressionStore::empty(),
+        });
+        Generics { chain }
+    }
 }
 
 pub(crate) struct ProvenanceSplit {

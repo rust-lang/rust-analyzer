@@ -145,8 +145,11 @@ impl<'db> InferenceContext<'_, 'db> {
             self.store,
             &self.diagnostics,
             InferenceTyDiagnosticSource::Body,
+            self.store_owner,
             self.generic_def,
             LifetimeElisionKind::Infer,
+            self.allow_using_generic_params,
+            &self.defined_anon_consts,
         );
         let mut path_ctx = if no_diagnostics {
             ctx.at_path_forget_diagnostics(path)

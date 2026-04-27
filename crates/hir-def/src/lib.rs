@@ -724,12 +724,12 @@ impl From<EnumVariantId> for DefWithBodyId {
 }
 
 impl DefWithBodyId {
-    pub fn as_generic_def_id(self, db: &dyn DefDatabase) -> Option<GenericDefId> {
+    pub fn generic_def(self, db: &dyn DefDatabase) -> GenericDefId {
         match self {
-            DefWithBodyId::FunctionId(f) => Some(f.into()),
-            DefWithBodyId::StaticId(s) => Some(s.into()),
-            DefWithBodyId::ConstId(c) => Some(c.into()),
-            DefWithBodyId::VariantId(c) => Some(c.lookup(db).parent.into()),
+            DefWithBodyId::FunctionId(f) => f.into(),
+            DefWithBodyId::StaticId(s) => s.into(),
+            DefWithBodyId::ConstId(c) => c.into(),
+            DefWithBodyId::VariantId(c) => c.lookup(db).parent.into(),
         }
     }
 }

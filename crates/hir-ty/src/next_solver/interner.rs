@@ -11,11 +11,10 @@ pub use tls_db::{attach_db, attach_db_allow_change, with_attached_db};
 
 use base_db::Crate;
 use hir_def::{
-    AdtId, CallableDefId, DefWithBodyId, EnumId, ExpressionStoreOwnerId, HasModule,
-    ItemContainerId, StructId, UnionId, VariantId,
+    AdtId, CallableDefId, EnumId, HasModule, ItemContainerId, StructId, UnionId, VariantId,
     attrs::AttrFlags,
-    expr_store::{Body, ExpressionStore},
-    hir::{ClosureKind as HirClosureKind, CoroutineKind as HirCoroutineKind},
+    expr_store::ExpressionStore,
+    hir::{ClosureKind as HirClosureKind, CoroutineKind as HirCoroutineKind, ExprId},
     lang_item::LangItems,
     signatures::{
         EnumFlags, EnumSignature, FnFlags, FunctionSignature, ImplFlags, ImplSignature,
@@ -37,7 +36,7 @@ use rustc_type_ir::{
 };
 
 use crate::{
-    FnAbi, Span,
+    FnAbi, InferBodyId, Span,
     db::{HirDatabase, InternedClosure, InternedCoroutineId},
     lower::GenericPredicates,
     method_resolution::TraitImpls,
@@ -1164,14 +1163,15 @@ impl<'db> Interner for DbInterner<'db> {
             SolverDefId::TypeAliasId(it) => it.lookup(self.db()).container,
             SolverDefId::ConstId(it) => it.lookup(self.db()).container,
             SolverDefId::InternedClosureId(it) => {
-                return it.loc(self.db).owner.generic_def(self.db()).into();
+                return it.loc(self.db).owner.into();
             }
             SolverDefId::InternedCoroutineId(it) => {
-                return it.loc(self.db).owner.generic_def(self.db()).into();
+                return it.loc(self.db).owner.into();
             }
             SolverDefId::InternedCoroutineClosureId(it) => {
-                return it.loc(self.db).owner.generic_def(self.db()).into();
+                return it.loc(self.db).owner.into();
             }
+            SolverDefId::AnonConstId(it) => return it.loc(self.db).owner.into(),
             SolverDefId::StaticId(_)
             | SolverDefId::AdtId(_)
             | SolverDefId::TraitId(_)
@@ -1179,8 +1179,7 @@ impl<'db> Interner for DbInterner<'db> {
             | SolverDefId::BuiltinDeriveImplId(_)
             | SolverDefId::EnumVariantId(..)
             | SolverDefId::Ctor(..)
-            | SolverDefId::InternedOpaqueTyId(..)
-            | SolverDefId::AnonConstId(_) => panic!(),
+            | SolverDefId::InternedOpaqueTyId(..) => panic!(),
         };
 
         match container {
@@ -1956,7 +1955,7 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn opaque_types_defined_by(self, def_id: Self::LocalDefId) -> Self::LocalDefIds {
-        let Ok(def_id) = DefWithBodyId::try_from(def_id) else {
+        let Ok(def_id) = InferBodyId::try_from(def_id) else {
             return SolverDefIds::default();
         };
         let mut result = Vec::new();
@@ -1965,16 +1964,31 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn opaque_types_and_coroutines_defined_by(self, def_id: Self::LocalDefId) -> Self::LocalDefIds {
-        let Ok(def_id) = DefWithBodyId::try_from(def_id) else {
+        let db = self.db;
+
+        let Ok(def_id) = InferBodyId::try_from(def_id) else {
             return SolverDefIds::default();
         };
         let mut result = Vec::new();
 
-        crate::opaques::opaque_types_defined_by(self.db, def_id, &mut result);
+        crate::opaques::opaque_types_defined_by(db, def_id, &mut result);
 
         // Collect coroutines.
-        let body = Body::of(self.db, def_id);
-        body.exprs().for_each(|(expr_id, expr)| {
+        let (store, root_expr) = def_id.store_and_root_expr(db);
+        // We can't just visit all exprs, since this may end up in unrelated anon consts.
+        append_coroutines_in_expr(db, def_id, store, root_expr, &mut result);
+
+        return SolverDefIds::new_from_slice(&result);
+
+        fn append_coroutines_in_expr(
+            db: &dyn HirDatabase,
+            owner: InferBodyId,
+            store: &ExpressionStore,
+            expr_id: ExprId,
+            result: &mut Vec<SolverDefId>,
+        ) {
+            let expr = &store[expr_id];
+
             if let hir_def::hir::Expr::Closure {
                 closure_kind:
                     kind @ (hir_def::hir::ClosureKind::Coroutine { .. }
@@ -1982,19 +1996,22 @@ impl<'db> Interner for DbInterner<'db> {
                 ..
             } = *expr
             {
-                let coroutine = InternedCoroutineId::new(
-                    self.db,
-                    InternedClosure {
-                        owner: ExpressionStoreOwnerId::Body(def_id),
-                        expr: expr_id,
-                        kind,
-                    },
-                );
+                let coroutine =
+                    InternedCoroutineId::new(db, InternedClosure { owner, expr: expr_id, kind });
                 result.push(coroutine.into());
             }
-        });
 
-        SolverDefIds::new_from_slice(&result)
+            match expr {
+                // The repeat is an anon const.
+                &hir_def::hir::Expr::Array(hir_def::hir::Array::Repeat {
+                    initializer,
+                    repeat: _,
+                }) => append_coroutines_in_expr(db, owner, store, initializer, result),
+                _ => store.walk_child_exprs(expr_id, |expr_id| {
+                    append_coroutines_in_expr(db, owner, store, expr_id, result)
+                }),
+            }
+        }
     }
 
     fn alias_has_const_conditions(self, _def_id: Self::DefId) -> bool {
@@ -2266,10 +2283,17 @@ impl<'db> DbInterner<'db> {
 }
 
 fn predicates_of(db: &dyn HirDatabase, def_id: SolverDefId) -> &GenericPredicates {
-    if let SolverDefId::BuiltinDeriveImplId(impl_) = def_id {
-        crate::builtin_derive::predicates(db, impl_)
-    } else {
-        GenericPredicates::query(db, def_id.try_into().unwrap())
+    match def_id {
+        SolverDefId::BuiltinDeriveImplId(impl_) => crate::builtin_derive::predicates(db, impl_),
+        SolverDefId::AnonConstId(anon_const) => {
+            let loc = anon_const.loc(db);
+            if loc.allow_using_generic_params {
+                GenericPredicates::query(db, loc.owner.generic_def(db))
+            } else {
+                GenericPredicates::empty()
+            }
+        }
+        _ => GenericPredicates::query(db, def_id.try_into().unwrap()),
     }
 }
 

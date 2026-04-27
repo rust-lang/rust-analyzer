@@ -476,7 +476,6 @@ struct Other<'a> {
 
     #[test]
     fn rustc_test_variance_associated_consts() {
-        // FIXME: Should be invariant
         check(
             r#"
 trait Trait {
@@ -488,7 +487,7 @@ struct Foo<T: Trait> { //~ ERROR [T: o]
 }
 "#,
             expect![[r#"
-                Foo[T: bivariant]
+                Foo[T: invariant]
             "#]],
         );
     }

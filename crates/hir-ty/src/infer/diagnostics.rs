@@ -6,18 +6,20 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 
 use either::Either;
-use hir_def::GenericDefId;
 use hir_def::expr_store::ExpressionStore;
 use hir_def::expr_store::path::Path;
+use hir_def::{ExpressionStoreOwnerId, GenericDefId};
 use hir_def::{hir::ExprOrPatId, resolver::Resolver};
 use la_arena::{Idx, RawIdx};
 use thin_vec::ThinVec;
 
 use crate::{
     InferenceDiagnostic, InferenceTyDiagnosticSource, TyLoweringDiagnostic,
-    db::HirDatabase,
-    lower::path::{PathDiagnosticCallback, PathLoweringContext},
-    lower::{LifetimeElisionKind, TyLoweringContext},
+    db::{AnonConstId, HirDatabase},
+    lower::{
+        ForbidParamsAfterReason, LifetimeElisionKind, TyLoweringContext,
+        path::{PathDiagnosticCallback, PathLoweringContext},
+    },
 };
 
 // Unfortunately, this struct needs to use interior mutability (but we encapsulate it)
@@ -35,7 +37,7 @@ impl Diagnostics {
     fn push_ty_diagnostics(
         &self,
         source: InferenceTyDiagnosticSource,
-        diagnostics: Vec<TyLoweringDiagnostic>,
+        diagnostics: ThinVec<TyLoweringDiagnostic>,
     ) {
         self.0.borrow_mut().extend(
             diagnostics.into_iter().map(|diag| InferenceDiagnostic::TyDiagnostic { source, diag }),
@@ -56,6 +58,7 @@ pub(super) struct InferenceTyLoweringContext<'db, 'a> {
     ctx: TyLoweringContext<'db, 'a>,
     diagnostics: &'a Diagnostics,
     source: InferenceTyDiagnosticSource,
+    defined_anon_consts: &'a RefCell<ThinVec<AnonConstId>>,
 }
 
 impl<'db, 'a> InferenceTyLoweringContext<'db, 'a> {
@@ -66,14 +69,18 @@ impl<'db, 'a> InferenceTyLoweringContext<'db, 'a> {
         store: &'a ExpressionStore,
         diagnostics: &'a Diagnostics,
         source: InferenceTyDiagnosticSource,
+        def: ExpressionStoreOwnerId,
         generic_def: GenericDefId,
         lifetime_elision: LifetimeElisionKind<'db>,
+        allow_using_generic_params: bool,
+        defined_anon_consts: &'a RefCell<ThinVec<AnonConstId>>,
     ) -> Self {
-        Self {
-            ctx: TyLoweringContext::new(db, resolver, store, generic_def, lifetime_elision),
-            diagnostics,
-            source,
+        let mut ctx =
+            TyLoweringContext::new(db, resolver, store, def, generic_def, lifetime_elision);
+        if !allow_using_generic_params {
+            ctx.forbid_params_after(0, ForbidParamsAfterReason::AnonConst);
         }
+        Self { ctx, diagnostics, source, defined_anon_consts }
     }
 
     #[inline]
@@ -135,5 +142,6 @@ impl Drop for InferenceTyLoweringContext<'_, '_> {
     fn drop(&mut self) {
         self.diagnostics
             .push_ty_diagnostics(self.source, std::mem::take(&mut self.ctx.diagnostics));
+        self.defined_anon_consts.borrow_mut().extend(self.ctx.defined_anon_consts.iter().copied());
     }
 }

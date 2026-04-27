@@ -2474,8 +2474,6 @@ fn extern_weak_statics() {
 }
 
 #[test]
-// FIXME
-#[should_panic]
 fn from_ne_bytes() {
     check_number(
         r#"

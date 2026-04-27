@@ -37,6 +37,7 @@ use test_fixture::WithFixture;
 
 use crate::{
     InferenceDiagnostic, InferenceResult,
+    db::AnonConstId,
     display::{DisplayTarget, HirDisplay},
     infer::Adjustment,
     next_solver::Ty,
@@ -511,11 +512,13 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
         for (def, krate) in generic_defs {
             let (store, source_map) = ExpressionStore::with_source_map(&db, def.into());
             // Skip if there are no const expressions in the signature
-            if store.const_expr_origins().is_empty() {
+            if store.expr_roots().next().is_none() {
                 continue;
             }
-            let infer = InferenceResult::of(&db, def);
-            infer_def(infer, store, source_map, None, krate);
+            for &anon_const in AnonConstId::all_from_signature(&db, def).into_iter().flatten() {
+                let infer = InferenceResult::of(&db, anon_const);
+                infer_def(infer, store, source_map, None, krate);
+            }
         }
 
         buf.truncate(buf.trim_end().len());

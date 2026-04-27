@@ -1939,7 +1939,7 @@ fn rustc_test_issue_52437() {
     //- minicore: sized
     fn main() {
         let x = [(); &(&'static: loop { |x| {}; }) as *const _ as usize]
-          //^ [(); _]
+          //^ [(); {const}]
     }
     "#,
     );
@@ -2754,7 +2754,6 @@ where
             664..680 'filter...ter_fn': dyn Fn(&'? T) -> bool + 'static
             691..698 'loop {}': !
             696..698 '{}': ()
-            512..513 'N': usize
         "#]],
     );
 }

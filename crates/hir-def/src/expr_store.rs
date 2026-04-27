@@ -94,21 +94,15 @@ pub type TypeSource = InFile<TypePtr>;
 pub type LifetimePtr = AstPtr<ast::Lifetime>;
 pub type LifetimeSource = InFile<LifetimePtr>;
 
-/// Describes where a const expression originated from.
-///
-/// Used by signature/body inference to determine the expected type for each
-/// const expression root.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RootExprOrigin {
-    /// Array length expression: `[T; <expr>]` — expected type is `usize`.
-    ArrayLength,
-    /// Const parameter default value: `const N: usize = <expr>`.
-    ConstParam(crate::hir::generics::LocalTypeOrConstParamId),
-    /// Const generic argument in a path: `SomeType::<{ <expr> }>` or `some_fn::<{ <expr> }>()`.
-    /// Determining the expected type requires path resolution, so it is deferred.
-    GenericArgsPath,
-    /// The root expression of a body.
-    BodyRoot,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExprRoot {
+    root: ExprId,
+    // We store, for each root, the range of exprs (and pats and bindings) it holds.
+    // We store only the end (exclusive), since the start can be inferred from the previous
+    // roots or is zero.
+    exprs_end: ExprId,
+    pats_end: PatId,
+    bindings_end: BindingId,
 }
 
 // We split the store into types-only and expressions, because most stores (e.g. generics)
@@ -132,7 +126,34 @@ struct ExpressionOnlyStore {
     ident_hygiene: FxHashMap<ExprOrPatId, HygieneId>,
 
     /// Maps expression roots to their origin.
-    expr_roots: SmallVec<[(ExprId, RootExprOrigin); 1]>,
+    ///
+    /// Note: while every root expr is an inference root (aka. an `AnonConst`), there could be other roots that do not appear here.
+    /// This can happen when anon consts are nested, for example:
+    ///
+    /// ```
+    /// [
+    ///     ();
+    ///     {
+    ///         // this repeat expr is anon const #1, and *only it* appears in this list.
+    ///         [
+    ///             ();
+    ///             {
+    ///                 // this repeat expr is anon const #2.
+    ///                 0
+    ///             }
+    ///         ];
+    ///         0
+    ///     }
+    /// ]
+    /// ```
+    /// We do this because this allows us to search this list using a binary search,
+    /// and it does not bother us because we use this list for two things: constructing `ExprScopes`, which
+    /// works fine with nested exprs, and retrieving inference results, and we copy the inner const's inference
+    /// into the outer const.
+    // FIXME: Array repeat is not problematic indeed, but this could still break with exprs in types,
+    // which we do not visit for `ExprScopes` (they're fine for inference though). We either need to visit them,
+    // or use a more complicated search.
+    expr_roots: SmallVec<[ExprRoot; 1]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -246,7 +267,7 @@ pub struct ExpressionStoreBuilder {
     pub types: Arena<TypeRef>,
     block_scopes: Vec<BlockId>,
     ident_hygiene: FxHashMap<ExprOrPatId, HygieneId>,
-    pub inference_roots: Option<SmallVec<[(ExprId, RootExprOrigin); 1]>>,
+    inference_roots: Option<SmallVec<[ExprRoot; 1]>>,
 
     // AST expressions can create patterns in destructuring assignments. Therefore, `ExprSource` can also map
     // to `PatId`, and `PatId` can also map to `ExprSource` (the other way around is unaffected).
@@ -379,8 +400,8 @@ impl ExpressionStoreBuilder {
 
         let store = {
             let expr_only = if has_exprs {
-                if let Some(const_expr_origins) = &mut expr_roots {
-                    const_expr_origins.shrink_to_fit();
+                if let Some(expr_roots) = &mut expr_roots {
+                    expr_roots.shrink_to_fit();
                 }
                 Some(Box::new(ExpressionOnlyStore {
                     exprs,
@@ -390,7 +411,8 @@ impl ExpressionStoreBuilder {
                     binding_owners,
                     block_scopes: block_scopes.into_boxed_slice(),
                     ident_hygiene,
-                    expr_roots: expr_roots.unwrap_or_default(),
+                    expr_roots: expr_roots
+                        .expect("should always finish with a `Some(_)` expr_roots"),
                 }))
             } else {
                 None
@@ -431,6 +453,14 @@ impl ExpressionStoreBuilder {
 }
 
 impl ExpressionStore {
+    const EMPTY: &ExpressionStore =
+        &ExpressionStore { expr_only: None, types: Arena::new(), lifetimes: Arena::new() };
+
+    #[inline]
+    pub fn empty() -> &'static ExpressionStore {
+        ExpressionStore::EMPTY
+    }
+
     pub fn of(db: &dyn DefDatabase, def: ExpressionStoreOwnerId) -> &ExpressionStore {
         match def {
             ExpressionStoreOwnerId::Signature(def) => {
@@ -520,19 +550,35 @@ impl ExpressionStore {
     }
 
     /// Returns all expression root `ExprId`s found in this store.
-    pub fn expr_roots(&self) -> impl Iterator<Item = ExprId> {
-        self.const_expr_origins().iter().map(|&(id, _)| id)
+    pub fn expr_roots(&self) -> impl DoubleEndedIterator<Item = ExprId> {
+        self.expr_only
+            .as_ref()
+            .map_or(&[][..], |expr_only| &expr_only.expr_roots)
+            .iter()
+            .map(|root| root.root)
     }
 
-    /// Like [`Self::expr_roots`], but also returns the origin
-    /// of each expression.
-    pub fn expr_roots_with_origins(&self) -> impl Iterator<Item = (ExprId, RootExprOrigin)> {
-        self.const_expr_origins().iter().map(|&(id, origin)| (id, origin))
+    fn find_root_for(
+        &self,
+        mut get: impl FnMut(&ExprRoot) -> la_arena::RawIdx,
+        find: la_arena::RawIdx,
+    ) -> ExprId {
+        let expr_only = self.assert_expr_only();
+        let find = find.into_u32();
+        let entry = expr_only.expr_roots.partition_point(|root| get(root).into_u32() <= find);
+        expr_only.expr_roots[entry].root
     }
 
-    /// Returns the map of const expression roots to their origins.
-    pub fn const_expr_origins(&self) -> &[(ExprId, RootExprOrigin)] {
-        self.expr_only.as_ref().map_or(&[], |it| &it.expr_roots)
+    pub fn find_root_for_expr(&self, expr: ExprId) -> ExprId {
+        self.find_root_for(|root| root.exprs_end.into_raw(), expr.into_raw())
+    }
+
+    pub fn find_root_for_pat(&self, pat: PatId) -> ExprId {
+        self.find_root_for(|root| root.pats_end.into_raw(), pat.into_raw())
+    }
+
+    pub fn find_root_for_binding(&self, binding: BindingId) -> ExprId {
+        self.find_root_for(|root| root.bindings_end.into_raw(), binding.into_raw())
     }
 
     /// Returns an iterator over all block expressions in this store that define inner items.
