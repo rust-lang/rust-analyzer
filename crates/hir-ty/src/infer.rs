@@ -1110,8 +1110,8 @@ impl InferenceResult {
         self.expr_adjustments.get(&id).map(|it| &**it)
     }
 
-    pub fn binding_mode(&self, id: PatId) -> BindingMode {
-        self.binding_modes[id]
+    pub fn binding_mode(&self, id: PatId) -> Option<BindingMode> {
+        self.binding_modes.get(id).copied()
     }
 
     // This method is consumed by external tools to run rust-analyzer as a library. Don't remove, please.

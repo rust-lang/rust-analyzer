@@ -449,7 +449,7 @@ impl<'db> SourceAnalyzer<'db> {
     ) -> Option<BindingMode> {
         let id = self.pat_id(&pat.clone().into())?;
         let infer = self.infer()?;
-        Some(match infer.binding_mode(id.as_pat()?) {
+        Some(match infer.binding_mode(id.as_pat()?)? {
             hir_ty::BindingMode(hir_ty::ByRef::No, _) => BindingMode::Move,
             hir_ty::BindingMode(hir_ty::ByRef::Yes(hir_ty::next_solver::Mutability::Mut), _) => {
                 BindingMode::Ref(Mutability::Mut)
