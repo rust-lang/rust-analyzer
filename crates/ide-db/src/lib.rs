@@ -402,10 +402,16 @@ impl<'a> MiniCore<'a> {
 
 impl std::fmt::Debug for MiniCore<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("MiniCore")
-            // don't print the whole contents if they correspond to the default
-            .field(if self.0 == test_utils::MiniCore::RAW_SOURCE { &"<default>" } else { &self.0 })
-            .finish()
+        let mut d = f.debug_tuple("MiniCore");
+        if self.0 == test_utils::MiniCore::RAW_SOURCE {
+            // Don't print the whole contents if they correspond to the default.
+            // The `format_args!` makes it so that the output is
+            // `MiniCore(<default>)` and not `MiniCore("<default>").
+            d.field(&format_args!("<default>"));
+        } else {
+            d.field(&self.0);
+        };
+        d.finish()
     }
 }
 
