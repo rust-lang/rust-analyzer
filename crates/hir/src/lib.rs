@@ -2149,7 +2149,12 @@ impl DefWithBody {
 
         for (pat_or_expr, mismatch) in infer.type_mismatches() {
             let expr_or_pat = match pat_or_expr {
-                ExprOrPatId::ExprId(expr) => source_map.expr_syntax(expr).map(Either::Left),
+                ExprOrPatId::ExprId(mut expr) => {
+                    while let Expr::Block { tail: Some(tail), .. } = &body[expr] {
+                        expr = *tail;
+                    }
+                    source_map.expr_syntax(expr).map(Either::Left)
+                }
                 ExprOrPatId::PatId(pat) => source_map.pat_syntax(pat).map(Either::Right),
             };
             let expr_or_pat = match expr_or_pat {
