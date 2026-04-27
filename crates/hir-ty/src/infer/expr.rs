@@ -997,7 +997,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         // Prohibit struct expressions when non-exhaustive flag is set.
         if self.has_applicable_non_exhaustive(variant.into()) {
-            // FIXME: Emit an error.
+            self.push_diagnostic(InferenceDiagnostic::NonExhaustiveRecordExpr { expr });
         }
 
         self.check_record_expr_fields(adt_ty, expected, expr, variant, fields, base_expr);

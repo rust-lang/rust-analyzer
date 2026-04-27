@@ -55,6 +55,7 @@ mod handlers {
     pub(crate) mod mutability_errors;
     pub(crate) mod no_such_field;
     pub(crate) mod non_exhaustive_let;
+    pub(crate) mod non_exhaustive_record_expr;
     pub(crate) mod parenthesized_generic_args_without_fn_trait;
     pub(crate) mod private_assoc_item;
     pub(crate) mod private_field;
@@ -431,6 +432,9 @@ pub fn semantic_diagnostics(
                 None => continue,
             },
             AnyDiagnostic::NonExhaustiveLet(d) => handlers::non_exhaustive_let::non_exhaustive_let(&ctx, &d),
+            AnyDiagnostic::NonExhaustiveRecordExpr(d) => {
+                handlers::non_exhaustive_record_expr::non_exhaustive_record_expr(&ctx, &d)
+            }
             AnyDiagnostic::NoSuchField(d) => handlers::no_such_field::no_such_field(&ctx, &d),
             AnyDiagnostic::PrivateAssocItem(d) => handlers::private_assoc_item::private_assoc_item(&ctx, &d),
             AnyDiagnostic::PrivateField(d) => handlers::private_field::private_field(&ctx, &d),
