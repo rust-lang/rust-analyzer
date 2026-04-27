@@ -284,7 +284,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // coroutine-closures that are `move` since otherwise they themselves will
         // be borrowing from the outer environment, so there's no self-borrows occurring.
         if let UpvarArgs::Coroutine(..) = args
-            && let hir_def::hir::ClosureKind::AsyncBlock { source: CoroutineSource::Closure } =
+            && let hir_def::hir::ClosureKind::Coroutine { source: CoroutineSource::Closure, .. } =
                 closure_kind
             && let parent_hir_id = ExpressionStore::closure_for_coroutine(closure_expr_id)
             && let parent_ty = self.result.expr_ty(parent_hir_id)
@@ -310,8 +310,9 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         //
         // FIXME(async_closures): This could be cleaned up. It's a bit janky that we're just
         // moving all of the `LocalSource::AsyncFn` locals here.
-        if let hir_def::hir::ClosureKind::AsyncBlock {
+        if let hir_def::hir::ClosureKind::Coroutine {
             source: CoroutineSource::Fn | CoroutineSource::Closure,
+            ..
         } = closure_kind
         {
             let Expr::Block { statements, .. } = &self.store[body] else {

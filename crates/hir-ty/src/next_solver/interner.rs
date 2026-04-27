@@ -1318,11 +1318,11 @@ impl<'db> Interner for DbInterner<'db> {
         let expr = &store[expr_id];
         match *expr {
             hir_def::hir::Expr::Closure { closure_kind, .. } => match closure_kind {
-                hir_def::hir::ClosureKind::Coroutine(movability) => match movability {
+                hir_def::hir::ClosureKind::OldCoroutine(movability) => match movability {
                     hir_def::hir::Movability::Static => rustc_ast_ir::Movability::Static,
                     hir_def::hir::Movability::Movable => rustc_ast_ir::Movability::Movable,
                 },
-                hir_def::hir::ClosureKind::AsyncBlock { .. } => rustc_ast_ir::Movability::Static,
+                hir_def::hir::ClosureKind::Coroutine { .. } => rustc_ast_ir::Movability::Static,
                 _ => panic!("unexpected expression for a coroutine: {expr:?}"),
             },
             _ => panic!("unexpected expression for a coroutine: {expr:?}"),
@@ -1560,7 +1560,6 @@ impl<'db> Interner for DbInterner<'db> {
 
             ignore = {
                 AsyncFnKindHelper,
-                AsyncIterator,
                 BikeshedGuaranteedNoDrop,
                 FusedIterator,
                 Field,
@@ -1587,6 +1586,7 @@ impl<'db> Interner for DbInterner<'db> {
             Unpin,
             Tuple,
             Iterator,
+            AsyncIterator,
             AsyncFn,
             AsyncFnMut,
             AsyncFnOnce,
@@ -1652,7 +1652,6 @@ impl<'db> Interner for DbInterner<'db> {
 
             ignore = {
                 AsyncFnKindHelper,
-                AsyncIterator,
                 BikeshedGuaranteedNoDrop,
                 FusedIterator,
                 Field,
@@ -1679,6 +1678,7 @@ impl<'db> Interner for DbInterner<'db> {
             Unpin,
             Tuple,
             Iterator,
+            AsyncIterator,
             AsyncFn,
             AsyncFnMut,
             AsyncFnOnce,
@@ -1943,7 +1943,7 @@ impl<'db> Interner for DbInterner<'db> {
         matches!(
             store[expr_id],
             hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::Coroutine(_),
+                closure_kind: hir_def::hir::ClosureKind::OldCoroutine(_),
                 ..
             }
         )
@@ -1957,20 +1957,43 @@ impl<'db> Interner for DbInterner<'db> {
         matches!(
             store[expr_id],
             hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::AsyncBlock { .. },
+                closure_kind: hir_def::hir::ClosureKind::Coroutine {
+                    kind: hir_def::hir::CoroutineKind::Async,
+                    ..
+                },
                 ..
             }
         )
     }
 
-    fn coroutine_is_gen(self, _coroutine_def_id: Self::CoroutineId) -> bool {
-        // We don't handle gen coroutines yet.
-        false
+    fn coroutine_is_gen(self, def_id: Self::CoroutineId) -> bool {
+        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
+        let store = ExpressionStore::of(self.db, owner);
+        matches!(
+            store[expr_id],
+            hir_def::hir::Expr::Closure {
+                closure_kind: hir_def::hir::ClosureKind::Coroutine {
+                    kind: hir_def::hir::CoroutineKind::Gen,
+                    ..
+                },
+                ..
+            }
+        )
     }
 
-    fn coroutine_is_async_gen(self, _coroutine_def_id: Self::CoroutineId) -> bool {
-        // We don't handle gen coroutines yet.
-        false
+    fn coroutine_is_async_gen(self, def_id: Self::CoroutineId) -> bool {
+        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
+        let store = ExpressionStore::of(self.db, owner);
+        matches!(
+            store[expr_id],
+            hir_def::hir::Expr::Closure {
+                closure_kind: hir_def::hir::ClosureKind::Coroutine {
+                    kind: hir_def::hir::CoroutineKind::AsyncGen,
+                    ..
+                },
+                ..
+            }
+        )
     }
 
     fn unsizing_params_for_adt(self, id: Self::AdtId) -> Self::UnsizingParams {
@@ -2084,8 +2107,8 @@ impl<'db> Interner for DbInterner<'db> {
             if matches!(
                 expr,
                 hir_def::hir::Expr::Closure {
-                    closure_kind: hir_def::hir::ClosureKind::AsyncBlock { .. }
-                        | hir_def::hir::ClosureKind::Coroutine(_),
+                    closure_kind: hir_def::hir::ClosureKind::Coroutine { .. }
+                        | hir_def::hir::ClosureKind::OldCoroutine(_),
                     ..
                 }
             ) {

@@ -47,8 +47,8 @@ use crate::{
     },
     hir::{
         Array, Binding, BindingAnnotation, BindingId, BindingProblems, CaptureBy, ClosureKind,
-        CoroutineSource, Expr, ExprId, Item, Label, LabelId, Literal, MatchArm, Movability,
-        OffsetOf, Pat, PatId, RecordFieldPat, RecordLitField, RecordSpread, Statement,
+        CoroutineKind, CoroutineSource, Expr, ExprId, Item, Label, LabelId, Literal, MatchArm,
+        Movability, OffsetOf, Pat, PatId, RecordFieldPat, RecordLitField, RecordSpread, Statement,
         generics::GenericParams,
     },
     item_scope::BuiltinShadowMode,
@@ -72,6 +72,7 @@ pub(super) fn lower_body(
     parameters: Option<ast::ParamList>,
     body: Option<ast::Expr>,
     is_async_fn: bool,
+    is_gen_fn: bool,
 ) -> (Body, BodySourceMap) {
     // We cannot leave the root span map empty and let any identifier from it be treated as root,
     // because when inside nested macros `SyntaxContextId`s from the outer macro will be interleaved
@@ -176,6 +177,8 @@ pub(super) fn lower_body(
                 DefWithBodyId::VariantId(..) => Awaitable::No("enum variant"),
             }
         },
+        is_async_fn,
+        is_gen_fn,
     );
     collector.store.inference_roots = Some(smallvec![(body_expr, RootExprOrigin::BodyRoot)]);
 
@@ -376,12 +379,20 @@ pub(crate) fn lower_function(
         expr_collector.lower_type_ref_opt(ret_type.ty(), &mut ExprCollector::impl_trait_allocator)
     });
 
-    let return_type = if fn_.value.async_token().is_some() {
-        let path = hir_expand::mod_path::path![core::future::Future];
+    let return_type = if fn_.value.async_token().is_some() || fn_.value.gen_token().is_some() {
+        let (path, assoc_name) =
+            match (fn_.value.async_token().is_some(), fn_.value.gen_token().is_some()) {
+                (true, true) => {
+                    (hir_expand::mod_path::path![core::async_iter::AsyncIterator], sym::Item)
+                }
+                (true, false) => (hir_expand::mod_path::path![core::future::Future], sym::Output),
+                (false, true) => (hir_expand::mod_path::path![core::iter::Iterator], sym::Item),
+                (false, false) => unreachable!(),
+            };
         let mut generic_args: Vec<_> =
             std::iter::repeat_n(None, path.segments().len() - 1).collect();
         let binding = AssociatedTypeBinding {
-            name: Name::new_symbol_root(sym::Output),
+            name: Name::new_symbol_root(assoc_name),
             args: None,
             type_ref: Some(
                 return_type
@@ -950,10 +961,11 @@ impl<'db> ExprCollector<'db> {
     /// into the body. This is to make sure that the future actually owns the
     /// arguments that are passed to the function, and to ensure things like
     /// drop order are stable.
-    fn lower_async_block_with_moved_arguments(
+    fn lower_coroutine_with_moved_arguments(
         &mut self,
         params: &mut [PatId],
         body: ExprId,
+        kind: CoroutineKind,
         coroutine_source: CoroutineSource,
     ) -> ExprId {
         let mut statements = Vec::new();
@@ -989,7 +1001,8 @@ impl<'db> ExprCollector<'db> {
             *param = pat_id;
         }
 
-        let async_ = self.async_block(
+        let coroutine = self.desugared_coroutine_expr(
+            kind,
             coroutine_source,
             // The default capture mode here is by-ref. Later on during upvar analysis,
             // we will force the captured arguments to by-move, but for async closures,
@@ -1001,11 +1014,12 @@ impl<'db> ExprCollector<'db> {
             Some(body),
         );
         // It's important that this comes last, see the lowering of async closures for why.
-        self.alloc_expr_desugared(async_)
+        self.alloc_expr_desugared(coroutine)
     }
 
-    fn async_block(
+    fn desugared_coroutine_expr(
         &mut self,
+        kind: CoroutineKind,
         source: CoroutineSource,
         capture_by: CaptureBy,
         id: Option<BlockId>,
@@ -1018,7 +1032,7 @@ impl<'db> ExprCollector<'db> {
             arg_types: Box::default(),
             ret_type: None,
             body: block,
-            closure_kind: ClosureKind::AsyncBlock { source },
+            closure_kind: ClosureKind::Coroutine { kind, source },
             capture_by,
         }
     }
@@ -1028,12 +1042,20 @@ impl<'db> ExprCollector<'db> {
         params: &mut [PatId],
         expr: Option<ast::Expr>,
         awaitable: Awaitable,
+        is_async_fn: bool,
+        is_gen_fn: bool,
     ) -> ExprId {
         self.awaitable_context.replace(awaitable);
         self.with_label_rib(RibKind::Closure, |this| {
             let body = this.collect_expr_opt(expr);
-            if awaitable == Awaitable::Yes {
-                this.lower_async_block_with_moved_arguments(params, body, CoroutineSource::Fn)
+            if is_async_fn || is_gen_fn {
+                let kind = match (is_async_fn, is_gen_fn) {
+                    (true, true) => CoroutineKind::AsyncGen,
+                    (true, false) => CoroutineKind::Async,
+                    (false, true) => CoroutineKind::Gen,
+                    (false, false) => unreachable!(),
+                };
+                this.lower_coroutine_with_moved_arguments(params, body, kind, CoroutineSource::Fn)
             } else {
                 body
             }
@@ -1192,7 +1214,44 @@ impl<'db> ExprCollector<'db> {
                     self.with_label_rib(RibKind::Closure, |this| {
                         this.with_awaitable_block(Awaitable::Yes, |this| {
                             this.collect_block_(e, |this, id, statements, tail| {
-                                this.async_block(
+                                this.desugared_coroutine_expr(
+                                    CoroutineKind::Async,
+                                    CoroutineSource::Block,
+                                    capture_by,
+                                    id,
+                                    statements,
+                                    tail,
+                                )
+                            })
+                        })
+                    })
+                }
+                Some(ast::BlockModifier::Gen(_)) => {
+                    let capture_by =
+                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+                    self.with_label_rib(RibKind::Closure, |this| {
+                        this.with_awaitable_block(Awaitable::No("non-async gen block"), |this| {
+                            this.collect_block_(e, |this, id, statements, tail| {
+                                this.desugared_coroutine_expr(
+                                    CoroutineKind::Gen,
+                                    CoroutineSource::Block,
+                                    capture_by,
+                                    id,
+                                    statements,
+                                    tail,
+                                )
+                            })
+                        })
+                    })
+                }
+                Some(ast::BlockModifier::AsyncGen(_)) => {
+                    let capture_by =
+                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+                    self.with_label_rib(RibKind::Closure, |this| {
+                        this.with_awaitable_block(Awaitable::Yes, |this| {
+                            this.collect_block_(e, |this, id, statements, tail| {
+                                this.desugared_coroutine_expr(
+                                    CoroutineKind::AsyncGen,
                                     CoroutineSource::Block,
                                     capture_by,
                                     id,
@@ -1213,14 +1272,6 @@ impl<'db> ExprCollector<'db> {
                         })
                     })
                 }
-                // FIXME
-                Some(ast::BlockModifier::AsyncGen(_)) => {
-                    self.with_awaitable_block(Awaitable::Yes, |this| this.collect_block(e))
-                }
-                Some(ast::BlockModifier::Gen(_)) => self
-                    .with_awaitable_block(Awaitable::No("non-async gen block"), |this| {
-                        this.collect_block(e)
-                    }),
                 None => self.collect_block(e),
             },
             ast::Expr::LoopExpr(e) => {
@@ -1460,25 +1511,37 @@ impl<'db> ExprCollector<'db> {
                     };
                     let mut body = this
                         .with_awaitable_block(awaitable, |this| this.collect_expr_opt(e.body()));
+                    let kind = {
+                        if e.async_token().is_some() && e.gen_token().is_some() {
+                            Some(CoroutineKind::AsyncGen)
+                        } else if e.async_token().is_some() {
+                            Some(CoroutineKind::Async)
+                        } else if e.gen_token().is_some() {
+                            Some(CoroutineKind::Gen)
+                        } else {
+                            None
+                        }
+                    };
 
-                    let closure_kind = if this.is_lowering_coroutine {
+                    let closure_kind = if let Some(kind) = kind {
+                        // It's important that this expr is allocated immediately before the closure.
+                        // We rely on it for `coroutine_for_closure()`.
+                        body = this.lower_coroutine_with_moved_arguments(
+                            &mut args,
+                            body,
+                            kind,
+                            CoroutineSource::Closure,
+                        );
+                        body_is_bindings_owner = true;
+
+                        ClosureKind::CoroutineClosure(kind)
+                    } else if this.is_lowering_coroutine {
                         let movability = if e.static_token().is_some() {
                             Movability::Static
                         } else {
                             Movability::Movable
                         };
-                        ClosureKind::Coroutine(movability)
-                    } else if e.async_token().is_some() {
-                        // It's important that this expr is allocated immediately before the closure.
-                        // We rely on it for `coroutine_for_closure()`.
-                        body = this.lower_async_block_with_moved_arguments(
-                            &mut args,
-                            body,
-                            CoroutineSource::Closure,
-                        );
-                        body_is_bindings_owner = true;
-
-                        ClosureKind::AsyncClosure
+                        ClosureKind::OldCoroutine(movability)
                     } else {
                         ClosureKind::Closure
                     };

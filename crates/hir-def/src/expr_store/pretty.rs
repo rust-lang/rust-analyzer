@@ -17,8 +17,8 @@ use crate::{
     attrs::AttrFlags,
     expr_store::path::{GenericArg, GenericArgs},
     hir::{
-        Array, BindingAnnotation, CaptureBy, ClosureKind, Literal, Movability, RecordSpread,
-        Statement,
+        Array, BindingAnnotation, CaptureBy, ClosureKind, CoroutineKind, Literal, Movability,
+        RecordSpread, Statement,
         generics::{GenericParams, WherePredicate},
     },
     lang_item::LangItemTarget,
@@ -761,28 +761,36 @@ impl Printer<'_> {
                 let mut body = *body;
                 let mut print_pipes = true;
                 match closure_kind {
-                    ClosureKind::Coroutine(Movability::Static) => {
+                    ClosureKind::OldCoroutine(Movability::Static) => {
                         w!(self, "static ");
                     }
-                    ClosureKind::AsyncClosure => {
+                    ClosureKind::CoroutineClosure(kind) => {
                         if let Expr::Closure {
                             body: inner_body,
-                            closure_kind: ClosureKind::AsyncBlock { .. },
+                            closure_kind: ClosureKind::Coroutine { .. },
                             ..
                         } = self.store[body]
                         {
                             body = inner_body;
                         } else {
-                            never!("async closure should always have an async block body");
+                            never!("coroutine closure should always have a coroutine body");
                         }
 
-                        w!(self, "async ");
+                        match kind {
+                            CoroutineKind::Async => w!(self, "async "),
+                            CoroutineKind::Gen => w!(self, "gen "),
+                            CoroutineKind::AsyncGen => w!(self, "async gen "),
+                        }
                     }
-                    ClosureKind::AsyncBlock { .. } => {
-                        w!(self, "async ");
+                    ClosureKind::Coroutine { kind, .. } => {
+                        match kind {
+                            CoroutineKind::Async => w!(self, "async "),
+                            CoroutineKind::Gen => w!(self, "gen "),
+                            CoroutineKind::AsyncGen => w!(self, "async gen "),
+                        }
                         print_pipes = false;
                     }
-                    ClosureKind::Closure | ClosureKind::Coroutine(Movability::Movable) => (),
+                    ClosureKind::Closure | ClosureKind::OldCoroutine(Movability::Movable) => (),
                 }
                 match capture_by {
                     CaptureBy::Value => {

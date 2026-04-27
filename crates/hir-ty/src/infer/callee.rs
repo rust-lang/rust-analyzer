@@ -272,6 +272,7 @@ impl<'db> InferenceContext<'_, 'db> {
         // ...or *ideally*, we just have `LendingFn`/`LendingFnMut`, which
         // would naturally unify these two trait hierarchies in the most
         // general way.
+
         let call_trait_choices = if self.shallow_resolve(adjusted_ty).is_coroutine_closure() {
             [
                 (self.lang_items.AsyncFn, sym::async_call, true),

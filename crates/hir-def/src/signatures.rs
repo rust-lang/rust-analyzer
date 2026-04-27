@@ -567,19 +567,20 @@ bitflags! {
         const DEFAULT = 1 << 2;
         const CONST = 1 << 3;
         const ASYNC = 1 << 4;
-        const UNSAFE = 1 << 5;
-        const HAS_VARARGS = 1 << 6;
-        const RUSTC_ALLOW_INCOHERENT_IMPL = 1 << 7;
-        const HAS_SELF_PARAM = 1 << 8;
+        const GEN = 1 << 5;
+        const UNSAFE = 1 << 6;
+        const HAS_VARARGS = 1 << 7;
+        const RUSTC_ALLOW_INCOHERENT_IMPL = 1 << 8;
+        const HAS_SELF_PARAM = 1 << 9;
         /// The `#[target_feature]` attribute is necessary to check safety (with RFC 2396),
         /// but keeping it for all functions will consume a lot of memory when there are
         /// only very few functions with it. So we only encode its existence here, and lookup
         /// it if needed.
-        const HAS_TARGET_FEATURE = 1 << 9;
-        const DEPRECATED_SAFE_2024 = 1 << 10;
-        const EXPLICIT_SAFE = 1 << 11;
-        const HAS_LEGACY_CONST_GENERICS = 1 << 12;
-        const RUSTC_INTRINSIC = 1 << 13;
+        const HAS_TARGET_FEATURE = 1 << 10;
+        const DEPRECATED_SAFE_2024 = 1 << 11;
+        const EXPLICIT_SAFE = 1 << 12;
+        const HAS_LEGACY_CONST_GENERICS = 1 << 13;
+        const RUSTC_INTRINSIC = 1 << 14;
     }
 }
 
@@ -637,6 +638,9 @@ impl FunctionSignature {
         }
         if source.value.async_token().is_some() {
             flags.insert(FnFlags::ASYNC);
+        }
+        if source.value.gen_token().is_some() {
+            flags.insert(FnFlags::GEN);
         }
         if source.value.const_token().is_some() {
             flags.insert(FnFlags::CONST);
@@ -709,6 +713,10 @@ impl FunctionSignature {
 
     pub fn is_async(&self) -> bool {
         self.flags.contains(FnFlags::ASYNC)
+    }
+
+    pub fn is_gen(&self) -> bool {
+        self.flags.contains(FnFlags::GEN)
     }
 
     pub fn is_unsafe(&self) -> bool {

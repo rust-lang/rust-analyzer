@@ -163,6 +163,9 @@ fn write_function<'db>(f: &mut HirFormatter<'_, 'db>, func_id: FunctionId) -> Re
     if data.is_async() {
         f.write_str("async ")?;
     }
+    if data.is_gen() {
+        f.write_str("gen ")?;
+    }
     // FIXME: This will show `unsafe` for functions that are `#[target_feature]` but not unsafe
     // (they are conditionally unsafe to call). We probably should show something else.
     if func.is_unsafe_to_call(db, None, f.edition()) {
@@ -223,7 +226,7 @@ fn write_function<'db>(f: &mut HirFormatter<'_, 'db>, func_id: FunctionId) -> Re
     // `FunctionData::ret_type` will be `::core::future::Future<Output = ...>` for async fns.
     // Use ugly pattern match to strip the Future trait.
     // Better way?
-    let ret_type = if !data.is_async() {
+    let ret_type = if !data.is_async() && !data.is_gen() {
         data.ret_type
     } else if let Some(ret_type) = data.ret_type {
         match &data.store[ret_type] {

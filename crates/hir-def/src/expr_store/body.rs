@@ -74,6 +74,7 @@ impl Body {
         let mut params = None;
 
         let mut is_async_fn = false;
+        let mut is_gen_fn = false;
         let InFile { file_id, value: body } = {
             match def {
                 DefWithBodyId::FunctionId(f) => {
@@ -81,6 +82,7 @@ impl Body {
                     let src = f.source(db);
                     params = src.value.param_list();
                     is_async_fn = src.value.async_token().is_some();
+                    is_gen_fn = src.value.gen_token().is_some();
                     src.map(|it| it.body().map(ast::Expr::from))
                 }
                 DefWithBodyId::ConstId(c) => {
@@ -101,7 +103,8 @@ impl Body {
             }
         };
         let module = def.module(db);
-        let (body, source_map) = lower_body(db, def, file_id, module, params, body, is_async_fn);
+        let (body, source_map) =
+            lower_body(db, def, file_id, module, params, body, is_async_fn, is_gen_fn);
 
         (Arc::new(body), source_map)
     }

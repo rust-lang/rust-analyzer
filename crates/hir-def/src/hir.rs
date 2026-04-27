@@ -525,11 +525,18 @@ pub enum InlineAsmRegOrRegClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoroutineKind {
+    Async,
+    Gen,
+    AsyncGen,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClosureKind {
     Closure,
-    Coroutine(Movability),
-    AsyncBlock { source: CoroutineSource },
-    AsyncClosure,
+    OldCoroutine(Movability),
+    Coroutine { kind: CoroutineKind, source: CoroutineSource },
+    CoroutineClosure(CoroutineKind),
 }
 
 /// In the case of a coroutine created as part of an async/gen construct,
