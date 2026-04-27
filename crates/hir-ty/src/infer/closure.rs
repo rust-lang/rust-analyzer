@@ -95,6 +95,8 @@ impl<'db> InferenceContext<'_, 'db> {
 
         let tupled_upvars_ty = self.table.next_ty_var(closure_expr.into());
 
+        let closure_loc =
+            InternedClosure { owner: self.owner, expr: closure_expr, kind: closure_kind };
         // FIXME: We could probably actually just unify this further --
         // instead of having a `FnSig` and a `Option<CoroutineTypes>`,
         // we can have a `ClosureSignature { Coroutine { .. }, Closure { .. } }`,
@@ -132,10 +134,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     },
                 );
 
-                let closure_id = InternedClosureId::new(
-                    self.db,
-                    InternedClosure { owner: self.owner, expr: closure_expr },
-                );
+                let closure_id = InternedClosureId::new(self.db, closure_loc);
 
                 (Ty::new_closure(interner, closure_id.into(), closure_args.args), None)
             }
@@ -185,10 +184,7 @@ impl<'db> InferenceContext<'_, 'db> {
                     },
                 );
 
-                let coroutine_id = InternedCoroutineId::new(
-                    self.db,
-                    InternedClosure { owner: self.owner, expr: closure_expr },
-                );
+                let coroutine_id = InternedCoroutineId::new(self.db, closure_loc);
 
                 (
                     Ty::new_coroutine(interner, coroutine_id.into(), coroutine_args.args),
@@ -260,10 +256,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
                 let coroutine_upvars_ty = self.table.next_ty_var(closure_expr.into());
 
-                let coroutine_closure_id = InternedCoroutineClosureId::new(
-                    self.db,
-                    InternedClosure { owner: self.owner, expr: closure_expr },
-                );
+                let coroutine_closure_id = InternedCoroutineClosureId::new(self.db, closure_loc);
 
                 // We need to turn the liberated signature that we got from HIR, which
                 // looks something like `|Args...| -> T`, into a signature that is suitable

@@ -6,8 +6,12 @@ use either::Either;
 use hir_def::{
     AdtId, BuiltinDeriveImplId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumVariantId,
     ExpressionStoreOwnerId, FunctionId, GenericDefId, ImplId, LifetimeParamId, LocalFieldId,
-    StaticId, TraitId, TypeAliasId, VariantId, builtin_derive::BuiltinDeriveImplMethod,
-    db::DefDatabase, expr_store::ExpressionStore, hir::ExprId, layout::TargetDataLayout,
+    StaticId, TraitId, TypeAliasId, VariantId,
+    builtin_derive::BuiltinDeriveImplMethod,
+    db::DefDatabase,
+    expr_store::ExpressionStore,
+    hir::{ClosureKind, ExprId},
+    layout::TargetDataLayout,
 };
 use la_arena::ArenaMap;
 use salsa::plumbing::AsId;
@@ -229,10 +233,11 @@ pub struct InternedOpaqueTyId {
     pub loc: ImplTraitId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InternedClosure {
     pub owner: ExpressionStoreOwnerId,
     pub expr: ExprId,
+    pub kind: ClosureKind,
 }
 
 #[salsa_macros::interned(constructor = new_impl, no_lifetime, debug, revisions = usize::MAX)]

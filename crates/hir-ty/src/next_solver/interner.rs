@@ -14,6 +14,7 @@ use hir_def::{
     ItemContainerId, StructId, UnionId, VariantId,
     attrs::AttrFlags,
     expr_store::{Body, ExpressionStore},
+    hir::{ClosureKind as HirClosureKind, CoroutineKind as HirCoroutineKind},
     lang_item::LangItems,
     signatures::{
         EnumSignature, FieldData, FnFlags, FunctionSignature, ImplFlags, ImplSignature,
@@ -1311,28 +1312,35 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn coroutine_movability(self, def_id: Self::CoroutineId) -> rustc_ast_ir::Movability {
-        // FIXME: Make this a query? I don't believe this can be accessed from bodies other than
-        // the current infer query, except with revealed opaques - is it rare enough to not matter?
-        let InternedClosure { owner, expr: expr_id } = def_id.0.loc(self.db);
-        let store = ExpressionStore::of(self.db, owner);
-        let expr = &store[expr_id];
-        match *expr {
-            hir_def::hir::Expr::Closure { closure_kind, .. } => match closure_kind {
-                hir_def::hir::ClosureKind::OldCoroutine(movability) => match movability {
-                    hir_def::hir::Movability::Static => rustc_ast_ir::Movability::Static,
-                    hir_def::hir::Movability::Movable => rustc_ast_ir::Movability::Movable,
-                },
-                hir_def::hir::ClosureKind::Coroutine { .. } => rustc_ast_ir::Movability::Static,
-                _ => panic!("unexpected expression for a coroutine: {expr:?}"),
+        match def_id.0.loc(self.db).kind {
+            hir_def::hir::ClosureKind::OldCoroutine(movability) => match movability {
+                hir_def::hir::Movability::Static => rustc_ast_ir::Movability::Static,
+                hir_def::hir::Movability::Movable => rustc_ast_ir::Movability::Movable,
             },
-            _ => panic!("unexpected expression for a coroutine: {expr:?}"),
+            hir_def::hir::ClosureKind::Coroutine { .. } => rustc_ast_ir::Movability::Static,
+            kind => panic!("unexpected kind for a coroutine: {kind:?}"),
         }
     }
 
     fn coroutine_for_closure(self, def_id: Self::CoroutineClosureId) -> Self::CoroutineId {
-        let InternedClosure { owner, expr: coroutine_closure_expr } = def_id.0.loc(self.db);
+        let InternedClosure { owner, expr: coroutine_closure_expr, kind: coroutine_closure_kind } =
+            def_id.0.loc(self.db);
+        let coroutine_closure_kind = match coroutine_closure_kind {
+            HirClosureKind::CoroutineClosure(it) => it,
+            _ => {
+                panic!("invalid kind closure kind {coroutine_closure_kind:?} for coroutine closure")
+            }
+        };
         let coroutine_expr = ExpressionStore::coroutine_for_closure(coroutine_closure_expr);
-        InternedCoroutineId::new(self.db, InternedClosure { owner, expr: coroutine_expr }).into()
+        let coroutine_kind = hir_def::hir::ClosureKind::Coroutine {
+            kind: coroutine_closure_kind,
+            source: hir_def::hir::CoroutineSource::Closure,
+        };
+        InternedCoroutineId::new(
+            self.db,
+            InternedClosure { owner, expr: coroutine_expr, kind: coroutine_kind },
+        )
+        .into()
     }
 
     fn generics_require_sized_self(self, def_id: Self::DefId) -> bool {
@@ -1936,63 +1944,27 @@ impl<'db> Interner for DbInterner<'db> {
     }
 
     fn is_general_coroutine(self, def_id: Self::CoroutineId) -> bool {
-        // FIXME: Make this a query? I don't believe this can be accessed from bodies other than
-        // the current infer query, except with revealed opaques - is it rare enough to not matter?
-        let InternedClosure { owner, expr: expr_id } = def_id.0.loc(self.db);
-        let store = ExpressionStore::of(self.db, owner);
-        matches!(
-            store[expr_id],
-            hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::OldCoroutine(_),
-                ..
-            }
-        )
+        matches!(def_id.0.loc(self.db).kind, HirClosureKind::OldCoroutine(_))
     }
 
     fn coroutine_is_async(self, def_id: Self::CoroutineId) -> bool {
-        // FIXME: Make this a query? I don't believe this can be accessed from bodies other than
-        // the current infer query, except with revealed opaques - is it rare enough to not matter?
-        let InternedClosure { owner, expr: expr_id } = def_id.0.loc(self.db);
-        let store = ExpressionStore::of(self.db, owner);
         matches!(
-            store[expr_id],
-            hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::Coroutine {
-                    kind: hir_def::hir::CoroutineKind::Async,
-                    ..
-                },
-                ..
-            }
+            def_id.0.loc(self.db).kind,
+            HirClosureKind::Coroutine { kind: HirCoroutineKind::Async, .. }
         )
     }
 
     fn coroutine_is_gen(self, def_id: Self::CoroutineId) -> bool {
-        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
-        let store = ExpressionStore::of(self.db, owner);
         matches!(
-            store[expr_id],
-            hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::Coroutine {
-                    kind: hir_def::hir::CoroutineKind::Gen,
-                    ..
-                },
-                ..
-            }
+            def_id.0.loc(self.db).kind,
+            HirClosureKind::Coroutine { kind: HirCoroutineKind::Gen, .. }
         )
     }
 
     fn coroutine_is_async_gen(self, def_id: Self::CoroutineId) -> bool {
-        let InternedClosure(owner, expr_id) = def_id.0.loc(self.db);
-        let store = ExpressionStore::of(self.db, owner);
         matches!(
-            store[expr_id],
-            hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::Coroutine {
-                    kind: hir_def::hir::CoroutineKind::AsyncGen,
-                    ..
-                },
-                ..
-            }
+            def_id.0.loc(self.db).kind,
+            HirClosureKind::Coroutine { kind: HirCoroutineKind::AsyncGen, .. }
         )
     }
 
@@ -2104,17 +2076,20 @@ impl<'db> Interner for DbInterner<'db> {
         // Collect coroutines.
         let body = Body::of(self.db, def_id);
         body.exprs().for_each(|(expr_id, expr)| {
-            if matches!(
-                expr,
-                hir_def::hir::Expr::Closure {
-                    closure_kind: hir_def::hir::ClosureKind::Coroutine { .. }
-                        | hir_def::hir::ClosureKind::OldCoroutine(_),
-                    ..
-                }
-            ) {
+            if let hir_def::hir::Expr::Closure {
+                closure_kind:
+                    kind @ (hir_def::hir::ClosureKind::Coroutine { .. }
+                    | hir_def::hir::ClosureKind::OldCoroutine(_)),
+                ..
+            } = *expr
+            {
                 let coroutine = InternedCoroutineId::new(
                     self.db,
-                    InternedClosure { owner: ExpressionStoreOwnerId::Body(def_id), expr: expr_id },
+                    InternedClosure {
+                        owner: ExpressionStoreOwnerId::Body(def_id),
+                        expr: expr_id,
+                        kind,
+                    },
                 );
                 result.push(coroutine.into());
             }

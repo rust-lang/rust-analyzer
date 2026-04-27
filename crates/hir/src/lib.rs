@@ -5165,7 +5165,7 @@ impl<'db> Closure<'db> {
             AnyClosureId::ClosureId(it) => it.loc(db),
             AnyClosureId::CoroutineClosureId(it) => it.loc(db),
         };
-        let InternedClosure { owner, expr: closure } = closure;
+        let InternedClosure { owner, expr: closure, .. } = closure;
         let infer = InferenceResult::of(db, owner);
         let param_env = body_param_env_from_has_crate(db, owner);
         infer.closures_data[&closure]

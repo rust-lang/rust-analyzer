@@ -2144,7 +2144,7 @@ pub fn mir_body_for_closure_query<'db>(
     db: &'db dyn HirDatabase,
     closure: InternedClosureId,
 ) -> Result<'db, Arc<MirBody>> {
-    let InternedClosure { owner, expr } = closure.loc(db);
+    let InternedClosure { owner, expr, .. } = closure.loc(db);
     let body_owner =
         owner.as_def_with_body().expect("MIR lowering should only happen for body-owned closures");
     let body = Body::of(db, body_owner);
