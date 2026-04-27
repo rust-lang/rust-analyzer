@@ -5,8 +5,7 @@ mod tests;
 
 use base_db::Crate;
 use hir_def::{
-    ConstId, EnumVariantId, ExpressionStoreOwnerId, GeneralConstId, GenericDefId, HasModule,
-    StaticId,
+    ConstId, EnumVariantId, ExpressionStoreOwnerId, GenericDefId, HasModule, StaticId,
     attrs::AttrFlags,
     expr_store::{Body, ExpressionStore},
     hir::{Expr, ExprId, Literal},
@@ -19,7 +18,7 @@ use stdx::never;
 
 use crate::{
     LifetimeElisionKind, ParamEnvAndCrate, TyLoweringContext,
-    db::HirDatabase,
+    db::{GeneralConstId, HirDatabase},
     display::DisplayTarget,
     infer::InferenceContext,
     mir::{MirEvalError, MirLowerError, pad16},

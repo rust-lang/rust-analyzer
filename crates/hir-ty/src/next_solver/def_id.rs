@@ -1,9 +1,9 @@
 //! Definition of `SolverDefId`
 
 use hir_def::{
-    AdtId, AnonConstId, AttrDefId, BuiltinDeriveImplId, CallableDefId, ConstId, DefWithBodyId,
-    EnumId, EnumVariantId, ExpressionStoreOwnerId, FunctionId, GeneralConstId, GenericDefId,
-    ImplId, StaticId, StructId, TraitId, TypeAliasId, UnionId, VariantId,
+    AdtId, AttrDefId, BuiltinDeriveImplId, CallableDefId, ConstId, DefWithBodyId, EnumId,
+    EnumVariantId, ExpressionStoreOwnerId, FunctionId, GenericDefId, ImplId, StaticId, StructId,
+    TraitId, TypeAliasId, UnionId, VariantId,
     signatures::{
         ConstSignature, EnumSignature, FunctionSignature, StaticSignature, StructSignature,
         TraitSignature, TypeAliasSignature, UnionSignature,
@@ -13,7 +13,8 @@ use rustc_type_ir::inherent;
 use stdx::impl_from;
 
 use crate::db::{
-    InternedClosureId, InternedCoroutineClosureId, InternedCoroutineId, InternedOpaqueTyId,
+    AnonConstId, GeneralConstId, InternedClosureId, InternedCoroutineClosureId,
+    InternedCoroutineId, InternedOpaqueTyId,
 };
 
 use super::DbInterner;

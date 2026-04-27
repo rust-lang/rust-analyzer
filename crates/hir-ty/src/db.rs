@@ -1,7 +1,7 @@
 //! The home of `HirDatabase`, which is the Salsa database containing all the
 //! type inference-related queries.
 
-use base_db::{Crate, target::TargetLoadError};
+use base_db::{Crate, impl_intern_key, target::TargetLoadError};
 use either::Either;
 use hir_def::{
     AdtId, BuiltinDeriveImplId, CallableDefId, ConstId, ConstParamId, DefWithBodyId, EnumVariantId,
@@ -12,9 +12,12 @@ use hir_def::{
     expr_store::ExpressionStore,
     hir::{ClosureKind, ExprId},
     layout::TargetDataLayout,
+    signatures::{ConstSignature, StaticSignature},
 };
 use la_arena::ArenaMap;
 use salsa::plumbing::AsId;
+use span::Edition;
+use stdx::impl_from;
 use triomphe::Arc;
 
 use crate::{
@@ -335,5 +338,55 @@ impl InternedCoroutineClosureId {
         }
 
         Self::new_impl(db, loc)
+    }
+}
+
+/// An anonymous const expression that appears in a type position (e.g., array lengths,
+/// const generic arguments like `{ N + 1 }`). Unlike named constants, these don't have
+/// their own `Body` — their expressions live in the parent's signature `ExpressionStore`.
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub struct AnonConstLoc {
+    /// The owner store containing this expression.
+    pub owner: ExpressionStoreOwnerId,
+    /// The ExprId within the owner's ExpressionStore that is the root
+    /// of this anonymous const expression.
+    pub expr: ExprId,
+    pub ty: StoredTy,
+}
+impl_intern_key!(AnonConstId, AnonConstLoc);
+
+/// A constant, which might appears as a const item, an anonymous const block in expressions
+/// or patterns, or as a constant in types with const generics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa_macros::Supertype)]
+pub enum GeneralConstId {
+    ConstId(ConstId),
+    StaticId(StaticId),
+    AnonConstId(AnonConstId),
+}
+
+impl_from!(ConstId, StaticId, AnonConstId for GeneralConstId);
+
+impl GeneralConstId {
+    pub fn generic_def(self, db: &dyn HirDatabase) -> Option<GenericDefId> {
+        match self {
+            GeneralConstId::ConstId(it) => Some(it.into()),
+            GeneralConstId::StaticId(it) => Some(it.into()),
+            GeneralConstId::AnonConstId(it) => Some(it.loc(db).owner.generic_def(db)),
+        }
+    }
+
+    pub fn name(self, db: &dyn DefDatabase) -> String {
+        match self {
+            GeneralConstId::StaticId(it) => {
+                StaticSignature::of(db, it).name.display(db, Edition::CURRENT).to_string()
+            }
+            GeneralConstId::ConstId(const_id) => {
+                ConstSignature::of(db, const_id).name.as_ref().map_or_else(
+                    || "_".to_owned(),
+                    |name| name.display(db, Edition::CURRENT).to_string(),
+                )
+            }
+            GeneralConstId::AnonConstId(_) => "{anon const}".to_owned(),
+        }
     }
 }

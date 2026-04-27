@@ -1,7 +1,7 @@
 //! Defining `SolverContext` for next-trait-solver.
 
 use hir_def::{
-    AssocItemId, GeneralConstId,
+    AssocItemId,
     signatures::{ConstSignature, TypeAliasSignature},
 };
 use rustc_next_trait_solver::delegate::SolverDelegate;
@@ -16,6 +16,7 @@ use tracing::debug;
 
 use crate::{
     ParamEnvAndCrate, Span,
+    db::GeneralConstId,
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, GenericArgs,
         ParamEnv, Predicate, PredicateKind, SubtypePredicate, Ty, TyKind, UnevaluatedConst,

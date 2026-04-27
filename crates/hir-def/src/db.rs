@@ -7,12 +7,11 @@ use hir_expand::{
 use triomphe::Arc;
 
 use crate::{
-    AnonConstId, AnonConstLoc, AssocItemId, AttrDefId, BlockId, BlockLoc, ConstId, ConstLoc,
-    EnumId, EnumLoc, EnumVariantId, EnumVariantLoc, ExternBlockId, ExternBlockLoc, ExternCrateId,
-    ExternCrateLoc, FunctionId, FunctionLoc, ImplId, ImplLoc, Macro2Id, Macro2Loc, MacroExpander,
-    MacroId, MacroRulesId, MacroRulesLoc, MacroRulesLocFlags, ProcMacroId, ProcMacroLoc, StaticId,
-    StaticLoc, StructId, StructLoc, TraitId, TraitLoc, TypeAliasId, TypeAliasLoc, UnionId,
-    UnionLoc, UseId, UseLoc,
+    AssocItemId, AttrDefId, BlockId, BlockLoc, ConstId, ConstLoc, EnumId, EnumLoc, EnumVariantId,
+    EnumVariantLoc, ExternBlockId, ExternBlockLoc, ExternCrateId, ExternCrateLoc, FunctionId,
+    FunctionLoc, ImplId, ImplLoc, Macro2Id, Macro2Loc, MacroExpander, MacroId, MacroRulesId,
+    MacroRulesLoc, MacroRulesLocFlags, ProcMacroId, ProcMacroLoc, StaticId, StaticLoc, StructId,
+    StructLoc, TraitId, TraitLoc, TypeAliasId, TypeAliasLoc, UnionId, UnionLoc, UseId, UseLoc,
     attrs::AttrFlags,
     item_tree::{ItemTree, file_item_tree},
     nameres::crate_def_map,
@@ -50,9 +49,6 @@ pub trait InternDatabase: SourceDatabase {
 
     #[salsa::interned]
     fn intern_static(&self, loc: StaticLoc) -> StaticId;
-
-    #[salsa::interned]
-    fn intern_anon_const(&self, loc: AnonConstLoc) -> AnonConstId;
 
     #[salsa::interned]
     fn intern_trait(&self, loc: TraitLoc) -> TraitId;

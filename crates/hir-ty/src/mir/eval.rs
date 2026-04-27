@@ -5,8 +5,8 @@ use std::{borrow::Cow, cell::RefCell, fmt::Write, iter, mem, ops::Range};
 use base_db::{Crate, target::TargetLoadError};
 use either::Either;
 use hir_def::{
-    AdtId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, FunctionId, GeneralConstId,
-    HasModule, ItemContainerId, Lookup, StaticId, VariantId,
+    AdtId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, FunctionId, HasModule,
+    ItemContainerId, Lookup, StaticId, VariantId,
     expr_store::{Body, HygieneId},
     item_tree::FieldsShape,
     lang_item::LangItems,
@@ -40,7 +40,7 @@ use triomphe::Arc;
 use crate::{
     CallableDefId, ComplexMemoryMap, InferenceResult, MemoryMap, ParamEnvAndCrate,
     consteval::{self, ConstEvalError, try_const_usize},
-    db::{HirDatabase, InternedClosureId},
+    db::{GeneralConstId, HirDatabase, InternedClosureId},
     display::{ClosureStyle, DisplayTarget, HirDisplay},
     infer::PointerCast,
     layout::{Layout, LayoutError, RustcEnumVariantIdx},
@@ -2065,9 +2065,9 @@ impl<'a, 'db: 'a> Evaluator<'a, 'db> {
             ConstKind::Unevaluated(UnevaluatedConst { def: const_id, args: subst }) => {
                 let mut id = const_id.0;
                 let mut subst = subst;
-                if let hir_def::GeneralConstId::ConstId(c) = id {
+                if let GeneralConstId::ConstId(c) = id {
                     let (c, s) = lookup_impl_const(&self.infcx, self.param_env.param_env, c, subst);
-                    id = hir_def::GeneralConstId::ConstId(c);
+                    id = GeneralConstId::ConstId(c);
                     subst = s;
                 }
                 let allocation = match id {

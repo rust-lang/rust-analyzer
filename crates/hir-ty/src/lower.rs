@@ -13,8 +13,8 @@ use std::{cell::OnceCell, iter, mem};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, EnumId, EnumVariantId,
-    ExpressionStoreOwnerId, FunctionId, GeneralConstId, GenericDefId, GenericParamId, HasModule,
-    ImplId, ItemContainerId, LifetimeParamId, LocalFieldId, Lookup, StaticId, StructId, TraitId,
+    ExpressionStoreOwnerId, FunctionId, GenericDefId, GenericParamId, HasModule, ImplId,
+    ItemContainerId, LifetimeParamId, LocalFieldId, Lookup, StaticId, StructId, TraitId,
     TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, VariantId,
     builtin_type::BuiltinType,
     expr_store::{ExpressionStore, HygieneId, path::Path},
@@ -53,7 +53,7 @@ use triomphe::{Arc, ThinArc};
 use crate::{
     FnAbi, ImplTraitId, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
     consteval::intern_const_ref,
-    db::{HirDatabase, InternedOpaqueTyId},
+    db::{GeneralConstId, HirDatabase, InternedOpaqueTyId},
     generics::{Generics, SingleGenerics, generics},
     next_solver::{
         AliasTy, Binder, BoundExistentialPredicates, Clause, ClauseKind, Clauses, Const,

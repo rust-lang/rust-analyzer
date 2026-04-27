@@ -4,8 +4,8 @@ use std::{fmt::Write, iter, mem};
 
 use base_db::Crate;
 use hir_def::{
-    AdtId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, GeneralConstId, GenericParamId,
-    HasModule, ItemContainerId, LocalFieldId, Lookup, TraitId, TupleId,
+    AdtId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, GenericParamId, HasModule,
+    ItemContainerId, LocalFieldId, Lookup, TraitId, TupleId,
     expr_store::{Body, ExpressionStore, HygieneId, path::Path},
     hir::{
         ArithOp, Array, BinaryOp, BindingAnnotation, BindingId, ClosureKind, ExprId, ExprOrPatId,
@@ -29,7 +29,7 @@ use syntax::TextRange;
 use crate::{
     Adjust, Adjustment, AutoBorrow, CallableDefId, ParamEnvAndCrate,
     consteval::ConstEvalError,
-    db::{HirDatabase, InternedClosure, InternedClosureId},
+    db::{GeneralConstId, HirDatabase, InternedClosure, InternedClosureId},
     display::{DisplayTarget, HirDisplay, hir_display_with_store},
     generics::generics,
     infer::{
