@@ -80,6 +80,7 @@ diagnostics![AnyDiagnostic<'db> ->
     NeedMut,
     NonExhaustiveLet,
     NoSuchField,
+    PatternArgInExternFn,
     PrivateAssocItem,
     PrivateField,
     RemoveTrailingReturn,
@@ -484,6 +485,11 @@ pub struct GenericDefaultRefersToSelf {
 #[derive(Debug)]
 pub struct InvalidLhsOfAssignment {
     pub lhs: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
+}
+
+#[derive(Debug)]
+pub struct PatternArgInExternFn {
+    pub node: InFile<AstPtr<ast::Pat>>,
 }
 
 impl<'db> AnyDiagnostic<'db> {
