@@ -55,6 +55,7 @@ macro_rules! diagnostics {
 
 diagnostics![AnyDiagnostic<'db> ->
     AwaitOutsideOfAsync,
+    BaseExprInStructPattern,
     BreakOutsideOfLoop,
     CastToUnsized<'db>,
     ExpectedFunction<'db>,
@@ -484,6 +485,11 @@ pub struct GenericDefaultRefersToSelf {
 #[derive(Debug)]
 pub struct InvalidLhsOfAssignment {
     pub lhs: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
+}
+
+#[derive(Debug)]
+pub struct BaseExprInStructPattern {
+    pub node: InFile<AstPtr<ast::Expr>>,
 }
 
 impl<'db> AnyDiagnostic<'db> {

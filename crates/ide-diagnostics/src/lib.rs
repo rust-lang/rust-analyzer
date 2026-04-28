@@ -31,6 +31,7 @@ extern crate rustc_driver as _;
 mod handlers {
     pub(crate) mod await_outside_of_async;
     pub(crate) mod bad_rtn;
+    pub(crate) mod base_expr_in_struct_pattern;
     pub(crate) mod break_outside_of_loop;
     pub(crate) mod elided_lifetimes_in_path;
     pub(crate) mod expected_function;
@@ -483,6 +484,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::GenericDefaultRefersToSelf(d) => handlers::generic_default_refers_to_self::generic_default_refers_to_self(&ctx, &d),
             AnyDiagnostic::InvalidLhsOfAssignment(d) => handlers::invalid_lhs_of_assignment::invalid_lhs_of_assignment(&ctx, &d),
             AnyDiagnostic::TypeMustBeKnown(d) => handlers::type_must_be_known::type_must_be_known(&ctx, &d),
+            AnyDiagnostic::BaseExprInStructPattern(d) => handlers::base_expr_in_struct_pattern::base_expr_in_struct_pattern(&ctx, &d),
         };
         res.push(d)
     }

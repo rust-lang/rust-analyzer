@@ -303,6 +303,7 @@ pub enum ExpressionStoreDiagnostics {
     UnreachableLabel { node: InFile<AstPtr<ast::Lifetime>>, name: Name },
     AwaitOutsideOfAsync { node: InFile<AstPtr<ast::AwaitExpr>>, location: String },
     UndeclaredLabel { node: InFile<AstPtr<ast::Lifetime>>, name: Name },
+    BaseExprInStructPattern { node: InFile<AstPtr<ast::Expr>> },
 }
 
 impl ExpressionStoreBuilder {
