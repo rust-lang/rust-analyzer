@@ -541,9 +541,10 @@ pub fn block_expr(
     quote! {
         BlockExpr {
             StmtList {
-                ['{'] "\n"
-                #("    " #stmts "\n")*
-                #("    " #tail_expr "\n")*
+                ['{']
+                #("\n    " #stmts)*
+                #("\n    " #tail_expr)*
+                "\n"
                 ['}']
             }
         }
