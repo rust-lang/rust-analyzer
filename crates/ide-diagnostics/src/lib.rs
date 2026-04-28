@@ -72,6 +72,7 @@ mod handlers {
     pub(crate) mod typed_hole;
     pub(crate) mod undeclared_label;
     pub(crate) mod unimplemented_builtin_macro;
+    pub(crate) mod union_must_have_exactly_one_field;
     pub(crate) mod unreachable_label;
     pub(crate) mod unresolved_assoc_item;
     pub(crate) mod unresolved_extern_crate;
@@ -489,6 +490,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::InvalidLhsOfAssignment(d) => handlers::invalid_lhs_of_assignment::invalid_lhs_of_assignment(&ctx, &d),
             AnyDiagnostic::TypeMustBeKnown(d) => handlers::type_must_be_known::type_must_be_known(&ctx, &d),
             AnyDiagnostic::PatternArgInExternFn(d) => handlers::pattern_arg_in_extern_fn::pattern_arg_in_extern_fn(&ctx, &d),
+            AnyDiagnostic::UnionMustHaveExactlyOneField(d) => handlers::union_must_have_exactly_one_field::union_must_have_exactly_one_field(&ctx, &d),
         };
         res.push(d)
     }
