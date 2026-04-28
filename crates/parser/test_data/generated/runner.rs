@@ -958,8 +958,8 @@ mod err {
     #[test]
     fn top_level_let() { run_and_expect_errors("test_data/parser/inline/err/top_level_let.rs"); }
     #[test]
-    fn tuple_expr_leading_comma() {
-        run_and_expect_errors("test_data/parser/inline/err/tuple_expr_leading_comma.rs");
+    fn tuple_expr_empty_expr() {
+        run_and_expect_errors("test_data/parser/inline/err/tuple_expr_empty_expr.rs");
     }
     #[test]
     fn tuple_field_list_recovery() {
