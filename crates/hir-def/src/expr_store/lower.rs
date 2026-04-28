@@ -2819,7 +2819,7 @@ impl<'db> ExprCollector<'db> {
 
     // endregion: patterns
 
-    /// Returns `None` (and emits diagnostics) when `owner` if `#[cfg]`d out, and `Some(())` when
+    /// Returns `false` (and emits diagnostics) when `owner` if `#[cfg]`d out, and `true` when
     /// not.
     fn check_cfg(&mut self, owner: &dyn ast::HasAttrs) -> bool {
         let enabled = self.expander.is_cfg_enabled(owner, self.cfg_options);
