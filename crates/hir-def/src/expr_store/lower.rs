@@ -1013,11 +1013,15 @@ impl<'db> ExprCollector<'db> {
                 }
                 _ => (self.generate_new_name(), HygieneId::ROOT, false),
             };
+            let pat_syntax = self.store.pat_map_back.get(*param).copied();
             let child_binding_id =
                 self.alloc_binding(name.clone(), BindingAnnotation::Mutable, hygiene);
             let child_pat_id =
                 self.alloc_pat_desugared(Pat::Bind { id: child_binding_id, subpat: None });
             self.add_definition_to_binding(child_binding_id, child_pat_id);
+            if let Some(pat_syntax) = pat_syntax {
+                self.store.pat_map_back.insert(child_pat_id, pat_syntax);
+            }
             let expr = self.alloc_expr_desugared(Expr::Path(name.clone().into()));
             if !hygiene.is_root() {
                 self.store.ident_hygiene.insert(expr.into(), hygiene);
@@ -1045,6 +1049,9 @@ impl<'db> ExprCollector<'db> {
                 let parent_pat_id =
                     self.alloc_pat_desugared(Pat::Bind { id: parent_binding_id, subpat: None });
                 self.add_definition_to_binding(parent_binding_id, parent_pat_id);
+                if let Some(pat_syntax) = pat_syntax {
+                    self.store.pat_map_back.insert(parent_pat_id, pat_syntax);
+                }
                 *param = parent_pat_id;
             }
         }
