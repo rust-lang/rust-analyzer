@@ -17,7 +17,7 @@ use ide_db::{
 };
 use itertools::{Itertools, izip};
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind,
+    AstNode, NodeOrToken, SyntaxKind, TextRange,
     ast::{
         self, HasArgList, HasGenericArgs, Pat, PathExpr,
         edit::{AstNodeEdit, IndentLevel},
@@ -121,6 +121,18 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     // directly inlining into macros may cause errors.
                     .filter(|call_info| !ctx.sema.hir_file_for(call_info.node.syntax()).is_macro())
                     .collect();
+
+                // Skip calls nested inside other calls being inlined to avoid overlapping
+                // edits. Nested calls are implicitly replaced when the outer call is inlined.
+                let all_ranges: Vec<TextRange> =
+                    call_infos.iter().map(|ci| ci.node.syntax().text_range()).collect();
+                let (call_infos, nested_infos): (Vec<_>, Vec<_>) =
+                    call_infos.into_iter().partition(|ci| {
+                        let r = ci.node.syntax().text_range();
+                        !all_ranges.iter().any(|&other| other != r && other.contains_range(r))
+                    });
+                let nested_count = nested_infos.len();
+
                 let anchor = call_infos
                     .first()
                     .map(|ci| ci.node.syntax().clone())
@@ -138,7 +150,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                             editor.replace(call_info.node.syntax(), replacement.syntax());
                         })
                         .count();
-                    if replaced + use_trees.len() == count {
+                    if replaced + nested_count + use_trees.len() == count {
                         // we replaced all usages in this file, so we can remove the imports
                         for use_tree in &use_trees {
                             remove_use_tree_if_simple(use_tree, editor);
@@ -332,7 +344,7 @@ fn inline(
     CallInfo { node, arguments, generic_arg_list, krate }: &CallInfo,
     file_editor: &SyntaxEditor,
 ) -> ast::Expr {
-    let factory = file_editor.make();
+    let make = file_editor.make();
     let file_id = sema.hir_file_for(fn_body.syntax());
     let body_to_clone = if let Some(macro_file) = file_id.macro_file() {
         cov_mark::hit!(inline_call_defined_in_macro);
@@ -433,7 +445,7 @@ fn inline(
                     "",
                     1,
                 );
-                factory.ty(&stripped).syntax().clone()
+                editor.make().ty(&stripped).syntax().clone()
             } else {
                 t.syntax().clone()
             };
@@ -458,8 +470,12 @@ fn inline(
 
     let mut let_stmts: Vec<ast::Stmt> = Vec::new();
 
-    let this_token =
-        factory.name_ref("this").syntax().first_token().expect("NameRef should have had a token.");
+    let this_token = editor
+        .make()
+        .name_ref("this")
+        .syntax()
+        .first_token()
+        .expect("NameRef should have had a token.");
     let rewrite_self_to_this = |editor: &SyntaxEditor| {
         for usage in &self_token_usages {
             editor.replace(usage.clone(), this_token.clone());
@@ -494,7 +510,7 @@ fn inline(
             let is_self = param.name(sema.db).is_some_and(|name| name == sym::self_);
 
             if is_self {
-                let mut this_pat = factory.ident_pat(false, false, factory.name("this"));
+                let mut this_pat = make.ident_pat(false, false, make.name("this"));
                 let mut expr = expr.clone();
                 if let Pat::IdentPat(pat) = pat {
                     match (pat.ref_token(), pat.mut_token()) {
@@ -502,11 +518,11 @@ fn inline(
                         (None, None) => {}
                         // mut self => let mut this = obj
                         (None, Some(_)) => {
-                            this_pat = factory.ident_pat(false, true, factory.name("this"));
+                            this_pat = make.ident_pat(false, true, make.name("this"));
                         }
                         // &self => let this = &obj
                         (Some(_), None) => {
-                            expr = factory.expr_ref(expr, false);
+                            expr = make.expr_ref(expr, false);
                         }
                         // let foo = &mut X; &mut self => let this = &mut obj
                         // let mut foo = X;  &mut self => let this = &mut *obj (reborrow)
@@ -515,16 +531,16 @@ fn inline(
                                 .type_of_expr(&expr)
                                 .map(|ty| ty.original.is_mutable_reference());
                             expr = if let Some(true) = should_reborrow {
-                                factory.expr_reborrow(expr)
+                                make.expr_reborrow(expr)
                             } else {
-                                factory.expr_ref(expr, true)
+                                make.expr_ref(expr, true)
                             };
                         }
                     }
                 };
-                let_stmts.push(factory.let_stmt(this_pat.into(), ty, Some(expr)).into())
+                let_stmts.push(make.let_stmt(this_pat.into(), ty, Some(expr)).into())
             } else {
-                let_stmts.push(factory.let_stmt(pat.clone(), ty, Some(expr.clone())).into());
+                let_stmts.push(make.let_stmt(pat.clone(), ty, Some(expr.clone())).into());
             }
         };
 
@@ -545,8 +561,8 @@ fn inline(
             if let Some(field) = path_expr_as_record_field(usage) {
                 cov_mark::hit!(inline_call_inline_direct_field);
                 let field_name = field.field_name().unwrap();
-                let new_field = factory.record_expr_field(
-                    factory.name_ref(&field_name.text()),
+                let new_field = editor.make().record_expr_field(
+                    editor.make().name_ref(&field_name.text()),
                     Some(replacement.clone()),
                 );
                 editor.replace(field.syntax(), new_field.syntax());
@@ -562,7 +578,7 @@ fn inline(
                     && usage.syntax().parent().and_then(ast::Expr::cast).is_some() =>
             {
                 cov_mark::hit!(inline_call_inline_closure);
-                let expr = factory.expr_paren(expr.clone()).into();
+                let expr = editor.make().expr_paren(expr.clone()).into();
                 inline_direct(&editor, usage, &expr);
             }
             // inline single use literals
@@ -605,18 +621,18 @@ fn inline(
     let is_async_fn = function.is_async(sema.db);
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
-        body = factory.async_move_block_expr(body.statements(), body.tail_expr());
+        body = make.async_move_block_expr(body.statements(), body.tail_expr());
 
         // Arguments should be evaluated outside the async block, and then moved into it.
         if !let_stmts.is_empty() {
             cov_mark::hit!(inline_call_async_fn_with_let_stmts);
             body = body.indent(IndentLevel(1));
-            body = factory.block_expr(let_stmts, Some(body.into()));
+            body = make.block_expr(let_stmts, Some(body.into()));
         }
     } else if !let_stmts.is_empty() {
         // Prepend let statements to the body's existing statements
         let stmts: Vec<ast::Stmt> = let_stmts.into_iter().chain(body.statements()).collect();
-        body = factory.block_expr(stmts, body.tail_expr());
+        body = make.block_expr(stmts, body.tail_expr());
     }
 
     let original_indentation = match node {
@@ -628,7 +644,7 @@ fn inline(
     let no_stmts = body.statements().next().is_none();
     match body.tail_expr() {
         Some(expr) if matches!(expr, ast::Expr::ClosureExpr(_)) && no_stmts => {
-            factory.expr_paren(expr).into()
+            make.expr_paren(expr).into()
         }
         Some(expr) if !is_async_fn && no_stmts => expr,
         _ => match node
@@ -638,7 +654,7 @@ fn inline(
             .and_then(|bin_expr| bin_expr.lhs())
         {
             Some(lhs) if lhs.syntax() == node.syntax() => {
-                factory.expr_paren(ast::Expr::BlockExpr(body)).into()
+                make.expr_paren(ast::Expr::BlockExpr(body)).into()
             }
             _ => ast::Expr::BlockExpr(body),
         },
@@ -1914,6 +1930,28 @@ fn _hash2(self_: &u64, state: &mut u64) {
 }
 "#,
         )
+    }
+
+    #[test]
+    fn inline_callers_nested_calls() {
+        check_assist(
+            inline_into_callers,
+            r#"
+fn id$0(x: u32) -> u32 { x }
+fn main() {
+    let x = id(id(1));
+}
+"#,
+            r#"
+
+fn main() {
+    let x = {
+        let x = id(1);
+        x
+    };
+}
+"#,
+        );
     }
 
     #[test]

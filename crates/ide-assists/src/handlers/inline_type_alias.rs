@@ -69,14 +69,14 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>)
 
             let mut inline_refs_for_file = |file_id, refs: Vec<FileReference>| {
                 let source = ctx.sema.parse(file_id);
-                let mut editor = builder.make_editor(source.syntax());
+                let editor = builder.make_editor(source.syntax());
 
                 let (path_types, path_type_uses) = split_refs_and_uses(refs, |path_type| {
                     path_type.syntax().ancestors().nth(3).and_then(ast::PathType::cast)
                 });
                 path_type_uses
                     .iter()
-                    .for_each(|use_tree| remove_use_tree_if_simple(use_tree, &mut editor));
+                    .for_each(|use_tree| remove_use_tree_if_simple(use_tree, &editor));
 
                 for (target, replacement) in path_types.into_iter().filter_map(|path_type| {
                     let replacement =
