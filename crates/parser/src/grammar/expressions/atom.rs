@@ -216,16 +216,19 @@ fn tuple_expr(p: &mut Parser<'_>) -> CompletedMarker {
     let mut saw_comma = false;
     let mut saw_expr = false;
 
-    // test_err tuple_expr_leading_comma
-    // fn foo() {
-    //     (,);
-    // }
-    if p.eat(T![,]) {
-        p.error("expected expression");
-        saw_comma = true;
-    }
-
     while !p.at(EOF) && !p.at(T![')']) {
+        // test_err tuple_expr_leading_comma
+        // fn foo() {
+        //     (,);
+        //     (a, , b);
+        // }
+        if p.current() == T![,] {
+            p.error("expected expression");
+            p.bump(T![,]);
+            saw_comma = true;
+            continue;
+        }
+
         saw_expr = true;
 
         // test tuple_attrs
