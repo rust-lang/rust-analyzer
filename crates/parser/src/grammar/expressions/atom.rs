@@ -217,7 +217,7 @@ fn tuple_expr(p: &mut Parser<'_>) -> CompletedMarker {
     let mut saw_expr = false;
 
     while !p.at(EOF) && !p.at(T![')']) {
-        // test_err tuple_expr_leading_comma
+        // test_err tuple_expr_empty_expr
         // fn foo() {
         //     (,);
         //     (a, , b);
