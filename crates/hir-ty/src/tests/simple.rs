@@ -4279,3 +4279,17 @@ union U {
         "#]],
     );
 }
+
+#[test]
+fn async_closure_with_params() {
+    check_no_mismatches(
+        r#"
+fn foo() {
+    let capture = false;
+    async move |param: i32| {
+        capture;
+    };
+}
+    "#,
+    );
+}

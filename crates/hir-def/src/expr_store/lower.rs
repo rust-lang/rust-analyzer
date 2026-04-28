@@ -961,7 +961,7 @@ impl<'db> ExprCollector<'db> {
     /// into the body. This is to make sure that the future actually owns the
     /// arguments that are passed to the function, and to ensure things like
     /// drop order are stable.
-    fn lower_coroutine_with_moved_arguments(
+    fn lower_coroutine_body_with_moved_arguments(
         &mut self,
         params: &mut [PatId],
         body: ExprId,
@@ -1101,7 +1101,12 @@ impl<'db> ExprCollector<'db> {
                     (false, true) => CoroutineKind::Gen,
                     (false, false) => unreachable!(),
                 };
-                this.lower_coroutine_with_moved_arguments(params, body, kind, CoroutineSource::Fn)
+                this.lower_coroutine_body_with_moved_arguments(
+                    params,
+                    body,
+                    kind,
+                    CoroutineSource::Fn,
+                )
             } else {
                 body
             }
@@ -1525,11 +1530,11 @@ impl<'db> ExprCollector<'db> {
                 }
             }
             ast::Expr::ClosureExpr(e) => self.with_label_rib(RibKind::Closure, |this| {
-                this.with_binding_owner_and_return(|this| {
+                let mut is_coroutine_closure = false;
+                let closure = this.with_binding_owner_and_return(|this| {
                     let mut args = Vec::new();
                     let mut arg_types = Vec::new();
                     // For coroutine closures, the body, aka. the coroutine is the bindings owner, and not the closure.
-                    let mut body_is_bindings_owner = false;
                     if let Some(pl) = e.param_list() {
                         let num_params = pl.params().count();
                         args.reserve_exact(num_params);
@@ -1572,13 +1577,13 @@ impl<'db> ExprCollector<'db> {
                     let closure_kind = if let Some(kind) = kind {
                         // It's important that this expr is allocated immediately before the closure.
                         // We rely on it for `coroutine_for_closure()`.
-                        body = this.lower_coroutine_with_moved_arguments(
+                        body = this.lower_coroutine_body_with_moved_arguments(
                             &mut args,
                             body,
                             kind,
                             CoroutineSource::Closure,
                         );
-                        body_is_bindings_owner = true;
+                        is_coroutine_closure = true;
 
                         ClosureKind::CoroutineClosure(kind)
                     } else if this.is_lowering_coroutine {
@@ -1607,8 +1612,23 @@ impl<'db> ExprCollector<'db> {
                         syntax_ptr,
                     );
 
-                    (if body_is_bindings_owner { body } else { closure }, closure)
-                })
+                    (if is_coroutine_closure { body } else { closure }, closure)
+                });
+
+                if is_coroutine_closure {
+                    let Expr::Closure { args, .. } = &this.store.exprs[closure] else {
+                        unreachable!()
+                    };
+                    for &arg in args {
+                        let Pat::Bind { id, .. } = this.store.pats[arg] else {
+                            never!("`lower_coroutine_body_with_moved_arguments()` should make sure the coroutine closure only have simple bind args");
+                            continue;
+                        };
+                        this.store.binding_owners.insert(id, closure);
+                    }
+                }
+
+                closure
             }),
             ast::Expr::BinExpr(e) => {
                 let op = e.op_kind();
