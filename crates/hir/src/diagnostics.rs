@@ -77,6 +77,7 @@ diagnostics![AnyDiagnostic<'db> ->
     MovedOutOfRef<'db>,
     NeedMut,
     NonExhaustiveLet,
+    NonExhaustiveRecordExpr,
     NoSuchField,
     PrivateAssocItem,
     PrivateField,
@@ -313,6 +314,11 @@ pub struct MissingMatchArms {
 pub struct NonExhaustiveLet {
     pub pat: InFile<AstPtr<ast::Pat>>,
     pub uncovered_patterns: String,
+}
+
+#[derive(Debug)]
+pub struct NonExhaustiveRecordExpr {
+    pub expr: InFile<ExprOrPatPtr>,
 }
 
 #[derive(Debug)]
@@ -725,6 +731,9 @@ impl<'db> AnyDiagnostic<'db> {
             &InferenceDiagnostic::BreakOutsideOfLoop { expr, is_break, bad_value_break } => {
                 let expr = expr_syntax(expr)?;
                 BreakOutsideOfLoop { expr, is_break, bad_value_break }.into()
+            }
+            &InferenceDiagnostic::NonExhaustiveRecordExpr { expr } => {
+                NonExhaustiveRecordExpr { expr: expr_syntax(expr)? }.into()
             }
             InferenceDiagnostic::TypedHole { expr, expected } => {
                 let expr = expr_syntax(*expr)?;

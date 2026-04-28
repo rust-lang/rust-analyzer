@@ -368,6 +368,10 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         bad_value_break: bool,
     },
+    NonExhaustiveRecordExpr {
+        #[type_visitable(ignore)]
+        expr: ExprId,
+    },
     MismatchedArgCount {
         #[type_visitable(ignore)]
         call_expr: ExprId,
