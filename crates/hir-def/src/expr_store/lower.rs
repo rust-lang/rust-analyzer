@@ -1017,6 +1017,7 @@ impl<'db> ExprCollector<'db> {
                 self.alloc_binding(name.clone(), BindingAnnotation::Mutable, hygiene);
             let child_pat_id =
                 self.alloc_pat_desugared(Pat::Bind { id: child_binding_id, subpat: None });
+            self.add_definition_to_binding(child_binding_id, child_pat_id);
             let expr = self.alloc_expr_desugared(Expr::Path(name.clone().into()));
             if !hygiene.is_root() {
                 self.store.ident_hygiene.insert(expr.into(), hygiene);
@@ -1043,6 +1044,7 @@ impl<'db> ExprCollector<'db> {
                     self.alloc_binding(name.clone(), BindingAnnotation::Mutable, hygiene);
                 let parent_pat_id =
                     self.alloc_pat_desugared(Pat::Bind { id: parent_binding_id, subpat: None });
+                self.add_definition_to_binding(parent_binding_id, parent_pat_id);
                 *param = parent_pat_id;
             }
         }
