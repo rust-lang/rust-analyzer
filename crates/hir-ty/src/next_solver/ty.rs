@@ -27,7 +27,7 @@ use rustc_type_ir::{
 
 use crate::{
     FnAbi,
-    db::{HirDatabase, InternedClosure},
+    db::HirDatabase,
     lower::GenericPredicates,
     next_solver::{
         AdtDef, AliasTy, Binder, CallableIdWrapper, Clause, ClauseKind, ClosureIdWrapper, Const,
@@ -757,7 +757,7 @@ impl<'db> Ty<'db> {
                 }
             }
             TyKind::Coroutine(coroutine_id, _args) => {
-                let InternedClosure(owner, _) = coroutine_id.0.loc(db);
+                let owner = coroutine_id.0.loc(db).owner;
                 let krate = owner.krate(db);
                 if let Some(future_trait) = hir_def::lang_item::lang_items(db, krate).Future {
                     // This is only used by type walking.

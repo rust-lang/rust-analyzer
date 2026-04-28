@@ -2975,10 +2975,10 @@ impl<'db> Param<'db> {
             }
             Callee::Closure(closure, _) => {
                 let c = closure.loc(db);
-                let body_owner = c.0;
-                let store = ExpressionStore::of(db, c.0);
+                let body_owner = c.owner;
+                let store = ExpressionStore::of(db, c.owner);
 
-                if let Expr::Closure { args, .. } = &store[c.1]
+                if let Expr::Closure { args, .. } = &store[c.expr]
                     && let Pat::Bind { id, .. } = &store[args[self.idx]]
                 {
                     return Some(Local { parent: body_owner, binding_id: *id });
@@ -5165,7 +5165,7 @@ impl<'db> Closure<'db> {
             AnyClosureId::ClosureId(it) => it.loc(db),
             AnyClosureId::CoroutineClosureId(it) => it.loc(db),
         };
-        let InternedClosure(owner, closure) = closure;
+        let InternedClosure { owner, expr: closure, .. } = closure;
         let infer = InferenceResult::of(db, owner);
         let param_env = body_param_env_from_has_crate(db, owner);
         infer.closures_data[&closure]

@@ -136,7 +136,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 );
                 let adjust_steps = autoderef.adjust_steps_as_infer_ok();
                 let adjustments = autoderef.ctx().table.register_infer_ok(adjust_steps);
-                let def_id = def_id.0.loc(autoderef.ctx().db).1;
+                let def_id = def_id.0.loc(autoderef.ctx().db).expr;
                 autoderef.ctx().record_deferred_call_resolution(
                     def_id,
                     DeferredCallResolution {
@@ -187,7 +187,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 );
                 let adjust_steps = autoderef.adjust_steps_as_infer_ok();
                 let adjustments = autoderef.ctx().table.register_infer_ok(adjust_steps);
-                let def_id = def_id.0.loc(autoderef.ctx().db).1;
+                let def_id = def_id.0.loc(autoderef.ctx().db).expr;
                 autoderef.ctx().record_deferred_call_resolution(
                     def_id,
                     DeferredCallResolution {

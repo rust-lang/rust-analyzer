@@ -51,7 +51,7 @@ use stdx::never;
 
 use crate::{
     CallableDefId, FnAbi, ImplTraitId, MemoryMap, ParamEnvAndCrate, consteval,
-    db::{HirDatabase, InternedClosure},
+    db::HirDatabase,
     generics::generics,
     layout::Layout,
     lower::GenericPredicates,
@@ -1552,16 +1552,9 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
             }
             TyKind::CoroutineClosure(id, args) => {
                 let id = id.0;
-                let closure_kind = match id.loc(db) {
-                    InternedClosure(owner, expr_id) => {
-                        match &ExpressionStore::of(db, owner)[expr_id] {
-                            hir_def::hir::Expr::Closure {
-                                closure_kind: HirClosureKind::CoroutineClosure(kind),
-                                ..
-                            } => *kind,
-                            expr => panic!("invalid expr for coroutine closure: {expr:?}"),
-                        }
-                    }
+                let closure_kind = match id.loc(db).kind {
+                    HirClosureKind::CoroutineClosure(kind) => kind,
+                    kind => panic!("invalid kind for coroutine closure: {kind:?}"),
                 };
                 let closure_label = match closure_kind {
                     CoroutineKind::Async => "async closure",
@@ -1726,16 +1719,11 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
             }
             TyKind::Infer(..) => write!(f, "_")?,
             TyKind::Coroutine(coroutine_id, subst) => {
-                let InternedClosure(owner, expr_id) = coroutine_id.0.loc(db);
+                let kind = coroutine_id.0.loc(db).kind;
                 let CoroutineArgsParts { resume_ty, yield_ty, return_ty, .. } =
                     subst.split_coroutine_args();
-                let body = ExpressionStore::of(db, owner);
-                let expr = &body[expr_id];
-                match expr {
-                    hir_def::hir::Expr::Closure {
-                        closure_kind: HirClosureKind::Coroutine { kind: CoroutineKind::Async, .. },
-                        ..
-                    } => {
+                match kind {
+                    HirClosureKind::Coroutine { kind: CoroutineKind::Async, .. } => {
                         let future_trait = f.lang_items().Future;
                         let output = future_trait.and_then(|t| {
                             t.trait_items(db)
@@ -1761,10 +1749,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                         return_ty.hir_fmt(f)?;
                         write!(f, ">")?;
                     }
-                    hir_def::hir::Expr::Closure {
-                        closure_kind: HirClosureKind::Coroutine { kind: CoroutineKind::Gen, .. },
-                        ..
-                    } => {
+                    HirClosureKind::Coroutine { kind: CoroutineKind::Gen, .. } => {
                         let iterator_trait = f.lang_items().Iterator;
                         let item = iterator_trait.and_then(|t| {
                             t.trait_items(db)
@@ -1790,11 +1775,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                         yield_ty.hir_fmt(f)?;
                         write!(f, ">")?;
                     }
-                    hir_def::hir::Expr::Closure {
-                        closure_kind:
-                            HirClosureKind::Coroutine { kind: CoroutineKind::AsyncGen, .. },
-                        ..
-                    } => {
+                    HirClosureKind::Coroutine { kind: CoroutineKind::AsyncGen, .. } => {
                         let async_iterator_trait = f.lang_items().AsyncIterator;
                         let item = async_iterator_trait.and_then(|t| {
                             t.trait_items(db)
@@ -1822,10 +1803,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                         item_ty.hir_fmt(f)?;
                         write!(f, ">")?;
                     }
-                    hir_def::hir::Expr::Closure {
-                        closure_kind: HirClosureKind::OldCoroutine(..),
-                        ..
-                    } => {
+                    HirClosureKind::OldCoroutine(..) => {
                         if f.display_kind.is_source_code() {
                             return Err(HirDisplayError::DisplaySourceCodeError(
                                 DisplaySourceCodeError::Coroutine,
@@ -1841,7 +1819,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                         write!(f, " -> ")?;
                         return_ty.hir_fmt(f)?;
                     }
-                    _ => panic!("invalid expr for coroutine: {expr:?}"),
+                    _ => panic!("invalid kind for coroutine: {kind:?}"),
                 }
             }
             TyKind::CoroutineWitness(..) => write!(f, "{{coroutine witness}}")?,
