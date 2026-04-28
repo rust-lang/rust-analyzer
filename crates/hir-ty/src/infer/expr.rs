@@ -2007,7 +2007,7 @@ impl<'db> InferenceContext<'_, 'db> {
                         },
                         None => None,
                     };
-                    (arg_types.iter().collect(), expected_input_tys)
+                    (arg_types.to_vec(), expected_input_tys)
                 }
                 _ => {
                     // Otherwise, there's a mismatch, so clear out what we're expecting, and set
@@ -2017,7 +2017,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 }
             }
         } else {
-            (formal_input_tys.to_vec(), expected_input_tys)
+            (formal_input_tys, expected_input_tys)
         };
 
         // If there are no external expectations at the call site, just use the types from the function defn

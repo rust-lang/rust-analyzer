@@ -57,6 +57,7 @@ mod handlers {
     pub(crate) mod non_exhaustive_let;
     pub(crate) mod non_exhaustive_record_expr;
     pub(crate) mod parenthesized_generic_args_without_fn_trait;
+    pub(crate) mod pattern_arg_in_extern_fn;
     pub(crate) mod private_assoc_item;
     pub(crate) mod private_field;
     pub(crate) mod remove_trailing_return;
@@ -487,6 +488,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::GenericDefaultRefersToSelf(d) => handlers::generic_default_refers_to_self::generic_default_refers_to_self(&ctx, &d),
             AnyDiagnostic::InvalidLhsOfAssignment(d) => handlers::invalid_lhs_of_assignment::invalid_lhs_of_assignment(&ctx, &d),
             AnyDiagnostic::TypeMustBeKnown(d) => handlers::type_must_be_known::type_must_be_known(&ctx, &d),
+            AnyDiagnostic::PatternArgInExternFn(d) => handlers::pattern_arg_in_extern_fn::pattern_arg_in_extern_fn(&ctx, &d),
         };
         res.push(d)
     }

@@ -2482,9 +2482,7 @@ impl<'db> ExprCollector<'db> {
         let Some(pat) = pat else { return self.missing_pat() };
 
         match &pat {
-            ast::Pat::IdentPat(bp) => {
-                // FIXME: Emit an error if `!bp.is_simple_ident()`.
-
+            ast::Pat::IdentPat(bp) if bp.is_simple_ident() => {
                 let name = bp.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
                 let hygiene = bp
                     .name()
@@ -2496,8 +2494,12 @@ impl<'db> ExprCollector<'db> {
                 self.add_definition_to_binding(binding, pat);
                 pat
             }
-            // FIXME: Emit an error.
-            _ => self.missing_pat(),
+            _ => {
+                self.store.diagnostics.push(ExpressionStoreDiagnostics::PatternArgInExternFn {
+                    node: self.expander.in_file(AstPtr::new(&pat)),
+                });
+                self.missing_pat()
+            }
         }
     }
 

@@ -62,6 +62,8 @@ diagnostics![AnyDiagnostic<'db> ->
     InactiveCode,
     IncoherentImpl,
     IncorrectCase,
+    IncorrectGenericsLen,
+    IncorrectGenericsOrder,
     InvalidCast<'db>,
     InvalidDeriveTarget,
     InvalidLhsOfAssignment,
@@ -79,6 +81,7 @@ diagnostics![AnyDiagnostic<'db> ->
     NonExhaustiveLet,
     NonExhaustiveRecordExpr,
     NoSuchField,
+    PatternArgInExternFn,
     PrivateAssocItem,
     PrivateField,
     RemoveTrailingReturn,
@@ -106,8 +109,6 @@ diagnostics![AnyDiagnostic<'db> ->
     GenericArgsProhibited,
     ParenthesizedGenericArgsWithoutFnTrait,
     BadRtn,
-    IncorrectGenericsLen,
-    IncorrectGenericsOrder,
     MissingLifetime,
     ElidedLifetimesInPath,
     TypeMustBeKnown<'db>,
@@ -490,6 +491,11 @@ pub struct GenericDefaultRefersToSelf {
 #[derive(Debug)]
 pub struct InvalidLhsOfAssignment {
     pub lhs: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
+}
+
+#[derive(Debug)]
+pub struct PatternArgInExternFn {
+    pub node: InFile<AstPtr<ast::Pat>>,
 }
 
 impl<'db> AnyDiagnostic<'db> {

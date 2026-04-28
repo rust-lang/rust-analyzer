@@ -2388,6 +2388,9 @@ fn expr_store_diagnostics<'db>(
             ExpressionStoreDiagnostics::UndeclaredLabel { node, name } => {
                 UndeclaredLabel { node: *node, name: name.clone() }.into()
             }
+            ExpressionStoreDiagnostics::PatternArgInExternFn { node } => {
+                PatternArgInExternFn { node: *node }.into()
+            }
         });
     }
 
