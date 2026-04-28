@@ -968,37 +968,83 @@ impl<'db> ExprCollector<'db> {
         kind: CoroutineKind,
         coroutine_source: CoroutineSource,
     ) -> ExprId {
+        // Async function parameters are lowered into the closure body so that they are
+        // captured and so that the drop order matches the equivalent non-async functions.
+        //
+        // from:
+        //
+        //     async fn foo(<pattern>: <ty>, <pattern>: <ty>, <pattern>: <ty>) {
+        //         <body>
+        //     }
+        //
+        // into:
+        //
+        //     fn foo(__arg0: <ty>, __arg1: <ty>, __arg2: <ty>) {
+        //       async move {
+        //         let __arg2 = __arg2;
+        //         let <pattern> = __arg2;
+        //         let __arg1 = __arg1;
+        //         let <pattern> = __arg1;
+        //         let __arg0 = __arg0;
+        //         let <pattern> = __arg0;
+        //         drop-temps { <body> } // see comments later in fn for details
+        //       }
+        //     }
+        //
+        // If `<pattern>` is a simple ident, then it is lowered to a single
+        // `let <pattern> = <pattern>;` statement as an optimization.
+
         let mut statements = Vec::new();
         for param in params {
-            let (name, hygiene) = match self.store.pats[*param] {
-                Pat::Bind { id, .. }
+            let (name, hygiene, is_simple_parameter) = match self.store.pats[*param] {
+                // Check if this is a binding pattern, if so, we can optimize and avoid adding a
+                // `let <pat> = __argN;` statement. In this case, we do not rename the parameter.
+                Pat::Bind { id, subpat: None, .. }
                     if matches!(
                         self.store.bindings[id].mode,
                         BindingAnnotation::Unannotated | BindingAnnotation::Mutable
                     ) =>
                 {
-                    // If this is a direct binding, we can leave it as-is, as it'll always be captured anyway.
-                    continue;
+                    (self.store.bindings[id].name.clone(), self.store.bindings[id].hygiene, true)
                 }
                 Pat::Bind { id, .. } => {
                     // If this is a `ref` binding, we can't leave it as is but we can at least reuse the name, for better display.
-                    (self.store.bindings[id].name.clone(), self.store.bindings[id].hygiene)
+                    (self.store.bindings[id].name.clone(), self.store.bindings[id].hygiene, false)
                 }
-                _ => (self.generate_new_name(), HygieneId::ROOT),
+                _ => (self.generate_new_name(), HygieneId::ROOT, false),
             };
-            let binding_id = self.alloc_binding(name.clone(), BindingAnnotation::Mutable, hygiene);
-            let pat_id = self.alloc_pat_desugared(Pat::Bind { id: binding_id, subpat: None });
-            let expr = self.alloc_expr_desugared(Expr::Path(name.into()));
+            let child_binding_id =
+                self.alloc_binding(name.clone(), BindingAnnotation::Mutable, hygiene);
+            let child_pat_id =
+                self.alloc_pat_desugared(Pat::Bind { id: child_binding_id, subpat: None });
+            let expr = self.alloc_expr_desugared(Expr::Path(name.clone().into()));
             if !hygiene.is_root() {
                 self.store.ident_hygiene.insert(expr.into(), hygiene);
             }
             statements.push(Statement::Let {
-                pat: *param,
+                pat: child_pat_id,
                 type_ref: None,
                 initializer: Some(expr),
                 else_branch: None,
             });
-            *param = pat_id;
+            if !is_simple_parameter {
+                let expr = self.alloc_expr_desugared(Expr::Path(name.clone().into()));
+                if !hygiene.is_root() {
+                    self.store.ident_hygiene.insert(expr.into(), hygiene);
+                }
+                statements.push(Statement::Let {
+                    pat: *param,
+                    type_ref: None,
+                    initializer: Some(expr),
+                    else_branch: None,
+                });
+
+                let parent_binding_id =
+                    self.alloc_binding(name.clone(), BindingAnnotation::Mutable, hygiene);
+                let parent_pat_id =
+                    self.alloc_pat_desugared(Pat::Bind { id: parent_binding_id, subpat: None });
+                *param = parent_pat_id;
+            }
         }
 
         let coroutine = self.desugared_coroutine_expr(
