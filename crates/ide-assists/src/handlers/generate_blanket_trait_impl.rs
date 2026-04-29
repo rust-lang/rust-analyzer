@@ -130,10 +130,10 @@ pub(crate) fn generate_blanket_trait_impl(
                 ],
             );
 
-            if let Some(cap) = ctx.config.snippet_cap
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
                 && let Some(self_ty) = impl_.self_ty()
             {
-                builder.add_tabstop_before(cap, self_ty);
+                builder.add_tabstop_before(workspace_snippet_cap, self_ty);
             }
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

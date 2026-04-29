@@ -163,8 +163,10 @@ pub(crate) fn complete_attribute_path(
             item.lookup_by(lookup);
         }
 
-        if let Some((snippet, cap)) = snippet.zip(ctx.config.snippet_cap) {
-            item.insert_snippet(cap, snippet);
+        if let Some(snippet) = snippet
+            && let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap
+        {
+            item.insert_snippet(completion_snippet_cap, snippet);
         }
 
         if is_inner || !attr_completion.prefer_inner {

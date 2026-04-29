@@ -34,8 +34,10 @@ pub(super) fn complete_repr(
         if let Some(lookup) = lookup {
             item.lookup_by(lookup);
         }
-        if let Some((snippet, cap)) = snippet.zip(ctx.config.snippet_cap) {
-            item.insert_snippet(cap, snippet);
+        if let Some((snippet, completion_snippet_cap)) =
+            snippet.zip(ctx.config.completion_snippet_cap)
+        {
+            item.insert_snippet(completion_snippet_cap, snippet);
         }
         item.add_to(acc, ctx.db);
     }

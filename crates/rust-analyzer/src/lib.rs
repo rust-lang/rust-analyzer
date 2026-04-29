@@ -60,6 +60,8 @@ pub mod tracing {
 pub mod config;
 mod global_state;
 pub mod lsp;
+use std::fmt;
+
 use self::lsp::ext as lsp_ext;
 
 #[cfg(test)]
@@ -73,7 +75,7 @@ pub use crate::{
 };
 
 pub fn from_json<T: DeserializeOwned>(
-    what: &'static str,
+    what: impl fmt::Display,
     json: &serde_json::Value,
 ) -> anyhow::Result<T> {
     serde_json::from_value(json.clone())

@@ -16,7 +16,7 @@ use ide::{
     SourceRootId,
 };
 use ide_db::{
-    MiniCore, SnippetCap,
+    MiniCore,
     assists::ExprFillDefaultMode,
     imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind},
 };
@@ -1116,7 +1116,7 @@ pub struct Config {
 
     default_config: &'static DefaultConfigData,
     /// Config node that obtains its initial value during the server initialization and
-    /// by receiving a `lsp_types::notification::DidChangeConfiguration`.
+    /// by receiving a [`lsp_types::DidChangeConfigurationNotification`].
     client_config: (FullConfigInput, ConfigErrors),
 
     /// Config node whose values apply to **every** Rust project.
@@ -1839,7 +1839,7 @@ impl Config {
 
     pub fn assist(&self, source_root: Option<SourceRootId>) -> AssistConfig {
         AssistConfig {
-            snippet_cap: self.snippet_cap(),
+            workspace_snippet_cap: self.workspace_snippet_cap(),
             allowed: None,
             insert_use: self.insert_use_config(source_root),
             prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
@@ -1902,7 +1902,7 @@ impl Config {
                 CallableCompletionDef::None => None,
             },
             add_semicolon_to_unit: *self.completion_addSemicolonToUnit(source_root),
-            snippet_cap: SnippetCap::new(self.completion_snippet()),
+            completion_snippet_cap: self.completion_snippet_cap(),
             insert_use: self.insert_use_config(source_root),
             prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
             prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
@@ -1963,7 +1963,7 @@ impl Config {
                 ExprFillDefaultDef::Default => ExprFillDefaultMode::Default,
                 ExprFillDefaultDef::Underscore => ExprFillDefaultMode::Underscore,
             },
-            snippet_cap: self.snippet_cap(),
+            workspace_snippet_cap: self.workspace_snippet_cap(),
             insert_use: self.insert_use_config(source_root),
             prefer_no_std: self.imports_preferNoStd(source_root).to_owned(),
             prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
@@ -2654,12 +2654,6 @@ impl Config {
 
     pub fn find_all_refs_exclude_tests(&self) -> bool {
         *self.references_excludeTests()
-    }
-
-    pub fn snippet_cap(&self) -> Option<SnippetCap> {
-        // FIXME: Also detect the proposed lsp version at caps.workspace.workspaceEdit.snippetEditSupport
-        // once lsp-types has it.
-        SnippetCap::new(self.snippet_text_edit())
     }
 
     pub fn call_info(&self) -> CallInfoConfig {

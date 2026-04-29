@@ -200,7 +200,7 @@ fn add_missing_impl_members_inner(
             first_new_item = assoc_item_list.assoc_items().next();
         }
 
-        if let Some(cap) = ctx.config.snippet_cap {
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
             let mut placeholder = None;
             if let DefaultMethods::No = mode
                 && let Some(ast::AssocItem::Fn(func)) = &first_new_item
@@ -211,10 +211,10 @@ fn add_missing_impl_members_inner(
             }
 
             if let Some(macro_call) = placeholder {
-                let placeholder = edit.make_placeholder_snippet(cap);
+                let placeholder = edit.make_placeholder_snippet(workspace_snippet_cap);
                 editor.add_annotation(macro_call.syntax(), placeholder);
             } else if let Some(first_new_item) = first_new_item {
-                let tabstop = edit.make_tabstop_before(cap);
+                let tabstop = edit.make_tabstop_before(workspace_snippet_cap);
                 editor.add_annotation(first_new_item.syntax(), tabstop);
             };
         };

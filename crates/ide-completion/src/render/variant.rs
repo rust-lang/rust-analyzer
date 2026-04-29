@@ -2,7 +2,7 @@
 
 use crate::context::CompletionContext;
 use hir::{HasAttrs, HasCrate, HasVisibility, HirDisplay, StructKind};
-use ide_db::SnippetCap;
+use ide_db::CompletionSnippetCap;
 use itertools::Itertools;
 use syntax::SmolStr;
 
@@ -18,11 +18,11 @@ pub(crate) struct RenderedLiteral {
 /// the `name` argument for an anonymous type.
 pub(crate) fn render_record_lit(
     ctx: &CompletionContext<'_>,
-    snippet_cap: Option<SnippetCap>,
+    completion_snippet_cap: Option<CompletionSnippetCap>,
     fields: &[hir::Field],
     path: &str,
 ) -> RenderedLiteral {
-    if snippet_cap.is_none() {
+    if completion_snippet_cap.is_none() {
         return RenderedLiteral { literal: path.to_owned(), detail: path.to_owned() };
     }
     let completions = fields.iter().enumerate().format_with(", ", |(idx, field), f| {
@@ -39,7 +39,7 @@ pub(crate) fn render_record_lit(
                 f(&format_args!("{}: {fill}", field_name.display(ctx.db, ctx.edition)))
             }
         };
-        if snippet_cap.is_some() {
+        if completion_snippet_cap.is_some() {
             fmt_field(format_args!("${{{}:()}}", idx + 1), format_args!("${}", idx + 1))
         } else {
             fmt_field(format_args!("()"), format_args!(""))
@@ -64,15 +64,15 @@ pub(crate) fn render_record_lit(
 /// the `name` argument for an anonymous type.
 pub(crate) fn render_tuple_lit(
     ctx: &CompletionContext<'_>,
-    snippet_cap: Option<SnippetCap>,
+    completion_snippet_cap: Option<CompletionSnippetCap>,
     fields: &[hir::Field],
     path: &str,
 ) -> RenderedLiteral {
-    if snippet_cap.is_none() {
+    if completion_snippet_cap.is_none() {
         return RenderedLiteral { literal: path.to_owned(), detail: path.to_owned() };
     }
     let completions = fields.iter().enumerate().format_with(", ", |(idx, _), f| {
-        if snippet_cap.is_some() {
+        if completion_snippet_cap.is_some() {
             f(&format_args!("${{{}:()}}", idx + 1))
         } else {
             f(&format_args!("()"))
@@ -115,9 +115,9 @@ pub(crate) fn visible_fields(
 pub(crate) fn format_literal_label(
     name: &str,
     kind: StructKind,
-    snippet_cap: Option<SnippetCap>,
+    completion_snippet_cap: Option<CompletionSnippetCap>,
 ) -> SmolStr {
-    if snippet_cap.is_none() {
+    if completion_snippet_cap.is_none() {
         return name.into();
     }
     match kind {

@@ -168,7 +168,7 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
                 }
                 _ => fn_def.indent_with_mapping(new_indent, make).syntax().clone(),
             };
-            if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                 let extracted_fn = fn_def.descendants().find_map(ast::Fn::cast);
                 if let Some(fn_) = extracted_fn {
                     if let Some(ws) = fn_
@@ -176,9 +176,13 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
                         .and_then(|tok| tok.next_token())
                         .filter(|tok| tok.kind() == SyntaxKind::WHITESPACE)
                     {
-                        editor.add_annotation(ws, builder.make_tabstop_after(cap));
+                        editor
+                            .add_annotation(ws, builder.make_tabstop_after(workspace_snippet_cap));
                     } else if let Some(name) = fn_.name() {
-                        editor.add_annotation(name.syntax(), builder.make_tabstop_before(cap));
+                        editor.add_annotation(
+                            name.syntax(),
+                            builder.make_tabstop_before(workspace_snippet_cap),
+                        );
                     }
                 }
             }

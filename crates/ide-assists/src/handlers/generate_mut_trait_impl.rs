@@ -88,8 +88,8 @@ pub(crate) fn generate_mut_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_>
                 ],
             );
 
-            if let Some(cap) = ctx.config.snippet_cap {
-                let tabstop_before = edit.make_tabstop_before(cap);
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+                let tabstop_before = edit.make_tabstop_before(workspace_snippet_cap);
                 editor.add_annotation(new_impl.syntax(), tabstop_before);
             }
 
@@ -471,7 +471,7 @@ impl AsRef$0<i32> for [T; 3] {}
     fn no_snippets() {
         check_assist_with_config(
             generate_mut_trait_impl,
-            AssistConfig { snippet_cap: None, ..TEST_CONFIG },
+            AssistConfig { workspace_snippet_cap: None, ..TEST_CONFIG },
             r#"
 //- minicore: index
 pub enum Axis { X = 0, Y = 1, Z = 2 }

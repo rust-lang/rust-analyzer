@@ -166,14 +166,14 @@ impl Completions {
         let mut item =
             CompletionItem::new(CompletionItemKind::Keyword, ctx.source_range(), kw, ctx.edition);
 
-        match ctx.config.snippet_cap {
-            Some(cap) => {
+        match ctx.config.completion_snippet_cap {
+            Some(completion_snippet_cap) => {
                 if incomplete_let && snippet.ends_with('}') {
                     // complete block expression snippets with a trailing semicolon, if inside an incomplete let
                     cov_mark::hit!(let_semi);
-                    item.insert_snippet(cap, format!("{snippet};"));
+                    item.insert_snippet(completion_snippet_cap, format!("{snippet};"));
                 } else {
-                    item.insert_snippet(cap, snippet);
+                    item.insert_snippet(completion_snippet_cap, snippet);
                 }
             }
             None => {
@@ -192,9 +192,10 @@ impl Completions {
         let mut item =
             CompletionItem::new(CompletionItemKind::Keyword, ctx.source_range(), kw, ctx.edition);
 
-        match ctx.config.snippet_cap {
-            Some(cap) => item.insert_snippet(cap, snippet),
-            None => item.insert_text(if snippet.contains('$') { kw } else { snippet }),
+        if let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap {
+            item.insert_snippet(completion_snippet_cap, snippet)
+        } else {
+            item.insert_text(if snippet.contains('$') { kw } else { snippet })
         };
         item.add_to(self, ctx.db);
     }

@@ -214,10 +214,10 @@ fn wrap_derive(
             ],
         );
 
-        if let Some(snippet_cap) = ctx.config.snippet_cap
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
             && let Some(cfg_predicate) = meta.cfg_predicate()
         {
-            let tabstop = edit.make_placeholder_snippet(snippet_cap);
+            let tabstop = edit.make_placeholder_snippet(workspace_snippet_cap);
             editor.add_annotation(cfg_predicate.syntax(), tabstop);
         }
         edit.add_file_edits(ctx.vfs_file_id(), editor);
@@ -249,10 +249,10 @@ fn wrap_cfg_attrs(acc: &mut Assists, ctx: &AssistContext<'_>, attrs: Vec<ast::At
         let syntax_range = first_attr.syntax().clone().into()..=last_attr.syntax().clone().into();
         editor.replace_all(syntax_range, vec![cfg_attr.syntax().clone().into()]);
 
-        if let Some(snippet_cap) = ctx.config.snippet_cap
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
             && let Some(cfg_flag) = meta.cfg_predicate()
         {
-            let tabstop = edit.make_placeholder_snippet(snippet_cap);
+            let tabstop = edit.make_placeholder_snippet(workspace_snippet_cap);
             editor.add_annotation(cfg_flag.syntax(), tabstop);
         }
         edit.add_file_edits(ctx.vfs_file_id(), editor);

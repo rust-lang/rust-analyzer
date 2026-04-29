@@ -65,10 +65,10 @@ pub(crate) fn generate_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
 
             let impl_ = insert_impl(&editor, &impl_, &nominal);
             // Add a tabstop after the left curly brace
-            if let Some(cap) = ctx.config.snippet_cap
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
                 && let Some(l_curly) = impl_.assoc_item_list().and_then(|it| it.l_curly_token())
             {
-                let tabstop = edit.make_tabstop_after(cap);
+                let tabstop = edit.make_tabstop_after(workspace_snippet_cap);
                 editor.add_annotation(l_curly, tabstop);
             }
             edit.add_file_edits(ctx.vfs_file_id(), editor);
@@ -112,14 +112,14 @@ pub(crate) fn generate_trait_impl(acc: &mut Assists, ctx: &AssistContext<'_>) ->
             let impl_ = generate_trait_impl_intransitive(make, &nominal, make.ty_placeholder());
             let impl_ = insert_impl(&editor, &impl_, &nominal);
             // Make the trait type a placeholder snippet
-            if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                 if let Some(trait_) = impl_.trait_() {
-                    let placeholder = edit.make_placeholder_snippet(cap);
+                    let placeholder = edit.make_placeholder_snippet(workspace_snippet_cap);
                     editor.add_annotation(trait_.syntax(), placeholder);
                 }
 
                 if let Some(l_curly) = impl_.assoc_item_list().and_then(|it| it.l_curly_token()) {
-                    let tabstop = edit.make_tabstop_after(cap);
+                    let tabstop = edit.make_tabstop_after(workspace_snippet_cap);
                     editor.add_annotation(l_curly, tabstop);
                 }
             }
@@ -212,28 +212,28 @@ pub(crate) fn generate_impl_trait(acc: &mut Assists, ctx: &AssistContext<'_>) ->
 
             let impl_ = insert_impl(&editor, &impl_, &trait_);
 
-            if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                 if let Some(generics) = impl_.trait_().and_then(|it| it.generic_arg_list()) {
                     for generic in generics.generic_args() {
-                        let placeholder = edit.make_placeholder_snippet(cap);
+                        let placeholder = edit.make_placeholder_snippet(workspace_snippet_cap);
                         editor.add_annotation(generic.syntax(), placeholder);
                     }
                 }
 
                 if let Some(ty) = impl_.self_ty() {
-                    let placeholder = edit.make_placeholder_snippet(cap);
+                    let placeholder = edit.make_placeholder_snippet(workspace_snippet_cap);
                     editor.add_annotation(ty.syntax(), placeholder);
                 }
 
                 if let Some(expr) =
                     impl_.assoc_item_list().and_then(|it| it.assoc_items().find_map(extract_expr))
                 {
-                    let tabstop = edit.make_tabstop_before(cap);
+                    let tabstop = edit.make_tabstop_before(workspace_snippet_cap);
                     editor.add_annotation(expr.syntax(), tabstop);
                 } else if let Some(l_curly) =
                     impl_.assoc_item_list().and_then(|it| it.l_curly_token())
                 {
-                    let tabstop = edit.make_tabstop_after(cap);
+                    let tabstop = edit.make_tabstop_after(workspace_snippet_cap);
                     editor.add_annotation(l_curly, tabstop);
                 }
             }

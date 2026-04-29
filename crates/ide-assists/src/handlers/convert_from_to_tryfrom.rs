@@ -94,11 +94,11 @@ pub(crate) fn convert_from_to_tryfrom(acc: &mut Assists, ctx: &AssistContext<'_>
                 make.ty_alias(None, "Error", None, None, None, Some((make.ty("()"), None)));
             let error_type = ast::AssocItem::TypeAlias(error_type_alias);
 
-            if let Some(cap) = ctx.config.snippet_cap
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
                 && let ast::AssocItem::TypeAlias(type_alias) = &error_type
                 && let Some(ty) = type_alias.ty()
             {
-                let placeholder = builder.make_placeholder_snippet(cap);
+                let placeholder = builder.make_placeholder_snippet(workspace_snippet_cap);
                 editor.add_annotation(ty.syntax(), placeholder);
             }
 

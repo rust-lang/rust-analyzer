@@ -442,11 +442,11 @@ fn build_source_change(
         let items = items(ctx, info_of_record_fields, &assist_info, editor.make());
         impl_def.assoc_item_list().unwrap().add_items(&editor, items.clone());
 
-        if let Some(cap) = ctx.config.snippet_cap
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
             && let Some(ast::AssocItem::Fn(fn_)) = items.last()
             && let Some(name) = fn_.name()
         {
-            let tabstop = builder.make_tabstop_before(cap);
+            let tabstop = builder.make_tabstop_before(workspace_snippet_cap);
             editor.add_annotation(name.syntax(), tabstop);
         }
 
@@ -472,12 +472,12 @@ fn build_source_change(
         vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
     );
 
-    if let Some(cap) = ctx.config.snippet_cap
+    if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
         && let Some(assoc_list) = impl_def.assoc_item_list()
         && let Some(ast::AssocItem::Fn(fn_)) = assoc_list.assoc_items().last()
         && let Some(name) = fn_.name()
     {
-        let tabstop = builder.make_tabstop_before(cap);
+        let tabstop = builder.make_tabstop_before(workspace_snippet_cap);
         editor.add_annotation(name.syntax().clone(), tabstop);
     }
 
@@ -486,7 +486,9 @@ fn build_source_change(
 
 #[cfg(test)]
 mod tests_getter {
-    use crate::tests::{check_assist, check_assist_no_snippet_cap, check_assist_not_applicable};
+    use crate::tests::{
+        check_assist, check_assist_no_workspace_snippet_cap, check_assist_not_applicable,
+    };
 
     use super::*;
 
@@ -534,8 +536,8 @@ impl Context {
     }
 
     #[test]
-    fn test_generate_getter_from_field_no_snippet_cap() {
-        check_assist_no_snippet_cap(
+    fn test_generate_getter_from_field_no_workspace_snippet_cap() {
+        check_assist_no_workspace_snippet_cap(
             generate_getter,
             r#"
 struct Context {
@@ -555,7 +557,7 @@ impl Context {
 "#,
         );
 
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             generate_getter_mut,
             r#"
 struct Context {
@@ -633,8 +635,8 @@ impl Context {
     }
 
     #[test]
-    fn test_generate_getter_from_field_with_visibility_marker_no_snippet_cap() {
-        check_assist_no_snippet_cap(
+    fn test_generate_getter_from_field_with_visibility_marker_no_workspace_snippet_cap() {
+        check_assist_no_workspace_snippet_cap(
             generate_getter,
             r#"
 pub(crate) struct Context {
@@ -691,8 +693,8 @@ impl Context {
     }
 
     #[test]
-    fn test_multiple_generate_getter_no_snippet_cap() {
-        check_assist_no_snippet_cap(
+    fn test_multiple_generate_getter_no_workspace_snippet_cap() {
+        check_assist_no_workspace_snippet_cap(
             generate_getter,
             r#"
 struct Context {

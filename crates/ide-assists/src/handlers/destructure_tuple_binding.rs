@@ -192,10 +192,10 @@ fn edit_tuple_assignment(
         .and_then(ast::RecordPatField::for_field_name)
         .is_some_and(|field| field.colon_token().is_none());
 
-    if let Some(cap) = ctx.config.snippet_cap {
+    if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
         // place cursor on first tuple name
         if let Some(ast::Pat::IdentPat(first_pat)) = tuple_pat.fields().next() {
-            let annotation = edit.make_tabstop_before(cap);
+            let annotation = edit.make_tabstop_before(workspace_snippet_cap);
             editor.add_annotation(
                 first_pat.name().expect("first ident pattern should have a name").syntax(),
                 annotation,

@@ -1,5 +1,5 @@
 <!---
-lsp/ext.rs hash: dc4ba5f417c74aa6
+lsp/ext.rs hash: 1171d021ac1ad06
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -31,44 +31,10 @@ At the same time some essential configuration parameters are needed early on, be
 For this reason, we ask that `initializationOptions` contains the configuration, as if the server did make a `"workspace/configuration"` request.
 
 If a language client does not know about `rust-analyzer`'s configuration options it can get sensible defaults by doing any of the following:
- * Not sending `initializationOptions`
- * Sending `"initializationOptions": null`
- * Sending `"initializationOptions": {}`
 
-## Snippet `TextEdit`
-
-**Upstream Issue:** <https://github.com/microsoft/language-server-protocol/issues/724>
-
-**Experimental Client Capability:** `{ "snippetTextEdit": boolean }`
-
-If this capability is set, `WorkspaceEdit`s returned from `codeAction` requests and `TextEdit`s returned from `textDocument/onTypeFormatting` requests might contain `SnippetTextEdit`s instead of usual `TextEdit`s:
-
-```typescript
-interface SnippetTextEdit extends TextEdit {
-    insertTextFormat?: InsertTextFormat;
-    annotationId?: ChangeAnnotationIdentifier;
-}
-```
-
-```typescript
-export interface TextDocumentEdit {
-    textDocument: OptionalVersionedTextDocumentIdentifier;
-    edits: (TextEdit | SnippetTextEdit)[];
-}
-```
-
-When applying such code action or text edit, the editor should insert snippet, with tab stops and placeholders.
-At the moment, rust-analyzer guarantees that only a single `TextDocumentEdit` will have edits which can be `InsertTextFormat.Snippet`.
-Any additional `TextDocumentEdit`s will only have edits which are `InsertTextFormat.PlainText`.
-
-### Example
-
-"Add `derive`" code action transforms `struct S;` into `#[derive($0)] struct S;`
-
-### Unresolved Questions
-
-* Where exactly are `SnippetTextEdit`s allowed (only in code actions at the moment)?
-* Can snippets span multiple files (so far, no)?
+* Not sending `initializationOptions`
+* Sending `"initializationOptions": null`
+* Sending `"initializationOptions": {}`
 
 ## `CodeAction` Groups
 
@@ -130,7 +96,6 @@ This request is sent from client to server to handle "Goto Parent Module" editor
 **Request:** `TextDocumentPositionParams`
 
 **Response:** `Location | Location[] | LocationLink[] | null`
-
 
 ### Example
 
@@ -671,7 +636,6 @@ interface RunFlycheckParams {
 
 Triggers the flycheck processes.
 
-
 **Method:** `rust-analyzer/clearFlycheck`
 
 **Notification:**
@@ -849,6 +813,7 @@ interface CommandLinkGroup {
 ```
 
 Such actions on the client side are appended to a hover bottom as command links:
+
 ```
   +-----------------------------+
   | Hover content               |
@@ -874,7 +839,6 @@ This request is sent from client to server to open the current project's Cargo.t
 **Request:** `OpenCargoTomlParams`
 
 **Response:** `Location | null`
-
 
 ### Example
 
@@ -919,6 +883,7 @@ interface HoverParams extends WorkDoneProgressParams {
     position: Range | Position;
 }
 ```
+
 Whenever the client sends a `Range`, it is understood as the current selection and any hover included in the range will show the type of the expression if possible.
 
 ### Example
@@ -965,7 +930,6 @@ export const enum Direction {
 Extends the existing `workspace/symbol` request with ability to filter symbols by broad scope and kind of symbol.
 If this capability is set, `workspace/symbol` parameter gains two new optional fields:
 
-
 ```typescript
 interface WorkspaceSymbolParams {
     /**
@@ -1001,7 +965,6 @@ Commands can be serviced either by the server or by the client.
 However, the server doesn't know which commands are available on the client.
 
 This extensions allows the client to communicate this info.
-
 
 ```typescript
 export interface ClientCommandOptions {
@@ -1050,6 +1013,7 @@ export interface FetchDependencyListParams {}
 ```
 
 **Response:**
+
 ```typescript
 export interface FetchDependencyListResult {
     crates: {
@@ -1059,6 +1023,7 @@ export interface FetchDependencyListResult {
     }[];
 }
 ```
+
 Returns all crates from this workspace, so it can be used create a viewTree to help navigate the dependency tree.
 
 ## View Recursive Memory Layout
@@ -1100,8 +1065,8 @@ If `RecursiveMemoryLayout::nodes::length == 0` we could not find a suitable type
 
 Generic Types do not give anything because they are incomplete. Fully specified generic types do not give anything if they are selected directly but do work when a child of other types [this is consistent with other behavior](https://github.com/rust-lang/rust-analyzer/issues/15010).
 
-### Unresolved questions:
+### Unresolved questions
 
-- How should enums/unions be represented? currently they do not produce any children because they have multiple distinct sets of children.
-- Should niches be represented? currently they are not reported.
-- A visual representation of the memory layout is not specified, see the provided implementation for an example, however it may not translate well to terminal based editors or other such things.
+* How should enums/unions be represented? currently they do not produce any children because they have multiple distinct sets of children.
+* Should niches be represented? currently they are not reported.
+* A visual representation of the memory layout is not specified, see the provided implementation for an example, however it may not translate well to terminal based editors or other such things.

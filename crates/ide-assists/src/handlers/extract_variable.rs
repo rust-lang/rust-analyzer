@@ -211,8 +211,8 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
                 let pat_name = make.name(&var_name);
                 let name_expr = make.expr_path(make.ident_path(&var_name));
 
-                if let Some(cap) = ctx.config.snippet_cap {
-                    let tabstop = edit.make_tabstop_before(cap);
+                if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+                    let tabstop = edit.make_tabstop_before(workspace_snippet_cap);
                     editor.add_annotation(pat_name.syntax().clone(), tabstop);
                 }
 

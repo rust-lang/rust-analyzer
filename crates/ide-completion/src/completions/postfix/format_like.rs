@@ -17,7 +17,7 @@
 // ![Format String Completion](https://user-images.githubusercontent.com/48062697/113020656-b560f500-917a-11eb-87de-02991f61beb8.gif)
 
 use ide_db::{
-    SnippetCap,
+    CompletionSnippetCap,
     syntax_helpers::format_string_exprs::{Arg, parse_format_exprs, with_placeholders},
 };
 use syntax::{AstToken, ast};
@@ -46,14 +46,15 @@ pub(crate) fn add_format_like_completions(
     acc: &mut Completions,
     ctx: &CompletionContext<'_>,
     dot_receiver: &ast::Expr,
-    cap: SnippetCap,
+    completion_snippet_cap: CompletionSnippetCap,
     receiver_text: &ast::String,
     semi: &str,
 ) {
-    let postfix_snippet = match build_postfix_snippet_builder(ctx, cap, dot_receiver) {
-        Some(it) => it,
-        None => return,
-    };
+    let postfix_snippet =
+        match build_postfix_snippet_builder(ctx, completion_snippet_cap, dot_receiver) {
+            Some(it) => it,
+            None => return,
+        };
 
     if let Ok((mut out, mut exprs)) = parse_format_exprs(receiver_text.text()) {
         // Escape any snippet bits in the out text and any of the exprs.

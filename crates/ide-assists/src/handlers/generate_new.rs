@@ -196,7 +196,7 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
         };
 
         if let Some(fn_) = contain_fn.descendants().find_map(ast::Fn::cast)
-            && let Some(cap) = ctx.config.snippet_cap
+            && let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
         {
             match strukt.kind() {
                 StructKind::Tuple(_) => {
@@ -216,7 +216,8 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
                         for (struct_arg, fn_param) in struct_args.zip(fn_params.params()) {
                             if let Some(fn_pat) = fn_param.pat() {
                                 let fn_pat = fn_pat.syntax().clone();
-                                let placeholder = builder.make_placeholder_snippet(cap);
+                                let placeholder =
+                                    builder.make_placeholder_snippet(workspace_snippet_cap);
                                 editor.add_annotation_all(vec![struct_arg, fn_pat], placeholder)
                             }
                         }
@@ -227,7 +228,7 @@ pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
 
             // Add a tabstop before the name
             if let Some(name) = fn_.name() {
-                let tabstop_before = builder.make_tabstop_before(cap);
+                let tabstop_before = builder.make_tabstop_before(workspace_snippet_cap);
                 editor.add_annotation(name.syntax(), tabstop_before);
             }
         }

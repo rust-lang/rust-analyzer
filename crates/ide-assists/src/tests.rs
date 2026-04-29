@@ -3,7 +3,7 @@ mod generated;
 use expect_test::expect;
 use hir::{Semantics, db::HirDatabase, setup_tracing};
 use ide_db::{
-    EditionedFileId, FileRange, RootDatabase, SnippetCap,
+    EditionedFileId, FileRange, RootDatabase, WorkspaceSnippetCap,
     assists::ExprFillDefaultMode,
     base_db::SourceDatabase,
     imports::insert_use::{ImportGranularity, InsertUseConfig},
@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
-    snippet_cap: SnippetCap::new(true),
+    workspace_snippet_cap: WorkspaceSnippetCap::new(true),
     allowed: None,
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::Crate,
@@ -42,7 +42,7 @@ pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
 };
 
 pub(crate) const TEST_CONFIG_NO_GROUPING: AssistConfig = AssistConfig {
-    snippet_cap: SnippetCap::new(true),
+    workspace_snippet_cap: WorkspaceSnippetCap::new(true),
     allowed: None,
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::Crate,
@@ -64,7 +64,7 @@ pub(crate) const TEST_CONFIG_NO_GROUPING: AssistConfig = AssistConfig {
 };
 
 pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
-    snippet_cap: None,
+    workspace_snippet_cap: None,
     allowed: None,
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::Crate,
@@ -86,7 +86,7 @@ pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
 };
 
 pub(crate) const TEST_CONFIG_IMPORT_ONE: AssistConfig = AssistConfig {
-    snippet_cap: SnippetCap::new(true),
+    workspace_snippet_cap: WorkspaceSnippetCap::new(true),
     allowed: None,
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::One,
@@ -151,7 +151,7 @@ pub(crate) fn check_assist_with_config(
 }
 
 #[track_caller]
-pub(crate) fn check_assist_no_snippet_cap(
+pub(crate) fn check_assist_no_workspace_snippet_cap(
     assist: Handler,
     #[rust_analyzer::rust_fixture] ra_fixture_before: &str,
     #[rust_analyzer::rust_fixture] ra_fixture_after: &str,

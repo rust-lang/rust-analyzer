@@ -90,8 +90,10 @@ pub(crate) fn promote_local_to_const(acc: &mut Assists, ctx: &AssistContext<'_>)
 
             let item = make.item_const(None, None, make.name(&name), make.ty(&ty), initializer);
 
-            if let Some((cap, name)) = ctx.config.snippet_cap.zip(item.name()) {
-                let tabstop = edit.make_tabstop_before(cap);
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
+                && let Some(name) = item.name()
+            {
+                let tabstop = edit.make_tabstop_before(workspace_snippet_cap);
                 editor.add_annotation(name.syntax().clone(), tabstop);
             }
 

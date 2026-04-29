@@ -55,8 +55,11 @@ pub(crate) fn introduce_named_type_parameter(
             editor.replace(impl_trait_type.syntax(), new_ty.syntax());
             editor.add_generic_param(&fn_, type_param.clone().into());
 
-            if let Some(cap) = ctx.config.snippet_cap {
-                editor.add_annotation(type_param.syntax(), builder.make_tabstop_before(cap));
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
+                editor.add_annotation(
+                    type_param.syntax(),
+                    builder.make_tabstop_before(workspace_snippet_cap),
+                );
             }
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);

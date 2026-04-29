@@ -1,6 +1,8 @@
 //! This file provides snippet completions, like `pd` => `eprintln!(...)`.
 
-use ide_db::{SnippetCap, documentation::Documentation, imports::insert_use::ImportScope};
+use ide_db::{
+    CompletionSnippetCap, documentation::Documentation, imports::insert_use::ImportScope,
+};
 
 use crate::{
     CompletionContext, CompletionItem, CompletionItemKind, Completions, SnippetScope,
@@ -21,21 +23,22 @@ pub(crate) fn complete_expr_snippet(
         return;
     }
 
-    let cap = match ctx.config.snippet_cap {
-        Some(it) => it,
-        None => return,
+    let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap else {
+        return;
     };
 
     if !ctx.config.snippets.is_empty() {
-        add_custom_completions(acc, ctx, cap, SnippetScope::Expr);
+        add_custom_completions(acc, ctx, completion_snippet_cap, SnippetScope::Expr);
     }
 
     if in_block_expr {
-        snippet(ctx, cap, "pd", "eprintln!(\"$0 = {:?}\", $0);").add_to(acc, ctx.db);
-        snippet(ctx, cap, "ppd", "eprintln!(\"$0 = {:#?}\", $0);").add_to(acc, ctx.db);
+        snippet(ctx, completion_snippet_cap, "pd", "eprintln!(\"$0 = {:?}\", $0);")
+            .add_to(acc, ctx.db);
+        snippet(ctx, completion_snippet_cap, "ppd", "eprintln!(\"$0 = {:#?}\", $0);")
+            .add_to(acc, ctx.db);
         let item = snippet(
             ctx,
-            cap,
+            completion_snippet_cap,
             "macro_rules",
             "\
 macro_rules! $1 {
@@ -60,20 +63,19 @@ pub(crate) fn complete_item_snippet(
     if !ctx.qualifier_ctx.none() {
         return;
     }
-    let cap = match ctx.config.snippet_cap {
-        Some(it) => it,
-        None => return,
+    let Some(completion_snippet_cap) = ctx.config.completion_snippet_cap else {
+        return;
     };
 
     if !ctx.config.snippets.is_empty() {
-        add_custom_completions(acc, ctx, cap, SnippetScope::Item);
+        add_custom_completions(acc, ctx, completion_snippet_cap, SnippetScope::Item);
     }
 
     // Test-related snippets shouldn't be shown in blocks.
     if let ItemListKind::SourceFile | ItemListKind::Module = kind {
         let mut item = snippet(
             ctx,
-            cap,
+            completion_snippet_cap,
             "tmod (Test module)",
             "\
 #[cfg(test)]
@@ -91,7 +93,7 @@ mod tests {
 
         let mut item = snippet(
             ctx,
-            cap,
+            completion_snippet_cap,
             "tfn (Test function)",
             "\
 #[test]
@@ -104,7 +106,7 @@ fn ${1:feature}() {
 
         let item = snippet(
             ctx,
-            cap,
+            completion_snippet_cap,
             "macro_rules",
             "\
 macro_rules! $1 {
@@ -117,17 +119,22 @@ macro_rules! $1 {
     }
 }
 
-fn snippet(ctx: &CompletionContext<'_>, cap: SnippetCap, label: &str, snippet: &str) -> Builder {
+fn snippet(
+    ctx: &CompletionContext<'_>,
+    completion_snippet_cap: CompletionSnippetCap,
+    label: &str,
+    snippet: &str,
+) -> Builder {
     let mut item =
         CompletionItem::new(CompletionItemKind::Snippet, ctx.source_range(), label, ctx.edition);
-    item.insert_snippet(cap, snippet);
+    item.insert_snippet(completion_snippet_cap, snippet);
     item
 }
 
 fn add_custom_completions(
     acc: &mut Completions,
     ctx: &CompletionContext<'_>,
-    cap: SnippetCap,
+    completion_snippet_cap: CompletionSnippetCap,
     scope: SnippetScope,
 ) -> Option<()> {
     ImportScope::find_insert_use_container(&ctx.token.parent()?, &ctx.sema)?;
@@ -138,7 +145,7 @@ fn add_custom_completions(
                 None => return,
             };
             let body = snip.snippet();
-            let mut builder = snippet(ctx, cap, trigger, &body);
+            let mut builder = snippet(ctx, completion_snippet_cap, trigger, &body);
             builder.documentation(Documentation::new_owned(format!("```rust\n{body}\n```")));
             for import in imports.into_iter() {
                 builder.add_import(import);

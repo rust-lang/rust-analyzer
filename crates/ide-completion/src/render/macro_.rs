@@ -69,20 +69,19 @@ fn render(
         .set_documentation(docs)
         .set_relevance(ctx.completion_relevance());
 
-    match ctx.snippet_cap() {
-        Some(cap) if needs_bang && !has_call_parens => {
-            let snippet = format!("{escaped_name}!{bra}$0{ket}");
-            let lookup = banged_name(name);
-            item.insert_snippet(cap, snippet).lookup_by(lookup);
-        }
-        _ if needs_bang => {
-            item.insert_text(banged_name(&escaped_name)).lookup_by(banged_name(name));
-        }
-        _ => {
-            cov_mark::hit!(dont_insert_macro_call_parens_unnecessary);
-            item.insert_text(escaped_name);
-        }
-    };
+    if let Some(completion_snippet_cap) = ctx.completion_snippet_cap()
+        && needs_bang
+        && !has_call_parens
+    {
+        let snippet = format!("{escaped_name}!{bra}$0{ket}");
+        let lookup = banged_name(name);
+        item.insert_snippet(completion_snippet_cap, snippet).lookup_by(lookup);
+    } else if needs_bang {
+        item.insert_text(banged_name(&escaped_name)).lookup_by(banged_name(name));
+    } else {
+        cov_mark::hit!(dont_insert_macro_call_parens_unnecessary);
+        item.insert_text(escaped_name);
+    }
     if let Some(import_to_add) = ctx.import_to_add {
         item.add_import(import_to_add);
     }
@@ -98,7 +97,7 @@ fn label(
     name: &SmolStr,
 ) -> SmolStr {
     if needs_bang {
-        if ctx.snippet_cap().is_some() {
+        if ctx.completion_snippet_cap().is_some() {
             format_smolstr!("{name}!{bra}…{ket}",)
         } else {
             banged_name(name)

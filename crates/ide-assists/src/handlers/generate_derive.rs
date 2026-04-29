@@ -26,7 +26,7 @@ use crate::{AssistContext, AssistId, Assists};
 // }
 // ```
 pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let cap = ctx.config.snippet_cap?;
+    let workspace_snippet_cap = ctx.config.workspace_snippet_cap?;
     let nominal = ctx.find_node_at_offset::<ast::Adt>()?;
     let target = nominal.syntax().text_range();
     let derive_attr = nominal
@@ -76,7 +76,7 @@ pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
                     .r_paren_token()
                     .expect("make::attr_outer was expected to have a R_PAREN");
 
-                let tabstop_before = edit.make_tabstop_before(cap);
+                let tabstop_before = edit.make_tabstop_before(workspace_snippet_cap);
 
                 editor.add_annotation(delimiter, tabstop_before);
                 edit.add_file_edits(ctx.vfs_file_id(), editor);
@@ -84,7 +84,7 @@ pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
             Some(_) => {
                 // Just move the cursor.
                 edit.add_tabstop_before_token(
-                    cap,
+                    workspace_snippet_cap,
                     delimiter.expect("Right delim token could not be found."),
                 );
             }

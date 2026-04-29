@@ -3,10 +3,9 @@
 use std::{fmt, mem};
 
 use hir::Mutability;
-use ide_db::text_edit::TextEdit;
+use ide_db::{CompletionSnippetCap, text_edit::TextEdit};
 use ide_db::{
-    RootDatabase, SnippetCap, SymbolKind, documentation::Documentation,
-    imports::import_assets::LocatedImport,
+    RootDatabase, SymbolKind, documentation::Documentation, imports::import_assets::LocatedImport,
 };
 use itertools::Itertools;
 use macros::UpmapFromRaFixture;
@@ -670,10 +669,9 @@ impl Builder {
     }
     pub(crate) fn insert_snippet(
         &mut self,
-        cap: SnippetCap,
+        _completion_snippet_cap: CompletionSnippetCap,
         snippet: impl Into<String>,
     ) -> &mut Builder {
-        let _ = cap;
         self.is_snippet = true;
         self.insert_text(snippet)
     }
@@ -681,7 +679,11 @@ impl Builder {
         self.text_edit = Some(edit);
         self
     }
-    pub(crate) fn snippet_edit(&mut self, _cap: SnippetCap, edit: TextEdit) -> &mut Builder {
+    pub(crate) fn snippet_edit(
+        &mut self,
+        _completion_snippet_cap: CompletionSnippetCap,
+        edit: TextEdit,
+    ) -> &mut Builder {
         self.is_snippet = true;
         self.text_edit(edit)
     }

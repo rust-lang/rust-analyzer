@@ -147,12 +147,13 @@ pub(crate) fn wrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
                         ast::GenericArg::LifetimeArg(_) => false,
                         _ => true,
                     });
-                    if let Some(error_type_arg) = error_type_arg
-                        && let Some(cap) = ctx.config.snippet_cap
+
+                    if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap
+                        && let Some(error_type_arg) = error_type_arg
                     {
                         editor.add_annotation(
                             error_type_arg.syntax(),
-                            builder.make_placeholder_snippet(cap),
+                            builder.make_placeholder_snippet(workspace_snippet_cap),
                         );
                     }
                 }

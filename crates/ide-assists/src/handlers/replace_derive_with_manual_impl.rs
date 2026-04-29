@@ -180,22 +180,22 @@ fn add_assist(
             (generate_trait_impl(make, impl_is_unsafe, adt, trait_path), None)
         };
 
-        if let Some(cap) = ctx.config.snippet_cap {
+        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
             if let Some(first_assoc_item) = first_assoc_item {
                 if let ast::AssocItem::Fn(ref func) = first_assoc_item
                     && let Some(m) = func.syntax().descendants().find_map(ast::MacroCall::cast)
                     && m.syntax().text() == "todo!()"
                 {
                     // Make the `todo!()` a placeholder
-                    builder.add_placeholder_snippet(cap, m);
+                    builder.add_placeholder_snippet(workspace_snippet_cap, m);
                 } else {
                     // If we haven't already added a snippet, add a tabstop before the generated function
-                    builder.add_tabstop_before(cap, first_assoc_item);
+                    builder.add_tabstop_before(workspace_snippet_cap, first_assoc_item);
                 }
             } else if let Some(l_curly) =
                 impl_def.assoc_item_list().and_then(|it| it.l_curly_token())
             {
-                builder.add_tabstop_after_token(cap, l_curly);
+                builder.add_tabstop_after_token(workspace_snippet_cap, l_curly);
             }
         }
 
@@ -312,7 +312,9 @@ fn update_attribute(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{check_assist, check_assist_no_snippet_cap, check_assist_not_applicable};
+    use crate::tests::{
+        check_assist, check_assist_no_workspace_snippet_cap, check_assist_not_applicable,
+    };
 
     use super::*;
 
@@ -342,7 +344,7 @@ impl core::fmt::Debug for Foo {
     }
     #[test]
     fn add_custom_impl_without_snippet() {
-        check_assist_no_snippet_cap(
+        check_assist_no_workspace_snippet_cap(
             replace_derive_with_manual_impl,
             r#"
 //- minicore: fmt, derive

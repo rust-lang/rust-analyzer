@@ -112,10 +112,10 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
                             placeholder_ty.syntax().clone().into(),
                         ];
                         editor.insert_all(Position::after(pat.syntax()), elements);
-                        if let Some(cap) = ctx.config.snippet_cap {
+                        if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                             editor.add_annotation(
                                 placeholder_ty.syntax(),
-                                builder.make_placeholder_snippet(cap),
+                                builder.make_placeholder_snippet(workspace_snippet_cap),
                             );
                         }
                     }
@@ -173,9 +173,12 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
                 }
             };
 
-            if let Some(cap) = ctx.config.snippet_cap {
+            if let Some(workspace_snippet_cap) = ctx.config.workspace_snippet_cap {
                 for arg in fish_head.generic_args() {
-                    editor.add_annotation(arg.syntax(), builder.make_placeholder_snippet(cap));
+                    editor.add_annotation(
+                        arg.syntax(),
+                        builder.make_placeholder_snippet(workspace_snippet_cap),
+                    );
                 }
             }
             builder.add_file_edits(ctx.vfs_file_id(), editor);
