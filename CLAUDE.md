@@ -1,5 +1,12 @@
-**Reminder: All AI usage must be disclosed in commit messages, see
-CONTRIBUTING.md for more details.**
+## Attribution
+
+AI agents MUST disclose the tool and model used in a commit message trailer:
+
+```
+Assisted-by: AGENT_NAME:MODEL_VERSION
+```
+
+AI agents MUST NOT use a `Co-authored-by` trailer.
 
 ## Build Commands
 
