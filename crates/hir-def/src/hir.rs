@@ -76,6 +76,38 @@ impl ExprOrPatId {
 }
 stdx::impl_from!(ExprId, PatId for ExprOrPatId);
 
+// FIXME: Eventually encode this as a single u32 like ExprOrPatId?
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, salsa::Update)]
+pub enum TypeRefOrExprId {
+    TypeRefId(TypeRefId),
+    ExprId(ExprId),
+}
+
+impl TypeRefOrExprId {
+    pub fn as_type_ref(self) -> Option<TypeRefId> {
+        match self {
+            Self::TypeRefId(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn is_type_ref(&self) -> bool {
+        matches!(self, Self::TypeRefId(_))
+    }
+
+    pub fn as_expr(self) -> Option<ExprId> {
+        match self {
+            Self::ExprId(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn is_expr(&self) -> bool {
+        matches!(self, Self::ExprId(_))
+    }
+}
+stdx::impl_from!(TypeRefId, ExprId for TypeRefOrExprId);
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Label {
     pub name: Name,
