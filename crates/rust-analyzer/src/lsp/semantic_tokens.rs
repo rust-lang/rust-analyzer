@@ -4,132 +4,123 @@ use std::{fmt, ops, slice::Iter};
 
 use lsp_types::{Range, SemanticTokenModifiers, SemanticTokens, SemanticTokensEdit};
 
-#[repr(u32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub(crate) enum SupportedType {
-    Comment,
-    Decorator,
-    EnumMember,
-    Enum,
-    Function,
-    Interface,
-    Keyword,
-    Macro,
-    Method,
-    Namespace,
-    Number,
-    Operator,
-    Parameter,
-    Property,
-    String,
-    Struct,
-    TypeParameter,
-    Variable,
-    Type,
-    Label,
-    Angle,
-    Arithmetic,
-    AttributeBracket,
-    Attribute,
-    Bitwise,
-    Boolean,
-    Brace,
-    Bracket,
-    BuiltinAttribute,
-    BuiltinType,
-    Char,
-    Colon,
-    Comma,
-    Comparison,
-    ConstParameter,
-    Const,
-    DeriveHelper,
-    Derive,
-    Dot,
-    EscapeSequence,
-    FormatSpecifier,
-    Generic,
-    InvalidEscapeSequence,
-    Lifetime,
-    Logical,
-    MacroBang,
-    Negation,
-    Parenthesis,
-    ProcMacro,
-    Punctuation,
-    SelfKeyword,
-    SelfTypeKeyword,
-    Semicolon,
-    Static,
-    ToolModule,
-    TypeAlias,
-    Union,
-    UnresolvedReference,
+macro_rules! declare_enum {
+    (
+        $(#[$attrs:meta])*
+        $visibility:vis enum $name:ident {
+            $($variant:ident),* $(,)?
+        }
+    ) => {
+        $(#[$attrs])*
+        $visibility enum $name {
+            $($variant,)*
+        }
+
+        impl $name {
+            pub(crate) fn iter() -> Iter<'static, Self> {
+                static ITEMS: &[$name] = &[
+                    $(
+                        $name::$variant,
+                    )*
+                ];
+                ITEMS.iter()
+            }
+        }
+    };
 }
 
-impl SupportedType {
-    pub(crate) fn iter() -> Iter<'static, Self> {
-        static ITEMS: &[SupportedType] = &[
-            SupportedType::Comment,
-            SupportedType::Decorator,
-            SupportedType::EnumMember,
-            SupportedType::Enum,
-            SupportedType::Function,
-            SupportedType::Interface,
-            SupportedType::Keyword,
-            SupportedType::Macro,
-            SupportedType::Method,
-            SupportedType::Namespace,
-            SupportedType::Number,
-            SupportedType::Operator,
-            SupportedType::Parameter,
-            SupportedType::Property,
-            SupportedType::String,
-            SupportedType::Struct,
-            SupportedType::TypeParameter,
-            SupportedType::Variable,
-            SupportedType::Type,
-            SupportedType::Label,
-            SupportedType::Angle,
-            SupportedType::Arithmetic,
-            SupportedType::AttributeBracket,
-            SupportedType::Attribute,
-            SupportedType::Bitwise,
-            SupportedType::Boolean,
-            SupportedType::Brace,
-            SupportedType::Bracket,
-            SupportedType::BuiltinAttribute,
-            SupportedType::BuiltinType,
-            SupportedType::Char,
-            SupportedType::Colon,
-            SupportedType::Comma,
-            SupportedType::Comparison,
-            SupportedType::ConstParameter,
-            SupportedType::Const,
-            SupportedType::DeriveHelper,
-            SupportedType::Derive,
-            SupportedType::Dot,
-            SupportedType::EscapeSequence,
-            SupportedType::FormatSpecifier,
-            SupportedType::Generic,
-            SupportedType::InvalidEscapeSequence,
-            SupportedType::Lifetime,
-            SupportedType::Logical,
-            SupportedType::MacroBang,
-            SupportedType::Negation,
-            SupportedType::Parenthesis,
-            SupportedType::ProcMacro,
-            SupportedType::Punctuation,
-            SupportedType::SelfKeyword,
-            SupportedType::SelfTypeKeyword,
-            SupportedType::Semicolon,
-            SupportedType::Static,
-            SupportedType::ToolModule,
-            SupportedType::TypeAlias,
-            SupportedType::Union,
-            SupportedType::UnresolvedReference,
-        ];
-        ITEMS.iter()
+declare_enum! {
+    #[repr(u32)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub(crate) enum SupportedType {
+        Comment,
+        Decorator,
+        EnumMember,
+        Enum,
+        Function,
+        Interface,
+        Keyword,
+        Macro,
+        Method,
+        Namespace,
+        Number,
+        Operator,
+        Parameter,
+        Property,
+        String,
+        Struct,
+        TypeParameter,
+        Variable,
+        Type,
+        Label,
+        Angle,
+        Arithmetic,
+        AttributeBracket,
+        Attribute,
+        Bitwise,
+        Boolean,
+        Brace,
+        Bracket,
+        BuiltinAttribute,
+        BuiltinType,
+        Char,
+        Colon,
+        Comma,
+        Comparison,
+        ConstParameter,
+        Const,
+        DeriveHelper,
+        Derive,
+        Dot,
+        EscapeSequence,
+        FormatSpecifier,
+        Generic,
+        InvalidEscapeSequence,
+        Lifetime,
+        Logical,
+        MacroBang,
+        Negation,
+        Parenthesis,
+        ProcMacro,
+        Punctuation,
+        SelfKeyword,
+        SelfTypeKeyword,
+        Semicolon,
+        Static,
+        ToolModule,
+        TypeAlias,
+        Union,
+        UnresolvedReference,
+    }
+}
+
+declare_enum! {
+    #[repr(u32)]
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub(crate) enum SupportedModifiers {
+        Async,
+        Documentation,
+        Declaration,
+        Static,
+        DefaultLibrary,
+        Deprecated,
+        Associated,
+        AttributeModifier,
+        Callable,
+        Constant,
+        Consuming,
+        ControlFlow,
+        CrateRoot,
+        Injected,
+        IntraDocLink,
+        Library,
+        MacroModifier,
+        Mutable,
+        ProcMacroModifier,
+        Public,
+        Reference,
+        TraitModifier,
+        Unsafe,
     }
 }
 
@@ -223,65 +214,6 @@ pub(crate) fn standard_fallback_type(token: SupportedType) -> Option<SupportedTy
         SupportedType::Label => SupportedType::Label,
         _ => return None,
     })
-}
-
-#[repr(u32)]
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub(crate) enum SupportedModifiers {
-    Async,
-    Documentation,
-    Declaration,
-    Static,
-    DefaultLibrary,
-    Deprecated,
-    Associated,
-    AttributeModifier,
-    Callable,
-    Constant,
-    Consuming,
-    ControlFlow,
-    CrateRoot,
-    Injected,
-    IntraDocLink,
-    Library,
-    MacroModifier,
-    Mutable,
-    ProcMacroModifier,
-    Public,
-    Reference,
-    TraitModifier,
-    Unsafe,
-}
-
-impl SupportedModifiers {
-    pub(crate) fn iter() -> Iter<'static, Self> {
-        static ITEMS: &[SupportedModifiers] = &[
-            SupportedModifiers::Async,
-            SupportedModifiers::Documentation,
-            SupportedModifiers::Declaration,
-            SupportedModifiers::Static,
-            SupportedModifiers::DefaultLibrary,
-            SupportedModifiers::Deprecated,
-            SupportedModifiers::Associated,
-            SupportedModifiers::AttributeModifier,
-            SupportedModifiers::Callable,
-            SupportedModifiers::Constant,
-            SupportedModifiers::Consuming,
-            SupportedModifiers::ControlFlow,
-            SupportedModifiers::CrateRoot,
-            SupportedModifiers::Injected,
-            SupportedModifiers::IntraDocLink,
-            SupportedModifiers::Library,
-            SupportedModifiers::MacroModifier,
-            SupportedModifiers::Mutable,
-            SupportedModifiers::ProcMacroModifier,
-            SupportedModifiers::Public,
-            SupportedModifiers::Reference,
-            SupportedModifiers::TraitModifier,
-            SupportedModifiers::Unsafe,
-        ];
-        ITEMS.iter()
-    }
 }
 
 impl fmt::Display for SupportedModifiers {
