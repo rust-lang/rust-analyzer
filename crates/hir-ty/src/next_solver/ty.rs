@@ -504,7 +504,7 @@ impl<'db> Ty<'db> {
     #[inline]
     pub fn as_adt(self) -> Option<(AdtId, GenericArgs<'db>)> {
         match self.kind() {
-            TyKind::Adt(adt_def, args) => Some((adt_def.def_id().0, args)),
+            TyKind::Adt(adt_def, args) => Some((adt_def.def_id(), args)),
             _ => None,
         }
     }
@@ -1346,9 +1346,11 @@ impl<'db> rustc_type_ir::inherent::Ty<DbInterner<'db>> for Ty<'db> {
         false
     }
 
-    fn discriminant_ty(self, interner: DbInterner<'db>) -> <DbInterner<'db> as Interner>::Ty {
+    fn discriminant_ty(self, interner: DbInterner<'db>) -> Ty<'db> {
         match self.kind() {
-            TyKind::Adt(adt, _) if adt.is_enum() => adt.repr().discr_type().to_ty(interner),
+            TyKind::Adt(adt, _) if adt.is_enum() => {
+                adt.repr(interner.db).discr_type().to_ty(interner)
+            }
             TyKind::Coroutine(_, args) => args.as_coroutine().discr_ty(interner),
 
             TyKind::Param(_) | TyKind::Alias(..) | TyKind::Infer(InferTy::TyVar(_)) => {

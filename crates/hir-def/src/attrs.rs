@@ -724,52 +724,56 @@ impl AttrFlags {
             return None;
         }
 
-        return repr(db, owner);
+        Self::repr_assume_has(db, owner)
+    }
 
-        #[salsa::tracked]
-        fn repr(db: &dyn DefDatabase, owner: AdtId) -> Option<ReprOptions> {
-            let mut result = None;
-            collect_attrs::<Infallible>(db, owner.into(), |attr| {
-                let mut current = None;
-                if let ast::Meta::TokenTreeMeta(attr) = &attr
-                    && let Some(path) = attr.path()
-                    && let Some(tt) = attr.token_tree()
+    /// Only call this when you've verified the type indeed has a `#[repr]` attribute!
+    ///
+    /// Prefer [`AttrFlags::repr()`] in non-perf-sensitive places as it also has a check that
+    /// that the ADT has repr.
+    #[salsa::tracked]
+    pub fn repr_assume_has(db: &dyn DefDatabase, owner: AdtId) -> Option<ReprOptions> {
+        let mut result = None;
+        collect_attrs::<Infallible>(db, owner.into(), |attr| {
+            let mut current = None;
+            if let ast::Meta::TokenTreeMeta(attr) = &attr
+                && let Some(path) = attr.path()
+                && let Some(tt) = attr.token_tree()
+            {
+                if path.is1("repr")
+                    && let Some(repr) = parse_repr_tt(&tt)
                 {
-                    if path.is1("repr")
-                        && let Some(repr) = parse_repr_tt(&tt)
-                    {
-                        current = Some(repr);
-                    } else if path.is1("rustc_scalable_vector")
-                        && let mut tt = TokenTreeChildren::new(&tt)
-                        && let Some(NodeOrToken::Token(scalable)) = tt.next()
-                        && let Some(scalable) = ast::IntNumber::cast(scalable)
-                        && let Ok(scalable) = scalable.value()
-                        && let Ok(scalable) = scalable.try_into()
-                    {
-                        current = Some(ReprOptions {
-                            scalable: Some(rustc_abi::ScalableElt::ElementCount(scalable)),
-                            ..ReprOptions::default()
-                        });
-                    }
-                } else if let ast::Meta::PathMeta(attr) = &attr
-                    && attr.path().is1("rustc_scalable_vector")
+                    current = Some(repr);
+                } else if path.is1("rustc_scalable_vector")
+                    && let mut tt = TokenTreeChildren::new(&tt)
+                    && let Some(NodeOrToken::Token(scalable)) = tt.next()
+                    && let Some(scalable) = ast::IntNumber::cast(scalable)
+                    && let Ok(scalable) = scalable.value()
+                    && let Ok(scalable) = scalable.try_into()
                 {
                     current = Some(ReprOptions {
-                        scalable: Some(rustc_abi::ScalableElt::Container),
+                        scalable: Some(rustc_abi::ScalableElt::ElementCount(scalable)),
                         ..ReprOptions::default()
                     });
                 }
+            } else if let ast::Meta::PathMeta(attr) = &attr
+                && attr.path().is1("rustc_scalable_vector")
+            {
+                current = Some(ReprOptions {
+                    scalable: Some(rustc_abi::ScalableElt::Container),
+                    ..ReprOptions::default()
+                });
+            }
 
-                if let Some(current) = current {
-                    match &mut result {
-                        Some(existing) => merge_repr(existing, current),
-                        None => result = Some(current),
-                    }
+            if let Some(current) = current {
+                match &mut result {
+                    Some(existing) => merge_repr(existing, current),
+                    None => result = Some(current),
                 }
-                ControlFlow::Continue(())
-            });
-            result
-        }
+            }
+            ControlFlow::Continue(())
+        });
+        result
     }
 
     /// Call this only if there are legacy const generics, to save memory.

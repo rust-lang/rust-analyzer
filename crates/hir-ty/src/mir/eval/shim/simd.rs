@@ -13,7 +13,7 @@ impl<'db> Evaluator<'db> {
                 let len = match subst.as_slice().get(1).and_then(|it| it.konst()) {
                     Some(len) => len,
                     _ => {
-                        if let AdtId::StructId(id) = adt_def.def_id().0 {
+                        if let AdtId::StructId(id) = adt_def.def_id() {
                             let struct_data = id.fields(self.db);
                             let fields = struct_data.fields();
                             let Some((first_field, _)) = fields.iter().next() else {

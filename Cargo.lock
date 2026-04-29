@@ -876,6 +876,7 @@ version = "0.0.0"
 dependencies = [
  "arrayvec",
  "base-db",
+ "bitflags 2.9.4",
  "cov-mark",
  "either",
  "ena",

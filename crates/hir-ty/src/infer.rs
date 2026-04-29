@@ -55,7 +55,7 @@ use rustc_ast_ir::Mutability;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{
     AliasTyKind, TypeFoldable,
-    inherent::{AdtDef, Const as _, IntoKind, Ty as _},
+    inherent::{Const as _, IntoKind, Ty as _},
 };
 use smallvec::SmallVec;
 use span::Edition;
@@ -1875,7 +1875,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 return self.err_ty();
             }
             match ty.kind() {
-                TyKind::Adt(adt_def, substs) => match adt_def.def_id().0 {
+                TyKind::Adt(adt_def, substs) => match adt_def.def_id() {
                     AdtId::StructId(struct_id) => {
                         match self
                             .db
@@ -2197,7 +2197,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                     // If we can resolve to an enum variant, it takes priority over associated type
                     // of the same name.
                     if let TyKind::Adt(adt_def, _) = ty.kind()
-                        && let AdtId::EnumId(id) = adt_def.def_id().0
+                        && let AdtId::EnumId(id) = adt_def.def_id()
                     {
                         let enum_data = id.enum_variants(self.db);
                         if let Some(variant) = enum_data.variant(current_segment.name) {

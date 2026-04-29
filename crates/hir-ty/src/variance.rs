@@ -18,10 +18,7 @@ use hir_def::{
     signatures::{StructFlags, StructSignature},
 };
 use rustc_ast_ir::Mutability;
-use rustc_type_ir::{
-    Variance,
-    inherent::{AdtDef, IntoKind},
-};
+use rustc_type_ir::{Variance, inherent::IntoKind};
 use stdx::never;
 
 use crate::{
@@ -214,7 +211,7 @@ impl<'db> Context<'db> {
                 }
             }
             TyKind::Adt(def, args) => {
-                self.add_constraints_from_args(def.def_id().0.into(), args, variance);
+                self.add_constraints_from_args(def.def_id().into(), args, variance);
             }
             TyKind::Alias(alias) => {
                 // FIXME: Probably not correct wrt. opaques.

@@ -1132,7 +1132,7 @@ fn restrict_repr_packed_field_ref_capture(
         // Return true for fields of packed structs.
         match p.kind {
             ProjectionKind::Field { .. } => match ty.kind() {
-                TyKind::Adt(def, _) if def.repr().packed() => {
+                TyKind::Adt(def, _) if def.is_packed() => {
                     // We stop here regardless of field alignment. Field alignment can change as
                     // types change, including the types of private fields in other crates, and that
                     // shouldn't affect how we compute our captures.

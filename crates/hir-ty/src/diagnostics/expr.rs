@@ -15,7 +15,7 @@ use intern::sym;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use rustc_pattern_analysis::constructor::Constructor;
-use rustc_type_ir::inherent::{AdtDef, IntoKind};
+use rustc_type_ir::inherent::IntoKind;
 use syntax::{
     AstNode,
     ast::{self, UnaryOp},
@@ -311,7 +311,7 @@ impl<'db> ExprValidator<'db> {
                 value_or_partial.is_none_or(|v| !matches!(v, ValueNs::StaticId(_)))
             }
             Expr::Field { expr, .. } => match self.infer.expr_ty(*expr).kind() {
-                TyKind::Adt(adt, ..) if matches!(adt.def_id().0, AdtId::UnionId(_)) => false,
+                TyKind::Adt(adt, ..) if matches!(adt.def_id(), AdtId::UnionId(_)) => false,
                 _ => self.is_known_valid_scrutinee(*expr),
             },
             Expr::Index { base, .. } => self.is_known_valid_scrutinee(*base),

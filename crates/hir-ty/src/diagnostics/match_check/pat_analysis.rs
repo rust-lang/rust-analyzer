@@ -11,7 +11,7 @@ use rustc_pattern_analysis::{
     constructor::{Constructor, ConstructorSet, VariantVisibility},
     usefulness::{PlaceValidity, UsefulnessReport, compute_match_usefulness},
 };
-use rustc_type_ir::inherent::{AdtDef, IntoKind};
+use rustc_type_ir::inherent::IntoKind;
 use smallvec::{SmallVec, smallvec};
 use stdx::never;
 
@@ -197,7 +197,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                         arity = substs.len();
                     }
                     TyKind::Adt(adt_def, _) => {
-                        let adt = adt_def.def_id().0;
+                        let adt = adt_def.def_id();
                         ctor = match pat.kind.as_ref() {
                             PatKind::Leaf { .. } if matches!(adt, hir_def::AdtId::UnionId(_)) => {
                                 UnionField
@@ -265,7 +265,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
                 },
                 TyKind::Adt(adt, substs) => {
                     let variant =
-                        Self::variant_id_for_adt(self.db, pat.ctor(), adt.def_id().0).unwrap();
+                        Self::variant_id_for_adt(self.db, pat.ctor(), adt.def_id()).unwrap();
                     let subpatterns = self
                         .list_variant_fields(*pat.ty(), variant)
                         .zip(subpatterns)
@@ -325,7 +325,7 @@ impl<'a, 'db> PatCx for MatchCheckCtx<'a, 'db> {
                 TyKind::Tuple(tys) => tys.len(),
                 TyKind::Adt(adt_def, ..) => {
                     let variant =
-                        Self::variant_id_for_adt(self.db, ctor, adt_def.def_id().0).unwrap();
+                        Self::variant_id_for_adt(self.db, ctor, adt_def.def_id()).unwrap();
                     variant.fields(self.db).fields().len()
                 }
                 _ => {
@@ -359,7 +359,7 @@ impl<'a, 'db> PatCx for MatchCheckCtx<'a, 'db> {
                 }
                 TyKind::Ref(_, rty, _) => single(rty),
                 TyKind::Adt(adt_def, ..) => {
-                    let adt = adt_def.def_id().0;
+                    let adt = adt_def.def_id();
                     let variant = Self::variant_id_for_adt(self.db, ctor, adt).unwrap();
 
                     let visibilities =
@@ -428,7 +428,7 @@ impl<'a, 'db> PatCx for MatchCheckCtx<'a, 'db> {
             TyKind::Int(..) | TyKind::Uint(..) => unhandled(),
             TyKind::Array(..) | TyKind::Slice(..) => unhandled(),
             TyKind::Adt(adt_def, subst) => {
-                let adt = adt_def.def_id().0;
+                let adt = adt_def.def_id();
                 match adt {
                     hir_def::AdtId::EnumId(enum_id) => {
                         let enum_data = enum_id.enum_variants(cx.db);

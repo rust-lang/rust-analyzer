@@ -105,7 +105,7 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{
     AliasTyKind, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
     TypeVisitor, fast_reject,
-    inherent::{AdtDef, GenericArgs as _, IntoKind, SliceLike, Term as _, Ty as _},
+    inherent::{GenericArgs as _, IntoKind, SliceLike, Term as _, Ty as _},
 };
 use span::{AstIdNode, Edition, FileId};
 use stdx::{format_to, impl_from, never};
@@ -5313,7 +5313,7 @@ impl<'db> ClosureCapture<'db> {
                     match ty.kind() {
                         TyKind::Tuple(_) => format_to!(result, "_{field_idx}"),
                         TyKind::Adt(adt_def, _) => {
-                            let variant = match adt_def.def_id().0 {
+                            let variant = match adt_def.def_id() {
                                 AdtId::StructId(id) => VariantId::from(id),
                                 AdtId::UnionId(id) => id.into(),
                                 AdtId::EnumId(id) => {
@@ -5347,7 +5347,7 @@ impl<'db> ClosureCapture<'db> {
                     match ty.kind() {
                         TyKind::Tuple(_) => format_to!(result, ".{field_idx}"),
                         TyKind::Adt(adt_def, _) => {
-                            let variant = match adt_def.def_id().0 {
+                            let variant = match adt_def.def_id() {
                                 AdtId::StructId(id) => VariantId::from(id),
                                 AdtId::UnionId(id) => id.into(),
                                 AdtId::EnumId(id) => {
@@ -5593,7 +5593,7 @@ impl<'db> Type<'db> {
 
                     // For non-phantom_data adts we check variants/fields as well as generic parameters
                     TyKind::Adt(adt_def, args)
-                        if !is_phantom_data(self.interner.db(), adt_def.def_id().0) =>
+                        if !is_phantom_data(self.interner.db(), adt_def.def_id()) =>
                     {
                         let _variant_id_to_fields = |id: VariantId| {
                             let variant_data = &id.fields(self.interner.db());
@@ -5613,7 +5613,7 @@ impl<'db> Type<'db> {
                         };
                         let variant_id_to_fields = |_: VariantId| vec![];
 
-                        let variants: Vec<Vec<Ty<'db>>> = match adt_def.def_id().0 {
+                        let variants: Vec<Vec<Ty<'db>>> = match adt_def.def_id() {
                             AdtId::StructId(id) => {
                                 vec![variant_id_to_fields(id.into())]
                             }
@@ -5891,7 +5891,7 @@ impl<'db> Type<'db> {
 
     pub fn is_packed(&self, db: &'db dyn HirDatabase) -> bool {
         let adt_id = match self.ty.kind() {
-            TyKind::Adt(adt_def, ..) => adt_def.def_id().0,
+            TyKind::Adt(adt_def, ..) => adt_def.def_id(),
             _ => return false,
         };
 
@@ -5930,7 +5930,7 @@ impl<'db> Type<'db> {
         let interner = DbInterner::new_no_crate(db);
         let (variant_id, substs) = match self.ty.kind() {
             TyKind::Adt(adt_def, substs) => {
-                let id = match adt_def.def_id().0 {
+                let id = match adt_def.def_id() {
                     AdtId::StructId(id) => id.into(),
                     AdtId::UnionId(id) => id.into(),
                     AdtId::EnumId(_) => return Vec::new(),

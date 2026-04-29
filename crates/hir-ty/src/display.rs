@@ -43,7 +43,7 @@ use rustc_ast_ir::FloatTy;
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{
     AliasTyKind, BoundVarIndexKind, CoroutineArgsParts, RegionKind, Upcast,
-    inherent::{AdtDef, GenericArgs as _, IntoKind, Term as _, Ty as _, Tys as _},
+    inherent::{GenericArgs as _, IntoKind, Term as _, Ty as _, Tys as _},
 };
 use smallvec::SmallVec;
 use span::Edition;
@@ -78,7 +78,7 @@ fn async_gen_item_ty_from_yield_ty<'db>(
     let TyKind::Adt(poll_def, poll_args) = yield_ty.kind() else {
         return None;
     };
-    if poll_def.inner().id != poll_id {
+    if poll_def.def_id() != poll_id {
         return None;
     }
     let [poll_inner] = poll_args.as_slice() else {
@@ -89,7 +89,7 @@ fn async_gen_item_ty_from_yield_ty<'db>(
     let TyKind::Adt(option_def, option_args) = poll_inner.kind() else {
         return None;
     };
-    if option_def.inner().id != option_id {
+    if option_def.def_id() != option_id {
         return None;
     }
     let [item] = option_args.as_slice() else {
@@ -890,7 +890,7 @@ fn render_const_scalar_inner<'db>(
                 f.write_str("&")?;
                 render_const_scalar(f, bytes, memory_map, t)
             }
-            TyKind::Adt(adt, _) if b.len() == 2 * size_of::<usize>() => match adt.def_id().0 {
+            TyKind::Adt(adt, _) if b.len() == 2 * size_of::<usize>() => match adt.def_id() {
                 hir_def::AdtId::StructId(s) => {
                     let data = StructSignature::of(f.db, s);
                     write!(f, "&{}", data.name.display(f.db, f.edition()))?;
@@ -944,7 +944,7 @@ fn render_const_scalar_inner<'db>(
             f.write_str(")")
         }
         TyKind::Adt(def, args) => {
-            let def = def.def_id().0;
+            let def = def.def_id();
             let Ok(layout) = f.db.layout_of_adt(def, args.store(), param_env.store()) else {
                 return f.write_str("<layout-error>");
             };
@@ -1420,7 +1420,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                 }
             }
             TyKind::Adt(def, parameters) => {
-                let def_id = def.def_id().0;
+                let def_id = def.def_id();
                 f.start_location_link(def_id.into());
                 match f.display_kind {
                     DisplayKind::Diagnostics | DisplayKind::Test => {
@@ -1458,7 +1458,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                 }
                 f.end_location_link();
 
-                hir_fmt_generics(f, parameters.as_slice(), Some(def.def_id().0.into()), None)?;
+                hir_fmt_generics(f, parameters.as_slice(), Some(def.def_id().into()), None)?;
             }
             TyKind::Alias(alias_ty @ AliasTy { kind: AliasTyKind::Projection { .. }, .. }) => {
                 write_projection(f, &alias_ty, trait_bounds_need_parens)?

@@ -423,7 +423,7 @@ pub fn sizedness_constraint_for_ty<'db>(
             .and_then(|ty| sizedness_constraint_for_ty(interner, sizedness, ty)),
 
         Adt(adt, args) => {
-            if crate::representability::representability(interner.db, adt.def_id().0)
+            if crate::representability::representability(interner.db, adt.def_id())
                 == Representability::Infinite
             {
                 return None;

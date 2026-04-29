@@ -10,7 +10,7 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{
     InferTy, TypeVisitableExt, UintTy, elaborate,
     error::TypeError,
-    inherent::{AdtDef, BoundExistentialPredicates as _, IntoKind, Ty as _},
+    inherent::{BoundExistentialPredicates as _, IntoKind, Ty as _},
 };
 use stdx::never;
 
@@ -529,7 +529,7 @@ fn pointer_kind<'db>(
         TyKind::Slice(_) | TyKind::Str => Ok(Some(PointerKind::Length)),
         TyKind::Dynamic(bounds, _) => Ok(Some(PointerKind::VTable(bounds))),
         TyKind::Adt(adt_def, subst) => {
-            let id = adt_def.def_id().0;
+            let id = adt_def.def_id();
             let AdtId::StructId(id) = id else {
                 never!("`{:?}` should be sized but is not?", ty);
                 return Err(());
