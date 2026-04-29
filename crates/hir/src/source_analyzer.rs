@@ -356,8 +356,8 @@ impl<'db> SourceAnalyzer<'db> {
             && let Some(store) = self.store()
         {
             let mut inferred_types = vec![];
-            TypeRef::walk(type_ref, store, &mut |type_ref_id, type_ref| {
-                if matches!(type_ref, TypeRef::Placeholder) {
+            TypeRef::walk(type_ref, store, &mut |type_ref_id| {
+                if matches!(store[type_ref_id], TypeRef::Placeholder) {
                     inferred_types.push(infer.type_of_type_placeholder(type_ref_id));
                 }
             });

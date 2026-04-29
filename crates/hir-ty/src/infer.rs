@@ -1778,8 +1778,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         // We only record them if their number matches. This assumes TypeRef::walk and TypeVisitable process the items in the same order.
         let type_variables = collect_type_inference_vars(&ty);
         let mut placeholder_ids = vec![];
-        TypeRef::walk(type_ref, store, &mut |type_ref_id, type_ref| {
-            if matches!(type_ref, TypeRef::Placeholder) {
+        TypeRef::walk(type_ref, store, &mut |type_ref_id| {
+            if matches!(store[type_ref_id], TypeRef::Placeholder) {
                 placeholder_ids.push(type_ref_id);
             }
         });
