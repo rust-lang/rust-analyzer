@@ -103,4 +103,17 @@ fn foo() {
         "#,
         );
     }
+
+    #[test]
+    fn const_block_does_not_cause_error() {
+        check_diagnostics(
+            r#"
+fn bar<T>(_inner: fn() -> *const T) {}
+
+fn foo() {
+    bar(const { || 0 as *const i32 })
+}
+        "#,
+        );
+    }
 }
