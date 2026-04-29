@@ -1,14 +1,11 @@
 //! Semantic Tokens helpers
 
-use std::{fmt, ops};
+use std::{fmt, ops, slice::Iter};
 
 use lsp_types::{Range, SemanticTokenModifiers, SemanticTokens, SemanticTokensEdit};
 
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
 #[repr(u32)]
-#[derive(EnumIter, Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum SupportedType {
     Comment,
     Decorator,
@@ -70,69 +67,135 @@ pub(crate) enum SupportedType {
     UnresolvedReference,
 }
 
+impl SupportedType {
+    pub(crate) fn iter() -> Iter<'static, Self> {
+        static ITEMS: &[SupportedType] = &[
+            SupportedType::Comment,
+            SupportedType::Decorator,
+            SupportedType::EnumMember,
+            SupportedType::Enum,
+            SupportedType::Function,
+            SupportedType::Interface,
+            SupportedType::Keyword,
+            SupportedType::Macro,
+            SupportedType::Method,
+            SupportedType::Namespace,
+            SupportedType::Number,
+            SupportedType::Operator,
+            SupportedType::Parameter,
+            SupportedType::Property,
+            SupportedType::String,
+            SupportedType::Struct,
+            SupportedType::TypeParameter,
+            SupportedType::Variable,
+            SupportedType::Type,
+            SupportedType::Label,
+            SupportedType::Angle,
+            SupportedType::Arithmetic,
+            SupportedType::AttributeBracket,
+            SupportedType::Attribute,
+            SupportedType::Bitwise,
+            SupportedType::Boolean,
+            SupportedType::Brace,
+            SupportedType::Bracket,
+            SupportedType::BuiltinAttribute,
+            SupportedType::BuiltinType,
+            SupportedType::Char,
+            SupportedType::Colon,
+            SupportedType::Comma,
+            SupportedType::Comparison,
+            SupportedType::ConstParameter,
+            SupportedType::Const,
+            SupportedType::DeriveHelper,
+            SupportedType::Derive,
+            SupportedType::Dot,
+            SupportedType::EscapeSequence,
+            SupportedType::FormatSpecifier,
+            SupportedType::Generic,
+            SupportedType::InvalidEscapeSequence,
+            SupportedType::Lifetime,
+            SupportedType::Logical,
+            SupportedType::MacroBang,
+            SupportedType::Negation,
+            SupportedType::Parenthesis,
+            SupportedType::ProcMacro,
+            SupportedType::Punctuation,
+            SupportedType::SelfKeyword,
+            SupportedType::SelfTypeKeyword,
+            SupportedType::Semicolon,
+            SupportedType::Static,
+            SupportedType::ToolModule,
+            SupportedType::TypeAlias,
+            SupportedType::Union,
+            SupportedType::UnresolvedReference,
+        ];
+        ITEMS.iter()
+    }
+}
+
 impl fmt::Display for SupportedType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let string: String = match *self {
-            SupportedType::Comment => ::lsp_types::SemanticTokenTypes::Comment.into(),
-            SupportedType::Decorator => ::lsp_types::SemanticTokenTypes::Decorator.into(),
-            SupportedType::EnumMember => ::lsp_types::SemanticTokenTypes::EnumMember.into(),
-            SupportedType::Enum => ::lsp_types::SemanticTokenTypes::Enum.into(),
-            SupportedType::Function => ::lsp_types::SemanticTokenTypes::Function.into(),
-            SupportedType::Interface => ::lsp_types::SemanticTokenTypes::Interface.into(),
-            SupportedType::Keyword => ::lsp_types::SemanticTokenTypes::Keyword.into(),
-            SupportedType::Macro => ::lsp_types::SemanticTokenTypes::Macro.into(),
-            SupportedType::Method => ::lsp_types::SemanticTokenTypes::Method.into(),
-            SupportedType::Namespace => ::lsp_types::SemanticTokenTypes::Namespace.into(),
-            SupportedType::Number => ::lsp_types::SemanticTokenTypes::Number.into(),
-            SupportedType::Operator => ::lsp_types::SemanticTokenTypes::Operator.into(),
-            SupportedType::Parameter => ::lsp_types::SemanticTokenTypes::Parameter.into(),
-            SupportedType::Property => ::lsp_types::SemanticTokenTypes::Property.into(),
-            SupportedType::String => ::lsp_types::SemanticTokenTypes::String.into(),
-            SupportedType::Struct => ::lsp_types::SemanticTokenTypes::Struct.into(),
-            SupportedType::TypeParameter => ::lsp_types::SemanticTokenTypes::TypeParameter.into(),
-            SupportedType::Variable => ::lsp_types::SemanticTokenTypes::Variable.into(),
-            SupportedType::Type => ::lsp_types::SemanticTokenTypes::Type.into(),
-            SupportedType::Label => ::lsp_types::SemanticTokenTypes::Label.into(),
-            SupportedType::Angle => "angle".to_owned(),
-            SupportedType::Arithmetic => "arithmetic".to_owned(),
-            SupportedType::AttributeBracket => "attributeBracket".to_owned(),
-            SupportedType::Attribute => "attribute".to_owned(),
-            SupportedType::Bitwise => "bitwise".to_owned(),
-            SupportedType::Boolean => "boolean".to_owned(),
-            SupportedType::Brace => "brace".to_owned(),
-            SupportedType::Bracket => "bracket".to_owned(),
-            SupportedType::BuiltinAttribute => "builtinAttribute".to_owned(),
-            SupportedType::BuiltinType => "builtinType".to_owned(),
-            SupportedType::Char => "character".to_owned(),
-            SupportedType::Colon => "colon".to_owned(),
-            SupportedType::Comma => "comma".to_owned(),
-            SupportedType::Comparison => "comparison".to_owned(),
-            SupportedType::ConstParameter => "constParameter".to_owned(),
-            SupportedType::Const => "const".to_owned(),
-            SupportedType::DeriveHelper => "deriveHelper".to_owned(),
-            SupportedType::Derive => "derive".to_owned(),
-            SupportedType::Dot => "dot".to_owned(),
-            SupportedType::EscapeSequence => "escapeSequence".to_owned(),
-            SupportedType::FormatSpecifier => "formatSpecifier".to_owned(),
-            SupportedType::Generic => "generic".to_owned(),
-            SupportedType::InvalidEscapeSequence => "invalidEscapeSequence".to_owned(),
-            SupportedType::Lifetime => "lifetime".to_owned(),
-            SupportedType::Logical => "logical".to_owned(),
-            SupportedType::MacroBang => "macroBang".to_owned(),
-            SupportedType::Negation => "negation".to_owned(),
-            SupportedType::Parenthesis => "parenthesis".to_owned(),
-            SupportedType::ProcMacro => "procMacro".to_owned(),
-            SupportedType::Punctuation => "punctuation".to_owned(),
-            SupportedType::SelfKeyword => "selfKeyword".to_owned(),
-            SupportedType::SelfTypeKeyword => "selfTypeKeyword".to_owned(),
-            SupportedType::Semicolon => "semicolon".to_owned(),
-            SupportedType::Static => "static".to_owned(),
-            SupportedType::ToolModule => "toolModule".to_owned(),
-            SupportedType::TypeAlias => "typeAlias".to_owned(),
-            SupportedType::Union => "union".to_owned(),
-            SupportedType::UnresolvedReference => "unresolvedReference".to_owned(),
+        let string = match self {
+            SupportedType::Comment => ::lsp_types::SemanticTokenTypes::Comment.as_str(),
+            SupportedType::Decorator => ::lsp_types::SemanticTokenTypes::Decorator.as_str(),
+            SupportedType::EnumMember => ::lsp_types::SemanticTokenTypes::EnumMember.as_str(),
+            SupportedType::Enum => ::lsp_types::SemanticTokenTypes::Enum.as_str(),
+            SupportedType::Function => ::lsp_types::SemanticTokenTypes::Function.as_str(),
+            SupportedType::Interface => ::lsp_types::SemanticTokenTypes::Interface.as_str(),
+            SupportedType::Keyword => ::lsp_types::SemanticTokenTypes::Keyword.as_str(),
+            SupportedType::Macro => ::lsp_types::SemanticTokenTypes::Macro.as_str(),
+            SupportedType::Method => ::lsp_types::SemanticTokenTypes::Method.as_str(),
+            SupportedType::Namespace => ::lsp_types::SemanticTokenTypes::Namespace.as_str(),
+            SupportedType::Number => ::lsp_types::SemanticTokenTypes::Number.as_str(),
+            SupportedType::Operator => ::lsp_types::SemanticTokenTypes::Operator.as_str(),
+            SupportedType::Parameter => ::lsp_types::SemanticTokenTypes::Parameter.as_str(),
+            SupportedType::Property => ::lsp_types::SemanticTokenTypes::Property.as_str(),
+            SupportedType::String => ::lsp_types::SemanticTokenTypes::String.as_str(),
+            SupportedType::Struct => ::lsp_types::SemanticTokenTypes::Struct.as_str(),
+            SupportedType::TypeParameter => ::lsp_types::SemanticTokenTypes::TypeParameter.as_str(),
+            SupportedType::Variable => ::lsp_types::SemanticTokenTypes::Variable.as_str(),
+            SupportedType::Type => ::lsp_types::SemanticTokenTypes::Type.as_str(),
+            SupportedType::Label => ::lsp_types::SemanticTokenTypes::Label.as_str(),
+            SupportedType::Angle => "angle",
+            SupportedType::Arithmetic => "arithmetic",
+            SupportedType::AttributeBracket => "attributeBracket",
+            SupportedType::Attribute => "attribute",
+            SupportedType::Bitwise => "bitwise",
+            SupportedType::Boolean => "boolean",
+            SupportedType::Brace => "brace",
+            SupportedType::Bracket => "bracket",
+            SupportedType::BuiltinAttribute => "builtinAttribute",
+            SupportedType::BuiltinType => "builtinType",
+            SupportedType::Char => "character",
+            SupportedType::Colon => "colon",
+            SupportedType::Comma => "comma",
+            SupportedType::Comparison => "comparison",
+            SupportedType::ConstParameter => "constParameter",
+            SupportedType::Const => "const",
+            SupportedType::DeriveHelper => "deriveHelper",
+            SupportedType::Derive => "derive",
+            SupportedType::Dot => "dot",
+            SupportedType::EscapeSequence => "escapeSequence",
+            SupportedType::FormatSpecifier => "formatSpecifier",
+            SupportedType::Generic => "generic",
+            SupportedType::InvalidEscapeSequence => "invalidEscapeSequence",
+            SupportedType::Lifetime => "lifetime",
+            SupportedType::Logical => "logical",
+            SupportedType::MacroBang => "macroBang",
+            SupportedType::Negation => "negation",
+            SupportedType::Parenthesis => "parenthesis",
+            SupportedType::ProcMacro => "procMacro",
+            SupportedType::Punctuation => "punctuation",
+            SupportedType::SelfKeyword => "selfKeyword",
+            SupportedType::SelfTypeKeyword => "selfTypeKeyword",
+            SupportedType::Semicolon => "semicolon",
+            SupportedType::Static => "static",
+            SupportedType::ToolModule => "toolModule",
+            SupportedType::TypeAlias => "typeAlias",
+            SupportedType::Union => "union",
+            SupportedType::UnresolvedReference => "unresolvedReference",
         };
-        write!(f, "{string}")
+        f.write_str(string)
     }
 }
 
@@ -163,7 +226,7 @@ pub(crate) fn standard_fallback_type(token: SupportedType) -> Option<SupportedTy
 }
 
 #[repr(u32)]
-#[derive(EnumIter, Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum SupportedModifiers {
     Async,
     Documentation,
@@ -190,40 +253,65 @@ pub(crate) enum SupportedModifiers {
     Unsafe,
 }
 
-impl From<&SupportedModifiers> for String {
-    fn from(e: &SupportedModifiers) -> Self {
-        match *e {
-            SupportedModifiers::Async => SemanticTokenModifiers::Async.into(),
-            SupportedModifiers::Documentation => SemanticTokenModifiers::Documentation.into(),
-            SupportedModifiers::Declaration => SemanticTokenModifiers::Declaration.into(),
-            SupportedModifiers::Static => SemanticTokenModifiers::Static.into(),
-            SupportedModifiers::DefaultLibrary => SemanticTokenModifiers::DefaultLibrary.into(),
-            SupportedModifiers::Deprecated => SemanticTokenModifiers::Deprecated.into(),
-            SupportedModifiers::Associated => "associated".to_owned(),
-            SupportedModifiers::AttributeModifier => "attribute".to_owned(),
-            SupportedModifiers::Callable => "callable".to_owned(),
-            SupportedModifiers::Constant => "constant".to_owned(),
-            SupportedModifiers::Consuming => "consuming".to_owned(),
-            SupportedModifiers::ControlFlow => "controlFlow".to_owned(),
-            SupportedModifiers::CrateRoot => "crateRoot".to_owned(),
-            SupportedModifiers::Injected => "injected".to_owned(),
-            SupportedModifiers::IntraDocLink => "intraDocLink".to_owned(),
-            SupportedModifiers::Library => "library".to_owned(),
-            SupportedModifiers::MacroModifier => "macro".to_owned(),
-            SupportedModifiers::Mutable => "mutable".to_owned(),
-            SupportedModifiers::ProcMacroModifier => "procMacro".to_owned(),
-            SupportedModifiers::Public => "public".to_owned(),
-            SupportedModifiers::Reference => "reference".to_owned(),
-            SupportedModifiers::TraitModifier => "trait".to_owned(),
-            SupportedModifiers::Unsafe => "unsafe".to_owned(),
-        }
+impl SupportedModifiers {
+    pub(crate) fn iter() -> Iter<'static, Self> {
+        static ITEMS: &[SupportedModifiers] = &[
+            SupportedModifiers::Async,
+            SupportedModifiers::Documentation,
+            SupportedModifiers::Declaration,
+            SupportedModifiers::Static,
+            SupportedModifiers::DefaultLibrary,
+            SupportedModifiers::Deprecated,
+            SupportedModifiers::Associated,
+            SupportedModifiers::AttributeModifier,
+            SupportedModifiers::Callable,
+            SupportedModifiers::Constant,
+            SupportedModifiers::Consuming,
+            SupportedModifiers::ControlFlow,
+            SupportedModifiers::CrateRoot,
+            SupportedModifiers::Injected,
+            SupportedModifiers::IntraDocLink,
+            SupportedModifiers::Library,
+            SupportedModifiers::MacroModifier,
+            SupportedModifiers::Mutable,
+            SupportedModifiers::ProcMacroModifier,
+            SupportedModifiers::Public,
+            SupportedModifiers::Reference,
+            SupportedModifiers::TraitModifier,
+            SupportedModifiers::Unsafe,
+        ];
+        ITEMS.iter()
     }
 }
 
 impl fmt::Display for SupportedModifiers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let string: String = self.into();
-        write!(f, "{string}")
+        let string = match self {
+            SupportedModifiers::Async => SemanticTokenModifiers::Async.as_str(),
+            SupportedModifiers::Documentation => SemanticTokenModifiers::Documentation.as_str(),
+            SupportedModifiers::Declaration => SemanticTokenModifiers::Declaration.as_str(),
+            SupportedModifiers::Static => SemanticTokenModifiers::Static.as_str(),
+            SupportedModifiers::DefaultLibrary => SemanticTokenModifiers::DefaultLibrary.as_str(),
+            SupportedModifiers::Deprecated => SemanticTokenModifiers::Deprecated.as_str(),
+            SupportedModifiers::Associated => "associated",
+            SupportedModifiers::AttributeModifier => "attribute",
+            SupportedModifiers::Callable => "callable",
+            SupportedModifiers::Constant => "constant",
+            SupportedModifiers::Consuming => "consuming",
+            SupportedModifiers::ControlFlow => "controlFlow",
+            SupportedModifiers::CrateRoot => "crateRoot",
+            SupportedModifiers::Injected => "injected",
+            SupportedModifiers::IntraDocLink => "intraDocLink",
+            SupportedModifiers::Library => "library",
+            SupportedModifiers::MacroModifier => "macro",
+            SupportedModifiers::Mutable => "mutable",
+            SupportedModifiers::ProcMacroModifier => "procMacro",
+            SupportedModifiers::Public => "public",
+            SupportedModifiers::Reference => "reference",
+            SupportedModifiers::TraitModifier => "trait",
+            SupportedModifiers::Unsafe => "unsafe",
+        };
+        f.write_str(string)
     }
 }
 
@@ -249,7 +337,7 @@ impl ModifierSet {
 
 impl ops::BitOrAssign<SupportedModifiers> for ModifierSet {
     fn bitor_assign(&mut self, rhs: SupportedModifiers) {
-        let idx = SupportedModifiers::iter().position(|it| it == rhs).unwrap();
+        let idx = SupportedModifiers::iter().position(|it| *it == rhs).unwrap();
         self.0 |= 1 << idx;
     }
 }

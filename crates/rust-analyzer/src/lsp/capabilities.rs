@@ -16,7 +16,6 @@ use lsp_types::{
     WorkspaceOptions, WorkspaceSymbolProvider,
 };
 use serde_json::json;
-use strum::IntoEnumIterator;
 
 use crate::{
     config::{Config, RustfmtConfig},

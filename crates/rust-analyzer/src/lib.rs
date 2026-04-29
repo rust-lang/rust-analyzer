@@ -60,7 +60,6 @@ pub mod tracing {
 pub mod config;
 mod global_state;
 pub mod lsp;
-use std::fmt;
 
 use self::lsp::ext as lsp_ext;
 
@@ -74,10 +73,7 @@ pub use crate::{
     version::version,
 };
 
-pub fn from_json<T: DeserializeOwned>(
-    what: impl fmt::Display,
-    json: &serde_json::Value,
-) -> anyhow::Result<T> {
+pub fn from_json<T: DeserializeOwned>(what: &str, json: &serde_json::Value) -> anyhow::Result<T> {
     serde_json::from_value(json.clone())
         .map_err(|e| anyhow::format_err!("Failed to deserialize {what}: {e}; {json}"))
 }
