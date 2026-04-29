@@ -207,7 +207,7 @@ fn run_server() -> anyhow::Result<()> {
 
     tracing::info!("InitializeParams: {}", initialize_params);
     let lsp_types::InitializeParams {
-        #[expect(deprecated, reason = "migration TODO")]
+        #[expect(deprecated, reason = "compatibility with old clients")]
         root_uri,
         capabilities,
         workspace_folders_initialize_params,
