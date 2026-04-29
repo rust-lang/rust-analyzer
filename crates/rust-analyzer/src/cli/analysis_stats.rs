@@ -588,8 +588,8 @@ impl flags::AnalysisStats {
                     continue;
                 };
 
-                fn trim(s: &str) -> String {
-                    s.chars().filter(|c| !c.is_whitespace()).collect()
+                fn drop_whitespace(s: &str) -> String {
+                    s.chars().filter(|c| !parser::is_rust_whitespace(*c)).collect()
                 }
 
                 let todo = syntax::ast::make::ext::expr_todo().to_string();
@@ -609,7 +609,8 @@ impl flags::AnalysisStats {
                             display_target,
                         )
                         .unwrap();
-                    syntax_hit_found |= trim(&original_text) == trim(&generated);
+                    syntax_hit_found |=
+                        drop_whitespace(&original_text) == drop_whitespace(&generated);
 
                     // Validate if type-checks
                     let mut txt = file_txt.text(db).to_string();
@@ -663,7 +664,7 @@ impl flags::AnalysisStats {
                 let msg = move || {
                     format!(
                         "processing: {:<50}",
-                        trim(&original_text).chars().take(50).collect::<String>()
+                        drop_whitespace(&original_text).chars().take(50).collect::<String>()
                     )
                 };
                 if verbosity.is_spammy() {
@@ -1647,5 +1648,5 @@ impl fmt::Display for PrettyItemStats {
 // fn syntax_len(node: SyntaxNode) -> usize {
 //     // Macro expanded code doesn't contain whitespace, so erase *all* whitespace
 //     // to make macro and non-macro code comparable.
-//     node.to_string().replace(|it: char| it.is_ascii_whitespace(), "").len()
+//     drop_whitespace(&node.to_string()).len()
 // }
