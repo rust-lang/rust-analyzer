@@ -252,6 +252,10 @@ impl ast::IdentPat {
     }
 }
 
+pub fn indent(node: &SyntaxNode, level: IndentLevel) -> SyntaxNode {
+    level.clone_increase_indent(node)
+}
+
 #[test]
 fn test_increase_indent() {
     let arm_list = {
