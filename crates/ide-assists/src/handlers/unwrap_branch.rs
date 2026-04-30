@@ -78,9 +78,16 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
 
     acc.add(AssistId::refactor_rewrite("unwrap_branch"), label, target, |builder| {
         let replacement = replacement.dedent(from_indent).indent(into_indent);
+        let mut replacement = extract_statements(replacement);
         let container = prefer_container.unwrap_or(container);
 
-        editor.replace_with_many(&container, extract_statements(replacement));
+        if ast::ExprStmt::can_cast(container.kind())
+            && block.tail_expr().is_some_and(|it| !it.is_block_like())
+        {
+            replacement.push(editor.make().token(T![;]).into());
+        }
+
+        editor.replace_with_many(&container, replacement);
         delete_else_before(container, &editor);
 
         builder.add_file_edits(ctx.vfs_file_id(), editor);
@@ -253,7 +260,6 @@ fn main() {
 }
 "#,
         );
-        // Pedantically, we should add an `;` here...
         check_assist(
             unwrap_branch,
             r#"
@@ -266,7 +272,7 @@ fn main() {
 "#,
             r#"
 fn main() {
-    92
+    92;
     ()
 }
 "#,
