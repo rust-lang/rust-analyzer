@@ -99,6 +99,10 @@ pub fn prettify_macro_expansion(
                 }
                 mods.push(do_nl(before, tok));
             }
+            R_CURLY if is_next(|it| it == T![else], false) => {
+                mods.push(do_indent(before, tok, indent));
+                mods.push(do_nl(before, tok));
+            }
             LIFETIME_IDENT if is_next(is_text, true) => {
                 mods.push(do_ws(after, tok));
             }
@@ -358,6 +362,7 @@ mod tests {
                     } else if true {
                         bar()
                     } else {}
+                    if true {} else if true {} else {}
                     fun()
                 }
             };
@@ -377,6 +382,9 @@ mod tests {
                             foo()
                         }else if true {
                             bar()
+                        }else {}
+                        if true {
+                        }else if true {
                         }else {}
                         fun()
                     }
