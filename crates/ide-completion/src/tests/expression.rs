@@ -3829,3 +3829,59 @@ fn baz(v: impl Bar) {
         "#]],
     );
 }
+
+#[test]
+fn regression_21697() {
+    check(
+        r#"
+trait SuperTrait {
+    type AssocTy;
+}
+
+trait SubTrait<T = <Self as SuperTrait>::AssocTy>: SuperTrait {}
+
+fn tryme(param: impl SubTrait) {
+    param$0
+}
+    "#,
+        expect![[r#"
+            fn tryme(…) fn(impl SubTrait<<impl SubTrait<<… as SuperTrait>::AssocTy> + ?Sized as SuperTrait>::AssocTy> + ?Sized)
+            lc param        impl SubTrait<<impl SubTrait<<… as SuperTrait>::AssocTy> + ?Sized as SuperTrait>::AssocTy> + ?Sized
+            tt SubTrait
+            tt SuperTrait
+            bt u32                                                                                                          u32
+            kw async
+            kw const
+            kw crate::
+            kw enum
+            kw extern
+            kw false
+            kw fn
+            kw for
+            kw if
+            kw if let
+            kw impl
+            kw impl for
+            kw let
+            kw letm
+            kw loop
+            kw match
+            kw mod
+            kw return
+            kw self::
+            kw static
+            kw struct
+            kw trait
+            kw true
+            kw type
+            kw union
+            kw unsafe
+            kw use
+            kw while
+            kw while let
+            sn macro_rules
+            sn pd
+            sn ppd
+        "#]],
+    );
+}
