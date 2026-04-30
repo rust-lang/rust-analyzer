@@ -108,6 +108,7 @@ fn remove_newline(
                         + TextSize::try_from(n_spaces_after_line_break).unwrap();
             }
         }
+        no_space |= token.kind() == WHITESPACE && offset == token.text_range().start();
 
         let range = TextRange::at(offset, ((n_spaces_after_line_break + 1) as u32).into());
         let replace_with = if no_space { "" } else { " " };
@@ -962,6 +963,39 @@ fn main() {
     "
 $0hello world
 ";
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn join_empty_line() {
+        check_join_lines(
+            r#"
+fn main() {
+    $02;
+
+    3;
+}
+"#,
+            r#"
+fn main() {
+    $02;
+    3;
+}
+"#,
+        );
+
+        check_join_lines(
+            r#"
+fn main() {
+    $02;
+    3;
+}
+"#,
+            r#"
+fn main() {
+    $02; 3;
 }
 "#,
         );
