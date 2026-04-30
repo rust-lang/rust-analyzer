@@ -150,6 +150,7 @@ pub(crate) fn complete_postfix(
 
     let try_enum = TryEnum::from_ty(&ctx.sema, receiver_ty);
     let is_in_cond = is_in_condition(&dot_receiver_including_refs);
+    let is_in_value = is_in_value(&dot_receiver_including_refs);
     if let Some(parent) = dot_receiver_including_refs.syntax().parent() {
         let placeholder = suggest_receiver_name(dot_receiver, "0", &ctx.sema);
         match &try_enum {
@@ -244,12 +245,14 @@ pub(crate) fn complete_postfix(
         }
         if let Some(try_enum) = &try_enum {
             let placeholder = suggest_receiver_name(dot_receiver, "1", &ctx.sema);
+            let if_then_snip =
+                if is_in_value { "{\n    $2\n} else {\n    $0\n}" } else { "{\n    $0\n}" };
             match try_enum {
                 TryEnum::Result => {
                     postfix_snippet(
                         "ifl",
                         "if let Ok {}",
-                        format!("if let Ok({placeholder}) = {receiver_text} {{\n    $0\n}}"),
+                        format!("if let Ok({placeholder}) = {receiver_text} {if_then_snip}"),
                     )
                     .add_to(acc, ctx.db);
 
@@ -271,7 +274,7 @@ pub(crate) fn complete_postfix(
                     postfix_snippet(
                         "ifl",
                         "if let Some {}",
-                        format!("if let Some({placeholder}) = {receiver_text} {{\n    $0\n}}"),
+                        format!("if let Some({placeholder}) = {receiver_text} {if_then_snip}"),
                     )
                     .add_to(acc, ctx.db);
 
@@ -293,7 +296,9 @@ pub(crate) fn complete_postfix(
                 }
             }
         } else if receiver_ty.is_bool() || receiver_ty.is_unknown() {
-            postfix_snippet("if", "if expr {}", format!("if {receiver_text} {{\n    $0\n}}"))
+            let if_then_snip =
+                if is_in_value { "{\n    $1\n} else {\n    $0\n}" } else { "{\n    $0\n}" };
+            postfix_snippet("if", "if expr {}", format!("if {receiver_text} {if_then_snip}"))
                 .add_to(acc, ctx.db);
             postfix_snippet(
                 "while",
@@ -561,6 +566,22 @@ pub(crate) fn is_in_condition(it: &ast::Expr) -> bool {
             } })
         })
         .unwrap_or(false)
+}
+
+pub(crate) fn is_in_value(it: &ast::Expr) -> bool {
+    let Some(node) = it.syntax().parent() else { return false };
+    let kind = node.kind();
+    ast::LetStmt::can_cast(kind)
+        || ast::ArgList::can_cast(kind)
+        || ast::ArrayExpr::can_cast(kind)
+        || ast::ParenExpr::can_cast(kind)
+        || ast::BreakExpr::can_cast(kind)
+        || ast::ReturnExpr::can_cast(kind)
+        || ast::PrefixExpr::can_cast(kind)
+        || ast::FormatArgsArg::can_cast(kind)
+        || ast::RecordExprField::can_cast(kind)
+        || ast::BinExpr::cast(node.clone()).is_some_and(|expr| expr.rhs().as_ref() == Some(it))
+        || ast::IndexExpr::cast(node).is_some_and(|expr| expr.index().as_ref() == Some(it))
 }
 
 #[cfg(test)]
@@ -1175,6 +1196,66 @@ fn main() {
 }
 "#,
         )
+    }
+
+    #[test]
+    fn postfix_completion_if_else_in_value() {
+        check_edit(
+            "if",
+            r#"
+fn main() {
+    let s = cond.is_some().$0;
+}
+"#,
+            r#"
+fn main() {
+    let s = if cond.is_some() {
+    $1
+} else {
+    $0
+};
+}
+"#,
+        );
+
+        check_edit(
+            "ifl",
+            r#"
+//- minicore: option
+fn main() {
+    let cond = Some("x");
+    let s = cond.$0;
+}
+"#,
+            r#"
+fn main() {
+    let cond = Some("x");
+    let s = if let Some(${1:cond}) = cond {
+    $2
+} else {
+    $0
+};
+}
+"#,
+        );
+
+        check_edit(
+            "if",
+            r#"
+fn main() {
+    2 + true.$0;
+}
+"#,
+            r#"
+fn main() {
+    2 + if true {
+    $1
+} else {
+    $0
+};
+}
+"#,
+        );
     }
 
     #[test]
