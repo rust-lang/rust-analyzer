@@ -560,12 +560,7 @@ fn inline(
         let inline_direct = |editor: &SyntaxEditor, usage: &PathExpr, replacement: &ast::Expr| {
             if let Some(field) = path_expr_as_record_field(usage) {
                 cov_mark::hit!(inline_call_inline_direct_field);
-                let field_name = field.field_name().unwrap();
-                let new_field = editor.make().record_expr_field(
-                    editor.make().name_ref(&field_name.text()),
-                    Some(replacement.clone()),
-                );
-                editor.replace(field.syntax(), new_field.syntax());
+                field.replace_expr_with_editor(editor, replacement.clone());
             } else {
                 editor.replace(usage.syntax(), replacement.syntax());
             }
