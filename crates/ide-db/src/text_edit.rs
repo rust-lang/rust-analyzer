@@ -135,7 +135,7 @@ impl TextEdit {
             if indel.delete.start() >= offset {
                 continue;
             }
-            if offset < indel.delete.end() {
+            if indel.delete.contains(offset) {
                 return None;
             }
             res += TextSize::of(&indel.insert);
