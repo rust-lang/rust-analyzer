@@ -357,7 +357,7 @@ fn inline(
     };
 
     // Capture before `with_ast_node` re-roots and loses the source-relative position.
-    let original_body_indent = IndentLevel::from_node(body_to_clone.syntax());
+    let mut original_body_indent = IndentLevel::from_node(body_to_clone.syntax());
     let body_offset = body_to_clone.syntax().text_range().start();
     let (editor, body) = SyntaxEditor::with_ast_node(&body_to_clone);
 
@@ -628,6 +628,7 @@ fn inline(
         // Prepend let statements to the body's existing statements
         let stmts: Vec<ast::Stmt> = let_stmts.into_iter().chain(body.statements()).collect();
         body = make.block_expr(stmts, body.tail_expr());
+        original_body_indent = IndentLevel(0);
     }
 
     let original_indentation = match node {
