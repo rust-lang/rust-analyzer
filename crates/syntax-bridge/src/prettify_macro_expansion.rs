@@ -54,7 +54,7 @@ pub fn prettify_macro_expansion(
                     EXPR_STMT if Some(R_CURLY) == node.last_token().map(|it| it.kind()) => true,
                     _ => false,
                 };
-                if !is_last_child && is_non_last_newline || is_always_newline {
+                if (!is_last_child && is_non_last_newline) || is_always_newline {
                     if indent > 0 {
                         mods.push((Position::after(node.clone()), PrettifyWsKind::Indent(indent)));
                     }
