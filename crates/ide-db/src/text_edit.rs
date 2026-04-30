@@ -133,7 +133,7 @@ impl TextEdit {
         let mut res = offset;
         for indel in &self.indels {
             if indel.delete.start() >= offset {
-                break;
+                continue;
             }
             if offset < indel.delete.end() {
                 return None;
