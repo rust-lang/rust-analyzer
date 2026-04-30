@@ -55,9 +55,7 @@ pub fn prettify_macro_expansion(
                     _ => false,
                 };
                 if (!is_last_child && is_non_last_newline) || is_always_newline {
-                    if indent > 0 {
-                        mods.push((Position::after(node.clone()), PrettifyWsKind::Indent(indent)));
-                    }
+                    mods.push((Position::after(node.clone()), PrettifyWsKind::Indent(indent)));
                     if node.parent().is_some() {
                         mods.push((Position::after(node), PrettifyWsKind::Newline));
                     }
@@ -94,9 +92,7 @@ pub fn prettify_macro_expansion(
             R_CURLY if is_last(|it| it != L_CURLY, true) => {
                 indent = indent.saturating_sub(1);
 
-                if indent > 0 {
-                    mods.push(do_indent(before, tok, indent));
-                }
+                mods.push(do_indent(before, tok, indent));
                 mods.push(do_nl(before, tok));
             }
             R_CURLY if is_next(|it| it == T![else], false) => {
@@ -110,9 +106,7 @@ pub fn prettify_macro_expansion(
                 mods.push(do_ws(after, tok));
             }
             T![;] if is_next(|it| it != R_CURLY, true) => {
-                if indent > 0 {
-                    mods.push(do_indent(after, tok, indent));
-                }
+                mods.push(do_indent(after, tok, indent));
                 if tok.text_range().end() != syn.text_range().end() {
                     mods.push(do_nl(after, tok));
                 }
@@ -148,6 +142,7 @@ pub fn prettify_macro_expansion(
             pos,
             match insert {
                 PrettifyWsKind::Space => editor.make().whitespace(" "),
+                PrettifyWsKind::Indent(0) => continue,
                 PrettifyWsKind::Indent(indent) => editor.make().whitespace(&" ".repeat(4 * indent)),
                 PrettifyWsKind::Newline => editor.make().whitespace("\n"),
             },
