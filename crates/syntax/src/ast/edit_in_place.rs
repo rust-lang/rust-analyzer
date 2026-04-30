@@ -10,6 +10,7 @@ use crate::{
     SyntaxNode, SyntaxToken,
     algo::{self, neighbor},
     ast::{self, edit::IndentLevel, make},
+    syntax_editor::SyntaxEditor,
     ted,
 };
 
@@ -449,6 +450,24 @@ impl ast::RecordExprField {
                 expr.syntax().clone().into(),
             ];
             ted::insert_all_raw(ted::Position::last_child_of(self.syntax()), children);
+        }
+    }
+
+    /// [`SyntaxEditor`]-based equivalent of [`replace_expr`](Self::replace_expr).
+    pub fn replace_expr_with_editor(&self, editor: &SyntaxEditor, expr: ast::Expr) {
+        if self.name_ref().is_some() {
+            if let Some(prev) = self.expr() {
+                editor.replace(prev.syntax(), expr.syntax());
+            }
+        } else if let Some(ast::Expr::PathExpr(path_expr)) = self.expr()
+            && let Some(path) = path_expr.path()
+            && let Some(name_ref) = path.as_single_name_ref()
+        {
+            // shorthand `{ x }` → expand to `{ x: expr }`
+            let new_field = editor
+                .make()
+                .record_expr_field(editor.make().name_ref(&name_ref.text()), Some(expr));
+            editor.replace(self.syntax(), new_field.syntax());
         }
     }
 }

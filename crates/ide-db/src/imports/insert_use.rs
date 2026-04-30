@@ -7,10 +7,7 @@ use std::cmp::Ordering;
 use hir::Semantics;
 use syntax::{
     Direction, NodeOrToken, SyntaxKind, SyntaxNode, algo,
-    ast::{
-        self, AstNode, HasAttrs, HasModuleItem, HasVisibility, PathSegmentKind,
-        edit_in_place::Removable, make,
-    },
+    ast::{self, AstNode, HasAttrs, HasModuleItem, HasVisibility, PathSegmentKind, make},
     syntax_editor::{Position, SyntaxEditor},
     ted,
 };
@@ -326,24 +323,14 @@ fn insert_use_with_alias_option_with_editor(
     insert_use_with_editor_(scope, use_item, cfg.group, syntax_editor);
 }
 
-pub fn ast_to_remove_for_path_in_use_stmt(path: &ast::Path) -> Option<Box<dyn Removable>> {
-    // FIXME: improve this
-    if path.parent_path().is_some() {
-        return None;
-    }
-    let use_tree = path.syntax().parent().and_then(ast::UseTree::cast)?;
+pub fn remove_use_tree_if_simple(use_tree: &ast::UseTree, editor: &SyntaxEditor) {
     if use_tree.use_tree_list().is_some() || use_tree.star_token().is_some() {
-        return None;
+        return;
     }
     if let Some(use_) = use_tree.syntax().parent().and_then(ast::Use::cast) {
-        return Some(Box::new(use_));
-    }
-    Some(Box::new(use_tree))
-}
-
-pub fn remove_path_if_in_use_stmt(path: &ast::Path) {
-    if let Some(node) = ast_to_remove_for_path_in_use_stmt(path) {
-        node.remove();
+        syntax::syntax_editor::Removable::remove(&use_, editor);
+    } else {
+        syntax::syntax_editor::Removable::remove(use_tree, editor);
     }
 }
 

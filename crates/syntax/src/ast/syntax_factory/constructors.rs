@@ -985,6 +985,37 @@ impl SyntaxFactory {
         ast
     }
 
+    pub fn async_move_block_expr(
+        &self,
+        statements: impl IntoIterator<Item = ast::Stmt>,
+        tail_expr: Option<ast::Expr>,
+    ) -> ast::BlockExpr {
+        let (statements, mut input) = iterator_input(statements);
+
+        let ast = make::async_move_block_expr(statements, tail_expr.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings() {
+            let stmt_list = ast.stmt_list().unwrap();
+            let mut builder = SyntaxMappingBuilder::new(stmt_list.syntax().clone());
+
+            if let Some(input) = tail_expr {
+                builder.map_node(
+                    input.syntax().clone(),
+                    stmt_list.tail_expr().unwrap().syntax().clone(),
+                );
+            } else if let Some(ast_tail) = stmt_list.tail_expr() {
+                let last_stmt = input.pop().unwrap();
+                builder.map_node(last_stmt, ast_tail.syntax().clone());
+            }
+
+            builder.map_children(input, stmt_list.statements().map(|it| it.syntax().clone()));
+
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
     pub fn expr_empty_block(&self) -> ast::BlockExpr {
         make::expr_empty_block().clone_for_update()
     }
@@ -1129,6 +1160,27 @@ impl SyntaxFactory {
         if let Some(mut mapping) = self.mappings() {
             let mut builder = SyntaxMappingBuilder::new(ast.syntax().clone());
             builder.map_node(expr.syntax().clone(), ast.expr().unwrap().syntax().clone());
+            builder.finish(&mut mapping);
+        }
+
+        ast.into()
+    }
+
+    pub fn expr_reborrow(&self, expr: ast::Expr) -> ast::Expr {
+        let ast::Expr::RefExpr(ast) = make::expr_reborrow(expr.clone()).clone_for_update() else {
+            unreachable!()
+        };
+
+        if let Some(mut mapping) = self.mappings() {
+            // Layout: RefExpr(&mut, PrefixExpr(*, expr)). Map `expr` to the
+            // inner expr inside the synthesized PrefixExpr.
+            let prefix = match ast.expr() {
+                Some(ast::Expr::PrefixExpr(p)) => p,
+                _ => unreachable!("expr_reborrow always produces `&mut *expr`"),
+            };
+            let inner = prefix.expr().unwrap();
+            let mut builder = SyntaxMappingBuilder::new(prefix.syntax().clone());
+            builder.map_node(expr.syntax().clone(), inner.syntax().clone());
             builder.finish(&mut mapping);
         }
 

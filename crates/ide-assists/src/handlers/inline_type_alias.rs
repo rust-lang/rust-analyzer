@@ -5,8 +5,7 @@
 use hir::{HasSource, PathResolution};
 use ide_db::FxHashMap;
 use ide_db::{
-    defs::Definition, imports::insert_use::ast_to_remove_for_path_in_use_stmt,
-    search::FileReference,
+    defs::Definition, imports::insert_use::remove_use_tree_if_simple, search::FileReference,
 };
 use itertools::Itertools;
 use syntax::ast::syntax_factory::SyntaxFactory;
@@ -72,14 +71,12 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>)
                 let source = ctx.sema.parse(file_id);
                 let editor = builder.make_editor(source.syntax());
 
-                let (path_types, path_type_uses) =
-                    split_refs_and_uses(builder, refs, |path_type| {
-                        path_type.syntax().ancestors().nth(3).and_then(ast::PathType::cast)
-                    });
+                let (path_types, path_type_uses) = split_refs_and_uses(refs, |path_type| {
+                    path_type.syntax().ancestors().nth(3).and_then(ast::PathType::cast)
+                });
                 path_type_uses
                     .iter()
-                    .flat_map(ast_to_remove_for_path_in_use_stmt)
-                    .for_each(|x| editor.delete(x.syntax()));
+                    .for_each(|use_tree| remove_use_tree_if_simple(use_tree, &editor));
 
                 for (target, replacement) in path_types.into_iter().filter_map(|path_type| {
                     let replacement =
@@ -1094,7 +1091,6 @@ fn f() -> Vec<&str> {
 }
 
 //- /foo.rs
-
 fn foo() {
     let _: Vec<i8> = Vec::new();
 }
@@ -1123,7 +1119,6 @@ mod foo;
 
 
 //- /foo.rs
-
 fn foo() {
     let _: i32 = 0;
 }
