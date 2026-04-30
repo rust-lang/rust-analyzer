@@ -133,9 +133,9 @@ impl TextEdit {
         let mut res = offset;
         for indel in &self.indels {
             if indel.delete.start() >= offset {
-                break;
+                continue;
             }
-            if offset < indel.delete.end() {
+            if indel.delete.contains(offset) {
                 return None;
             }
             res += TextSize::of(&indel.insert);
