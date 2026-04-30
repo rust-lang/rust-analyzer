@@ -105,7 +105,7 @@ fn replace_arith(acc: &mut Assists, ctx: &AssistContext<'_>, kind: ArithKind) ->
 
 fn is_primitive_int(ctx: &AssistContext<'_>, expr: &ast::Expr) -> bool {
     match ctx.sema.type_of_expr(expr) {
-        Some(ty) => ty.adjusted().is_int_or_uint(),
+        Some(ty) => ty.original.is_int_or_uint() || ty.adjusted().is_int_or_uint(),
         _ => false,
     }
 }
