@@ -220,10 +220,7 @@ fn insert_use_with_alias_option_with_editor(
     if mb == Some(MergeBehavior::One) && use_tree.path().is_some() {
         use_tree.wrap_in_tree_list();
     }
-    let use_item = make::use_(None, None, use_tree);
-    for attr in scope.required_cfgs.iter().map(|attr| attr.syntax().clone()) {
-        syntax_editor.insert(Position::first_child_of(use_item.syntax()), attr);
-    }
+    let use_item = make.use_(scope.required_cfgs.iter().cloned().rev(), None, use_tree);
 
     // merge into existing imports if possible
     if let Some(mb) = mb {
@@ -425,12 +422,18 @@ fn insert_use_with_editor_(
         if let Some((.., node)) = post_insert {
             cov_mark::hit!(insert_group);
             // insert our import before that element
-            return syntax_editor.insert(Position::before(node), use_item.syntax());
+            return syntax_editor.insert_all(
+                Position::before(node),
+                vec![use_item.syntax().clone().into(), make.whitespace("\n").into()],
+            );
         }
         if let Some(node) = last {
             cov_mark::hit!(insert_group_last);
             // there is no element after our new import, so append it to the end of the group
-            return syntax_editor.insert(Position::after(node), use_item.syntax());
+            return syntax_editor.insert_all(
+                Position::after(node),
+                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
+            );
         }
 
         // the group we were looking for actually doesn't exist, so insert
@@ -442,24 +445,29 @@ fn insert_use_with_editor_(
             .find(|(use_tree, ..)| ImportGroup::new(use_tree) > group);
         if let Some((.., node)) = post_group {
             cov_mark::hit!(insert_group_new_group);
-            syntax_editor.insert(Position::before(&node), use_item.syntax());
-            if let Some(node) = algo::non_trivia_sibling(node.into(), Direction::Prev) {
-                syntax_editor.insert(Position::after(node), make.whitespace("\n"));
-            }
+            syntax_editor.insert_all(
+                Position::before(&node),
+                vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
+            );
             return;
         }
         // there is no such group, so append after the last one
         if let Some(node) = last {
             cov_mark::hit!(insert_group_no_group);
-            syntax_editor.insert(Position::after(&node), use_item.syntax());
-            syntax_editor.insert(Position::after(node), make.whitespace("\n"));
+            syntax_editor.insert_all(
+                Position::after(&node),
+                vec![make.whitespace("\n\n").into(), use_item.syntax().clone().into()],
+            );
             return;
         }
     } else {
         // There exists a group, so append to the end of it
         if let Some((_, node)) = path_node_iter.last() {
             cov_mark::hit!(insert_no_grouping_last);
-            syntax_editor.insert(Position::after(node), use_item.syntax());
+            syntax_editor.insert_all(
+                Position::after(node),
+                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
+            );
             return;
         }
     }
@@ -490,20 +498,38 @@ fn insert_use_with_editor_(
         .last()
     {
         cov_mark::hit!(insert_empty_inner_attr);
-        syntax_editor.insert(Position::after(&last_inner_element), use_item.syntax());
-        syntax_editor.insert(Position::after(last_inner_element), make.whitespace("\n"));
+        let indent = if l_curly.is_some() {
+            IndentLevel::from_node(scope_syntax) + 1
+        } else {
+            IndentLevel::zero()
+        };
+        syntax_editor.insert_all(
+            Position::after(&last_inner_element),
+            vec![
+                make.whitespace(&format!("\n\n{indent}")).into(),
+                use_item.syntax().clone().into(),
+            ],
+        );
     } else {
         match l_curly {
             Some(b) => {
                 cov_mark::hit!(insert_empty_module);
-                syntax_editor.insert(Position::after(&b), make.whitespace("\n"));
-                syntax_editor.insert_with_whitespace(Position::after(&b), use_item.syntax());
+                let indent = IndentLevel::from_node(scope_syntax) + 1;
+                syntax_editor.insert_all(
+                    Position::after(&b),
+                    vec![
+                        make.whitespace(&format!("\n{indent}")).into(),
+                        use_item.syntax().clone().into(),
+                        make.whitespace("\n").into(),
+                    ],
+                );
             }
             None => {
                 cov_mark::hit!(insert_empty_file);
-                syntax_editor
-                    .insert(Position::first_child_of(scope_syntax), make.whitespace("\n\n"));
-                syntax_editor.insert(Position::first_child_of(scope_syntax), use_item.syntax());
+                syntax_editor.insert_all(
+                    Position::first_child_of(scope_syntax),
+                    vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
+                );
             }
         }
     }
