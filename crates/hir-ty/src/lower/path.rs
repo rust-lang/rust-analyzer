@@ -26,7 +26,6 @@ use smallvec::SmallVec;
 use crate::{
     GenericArgsProhibitedReason, IncorrectGenericsLenKind, PathGenericsSource,
     PathLoweringDiagnostic, TyDefId, ValueTyDefId,
-    consteval::{unknown_const, unknown_const_as_generic},
     db::HirDatabase,
     generics::{Generics, generics},
     lower::{
@@ -159,7 +158,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             }
             _ => {
                 // FIXME report error (ambiguous associated type)
-                (Ty::new_error(self.ctx.interner, ErrorGuaranteed), None)
+                (self.ctx.types.types.error, None)
             }
         }
     }
@@ -181,7 +180,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     1 => {
                         let trait_ref = self.lower_trait_ref_from_resolved_path(
                             trait_,
-                            Ty::new_error(self.ctx.interner, ErrorGuaranteed),
+                            self.ctx.types.types.error,
                             infer_args,
                         );
                         tracing::debug!(?trait_ref);
@@ -222,7 +221,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                             }
                             None => {
                                 // FIXME: report error (associated type not found)
-                                Ty::new_error(self.ctx.interner, ErrorGuaranteed)
+                                self.ctx.types.types.error
                             }
                         }
                     }
@@ -230,11 +229,11 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         // Trait object type without dyn; this should be handled in upstream. See
                         // `lower_path()`.
                         stdx::never!("unexpected fully resolved trait path");
-                        Ty::new_error(self.ctx.interner, ErrorGuaranteed)
+                        self.ctx.types.types.error
                     }
                     _ => {
                         // FIXME report error (ambiguous associated type)
-                        Ty::new_error(self.ctx.interner, ErrorGuaranteed)
+                        self.ctx.types.types.error
                     }
                 };
                 return (ty, None);
@@ -255,7 +254,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             TypeNs::TypeAliasId(it) => self.lower_path_inner(it.into(), infer_args),
             // FIXME: report error
             TypeNs::EnumVariantId(_) | TypeNs::ModuleId(_) => {
-                return (Ty::new_error(self.ctx.interner, ErrorGuaranteed), None);
+                return (self.ctx.types.types.error, None);
             }
         };
 
@@ -476,7 +475,6 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
         let def = self.ctx.generic_def;
         let segment = self.current_or_prev_segment;
         let assoc_name = segment.name;
-        let error_ty = || Ty::new_error(self.ctx.interner, ErrorGuaranteed);
         let (assoc_type, trait_args) = match res {
             Some(TypeNs::GenericParam(param)) => {
                 let AssocTypeShorthandResolution::Resolved(assoc_type) =
@@ -488,7 +486,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     )
                 else {
                     // FIXME: Emit an error.
-                    return error_ty();
+                    return self.ctx.types.types.error;
                 };
                 assoc_type
                     .get_with(|(assoc_type, trait_args)| (*assoc_type, trait_args.as_ref()))
@@ -496,7 +494,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             }
             Some(TypeNs::SelfType(impl_)) => {
                 let Some(impl_trait) = db.impl_trait(impl_) else {
-                    return error_ty();
+                    return self.ctx.types.types.error;
                 };
                 let impl_trait = impl_trait.instantiate_identity();
                 // Searching for `Self::Assoc` in `impl Trait for Type` is like searching for `Self::Assoc` in `Trait`.
@@ -509,14 +507,14 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     )
                 else {
                     // FIXME: Emit an error.
-                    return error_ty();
+                    return self.ctx.types.types.error;
                 };
                 let (assoc_type, trait_args) = assoc_type
                     .get_with(|(assoc_type, trait_args)| (*assoc_type, trait_args.as_ref()))
                     .skip_binder();
                 (assoc_type, EarlyBinder::bind(trait_args).instantiate(interner, impl_trait.args))
             }
-            _ => return error_ty(),
+            _ => return self.ctx.types.types.error,
         };
 
         // FIXME: `substs_from_path_segment()` pushes `TyKind::Error` for every parent
@@ -737,7 +735,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             ) -> Const<'db> {
                 match arg {
                     TypeLikeConst::Path(path) => self.ctx.ctx.lower_path_as_const(path, const_ty),
-                    TypeLikeConst::Infer => unknown_const(const_ty),
+                    TypeLikeConst::Infer => self.ctx.ctx.types.consts.error,
                 }
             }
 
@@ -757,8 +755,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     };
                 match param {
                     GenericParamDataRef::LifetimeParamData(_) => {
-                        Region::new(self.ctx.ctx.interner, rustc_type_ir::ReError(ErrorGuaranteed))
-                            .into()
+                        self.ctx.ctx.types.regions.error.into()
                     }
                     GenericParamDataRef::TypeParamData(param) => {
                         if !infer_args
@@ -776,10 +773,10 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         {
                             return default;
                         }
-                        let GenericParamId::ConstParamId(const_id) = param_id else {
+                        let GenericParamId::ConstParamId(_) = param_id else {
                             unreachable!("non-const param ID for const param");
                         };
-                        unknown_const_as_generic(const_param_ty(self.ctx.ctx.db, const_id))
+                        self.ctx.ctx.types.consts.error.into()
                     }
                 }
             }
@@ -789,13 +786,8 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     GenericParamId::TypeParamId(_) => {
                         Ty::new_error(self.ctx.ctx.interner, ErrorGuaranteed).into()
                     }
-                    GenericParamId::ConstParamId(const_id) => {
-                        unknown_const_as_generic(const_param_ty(self.ctx.ctx.db, const_id))
-                    }
-                    GenericParamId::LifetimeParamId(_) => {
-                        Region::new(self.ctx.ctx.interner, rustc_type_ir::ReError(ErrorGuaranteed))
-                            .into()
-                    }
+                    GenericParamId::ConstParamId(_) => self.ctx.ctx.types.consts.error.into(),
+                    GenericParamId::LifetimeParamId(_) => self.ctx.ctx.types.regions.error.into(),
                 }
             }
 

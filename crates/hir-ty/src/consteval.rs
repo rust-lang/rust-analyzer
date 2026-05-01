@@ -25,22 +25,14 @@ use crate::{
     generics::Generics,
     mir::{MirEvalError, MirLowerError, pad16},
     next_solver::{
-        Allocation, Const, ConstKind, Consts, DbInterner, DefaultAny, ErrorGuaranteed, GenericArg,
-        GenericArgs, ParamConst, ScalarInt, StoredAllocation, StoredEarlyBinder, StoredGenericArgs,
-        Ty, TyKind, UnevaluatedConst, ValTreeKind, default_types, infer::InferCtxt,
+        Allocation, Const, ConstKind, Consts, DbInterner, DefaultAny, GenericArgs, ParamConst,
+        ScalarInt, StoredAllocation, StoredEarlyBinder, StoredGenericArgs, Ty, TyKind,
+        UnevaluatedConst, ValTreeKind, default_types, infer::InferCtxt,
     },
     traits::StoredParamEnvAndCrate,
 };
 
 use super::mir::interpret_mir;
-
-pub fn unknown_const<'db>(_ty: Ty<'db>) -> Const<'db> {
-    Const::new(DbInterner::conjure(), rustc_type_ir::ConstKind::Error(ErrorGuaranteed))
-}
-
-pub fn unknown_const_as_generic<'db>(ty: Ty<'db>) -> GenericArg<'db> {
-    unknown_const(ty).into()
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstEvalError {
