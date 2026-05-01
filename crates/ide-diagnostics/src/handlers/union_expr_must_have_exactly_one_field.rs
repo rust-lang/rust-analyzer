@@ -4,7 +4,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // A union expression does not have exactly one field.
 pub(crate) fn union_expr_must_have_exactly_one_field(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::UnionExprMustHaveExactlyOneField,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(
