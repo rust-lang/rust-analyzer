@@ -1455,9 +1455,7 @@ impl<'db> SourceAnalyzer<'db> {
             };
             match expanded_expr {
                 ExprOrPatId::ExprId(expanded_expr) => walk_expr(expanded_expr),
-                ExprOrPatId::PatId(expanded_pat) => {
-                    body.walk_exprs_in_pat(expanded_pat, &mut walk_expr)
-                }
+                ExprOrPatId::PatId(expanded_pat) => body.walk_exprs_in_pat(expanded_pat, walk_expr),
             }
             return is_unsafe;
         }
