@@ -81,6 +81,7 @@ diagnostics![AnyDiagnostic<'db> ->
     NonExhaustiveLet,
     NonExhaustiveRecordExpr,
     NoSuchField,
+    MismatchedArrayPatLen,
     PatternArgInExternFn,
     PrivateAssocItem,
     PrivateField,
@@ -229,6 +230,14 @@ pub struct MismatchedTupleStructPatArgCount {
     pub expr_or_pat: InFile<ExprOrPatPtr>,
     pub expected: usize,
     pub found: usize,
+}
+
+#[derive(Debug)]
+pub struct MismatchedArrayPatLen {
+    pub pat: InFile<ExprOrPatPtr>,
+    pub expected: u128,
+    pub found: u128,
+    pub has_rest: bool,
 }
 
 #[derive(Debug)]
@@ -671,6 +680,10 @@ impl<'db> AnyDiagnostic<'db> {
                 };
                 let private = private.map(|id| Field { id, parent: variant.into() });
                 NoSuchField { field: expr_or_pat, private, variant }.into()
+            }
+            &InferenceDiagnostic::MismatchedArrayPatLen { pat, expected, found, has_rest } => {
+                let pat = pat_syntax(pat)?.map(Into::into);
+                MismatchedArrayPatLen { pat, expected, found, has_rest }.into()
             }
             &InferenceDiagnostic::MismatchedArgCount { call_expr, expected, found } => {
                 MismatchedArgCount { call_expr: expr_syntax(call_expr)?, expected, found }.into()

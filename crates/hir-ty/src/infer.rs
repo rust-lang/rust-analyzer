@@ -319,6 +319,16 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         variant: VariantId,
     },
+    MismatchedArrayPatLen {
+        #[type_visitable(ignore)]
+        pat: PatId,
+        #[type_visitable(ignore)]
+        expected: u128,
+        #[type_visitable(ignore)]
+        found: u128,
+        #[type_visitable(ignore)]
+        has_rest: bool,
+    },
     PrivateField {
         #[type_visitable(ignore)]
         expr: ExprId,

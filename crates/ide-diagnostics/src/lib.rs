@@ -47,6 +47,7 @@ mod handlers {
     pub(crate) mod macro_error;
     pub(crate) mod malformed_derive;
     pub(crate) mod mismatched_arg_count;
+    pub(crate) mod mismatched_array_pat_len;
     pub(crate) mod missing_fields;
     pub(crate) mod missing_lifetime;
     pub(crate) mod missing_match_arms;
@@ -425,6 +426,7 @@ pub fn semantic_diagnostics(
             },
             AnyDiagnostic::MalformedDerive(d) => handlers::malformed_derive::malformed_derive(&ctx, &d),
             AnyDiagnostic::MismatchedArgCount(d) => handlers::mismatched_arg_count::mismatched_arg_count(&ctx, &d),
+            AnyDiagnostic::MismatchedArrayPatLen(d) => handlers::mismatched_array_pat_len::mismatched_array_pat_len(&ctx, &d),
             AnyDiagnostic::MissingFields(d) => handlers::missing_fields::missing_fields(&ctx, &d),
             AnyDiagnostic::MissingMatchArms(d) => handlers::missing_match_arms::missing_match_arms(&ctx, &d),
             AnyDiagnostic::MissingUnsafe(d) => handlers::missing_unsafe::missing_unsafe(&ctx, &d),
