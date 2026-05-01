@@ -455,6 +455,10 @@ pub enum InferenceDiagnostic {
         at_point: Span,
         top_term: Option<StoredGenericArg>,
     },
+    UnionExprMustHaveExactlyOneField {
+        #[type_visitable(ignore)]
+        expr: ExprId,
+    },
 }
 
 /// A mismatch between an expected and an inferred type.

@@ -112,6 +112,7 @@ diagnostics![AnyDiagnostic<'db> ->
     MissingLifetime,
     ElidedLifetimesInPath,
     TypeMustBeKnown<'db>,
+    UnionExprMustHaveExactlyOneField,
 ];
 
 #[derive(Debug)]
@@ -489,6 +490,11 @@ pub struct GenericDefaultRefersToSelf {
 }
 
 #[derive(Debug)]
+pub struct UnionExprMustHaveExactlyOneField {
+    pub expr: InFile<ExprOrPatPtr>,
+}
+
+#[derive(Debug)]
 pub struct InvalidLhsOfAssignment {
     pub lhs: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
 }
@@ -852,6 +858,10 @@ impl<'db> AnyDiagnostic<'db> {
                     }
                 });
                 TypeMustBeKnown { at_point, top_term }.into()
+            }
+            &InferenceDiagnostic::UnionExprMustHaveExactlyOneField { expr } => {
+                let expr = expr_syntax(expr)?;
+                UnionExprMustHaveExactlyOneField { expr }.into()
             }
         })
     }

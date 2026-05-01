@@ -1093,7 +1093,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         // Make sure the programmer specified correct number of fields.
         if matches!(adt_id, AdtId::UnionId(_)) && hir_fields.len() != 1 {
-            // FIXME: Emit an error: unions must specify exactly one field.
+            self.push_diagnostic(InferenceDiagnostic::UnionExprMustHaveExactlyOneField { expr });
         }
 
         match base_expr {
