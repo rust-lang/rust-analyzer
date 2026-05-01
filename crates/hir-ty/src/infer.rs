@@ -61,7 +61,7 @@ use rustc_ast_ir::Mutability;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{
     AliasTyKind, TypeFoldable, TypeVisitableExt,
-    inherent::{IntoKind, Ty as _},
+    inherent::{GenericArgs as _, IntoKind, Ty as _},
 };
 use smallvec::SmallVec;
 use span::Edition;
@@ -1173,6 +1173,7 @@ pub(crate) struct InferenceContext<'body, 'db> {
     pub(crate) edition: Edition,
     allow_using_generic_params: bool,
     generics: OnceCell<Generics<'db>>,
+    identity_args: OnceCell<GenericArgs<'db>>,
     pub(crate) table: unify::InferenceTable<'db>,
     pub(crate) lang_items: &'db LangItems,
     pub(crate) features: &'db UnstableFeatures,
@@ -1286,6 +1287,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             generic_def,
             allow_using_generic_params,
             generics: OnceCell::new(),
+            identity_args: OnceCell::new(),
             store,
             traits_in_scope: resolver.traits_in_scope(db),
             resolver,
@@ -1808,6 +1810,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             types_source,
             store_owner,
             self.generic_def,
+            &self.generics,
             lifetime_elision,
             self.allow_using_generic_params,
             &self.defined_anon_consts,
@@ -1873,8 +1876,12 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     }
 
     fn generics(&self) -> &Generics<'db> {
-        self.generics.get_or_init(|| {
-            crate::generics::generics(self.db, self.store_owner.generic_def(self.db))
+        self.generics.get_or_init(|| crate::generics::generics(self.db, self.generic_def))
+    }
+
+    fn identity_args(&self) -> GenericArgs<'db> {
+        *self.identity_args.get_or_init(|| {
+            GenericArgs::identity_for_item(self.interner(), self.store_owner.into())
         })
     }
 
@@ -2150,6 +2157,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             InferenceTyDiagnosticSource::Body,
             self.store_owner,
             self.generic_def,
+            &self.generics,
             LifetimeElisionKind::Infer,
             self.allow_using_generic_params,
             &self.defined_anon_consts,

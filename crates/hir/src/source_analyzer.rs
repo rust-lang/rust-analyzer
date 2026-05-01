@@ -5,7 +5,10 @@
 //!
 //! So, this modules should not be used during hir construction, it exists
 //! purely for "IDE needs".
-use std::iter::{self, once};
+use std::{
+    cell::OnceCell,
+    iter::{self, once},
+};
 
 use either::Either;
 use hir_def::{
@@ -374,12 +377,14 @@ impl<'db> SourceAnalyzer<'db> {
         let type_ref = self.type_id(ty)?;
 
         let generic_def = self.resolver.generic_def()?;
+        let generics = OnceCell::new();
         let mut ty = TyLoweringContext::new(
             db,
             &self.resolver,
             self.store()?,
             generic_def.into(),
             generic_def,
+            &generics,
             // FIXME: Is this correct here? Anyway that should impact mostly diagnostics, which we don't emit here
             // (this can impact the lifetimes generated, e.g. in `const` they won't be `'static`, but this seems like a
             // small problem).
@@ -1780,12 +1785,14 @@ fn resolve_hir_path_(
     let types = || {
         let (ty, unresolved) = match path.type_anchor() {
             Some(type_ref) => resolver.generic_def().and_then(|def| {
+                let generics = OnceCell::new();
                 let (_, res) = TyLoweringContext::new(
                     db,
                     resolver,
                     store?,
                     def.into(),
                     def,
+                    &generics,
                     LifetimeElisionKind::Infer,
                 )
                 .lower_ty_ext(type_ref);
@@ -1936,12 +1943,14 @@ fn resolve_hir_path_qualifier(
     (|| {
         let (ty, unresolved) = match path.type_anchor() {
             Some(type_ref) => resolver.generic_def().and_then(|def| {
+                let generics = OnceCell::new();
                 let (_, res) = TyLoweringContext::new(
                     db,
                     resolver,
                     store,
                     def.into(),
                     def,
+                    &generics,
                     LifetimeElisionKind::Infer,
                 )
                 .lower_ty_ext(type_ref);

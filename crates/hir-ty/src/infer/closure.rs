@@ -22,8 +22,8 @@ use crate::{
     db::{InternedClosure, InternedClosureId, InternedCoroutineClosureId, InternedCoroutineId},
     infer::{BreakableKind, Diverges, coerce::CoerceMany, pat::PatOrigin},
     next_solver::{
-        AliasTy, Binder, ClauseKind, DbInterner, ErrorGuaranteed, FnSig, GenericArg, GenericArgs,
-        PolyFnSig, PolyProjectionPredicate, Predicate, PredicateKind, SolverDefId, Ty, TyKind,
+        AliasTy, Binder, ClauseKind, DbInterner, ErrorGuaranteed, FnSig, GenericArg, PolyFnSig,
+        PolyProjectionPredicate, Predicate, PredicateKind, SolverDefId, Ty, TyKind,
         abi::Safety,
         infer::{
             BoundRegionConversionTime, InferOk, InferResult,
@@ -91,7 +91,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         debug!(?bound_sig, ?liberated_sig);
 
-        let parent_args = GenericArgs::identity_for_item(interner, self.store_owner.into());
+        let parent_args = self.identity_args();
 
         let tupled_upvars_ty = self.table.next_ty_var(closure_expr.into());
 

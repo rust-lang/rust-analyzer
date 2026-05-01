@@ -39,7 +39,7 @@ pub(crate) fn generics(db: &dyn DefDatabase, def: GenericDefId) -> Generics<'_> 
 }
 
 #[derive(Debug)]
-pub(crate) struct Generics<'db> {
+pub struct Generics<'db> {
     chain: ArrayVec<SingleGenerics<'db>, 2>,
 }
 

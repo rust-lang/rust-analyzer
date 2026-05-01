@@ -147,6 +147,7 @@ impl<'db> InferenceContext<'_, 'db> {
             InferenceTyDiagnosticSource::Body,
             self.store_owner,
             self.generic_def,
+            &self.generics,
             LifetimeElisionKind::Infer,
             self.allow_using_generic_params,
             &self.defined_anon_consts,
