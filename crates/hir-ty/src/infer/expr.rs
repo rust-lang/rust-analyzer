@@ -1069,7 +1069,10 @@ impl<'db> InferenceContext<'_, 'db> {
                 variant_field_tys[i].get().instantiate(interner, args)
             } else {
                 if let Some(field_idx) = seen_fields.get(&name) {
-                    // FIXME: Emit an error: duplicate field.
+                    self.push_diagnostic(InferenceDiagnostic::DuplicateField {
+                        field: field.expr.into(),
+                        variant,
+                    });
                     variant_field_tys[*field_idx].get().instantiate(interner, args)
                 } else {
                     self.push_diagnostic(InferenceDiagnostic::NoSuchField {
