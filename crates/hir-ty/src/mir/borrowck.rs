@@ -6,7 +6,7 @@
 use std::iter;
 
 use either::Either;
-use hir_def::{DefWithBodyId, ExpressionStoreOwnerId, HasModule};
+use hir_def::{DefWithBodyId, HasModule};
 use la_arena::ArenaMap;
 use rustc_hash::FxHashMap;
 use stdx::never;
@@ -140,7 +140,7 @@ pub fn borrowck_query(
     let _p = tracing::info_span!("borrowck_query").entered();
     let module = def.module(db);
     let interner = DbInterner::new_with(db, module.krate(db));
-    let env = db.trait_environment(ExpressionStoreOwnerId::from(def));
+    let env = db.trait_environment(def.generic_def(db));
     // This calculates opaques defining scope which is a bit costly therefore is put outside `all_mir_bodies()`.
     let typing_mode = TypingMode::borrowck(interner, def.into());
     let res = all_mir_bodies(

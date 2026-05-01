@@ -10,8 +10,8 @@ use std::{
 use base_db::{Crate, FxIndexMap};
 use either::Either;
 use hir_def::{
-    ExpressionStoreOwnerId, FindPathConfig, GenericDefId, GenericParamId, HasModule, LocalFieldId,
-    Lookup, ModuleDefId, ModuleId, TraitId,
+    FindPathConfig, GenericDefId, GenericParamId, HasModule, LocalFieldId, Lookup, ModuleDefId,
+    ModuleId, TraitId,
     expr_store::{ExpressionStore, path::Path},
     find_path::{self, PrefixKind},
     hir::{
@@ -957,9 +957,7 @@ fn render_const_scalar_inner<'db>(
                         s.fields(f.db),
                         f,
                         field_types,
-                        f.db.trait_environment(ExpressionStoreOwnerId::from(GenericDefId::from(
-                            def,
-                        ))),
+                        f.db.trait_environment(def.into()),
                         &layout,
                         args,
                         b,
@@ -991,9 +989,7 @@ fn render_const_scalar_inner<'db>(
                         var_id.fields(f.db),
                         f,
                         field_types,
-                        f.db.trait_environment(ExpressionStoreOwnerId::from(GenericDefId::from(
-                            def,
-                        ))),
+                        f.db.trait_environment(def.into()),
                         var_layout,
                         args,
                         b,

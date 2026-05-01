@@ -5,8 +5,8 @@ use std::{borrow::Cow, cell::RefCell, fmt::Write, iter, mem, ops::Range};
 use base_db::{Crate, target::TargetLoadError};
 use either::Either;
 use hir_def::{
-    AdtId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, FunctionId, GeneralConstId,
-    HasModule, ItemContainerId, Lookup, StaticId, VariantId,
+    AdtId, DefWithBodyId, EnumVariantId, FunctionId, GeneralConstId, HasModule, ItemContainerId,
+    Lookup, StaticId, VariantId,
     expr_store::{Body, HygieneId},
     item_tree::FieldsShape,
     lang_item::LangItems,
@@ -676,7 +676,7 @@ impl<'a, 'db: 'a> Evaluator<'a, 'db> {
             db,
             random_state: oorandom::Rand64::new(0),
             param_env: trait_env.unwrap_or_else(|| ParamEnvAndCrate {
-                param_env: db.trait_environment(ExpressionStoreOwnerId::from(owner)),
+                param_env: db.trait_environment(owner.generic_def(db)),
                 krate: crate_id,
             }),
             crate_id,

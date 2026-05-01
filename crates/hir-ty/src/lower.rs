@@ -12,10 +12,10 @@ use std::{cell::OnceCell, iter, mem};
 
 use either::Either;
 use hir_def::{
-    AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, EnumId, EnumVariantId,
-    ExpressionStoreOwnerId, FunctionId, GeneralConstId, GenericDefId, GenericParamId, HasModule,
-    ImplId, ItemContainerId, LifetimeParamId, LocalFieldId, Lookup, StaticId, StructId, TraitId,
-    TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, VariantId,
+    AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, EnumId, EnumVariantId, FunctionId,
+    GeneralConstId, GenericDefId, GenericParamId, HasModule, ImplId, ItemContainerId,
+    LifetimeParamId, LocalFieldId, Lookup, StaticId, StructId, TraitId, TypeAliasId,
+    TypeOrConstParamId, TypeParamId, UnionId, VariantId,
     builtin_type::BuiltinType,
     expr_store::{ExpressionStore, HygieneId, path::Path},
     hir::generics::{
@@ -2148,12 +2148,7 @@ pub(crate) fn param_env_from_predicates<'db>(
     ParamEnv { clauses }
 }
 
-pub(crate) fn trait_environment<'db>(
-    db: &'db dyn HirDatabase,
-    def: ExpressionStoreOwnerId,
-) -> ParamEnv<'db> {
-    let def = def.generic_def(db);
-
+pub(crate) fn trait_environment<'db>(db: &'db dyn HirDatabase, def: GenericDefId) -> ParamEnv<'db> {
     return ParamEnv { clauses: trait_environment_query(db, def).as_ref() };
 
     #[salsa::tracked(returns(ref))]

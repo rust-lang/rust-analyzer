@@ -950,7 +950,7 @@ impl Module {
                     let self_ty = structurally_normalize_ty(
                         &infcx,
                         self_ty,
-                        db.trait_environment(GenericDefId::from(impl_id).into()),
+                        db.trait_environment(impl_id.into()),
                     );
                     let self_ty_is_guaranteed_unsized = matches!(
                         self_ty.kind(),
@@ -2860,7 +2860,7 @@ impl Function {
             id.into(),
             GenericArgs::empty(interner).store(),
             ParamEnvAndCrate {
-                param_env: db.trait_environment(GenericDefId::from(id).into()),
+                param_env: db.trait_environment(id.into()),
                 krate: id.module(db).krate(db),
             }
             .store(),
@@ -7363,7 +7363,7 @@ fn param_env_from_resolver<'db>(
     ParamEnvAndCrate {
         param_env: resolver
             .generic_def()
-            .map_or_else(ParamEnv::empty, |generic_def| db.trait_environment(generic_def.into())),
+            .map_or_else(ParamEnv::empty, |generic_def| db.trait_environment(generic_def)),
         krate: resolver.krate(),
     }
 }
@@ -7372,14 +7372,17 @@ fn param_env_from_has_crate<'db>(
     db: &'db dyn HirDatabase,
     id: impl hir_def::HasModule + Into<GenericDefId> + Copy,
 ) -> ParamEnvAndCrate<'db> {
-    ParamEnvAndCrate { param_env: db.trait_environment(id.into().into()), krate: id.krate(db) }
+    ParamEnvAndCrate { param_env: db.trait_environment(id.into()), krate: id.krate(db) }
 }
 
 fn body_param_env_from_has_crate<'db>(
     db: &'db dyn HirDatabase,
     id: impl hir_def::HasModule + Into<ExpressionStoreOwnerId> + Copy,
 ) -> ParamEnvAndCrate<'db> {
-    ParamEnvAndCrate { param_env: db.trait_environment(id.into()), krate: id.krate(db) }
+    ParamEnvAndCrate {
+        param_env: db.trait_environment(id.into().generic_def(db)),
+        krate: id.krate(db),
+    }
 }
 
 fn empty_param_env<'db>(krate: base_db::Crate) -> ParamEnvAndCrate<'db> {
