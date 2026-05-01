@@ -1,11 +1,11 @@
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 
-// Diagnostic: union-must-have-exactly-one-field
+// Diagnostic: union-expr-must-have-exactly-one-field
 //
 // A union expression does not have exactly one field.
-pub(crate) fn union_must_have_exactly_one_field(
+pub(crate) fn union_expr_must_have_exactly_one_field(
     ctx: &DiagnosticsContext<'_>,
-    d: &hir::UnionMustHaveExactlyOneField,
+    d: &hir::UnionExprMustHaveExactlyOneField,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(
         ctx,
@@ -21,7 +21,7 @@ mod tests {
     use crate::tests::check_diagnostics;
 
     #[test]
-    fn union_must_have_exactly_one_field() {
+    fn union_expr_must_have_exactly_one_field() {
         check_diagnostics(
             r#"
 union Bird {
