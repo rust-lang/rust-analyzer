@@ -195,7 +195,7 @@ impl Diagnostic {
     }
 
     fn new_with_syntax_node_ptr(
-        ctx: &DiagnosticsContext<'_>,
+        ctx: &DiagnosticsContext<'_, '_>,
         code: DiagnosticCode,
         message: impl Into<String>,
         node: InFile<SyntaxNodePtr>,
@@ -281,17 +281,17 @@ impl DiagnosticsConfig {
     }
 }
 
-struct DiagnosticsContext<'a> {
+struct DiagnosticsContext<'a, 'db> {
     config: &'a DiagnosticsConfig,
-    sema: Semantics<'a, RootDatabase>,
+    sema: Semantics<'db, RootDatabase>,
     resolve: &'a AssistResolveStrategy,
     edition: Edition,
     display_target: DisplayTarget,
     is_nightly: bool,
 }
 
-impl<'a> DiagnosticsContext<'a> {
-    fn db(&self) -> &'a RootDatabase {
+impl<'db> DiagnosticsContext<'_, 'db> {
+    fn db(&self) -> &'db RootDatabase {
         self.sema.db
     }
 }
@@ -778,7 +778,7 @@ fn unresolved_fix(id: &'static str, label: &str, target: TextRange) -> Assist {
 }
 
 fn adjusted_display_range<N: AstNode>(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     diag_ptr: InFile<AstPtr<N>>,
     adj: &dyn Fn(N) -> Option<TextRange>,
 ) -> FileRange {

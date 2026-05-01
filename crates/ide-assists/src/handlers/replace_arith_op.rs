@@ -24,7 +24,10 @@ use crate::{
 //   let x = 1.checked_add(2);
 // }
 // ```
-pub(crate) fn replace_arith_with_checked(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn replace_arith_with_checked(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     replace_arith(acc, ctx, ArithKind::Checked)
 }
 
@@ -45,7 +48,7 @@ pub(crate) fn replace_arith_with_checked(acc: &mut Assists, ctx: &AssistContext<
 // ```
 pub(crate) fn replace_arith_with_saturating(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     replace_arith(acc, ctx, ArithKind::Saturating)
 }
@@ -67,12 +70,12 @@ pub(crate) fn replace_arith_with_saturating(
 // ```
 pub(crate) fn replace_arith_with_wrapping(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     replace_arith(acc, ctx, ArithKind::Wrapping)
 }
 
-fn replace_arith(acc: &mut Assists, ctx: &AssistContext<'_>, kind: ArithKind) -> Option<()> {
+fn replace_arith(acc: &mut Assists, ctx: &AssistContext<'_, '_>, kind: ArithKind) -> Option<()> {
     let (lhs, op, is_assign, rhs) = parse_binary_op(ctx)?;
     let op_expr = lhs.syntax().parent()?;
 
@@ -103,7 +106,7 @@ fn replace_arith(acc: &mut Assists, ctx: &AssistContext<'_>, kind: ArithKind) ->
     )
 }
 
-fn is_primitive_int(ctx: &AssistContext<'_>, expr: &ast::Expr) -> bool {
+fn is_primitive_int(ctx: &AssistContext<'_, '_>, expr: &ast::Expr) -> bool {
     match ctx.sema.type_of_expr(expr) {
         Some(ty) => ty.adjusted().is_int_or_uint(),
         _ => false,
@@ -111,7 +114,7 @@ fn is_primitive_int(ctx: &AssistContext<'_>, expr: &ast::Expr) -> bool {
 }
 
 /// Extract the operands of an arithmetic expression (e.g. `1 + 2` or `1.checked_add(2)`)
-fn parse_binary_op(ctx: &AssistContext<'_>) -> Option<(ast::Expr, ArithOp, bool, ast::Expr)> {
+fn parse_binary_op(ctx: &AssistContext<'_, '_>) -> Option<(ast::Expr, ArithOp, bool, ast::Expr)> {
     if !ctx.has_empty_selection() {
         return None;
     }

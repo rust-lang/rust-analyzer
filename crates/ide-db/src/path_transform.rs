@@ -151,7 +151,7 @@ impl<'a> PathTransform<'a> {
                 prettify_macro_expansion(
                     db,
                     node,
-                    &db.expansion_span_map(file_id),
+                    db.expansion_span_map(file_id),
                     self.target_scope.module().krate(db).into(),
                 )
             }

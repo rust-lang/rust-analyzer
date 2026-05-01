@@ -2,7 +2,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 
 // Diagnostic: undeclared-label
 pub(crate) fn undeclared_label(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::UndeclaredLabel,
 ) -> Diagnostic {
     let name = &d.name;

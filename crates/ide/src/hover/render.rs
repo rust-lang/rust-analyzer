@@ -544,7 +544,7 @@ pub(super) fn definition(
                     let mut body = source.value.body()?.syntax().clone();
                     if let Some(macro_file) = source.file_id.macro_file() {
                         let span_map = db.expansion_span_map(macro_file);
-                        body = prettify_macro_expansion(db, body, &span_map, it.krate(db).into());
+                        body = prettify_macro_expansion(db, body, span_map, it.krate(db).into());
                     }
                     if env::var_os("RA_DEV").is_some() {
                         format!("{body}\n{}", render_const_eval_error(db, err, display_target))
@@ -576,7 +576,7 @@ pub(super) fn definition(
                     let mut body = source.value.body()?.syntax().clone();
                     if let Some(macro_file) = source.file_id.macro_file() {
                         let span_map = db.expansion_span_map(macro_file);
-                        body = prettify_macro_expansion(db, body, &span_map, it.krate(db).into());
+                        body = prettify_macro_expansion(db, body, span_map, it.krate(db).into());
                     }
                     if env::var_os("RA_DEV").is_some() {
                         format!("{body}\n{}", render_const_eval_error(db, err, display_target))

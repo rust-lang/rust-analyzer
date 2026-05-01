@@ -18,7 +18,7 @@ use triomphe::Arc;
 use tt::{Spacing, TransformTtAction, transform_tt};
 
 use crate::{
-    span_map::SpanMapRef,
+    span_map::SpanMap,
     tt::{self, Ident, Leaf, Punct, TopSubtree},
 };
 
@@ -51,7 +51,7 @@ const FIXUP_DUMMY_RANGE: TextRange = TextRange::empty(TextSize::new(0));
 const FIXUP_DUMMY_RANGE_END: TextSize = TextSize::new(!0);
 
 pub(crate) fn fixup_syntax(
-    span_map: SpanMapRef<'_>,
+    span_map: SpanMap<'_>,
     node: &SyntaxNode,
     call_site: Span,
     mode: DocCommentDesugarMode,
@@ -402,7 +402,6 @@ mod tests {
     use span::{Edition, EditionedFileId, FileId};
     use syntax::TextRange;
     use syntax_bridge::DocCommentDesugarMode;
-    use triomphe::Arc;
 
     use crate::{
         fixup::reverse_fixups,
@@ -440,19 +439,19 @@ mod tests {
     #[track_caller]
     fn check(#[rust_analyzer::rust_fixture] ra_fixture: &str, mut expect: Expect) {
         let parsed = syntax::SourceFile::parse(ra_fixture, span::Edition::CURRENT);
-        let span_map = SpanMap::RealSpanMap(Arc::new(RealSpanMap::absolute(EditionedFileId::new(
+        let span_map = SpanMap::RealSpanMap(&RealSpanMap::absolute(EditionedFileId::new(
             FileId::from_raw(0),
             Edition::CURRENT,
-        ))));
+        )));
         let fixups = super::fixup_syntax(
-            span_map.as_ref(),
+            span_map,
             &parsed.syntax_node(),
             span_map.span_for_range(TextRange::empty(0.into())),
             DocCommentDesugarMode::Mbe,
         );
         let mut tt = syntax_bridge::syntax_node_to_token_tree_modified(
             &parsed.syntax_node(),
-            span_map.as_ref(),
+            span_map,
             fixups.append,
             fixups.remove,
             span_map.span_for_range(TextRange::empty(0.into())),
@@ -494,7 +493,7 @@ mod tests {
         // modulo token IDs and `Punct`s' spacing.
         let original_as_tt = syntax_bridge::syntax_node_to_token_tree(
             &parsed.syntax_node(),
-            span_map.as_ref(),
+            span_map,
             span_map.span_for_range(TextRange::empty(0.into())),
             DocCommentDesugarMode::Mbe,
         );

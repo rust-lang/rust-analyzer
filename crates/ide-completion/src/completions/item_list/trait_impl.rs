@@ -59,7 +59,7 @@ enum ImplCompletionKind {
 
 pub(crate) fn complete_trait_impl_const(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     name: &Option<ast::Name>,
 ) -> Option<()> {
     complete_trait_impl_name(acc, ctx, name, ImplCompletionKind::Const)
@@ -67,7 +67,7 @@ pub(crate) fn complete_trait_impl_const(
 
 pub(crate) fn complete_trait_impl_type_alias(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     name: &Option<ast::Name>,
 ) -> Option<()> {
     complete_trait_impl_name(acc, ctx, name, ImplCompletionKind::TypeAlias)
@@ -75,7 +75,7 @@ pub(crate) fn complete_trait_impl_type_alias(
 
 pub(crate) fn complete_trait_impl_fn(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     name: &Option<ast::Name>,
 ) -> Option<()> {
     complete_trait_impl_name(acc, ctx, name, ImplCompletionKind::Fn)
@@ -83,7 +83,7 @@ pub(crate) fn complete_trait_impl_fn(
 
 fn complete_trait_impl_name(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     name: &Option<ast::Name>,
     kind: ImplCompletionKind,
 ) -> Option<()> {
@@ -122,7 +122,7 @@ fn complete_trait_impl_name(
 
 pub(crate) fn complete_trait_impl_item_by_name(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     path_ctx: &PathCompletionCtx<'_>,
     name_ref: &Option<ast::NameRef>,
     impl_: &Option<ast::Impl>,
@@ -149,7 +149,7 @@ pub(crate) fn complete_trait_impl_item_by_name(
 
 fn complete_trait_impl(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     kind: ImplCompletionKind,
     replacement_range: TextRange,
     impl_def: &ast::Impl,
@@ -178,7 +178,7 @@ fn complete_trait_impl(
 
 fn add_function_impl(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
     func: hir::Function,
     impl_def: hir::Impl,
@@ -198,7 +198,7 @@ fn add_function_impl(
 
 fn add_function_impl_(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
     func: hir::Function,
     impl_def: hir::Impl,
@@ -257,7 +257,7 @@ enum AsyncSugaring {
 
 /// Transform a relevant associated item to inline generics from the impl, remove attrs and docs, etc.
 fn get_transformed_assoc_item(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     assoc_item: ast::AssocItem,
     impl_def: hir::Impl,
 ) -> Option<ast::AssocItem> {
@@ -281,7 +281,7 @@ fn get_transformed_assoc_item(
 
 /// Transform a relevant associated item to inline generics from the impl, remove attrs and docs, etc.
 fn get_transformed_fn(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     fn_: ast::Fn,
     impl_def: hir::Impl,
     async_: AsyncSugaring,
@@ -363,7 +363,7 @@ fn get_transformed_fn(
 
 fn add_type_alias_impl(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
     type_alias: hir::TypeAlias,
     impl_def: hir::Impl,
@@ -444,7 +444,7 @@ fn add_type_alias_impl(
 
 fn add_const_impl(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
     const_: hir::Const,
     impl_def: hir::Impl,
@@ -486,13 +486,13 @@ fn add_const_impl(
 }
 
 fn make_const_compl_syntax(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     const_: &ast::Const,
     macro_file: Option<MacroCallId>,
 ) -> SmolStr {
     let const_ = if let Some(macro_file) = macro_file {
         let span_map = ctx.db.expansion_span_map(macro_file);
-        prettify_macro_expansion(ctx.db, const_.syntax().clone(), &span_map, ctx.krate.into())
+        prettify_macro_expansion(ctx.db, const_.syntax().clone(), span_map, ctx.krate.into())
     } else {
         const_.syntax().clone()
     };
@@ -514,13 +514,13 @@ fn make_const_compl_syntax(
 }
 
 fn function_declaration(
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     node: &ast::Fn,
     macro_file: Option<MacroCallId>,
 ) -> String {
     let node = if let Some(macro_file) = macro_file {
         let span_map = ctx.db.expansion_span_map(macro_file);
-        prettify_macro_expansion(ctx.db, node.syntax().clone(), &span_map, ctx.krate.into())
+        prettify_macro_expansion(ctx.db, node.syntax().clone(), span_map, ctx.krate.into())
     } else {
         node.syntax().clone()
     };

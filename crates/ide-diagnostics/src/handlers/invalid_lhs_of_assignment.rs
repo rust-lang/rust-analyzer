@@ -4,7 +4,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // This diagnostic is triggered if the left-hand side of an assignment can't be assigned to.
 pub(crate) fn invalid_lhs_of_assignment(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::InvalidLhsOfAssignment,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(

@@ -45,7 +45,7 @@ use super::inline_call::split_refs_and_uses;
 //     let _: i32 = 3;
 // }
 // ```
-pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let name = ctx.find_node_at_offset::<ast::Name>()?;
     let ast_alias = name.syntax().parent().and_then(ast::TypeAlias::cast)?;
 
@@ -125,7 +125,7 @@ pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>)
 //     let a: Vec<u32>;
 // }
 // ```
-pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let alias_instance = ctx.find_node_at_offset::<ast::PathType>()?;
     let concrete_type;
     let replacement;
@@ -412,7 +412,7 @@ fn create_replacement(
     editor.finish().new_root().clone()
 }
 
-fn get_type_alias(ctx: &AssistContext<'_>, path: &ast::PathType) -> Option<ast::TypeAlias> {
+fn get_type_alias(ctx: &AssistContext<'_, '_>, path: &ast::PathType) -> Option<ast::TypeAlias> {
     let resolved_path = ctx.sema.resolve_path(&path.path()?)?;
 
     // We need the generics in the correct order to be able to map any provided

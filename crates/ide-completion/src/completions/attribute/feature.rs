@@ -10,7 +10,7 @@ use crate::{Completions, context::CompletionContext, item::CompletionItem};
 
 pub(super) fn complete_feature(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     existing_features: &[ast::Path],
 ) {
     for &Lint { label, description, .. } in FEATURES {

@@ -10,7 +10,10 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, fix};
 // Diagnostic: missing-unsafe
 //
 // This diagnostic is triggered if an operation marked as `unsafe` is used outside of an `unsafe` function or block.
-pub(crate) fn missing_unsafe(ctx: &DiagnosticsContext<'_>, d: &hir::MissingUnsafe) -> Diagnostic {
+pub(crate) fn missing_unsafe(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::MissingUnsafe,
+) -> Diagnostic {
     let code = match d.lint {
         UnsafeLint::HardError => DiagnosticCode::RustcHardError("E0133"),
         UnsafeLint::UnsafeOpInUnsafeFn => DiagnosticCode::RustcLint("unsafe_op_in_unsafe_fn"),
@@ -38,7 +41,7 @@ fn display_unsafety_reason(reason: UnsafetyReason) -> &'static str {
     }
 }
 
-fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingUnsafe) -> Option<Vec<Assist>> {
+fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::MissingUnsafe) -> Option<Vec<Assist>> {
     // The fixit will not work correctly for macro expansions, so we don't offer it in that case.
     if d.node.file_id.is_macro() {
         return None;

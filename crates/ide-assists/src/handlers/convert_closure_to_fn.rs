@@ -51,7 +51,7 @@ use crate::assist_context::{AssistContext, Assists};
 //     closure("abc", &mut s);
 // }
 // ```
-pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let closure = ctx.find_node_at_offset::<ast::ClosureExpr>()?;
     if ctx.find_node_at_offset::<ast::Expr>() != Some(ast::Expr::ClosureExpr(closure.clone())) {
         // Not inside the parameter list.
@@ -346,7 +346,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_>) 
 }
 
 fn compute_closure_type_params(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     mentioned_generic_params: FxHashSet<hir::GenericParam>,
     closure: &ast::ClosureExpr,
 ) -> (Option<ast::GenericParamList>, Option<ast::WhereClause>) {
@@ -527,7 +527,7 @@ fn wrap_capture_in_deref_if_needed(
     make::expr_prefix(T![*], capture_name).into()
 }
 
-fn capture_as_arg(ctx: &AssistContext<'_>, capture: &ClosureCapture<'_>) -> ast::Expr {
+fn capture_as_arg(ctx: &AssistContext<'_, '_>, capture: &ClosureCapture<'_>) -> ast::Expr {
     let place = parse_expr_from_str(
         &capture.display_place_source_code(ctx.db(), ctx.edition()),
         ctx.edition(),
@@ -548,7 +548,7 @@ fn capture_as_arg(ctx: &AssistContext<'_>, capture: &ClosureCapture<'_>) -> ast:
 
 fn handle_calls(
     builder: &mut SourceChangeBuilder,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     closure_name: Option<&ast::IdentPat>,
     captures_as_args: &[ast::Expr],
     closure: &ast::ClosureExpr,
@@ -590,7 +590,7 @@ fn handle_calls(
 
 fn handle_call(
     builder: &mut SourceChangeBuilder,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     closure_ref: ast::Expr,
     captures_as_args: &[ast::Expr],
 ) -> Option<()> {

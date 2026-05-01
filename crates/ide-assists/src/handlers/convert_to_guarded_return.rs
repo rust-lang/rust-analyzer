@@ -59,7 +59,10 @@ use crate::{
 //     let Some(x) = foo() else { return };
 // }
 // ```
-pub(crate) fn convert_to_guarded_return(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn convert_to_guarded_return(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
     match ctx.find_node_at_offset::<Either<ast::LetStmt, ast::IfExpr>>()? {
         Either::Left(let_stmt) => let_stmt_to_guarded_return(let_stmt, acc, ctx),
         Either::Right(if_expr) => if_expr_to_guarded_return(if_expr, acc, ctx),
@@ -69,7 +72,7 @@ pub(crate) fn convert_to_guarded_return(acc: &mut Assists, ctx: &AssistContext<'
 fn if_expr_to_guarded_return(
     if_expr: ast::IfExpr,
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     let make = SyntaxFactory::without_mappings();
     let cond = if_expr.condition()?;
@@ -174,7 +177,7 @@ fn if_expr_to_guarded_return(
 fn let_stmt_to_guarded_return(
     let_stmt: ast::LetStmt,
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     let pat = let_stmt.pat()?;
     let expr = let_stmt.initializer()?;

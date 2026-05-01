@@ -4,12 +4,7 @@ use std::cell::OnceCell;
 
 use base_db::{Crate, FxIndexSet};
 use cfg::CfgOptions;
-use hir_expand::{
-    HirFileId,
-    mod_path::PathKind,
-    name::AsName,
-    span_map::{SpanMap, SpanMapRef},
-};
+use hir_expand::{HirFileId, mod_path::PathKind, name::AsName, span_map::SpanMap};
 use la_arena::Arena;
 use span::{AstIdMap, FileAstId, SyntaxContext};
 use syntax::{
@@ -32,7 +27,7 @@ pub(super) struct Ctx<'db> {
     pub(super) db: &'db dyn DefDatabase,
     tree: ItemTree,
     source_ast_id_map: &'db AstIdMap,
-    span_map: OnceCell<SpanMap>,
+    span_map: OnceCell<SpanMap<'db>>,
     file: HirFileId,
     cfg_options: OnceCell<&'db CfgOptions>,
     krate: Crate,
@@ -60,8 +55,8 @@ impl<'db> Ctx<'db> {
         self.cfg_options.get_or_init(|| self.krate.cfg_options(self.db))
     }
 
-    pub(super) fn span_map(&self) -> SpanMapRef<'_> {
-        self.span_map.get_or_init(|| self.db.span_map(self.file)).as_ref()
+    pub(super) fn span_map(&self) -> SpanMap<'_> {
+        *self.span_map.get_or_init(|| self.db.span_map(self.file))
     }
 
     pub(super) fn lower_module_items(mut self, item_owner: &dyn HasModuleItem) -> ItemTree {

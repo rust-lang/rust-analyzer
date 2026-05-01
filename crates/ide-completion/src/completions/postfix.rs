@@ -31,7 +31,7 @@ use crate::{
 
 pub(crate) fn complete_postfix(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     dot_access: &DotAccess<'_>,
 ) {
     if !ctx.config.enable_postfix_completions {
@@ -479,7 +479,7 @@ fn include_references(initial_element: &ast::Expr) -> (ast::Expr, String) {
 }
 
 fn build_postfix_snippet_builder<'ctx>(
-    ctx: &'ctx CompletionContext<'_>,
+    ctx: &'ctx CompletionContext<'_, '_>,
     cap: SnippetCap,
     receiver: &'ctx ast::Expr,
 ) -> Option<impl Fn(&str, &str, String) -> Builder + 'ctx> {
@@ -495,7 +495,7 @@ fn build_postfix_snippet_builder<'ctx>(
     // Wrapping impl Fn in an option ruins lifetime inference for the parameters in a way that
     // can't be annotated for the closure, hence fix it by constructing it without the Option first
     fn build<'ctx>(
-        ctx: &'ctx CompletionContext<'_>,
+        ctx: &'ctx CompletionContext<'_, '_>,
         cap: SnippetCap,
         delete_range: TextRange,
     ) -> impl Fn(&str, &str, String) -> Builder + 'ctx {
@@ -525,7 +525,7 @@ fn build_postfix_snippet_builder<'ctx>(
 
 fn add_custom_postfix_completions(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     postfix_snippet: impl Fn(&str, &str, String) -> Builder,
     receiver_text: &str,
 ) -> Option<()> {

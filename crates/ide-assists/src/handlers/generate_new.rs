@@ -33,7 +33,7 @@ use crate::{
 //     }
 // }
 // ```
-pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn generate_new(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let strukt = ctx.find_node_at_offset::<ast::Struct>()?;
     let field_list: Vec<(String, ast::Type)> = match strukt.kind() {
         StructKind::Record(named) => {

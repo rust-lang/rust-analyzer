@@ -29,7 +29,7 @@ use crate::{AssistContext, AssistId, Assists};
 //     println!("foo");
 // }
 // ```
-pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let (editor, _) = SyntaxEditor::new(ctx.source_file().syntax().clone());
     let place = unwrap_branch_place(ctx)?;
     let target = place.syntax().text_range();
@@ -115,7 +115,7 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
 //     }
 // }
 // ```
-pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn unwrap_block(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let l_curly_token = ctx.find_token_syntax_at_offset(T!['{'])?;
     let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
     let target = block.syntax().text_range();
@@ -182,7 +182,7 @@ fn wrap_let(assign: &ast::LetStmt, replacement: ast::BlockExpr) -> ast::BlockExp
     try_wrap_assign().unwrap_or(replacement)
 }
 
-fn unwrap_branch_place(ctx: &AssistContext<'_>) -> Option<ast::Expr> {
+fn unwrap_branch_place(ctx: &AssistContext<'_, '_>) -> Option<ast::Expr> {
     if let Some(l_curly_token) = ctx.find_token_syntax_at_offset(T!['{']) {
         let block = l_curly_token.parent_ancestors().nth(1).and_then(ast::BlockExpr::cast)?;
         Some(block.into())

@@ -9,7 +9,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // This diagnostic is triggered when rust-analyzer cannot infer some type.
 pub(crate) fn type_must_be_known<'db>(
-    ctx: &DiagnosticsContext<'db>,
+    ctx: &DiagnosticsContext<'db, '_>,
     d: &hir::TypeMustBeKnown<'db>,
 ) -> Diagnostic {
     let mut at_point = d.at_point.map(|it| it.syntax_node_ptr());

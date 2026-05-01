@@ -29,7 +29,7 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 pub(crate) fn replace_qualified_name_with_use(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     let original_path: ast::Path = ctx.find_node_at_offset()?;
     // We don't want to mess with use statements
@@ -95,7 +95,7 @@ pub(crate) fn replace_qualified_name_with_use(
     )
 }
 
-fn target_path(ctx: &AssistContext<'_>, mut original_path: ast::Path) -> Option<ast::Path> {
+fn target_path(ctx: &AssistContext<'_, '_>, mut original_path: ast::Path) -> Option<ast::Path> {
     let on_first = original_path.qualifier().is_none();
 
     if on_first {

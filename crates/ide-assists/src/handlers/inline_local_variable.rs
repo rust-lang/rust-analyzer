@@ -32,7 +32,7 @@ use crate::{
 //     (1 + 2) * 4;
 // }
 // ```
-pub(crate) fn inline_local_variable(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn inline_local_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let file_id = ctx.file_id();
     let range = ctx.selection_trimmed();
     let InlineData { let_stmt, delete_let, references, target } =

@@ -70,7 +70,7 @@ pub fn expand_eager_macro_input(
     let ExpandResult { value: expanded_eager_input, err } = {
         eager_macro_recur(
             db,
-            &arg_exp_map,
+            arg_exp_map,
             &mut arg_map,
             TextSize::new(0),
             InFile::new(arg_id.into(), arg_exp.syntax_node()),
@@ -80,7 +80,7 @@ pub fn expand_eager_macro_input(
             eager_callback,
         )
     };
-    let err = parse_err.or(err);
+    let err = parse_err.clone().or(err);
     if cfg!(debug_assertions) {
         arg_map.finish();
     }
@@ -117,15 +117,15 @@ pub fn expand_eager_macro_input(
     ExpandResult { value: Some(db.intern_macro_call(loc)), err }
 }
 
-fn lazy_expand(
-    db: &dyn ExpandDatabase,
+fn lazy_expand<'db>(
+    db: &'db dyn ExpandDatabase,
     def: &MacroDefId,
     macro_call: &ast::MacroCall,
     ast_id: AstId<ast::MacroCall>,
     krate: Crate,
     call_site: SyntaxContext,
     eager_callback: EagerCallBackFn<'_>,
-) -> ExpandResult<(InFile<Parse<SyntaxNode>>, Arc<ExpansionSpanMap>)> {
+) -> ExpandResult<(InFile<Parse<SyntaxNode>>, &'db ExpansionSpanMap)> {
     let expand_to = ExpandTo::from_call_site(macro_call);
     let id = def.make_call(
         db,
@@ -135,7 +135,9 @@ fn lazy_expand(
     );
     eager_callback(ast_id.map(|ast_id| (AstPtr::new(macro_call), ast_id)), id);
 
-    db.parse_macro_expansion(id).map(|parse| (InFile::new(id.into(), parse.0), parse.1))
+    db.parse_macro_expansion(id)
+        .as_ref()
+        .map(|parse| (InFile::new(id.into(), parse.0.clone()), &parse.1))
 }
 
 fn eager_macro_recur(
@@ -232,7 +234,7 @@ fn eager_macro_recur(
                                 syntax_node.clone_for_update(),
                                 offset + syntax_node.text_range().len(),
                             )),
-                            err: err.or(err2),
+                            err: err.clone().or_else(|| err2.clone()),
                         }
                     }
                     None => ExpandResult { value: None, err },
@@ -256,7 +258,7 @@ fn eager_macro_recur(
                 // replace macro inside
                 let ExpandResult { value, err: error } = eager_macro_recur(
                     db,
-                    &tm,
+                    tm,
                     expanded_map,
                     offset,
                     // FIXME: We discard parse errors here

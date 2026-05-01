@@ -196,7 +196,7 @@ use {
     hir_def::expr_store::path::Path,
     hir_expand::{
         name::AsName,
-        span_map::{ExpansionSpanMap, RealSpanMap, SpanMap, SpanMapRef},
+        span_map::{ExpansionSpanMap, RealSpanMap, SpanMap},
     },
 };
 

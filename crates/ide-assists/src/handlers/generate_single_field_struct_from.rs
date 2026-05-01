@@ -47,7 +47,7 @@ use crate::{
 // ```
 pub(crate) fn generate_single_field_struct_from(
     acc: &mut Assists,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
 ) -> Option<()> {
     let strukt_name = ctx.find_node_at_offset::<ast::Name>()?;
     let adt = ast::Adt::cast(strukt_name.syntax().parent()?)?;
@@ -179,7 +179,7 @@ fn make_adt_constructor(
 }
 
 fn make_constructors(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     module: hir::Module,
     types: &[ast::Type],
 ) -> Vec<Option<ast::Expr>> {

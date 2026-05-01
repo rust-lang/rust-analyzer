@@ -117,16 +117,16 @@ use tt::TextRange;
 use crate::{InFile, InlineAsmOperand, db::HirDatabase, semantics::child_by_source::ChildBySource};
 
 #[derive(Default)]
-pub(super) struct SourceToDefCache {
+pub(super) struct SourceToDefCache<'db> {
     pub(super) dynmap_cache: FxHashMap<(ChildContainer, HirFileId), DynMap>,
-    expansion_info_cache: FxHashMap<MacroCallId, ExpansionInfo>,
+    expansion_info_cache: FxHashMap<MacroCallId, ExpansionInfo<'db>>,
     pub(super) file_to_def_cache: FxHashMap<FileId, SmallVec<[ModuleId; 1]>>,
     pub(super) included_file_cache: FxHashMap<EditionedFileId, Option<MacroCallId>>,
     /// Rootnode to HirFileId cache
     pub(super) root_to_file_cache: FxHashMap<SyntaxNode, HirFileId>,
 }
 
-impl SourceToDefCache {
+impl<'db> SourceToDefCache<'db> {
     pub(super) fn cache(
         root_to_file_cache: &mut FxHashMap<SyntaxNode, HirFileId>,
         root_node: SyntaxNode,
@@ -156,9 +156,9 @@ impl SourceToDefCache {
 
     pub(super) fn get_or_insert_expansion(
         &mut self,
-        db: &dyn HirDatabase,
+        db: &'db dyn HirDatabase,
         macro_file: MacroCallId,
-    ) -> &ExpansionInfo {
+    ) -> &ExpansionInfo<'db> {
         self.expansion_info_cache.entry(macro_file).or_insert_with(|| {
             let exp_info = macro_file.expansion_info(db);
 
@@ -172,7 +172,7 @@ impl SourceToDefCache {
 
 pub(super) struct SourceToDefCtx<'db, 'cache> {
     pub(super) db: &'db dyn HirDatabase,
-    pub(super) cache: &'cache mut SourceToDefCache,
+    pub(super) cache: &'cache mut SourceToDefCache<'db>,
 }
 
 impl SourceToDefCtx<'_, '_> {

@@ -4,7 +4,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // This diagnostic is shown when a generic default refers to `Self`
 pub(crate) fn generic_default_refers_to_self(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::GenericDefaultRefersToSelf,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(

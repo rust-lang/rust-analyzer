@@ -4,7 +4,7 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // This diagnostic is triggered if a pattern was declared as an argument in a foreign function declaration.
 pub(crate) fn pattern_arg_in_extern_fn(
-    ctx: &DiagnosticsContext<'_>,
+    ctx: &DiagnosticsContext<'_, '_>,
     d: &hir::PatternArgInExternFn,
 ) -> Diagnostic {
     Diagnostic::new_with_syntax_node_ptr(

@@ -52,7 +52,7 @@ use crate::{
 //     }
 // }
 // ```
-pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let BoolNodeData { target_node, name, ty_annotation, initializer, definition } =
         find_bool_node(ctx)?;
     let target_module = ctx.sema.scope(&target_node)?.module().nearest_non_block_module(ctx.db());
@@ -101,7 +101,7 @@ struct BoolNodeData {
 }
 
 /// Attempts to find an appropriate node to apply the action to.
-fn find_bool_node(ctx: &AssistContext<'_>) -> Option<BoolNodeData> {
+fn find_bool_node(ctx: &AssistContext<'_, '_>) -> Option<BoolNodeData> {
     let name = ctx.find_node_at_offset::<ast::Name>()?;
 
     if let Some(ident_pat) = name.syntax().parent().and_then(ast::IdentPat::cast) {
@@ -208,7 +208,7 @@ fn bool_expr_to_enum_expr(expr: ast::Expr, make: &SyntaxFactory) -> ast::Expr {
 /// Replaces all usages of the target identifier, both when read and written to.
 fn replace_usages(
     edit: &mut SourceChangeBuilder,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     usages: UsageSearchResult,
     target_definition: Definition,
     target_module: &hir::Module,
@@ -338,7 +338,7 @@ struct FileReferenceWithImport {
 }
 
 fn augment_references_with_imports(
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     references: Vec<FileReference>,
     target_module: &hir::Module,
     make: &SyntaxFactory,
@@ -469,7 +469,7 @@ fn find_method_call_expr_usage(name: &ast::NameLike) -> Option<ast::Expr> {
 /// Adds the definition of the new enum before the target node.
 fn add_enum_def(
     edit: &mut SourceChangeBuilder,
-    ctx: &AssistContext<'_>,
+    ctx: &AssistContext<'_, '_>,
     usages: &UsageSearchResult,
     target_node: SyntaxNode,
     target_module: &hir::Module,

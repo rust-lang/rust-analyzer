@@ -535,7 +535,7 @@ pub(crate) struct Builder {
 
 impl Builder {
     pub(crate) fn from_resolution(
-        ctx: &CompletionContext<'_>,
+        ctx: &CompletionContext<'_, '_>,
         path_ctx: &PathCompletionCtx<'_>,
         local_name: hir::Name,
         resolution: hir::ScopeDef,

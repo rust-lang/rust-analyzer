@@ -13,7 +13,7 @@ use crate::{AssistContext, AssistId, Assists};
 // ```
 // use std::{collections::HashMap};
 // ```
-pub(crate) fn split_import(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+pub(crate) fn split_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let colon_colon = ctx.find_token_syntax_at_offset(T![::])?;
     let path = ast::Path::cast(colon_colon.parent()?)?.qualifier()?;
 

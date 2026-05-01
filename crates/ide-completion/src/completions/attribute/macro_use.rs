@@ -7,7 +7,7 @@ use crate::{Completions, context::CompletionContext, item::CompletionItem};
 
 pub(super) fn complete_macro_use(
     acc: &mut Completions,
-    ctx: &CompletionContext<'_>,
+    ctx: &CompletionContext<'_, '_>,
     extern_crate: Option<&ast::ExternCrate>,
     existing_imports: &[ast::Path],
 ) {

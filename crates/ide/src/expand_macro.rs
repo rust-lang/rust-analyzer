@@ -72,7 +72,7 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
             SyntaxKind::MACRO_ITEMS,
             position.file_id,
             expansion,
-            &expansion_span_map,
+            expansion_span_map,
             krate,
         );
         if let Some(err) = err {
@@ -163,7 +163,7 @@ fn expand_macro_recur(
     result_span_map.merge(
         TextRange::at(offset_in_original_node, macro_call.syntax().text_range().len()),
         expanded.text_range().len(),
-        &expansion_span_map,
+        expansion_span_map,
     );
     Some(expand(sema, expanded, error, result_span_map, u32::from(offset_in_original_node) as i32))
 }
