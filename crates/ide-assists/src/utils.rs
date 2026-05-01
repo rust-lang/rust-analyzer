@@ -3,10 +3,7 @@
 use std::slice;
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
-use hir::{
-    HasAttrs as HirHasAttrs, HirDisplay, InFile, ModuleDef, PathResolution, Semantics,
-    db::HirDatabase,
-};
+use hir::{HirDisplay, InFile, ModuleDef, PathResolution, Semantics, db::HirDatabase};
 use ide_db::{
     RootDatabase,
     assists::ExprFillDefaultMode,
@@ -171,7 +168,7 @@ pub fn filter_assoc_items(
         .copied()
         .filter(|assoc_item| {
             if ignore_items == IgnoreAssocItems::DocHiddenAttrPresent
-                && assoc_item.attrs(sema.db).is_doc_hidden()
+                && assoc_item.is_doc_hidden(sema.db)
             {
                 if let hir::AssocItem::Function(f) = assoc_item
                     && !f.has_body(sema.db)
