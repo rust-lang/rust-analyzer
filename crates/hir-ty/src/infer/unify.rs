@@ -418,23 +418,22 @@ impl<'db> InferenceTable<'db> {
         }
     }
 
-    pub(super) fn insert_type_vars<T>(&mut self, ty: T, span: Span) -> T
+    pub(super) fn insert_type_vars<T>(&mut self, ty: T) -> T
     where
         T: TypeFoldable<DbInterner<'db>>,
     {
-        self.infer_ctxt.insert_type_vars(ty, span)
+        self.infer_ctxt.insert_type_vars(ty)
     }
 
     /// Whenever you lower a user-written type, you should call this.
-    pub(crate) fn process_user_written_ty(&mut self, span: Span, ty: Ty<'db>) -> Ty<'db> {
-        let ty = self.insert_type_vars(ty, span);
-        self.try_structurally_resolve_type(span, ty)
+    pub(crate) fn process_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
+        self.process_remote_user_written_ty(ty)
     }
 
     /// The difference of this method from `process_user_written_ty()` is that this method doesn't register a well-formed obligation,
     /// while `process_user_written_ty()` should (but doesn't currently).
     pub(crate) fn process_remote_user_written_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
-        let ty = self.insert_type_vars(ty, Span::Dummy);
+        let ty = self.insert_type_vars(ty);
         // See https://github.com/rust-lang/rust/blob/cdb45c87e2cd43495379f7e867e3cc15dcee9f93/compiler/rustc_hir_typeck/src/fn_ctxt/mod.rs#L487-L495:
         // Even though the new solver only lazily normalizes usually, here we eagerly normalize so that not everything needs
         // to normalize before inspecting the `TyKind`.

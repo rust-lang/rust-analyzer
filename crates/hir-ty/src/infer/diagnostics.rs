@@ -18,7 +18,7 @@ use crate::{
     db::{AnonConstId, HirDatabase},
     generics::Generics,
     lower::{
-        ForbidParamsAfterReason, LifetimeElisionKind, TyLoweringContext,
+        ForbidParamsAfterReason, LifetimeElisionKind, TyLoweringContext, TyLoweringInferVarsCtx,
         path::{PathDiagnosticCallback, PathLoweringContext},
     },
 };
@@ -75,6 +75,7 @@ impl<'db, 'a> InferenceTyLoweringContext<'db, 'a> {
         generics: &'a OnceCell<Generics<'db>>,
         lifetime_elision: LifetimeElisionKind<'db>,
         allow_using_generic_params: bool,
+        infer_vars: Option<TyLoweringInferVarsCtx<'a, 'db>>,
         defined_anon_consts: &'a RefCell<ThinVec<AnonConstId>>,
     ) -> Self {
         let mut ctx = TyLoweringContext::new(
@@ -85,7 +86,8 @@ impl<'db, 'a> InferenceTyLoweringContext<'db, 'a> {
             generic_def,
             generics,
             lifetime_elision,
-        );
+        )
+        .with_infer_vars_behavior(infer_vars);
         if !allow_using_generic_params {
             ctx.forbid_params_after(0, ForbidParamsAfterReason::AnonConst);
         }

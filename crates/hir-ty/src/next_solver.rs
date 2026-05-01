@@ -91,6 +91,7 @@ pub struct DefaultTypes<'db> {
     pub static_u8_slice: Ty<'db>,
     /// `*mut ()`
     pub mut_unit_ptr: Ty<'db>,
+    pub dyn_trait_dummy_self: Ty<'db>,
 }
 
 pub struct DefaultConsts<'db> {
@@ -270,6 +271,8 @@ pub fn default_types<'a, 'db>(db: &'db dyn HirDatabase) -> &'a DefaultAny<'db> {
                 u8_slice,
                 static_u8_slice,
                 mut_unit_ptr: create_ty(TyKind::RawPtr(unit, rustc_ast_ir::Mutability::Mut)),
+                // This type must not appear anywhere except here.
+                dyn_trait_dummy_self: create_ty(TyKind::Infer(rustc_type_ir::InferTy::FreshTy(0))),
             },
             consts: DefaultConsts {
                 error: create_const(ConstKind::Error(ErrorGuaranteed)),

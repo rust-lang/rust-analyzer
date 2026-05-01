@@ -426,12 +426,15 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                 _def: GenericDefId,
                 param_id: GenericParamId,
                 _param: GenericParamDataRef<'_>,
-                _infer_args: bool,
+                infer_args: bool,
                 _preceding_args: &[GenericArg<'db>],
+                had_count_error: bool,
             ) -> GenericArg<'db> {
                 // Always create an inference var, even when `infer_args == false`. This helps with diagnostics,
                 // and I think it's also required in the presence of `impl Trait` (that must be inferred).
-                self.ctx.table.var_for_def(param_id, Span::Dummy)
+                let span =
+                    if !infer_args || had_count_error { Span::Dummy } else { self.expr.into() };
+                self.ctx.table.var_for_def(param_id, span)
             }
 
             fn parent_arg(&mut self, param_idx: u32, _param_id: GenericParamId) -> GenericArg<'db> {

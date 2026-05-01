@@ -43,8 +43,6 @@ struct Bar<T, U>(T, U);
 fn foo() {
     let _ = Bar::<()>;
             // ^^^^^^ error: this struct takes 2 generic arguments but 1 generic argument was supplied
-         // ^^^^^^^^^ error: type annotations needed
-                 // | full type: `fn Bar<(), {unknown}>((), {unknown}) -> Bar<(), {unknown}>`
 }
 
         "#,
@@ -53,10 +51,6 @@ fn foo() {
 
     #[test]
     fn enum_variant() {
-        // FIXME: We should not have a "type annotations needed" error here, but to do that
-        // we'll need to have access to the `InferenceContext` in `TyLoweringContext`, to
-        // generate the infer var with a dummy span (instead of inserting it after the fact
-        // with a non-dummy span).
         check_diagnostics(
             r#"
 enum Enum<T, U> {
@@ -66,12 +60,8 @@ enum Enum<T, U> {
 fn foo() {
     let _ = Enum::<()>::Variant;
              // ^^^^^^ error: this enum takes 2 generic arguments but 1 generic argument was supplied
-         // ^^^^^^^^^^^^^^^^^^^ error: type annotations needed
-                           // | full type: `fn Variant<(), {unknown}>((), {unknown}) -> Enum<(), {unknown}>`
     let _ = Enum::Variant::<()>;
                       // ^^^^^^ error: this enum takes 2 generic arguments but 1 generic argument was supplied
-         // ^^^^^^^^^^^^^^^^^^^ error: type annotations needed
-                           // | full type: `fn Variant<(), {unknown}>((), {unknown}) -> Enum<(), {unknown}>`
 }
 
         "#,
@@ -137,8 +127,6 @@ struct Bar<T, const N: usize>(T);
 fn bar() {
     let _ = Bar::<()>;
             // ^^^^^^ error: this struct takes 2 generic arguments but 1 generic argument was supplied
-         // ^^^^^^^^^ error: type annotations needed
-                 // | full type: `fn Bar<(), _>(()) -> Bar<(), _>`
 }
         "#,
         );

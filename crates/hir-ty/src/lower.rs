@@ -38,7 +38,7 @@ use hir_expand::name::Name;
 use la_arena::{Arena, ArenaMap, Idx};
 use path::{PathDiagnosticCallback, PathLoweringContext};
 use rustc_ast_ir::Mutability;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{
     AliasTyKind, BoundVarIndexKind, DebruijnIndex, ExistentialPredicate, ExistentialProjection,
     ExistentialTraitRef, FnSig, Interner, OutlivesPredicate, TermKind, TyKind, TypeFoldable,
@@ -51,14 +51,15 @@ use thin_vec::ThinVec;
 use tracing::debug;
 
 use crate::{
-    FnAbi, ImplTraitId, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
+    FnAbi, ImplTraitId, Span, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
     consteval::{create_anon_const, path_to_const},
     db::{AnonConstId, GeneralConstId, HirDatabase, InternedOpaqueTyId},
     generics::{Generics, SingleGenerics, generics},
+    infer::unify::InferenceTable,
     next_solver::{
         AliasTy, Binder, BoundExistentialPredicates, Clause, ClauseKind, Clauses, Const, ConstKind,
-        DbInterner, EarlyBinder, EarlyParamRegion, ErrorGuaranteed, FxIndexMap, GenericArg,
-        GenericArgs, ParamConst, ParamEnv, PolyFnSig, Predicate, Region, SolverDefId,
+        DbInterner, DefaultAny, EarlyBinder, EarlyParamRegion, ErrorGuaranteed, FxIndexMap,
+        GenericArg, GenericArgs, ParamConst, ParamEnv, PolyFnSig, Predicate, Region, SolverDefId,
         StoredClauses, StoredEarlyBinder, StoredGenericArg, StoredGenericArgs, StoredPolyFnSig,
         StoredTraitRef, StoredTy, TraitPredicate, TraitRef, Ty, Tys, abi::Safety,
         util::BottomUpFolder,
@@ -183,7 +184,12 @@ pub(crate) enum ForbidParamsAfterReason {
     ConstParamTy,
 }
 
-#[derive(Debug)]
+pub(crate) struct TyLoweringInferVarsCtx<'a, 'db> {
+    // Technically we can just put an `&InferCtxt` here, but borrowck constraints requires us to put this:
+    pub(crate) table: &'a mut InferenceTable<'db>,
+    pub(crate) type_of_placeholder: &'a mut FxHashMap<TypeRefId, StoredTy>,
+}
+
 pub struct TyLoweringContext<'db, 'a> {
     pub db: &'db dyn HirDatabase,
     interner: DbInterner<'db>,
@@ -203,6 +209,7 @@ pub struct TyLoweringContext<'db, 'a> {
     forbid_params_after: Option<u32>,
     forbid_params_after_reason: ForbidParamsAfterReason,
     pub(crate) defined_anon_consts: ThinVec<AnonConstId>,
+    infer_vars: Option<TyLoweringInferVarsCtx<'a, 'db>>,
 }
 
 impl<'db, 'a> TyLoweringContext<'db, 'a> {
@@ -237,6 +244,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             forbid_params_after: None,
             forbid_params_after_reason: ForbidParamsAfterReason::AnonConst,
             defined_anon_consts: ThinVec::new(),
+            infer_vars: None,
         }
     }
 
@@ -277,8 +285,65 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         self.forbid_params_after_reason = reason;
     }
 
+    pub(crate) fn with_infer_vars_behavior(
+        mut self,
+        behavior: Option<TyLoweringInferVarsCtx<'a, 'db>>,
+    ) -> Self {
+        self.infer_vars = behavior;
+        self
+    }
+
     pub(crate) fn push_diagnostic(&mut self, type_ref: TypeRefId, kind: TyLoweringDiagnosticKind) {
         self.diagnostics.push(TyLoweringDiagnostic { source: type_ref, kind });
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_table(&mut self) -> &mut InferenceTable<'db> {
+        self.infer_vars.as_mut().unwrap().table
+    }
+
+    fn next_ty_var(&mut self, type_ref: TypeRefId) -> Ty<'db> {
+        match &mut self.infer_vars {
+            Some(infer_vars) => {
+                let var = infer_vars.table.next_ty_var(type_ref.into());
+                infer_vars.type_of_placeholder.insert(type_ref, var.store());
+                var
+            }
+            None => {
+                // FIXME: Emit an error: no infer vars allowed here.
+                self.types.types.error
+            }
+        }
+    }
+
+    fn next_ty_var_no_placeholder(&mut self, span: Span) -> Ty<'db> {
+        match &mut self.infer_vars {
+            Some(infer_vars) => infer_vars.table.next_ty_var(span),
+            None => {
+                // FIXME: Emit an error: no infer vars allowed here.
+                self.types.types.error
+            }
+        }
+    }
+
+    fn next_const_var(&mut self, span: Span) -> Const<'db> {
+        match &mut self.infer_vars {
+            Some(infer_vars) => infer_vars.table.next_const_var(span),
+            None => {
+                // FIXME: Emit an error: no infer vars allowed here.
+                self.types.consts.error
+            }
+        }
+    }
+
+    fn next_region_var(&mut self, span: Span) -> Region<'db> {
+        match &mut self.infer_vars {
+            Some(infer_vars) => infer_vars.table.next_region_var(span),
+            None => {
+                // FIXME: Emit an error: no infer vars allowed here.
+                self.types.regions.error
+            }
+        }
     }
 }
 
@@ -344,7 +409,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
     fn type_param(&mut self, id: TypeParamId, index: u32) -> Ty<'db> {
         if self.param_index_is_disallowed(index) {
             // FIXME: Report an error.
-            Ty::new_error(self.interner, ErrorGuaranteed)
+            self.types.types.error
         } else {
             Ty::new_param(self.interner, id, index)
         }
@@ -353,7 +418,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
     fn region_param(&mut self, id: LifetimeParamId, index: u32) -> Region<'db> {
         if self.param_index_is_disallowed(index) {
             // FIXME: Report an error.
-            Region::error(self.interner)
+            self.types.regions.error
         } else {
             Region::new_early_param(self.interner, EarlyParamRegion { id, index })
         }
@@ -390,7 +455,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             }
             TypeRef::Array(array) => {
                 let inner_ty = self.lower_ty(array.ty);
-                let const_len = self.lower_const(array.len, Ty::new_usize(interner));
+                let const_len = self.lower_const(array.len, self.types.types.usize);
                 Ty::new_array_with_const_len(interner, inner_ty, const_len)
             }
             &TypeRef::Slice(inner) => {
@@ -400,12 +465,11 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             TypeRef::Reference(ref_) => {
                 let inner_ty = self.lower_ty(ref_.ty);
                 // FIXME: It should infer the eldided lifetimes instead of stubbing with error
-                let lifetime = ref_
-                    .lifetime
-                    .map_or_else(|| Region::error(interner), |lr| self.lower_lifetime(lr));
+                let lifetime =
+                    ref_.lifetime.map_or(self.types.regions.error, |lr| self.lower_lifetime(lr));
                 Ty::new_ref(interner, lifetime, inner_ty, lower_mutability(ref_.mutability))
             }
-            TypeRef::Placeholder => Ty::new_error(interner, ErrorGuaranteed),
+            TypeRef::Placeholder => self.next_ty_var(type_ref_id),
             TypeRef::Fn(fn_) => self.lower_fn_ptr(fn_),
             TypeRef::DynTrait(bounds) => self.lower_dyn_trait(bounds),
             TypeRef::ImplTrait(bounds) => {
@@ -461,11 +525,11 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                     }
                     ImplTraitLoweringMode::Disallowed => {
                         // FIXME: report error
-                        Ty::new_error(self.interner, ErrorGuaranteed)
+                        self.types.types.error
                     }
                 }
             }
-            TypeRef::Error => Ty::new_error(self.interner, ErrorGuaranteed),
+            TypeRef::Error => self.types.types.error,
         };
         (ty, res)
     }
@@ -545,13 +609,13 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         if let Some(type_ref) = path.type_anchor() {
             let (ty, res) = self.lower_ty_ext(type_ref);
             let mut ctx = self.at_path(path_id);
-            return ctx.lower_ty_relative_path(ty, res, false);
+            return ctx.lower_ty_relative_path(ty, res, false, path_id.type_ref().into());
         }
 
         let mut ctx = self.at_path(path_id);
         let (resolution, remaining_index) = match ctx.resolve_path_in_type_ns() {
             Some(it) => it,
-            None => return (Ty::new_error(self.interner, ErrorGuaranteed), None),
+            None => return (self.types.types.error, None),
         };
 
         if matches!(resolution, TypeNs::TraitId(_)) && remaining_index.is_none() {
@@ -561,7 +625,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             return (ty, None);
         }
 
-        ctx.lower_partly_resolved_path(resolution, false)
+        ctx.lower_partly_resolved_path(resolution, false, path_id.type_ref().into())
     }
 
     fn lower_trait_ref_from_path(
@@ -575,7 +639,15 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             TypeNs::TraitId(tr) => tr,
             _ => return None,
         };
-        Some((ctx.lower_trait_ref_from_resolved_path(resolved, explicit_self_ty, false), ctx))
+        Some((
+            ctx.lower_trait_ref_from_resolved_path(
+                resolved,
+                explicit_self_ty,
+                false,
+                path_id.type_ref().into(),
+            ),
+            ctx,
+        ))
     }
 
     fn lower_trait_ref(
@@ -637,7 +709,10 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                         ctx.ty_ctx().unsized_types.insert(self_ty);
                     } else {
                         if !ignore_bindings {
-                            assoc_bounds = ctx.assoc_type_bindings_from_type_bound(trait_ref);
+                            assoc_bounds = ctx.assoc_type_bindings_from_type_bound(
+                                trait_ref,
+                                path.type_ref().into(),
+                            );
                         }
                         clause = Some(Clause(Predicate::new(
                             interner,
@@ -684,7 +759,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
     fn lower_dyn_trait(&mut self, bounds: &[TypeBound]) -> Ty<'db> {
         let interner = self.interner;
-        let dummy_self_ty = dyn_trait_dummy_self(interner);
+        let dummy_self_ty = self.types.types.dyn_trait_dummy_self;
         let mut region = None;
         // INVARIANT: The principal trait bound, if present, must come first. Others may be in any
         // order but should be in the same order for the same set but possibly different order of
@@ -882,7 +957,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                         .map(|arg| {
                             if arg.walk().any(|arg| arg == dummy_self_ty.into()) {
                                 // FIXME: Report an error.
-                                Ty::new_error(interner, ErrorGuaranteed).into()
+                                self.types.types.error.into()
                             } else {
                                 arg
                             }
@@ -908,8 +983,11 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                         false
                     });
                     if references_self {
-                        proj.projection_term =
-                            replace_dummy_self_with_error(interner, proj.projection_term);
+                        proj.projection_term = replace_dummy_self_with_error(
+                            interner,
+                            self.types,
+                            proj.projection_term,
+                        );
                     }
 
                     ExistentialPredicate::Projection(ExistentialProjection::erase_self_ty(
@@ -947,7 +1025,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         } else {
             // FIXME: report error
             // (additional non-auto traits, associated type rebound, or no resolved trait)
-            Ty::new_error(self.interner, ErrorGuaranteed)
+            self.types.types.error
         }
     }
 
@@ -1081,20 +1159,15 @@ impl<T> TyLoweringResult<T> {
     }
 }
 
-fn dyn_trait_dummy_self(interner: DbInterner<'_>) -> Ty<'_> {
-    // This type must not appear anywhere except here.
-    Ty::new_fresh(interner, 0)
-}
-
 fn replace_dummy_self_with_error<'db, T: TypeFoldable<DbInterner<'db>>>(
     interner: DbInterner<'db>,
+    types: &DefaultAny<'db>,
     t: T,
 ) -> T {
-    let dyn_trait_dummy_self = dyn_trait_dummy_self(interner);
     t.fold_with(&mut BottomUpFolder {
         interner,
         ty_op: |ty| {
-            if ty == dyn_trait_dummy_self { Ty::new_error(interner, ErrorGuaranteed) } else { ty }
+            if ty == types.types.dyn_trait_dummy_self { types.types.error } else { ty }
         },
         lt_op: |lt| lt,
         ct_op: |ct| ct,

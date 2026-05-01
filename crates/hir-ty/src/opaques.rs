@@ -10,7 +10,7 @@ use rustc_type_ir::inherent::Ty as _;
 use syntax::ast;
 
 use crate::{
-    ImplTraitId, InferBodyId, InferenceResult, Span,
+    ImplTraitId, InferBodyId, InferenceResult,
     db::{HirDatabase, InternedOpaqueTyId},
     lower::{ImplTraitIdx, ImplTraits},
     next_solver::{
@@ -146,7 +146,7 @@ pub(crate) fn tait_hidden_types<'db>(
             }
             // In the presence of errors, we attempt to create a unified type from all
             // types. rustc doesn't do that, but this should improve the experience.
-            let hidden_type = infcx.insert_type_vars(hidden_type.as_ref(), Span::Dummy);
+            let hidden_type = infcx.insert_type_vars(hidden_type.as_ref());
             match result.entry(opaque_idx) {
                 la_arena::Entry::Vacant(entry) => {
                     entry.insert(StoredEarlyBinder::bind(hidden_type.store()));
