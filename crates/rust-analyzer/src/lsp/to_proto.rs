@@ -1597,11 +1597,21 @@ pub(crate) fn runnable(
             let label = runnable.label(Some(&target));
             let location = location_link(snap, None, runnable.nav)?;
 
-            let environment = spec
+            let environment: rustc_hash::FxHashMap<_, _> = spec
                 .sysroot_root
+                .as_ref()
                 .map(|root| ("RUSTC_TOOLCHAIN".to_owned(), root.to_string()))
                 .into_iter()
                 .collect();
+            let debug =
+                CargoTargetSpec::debug_override_command(snap, Some(spec.clone()), &runnable.kind)
+                    .and_then(|override_command| {
+                        shell_runnable_command(
+                            override_command,
+                            environment.clone(),
+                            cwd.clone().into(),
+                        )
+                    });
 
             Ok(match override_command {
                 Some(override_command) => match override_command.split_first() {
@@ -1615,6 +1625,7 @@ pub(crate) fn runnable(
                             program: program.to_string(),
                             args: args.to_vec(),
                         }),
+                        debug,
                     }),
                     _ => None,
                 },
@@ -1630,6 +1641,7 @@ pub(crate) fn runnable(
                         executable_args,
                         environment,
                     }),
+                    debug,
                 }),
             })
         }
@@ -1650,6 +1662,7 @@ pub(crate) fn runnable(
                         location: Some(location),
                         kind: lsp_ext::RunnableKind::Shell,
                         args: lsp_ext::RunnableArgs::Shell(runnable_args),
+                        debug: None,
                     }))
                 }
                 None => Ok(None),
@@ -1677,9 +1690,27 @@ pub(crate) fn runnable(
                     executable_args,
                     environment: Default::default(),
                 }),
+                debug: None,
             }))
         }
     }
+}
+
+fn shell_runnable_command(
+    override_command: Vec<String>,
+    environment: rustc_hash::FxHashMap<String, String>,
+    cwd: paths::Utf8PathBuf,
+) -> Option<lsp_ext::RunnableCommand> {
+    let (program, args) = override_command.split_first()?;
+    Some(lsp_ext::RunnableCommand {
+        kind: lsp_ext::RunnableKind::Shell,
+        args: lsp_ext::RunnableArgs::Shell(lsp_ext::ShellRunnableArgs {
+            environment,
+            cwd,
+            program: program.to_string(),
+            args: args.to_vec(),
+        }),
+    })
 }
 
 pub(crate) fn code_lens(
@@ -1984,6 +2015,7 @@ pub(crate) fn make_update_runnable(
 
     let mut runnable = runnable.clone();
     runnable.label = format!("{} + {}", runnable.label, label);
+    runnable.debug = None;
 
     let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.args else {
         return None;

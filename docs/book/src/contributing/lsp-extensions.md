@@ -1,5 +1,5 @@
 <!---
-lsp/ext.rs hash: dc4ba5f417c74aa6
+lsp/ext.rs hash: edd56d6b86336213
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -367,6 +367,13 @@ interface Runnable {
     location?: LocationLink;
     /// Running things is necessary technology specific, `kind` needs to be advertised via server capabilities,
     // the type of `args` is specific to `kind`. The actual running is handled by the client.
+    kind: string;
+    args: any;
+    /// Optional command to use when debugging this runnable.
+    debug?: RunnableCommand;
+}
+
+interface RunnableCommand {
     kind: string;
     args: any;
 }
