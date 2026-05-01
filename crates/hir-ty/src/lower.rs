@@ -10,7 +10,6 @@ pub(crate) mod path;
 
 use std::{cell::OnceCell, iter, mem};
 
-use arrayvec::ArrayVec;
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, EnumId, EnumVariantId,
@@ -55,7 +54,7 @@ use crate::{
     FnAbi, ImplTraitId, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
     consteval::intern_const_ref,
     db::{HirDatabase, InternedOpaqueTyId},
-    generics::{Generics, generics},
+    generics::{Generics, SingleGenerics, generics},
     next_solver::{
         AliasTy, Binder, BoundExistentialPredicates, Clause, ClauseKind, Clauses, Const,
         DbInterner, EarlyBinder, EarlyParamRegion, ErrorGuaranteed, FxIndexMap, GenericArg,
@@ -376,18 +375,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         match self.resolver.resolve_path_in_value_ns_fully(self.db, path, HygieneId::ROOT) {
             Some(ValueNs::GenericParam(p)) => {
                 let args = self.generics();
-                match args.type_or_const_param_idx(p.into()) {
-                    Some(idx) => Some(self.const_param(p, idx as u32)),
-                    None => {
-                        never!(
-                            "Generic list doesn't contain this param: {:?}, {:?}, {:?}",
-                            args,
-                            path,
-                            p
-                        );
-                        None
-                    }
-                }
+                let idx = args.type_or_const_param_idx(p.into());
+                Some(self.const_param(p, idx))
             }
             Some(ValueNs::ConstId(c)) => {
                 let args = GenericArgs::empty(self.interner);
@@ -465,9 +454,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                 res = Some(TypeNs::GenericParam(type_param_id));
 
                 let generics = self.generics();
-                let (idx, _data) =
-                    generics.type_or_const_param(type_param_id.into()).expect("matching generics");
-                self.type_param(type_param_id, idx as u32)
+                let idx = generics.type_or_const_param_idx(type_param_id.into());
+                self.type_param(type_param_id, idx)
             }
             &TypeRef::RawPtr(inner, mutability) => {
                 let inner_ty = self.lower_ty(inner);
@@ -1094,11 +1082,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             Some(resolution) => match resolution {
                 LifetimeNs::Static => Region::new_static(self.interner),
                 LifetimeNs::LifetimeParam(id) => {
-                    let idx = match self.generics().lifetime_idx(id) {
-                        None => return Region::error(self.interner),
-                        Some(idx) => idx,
-                    };
-                    self.region_param(id, idx as u32)
+                    let idx = self.generics().lifetime_param_idx(id);
+                    self.region_param(id, idx)
                 }
             },
             None => Region::error(self.interner),
@@ -1785,11 +1770,7 @@ fn resolve_type_param_assoc_type_shorthand(
         LifetimeElisionKind::AnonymousReportError,
     );
     let interner = ctx.interner;
-    let param_ty = Ty::new_param(
-        interner,
-        param,
-        generics.type_or_const_param_idx(param.into()).unwrap() as u32,
-    );
+    let param_ty = Ty::new_param(interner, param, generics.type_or_const_param_idx(param.into()));
 
     let mut this_trait_resolution = None;
     if let GenericDefId::TraitId(containing_trait) = param.parent()
@@ -1805,9 +1786,7 @@ fn resolve_type_param_assoc_type_shorthand(
     }
 
     let mut supertraits_resolution = None;
-    for maybe_parent_generics in
-        std::iter::successors(Some(&generics), |generics| generics.parent_generics())
-    {
+    for maybe_parent_generics in generics.iter_owners().rev() {
         ctx.store = maybe_parent_generics.store();
         for pred in maybe_parent_generics.where_predicates() {
             let (WherePredicate::TypeBound { target, bound }
@@ -2211,16 +2190,13 @@ fn generic_predicates(db: &dyn HirDatabase, def: GenericDefId) -> (GenericPredic
     let mut parent_predicates = Vec::new();
     let mut own_assoc_ty_bounds = Vec::new();
     let mut parent_assoc_ty_bounds = Vec::new();
-    let all_generics =
-        std::iter::successors(Some(&generics), |generics| generics.parent_generics())
-            .collect::<ArrayVec<_, 2>>();
     let own_implicit_trait_predicate = implicit_trait_predicate(interner, def);
-    let parent_implicit_trait_predicate = if all_generics.len() > 1 {
-        implicit_trait_predicate(interner, all_generics.last().unwrap().def())
+    let parent_implicit_trait_predicate = if let Some(parent) = generics.parent() {
+        implicit_trait_predicate(interner, parent.def())
     } else {
         None
     };
-    for &maybe_parent_generics in all_generics.iter().rev() {
+    for maybe_parent_generics in generics.iter_owners() {
         // Collect only diagnostics from the child, not including parents.
         ctx.diagnostics.clear();
 
@@ -2291,12 +2267,9 @@ fn generic_predicates(db: &dyn HirDatabase, def: GenericDefId) -> (GenericPredic
                     parent_predicates.push(clause);
                 }
             };
-            let parent_params_len = maybe_parent_generics.len_parent();
-            maybe_parent_generics.iter_self().enumerate().for_each(
-                |(param_idx, (param_id, param_data))| {
-                    add_sized_clause((param_idx + parent_params_len) as u32, param_id, param_data);
-                },
-            );
+            maybe_parent_generics.iter_with_idx().for_each(|(param_idx, param_id, param_data)| {
+                add_sized_clause(param_idx, param_id, param_data);
+            });
         }
 
         // We do not clear `ctx.unsized_types`, as the `?Sized` clause of a child (e.g. an associated type) can
@@ -2360,25 +2333,14 @@ fn generic_predicates(db: &dyn HirDatabase, def: GenericDefId) -> (GenericPredic
 fn push_const_arg_has_type_predicates<'db>(
     db: &'db dyn HirDatabase,
     predicates: &mut Vec<Clause<'db>>,
-    generics: &Generics<'db>,
+    single_generics: &SingleGenerics<'db>,
 ) {
     let interner = DbInterner::new_no_crate(db);
-    let const_params_offset = generics.len_parent() + generics.len_lifetimes_self();
-    for (param_index, (param_idx, param_data)) in generics.iter_self_type_or_consts().enumerate() {
-        if !matches!(param_data, TypeOrConstParamData::ConstParamData(_)) {
-            continue;
-        }
-
-        let param_id = ConstParamId::from_unchecked(TypeOrConstParamId {
-            parent: generics.def(),
-            local_id: param_idx,
-        });
+    for (param_index, param_id, _) in single_generics.iter_with_idx() {
+        let GenericParamId::ConstParamId(param_id) = param_id else { continue };
         predicates.push(Clause(
             ClauseKind::ConstArgHasType(
-                Const::new_param(
-                    interner,
-                    ParamConst { id: param_id, index: (param_index + const_params_offset) as u32 },
-                ),
+                Const::new_param(interner, ParamConst { id: param_id, index: param_index }),
                 db.const_param_ty(param_id),
             )
             .upcast(interner),
@@ -2408,7 +2370,7 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
     def: GenericDefId,
 ) -> (GenericDefaults, Diagnostics) {
     let generic_params = generics(db, def);
-    if generic_params.is_empty() {
+    if generic_params.has_no_params() {
         return (GenericDefaults(None), None);
     }
     let resolver = def.resolver(db);
@@ -2422,24 +2384,21 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
         LifetimeElisionKind::AnonymousReportError,
     )
     .with_impl_trait_mode(ImplTraitLoweringMode::Disallowed);
-    let mut idx = 0;
     let mut has_any_default = false;
-    let mut defaults = generic_params
-        .iter_parents_with_store()
-        .map(|((_id, p), store)| {
-            ctx.store = store;
+    let mut defaults = Vec::new();
+    if let Some(parent) = generic_params.parent() {
+        ctx.store = parent.store();
+        defaults.extend(parent.iter_with_idx().map(|(idx, _id, p)| {
             let (result, has_default) = handle_generic_param(&mut ctx, idx, p);
             has_any_default |= has_default;
-            idx += 1;
             result
-        })
-        .collect::<Vec<_>>();
+        }));
+    }
     ctx.diagnostics.clear(); // Don't include diagnostics from the parent.
     ctx.store = store_for_self;
-    defaults.extend(generic_params.iter_self().map(|(_id, p)| {
+    defaults.extend(generic_params.iter_self_with_idx().map(|(idx, _id, p)| {
         let (result, has_default) = handle_generic_param(&mut ctx, idx, p);
         has_any_default |= has_default;
-        idx += 1;
         result
     }));
     let diagnostics = create_diagnostics(mem::take(&mut ctx.diagnostics));
@@ -2452,10 +2411,10 @@ pub(crate) fn generic_defaults_with_diagnostics_query(
 
     fn handle_generic_param<'db>(
         ctx: &mut TyLoweringContext<'db, '_>,
-        idx: usize,
+        idx: u32,
         p: GenericParamDataRef<'_>,
     ) -> (Option<StoredEarlyBinder<StoredGenericArg>>, bool) {
-        ctx.lowering_param_default(idx as u32);
+        ctx.lowering_param_default(idx);
         match p {
             GenericParamDataRef::TypeParamData(p) => {
                 let ty = p.default.map(|ty| ctx.lower_ty(ty));

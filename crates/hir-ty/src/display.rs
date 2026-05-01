@@ -52,7 +52,7 @@ use stdx::never;
 use crate::{
     CallableDefId, FnAbi, ImplTraitId, MemoryMap, ParamEnvAndCrate, consteval,
     db::HirDatabase,
-    generics::generics,
+    generics::{ProvenanceSplit, generics},
     layout::Layout,
     lower::GenericPredicates,
     mir::pad16,
@@ -743,7 +743,7 @@ impl<'db> HirDisplay<'db> for Const<'db> {
             }
             ConstKind::Infer(..) => write!(f, "#c#"),
             ConstKind::Param(param) => {
-                let generics = generics(f.db, param.id.parent());
+                let generics = GenericParams::of(f.db, param.id.parent());
                 let param_data = &generics[param.id.local_id()];
                 f.start_location_link_generic(param.id.into());
                 write!(f, "{}", param_data.name().unwrap().display(f.db, f.edition()))?;
@@ -1364,8 +1364,14 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
                 if !args.is_empty() {
                     let generic_def_id = GenericDefId::from_callable(db, def);
                     let generics = generics(db, generic_def_id);
-                    let (parent_len, self_param, type_, const_, impl_, lifetime) =
-                        generics.provenance_split();
+                    let ProvenanceSplit {
+                        parent_total: parent_len,
+                        has_self_param: self_param,
+                        non_impl_trait_type_params: type_,
+                        const_params: const_,
+                        impl_trait_type_params: impl_,
+                        lifetimes: lifetime,
+                    } = generics.provenance_split();
                     let parameters = args.as_slice();
                     debug_assert_eq!(
                         parameters.len(),
@@ -1631,7 +1637,7 @@ impl<'db> HirDisplay<'db> for Ty<'db> {
             TyKind::Param(param) => {
                 // FIXME: We should not access `param.id`, it should be removed, and we should know the
                 // parent from the formatted type.
-                let generics = generics(db, param.id.parent());
+                let generics = GenericParams::of(db, param.id.parent());
                 let param_data = &generics[param.id.local_id()];
                 match param_data {
                     TypeOrConstParamData::TypeParamData(p) => match p.provenance {
@@ -2273,7 +2279,7 @@ impl<'db> HirDisplay<'db> for Region<'db> {
     fn hir_fmt(&self, f: &mut HirFormatter<'_, 'db>) -> Result {
         match self.kind() {
             RegionKind::ReEarlyParam(param) => {
-                let generics = generics(f.db, param.id.parent);
+                let generics = GenericParams::of(f.db, param.id.parent);
                 let param_data = &generics[param.id.local_id];
                 f.start_location_link_generic(param.id.into());
                 write!(f, "{}", param_data.name.display(f.db, f.edition()))?;

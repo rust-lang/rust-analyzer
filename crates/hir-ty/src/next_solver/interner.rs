@@ -967,7 +967,7 @@ impl<'db> Interner for DbInterner<'db> {
     type Clause = Clause<'db>;
     type Clauses = Clauses<'db>;
 
-    type GenericsOf = Generics;
+    type GenericsOf = Generics<'db>;
 
     type VariancesOf = VariancesOf<'db>;
 
@@ -1124,12 +1124,14 @@ impl<'db> Interner for DbInterner<'db> {
         def_id: Self::DefId,
         args: Self::GenericArgs,
     ) -> (rustc_type_ir::TraitRef<Self>, Self::GenericArgsSlice) {
-        let trait_def_id = self.parent(def_id);
-        let trait_generics = self.generics_of(trait_def_id);
-        let trait_args =
-            GenericArgs::new_from_slice(&args.as_slice()[0..trait_generics.own_params.len()]);
-        let alias_args = &args.as_slice()[trait_generics.own_params.len()..];
-        (TraitRef::new_from_args(self, trait_def_id.try_into().unwrap(), trait_args), alias_args)
+        let SolverDefId::TraitId(trait_def_id) = self.parent(def_id) else {
+            panic!("expected a trait");
+        };
+        let trait_generics = crate::generics::generics(self.db, trait_def_id.into());
+        let trait_generics_len = trait_generics.len();
+        let trait_args = GenericArgs::new_from_slice(&args.as_slice()[..trait_generics_len]);
+        let alias_args = &args.as_slice()[trait_generics_len..];
+        (TraitRef::new_from_args(self, trait_def_id.into(), trait_args), alias_args)
     }
 
     fn check_args_compatible(self, _def_id: Self::DefId, _args: Self::GenericArgs) -> bool {

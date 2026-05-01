@@ -22,7 +22,6 @@ use rustc_type_ir::{
     inherent::{GenericArgs as _, Region as _, Ty as _},
 };
 use smallvec::SmallVec;
-use stdx::never;
 
 use crate::{
     GenericArgsProhibitedReason, IncorrectGenericsLenKind, PathGenericsSource,
@@ -243,17 +242,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
             TypeNs::GenericParam(param_id) => {
                 let generics = self.ctx.generics();
                 let idx = generics.type_or_const_param_idx(param_id.into());
-                match idx {
-                    None => {
-                        never!("no matching generics");
-                        Ty::new_error(self.ctx.interner, ErrorGuaranteed)
-                    }
-                    Some(idx) => {
-                        let (pidx, _param) = generics.iter().nth(idx).unwrap();
-                        assert_eq!(pidx, param_id.into());
-                        self.ctx.type_param(param_id, idx as u32)
-                    }
-                }
+                self.ctx.type_param(param_id, idx)
             }
             TypeNs::SelfType(impl_id) => self.ctx.db.impl_self_ty(impl_id).skip_binder(),
             TypeNs::AdtSelfType(adt) => {
@@ -640,7 +629,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                     PathLoweringDiagnostic::ParenthesizedGenericArgsWithoutFnTrait { segment },
                 );
 
-                return unknown_subst(self.ctx.interner, def);
+                return GenericArgs::error_for_item(self.ctx.interner, def.into());
             }
 
             // `Fn()`-style generics are treated like functions for the purpose of lifetime elision.
@@ -1331,18 +1320,4 @@ fn type_looks_like_const(
         TypeRef::Placeholder => Some(TypeLikeConst::Infer),
         _ => None,
     }
-}
-
-fn unknown_subst<'db>(interner: DbInterner<'db>, def: impl Into<GenericDefId>) -> GenericArgs<'db> {
-    let params = generics(interner.db(), def.into());
-    GenericArgs::new_from_iter(
-        interner,
-        params.iter_id().map(|id| match id {
-            GenericParamId::TypeParamId(_) => Ty::new_error(interner, ErrorGuaranteed).into(),
-            GenericParamId::ConstParamId(id) => {
-                unknown_const_as_generic(const_param_ty_query(interner.db(), id))
-            }
-            GenericParamId::LifetimeParamId(_) => Region::error(interner).into(),
-        }),
-    )
 }

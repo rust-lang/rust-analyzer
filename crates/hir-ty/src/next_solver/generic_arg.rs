@@ -8,6 +8,7 @@
 
 use std::{hint::unreachable_unchecked, marker::PhantomData, ptr::NonNull};
 
+use arrayvec::ArrayVec;
 use hir_def::{GenericDefId, GenericParamId};
 use intern::InternedRef;
 use rustc_type_ir::{
@@ -18,7 +19,6 @@ use rustc_type_ir::{
     relate::{Relate, VarianceDiagInfo},
     walk::TypeWalker,
 };
-use smallvec::SmallVec;
 
 use crate::next_solver::{
     ConstInterned, RegionInterned, TyInterned, impl_foldable_for_interned_slice, interned_slice,
@@ -495,7 +495,47 @@ impl<'db> TypeFoldable<DbInterner<'db>> for StoredGenericArgs {
     }
 }
 
+trait GenericArgsBuilder<'db>: AsRef<[GenericArg<'db>]> {
+    fn push(&mut self, arg: GenericArg<'db>);
+}
+
+impl<'db, const N: usize> GenericArgsBuilder<'db> for ArrayVec<GenericArg<'db>, N> {
+    fn push(&mut self, arg: GenericArg<'db>) {
+        self.push(arg);
+    }
+}
+
+impl<'db> GenericArgsBuilder<'db> for Vec<GenericArg<'db>> {
+    fn push(&mut self, arg: GenericArg<'db>) {
+        self.push(arg);
+    }
+}
+
 impl<'db> GenericArgs<'db> {
+    #[inline(always)]
+    fn fill_builder<F>(
+        args: &mut impl GenericArgsBuilder<'db>,
+        defs: &Generics<'db>,
+        mut mk_kind: F,
+    ) where
+        F: FnMut(u32, GenericParamId, &[GenericArg<'db>]) -> GenericArg<'db>,
+    {
+        defs.iter_id().enumerate().for_each(|(idx, param_id)| {
+            let new_arg = mk_kind(idx as u32, param_id, args.as_ref());
+            args.push(new_arg);
+        });
+    }
+
+    #[cold]
+    fn fill_vec_builder<F>(defs: &Generics<'db>, count: usize, mk_kind: F) -> GenericArgs<'db>
+    where
+        F: FnMut(u32, GenericParamId, &[GenericArg<'db>]) -> GenericArg<'db>,
+    {
+        let mut args = Vec::with_capacity(count);
+        Self::fill_builder(&mut args, defs, mk_kind);
+        GenericArgs::new_from_slice(&args)
+    }
+
     /// Creates an `GenericArgs` for generic parameter definitions,
     /// by calling closures to obtain each kind.
     /// The closures get to observe the `GenericArgs` as they're
@@ -504,7 +544,7 @@ impl<'db> GenericArgs<'db> {
     pub fn for_item<F>(
         interner: DbInterner<'db>,
         def_id: SolverDefId,
-        mut mk_kind: F,
+        mk_kind: F,
     ) -> GenericArgs<'db>
     where
         F: FnMut(u32, GenericParamId, &[GenericArg<'db>]) -> GenericArg<'db>,
@@ -513,12 +553,14 @@ impl<'db> GenericArgs<'db> {
         let count = defs.count();
 
         if count == 0 {
-            return Default::default();
+            GenericArgs::default()
+        } else if count <= 10 {
+            let mut args = ArrayVec::<_, 10>::new();
+            Self::fill_builder(&mut args, &defs, mk_kind);
+            GenericArgs::new_from_slice(&args)
+        } else {
+            Self::fill_vec_builder(&defs, count, mk_kind)
         }
-
-        let mut args = SmallVec::with_capacity(count);
-        Self::fill_item(&mut args, interner, defs, &mut mk_kind);
-        interner.mk_args(&args)
     }
 
     /// Creates an all-error `GenericArgs`.
@@ -575,32 +617,6 @@ impl<'db> GenericArgs<'db> {
                 .map(|default| default.instantiate(interner, prev))
                 .unwrap_or_else(|| fallback(idx, id, prev))
         })
-    }
-
-    fn fill_item<F>(
-        args: &mut SmallVec<[GenericArg<'db>; 8]>,
-        interner: DbInterner<'_>,
-        defs: Generics,
-        mk_kind: &mut F,
-    ) where
-        F: FnMut(u32, GenericParamId, &[GenericArg<'db>]) -> GenericArg<'db>,
-    {
-        if let Some(def_id) = defs.parent {
-            let parent_defs = interner.generics_of(def_id.into());
-            Self::fill_item(args, interner, parent_defs, mk_kind);
-        }
-        Self::fill_single(args, &defs, mk_kind);
-    }
-
-    fn fill_single<F>(args: &mut SmallVec<[GenericArg<'db>; 8]>, defs: &Generics, mk_kind: &mut F)
-    where
-        F: FnMut(u32, GenericParamId, &[GenericArg<'db>]) -> GenericArg<'db>,
-    {
-        args.reserve(defs.own_params.len());
-        for param in &defs.own_params {
-            let kind = mk_kind(args.len() as u32, param.id, args);
-            args.push(kind);
-        }
     }
 
     pub fn types(self) -> impl Iterator<Item = Ty<'db>> {
