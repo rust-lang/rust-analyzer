@@ -369,6 +369,13 @@ interface Runnable {
     // the type of `args` is specific to `kind`. The actual running is handled by the client.
     kind: string;
     args: any;
+    /// Optional command to use when debugging this runnable.
+    debug?: RunnableCommand;
+}
+
+interface RunnableCommand {
+    kind: string;
+    args: any;
 }
 ```
 

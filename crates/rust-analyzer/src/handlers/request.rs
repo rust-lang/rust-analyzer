@@ -1062,6 +1062,7 @@ pub(crate) fn handle_runnables(
                             .into_iter()
                             .collect(),
                     }),
+                    debug: None,
                 })
             }
         }
@@ -1083,6 +1084,7 @@ pub(crate) fn handle_runnables(
                         executable_args: Vec::new(),
                         environment: Default::default(),
                     }),
+                    debug: None,
                 });
             };
         }
