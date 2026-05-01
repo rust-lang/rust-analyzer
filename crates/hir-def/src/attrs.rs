@@ -137,6 +137,7 @@ fn match_attr_flags(attr_flags: &mut AttrFlags, attr: ast::Meta) -> ControlFlow<
                 "deprecated" => attr_flags.insert(AttrFlags::IS_DEPRECATED),
                 "ignore" => attr_flags.insert(AttrFlags::IS_IGNORE),
                 "lang" => attr_flags.insert(AttrFlags::LANG_ITEM),
+                "must_use" => attr_flags.insert(AttrFlags::IS_MUST_USE),
                 "path" => attr_flags.insert(AttrFlags::HAS_PATH),
                 "unstable" => attr_flags.insert(AttrFlags::IS_UNSTABLE),
                 "export_name" => {
@@ -227,6 +228,7 @@ fn match_attr_flags(attr_flags: &mut AttrFlags, attr: ast::Meta) -> ControlFlow<
                     "unstable" => attr_flags.insert(AttrFlags::IS_UNSTABLE),
                     "deprecated" => attr_flags.insert(AttrFlags::IS_DEPRECATED),
                     "macro_export" => attr_flags.insert(AttrFlags::IS_MACRO_EXPORT),
+                    "must_use" => attr_flags.insert(AttrFlags::IS_MUST_USE),
                     "no_mangle" => attr_flags.insert(AttrFlags::NO_MANGLE),
                     "pointee" => attr_flags.insert(AttrFlags::IS_POINTEE),
                     "non_exhaustive" => attr_flags.insert(AttrFlags::NON_EXHAUSTIVE),
@@ -335,6 +337,8 @@ bitflags::bitflags! {
         const MACRO_STYLE_PARENTHESES = 1 << 48;
 
         const PREFER_UNDERSCORE_IMPORT = 1 << 49;
+
+        const IS_MUST_USE = 1 << 50;
     }
 }
 

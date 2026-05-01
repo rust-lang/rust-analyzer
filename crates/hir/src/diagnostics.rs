@@ -86,6 +86,7 @@ diagnostics![AnyDiagnostic<'db> ->
     PrivateField,
     RemoveTrailingReturn,
     RemoveUnnecessaryElse,
+    UnusedMustUse,
     ReplaceFilterMapNextWithFindMap,
     TraitImplIncorrectSafety,
     TraitImplMissingAssocItems,
@@ -398,6 +399,11 @@ pub struct RemoveUnnecessaryElse {
 }
 
 #[derive(Debug)]
+pub struct UnusedMustUse {
+    pub expr: InFile<ExprOrPatPtr>,
+}
+
+#[derive(Debug)]
 pub struct CastToUnsized<'db> {
     pub expr: InFile<ExprOrPatPtr>,
     pub cast_ty: Type<'db>,
@@ -626,6 +632,11 @@ impl<'db> AnyDiagnostic<'db> {
                         RemoveUnnecessaryElse { if_expr: InFile::new(source_ptr.file_id, ptr) }
                             .into(),
                     );
+                }
+            }
+            BodyValidationDiagnostic::UnusedMustUse { expr } => {
+                if let Ok(source_ptr) = source_map.expr_syntax(expr) {
+                    return Some(UnusedMustUse { expr: source_ptr }.into());
                 }
             }
         }

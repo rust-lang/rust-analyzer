@@ -332,6 +332,7 @@ define_symbols! {
     module_path,
     mul_assign,
     mul,
+    must_use,
     naked_asm,
     ne,
     neg,
