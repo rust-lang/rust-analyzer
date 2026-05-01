@@ -5,9 +5,7 @@ use std::iter;
 use intern::sym;
 use tracing::debug;
 
-use hir_def::{
-    CallableDefId, ConstParamId, TypeOrConstParamId, hir::ExprId, signatures::FunctionSignature,
-};
+use hir_def::{CallableDefId, ConstParamId, hir::ExprId, signatures::FunctionSignature};
 use rustc_type_ir::{
     InferTy, Interner,
     inherent::{GenericArgs as _, IntoKind, Ty as _},
@@ -365,12 +363,7 @@ impl<'db> InferenceContext<'_, 'db> {
         let const_params = generics
             .iter_self_type_or_consts()
             .filter(|(_, param_data)| param_data.const_param().is_some())
-            .map(|(idx, _)| {
-                ConstParamId::from_unchecked(TypeOrConstParamId {
-                    parent: func.into(),
-                    local_id: idx,
-                })
-            })
+            .map(|(id, _)| ConstParamId::from_unchecked(id))
             .collect::<Vec<_>>();
 
         let data = FunctionSignature::of(self.db, func);

@@ -4633,13 +4633,12 @@ impl GenericParam {
             GenericParam::ConstParam(_) => return None,
             GenericParam::LifetimeParam(it) => it.id.parent,
         };
-        let generics = hir_ty::generics::generics(db, parent);
         let index = match self {
-            GenericParam::TypeParam(it) => generics.type_or_const_param_idx(it.id.into())?,
+            GenericParam::TypeParam(it) => hir_ty::type_or_const_param_idx(db, it.id.into()),
             GenericParam::ConstParam(_) => return None,
-            GenericParam::LifetimeParam(it) => generics.lifetime_idx(it.id)?,
+            GenericParam::LifetimeParam(it) => hir_ty::lifetime_param_idx(db, it.id),
         };
-        db.variances_of(parent).get(index).map(Into::into)
+        db.variances_of(parent).get(index as usize).map(Into::into)
     }
 }
 
@@ -4711,8 +4710,8 @@ impl TypeParam {
     pub fn ty(self, db: &dyn HirDatabase) -> Type<'_> {
         let resolver = self.id.parent().resolver(db);
         let interner = DbInterner::new_no_crate(db);
-        let index = hir_ty::param_idx(db, self.id.into()).unwrap();
-        let ty = Ty::new_param(interner, self.id, index as u32);
+        let index = hir_ty::type_or_const_param_idx(db, self.id.into());
+        let ty = Ty::new_param(interner, self.id, index);
         Type::new_with_resolver_inner(db, &resolver, ty)
     }
 
@@ -4812,9 +4811,9 @@ impl ConstParam {
 }
 
 fn generic_arg_from_param(db: &dyn HirDatabase, id: TypeOrConstParamId) -> Option<GenericArg<'_>> {
-    let local_idx = hir_ty::param_idx(db, id)?;
+    let local_idx = hir_ty::type_or_const_param_idx(db, id);
     let defaults = db.generic_defaults(id.parent);
-    let ty = defaults.get(local_idx)?;
+    let ty = defaults.get(local_idx as usize)?;
     // FIXME: This shouldn't be `instantiate_identity()`, we shouldn't leak `TyKind::Param`s.
     Some(ty.instantiate_identity())
 }
@@ -7344,10 +7343,8 @@ fn has_non_default_type_params(db: &dyn HirDatabase, generic_def: GenericDefId) 
         .filter(|(_, param)| matches!(param, TypeOrConstParamData::TypeParamData(_)))
         .map(|(local_id, _)| TypeOrConstParamId { parent: generic_def, local_id })
         .any(|param| {
-            let Some(param) = hir_ty::param_idx(db, param) else {
-                return false;
-            };
-            defaults.get(param).is_none()
+            let param = hir_ty::type_or_const_param_idx(db, param);
+            defaults.get(param as usize).is_none()
         })
 }
 

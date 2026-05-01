@@ -567,10 +567,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                             not_supported!("owner without generic def id");
                         };
                         let generics = generics(self.db, def);
-                        let index = generics
-                            .type_or_const_param_idx(p.into())
-                            .ok_or(MirLowerError::TypeError("fail to lower const generic param"))?
-                            as u32;
+                        let index = generics.type_or_const_param_idx(p.into());
                         self.push_assignment(
                             current,
                             place,

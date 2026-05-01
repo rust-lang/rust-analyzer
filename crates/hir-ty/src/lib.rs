@@ -26,6 +26,7 @@ extern crate ra_ap_rustc_next_trait_solver as rustc_next_trait_solver;
 extern crate self as hir_ty;
 
 pub mod builtin_derive;
+mod generics;
 mod infer;
 mod inhabitedness;
 mod lower;
@@ -44,7 +45,6 @@ pub mod diagnostics;
 pub mod display;
 pub mod drop;
 pub mod dyn_compatibility;
-pub mod generics;
 pub mod lang_items;
 pub mod layout;
 pub mod method_resolution;
@@ -61,8 +61,8 @@ mod tests;
 use std::{hash::Hash, ops::ControlFlow};
 
 use hir_def::{
-    CallableDefId, ExpressionStoreOwnerId, GenericDefId, TypeAliasId, TypeOrConstParamId,
-    TypeParamId,
+    CallableDefId, ExpressionStoreOwnerId, GenericDefId, LifetimeParamId, TypeAliasId,
+    TypeOrConstParamId, TypeParamId,
     hir::{ExprId, ExprOrPatId, PatId},
     resolver::TypeNs,
     type_ref::{Rawness, TypeRefId},
@@ -210,8 +210,12 @@ impl<'db> MemoryMap<'db> {
 }
 
 /// Return an index of a parameter in the generic type parameter list by it's id.
-pub fn param_idx(db: &dyn HirDatabase, id: TypeOrConstParamId) -> Option<usize> {
+pub fn type_or_const_param_idx(db: &dyn HirDatabase, id: TypeOrConstParamId) -> u32 {
     generics::generics(db, id.parent).type_or_const_param_idx(id)
+}
+
+pub fn lifetime_param_idx(db: &dyn HirDatabase, id: LifetimeParamId) -> u32 {
+    generics::generics(db, id.parent).lifetime_param_idx(id)
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -504,7 +508,7 @@ pub fn associated_type_shorthand_candidates(
     };
 
     let mut dedup_map = FxHashSet::default();
-    let param_ty = Ty::new_param(interner, param, param_idx(db, param.into()).unwrap() as u32);
+    let param_ty = Ty::new_param(interner, param, type_or_const_param_idx(db, param.into()));
     // We use the ParamEnv and not the predicates because the ParamEnv elaborates bounds.
     let param_env = db.trait_environment(ExpressionStoreOwnerId::from(def));
     for clause in param_env.clauses {
