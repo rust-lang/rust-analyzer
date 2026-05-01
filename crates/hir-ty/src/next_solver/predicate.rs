@@ -705,34 +705,6 @@ impl<'db> rustc_type_ir::inherent::Predicate<DbInterner<'db>> for Predicate<'db>
             _ => None,
         }
     }
-
-    /// Whether this projection can be soundly normalized.
-    ///
-    /// Wf predicates must not be normalized, as normalization
-    /// can remove required bounds which would cause us to
-    /// unsoundly accept some programs. See #91068.
-    fn allow_normalization(self) -> bool {
-        // TODO: this should probably live in rustc_type_ir
-        match self.inner().as_ref().skip_binder() {
-            PredicateKind::Clause(ClauseKind::WellFormed(_)) | PredicateKind::AliasRelate(..) => {
-                false
-            }
-            PredicateKind::Clause(ClauseKind::Trait(_))
-            | PredicateKind::Clause(ClauseKind::RegionOutlives(_))
-            | PredicateKind::Clause(ClauseKind::TypeOutlives(_))
-            | PredicateKind::Clause(ClauseKind::Projection(_))
-            | PredicateKind::Clause(ClauseKind::ConstArgHasType(..))
-            | PredicateKind::Clause(ClauseKind::HostEffect(..))
-            | PredicateKind::Clause(ClauseKind::UnstableFeature(_))
-            | PredicateKind::DynCompatible(_)
-            | PredicateKind::Subtype(_)
-            | PredicateKind::Coerce(_)
-            | PredicateKind::Clause(ClauseKind::ConstEvaluatable(_))
-            | PredicateKind::ConstEquate(_, _)
-            | PredicateKind::NormalizesTo(..)
-            | PredicateKind::Ambiguous => true,
-        }
-    }
 }
 
 impl<'db> Predicate<'db> {
