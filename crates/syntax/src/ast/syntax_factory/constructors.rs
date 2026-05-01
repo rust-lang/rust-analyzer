@@ -2,7 +2,7 @@
 use either::Either;
 
 use crate::{
-    AstNode, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken,
+    AstNode, Edition, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken,
     ast::{
         self, HasArgList, HasAttrs, HasGenericArgs, HasGenericParams, HasLoopBody, HasName,
         HasTypeBounds, HasVisibility, Lifetime, Param, RangeItem, make,
@@ -129,6 +129,10 @@ impl SyntaxFactory {
 
     pub fn path_from_text(&self, text: &str) -> ast::Path {
         make::path_from_text(text).clone_for_update()
+    }
+
+    pub fn path_from_text_with_edition(&self, text: &str, edition: Edition) -> ast::Path {
+        make::path_from_text_with_edition(text, edition).clone_for_update()
     }
 
     pub fn path_concat(&self, first: ast::Path, second: ast::Path) -> ast::Path {
