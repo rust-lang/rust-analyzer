@@ -7,7 +7,7 @@ use ide_db::{
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},
-        insert_use::{ImportScope, insert_use, insert_use_as_alias},
+        insert_use::{ImportScope, insert_use_as_alias_with_editor, insert_use_with_editor},
     },
 };
 use syntax::{AstNode, Edition, SyntaxNode, ast, match_ast};
@@ -125,8 +125,14 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opt
             (AssistId::quick_fix("auto_import"), import_path.display(ctx.db(), edition));
         let add_normal_import = |acc: &mut Assists, label| {
             acc.add_group(&group_label, assist_id, label, range, |builder| {
-                let scope = builder.make_import_scope_mut(scope.clone());
-                insert_use(&scope, mod_path_to_ast(&import_path, edition), &ctx.config.insert_use);
+                let editor = builder.make_editor(scope.as_syntax_node());
+                insert_use_with_editor(
+                    &scope,
+                    mod_path_to_ast(&import_path, edition),
+                    &ctx.config.insert_use,
+                    &editor,
+                );
+                builder.add_file_edits(ctx.vfs_file_id(), editor);
             })
         };
         let add_underscore_import = |acc: &mut Assists, name: &TraitImportCandidate<'_>, label| {
@@ -139,13 +145,15 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opt
                 name.assoc_item_name.text()
             ));
             acc.add_group(&group_label, assist_id, label, range, |builder| {
-                let scope = builder.make_import_scope_mut(scope.clone());
-                insert_use_as_alias(
+                let editor = builder.make_editor(scope.as_syntax_node());
+                insert_use_as_alias_with_editor(
                     &scope,
                     mod_path_to_ast(&import_path, edition),
                     &ctx.config.insert_use,
                     edition,
+                    &editor,
                 );
+                builder.add_file_edits(ctx.vfs_file_id(), editor);
             });
         };
 
