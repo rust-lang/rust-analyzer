@@ -12,7 +12,6 @@ use rustc_type_ir::inherent::IntoKind;
 use rustc_type_ir::{
     FallibleTypeFolder, TypeFlags, TypeFoldable, TypeSuperFoldable, TypeVisitableExt,
 };
-use triomphe::Arc;
 
 use crate::{
     ParamEnvAndCrate,
@@ -240,38 +239,50 @@ impl<'db> Filler<'db> {
     }
 }
 
+#[salsa_macros::tracked(returns(ref), cycle_result = monomorphized_mir_body_cycle_result)]
 pub fn monomorphized_mir_body_query(
     db: &dyn HirDatabase,
     owner: DefWithBodyId,
     subst: StoredGenericArgs,
     trait_env: StoredParamEnvAndCrate,
-) -> Result<Arc<MirBody>, MirLowerError> {
+) -> Result<MirBody, MirLowerError> {
     let mut filler = Filler::new(db, trait_env.as_ref(), subst.as_ref());
     let body = db.mir_body(owner)?;
     let mut body = (*body).clone();
     filler.fill_body(&mut body)?;
-    Ok(Arc::new(body))
+    Ok(body)
 }
 
-pub(crate) fn monomorphized_mir_body_cycle_result(
+fn monomorphized_mir_body_cycle_result(
     _db: &dyn HirDatabase,
     _: salsa::Id,
     _: DefWithBodyId,
     _: StoredGenericArgs,
     _: StoredParamEnvAndCrate,
-) -> Result<Arc<MirBody>, MirLowerError> {
+) -> Result<MirBody, MirLowerError> {
     Err(MirLowerError::Loop)
 }
 
+#[salsa_macros::tracked(returns(ref), cycle_result = monomorphized_mir_body_for_closure_cycle_result)]
 pub fn monomorphized_mir_body_for_closure_query(
     db: &dyn HirDatabase,
     closure: InternedClosureId,
     subst: StoredGenericArgs,
     trait_env: StoredParamEnvAndCrate,
-) -> Result<Arc<MirBody>, MirLowerError> {
+) -> Result<MirBody, MirLowerError> {
     let mut filler = Filler::new(db, trait_env.as_ref(), subst.as_ref());
     let body = db.mir_body_for_closure(closure)?;
     let mut body = (*body).clone();
     filler.fill_body(&mut body)?;
-    Ok(Arc::new(body))
+    Ok(body)
+}
+
+fn monomorphized_mir_body_for_closure_cycle_result(
+    _db: &dyn HirDatabase,
+    _: salsa::Id,
+    _: InternedClosureId,
+    _: StoredGenericArgs,
+    _: StoredParamEnvAndCrate,
+) -> Result<MirBody, MirLowerError> {
+    Err(MirLowerError::Loop)
 }

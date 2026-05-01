@@ -6,7 +6,7 @@ use crate::consteval::try_const_usize;
 
 use super::*;
 
-impl<'db> Evaluator<'db> {
+impl<'a, 'db: 'a> Evaluator<'a, 'db> {
     fn detect_simd_ty(&self, ty: Ty<'db>) -> Result<'db, (usize, Ty<'db>)> {
         match ty.kind() {
             TyKind::Adt(adt_def, subst) => {
@@ -53,7 +53,7 @@ impl<'db> Evaluator<'db> {
         args: &[IntervalAndTy<'db>],
         _generic_args: GenericArgs<'db>,
         destination: Interval,
-        _locals: &Locals,
+        _locals: &Locals<'a>,
         _span: MirSpan,
     ) -> Result<'db, ()> {
         match name {

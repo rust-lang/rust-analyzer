@@ -22,7 +22,6 @@ use base_db::Crate;
 use span::SyntaxContext;
 use syntax::{AstPtr, Parse, SyntaxElement, SyntaxNode, TextSize, WalkEvent, ted};
 use syntax_bridge::DocCommentDesugarMode;
-use triomphe::Arc;
 
 use crate::{
     AstId, EagerCallInfo, ExpandError, ExpandResult, ExpandTo, ExpansionSpanMap, InFile,
@@ -92,7 +91,7 @@ pub fn expand_eager_macro_input(
     let mut subtree = syntax_bridge::syntax_node_to_token_tree(
         &expanded_eager_input,
         arg_map,
-        span,
+        *span,
         DocCommentDesugarMode::Mbe,
     );
 
@@ -104,11 +103,11 @@ pub fn expand_eager_macro_input(
         kind: MacroCallKind::FnLike {
             ast_id,
             expand_to,
-            eager: Some(Arc::new(EagerCallInfo {
-                arg: Arc::new(subtree),
+            eager: Some(Box::new(EagerCallInfo {
+                arg: subtree,
                 arg_id,
                 error: err.clone(),
-                span,
+                span: *span,
             })),
         },
         ctxt: call_site,

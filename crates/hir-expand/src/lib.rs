@@ -279,7 +279,7 @@ impl MacroDefKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EagerCallInfo {
     /// The expanded argument of the eager macro.
-    arg: Arc<tt::TopSubtree>,
+    arg: tt::TopSubtree,
     /// Call id of the eager macro's input file (this is the macro file for its fully expanded input).
     arg_id: MacroCallId,
     error: Option<ExpandError>,
@@ -296,7 +296,7 @@ pub enum MacroCallKind {
         /// for the eager input macro file.
         // FIXME: This is being interned, subtrees can vary quickly differing just slightly causing
         // leakage problems here
-        eager: Option<Arc<EagerCallInfo>>,
+        eager: Option<Box<EagerCallInfo>>,
     },
     Derive {
         ast_id: AstId<ast::Adt>,
@@ -311,7 +311,7 @@ pub enum MacroCallKind {
     Attr {
         ast_id: AstId<ast::Item>,
         // FIXME: This shouldn't be here, we can derive this from `invoc_attr_index`.
-        attr_args: Option<Arc<tt::TopSubtree>>,
+        attr_args: Option<Box<tt::TopSubtree>>,
         /// This contains the list of all *active* attributes (derives and attr macros) preceding this
         /// attribute, including this attribute. You can retrieve the [`AttrId`] of the current attribute
         /// by calling [`invoc_attr()`] on this.

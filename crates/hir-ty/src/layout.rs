@@ -167,7 +167,7 @@ pub fn layout_of_ty_query(
     let Ok(target) = db.target_data_layout(krate) else {
         return Err(LayoutError::TargetLayoutNotAvailable);
     };
-    let dl = &*target;
+    let dl = target;
     let cx = LayoutCx::new(dl);
     let infer_ctxt = interner.infer_ctxt().build(TypingMode::PostAnalysis);
     let cause = ObligationCause::dummy();
@@ -187,7 +187,7 @@ pub fn layout_of_ty_query(
                             repr.packed(),
                             &args,
                             trait_env.as_ref(),
-                            &target,
+                            target,
                         );
                     }
                 }

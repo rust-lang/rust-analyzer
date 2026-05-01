@@ -25,7 +25,6 @@ use rustc_hash::FxHashMap;
 use rustc_type_ir::inherent::{Const as _, GenericArgs as _, IntoKind, Ty as _};
 use span::{Edition, FileId};
 use syntax::TextRange;
-use triomphe::Arc;
 
 use crate::{
     Adjust, Adjustment, AutoBorrow, CallableDefId, ParamEnvAndCrate,
@@ -2137,10 +2136,11 @@ fn cast_kind<'db>(
     })
 }
 
+#[salsa_macros::tracked(returns(ref), cycle_result = mir_body_for_closure_cycle_result)]
 pub fn mir_body_for_closure_query<'db>(
     db: &'db dyn HirDatabase,
     closure: InternedClosureId,
-) -> Result<'db, Arc<MirBody>> {
+) -> Result<'db, MirBody> {
     let InternedClosure { owner, expr, .. } = closure.loc(db);
     let body_owner =
         owner.as_def_with_body().expect("MIR lowering should only happen for body-owned closures");
@@ -2293,13 +2293,11 @@ pub fn mir_body_for_closure_query<'db>(
         return Err(MirLowerError::UnresolvedUpvar(err));
     }
     ctx.result.shrink_to_fit();
-    Ok(Arc::new(ctx.result))
+    Ok(ctx.result)
 }
 
-pub fn mir_body_query<'db>(
-    db: &'db dyn HirDatabase,
-    def: DefWithBodyId,
-) -> Result<'db, Arc<MirBody>> {
+#[salsa_macros::tracked(returns(ref), cycle_result = mir_body_cycle_result)]
+pub fn mir_body_query<'db>(db: &'db dyn HirDatabase, def: DefWithBodyId) -> Result<'db, MirBody> {
     let krate = def.krate(db);
     let edition = krate.data(db).edition;
     let detail = match def {
@@ -2328,14 +2326,22 @@ pub fn mir_body_query<'db>(
     let infer = InferenceResult::of(db, def);
     let mut result = lower_body_to_mir(db, def, body, infer, body.root_expr())?;
     result.shrink_to_fit();
-    Ok(Arc::new(result))
+    Ok(result)
 }
 
-pub(crate) fn mir_body_cycle_result<'db>(
+fn mir_body_cycle_result<'db>(
     _db: &'db dyn HirDatabase,
     _: salsa::Id,
     _def: DefWithBodyId,
-) -> Result<'db, Arc<MirBody>> {
+) -> Result<'db, MirBody> {
+    Err(MirLowerError::Loop)
+}
+
+fn mir_body_for_closure_cycle_result<'db>(
+    _db: &'db dyn HirDatabase,
+    _: salsa::Id,
+    _def: InternedClosureId,
+) -> Result<'db, MirBody> {
     Err(MirLowerError::Loop)
 }
 

@@ -10,7 +10,6 @@ use syntax::{
     ast::{self, HasAttrs},
 };
 use syntax_bridge::DocCommentDesugarMode;
-use triomphe::Arc;
 
 use crate::{
     AstId, ExpandError, ExpandErrorKind, ExpandResult, HirFileId, Lookup, MacroCallId,
@@ -78,12 +77,16 @@ impl DeclarativeMacroExpander {
                 .map_err(Into::into),
         }
     }
+}
 
+#[salsa::tracked]
+impl DeclarativeMacroExpander {
+    #[salsa::tracked(returns(ref))]
     pub(crate) fn expander(
         db: &dyn ExpandDatabase,
         def_crate: Crate,
         id: AstId<ast::Macro>,
-    ) -> Arc<DeclarativeMacroExpander> {
+    ) -> DeclarativeMacroExpander {
         let (root, map) = crate::db::parse_with_map(db, id.file_id);
         let root = root.syntax_node();
 
@@ -177,6 +180,6 @@ impl DeclarativeMacroExpander {
             HirFileId::MacroFile(macro_file) => macro_file.lookup(db).ctxt,
             HirFileId::FileId(file) => SyntaxContext::root(file.edition(db)),
         });
-        Arc::new(DeclarativeMacroExpander { mac, transparency, edition })
+        DeclarativeMacroExpander { mac, transparency, edition }
     }
 }

@@ -974,7 +974,7 @@ fn render_const_scalar_inner<'db>(
                         return f.write_str("<target-layout-not-available>");
                     };
                     let Some((var_id, var_layout)) =
-                        detect_variant_from_bytes(&layout, f.db, &target_data_layout, b, e)
+                        detect_variant_from_bytes(&layout, f.db, target_data_layout, b, e)
                     else {
                         return f.write_str("<failed-to-detect-variant>");
                     };

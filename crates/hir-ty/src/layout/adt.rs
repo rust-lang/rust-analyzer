@@ -29,7 +29,7 @@ pub fn layout_of_adt_query(
     let Ok(target) = db.target_data_layout(krate) else {
         return Err(LayoutError::TargetLayoutNotAvailable);
     };
-    let dl = &*target;
+    let dl = target;
     let cx = LayoutCx::new(dl);
     let handle_variant = |def: VariantId, var: &VariantFields| {
         var.fields()

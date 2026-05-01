@@ -160,7 +160,7 @@ impl<'a, 'db> MirPrettyCtx<'a, 'db> {
         let result = mem::take(&mut self.result);
         let indent = mem::take(&mut self.indent);
         let mut ctx = MirPrettyCtx {
-            body: &body,
+            body,
             local_to_binding: body.local_to_binding_map(),
             result,
             indent,

@@ -14,7 +14,7 @@ use syntax::{
     match_ast,
 };
 use syntax_bridge::DocCommentDesugarMode;
-use triomphe::Arc;
+use thin_vec::ThinVec;
 use tt::{Spacing, TransformTtAction, transform_tt};
 
 use crate::{
@@ -35,8 +35,7 @@ pub(crate) struct SyntaxFixups {
 /// This is the information needed to reverse the fixups.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SyntaxFixupUndoInfo {
-    // FIXME: ThinArc<[Subtree]>
-    original: Option<Arc<Box<[TopSubtree]>>>,
+    original: Option<ThinVec<TopSubtree>>,
 }
 
 impl SyntaxFixupUndoInfo {
@@ -59,7 +58,7 @@ pub(crate) fn fixup_syntax(
     let mut append = FxHashMap::<SyntaxElement, _>::default();
     let mut remove = FxHashSet::<SyntaxElement>::default();
     let mut preorder = node.preorder();
-    let mut original = Vec::new();
+    let mut original = ThinVec::new();
     let dummy_range = FIXUP_DUMMY_RANGE;
     let fake_span = |range| {
         let span = span_map.span_for_range(range);
@@ -317,13 +316,12 @@ pub(crate) fn fixup_syntax(
             }
         }
     }
+    original.shrink_to_fit();
     let needs_fixups = !append.is_empty() || !original.is_empty();
     SyntaxFixups {
         append,
         remove,
-        undo_info: SyntaxFixupUndoInfo {
-            original: needs_fixups.then(|| Arc::new(original.into_boxed_slice())),
-        },
+        undo_info: SyntaxFixupUndoInfo { original: needs_fixups.then_some(original) },
     }
 }
 
@@ -340,7 +338,7 @@ fn has_error_to_handle(node: &SyntaxNode) -> bool {
 }
 
 pub(crate) fn reverse_fixups(tt: &mut TopSubtree, undo_info: &SyntaxFixupUndoInfo) {
-    let Some(undo_info) = undo_info.original.as_deref() else { return };
+    let Some(undo_info) = &undo_info.original else { return };
     let undo_info = &**undo_info;
     let top_subtree = tt.top_subtree();
     let open_span = top_subtree.delimiter.open;
