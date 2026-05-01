@@ -160,11 +160,43 @@ pub fn insert_use_with_editor(
     insert_use_with_alias_option_with_editor(scope, path, cfg, None, syntax_editor);
 }
 
-pub fn insert_use_as_alias(
+pub fn insert_uses_with_editor(
+    scope: &ImportScope,
+    paths: impl IntoIterator<Item = ast::Path>,
+    cfg: &InsertUseConfig,
+    syntax_editor: &SyntaxEditor,
+) {
+    let paths = paths.into_iter().collect::<Vec<_>>();
+    if paths.len() > 1
+        && scope.as_syntax_node().parent().is_none()
+        && scope.required_cfgs.is_empty()
+        && !scope.as_syntax_node().children().any(|node| ast::Use::cast(node).is_some())
+    {
+        let make = syntax_editor.make();
+        let elements = paths
+            .into_iter()
+            .flat_map(|path| {
+                let use_tree = make.use_tree(path, None, None, false);
+                let use_item = make.use_(None, None, use_tree);
+                [use_item.syntax().clone().into(), make.whitespace("\n").into()]
+            })
+            .chain([make.whitespace("\n").into()])
+            .collect();
+        syntax_editor.insert_all(Position::first_child_of(scope.as_syntax_node()), elements);
+        return;
+    }
+
+    for path in paths {
+        insert_use_with_editor(scope, path, cfg, syntax_editor);
+    }
+}
+
+pub fn insert_use_as_alias_with_editor(
     scope: &ImportScope,
     path: ast::Path,
     cfg: &InsertUseConfig,
     edition: span::Edition,
+    editor: &SyntaxEditor,
 ) {
     let text: &str = "use foo as _";
     let parse = syntax::SourceFile::parse(text, edition);
