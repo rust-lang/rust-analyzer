@@ -7,7 +7,9 @@ use std::fmt;
 use base_db::Crate;
 use either::Either;
 use hir_def::{
-    AdtId, AssocItemId, DefWithBodyId, HasModule, ItemContainerId, Lookup,
+    AdtId, AssocItemId, AttrDefId, CallableDefId, DefWithBodyId, HasModule, ItemContainerId,
+    Lookup,
+    attrs::AttrFlags,
     lang_item::LangItems,
     resolver::{HasResolver, ValueNs},
 };
@@ -33,7 +35,7 @@ use crate::{
     },
     display::{DisplayTarget, HirDisplay},
     next_solver::{
-        DbInterner, ParamEnv, Ty, TyKind, TypingMode,
+        CallableIdWrapper, DbInterner, ParamEnv, Ty, TyKind, TypingMode,
         infer::{DbInternerInferExt, InferCtxt},
     },
 };
@@ -66,6 +68,9 @@ pub enum BodyValidationDiagnostic {
     },
     RemoveUnnecessaryElse {
         if_expr: ExprId,
+    },
+    UnusedMustUse {
+        expr: ExprId,
     },
 }
 
@@ -328,52 +333,71 @@ impl<'db> ExprValidator<'db> {
         let pattern_arena = Arena::new();
         let cx = MatchCheckCtx::new(self.owner.module(self.db()), &self.infcx, self.env);
         for stmt in &**statements {
-            let &Statement::Let { pat, initializer, else_branch: None, .. } = stmt else {
-                continue;
-            };
-            if self.infer.type_mismatch_for_pat(pat).is_some() {
-                continue;
-            }
-            let Some(initializer) = initializer else { continue };
-            let Some(ty) = self.infer.type_of_expr_with_adjust(initializer) else { continue };
-            if ty.references_non_lt_error() {
-                continue;
-            }
-
-            let mut have_errors = false;
-            let deconstructed_pat = self.lower_pattern(&cx, pat, &mut have_errors);
-
-            // optimization, wildcard trivially hold
-            if have_errors || matches!(deconstructed_pat.ctor(), Constructor::Wildcard) {
-                continue;
-            }
-
-            let match_arm = rustc_pattern_analysis::MatchArm {
-                pat: pattern_arena.alloc(deconstructed_pat),
-                has_guard: false,
-                arm_data: (),
-            };
-            let report = match cx.compute_match_usefulness(&[match_arm], ty, None) {
-                Ok(v) => v,
-                Err(e) => {
-                    debug!(?e, "match usefulness error");
-                    continue;
+            let diag = match *stmt {
+                Statement::Expr { expr: stmt_expr, has_semi: true } if self.validate_lints => {
+                    self.check_unused_must_use(stmt_expr)
                 }
+                Statement::Let { pat, initializer, else_branch: None, .. } => {
+                    self.check_non_exhaustive_let(&cx, &pattern_arena, pat, initializer)
+                }
+                _ => None,
             };
-            let witnesses = report.non_exhaustiveness_witnesses;
-            if !witnesses.is_empty() {
-                self.diagnostics.push(BodyValidationDiagnostic::NonExhaustiveLet {
-                    pat,
-                    uncovered_patterns: missing_match_arms(
-                        &cx,
-                        ty,
-                        witnesses,
-                        false,
-                        self.owner.krate(self.db()),
-                    ),
-                });
+            if let Some(diag) = diag {
+                self.diagnostics.push(diag);
             }
         }
+    }
+
+    fn check_non_exhaustive_let<'a>(
+        &self,
+        cx: &MatchCheckCtx<'a, 'db>,
+        pattern_arena: &'a Arena<DeconstructedPat<'a, 'db>>,
+        pat: PatId,
+        initializer: Option<ExprId>,
+    ) -> Option<BodyValidationDiagnostic> {
+        if self.infer.type_mismatch_for_pat(pat).is_some() {
+            return None;
+        }
+        let initializer = initializer?;
+        let ty = self.infer.type_of_expr_with_adjust(initializer)?;
+        if ty.references_non_lt_error() {
+            return None;
+        }
+
+        let mut have_errors = false;
+        let deconstructed_pat = self.lower_pattern(cx, pat, &mut have_errors);
+
+        // optimization, wildcard trivially hold
+        if have_errors || matches!(deconstructed_pat.ctor(), Constructor::Wildcard) {
+            return None;
+        }
+
+        let match_arm = rustc_pattern_analysis::MatchArm {
+            pat: pattern_arena.alloc(deconstructed_pat),
+            has_guard: false,
+            arm_data: (),
+        };
+        let report = match cx.compute_match_usefulness(&[match_arm], ty, None) {
+            Ok(v) => v,
+            Err(e) => {
+                debug!(?e, "match usefulness error");
+                return None;
+            }
+        };
+        let witnesses = report.non_exhaustiveness_witnesses;
+        if witnesses.is_empty() {
+            return None;
+        }
+        Some(BodyValidationDiagnostic::NonExhaustiveLet {
+            pat,
+            uncovered_patterns: missing_match_arms(
+                cx,
+                ty,
+                witnesses,
+                false,
+                self.owner.krate(self.db()),
+            ),
+        })
     }
 
     fn lower_pattern<'a>(
@@ -389,6 +413,37 @@ impl<'db> ExprValidator<'db> {
             *have_errors = true;
         }
         pattern
+    }
+
+    fn check_unused_must_use(&self, expr: ExprId) -> Option<BodyValidationDiagnostic> {
+        let db = self.db();
+        let must_use_fn = match &self.body[expr] {
+            Expr::Call { callee, .. } => {
+                let callee_ty = self.infer.expr_ty(*callee);
+                if let TyKind::FnDef(CallableIdWrapper(CallableDefId::FunctionId(func)), _) =
+                    callee_ty.kind()
+                {
+                    AttrFlags::query(db, AttrDefId::FunctionId(func))
+                        .contains(AttrFlags::IS_MUST_USE)
+                } else {
+                    false
+                }
+            }
+            Expr::MethodCall { .. } => {
+                self.infer.method_resolution(expr).is_some_and(|(func, _)| {
+                    AttrFlags::query(db, AttrDefId::FunctionId(func))
+                        .contains(AttrFlags::IS_MUST_USE)
+                })
+            }
+            _ => return None,
+        };
+        let must_use_ty =
+            self.infer.type_of_expr_with_adjust(expr).is_some_and(|ty| match ty.kind() {
+                TyKind::Adt(adt, _) => AttrFlags::query(db, AttrDefId::AdtId(adt.def_id()))
+                    .contains(AttrFlags::IS_MUST_USE),
+                _ => false,
+            });
+        (must_use_fn || must_use_ty).then_some(BodyValidationDiagnostic::UnusedMustUse { expr })
     }
 
     fn check_for_trailing_return(&mut self, body_expr: ExprId, body: &Body) {
