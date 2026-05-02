@@ -2229,6 +2229,21 @@ impl SyntaxFactory {
         make::ext::field_from_idents(parts)
     }
 
+    pub fn ty_name(&self, name: ast::Name) -> ast::Type {
+        let ast = make::ext::ty_name(name.clone()).clone_for_update();
+
+        if let Some(mut mapping) = self.mappings()
+            && let ast::Type::PathType(path_ty) = &ast
+            && let Some(name_ref) = path_ty.path().and_then(|path| path.segment()?.name_ref())
+        {
+            let mut builder = SyntaxMappingBuilder::new(name_ref.syntax().parent().unwrap());
+            builder.map_node(name.syntax().clone(), name_ref.syntax().clone());
+            builder.finish(&mut mapping);
+        }
+
+        ast
+    }
+
     pub fn expr_await(&self, expr: ast::Expr) -> ast::AwaitExpr {
         let ast::Expr::AwaitExpr(ast) = make::expr_await(expr.clone()).clone_for_update() else {
             unreachable!()
