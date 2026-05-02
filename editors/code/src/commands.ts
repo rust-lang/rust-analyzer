@@ -24,6 +24,7 @@ import {
     type RustEditor,
     type RustDocument,
     unwrapUndefinable,
+    spawnAsync,
 } from "./util";
 import { startDebugSession, makeDebugConfig } from "./debug";
 import type { LanguageClient } from "vscode-languageclient/node";
@@ -31,6 +32,7 @@ import { HOVER_REFERENCE_COMMAND } from "./client";
 import type { DependencyId } from "./dependencies_provider";
 import { log } from "./util";
 import type { SyntaxElement } from "./syntax_tree_provider";
+import { cargoPath } from "./toolchain";
 
 export * from "./run";
 
@@ -884,6 +886,391 @@ export function expandMacro(ctx: CtxInit): Cmd {
 
 export function reloadWorkspace(ctx: CtxInit): Cmd {
     return async () => ctx.client.sendRequest(ra.reloadWorkspace);
+}
+
+type NewProjectKind = "bin" | "lib";
+type NewProjectOpenAction = "open" | "openNewWindow" | "addToWorkspace";
+
+type NewProjectTemplate = {
+    detail: string;
+    id: NewProjectKind;
+    label: string;
+};
+
+type NewProjectCargo = {
+    cargo: string;
+    cargoEnv: NodeJS.ProcessEnv;
+};
+
+const NEW_PROJECT_TEMPLATES: readonly NewProjectTemplate[] = [
+    {
+        id: "bin",
+        label: "Binary Application",
+        detail: "Create a Cargo binary package (`cargo new --bin`)",
+    },
+    {
+        id: "lib",
+        label: "Library",
+        detail: "Create a Cargo library package (`cargo new --lib`)",
+    },
+] as const;
+
+/**
+ * Entry point for the `rust-analyzer: Create New Project...` command.
+ *
+ * This function keeps the user-visible workflow in one place: resolve Cargo, gather the project
+ * inputs, run `cargo new`, and then apply the requested post-create workspace action.
+ */
+export function newProject(ctx: Ctx): Cmd {
+    return async () => {
+        const cargo = await resolveNewProjectCargo(ctx);
+        if (!cargo) {
+            return;
+        }
+
+        const selectedTemplate = await promptForNewProjectTemplate();
+        if (!selectedTemplate) {
+            return;
+        }
+
+        const parentFolder = await promptForNewProjectParentFolder();
+        if (!parentFolder) {
+            return;
+        }
+
+        const projectName = await promptForNewProjectName(parentFolder);
+        if (!projectName) {
+            return;
+        }
+
+        const created = await createNewProject(
+            cargo,
+            parentFolder,
+            selectedTemplate.template.id,
+            projectName,
+        );
+        if (!created) {
+            return;
+        }
+
+        const projectUri = vscode.Uri.joinPath(parentFolder, projectName);
+        const defaultAction = determineNewProjectOpenAction(
+            ctx.config.projectCreationOpenAfterCreate,
+            Boolean(vscode.workspace.workspaceFolders?.length),
+        );
+        const action =
+            defaultAction === "ask"
+                ? await promptForNewProjectOpenAction(
+                      projectName,
+                      Boolean(vscode.workspace.workspaceFolders?.length),
+                  )
+                : defaultAction;
+
+        if (action) {
+            await executeNewProjectOpenAction(ctx, action, projectUri);
+        }
+    };
+}
+
+/**
+ * Resolves Cargo using rust-analyzer's effective environment and verifies that it is runnable.
+ *
+ * Returns `undefined` after surfacing an actionable error when Cargo cannot be launched, so the
+ * top-level command can treat toolchain failures the same way as user cancellation.
+ */
+async function resolveNewProjectCargo(ctx: Ctx): Promise<NewProjectCargo | undefined> {
+    // Use the same effective environment rust-analyzer uses elsewhere so project creation sees
+    // toolchain wrappers, PATH overrides, and CARGO_HOME changes from configuration.
+    const cargoEnv = { ...process.env, ...ctx.config.serverExtraEnv };
+    const cargo = await cargoPath(cargoEnv);
+    const versionCheck = await spawnAsync(cargo, ["--version"], { env: cargoEnv });
+    if (versionCheck.error || versionCheck.status !== 0) {
+        const details = [versionCheck.stderr, versionCheck.stdout, versionCheck.error?.message]
+            .filter((value): value is string => Boolean(value && value.trim().length > 0))
+            .join("\n")
+            .trim();
+        await showNewProjectError("Failed to execute cargo --version.", details || undefined, {
+            cargo,
+            args: ["--version"],
+            error: versionCheck.error?.message,
+            status: versionCheck.status,
+            stderr: versionCheck.stderr || undefined,
+            stdout: versionCheck.stdout || undefined,
+        });
+        return undefined;
+    }
+
+    return { cargo, cargoEnv };
+}
+
+/**
+ * Prompts for the Cargo package kind to create.
+ *
+ * Returns `undefined` if the user cancels the quick pick.
+ */
+async function promptForNewProjectTemplate(): Promise<
+    { detail?: string; label: string; template: NewProjectTemplate } | undefined
+> {
+    return vscode.window.showQuickPick(
+        NEW_PROJECT_TEMPLATES.map((template) => ({
+            label: template.label,
+            detail: template.detail,
+            template,
+        })),
+        { placeHolder: "Select a Rust project kind" },
+    );
+}
+
+/**
+ * Prompts for the parent directory that will contain the newly created project directory.
+ *
+ * Returns `undefined` if the user cancels the folder picker.
+ */
+async function promptForNewProjectParentFolder(): Promise<vscode.Uri | undefined> {
+    const selectedFolder = await vscode.window.showOpenDialog({
+        title: "Select the parent folder for the new Rust project",
+        openLabel: "Select parent folder",
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+    });
+    if (!selectedFolder?.length) {
+        return undefined;
+    }
+    return selectedFolder[0];
+}
+
+const CARGO_MANIFEST_NAME_PATTERN = /^[\p{Alphabetic}\p{Number}_-]+$/u;
+
+// Keep local validation focused on stable checks that can be reported in the input box, then let
+// `cargo new` remain the source of truth for package-name-specific identifier and keyword rules.
+export function validateNewProjectName(
+    value: string,
+    existingNames: readonly string[],
+): string | undefined {
+    const trimmedValue = value.trim();
+    if (trimmedValue.length === 0) {
+        return "Project name cannot be empty.";
+    }
+    if (trimmedValue.includes("/") || trimmedValue.includes("\\")) {
+        return "Project name cannot contain '/' or '\\' characters.";
+    }
+    if (trimmedValue === "." || trimmedValue === "..") {
+        return "Project name cannot be '.' or '..'.";
+    }
+    if (!CARGO_MANIFEST_NAME_PATTERN.test(trimmedValue)) {
+        return "Project name can contain only alphanumeric characters, '-' or '_'.";
+    }
+    if (existingNames.includes(trimmedValue)) {
+        return "A file or folder with this name already exists.";
+    }
+    return undefined;
+}
+
+/**
+ * Prompts for the Cargo package name to create inside `parentFolder`.
+ *
+ * The returned value is trimmed so later phases can treat it as a normalized directory name, and
+ * `undefined` continues to mean either cancellation or an error reading the parent folder.
+ */
+async function promptForNewProjectName(parentFolder: vscode.Uri): Promise<string | undefined> {
+    let existingNames: string[] = [];
+    try {
+        const entries = await vscode.workspace.fs.readDirectory(parentFolder);
+        existingNames = entries.map(([name]) => name);
+    } catch (error) {
+        log.error("Failed to read project parent folder", error);
+        void vscode.window.showErrorMessage("Failed to read the selected parent folder.");
+        return undefined;
+    }
+
+    const projectName = await vscode.window.showInputBox({
+        prompt: `Enter the new project name to create inside ${parentFolder.fsPath}`,
+        validateInput: async (value) => validateNewProjectName(value, existingNames),
+    });
+    return projectName?.trim();
+}
+
+export function cargoNewArgs(kind: NewProjectKind, name: string): string[] {
+    return ["new", kind === "bin" ? "--bin" : "--lib", name];
+}
+
+/**
+ * Runs `cargo new` for the requested package kind and reports failures through the command's
+ * logging/notification path.
+ *
+ * Returns `true` only once Cargo has completed successfully and the project directory is expected
+ * to exist at `<parentFolder>/<projectName>`.
+ */
+async function createNewProject(
+    cargo: NewProjectCargo,
+    parentFolder: vscode.Uri,
+    kind: NewProjectKind,
+    projectName: string,
+): Promise<boolean> {
+    const args = cargoNewArgs(kind, projectName);
+    const createResult = await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Notification,
+            title: `Creating Rust project ${projectName}`,
+        },
+        async () =>
+            spawnAsync(cargo.cargo, args, {
+                cwd: parentFolder.fsPath,
+                env: cargo.cargoEnv,
+            }),
+    );
+
+    if (createResult.error || createResult.status !== 0) {
+        const details = [createResult.stderr, createResult.stdout, createResult.error?.message]
+            .filter((value): value is string => Boolean(value && value.trim().length > 0))
+            .join("\n")
+            .trim();
+        await showNewProjectError("Failed to create Rust project.", details || undefined, {
+            cargo: cargo.cargo,
+            args,
+            cwd: parentFolder.fsPath,
+            error: createResult.error?.message,
+            status: createResult.status,
+            stderr: createResult.stderr || undefined,
+            stdout: createResult.stdout || undefined,
+        });
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Logs a project-creation failure in a readable multi-line format and offers a direct route to the
+ * extension logs from the user-visible error notification.
+ */
+async function showNewProjectError(
+    message: string,
+    details: string | undefined,
+    logContext: {
+        cargo: string;
+        args: string[];
+        cwd?: string;
+        error?: string;
+        status: number | null;
+        stderr?: string;
+        stdout?: string;
+    },
+): Promise<void> {
+    // Keep command-failure logging focused on the invocation and process output. Environment
+    // variables may contain secrets such as API keys, tokens, and credentials, so failure logs
+    // must not dump the merged env here.
+    const commandLine = [logContext.cargo, ...logContext.args].join(" ");
+    log.error(message);
+    log.error(`command: ${commandLine}`);
+    if (logContext.cwd) {
+        log.error(`cwd: ${logContext.cwd}`);
+    }
+    log.error(`exit status: ${String(logContext.status)}`);
+    if (logContext.error) {
+        log.error(`error: ${logContext.error}`);
+    }
+    if (logContext.stderr) {
+        log.error(`stderr:\n${logContext.stderr}`);
+    }
+    if (logContext.stdout) {
+        log.error(`stdout:\n${logContext.stdout}`);
+    }
+    const selection = await vscode.window.showErrorMessage(
+        details ? `${message}\n${details}` : message,
+        "Open Logs",
+    );
+    if (selection === "Open Logs") {
+        await vscode.commands.executeCommand("rust-analyzer.openLogs");
+    }
+}
+
+export function determineNewProjectOpenAction(
+    configuredAction: string | undefined,
+    hasWorkspaceFolders: boolean,
+): "ask" | NewProjectOpenAction {
+    switch (configuredAction) {
+        case "open":
+        case "openNewWindow":
+            return configuredAction;
+        case "addToWorkspace":
+            // Adding to a workspace only makes sense when one is already open. Falling back to
+            // "open" keeps the setting usable in empty windows without adding another prompt path.
+            return hasWorkspaceFolders ? configuredAction : "open";
+        default:
+            return "ask";
+    }
+}
+
+/**
+ * Prompts for how the created project should be opened after `cargo new` completes.
+ *
+ * Returns `undefined` when the user dismisses the prompt, which intentionally leaves the created
+ * project in place without forcing a window/workspace transition.
+ */
+async function promptForNewProjectOpenAction(
+    projectName: string,
+    hasWorkspaceFolders: boolean,
+): Promise<NewProjectOpenAction | undefined> {
+    let message = `Would you like to open ${projectName}?`;
+    const open = "Open";
+    const openNewWindow = "Open in New Window";
+    const choices = [open, openNewWindow];
+
+    const addToWorkspace = "Add to VS Code Workspace";
+    if (hasWorkspaceFolders) {
+        message = `Would you like to open ${projectName}, or add it to the current VS Code workspace?`;
+        choices.push(addToWorkspace);
+    }
+
+    const result = await vscode.window.showInformationMessage(
+        message,
+        { modal: true, detail: "The default action can be configured in settings." },
+        ...choices,
+    );
+
+    const actionMap: Record<string, NewProjectOpenAction> = {
+        [open]: "open",
+        [openNewWindow]: "openNewWindow",
+        [addToWorkspace]: "addToWorkspace",
+    };
+    return result ? actionMap[result] : undefined;
+}
+
+/**
+ * Applies the requested post-create workspace action.
+ *
+ * The add-to-workspace path keeps the current window open and explicitly reloads the rust-analyzer
+ * workspace so the new Cargo package is discovered immediately.
+ */
+async function executeNewProjectOpenAction(
+    ctx: Ctx,
+    action: NewProjectOpenAction,
+    projectUri: vscode.Uri,
+): Promise<void> {
+    if (action === "open") {
+        await vscode.commands.executeCommand("vscode.openFolder", projectUri, {
+            forceReuseWindow: true,
+        });
+        return;
+    }
+
+    if (action === "openNewWindow") {
+        await vscode.commands.executeCommand("vscode.openFolder", projectUri, {
+            forceNewWindow: true,
+        });
+        return;
+    }
+
+    const index = vscode.workspace.workspaceFolders?.length ?? 0;
+    vscode.workspace.updateWorkspaceFolders(index, 0, { uri: projectUri });
+    // Reuse the existing workspace window when requested, but nudge rust-analyzer afterwards so
+    // the newly added Cargo workspace is discovered immediately instead of waiting for a later
+    // background refresh.
+    if (ctx.client?.isRunning()) {
+        await ctx.client.sendRequest(ra.reloadWorkspace);
+    }
 }
 
 export function rebuildProcMacros(ctx: CtxInit): Cmd {
