@@ -1649,7 +1649,12 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
                     return (None, arr_ty);
                 }
 
-                // FIXME: Emit an error: incorrect length.
+                self.push_diagnostic(InferenceDiagnostic::MismatchedArrayPatLen {
+                    pat,
+                    expected: len,
+                    found: min_len,
+                    has_rest: false,
+                });
             } else if let Some(pat_len) = len.checked_sub(min_len) {
                 // The variable-length pattern was there,
                 // so it has an array type with the remaining elements left as its size...
@@ -1657,7 +1662,12 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
             } else {
                 // ...however, in this case, there were no remaining elements.
                 // That is, the slice pattern requires more than the array type offers.
-                // FIXME: Emit an error.
+                self.push_diagnostic(InferenceDiagnostic::MismatchedArrayPatLen {
+                    pat,
+                    expected: len,
+                    found: min_len,
+                    has_rest: true,
+                });
             }
         } else if slice.is_none() {
             // We have a pattern with a fixed length,
