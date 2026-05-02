@@ -9,7 +9,7 @@ use crate::{
     SyntaxKind::{ATTR, COMMENT, WHITESPACE},
     SyntaxNode, SyntaxToken,
     algo::{self, neighbor},
-    ast::{self, edit::IndentLevel, make},
+    ast::{self, edit::IndentLevel, make, syntax_factory::SyntaxFactory},
     syntax_editor::{self, SyntaxEditor},
     ted,
 };
@@ -44,17 +44,17 @@ impl<T: ast::HasAttrs> AttrsOwnerEdit for T {}
 
 impl ast::GenericParamList {
     /// Constructs a matching [`ast::GenericArgList`]
-    pub fn to_generic_args(&self) -> ast::GenericArgList {
+    pub fn to_generic_args(&self, make: &SyntaxFactory) -> ast::GenericArgList {
         let args = self.generic_params().filter_map(|param| match param {
             ast::GenericParam::LifetimeParam(it) => {
-                Some(ast::GenericArg::LifetimeArg(make::lifetime_arg(it.lifetime()?)))
+                Some(ast::GenericArg::LifetimeArg(make.lifetime_arg(it.lifetime()?)))
             }
             ast::GenericParam::TypeParam(it) => {
-                Some(ast::GenericArg::TypeArg(make::type_arg(make::ext::ty_name(it.name()?))))
+                Some(ast::GenericArg::TypeArg(make.type_arg(make.ty_name(it.name()?))))
             }
             ast::GenericParam::ConstParam(it) => {
                 // Name-only const params get parsed as `TypeArg`s
-                Some(ast::GenericArg::TypeArg(make::type_arg(make::ext::ty_name(it.name()?))))
+                Some(ast::GenericArg::TypeArg(make.type_arg(make.ty_name(it.name()?))))
             }
         });
 
