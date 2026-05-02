@@ -32,6 +32,7 @@ mod handlers {
     pub(crate) mod await_outside_of_async;
     pub(crate) mod bad_rtn;
     pub(crate) mod break_outside_of_loop;
+    pub(crate) mod duplicate_field;
     pub(crate) mod elided_lifetimes_in_path;
     pub(crate) mod expected_function;
     pub(crate) mod generic_args_prohibited;
@@ -438,6 +439,7 @@ pub fn semantic_diagnostics(
                 handlers::non_exhaustive_record_expr::non_exhaustive_record_expr(&ctx, &d)
             }
             AnyDiagnostic::NoSuchField(d) => handlers::no_such_field::no_such_field(&ctx, &d),
+            AnyDiagnostic::DuplicateField(d) => handlers::duplicate_field::duplicate_field(&ctx, &d),
             AnyDiagnostic::PrivateAssocItem(d) => handlers::private_assoc_item::private_assoc_item(&ctx, &d),
             AnyDiagnostic::PrivateField(d) => handlers::private_field::private_field(&ctx, &d),
             AnyDiagnostic::ReplaceFilterMapNextWithFindMap(d) => handlers::replace_filter_map_next_with_find_map::replace_filter_map_next_with_find_map(&ctx, &d),

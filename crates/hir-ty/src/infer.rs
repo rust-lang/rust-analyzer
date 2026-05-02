@@ -319,6 +319,12 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         variant: VariantId,
     },
+    DuplicateField {
+        #[type_visitable(ignore)]
+        field: ExprOrPatId,
+        #[type_visitable(ignore)]
+        variant: VariantId,
+    },
     PrivateField {
         #[type_visitable(ignore)]
         expr: ExprId,
