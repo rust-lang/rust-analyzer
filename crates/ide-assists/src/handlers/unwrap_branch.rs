@@ -70,6 +70,11 @@ pub(crate) fn unwrap_branch(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
                 _ => return None,
             }
         };
+        if ast::MatchArm::cast(container.parent()?).is_some() {
+            replacement = editor.make().tail_only_block_expr(replacement.into());
+            prefer_container = Some(container.clone());
+            break IndentLevel::from_node(&container);
+        }
     };
     let is_branch =
         !block.is_standalone() || place.syntax().parent().and_then(ast::MatchArm::cast).is_some();
@@ -566,6 +571,88 @@ fn main() {
 
         // comment
         bar();
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn simple_if_in_match_arm() {
+        check_assist(
+            unwrap_branch,
+            r#"
+fn main() {
+    match 1 {
+        1 => if true {$0
+            foo();
+        }
+        _ => (),
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 1 {
+        1 => {
+            foo();
+        }
+        _ => (),
+    }
+}
+"#,
+        );
+
+        check_assist(
+            unwrap_branch,
+            r#"
+fn main() {
+    match 1 {
+        1 => if true {
+            foo();
+        } else {$0
+            bar();
+        }
+        _ => (),
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 1 {
+        1 => {
+            bar();
+        }
+        _ => (),
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn simple_match_in_match_arm() {
+        check_assist(
+            unwrap_branch,
+            r#"
+fn main() {
+    match 1 {
+        1 => match () {
+            _ => {$0
+                foo();
+            }
+        }
+        _ => (),
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 1 {
+        1 => {
+            foo();
+        }
+        _ => (),
     }
 }
 "#,
