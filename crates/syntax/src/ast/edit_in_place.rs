@@ -10,7 +10,7 @@ use crate::{
     SyntaxNode, SyntaxToken,
     algo::{self, neighbor},
     ast::{self, edit::IndentLevel, make},
-    syntax_editor::SyntaxEditor,
+    syntax_editor::{self, SyntaxEditor},
     ted,
 };
 
@@ -301,26 +301,35 @@ impl ast::AssocItemList {
     ///
     /// Attention! This function does align the first line of `item` with respect to `self`,
     /// but it does _not_ change indentation of other lines (if any).
-    pub fn add_item(&self, item: ast::AssocItem) {
+    pub fn add_item(&self, editor: &SyntaxEditor, item: ast::AssocItem) {
+        let make = editor.make();
         let (indent, position, whitespace) = match self.assoc_items().last() {
             Some(last_item) => (
                 IndentLevel::from_node(last_item.syntax()),
-                ted::Position::after(last_item.syntax()),
+                syntax_editor::Position::after(last_item.syntax()),
                 "\n\n",
             ),
             None => match self.l_curly_token() {
                 Some(l_curly) => {
-                    normalize_ws_between_braces(self.syntax());
-                    (IndentLevel::from_token(&l_curly) + 1, ted::Position::after(&l_curly), "\n")
+                    normalize_ws_between_braces_with_editor(editor, self.syntax());
+                    (
+                        IndentLevel::from_token(&l_curly) + 1,
+                        syntax_editor::Position::after(&l_curly),
+                        "\n",
+                    )
                 }
-                None => (IndentLevel::zero(), ted::Position::last_child_of(self.syntax()), "\n"),
+                None => (
+                    IndentLevel::zero(),
+                    syntax_editor::Position::last_child_of(self.syntax()),
+                    "\n",
+                ),
             },
         };
         let elements: Vec<SyntaxElement> = vec![
-            make::tokens::whitespace(&format!("{whitespace}{indent}")).into(),
+            make.whitespace(&format!("{whitespace}{indent}")).into(),
             item.syntax().clone().into(),
         ];
-        ted::insert_all(position, elements);
+        editor.insert_all(position, elements);
     }
 }
 
@@ -446,6 +455,35 @@ fn normalize_ws_between_braces(node: &SyntaxNode) -> Option<()> {
         }
         Some(ws) if ws.kind() == T!['}'] => {
             ted::insert(ted::Position::after(l), make::tokens::whitespace(&format!("\n{indent}")));
+        }
+        _ => (),
+    }
+    Some(())
+}
+
+fn normalize_ws_between_braces_with_editor(editor: &SyntaxEditor, node: &SyntaxNode) -> Option<()> {
+    let make = editor.make();
+    let l = node
+        .children_with_tokens()
+        .filter_map(|it| it.into_token())
+        .find(|it| it.kind() == T!['{'])?;
+    let r = node
+        .children_with_tokens()
+        .filter_map(|it| it.into_token())
+        .find(|it| it.kind() == T!['}'])?;
+
+    let indent = IndentLevel::from_node(node);
+
+    match l.next_sibling_or_token() {
+        Some(ws)
+            if ws.kind() == SyntaxKind::WHITESPACE
+                && ws.next_sibling_or_token()?.into_token()? == r =>
+        {
+            editor.replace(ws, make.whitespace(&format!("\n{indent}")));
+        }
+        Some(ws) if ws.kind() == T!['}'] => {
+            editor
+                .insert(syntax_editor::Position::after(l), make.whitespace(&format!("\n{indent}")));
         }
         _ => (),
     }

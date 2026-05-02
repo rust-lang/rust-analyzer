@@ -34,7 +34,7 @@ use syntax::{
 use crate::{
     AssistId,
     assist_context::{AssistContext, Assists},
-    utils::generate_impl,
+    utils::generate_impl_with_item,
 };
 
 // Assist: extract_function
@@ -161,8 +161,8 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                 Some(adt) if anchor == Anchor::Method && !has_impl_wrapper => {
                     let fn_def = fn_def.indent_with_mapping(1.into(), make);
 
-                    let impl_ = generate_impl(make, &adt).indent(new_indent);
-                    impl_.get_or_create_assoc_item_list().add_item(fn_def.into());
+                    let body = make.assoc_item_list([fn_def.into()]);
+                    let impl_ = generate_impl_with_item(make, &adt, Some(body)).indent(new_indent);
 
                     impl_.syntax().clone()
                 }
