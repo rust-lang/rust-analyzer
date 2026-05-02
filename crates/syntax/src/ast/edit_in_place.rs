@@ -357,7 +357,8 @@ impl ast::RecordExprFieldList {
 }
 
 impl ast::RecordExprField {
-    /// [`SyntaxEditor`]-based equivalent of [`replace_expr`](Self::replace_expr).
+    /// This will either replace the initializer, or in the case that this is a shorthand convert
+    /// the initializer into the name ref and insert the expr as the new initializer.
     pub fn replace_expr_with_editor(&self, editor: &SyntaxEditor, expr: ast::Expr) {
         if self.name_ref().is_some() {
             if let Some(prev) = self.expr() {
