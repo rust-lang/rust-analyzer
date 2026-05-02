@@ -91,7 +91,7 @@ use crate::{
         PolyFnSig, Region, RegionKind, TraitRef, Ty, TyKind, TypingMode,
         abi::Safety,
         infer::{
-            DbInternerInferExt,
+            DbInternerInferExt, TyOrConstInferVar,
             traits::{Obligation, ObligationCause},
         },
         obligation_ctxt::ObligationCtxt,
@@ -632,33 +632,41 @@ where
     Vec::from_iter(collector.params)
 }
 
-struct TypeInferenceVarCollector<'db> {
-    type_inference_vars: Vec<Ty<'db>>,
+struct InferenceVarCollector {
+    inference_vars: Vec<TyOrConstInferVar>,
 }
 
-impl<'db> rustc_type_ir::TypeVisitor<DbInterner<'db>> for TypeInferenceVarCollector<'db> {
+impl<'db> rustc_type_ir::TypeVisitor<DbInterner<'db>> for InferenceVarCollector {
     type Result = ();
 
     fn visit_ty(&mut self, ty: Ty<'db>) -> Self::Result {
         use crate::rustc_type_ir::Flags;
-        if ty.is_ty_var() {
-            self.type_inference_vars.push(ty);
-        } else if ty.flags().intersects(rustc_type_ir::TypeFlags::HAS_TY_INFER) {
+        if let Some(infer_var) = TyOrConstInferVar::maybe_from_ty(ty) {
+            self.inference_vars.push(infer_var);
+        } else if ty.flags().intersects(
+            rustc_type_ir::TypeFlags::HAS_TY_INFER | rustc_type_ir::TypeFlags::HAS_CT_INFER,
+        ) {
             ty.super_visit_with(self);
         } else {
             // Fast path: don't visit inner types (e.g. generic arguments) when `flags` indicate
             // that there are no placeholders.
         }
     }
+
+    fn visit_const(&mut self, const_: Const<'db>) -> Self::Result {
+        if let Some(infer_var) = TyOrConstInferVar::maybe_from_const(const_) {
+            self.inference_vars.push(infer_var);
+        }
+    }
 }
 
-pub fn collect_type_inference_vars<'db, T>(value: &T) -> Vec<Ty<'db>>
+pub fn collect_inference_vars<'db, T>(value: &T) -> Vec<TyOrConstInferVar>
 where
     T: ?Sized + rustc_type_ir::TypeVisitable<DbInterner<'db>>,
 {
-    let mut collector = TypeInferenceVarCollector { type_inference_vars: vec![] };
+    let mut collector = InferenceVarCollector { inference_vars: vec![] };
     value.visit_with(&mut collector);
-    collector.type_inference_vars
+    collector.inference_vars
 }
 
 pub fn known_const_to_ast<'db>(

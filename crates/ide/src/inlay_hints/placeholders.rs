@@ -4,11 +4,12 @@
 //!           //^ = i32
 //! ```
 
-use hir::DisplayTarget;
+use either::Either;
+use hir::{DisplayTarget, HirDisplay};
 use ide_db::famous_defs::FamousDefs;
 use syntax::{
     AstNode,
-    ast::{InferType, Type},
+    ast::{InferType, UnderscoreExpr},
 };
 
 use crate::{InlayHint, InlayHintPosition, InlayHintsConfig, InlayKind, inlay_hints::label_of_ty};
@@ -27,10 +28,47 @@ pub(super) fn type_hints(
     let syntax = placeholder.syntax();
     let range = syntax.text_range();
 
-    let ty = sema.resolve_type(&Type::InferType(placeholder))?;
+    let type_or_const = sema.resolve_infer(&placeholder)?;
 
-    let mut label = label_of_ty(famous_defs, config, &ty, display_target)?;
+    let mut label = match type_or_const {
+        Either::Left(ty) => label_of_ty(famous_defs, config, &ty, display_target)?,
+        Either::Right(const_) => {
+            const_.display_truncated(sema.db, config.max_length, display_target).to_string().into()
+        }
+    };
     label.prepend_str("= ");
+
+    acc.push(InlayHint {
+        range,
+        kind: InlayKind::Type,
+        label,
+        text_edit: None,
+        position: InlayHintPosition::After,
+        pad_left: true,
+        pad_right: false,
+        resolve_parent: None,
+    });
+    Some(())
+}
+
+pub(super) fn const_hints(
+    acc: &mut Vec<InlayHint>,
+    FamousDefs(sema, _): &FamousDefs<'_, '_>,
+    config: &InlayHintsConfig<'_>,
+    display_target: DisplayTarget,
+    placeholder: UnderscoreExpr,
+) -> Option<()> {
+    if !config.type_hints || config.hide_inferred_type_hints {
+        return None;
+    }
+
+    let syntax = placeholder.syntax();
+    let range = syntax.text_range();
+
+    let const_ = sema.resolve_underscore_expr(&placeholder)?;
+
+    let display = const_.display_truncated(sema.db, config.max_length, display_target);
+    let label = format!("= {display}").into();
 
     acc.push(InlayHint {
         range,
@@ -58,17 +96,20 @@ mod tests {
     }
 
     #[test]
-    fn inferred_types() {
+    fn inferred_types_and_consts() {
         check_type_infer(
             r#"
-struct S<T>(T);
+struct S<T, const N: usize>([T; N]);
 
 fn foo() {
-    let t: (_, _, [_; _]) = (1_u32, S(2), [false] as _);
+    let t: (_, S<_, _>, [_; _]) = (1_u32, S([2, 3]) as _, [false] as _);
           //^ = u32
-             //^ = S<i32>
-                 //^ = bool
-                                                   //^ = [bool; 1]
+               //^ = i32
+                  //^ = 2
+                       //^ = bool
+                          //^ = 1
+                                                     //^ = S<i32, 2>
+                                                                   //^ = [bool; 1]
 }
 "#,
         );

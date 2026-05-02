@@ -1330,7 +1330,7 @@ impl TyOrConstInferVar {
 
     /// Tries to extract an inference variable from a type, returns `None`
     /// for types other than `Infer(_)` (or `InferTy::Fresh*`).
-    fn maybe_from_ty<'db>(ty: Ty<'db>) -> Option<Self> {
+    pub fn maybe_from_ty<'db>(ty: Ty<'db>) -> Option<Self> {
         match ty.kind() {
             TyKind::Infer(InferTy::TyVar(v)) => Some(TyOrConstInferVar::Ty(v)),
             TyKind::Infer(InferTy::IntVar(v)) => Some(TyOrConstInferVar::TyInt(v)),
@@ -1341,7 +1341,7 @@ impl TyOrConstInferVar {
 
     /// Tries to extract an inference variable from a constant, returns `None`
     /// for constants other than `ConstKind::Infer(_)` (or `InferConst::Fresh`).
-    fn maybe_from_const<'db>(ct: Const<'db>) -> Option<Self> {
+    pub fn maybe_from_const<'db>(ct: Const<'db>) -> Option<Self> {
         match ct.kind() {
             ConstKind::Infer(InferConst::Var(v)) => Some(TyOrConstInferVar::Const(v)),
             _ => None,

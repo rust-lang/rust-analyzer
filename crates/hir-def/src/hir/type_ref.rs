@@ -12,7 +12,7 @@ use crate::{
         ExpressionStore,
         path::{GenericArg, Path},
     },
-    hir::ExprId,
+    hir::{ExprId, TypeRefOrExprId},
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -192,24 +192,22 @@ impl TypeRef {
         TypeRef::Tuple(ThinVec::new())
     }
 
-    pub fn walk(this: TypeRefId, map: &ExpressionStore, f: &mut impl FnMut(TypeRefId, &TypeRef)) {
+    pub fn walk(this: TypeRefId, map: &ExpressionStore, f: &mut impl FnMut(TypeRefOrExprId)) {
         go(this, f, map);
 
-        fn go(
-            type_ref_id: TypeRefId,
-            f: &mut impl FnMut(TypeRefId, &TypeRef),
-            map: &ExpressionStore,
-        ) {
-            let type_ref = &map[type_ref_id];
-            f(type_ref_id, type_ref);
-            match type_ref {
+        fn go(type_ref_id: TypeRefId, f: &mut impl FnMut(TypeRefOrExprId), map: &ExpressionStore) {
+            f(type_ref_id.into());
+            match &map[type_ref_id] {
                 TypeRef::Fn(fn_) => {
                     fn_.params.iter().for_each(|&(_, param_type)| go(param_type, f, map))
                 }
                 TypeRef::Tuple(types) => types.iter().for_each(|&t| go(t, f, map)),
                 TypeRef::RawPtr(type_ref, _) | TypeRef::Slice(type_ref) => go(*type_ref, f, map),
                 TypeRef::Reference(it) => go(it.ty, f, map),
-                TypeRef::Array(it) => go(it.ty, f, map),
+                TypeRef::Array(it) => {
+                    go(it.ty, f, map);
+                    f(it.len.expr.into());
+                }
                 TypeRef::ImplTrait(bounds) | TypeRef::DynTrait(bounds) => {
                     for bound in bounds {
                         match bound {
@@ -225,7 +223,7 @@ impl TypeRef {
             };
         }
 
-        fn go_path(path: &Path, f: &mut impl FnMut(TypeRefId, &TypeRef), map: &ExpressionStore) {
+        fn go_path(path: &Path, f: &mut impl FnMut(TypeRefOrExprId), map: &ExpressionStore) {
             if let Some(type_ref) = path.type_anchor() {
                 go(type_ref, f, map);
             }
@@ -236,7 +234,10 @@ impl TypeRef {
                             GenericArg::Type(type_ref) => {
                                 go(*type_ref, f, map);
                             }
-                            GenericArg::Const(_) | GenericArg::Lifetime(_) => {}
+                            GenericArg::Const(const_ref) => {
+                                f(const_ref.expr.into());
+                            }
+                            GenericArg::Lifetime(_) => {}
                         }
                     }
                     for binding in args_and_bindings.bindings.iter() {

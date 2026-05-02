@@ -240,6 +240,7 @@ fn hints(
                     },
                     ast::Expr::RangeExpr(it) => range_exclusive::hints(hints, famous_defs, config, it),
                     ast::Expr::Literal(it) => ra_fixture::hints(hints, famous_defs.0, file_id, config, it),
+                    ast::Expr::UnderscoreExpr(it) => placeholders::const_hints(hints, famous_defs, config, display_target, it),
                     _ => Some(()),
                 }
             },

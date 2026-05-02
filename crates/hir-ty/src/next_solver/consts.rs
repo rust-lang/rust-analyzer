@@ -182,6 +182,15 @@ impl<'db> TypeVisitable<DbInterner<'db>> for Const<'db> {
     }
 }
 
+impl<'db> TypeVisitable<DbInterner<'db>> for StoredConst {
+    fn visit_with<V: rustc_type_ir::TypeVisitor<DbInterner<'db>>>(
+        &self,
+        visitor: &mut V,
+    ) -> V::Result {
+        self.as_ref().visit_with(visitor)
+    }
+}
+
 impl<'db> TypeSuperVisitable<DbInterner<'db>> for Const<'db> {
     fn super_visit_with<V: rustc_type_ir::TypeVisitor<DbInterner<'db>>>(
         &self,
@@ -210,6 +219,18 @@ impl<'db> TypeFoldable<DbInterner<'db>> for Const<'db> {
     }
     fn fold_with<F: rustc_type_ir::TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
         folder.fold_const(self)
+    }
+}
+
+impl<'db> TypeFoldable<DbInterner<'db>> for StoredConst {
+    fn try_fold_with<F: rustc_type_ir::FallibleTypeFolder<DbInterner<'db>>>(
+        self,
+        folder: &mut F,
+    ) -> Result<Self, F::Error> {
+        Ok(self.as_ref().try_fold_with(folder)?.store())
+    }
+    fn fold_with<F: rustc_type_ir::TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
+        self.as_ref().fold_with(folder).store()
     }
 }
 

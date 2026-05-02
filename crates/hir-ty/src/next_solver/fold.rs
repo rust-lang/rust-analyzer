@@ -159,6 +159,40 @@ pub fn fold_tys<'db, T: TypeFoldable<DbInterner<'db>>>(
     t.fold_with(&mut Folder { interner, callback })
 }
 
+pub fn fold_tys_and_consts<'db, T: TypeFoldable<DbInterner<'db>>>(
+    interner: DbInterner<'db>,
+    t: T,
+    ty_callback: impl FnMut(Ty<'db>) -> Ty<'db>,
+    const_callback: impl FnMut(Const<'db>) -> Const<'db>,
+) -> T {
+    struct Folder<'db, F, G> {
+        interner: DbInterner<'db>,
+        ty_callback: F,
+        const_callback: G,
+    }
+    impl<'db, F, G> TypeFolder<DbInterner<'db>> for Folder<'db, F, G>
+    where
+        F: FnMut(Ty<'db>) -> Ty<'db>,
+        G: FnMut(Const<'db>) -> Const<'db>,
+    {
+        fn cx(&self) -> DbInterner<'db> {
+            self.interner
+        }
+
+        fn fold_ty(&mut self, t: Ty<'db>) -> Ty<'db> {
+            let t = t.super_fold_with(self);
+            (self.ty_callback)(t)
+        }
+
+        fn fold_const(&mut self, c: Const<'db>) -> Const<'db> {
+            let c = c.super_fold_with(self);
+            (self.const_callback)(c)
+        }
+    }
+
+    t.fold_with(&mut Folder { interner, ty_callback, const_callback })
+}
+
 impl<'db> DbInterner<'db> {
     /// Replaces all regions bound by the given `Binder` with the
     /// results returned by the closure; the closure is expected to
