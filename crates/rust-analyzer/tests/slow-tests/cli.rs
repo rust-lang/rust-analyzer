@@ -100,36 +100,30 @@ mod tests {
         {"id":58,"type":"edge","label":"item","document":1,"property":"references","inVs":[13,23],"outV":55}
         {"id":59,"type":"vertex","label":"hoverResult","result":{"contents":{"kind":"markdown","value":"\n```rust\nfoo\n```\n\n```rust\nconst REQ_001: &str = \"encoded_data\"\n```"}}}
         {"id":60,"type":"edge","label":"textDocument/hover","inV":59,"outV":16}
-        {"id":61,"type":"vertex","label":"moniker","scheme":"rust-analyzer","identifier":"foo::REQ_001","unique":"scheme","kind":"export"}
-        {"id":62,"type":"edge","label":"packageInformation","inV":31,"outV":61}
-        {"id":63,"type":"edge","label":"moniker","inV":61,"outV":16}
-        {"id":64,"type":"vertex","label":"definitionResult"}
-        {"id":65,"type":"edge","label":"item","document":1,"inVs":[15],"outV":64}
-        {"id":66,"type":"edge","label":"textDocument/definition","inV":64,"outV":16}
-        {"id":67,"type":"vertex","label":"referenceResult"}
-        {"id":68,"type":"edge","label":"textDocument/references","inV":67,"outV":16}
-        {"id":69,"type":"edge","label":"item","document":1,"property":"definitions","inVs":[15],"outV":67}
-        {"id":70,"type":"vertex","label":"hoverResult","result":{"contents":{"kind":"markdown","value":"\n```rust\nfoo\n```\n\n```rust\nmod tests\n```"}}}
-        {"id":71,"type":"edge","label":"textDocument/hover","inV":70,"outV":19}
-        {"id":72,"type":"vertex","label":"moniker","scheme":"rust-analyzer","identifier":"foo::tests","unique":"scheme","kind":"export"}
-        {"id":73,"type":"edge","label":"packageInformation","inV":31,"outV":72}
-        {"id":74,"type":"edge","label":"moniker","inV":72,"outV":19}
-        {"id":75,"type":"vertex","label":"definitionResult"}
-        {"id":76,"type":"edge","label":"item","document":1,"inVs":[18],"outV":75}
-        {"id":77,"type":"edge","label":"textDocument/definition","inV":75,"outV":19}
-        {"id":78,"type":"vertex","label":"referenceResult"}
-        {"id":79,"type":"edge","label":"textDocument/references","inV":78,"outV":19}
-        {"id":80,"type":"edge","label":"item","document":1,"property":"definitions","inVs":[18],"outV":78}
-        {"id":81,"type":"vertex","label":"hoverResult","result":{"contents":{"kind":"markdown","value":"\n```rust\nfoo::tests\n```\n\n```rust\nconst REQ_002: &str = \"encoded_data\"\n```"}}}
-        {"id":82,"type":"edge","label":"textDocument/hover","inV":81,"outV":26}
-        {"id":83,"type":"vertex","label":"moniker","scheme":"rust-analyzer","identifier":"foo::tests::REQ_002","unique":"scheme","kind":"export"}
-        {"id":84,"type":"edge","label":"packageInformation","inV":31,"outV":83}
-        {"id":85,"type":"edge","label":"moniker","inV":83,"outV":26}
-        {"id":86,"type":"vertex","label":"definitionResult"}
-        {"id":87,"type":"edge","label":"item","document":1,"inVs":[25],"outV":86}
-        {"id":88,"type":"edge","label":"textDocument/definition","inV":86,"outV":26}
-        {"id":89,"type":"vertex","label":"referenceResult"}
-        {"id":90,"type":"edge","label":"textDocument/references","inV":89,"outV":26}
-        {"id":91,"type":"edge","label":"item","document":1,"property":"definitions","inVs":[25],"outV":89}
+        {"id":61,"type":"vertex","label":"definitionResult"}
+        {"id":62,"type":"edge","label":"item","document":1,"inVs":[15],"outV":61}
+        {"id":63,"type":"edge","label":"textDocument/definition","inV":61,"outV":16}
+        {"id":64,"type":"vertex","label":"referenceResult"}
+        {"id":65,"type":"edge","label":"textDocument/references","inV":64,"outV":16}
+        {"id":66,"type":"edge","label":"item","document":1,"property":"definitions","inVs":[15],"outV":64}
+        {"id":67,"type":"vertex","label":"hoverResult","result":{"contents":{"kind":"markdown","value":"\n```rust\nfoo\n```\n\n```rust\nmod tests\n```"}}}
+        {"id":68,"type":"edge","label":"textDocument/hover","inV":67,"outV":19}
+        {"id":69,"type":"vertex","label":"moniker","scheme":"rust-analyzer","identifier":"foo::tests","unique":"scheme","kind":"export"}
+        {"id":70,"type":"edge","label":"packageInformation","inV":31,"outV":69}
+        {"id":71,"type":"edge","label":"moniker","inV":69,"outV":19}
+        {"id":72,"type":"vertex","label":"definitionResult"}
+        {"id":73,"type":"edge","label":"item","document":1,"inVs":[18],"outV":72}
+        {"id":74,"type":"edge","label":"textDocument/definition","inV":72,"outV":19}
+        {"id":75,"type":"vertex","label":"referenceResult"}
+        {"id":76,"type":"edge","label":"textDocument/references","inV":75,"outV":19}
+        {"id":77,"type":"edge","label":"item","document":1,"property":"definitions","inVs":[18],"outV":75}
+        {"id":78,"type":"vertex","label":"hoverResult","result":{"contents":{"kind":"markdown","value":"\n```rust\nfoo::tests\n```\n\n```rust\nconst REQ_002: &str = \"encoded_data\"\n```"}}}
+        {"id":79,"type":"edge","label":"textDocument/hover","inV":78,"outV":26}
+        {"id":80,"type":"vertex","label":"definitionResult"}
+        {"id":81,"type":"edge","label":"item","document":1,"inVs":[25],"outV":80}
+        {"id":82,"type":"edge","label":"textDocument/definition","inV":80,"outV":26}
+        {"id":83,"type":"vertex","label":"referenceResult"}
+        {"id":84,"type":"edge","label":"textDocument/references","inV":83,"outV":26}
+        {"id":85,"type":"edge","label":"item","document":1,"property":"definitions","inVs":[25],"outV":83}
     "#]].assert_eq(stdout);
 }

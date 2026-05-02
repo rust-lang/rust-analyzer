@@ -55,10 +55,10 @@ use syntax::{
 
 use crate::{
     Adjust, Adjustment, Adt, AnyFunctionId, AutoBorrow, BindingMode, BuiltinAttr, Callable, Const,
-    ConstParam, Crate, DeriveHelper, Enum, EnumVariant, ExpressionStoreOwner, Field, Function,
-    GenericSubstitution, HasSource, Impl, InFile, InlineAsmOperand, ItemInNs, Label, LifetimeParam,
-    Local, Macro, Module, ModuleDef, Name, OverloadedDeref, ScopeDef, Static, Struct, ToolModule,
-    Trait, TupleField, Type, TypeAlias, TypeParam, Union, Variant,
+    ConstParam, Crate, DefWithBody, DeriveHelper, Enum, EnumVariant, ExpressionStoreOwner, Field,
+    Function, GenericSubstitution, HasSource, Impl, InFile, InlineAsmOperand, ItemInNs, Label,
+    LifetimeParam, Local, Macro, Module, ModuleDef, Name, OverloadedDeref, ScopeDef, Static,
+    Struct, ToolModule, Trait, TupleField, Type, TypeAlias, TypeParam, Union, Variant,
     db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
     source_analyzer::{SourceAnalyzer, resolve_hir_path},
@@ -2279,6 +2279,19 @@ impl<'db> SemanticsImpl<'db> {
             )
         });
         InFile::new(file_id, node)
+    }
+
+    pub fn enclosing_body(&self, expr: &ast::Expr) -> Option<DefWithBody> {
+        let enclosing_item =
+            expr.syntax().ancestors().find_map(Either::<ast::Item, ast::Variant>::cast)?;
+
+        match &enclosing_item {
+            Either::Left(ast::Item::Fn(it)) => self.to_def(it).map(DefWithBody::Function),
+            Either::Left(ast::Item::Const(it)) => self.to_def(it).map(DefWithBody::Const),
+            Either::Left(ast::Item::Static(it)) => self.to_def(it).map(DefWithBody::Static),
+            Either::Left(_) => None,
+            Either::Right(it) => self.to_def(it).map(DefWithBody::EnumVariant),
+        }
     }
 
     /// Returns `true` if the `node` is inside an `unsafe` context.

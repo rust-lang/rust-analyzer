@@ -249,7 +249,7 @@ impl StaticIndex<'_> {
                         .map(UpmappingResult::call_site)
                         .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
                     references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
+                    moniker: current_crate.and_then(|cc| def_to_moniker(&sema, def, cc)),
                     display_name: def
                         .name(self.db)
                         .map(|name| name.display(self.db, edition).to_string()),
