@@ -1,12 +1,13 @@
 use either::Either;
 use hir::ModuleDef;
+use ide_db::imports::insert_use::insert_use_with_editor;
 use ide_db::text_edit::TextRange;
 use ide_db::{
-    FxHashSet,
+    FileId, FxHashSet,
     assists::AssistId,
     defs::Definition,
     helpers::mod_path_to_ast_with_factory,
-    imports::insert_use::{ImportScope, insert_use},
+    imports::insert_use::ImportScope,
     search::{FileReference, UsageSearchResult},
     source_change::SourceChangeBuilder,
 };
@@ -85,8 +86,10 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_
                 &mut delayed_mutations,
                 &make,
             );
-            for (scope, path) in delayed_mutations {
-                insert_use(&scope, path, &ctx.config.insert_use);
+            for (file_id, scope, path) in delayed_mutations {
+                let editor = edit.make_editor(scope.as_syntax_node());
+                insert_use_with_editor(&scope, path, &ctx.config.insert_use, &editor);
+                edit.add_file_edits(file_id, editor);
             }
         },
     )
@@ -212,11 +215,12 @@ fn replace_usages(
     usages: UsageSearchResult,
     target_definition: Definition,
     target_module: &hir::Module,
-    delayed_mutations: &mut Vec<(ImportScope, ast::Path)>,
+    delayed_mutations: &mut Vec<(FileId, ImportScope, ast::Path)>,
     make: &SyntaxFactory,
 ) {
     for (file_id, references) in usages {
-        edit.edit_file(file_id.file_id(ctx.db()));
+        let vfs_file_id = file_id.file_id(ctx.db());
+        edit.edit_file(vfs_file_id);
 
         let refs_with_imports =
             augment_references_with_imports(ctx, references, target_module, make);
@@ -323,8 +327,7 @@ fn replace_usages(
 
                 // add imports across modules where needed
                 if let Some((scope, path)) = import_data {
-                    let scope = edit.make_import_scope_mut(scope);
-                    delayed_mutations.push((scope, path));
+                    delayed_mutations.push((vfs_file_id, scope, path));
                 }
             },
         )
