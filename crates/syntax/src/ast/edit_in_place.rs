@@ -14,7 +14,7 @@ use crate::{
     ted,
 };
 
-use super::{GenericParam, HasName};
+use super::HasName;
 
 pub trait AttrsOwnerEdit: ast::HasAttrs {
     fn remove_attrs_and_docs(&self) {
@@ -43,24 +43,6 @@ pub trait AttrsOwnerEdit: ast::HasAttrs {
 impl<T: ast::HasAttrs> AttrsOwnerEdit for T {}
 
 impl ast::GenericParamList {
-    pub fn add_generic_param(&self, generic_param: ast::GenericParam) {
-        match self.generic_params().last() {
-            Some(last_param) => {
-                let position = ted::Position::after(last_param.syntax());
-                let elements = vec![
-                    make::token(T![,]).into(),
-                    make::tokens::single_space().into(),
-                    generic_param.syntax().clone().into(),
-                ];
-                ted::insert_all(position, elements);
-            }
-            None => {
-                let after_l_angle = ted::Position::after(self.l_angle_token().unwrap());
-                ted::insert(after_l_angle, generic_param.syntax());
-            }
-        }
-    }
-
     /// Removes the existing generic param
     pub fn remove_generic_param(&self, generic_param: ast::GenericParam) {
         if let Some(previous) = generic_param.syntax().prev_sibling() {
@@ -73,35 +55,6 @@ impl ast::GenericParamList {
             }
         } else {
             ted::remove(generic_param.syntax());
-        }
-    }
-
-    /// Find the params corresponded to generic arg
-    pub fn find_generic_arg(&self, generic_arg: &ast::GenericArg) -> Option<GenericParam> {
-        self.generic_params().find_map(move |param| match (&param, &generic_arg) {
-            (ast::GenericParam::LifetimeParam(a), ast::GenericArg::LifetimeArg(b)) => {
-                (a.lifetime()?.lifetime_ident_token()?.text()
-                    == b.lifetime()?.lifetime_ident_token()?.text())
-                .then_some(param)
-            }
-            (ast::GenericParam::TypeParam(a), ast::GenericArg::TypeArg(b)) => {
-                debug_assert_eq!(b.syntax().first_token(), b.syntax().last_token());
-                (a.name()?.text() == b.syntax().first_token()?.text()).then_some(param)
-            }
-            (ast::GenericParam::ConstParam(a), ast::GenericArg::TypeArg(b)) => {
-                debug_assert_eq!(b.syntax().first_token(), b.syntax().last_token());
-                (a.name()?.text() == b.syntax().first_token()?.text()).then_some(param)
-            }
-            _ => None,
-        })
-    }
-
-    /// Removes the corresponding generic arg
-    pub fn remove_generic_arg(&self, generic_arg: &ast::GenericArg) {
-        let param_to_remove = self.find_generic_arg(generic_arg);
-
-        if let Some(param) = &param_to_remove {
-            self.remove_generic_param(param.clone());
         }
     }
 
@@ -133,33 +86,10 @@ impl ast::WhereClause {
         }
         ted::append_child(self.syntax(), predicate.syntax());
     }
-
-    pub fn remove_predicate(&self, predicate: ast::WherePred) {
-        if let Some(previous) = predicate.syntax().prev_sibling() {
-            if let Some(next_token) = previous.next_sibling_or_token() {
-                ted::remove_all(next_token..=predicate.syntax().clone().into());
-            }
-        } else if let Some(next) = predicate.syntax().next_sibling() {
-            if let Some(next_token) = next.prev_sibling_or_token() {
-                ted::remove_all(predicate.syntax().clone().into()..=next_token);
-            }
-        } else {
-            ted::remove(predicate.syntax());
-        }
-    }
 }
 
 pub trait Removable: AstNode {
     fn remove(&self);
-}
-
-impl Removable for ast::TypeBoundList {
-    fn remove(&self) {
-        match self.syntax().siblings_with_tokens(Direction::Prev).find(|it| it.kind() == T![:]) {
-            Some(colon) => ted::remove_all(colon..=self.syntax().clone().into()),
-            None => ted::remove(self.syntax()),
-        }
-    }
 }
 
 impl Removable for ast::UseTree {
@@ -427,32 +357,6 @@ impl ast::RecordExprFieldList {
 }
 
 impl ast::RecordExprField {
-    /// This will either replace the initializer, or in the case that this is a shorthand convert
-    /// the initializer into the name ref and insert the expr as the new initializer.
-    pub fn replace_expr(&self, expr: ast::Expr) {
-        if self.name_ref().is_some() {
-            match self.expr() {
-                Some(prev) => ted::replace(prev.syntax(), expr.syntax()),
-                None => ted::append_child(self.syntax(), expr.syntax()),
-            }
-            return;
-        }
-        // this is a shorthand
-        if let Some(ast::Expr::PathExpr(path_expr)) = self.expr()
-            && let Some(path) = path_expr.path()
-            && let Some(name_ref) = path.as_single_name_ref()
-        {
-            path_expr.syntax().detach();
-            let children = vec![
-                name_ref.syntax().clone().into(),
-                ast::make::token(T![:]).into(),
-                ast::make::tokens::single_space().into(),
-                expr.syntax().clone().into(),
-            ];
-            ted::insert_all_raw(ted::Position::last_child_of(self.syntax()), children);
-        }
-    }
-
     /// [`SyntaxEditor`]-based equivalent of [`replace_expr`](Self::replace_expr).
     pub fn replace_expr_with_editor(&self, editor: &SyntaxEditor, expr: ast::Expr) {
         if self.name_ref().is_some() {
