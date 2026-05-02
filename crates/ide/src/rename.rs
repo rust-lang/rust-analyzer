@@ -16,7 +16,7 @@ use std::fmt::Write;
 use stdx::{always, format_to, never};
 use syntax::{
     AstNode, SyntaxKind, SyntaxNode, TextRange, TextSize,
-    ast::{self, HasArgList, prec::ExprPrecedence},
+    ast::{self, HasArgList, make, prec::ExprPrecedence},
 };
 
 use ide_db::text_edit::TextEdit;
@@ -79,7 +79,10 @@ pub(crate) fn prepare_rename(
     let sema = Semantics::new(db);
     let source_file = sema.parse_guess_edition(position.file_id);
     let syntax = source_file.syntax();
-
+    if let Some(lifetime_token) = syntax.token_at_offset(position.offset).find(|t| t.text() == "'_")
+    {
+        return Ok(RangeInfo::new(lifetime_token.text_range(), ()));
+    }
     let res = find_definitions(&sema, syntax, position, &Name::new_symbol_root(sym::underscore))?
         .filter(|(_, _, def, _, _)| def.range_for_rename(&sema).is_some())
         .map(|(frange, kind, _, _, _)| {
@@ -133,6 +136,13 @@ pub(crate) fn rename(
 
     let edition = file_id.edition(db);
     let (new_name, kind) = IdentifierKind::classify(edition, new_name)?;
+    if kind == IdentifierKind::Lifetime
+        && let Some(lifetime_token) =
+            syntax.token_at_offset(position.offset).find(|t| t.text() == "'_")
+    {
+        let new_name_str = new_name.display(db, edition).to_string();
+        return rename_elided_lifetime(position, lifetime_token, &new_name_str);
+    }
 
     let defs = find_definitions(&sema, syntax, position, &new_name)?;
     let alias_fallback =
@@ -795,6 +805,30 @@ fn text_edit_from_self_param(self_param: &ast::SelfParam, new_name: String) -> O
     replacement_text.push_str("Self");
 
     Some(TextEdit::replace(self_param.syntax().text_range(), replacement_text))
+}
+
+fn rename_elided_lifetime(
+    position: FilePosition,
+    lifetime_token: syntax::SyntaxToken,
+    new_name: &str,
+) -> RenameResult<SourceChange> {
+    let parent = lifetime_token.parent().unwrap();
+    let root = parent.ancestors().last().unwrap();
+
+    let mut builder = SourceChangeBuilder::new(position.file_id);
+
+    let editor = builder.make_editor(&root);
+
+    editor.replace(lifetime_token, make::lifetime(new_name).syntax().clone());
+
+    if let Some(has_generic_params) = parent.ancestors().find_map(ast::AnyHasGenericParams::cast) {
+        let lifetime_param = make::lifetime_param(make::lifetime(new_name));
+        editor.add_generic_param(&has_generic_params, lifetime_param.into());
+    }
+
+    builder.add_file_edits(position.file_id, editor);
+
+    Ok(builder.finish())
 }
 
 #[cfg(test)]
@@ -3987,6 +4021,62 @@ mod foo {
     }
 }
         "#,
+        );
+    }
+
+    #[test]
+    fn test_rename_elided_lifetime_fn_no_generics() {
+        check(
+            "'a",
+            r#"
+fn foo(x: &'_$0 str) {}
+"#,
+            r#"
+fn foo<'a>(x: &'a str) {}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_rename_elided_lifetime_fn_with_generics() {
+        check(
+            "'a",
+            r#"
+fn foo<T>(x: &'_$0 str, y: T) {}
+"#,
+            r#"
+fn foo<'a, T>(x: &'a str, y: T) {}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_rename_elided_lifetime_impl_no_generics() {
+        check(
+            "'a",
+            r#"
+struct Foo<'a>(&'a str);
+impl Foo<'_$0> {}
+"#,
+            r#"
+struct Foo<'a>(&'a str);
+impl<'a> Foo<'a> {}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_rename_elided_lifetime_impl_with_generics() {
+        check(
+            "'a",
+            r#"
+struct Foo<'a, T>(&'a str, T);
+impl<T> Foo<'_$0, T> {}
+"#,
+            r#"
+struct Foo<'a, T>(&'a str, T);
+impl<'a, T> Foo<'a, T> {}
+"#,
         );
     }
 }
