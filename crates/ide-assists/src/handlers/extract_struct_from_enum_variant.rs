@@ -338,7 +338,7 @@ fn update_variant(
     let name = variant.name()?;
     let generic_args = generics
         .filter(|generics| generics.generic_params().count() > 0)
-        .map(|generics| generics.to_generic_args());
+        .map(|generics| generics.to_generic_args(make));
     // FIXME: replace with a `ast::make` constructor
     let ty = match generic_args {
         Some(generic_args) => make.ty(&format!("{name}{generic_args}")),

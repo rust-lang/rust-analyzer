@@ -630,8 +630,7 @@ fn generate_impl_inner(
 
         make.generic_param_list(itertools::chain(lifetime_params, ty_or_const_params))
     });
-    let generic_args =
-        generic_params.as_ref().map(|params| params.to_generic_args().clone_for_update());
+    let generic_args = generic_params.as_ref().map(|params| params.to_generic_args(make));
     let adt_assoc_bounds = trait_
         .as_ref()
         .zip(generic_params.as_ref())

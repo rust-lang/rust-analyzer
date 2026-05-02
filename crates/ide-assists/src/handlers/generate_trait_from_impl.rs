@@ -134,7 +134,7 @@ pub(crate) fn generate_trait_from_impl(
             ];
 
             if let Some(params) = impl_ast.generic_param_list() {
-                let gen_args = &params.to_generic_args();
+                let gen_args = &params.to_generic_args(make);
                 elements.insert(1, gen_args.syntax().clone().into());
             }
 

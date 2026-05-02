@@ -274,9 +274,9 @@ fn generate_impl(
                 None,
                 delegee.is_unsafe(db),
                 bound_params.clone(),
-                bound_params.map(|params| params.to_generic_args()),
+                bound_params.map(|params| params.to_generic_args(&make)),
                 strukt_params.clone(),
-                strukt_params.map(|params| params.to_generic_args()),
+                strukt_params.map(|params| params.to_generic_args(&make)),
                 delegee.is_auto(db),
                 make.ty(&delegee.name(db).display_no_db(edition).to_smolstr()),
                 strukt_ty,
@@ -318,7 +318,7 @@ fn generate_impl(
             let strukt_params = resolve_name_conflicts(strukt_params, &old_impl_params);
             let (field_ty, ty_where_clause) = match &strukt_params {
                 Some(strukt_params) => {
-                    let args = strukt_params.to_generic_args();
+                    let args = strukt_params.to_generic_args(&make);
                     let field_ty = rename_strukt_args(ctx, ast_strukt, field_ty, &args)?;
                     let where_clause = ast_strukt
                         .where_clause()
@@ -349,6 +349,7 @@ fn generate_impl(
 
             // 2.2) Generate generic args applied on impl.
             let (transform_args, trait_gen_params) = generate_args_for_impl(
+                &make,
                 old_impl_params,
                 &old_impl.self_ty()?,
                 &field_ty,
@@ -375,7 +376,7 @@ fn generate_impl(
                     }
                 });
 
-            let type_gen_args = strukt_params.clone().map(|params| params.to_generic_args());
+            let type_gen_args = strukt_params.clone().map(|params| params.to_generic_args(&make));
             let path_type = make.ty(&trait_.name(db).display_no_db(edition).to_smolstr());
             let path_type = transform_impl(ctx, ast_strukt, &old_impl, &transform_args, path_type)?;
             // 3) Generate delegate trait impl
@@ -593,13 +594,15 @@ fn finalize_delegate(
 // While the last two generic args `B` and `C` doesn't change, it remains
 // `<B, C>`. So we apply `<T, B, C>` as generic arguments to impl.
 fn generate_args_for_impl(
+    make: &SyntaxFactory,
     old_impl_gpl: Option<GenericParamList>,
     self_ty: &ast::Type,
     field_ty: &ast::Type,
     trait_params: Option<GenericParamList>,
     old_trait_args: &FxHashSet<String>,
 ) -> (Option<ast::GenericArgList>, Option<GenericParamList>) {
-    let Some(old_impl_args) = old_impl_gpl.map(|gpl| gpl.to_generic_args().generic_args()) else {
+    let Some(old_impl_args) = old_impl_gpl.map(|gpl| gpl.to_generic_args(make).generic_args())
+    else {
         return (None, trait_params);
     };
 

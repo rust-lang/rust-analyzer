@@ -458,7 +458,7 @@ fn build_source_change(
     let make = editor.make();
     let items = items(ctx, info_of_record_fields, &assist_info, make);
     let ty_params = assist_info.strukt.generic_param_list();
-    let ty_args = ty_params.as_ref().map(|it| it.to_generic_args());
+    let ty_args = ty_params.as_ref().map(|it| it.to_generic_args(make));
     let impl_def = make.impl_(
         None,
         ty_params,

@@ -87,7 +87,7 @@ pub(crate) fn generate_single_field_struct_from(
             let indent = strukt.indent_level();
             let ty_where_clause = strukt.where_clause();
             let type_gen_params = strukt.generic_param_list();
-            let type_gen_args = type_gen_params.as_ref().map(|params| params.to_generic_args());
+            let type_gen_args = type_gen_params.as_ref().map(|params| params.to_generic_args(make));
             let trait_gen_args = Some(make.generic_arg_list(
                 [ast::GenericArg::TypeArg(make.type_arg(main_field_ty.clone()))],
                 false,

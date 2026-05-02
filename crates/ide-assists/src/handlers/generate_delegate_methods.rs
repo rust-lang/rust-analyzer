@@ -195,7 +195,7 @@ pub(crate) fn generate_delegate_methods(
                     None => {
                         let name = &strukt_name.to_string();
                         let ty_params = strukt.generic_param_list();
-                        let ty_args = ty_params.as_ref().map(|it| it.to_generic_args());
+                        let ty_args = ty_params.as_ref().map(|it| it.to_generic_args(make));
                         let where_clause = strukt.where_clause();
                         let assoc_item_list = make.assoc_item_list(vec![item]);
 
