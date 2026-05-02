@@ -162,7 +162,8 @@ fn build_expanded_import(
         }
     };
 
-    let refs_in_target = find_refs_in_mod(ctx, target_module, visible_from, must_be_pub);
+    let refs_in_target =
+        find_refs_in_mod(ctx, target_module, current_module, visible_from, must_be_pub);
     let imported_defs = find_imported_defs(ctx, use_item);
 
     let filtered_defs =
@@ -303,6 +304,7 @@ impl Refs {
 fn find_refs_in_mod(
     ctx: &AssistContext<'_, '_>,
     expandable: Expandable,
+    current_module: Module,
     visible_from: Module,
     must_be_pub: bool,
 ) -> Refs {
@@ -312,6 +314,10 @@ fn find_refs_in_mod(
             let refs = module_scope
                 .into_iter()
                 .filter_map(|(n, d)| Ref::from_scope_def(ctx, n, d))
+                .filter(|r| match r.def {
+                    Definition::Module(it) => it != current_module,
+                    _ => r.def.module(ctx.db()).map_or(false, |it| it != current_module),
+                })
                 .filter(|r| !must_be_pub || r.is_pub)
                 .collect();
             Refs(refs)
@@ -439,6 +445,31 @@ use foo::{Bar, Baz, f};
 fn qux(bar: Bar, baz: Baz) {
     f();
 }
+",
+        )
+    }
+
+    #[test]
+    fn expanding_glob_import_on_cycle_import() {
+        check_assist(
+            expand_glob_import,
+            r"
+mod foo {
+    pub use crate::*$0;
+    pub struct Foo;
+    pub fn bar() -> Bar { _ = Foo; Bar }
+}
+pub use foo::*;
+pub struct Bar;
+",
+            r"
+mod foo {
+    pub use crate::Bar;
+    pub struct Foo;
+    pub fn bar() -> Bar { _ = Foo; Bar }
+}
+pub use foo::*;
+pub struct Bar;
 ",
         )
     }
