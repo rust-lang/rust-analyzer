@@ -2908,6 +2908,22 @@
             {
                 "title": "Runnables",
                 "properties": {
+                    "rust-analyzer.runnables.bench.debugOverrideCommand": {
+                        "markdownDescription": "Override the command used for debugging bench runnables.\nThe first element of the array should be the program to execute (for example, `cargo`).\n\nUse the placeholders:\n- `${package}`: package name.\n- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.\n- `${target}`: target name (empty for `--lib`).\n- `${test_name}`: the test path filter, e.g. `module::bench_func`.\n- `${exact}`: `--exact` for single benchmarks, empty for modules.\n- `${include_ignored}`: always empty for benchmarks.\n- `${executable_args}`: all of the above binary args bundled together\n    (includes `rust-analyzer.runnables.extraTestBinaryArgs`).",
+                        "default": null,
+                        "type": [
+                            "null",
+                            "array"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "title": "Runnables",
+                "properties": {
                     "rust-analyzer.runnables.bench.overrideCommand": {
                         "markdownDescription": "Override the command used for bench runnables.\nThe first element of the array should be the program to execute (for example, `cargo`).\n\nUse the placeholders:\n- `${package}`: package name.\n- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.\n- `${target}`: target name (empty for `--lib`).\n- `${test_name}`: the test path filter, e.g. `module::bench_func`.\n- `${exact}`: `--exact` for single benchmarks, empty for modules.\n- `${include_ignored}`: always empty for benchmarks.\n- `${executable_args}`: all of the above binary args bundled together\n    (includes `rust-analyzer.runnables.extraTestBinaryArgs`).",
                         "default": null,
@@ -2985,6 +3001,22 @@
                         "markdownDescription": "Subcommand used for test runnables instead of `test`.",
                         "default": "test",
                         "type": "string"
+                    }
+                }
+            },
+            {
+                "title": "Runnables",
+                "properties": {
+                    "rust-analyzer.runnables.test.debugOverrideCommand": {
+                        "markdownDescription": "Override the command used for debugging test runnables.\nThe first element of the array should be the program to execute (for example, `cargo`).\n\nAvailable placeholders:\n- `${package}`: package name.\n- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.\n- `${target}`: target name (empty for `--lib`).\n- `${test_name}`: the test path filter, e.g. `module::test_func`.\n- `${exact}`: `--exact` for single tests, empty for modules.\n- `${include_ignored}`: `--include-ignored` for single tests, empty otherwise.\n- `${executable_args}`: all of the above binary args bundled together\n    (includes `rust-analyzer.runnables.extraTestBinaryArgs`).",
+                        "default": null,
+                        "type": [
+                            "null",
+                            "array"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             },

@@ -1397,6 +1397,24 @@ Default: `"bench"`
 Subcommand used for bench runnables instead of `bench`.
 
 
+## rust-analyzer.runnables.bench.debugOverrideCommand {#runnables.bench.debugOverrideCommand}
+
+Default: `null`
+
+Override the command used for debugging bench runnables.
+The first element of the array should be the program to execute (for example, `cargo`).
+
+Use the placeholders:
+- `${package}`: package name.
+- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.
+- `${target}`: target name (empty for `--lib`).
+- `${test_name}`: the test path filter, e.g. `module::bench_func`.
+- `${exact}`: `--exact` for single benchmarks, empty for modules.
+- `${include_ignored}`: always empty for benchmarks.
+- `${executable_args}`: all of the above binary args bundled together
+  (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
+
+
 ## rust-analyzer.runnables.bench.overrideCommand {#runnables.bench.overrideCommand}
 
 Default: `null`
@@ -1471,6 +1489,24 @@ they will end up being interpreted as options to
 Default: `"test"`
 
 Subcommand used for test runnables instead of `test`.
+
+
+## rust-analyzer.runnables.test.debugOverrideCommand {#runnables.test.debugOverrideCommand}
+
+Default: `null`
+
+Override the command used for debugging test runnables.
+The first element of the array should be the program to execute (for example, `cargo`).
+
+Available placeholders:
+- `${package}`: package name.
+- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.
+- `${target}`: target name (empty for `--lib`).
+- `${test_name}`: the test path filter, e.g. `module::test_func`.
+- `${exact}`: `--exact` for single tests, empty for modules.
+- `${include_ignored}`: `--include-ignored` for single tests, empty otherwise.
+- `${executable_args}`: all of the above binary args bundled together
+  (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
 
 
 ## rust-analyzer.runnables.test.overrideCommand {#runnables.test.overrideCommand}

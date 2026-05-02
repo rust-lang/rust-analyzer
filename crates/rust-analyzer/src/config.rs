@@ -957,6 +957,19 @@ config_data! {
 
         /// Subcommand used for bench runnables instead of `bench`.
         runnables_bench_command: String = "bench".to_owned(),
+        /// Override the command used for debugging bench runnables.
+        /// The first element of the array should be the program to execute (for example, `cargo`).
+        ///
+        /// Use the placeholders:
+        /// - `${package}`: package name.
+        /// - `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.
+        /// - `${target}`: target name (empty for `--lib`).
+        /// - `${test_name}`: the test path filter, e.g. `module::bench_func`.
+        /// - `${exact}`: `--exact` for single benchmarks, empty for modules.
+        /// - `${include_ignored}`: always empty for benchmarks.
+        /// - `${executable_args}`: all of the above binary args bundled together
+        ///   (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
+        runnables_bench_debugOverrideCommand: Option<Vec<String>> = None,
         /// Override the command used for bench runnables.
         /// The first element of the array should be the program to execute (for example, `cargo`).
         ///
@@ -998,6 +1011,19 @@ config_data! {
         runnables_extraTestBinaryArgs: Vec<String> = vec!["--nocapture".to_owned()],
         /// Subcommand used for test runnables instead of `test`.
         runnables_test_command: String = "test".to_owned(),
+        /// Override the command used for debugging test runnables.
+        /// The first element of the array should be the program to execute (for example, `cargo`).
+        ///
+        /// Available placeholders:
+        /// - `${package}`: package name.
+        /// - `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.
+        /// - `${target}`: target name (empty for `--lib`).
+        /// - `${test_name}`: the test path filter, e.g. `module::test_func`.
+        /// - `${exact}`: `--exact` for single tests, empty for modules.
+        /// - `${include_ignored}`: `--include-ignored` for single tests, empty otherwise.
+        /// - `${executable_args}`: all of the above binary args bundled together
+        ///   (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
+        runnables_test_debugOverrideCommand: Option<Vec<String>> = None,
         /// Override the command used for test runnables.
         /// The first element of the array should be the program to execute (for example, `cargo`).
         ///
@@ -1679,10 +1705,14 @@ pub struct RunnablesConfig {
     pub test_command: String,
     /// Override the command used for test runnables.
     pub test_override_command: Option<Vec<String>>,
+    /// Override the command used for debugging test runnables.
+    pub test_debug_override_command: Option<Vec<String>>,
     /// Subcommand used for doctest runnables instead of `bench`.
     pub bench_command: String,
     /// Override the command used for bench runnables.
     pub bench_override_command: Option<Vec<String>>,
+    /// Override the command used for debugging bench runnables.
+    pub bench_debug_override_command: Option<Vec<String>>,
     /// Override the command used for doctest runnables.
     pub doc_test_override_command: Option<Vec<String>>,
 }
@@ -2642,8 +2672,14 @@ impl Config {
             extra_test_binary_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
             test_command: self.runnables_test_command(source_root).clone(),
             test_override_command: self.runnables_test_overrideCommand(source_root).clone(),
+            test_debug_override_command: self
+                .runnables_test_debugOverrideCommand(source_root)
+                .clone(),
             bench_command: self.runnables_bench_command(source_root).clone(),
             bench_override_command: self.runnables_bench_overrideCommand(source_root).clone(),
+            bench_debug_override_command: self
+                .runnables_bench_debugOverrideCommand(source_root)
+                .clone(),
             doc_test_override_command: self.runnables_doctest_overrideCommand(source_root).clone(),
         }
     }

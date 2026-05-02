@@ -50,6 +50,7 @@ export async function makeDebugConfig(ctx: Ctx, runnable: ra.Runnable): Promise<
 export async function startDebugSession(ctx: Ctx, runnable: ra.Runnable): Promise<boolean> {
     let debugConfig: vscode.DebugConfiguration | undefined;
     let message = "";
+    const { runnable: debugRunnable, hasDebugOverride } = runnableForDebug(runnable);
 
     const wsLaunchSection = vscode.workspace.getConfiguration("launch");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,8 +62,12 @@ export async function startDebugSession(ctx: Ctx, runnable: ra.Runnable): Promis
     if (-1 !== index) {
         debugConfig = configurations[index];
         message = " (from launch.json)";
+    } else if (hasDebugOverride && debugRunnable.kind === "shell") {
+        const task = await createTaskFromRunnable(debugRunnable, ctx.config, true);
+        await vscode.tasks.executeTask(task);
+        return true;
     } else {
-        debugConfig = await getDebugConfiguration(ctx.config, runnable);
+        debugConfig = await getDebugConfiguration(ctx.config, debugRunnable);
     }
 
     if (!debugConfig) return false;
@@ -70,6 +75,23 @@ export async function startDebugSession(ctx: Ctx, runnable: ra.Runnable): Promis
     log.debug(`Launching debug configuration${message}:`);
     log.debug(JSON.stringify(debugConfig, null, 2));
     return vscode.debug.startDebugging(undefined, debugConfig);
+}
+
+function runnableForDebug(runnable: ra.Runnable): {
+    runnable: ra.Runnable;
+    hasDebugOverride: boolean;
+} {
+    const debug = runnable.debug;
+    if (!debug) {
+        return { runnable, hasDebugOverride: false };
+    }
+
+    const debugRunnable: ra.Runnable =
+        debug.kind === "cargo"
+            ? { ...runnable, kind: "cargo", args: debug.args }
+            : { ...runnable, kind: "shell", args: debug.args };
+
+    return { runnable: debugRunnable, hasDebugOverride: true };
 }
 
 function createCommandLink(extensionId: string): string {

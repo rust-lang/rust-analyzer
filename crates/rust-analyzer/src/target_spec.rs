@@ -221,13 +221,64 @@ impl CargoTargetSpec {
             RunnableKind::DocTest { test_id } => {
                 (config.doc_test_override_command, Some(test_id.to_string()))
             }
-            RunnableKind::Bin => match spec {
+            RunnableKind::Bin => match &spec {
                 Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }) => {
                     (config.test_override_command, None)
                 }
                 _ => (None, None),
             },
         };
+
+        Self::expand_override_command(
+            spec.as_ref(),
+            kind,
+            args,
+            test_name,
+            config.extra_test_binary_args,
+        )
+    }
+
+    pub(crate) fn debug_override_command(
+        snap: &GlobalStateSnapshot,
+        spec: Option<CargoTargetSpec>,
+        kind: &RunnableKind,
+    ) -> Option<Vec<String>> {
+        let config = snap.config.runnables(None);
+        let (args, test_name) = match kind {
+            RunnableKind::Test { test_id, .. } => {
+                (config.test_debug_override_command, Some(test_id.to_string()))
+            }
+            RunnableKind::TestMod { path } => {
+                (config.test_debug_override_command, Some(path.clone()))
+            }
+            RunnableKind::Bench { test_id } => {
+                (config.bench_debug_override_command, Some(test_id.to_string()))
+            }
+            RunnableKind::Bin => match &spec {
+                Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }) => {
+                    (config.test_debug_override_command, None)
+                }
+                _ => (None, None),
+            },
+            _ => (None, None),
+        };
+
+        Self::expand_override_command(
+            spec.as_ref(),
+            kind,
+            args,
+            test_name,
+            config.extra_test_binary_args,
+        )
+    }
+
+    fn expand_override_command(
+        spec: Option<&CargoTargetSpec>,
+        kind: &RunnableKind,
+        args: Option<Vec<String>>,
+        test_name: Option<String>,
+        extra_test_binary_args: Vec<String>,
+    ) -> Option<Vec<String>> {
         let test_name = test_name.unwrap_or_default();
 
         let exact = match kind {
@@ -256,7 +307,7 @@ impl CargoTargetSpec {
             _ => "",
         };
 
-        let replace_placeholders = |arg: String| match &spec {
+        let replace_placeholders = |arg: String| match spec {
             Some(spec) => arg
                 .replace("${package}", &spec.package)
                 .replace("${target_arg}", target_arg(spec.target_kind))
@@ -267,7 +318,6 @@ impl CargoTargetSpec {
             _ => arg,
         };
 
-        let extra_test_binary_args = config.extra_test_binary_args;
         let executable_args = Self::executable_args_for(kind, extra_test_binary_args);
 
         args.map(|mut args| {

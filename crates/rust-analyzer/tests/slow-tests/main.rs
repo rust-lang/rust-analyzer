@@ -350,6 +350,82 @@ fn main() {}
     );
 }
 
+#[test]
+fn test_runnables_debug_override_command() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /foo/Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /foo/tests/spam.rs
+#[test]
+fn test_eggs() {}
+"#,
+    )
+    .with_config(json!({
+        "runnables": {
+            "test": {
+                "overrideCommand": [
+                    "cargo", "nextest", "run",
+                    "--package", "${package}", "${target_arg}", "${target}",
+                    "--", "${executable_args}",
+                ],
+                "debugOverrideCommand": [
+                    "cargo", "nextest", "run",
+                    "--debugger", "codelldb-launch --",
+                    "--package", "${package}", "${target_arg}", "${target}",
+                    "--", "${executable_args}",
+                ],
+            },
+        },
+    }))
+    .root("foo")
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    server.request::<Runnables>(
+        RunnablesParams { text_document: server.doc_id("foo/tests/spam.rs"), position: None },
+        json!([
+            {
+                "args": {
+                    "args": [
+                        "nextest", "run",
+                        "--package", "foo", "--test", "spam",
+                        "--", "test_eggs", "--exact", "--nocapture", "--include-ignored",
+                    ],
+                    "cwd": server.path().join("foo"),
+                    "program": "cargo",
+                },
+                "debug": {
+                    "args": {
+                        "args": [
+                            "nextest", "run",
+                            "--debugger", "codelldb-launch --",
+                            "--package", "foo", "--test", "spam",
+                            "--", "test_eggs", "--exact", "--nocapture", "--include-ignored",
+                        ],
+                        "cwd": server.path().join("foo"),
+                        "program": "cargo",
+                    },
+                    "kind": "shell",
+                },
+                "kind": "shell",
+                "label": "test test_eggs",
+                "location": "{...}",
+            },
+            "{...}",
+            "{...}",
+            "{...}",
+        ]),
+    );
+}
+
 // Each package in these workspaces should be run from its own root
 #[test]
 fn test_path_dependency_runnables() {
