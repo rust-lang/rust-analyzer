@@ -483,6 +483,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         assoc_name.clone(),
                     )
                 else {
+                    // FIXME: Emit an error.
                     return error_ty();
                 };
                 assoc_type
@@ -503,6 +504,7 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                         assoc_name.clone(),
                     )
                 else {
+                    // FIXME: Emit an error.
                     return error_ty();
                 };
                 let (assoc_type, trait_args) = assoc_type
