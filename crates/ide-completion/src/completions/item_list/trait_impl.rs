@@ -40,7 +40,9 @@ use ide_db::{
 use syntax::ast::HasGenericParams;
 use syntax::{
     AstNode, SmolStr, SyntaxElement, SyntaxKind, T, TextRange, ToSmolStr,
-    ast::{self, HasGenericArgs, HasTypeBounds, edit_in_place::AttrsOwnerEdit, make},
+    ast::{
+        self, HasGenericArgs, HasTypeBounds, edit::AstNodeEdit, edit_in_place::AttrsOwnerEdit, make,
+    },
     format_smolstr, ted,
 };
 
@@ -233,13 +235,14 @@ fn add_function_impl_(
             get_transformed_fn(ctx, source.value, impl_def, async_sugaring)
     {
         let function_decl = function_declaration(ctx, &transformed_fn, source.file_id.macro_file());
+        let ws = if function_decl.contains('\n') { "\n" } else { " " };
         match ctx.config.snippet_cap {
             Some(cap) => {
-                let snippet = format!("{function_decl} {{\n    $0\n}}");
+                let snippet = format!("{function_decl}{ws}{{\n    $0\n}}");
                 item.snippet_edit(cap, TextEdit::replace(replacement_range, snippet));
             }
             None => {
-                let header = format!("{function_decl} {{");
+                let header = format!("{function_decl}{ws}{{");
                 item.text_edit(TextEdit::replace(replacement_range, header));
             }
         };
@@ -296,7 +299,7 @@ fn get_transformed_fn(
         ctx.sema.source(impl_def)?.value,
     );
 
-    let fn_ = fn_.clone_for_update();
+    let fn_ = fn_.reset_indent();
     // FIXME: Paths in nested macros are not handled well. See
     // `macro_generated_assoc_item2` test.
     let fn_ = ast::Fn::cast(transform.apply(fn_.syntax()))?;
@@ -1256,7 +1259,7 @@ trait SomeTrait<T> {}
 
 trait Foo<T> {
     fn function()
-        where Self: SomeTrait<T>;
+    where Self: SomeTrait<T>;
 }
 struct Bar;
 
@@ -1269,13 +1272,14 @@ trait SomeTrait<T> {}
 
 trait Foo<T> {
     fn function()
-        where Self: SomeTrait<T>;
+    where Self: SomeTrait<T>;
 }
 struct Bar;
 
 impl Foo<u32> for Bar {
     fn function()
-        where Self: SomeTrait<u32> {
+where Self: SomeTrait<u32>
+{
     $0
 }
 }
