@@ -294,12 +294,7 @@ fn merge_where_clause(
         (None, None) => None,
         (None, Some(bs)) => Some(bs),
         (Some(ps), None) => Some(ps),
-        (Some(ps), Some(bs)) => {
-            let preds = where_clause(std::iter::empty()).clone_for_update();
-            ps.predicates().for_each(|p| preds.add_predicate(p));
-            bs.predicates().for_each(|p| preds.add_predicate(p));
-            Some(preds)
-        }
+        (Some(ps), Some(bs)) => Some(where_clause(ps.predicates().chain(bs.predicates()))),
     }
 }
 

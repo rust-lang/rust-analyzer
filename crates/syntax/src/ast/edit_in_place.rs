@@ -77,17 +77,6 @@ impl ast::GenericParamList {
     }
 }
 
-impl ast::WhereClause {
-    pub fn add_predicate(&self, predicate: ast::WherePred) {
-        if let Some(pred) = self.predicates().last()
-            && !pred.syntax().siblings_with_tokens(Direction::Next).any(|it| it.kind() == T![,])
-        {
-            ted::append_child_raw(self.syntax(), make::token(T![,]));
-        }
-        ted::append_child(self.syntax(), predicate.syntax());
-    }
-}
-
 pub trait Removable: AstNode {
     fn remove(&self);
 }
