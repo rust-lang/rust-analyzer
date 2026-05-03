@@ -1159,6 +1159,28 @@ impl AttrFlags {
             })
         }
     }
+
+    /// Returns `None` if there is no `#[must_use]`, `Some(None)` if there is a `#[must_use]` without a message,
+    /// and `Some(Some(message))` if there is a `#[must_use]` with a message.
+    pub fn must_use_message(db: &dyn DefDatabase, owner: AttrDefId) -> Option<Option<&str>> {
+        if !AttrFlags::query(db, owner).contains(AttrFlags::IS_MUST_USE) {
+            return None;
+        }
+        return Some(must_use_message(db, owner));
+
+        #[salsa::tracked(returns(as_deref))]
+        fn must_use_message(db: &dyn DefDatabase, owner: AttrDefId) -> Option<Box<str>> {
+            collect_attrs(db, owner, |attr| {
+                if let ast::Meta::KeyValueMeta(attr) = attr
+                    && attr.path().is1("must_use")
+                    && let Some(message) = attr.value_string()
+                {
+                    return ControlFlow::Break(Box::from(&*message));
+                }
+                ControlFlow::Continue(())
+            })
+        }
+    }
 }
 
 fn merge_repr(this: &mut ReprOptions, other: ReprOptions) {
