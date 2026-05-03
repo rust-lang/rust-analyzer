@@ -89,6 +89,7 @@ use crate::{
         abi::Safety,
         infer::{InferCtxt, ObligationInspector, traits::ObligationCause},
     },
+    solver_errors::SolverDiagnostic,
     utils::TargetFeatureIsSafeInTarget,
 };
 
@@ -469,13 +470,13 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         expr: ExprId,
     },
-}
-
-/// A mismatch between an expected and an inferred type.
-#[derive(Clone, PartialEq, Eq, Debug, Hash, TypeVisitable, TypeFoldable)]
-pub struct TypeMismatch {
-    pub expected: StoredTy,
-    pub actual: StoredTy,
+    TypeMismatch {
+        #[type_visitable(ignore)]
+        node: ExprOrPatId,
+        expected: StoredTy,
+        found: StoredTy,
+    },
+    SolverDiagnostic(SolverDiagnostic),
 }
 
 /// Represents coercing a value to a different type of value.
@@ -695,7 +696,6 @@ pub struct InferenceResult {
     pub(crate) type_of_type_placeholder: FxHashMap<TypeRefId, StoredTy>,
     pub(crate) type_of_opaque: FxHashMap<InternedOpaqueTyId, StoredTy>,
 
-    pub(crate) type_mismatches: Option<Box<FxHashMap<ExprOrPatId, TypeMismatch>>>,
     /// Whether there are any type-mismatching errors in the result.
     // FIXME: This isn't as useful as initially thought due to us falling back placeholders to
     // `TyKind::Error`.
@@ -703,6 +703,8 @@ pub struct InferenceResult {
     pub(crate) has_errors: bool,
     /// During inference this field is empty and [`InferenceContext::diagnostics`] is filled instead.
     diagnostics: ThinVec<InferenceDiagnostic>,
+    // FIXME: Remove this, change it to be in `InferenceContext`:
+    nodes_with_type_mismatches: Option<Box<FxHashSet<ExprOrPatId>>>,
 
     /// Interned `Error` type to return references to.
     // FIXME: Remove this.
@@ -996,12 +998,12 @@ impl InferenceResult {
             assoc_resolutions: Default::default(),
             tuple_field_access_types: Default::default(),
             diagnostics: Default::default(),
+            nodes_with_type_mismatches: Default::default(),
             type_of_expr: Default::default(),
             type_of_pat: Default::default(),
             type_of_binding: Default::default(),
             type_of_type_placeholder: Default::default(),
             type_of_opaque: Default::default(),
-            type_mismatches: Default::default(),
             skipped_ref_pats: Default::default(),
             has_errors: Default::default(),
             error_ty: error_ty.store(),
@@ -1052,26 +1054,22 @@ impl InferenceResult {
             ExprOrPatId::PatId(id) => self.assoc_resolutions_for_pat(id),
         }
     }
-    pub fn type_mismatch_for_expr(&self, expr: ExprId) -> Option<&TypeMismatch> {
-        self.type_mismatches.as_deref()?.get(&expr.into())
+    pub fn expr_or_pat_has_type_mismatch(&self, node: ExprOrPatId) -> bool {
+        self.nodes_with_type_mismatches.as_ref().is_some_and(|it| it.contains(&node))
     }
-    pub fn type_mismatch_for_pat(&self, pat: PatId) -> Option<&TypeMismatch> {
-        self.type_mismatches.as_deref()?.get(&pat.into())
+    pub fn expr_has_type_mismatch(&self, expr: ExprId) -> bool {
+        self.expr_or_pat_has_type_mismatch(expr.into())
     }
-    pub fn type_mismatches(&self) -> impl Iterator<Item = (ExprOrPatId, &TypeMismatch)> {
-        self.type_mismatches
-            .as_deref()
-            .into_iter()
-            .flatten()
-            .map(|(expr_or_pat, mismatch)| (*expr_or_pat, mismatch))
+    pub fn pat_has_type_mismatch(&self, pat: PatId) -> bool {
+        self.expr_or_pat_has_type_mismatch(pat.into())
     }
-    pub fn expr_type_mismatches(&self) -> impl Iterator<Item = (ExprId, &TypeMismatch)> {
-        self.type_mismatches.as_deref().into_iter().flatten().filter_map(
-            |(expr_or_pat, mismatch)| match *expr_or_pat {
-                ExprOrPatId::ExprId(expr) => Some((expr, mismatch)),
-                _ => None,
-            },
-        )
+    pub fn exprs_have_type_mismatches(&self) -> bool {
+        self.nodes_with_type_mismatches
+            .as_ref()
+            .is_some_and(|it| it.iter().any(|node| node.is_expr()))
+    }
+    pub fn has_type_mismatches(&self) -> bool {
+        self.nodes_with_type_mismatches.is_some()
     }
     pub fn placeholder_types<'db>(&self) -> impl Iterator<Item = (TypeRefId, Ty<'db>)> {
         self.type_of_type_placeholder.iter().map(|(&type_ref, ty)| (type_ref, ty.as_ref()))
@@ -1418,7 +1416,6 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             type_of_type_placeholder,
             type_of_opaque,
             skipped_ref_pats,
-            type_mismatches,
             closures_data,
             has_errors,
             error_ty: _,
@@ -1428,6 +1425,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             tuple_field_access_types,
             coercion_casts: _,
             diagnostics: result_diagnostics,
+            nodes_with_type_mismatches,
         } = &mut result;
         let mut resolver =
             WriteBackCtxt::new(table, diagnostics, vars_emitted_type_must_be_known_for);
@@ -1451,12 +1449,9 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         type_of_type_placeholder.shrink_to_fit();
         type_of_opaque.shrink_to_fit();
 
-        if let Some(type_mismatches) = type_mismatches {
+        if let Some(nodes_with_type_mismatches) = nodes_with_type_mismatches {
             *has_errors = true;
-            for mismatch in type_mismatches.values_mut() {
-                resolver.resolve_type_mismatch(mismatch);
-            }
-            type_mismatches.shrink_to_fit();
+            nodes_with_type_mismatches.shrink_to_fit();
         }
         for (_, subst) in method_resolutions.values_mut() {
             resolver.resolve_completely(subst);
@@ -1944,8 +1939,23 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     }
 
     pub(crate) fn structurally_resolve_type(&mut self, node: ExprOrPatId, ty: Ty<'db>) -> Ty<'db> {
-        let result = self.table.try_structurally_resolve_type(ty);
+        let result = self.table.try_structurally_resolve_type(node.into(), ty);
         if result.is_ty_var() { self.type_must_be_known_at_this_point(node, ty) } else { result }
+    }
+
+    pub(crate) fn emit_type_mismatch(
+        &mut self,
+        node: ExprOrPatId,
+        expected: Ty<'db>,
+        found: Ty<'db>,
+    ) {
+        if self.result.nodes_with_type_mismatches.get_or_insert_default().insert(node) {
+            self.diagnostics.push(InferenceDiagnostic::TypeMismatch {
+                node,
+                expected: expected.store(),
+                found: found.store(),
+            });
+        }
     }
 
     fn demand_eqtype(
@@ -1954,14 +1964,15 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         expected: Ty<'db>,
         actual: Ty<'db>,
     ) -> Result<(), ()> {
-        let result = self.demand_eqtype_fixme_no_diag(expected, actual);
+        let result = self
+            .table
+            .at(&ObligationCause::new(id))
+            .eq(expected, actual)
+            .map(|infer_ok| self.table.register_infer_ok(infer_ok));
         if result.is_err() {
-            self.result
-                .type_mismatches
-                .get_or_insert_default()
-                .insert(id, TypeMismatch { expected: expected.store(), actual: actual.store() });
+            self.emit_type_mismatch(id, expected, actual);
         }
-        result
+        result.map_err(drop)
     }
 
     fn demand_eqtype_fixme_no_diag(
@@ -1971,7 +1982,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     ) -> Result<(), ()> {
         let result = self
             .table
-            .at(&ObligationCause::new())
+            .at(&ObligationCause::dummy())
             .eq(expected, actual)
             .map(|infer_ok| self.table.register_infer_ok(infer_ok));
         result.map_err(drop)
@@ -1985,14 +1996,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
     ) -> Result<(), ()> {
         let result = self
             .table
-            .at(&ObligationCause::new())
+            .at(&ObligationCause::new(id))
             .sup(expected, actual)
             .map(|infer_ok| self.table.register_infer_ok(infer_ok));
         if result.is_err() {
-            self.result
-                .type_mismatches
-                .get_or_insert_default()
-                .insert(id, TypeMismatch { expected: expected.store(), actual: actual.store() });
+            self.emit_type_mismatch(id, expected, actual);
         }
         result.map_err(drop)
     }
@@ -2026,11 +2034,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         self.types.types.error
     }
 
-    pub(crate) fn require_type_is_sized(&mut self, ty: Ty<'db>) {
+    pub(crate) fn require_type_is_sized(&mut self, ty: Ty<'db>, span: Span) {
         if !ty.references_non_lt_error()
             && let Some(sized_trait) = self.lang_items.Sized
         {
-            self.table.register_bound(ty, sized_trait, ObligationCause::new());
+            self.table.register_bound(ty, sized_trait, ObligationCause::new(span));
         }
     }
 
@@ -2095,7 +2103,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                         args,
                     ),
                 );
-                ty = self.table.try_structurally_resolve_type(alias);
+                ty = self.table.try_structurally_resolve_type(node.into(), alias);
                 segments = segments.skip(1);
             }
 
@@ -2195,7 +2203,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                         never!("resolver should always resolve lang item paths");
                         return (self.err_ty(), None);
                     };
-                    return self.resolve_variant_on_alias(ty, None, mod_path);
+                    return self.resolve_variant_on_alias(node, ty, None, mod_path);
                 };
 
                 let mut remaining_segments = path.segments().skip(remaining_idx);
@@ -2308,7 +2316,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
                 let ty = self.db.ty(it.into()).instantiate(interner, args);
                 let ty = self.insert_type_vars(ty, Span::Dummy);
 
-                self.resolve_variant_on_alias(ty, unresolved, mod_path)
+                self.resolve_variant_on_alias(node, ty, unresolved, mod_path)
             }
             TypeNs::AdtSelfType(_) => {
                 // FIXME this could happen in array size expressions, once we're checking them
@@ -2340,12 +2348,13 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
 
     fn resolve_variant_on_alias(
         &mut self,
+        node: ExprOrPatId,
         ty: Ty<'db>,
         unresolved: Option<usize>,
         path: &ModPath,
     ) -> (Ty<'db>, Option<VariantId>) {
         let remaining = unresolved.map(|it| path.segments()[it..].len()).filter(|it| it > &0);
-        let ty = self.table.try_structurally_resolve_type(ty);
+        let ty = self.table.try_structurally_resolve_type(node.into(), ty);
         match remaining {
             None => {
                 let variant = ty.as_adt().and_then(|(adt_id, _)| match adt_id {
@@ -2558,10 +2567,14 @@ impl<'db> Expectation<'db> {
     /// an expected type. Otherwise, we might write parts of the type
     /// when checking the 'then' block which are incompatible with the
     /// 'else' branch.
-    fn adjust_for_branches(&self, table: &mut unify::InferenceTable<'db>) -> Expectation<'db> {
+    fn adjust_for_branches(
+        &self,
+        table: &mut unify::InferenceTable<'db>,
+        span: Span,
+    ) -> Expectation<'db> {
         match *self {
             Expectation::HasType(ety) => {
-                let ety = table.try_structurally_resolve_type(ety);
+                let ety = table.try_structurally_resolve_type(span, ety);
                 if ety.is_ty_var() { Expectation::None } else { Expectation::HasType(ety) }
             }
             Expectation::RValueLikeUnsized(ety) => Expectation::RValueLikeUnsized(ety),

@@ -4,6 +4,7 @@ use rustc_type_ir::{TypeVisitableExt, fold_regions};
 use tracing::{debug, instrument};
 
 use crate::{
+    Span,
     infer::InferenceContext,
     next_solver::{
         EarlyBinder, OpaqueTypeKey, SolverDefId, TypingMode,
@@ -135,7 +136,8 @@ impl<'db> InferenceContext<'_, 'db> {
             return UsageKind::UnconstrainedHiddenType(hidden_type);
         }
 
-        let cause = ObligationCause::new();
+        // FIXME: This should not use a dummy span.
+        let cause = ObligationCause::new(Span::Dummy);
         let at = self.table.infer_ctxt.at(&cause, self.table.param_env);
         let hidden_type = match at.deeply_normalize(hidden_type) {
             Ok(hidden_type) => hidden_type,

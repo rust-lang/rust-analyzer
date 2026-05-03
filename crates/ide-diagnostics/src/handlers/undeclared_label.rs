@@ -86,16 +86,18 @@ fn foo() {
         check_diagnostics(
             r#"
 //- minicore: option, try
-fn foo() {
+fn foo() -> Option<()> {
     None?;
+    None
 }
 "#,
         );
         check_diagnostics(
             r#"
 //- minicore: option, try, future
-async fn foo() {
+async fn foo() -> Option<()> {
     None?;
+    None
 }
 "#,
         );
@@ -103,7 +105,7 @@ async fn foo() {
             r#"
 //- minicore: option, try, future, fn
 async fn foo() {
-    || None?;
+    || { None?; Some(()) };
 }
 "#,
         );

@@ -1,8 +1,11 @@
+use hir_def::TraitId;
+use macros::{TypeFoldable, TypeVisitable};
+
 use crate::{
     FnAbi,
     next_solver::{
-        Binder, Clauses, EarlyBinder, FnSig, PolyFnSig, StoredBoundVarKinds, StoredClauses,
-        StoredTy, StoredTys, Ty, abi::Safety,
+        Binder, Clauses, DbInterner, EarlyBinder, FnSig, PolyFnSig, StoredBoundVarKinds,
+        StoredClauses, StoredGenericArgs, StoredTy, StoredTys, TraitRef, Ty, abi::Safety,
     },
 };
 
@@ -79,5 +82,24 @@ impl StoredPolyFnSig {
             },
             self.bound_vars.as_ref(),
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TypeVisitable, TypeFoldable)]
+pub struct StoredTraitRef {
+    #[type_visitable(ignore)]
+    def_id: TraitId,
+    args: StoredGenericArgs,
+}
+
+impl StoredTraitRef {
+    #[inline]
+    pub fn new(trait_ref: TraitRef<'_>) -> Self {
+        Self { def_id: trait_ref.def_id.0, args: trait_ref.args.store() }
+    }
+
+    #[inline]
+    pub fn get<'db>(&'db self, interner: DbInterner<'db>) -> TraitRef<'db> {
+        TraitRef::new_from_args(interner, self.def_id.into(), self.args.as_ref())
     }
 }

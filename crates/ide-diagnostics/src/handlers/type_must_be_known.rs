@@ -1,5 +1,5 @@
 use either::Either;
-use hir::HirDisplay;
+use hir::{HirDisplay, SpanAst};
 use stdx::format_to;
 use syntax::{AstNode, SyntaxNodePtr, ast};
 
@@ -17,7 +17,7 @@ pub(crate) fn type_must_be_known<'db>(
 
     // Do some adjustments to the node: FIXME: We should probably do that at the emitting site.
     let node = ctx.sema.to_node(d.at_point);
-    if let Either::Right(Either::Left(expr)) = &node
+    if let SpanAst::Expr(expr) = &node
         && let Some(Either::Left(top_ty)) = &d.top_term
         && let Some(expr_ty) = ctx.sema.type_of_expr(expr)
         && expr_ty.original == *top_ty

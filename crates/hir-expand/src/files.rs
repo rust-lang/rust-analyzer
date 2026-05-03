@@ -128,6 +128,16 @@ impl ErasedAstId {
     }
 }
 
+impl<FileKind, N: AstNode> InFileWrapper<FileKind, AstPtr<N>> {
+    #[inline]
+    pub fn upcast<M: AstNode>(self) -> InFileWrapper<FileKind, AstPtr<M>>
+    where
+        N: Into<M>,
+    {
+        self.map(|it| it.upcast())
+    }
+}
+
 impl<FileKind, T> InFileWrapper<FileKind, T> {
     pub fn new(file_id: FileKind, value: T) -> Self {
         Self { file_id, value }

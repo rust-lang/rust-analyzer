@@ -43,9 +43,11 @@ impl<'db> InferenceContext<'_, 'db> {
     ) -> Ty<'db> {
         let original_callee_ty = self.infer_expr_no_expect(callee_expr, ExprIsRead::Yes);
 
-        let expr_ty = self.table.try_structurally_resolve_type(original_callee_ty);
+        let expr_ty =
+            self.table.try_structurally_resolve_type(callee_expr.into(), original_callee_ty);
 
-        let mut autoderef = GeneralAutoderef::new_from_inference_context(self, expr_ty);
+        let mut autoderef =
+            GeneralAutoderef::new_from_inference_context(self, expr_ty, callee_expr.into());
         let mut result = None;
         let mut error_reported = false;
         while result.is_none() && autoderef.next().is_some() {
@@ -95,7 +97,7 @@ impl<'db> InferenceContext<'_, 'db> {
         };
 
         // we must check that return type of called functions is WF:
-        self.table.register_wf_obligation(output.into(), ObligationCause::new());
+        self.table.register_wf_obligation(output.into(), ObligationCause::new(call_expr));
 
         output
     }
@@ -108,7 +110,8 @@ impl<'db> InferenceContext<'_, 'db> {
         error_reported: &mut bool,
     ) -> Option<CallStep<'db>> {
         let final_ty = autoderef.final_ty();
-        let adjusted_ty = autoderef.ctx().table.try_structurally_resolve_type(final_ty);
+        let adjusted_ty =
+            autoderef.ctx().table.try_structurally_resolve_type(callee_expr.into(), final_ty);
 
         // If the callee is a function pointer or a closure, then we're all set.
         match adjusted_ty.kind() {
@@ -242,8 +245,8 @@ impl<'db> InferenceContext<'_, 'db> {
         // is implemented, and use this information for diagnostic.
         autoderef
             .ctx()
-            .try_overloaded_call_traits(adjusted_ty, Some(arg_exprs))
-            .or_else(|| autoderef.ctx().try_overloaded_call_traits(adjusted_ty, None))
+            .try_overloaded_call_traits(call_expr, adjusted_ty, Some(arg_exprs))
+            .or_else(|| autoderef.ctx().try_overloaded_call_traits(call_expr, adjusted_ty, None))
             .map(|(autoref, method)| {
                 let adjustments = autoderef.adjust_steps_as_infer_ok();
                 let mut adjustments = autoderef.ctx().table.register_infer_ok(adjustments);
@@ -255,6 +258,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
     fn try_overloaded_call_traits(
         &mut self,
+        call_expr: ExprId,
         adjusted_ty: Ty<'db>,
         opt_arg_exprs: Option<&[ExprId]>,
     ) -> Option<(Option<Adjustment>, MethodCallee<'db>)> {
@@ -311,7 +315,7 @@ impl<'db> InferenceContext<'_, 'db> {
             // one which may apply. So if we treat opaques as inference variables
             // `Box<impl FnOnce()>: Fn` is considered ambiguous and chosen.
             if let Some(ok) = self.table.lookup_method_for_operator(
-                ObligationCause::new(),
+                ObligationCause::new(call_expr),
                 method_name,
                 trait_def_id,
                 adjusted_ty,
@@ -464,8 +468,9 @@ impl<'db> InferenceContext<'_, 'db> {
             && let Some(ty) = fn_sig.inputs().last().copied()
             && let Some(tuple_trait) = self.lang_items.Tuple
         {
-            self.table.register_bound(ty, tuple_trait, ObligationCause::new());
-            self.require_type_is_sized(ty);
+            let span = arg_exprs.last().copied().unwrap_or(call_expr);
+            self.table.register_bound(ty, tuple_trait, ObligationCause::new(span));
+            self.require_type_is_sized(ty, span.into());
         }
 
         fn_sig.output()
@@ -538,7 +543,7 @@ impl<'a, 'db> DeferredCallResolution<'db> {
         assert!(ctx.infcx().closure_kind(self.closure_ty).is_some());
 
         // We may now know enough to figure out fn vs fnmut etc.
-        match ctx.try_overloaded_call_traits(self.closure_ty, None) {
+        match ctx.try_overloaded_call_traits(self.call_expr, self.closure_ty, None) {
             Some((autoref, method_callee)) => {
                 // One problem is that when we get here, we are going
                 // to have a newly instantiated function signature

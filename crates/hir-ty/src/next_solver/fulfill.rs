@@ -330,7 +330,7 @@ impl<'db> TypeVisitor<DbInterner<'db>> for StalledOnCoroutines<'_, 'db> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NextSolverError<'db> {
     TrueError(PredicateObligation<'db>),
     Ambiguity(PredicateObligation<'db>),

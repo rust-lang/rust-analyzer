@@ -27,49 +27,26 @@ use crate::{
 use super::InferCtxt;
 
 /// The reason why we incurred this obligation; used for error reporting.
-///
-/// Non-misc `ObligationCauseCode`s are stored on the heap. This gives the
-/// best trade-off between keeping the type small (which makes copies cheaper)
-/// while not doing too many heap allocations.
-///
-/// We do not want to intern this as there are a lot of obligation causes which
-/// only live for a short period of time.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TypeVisitable, TypeFoldable)]
 pub struct ObligationCause {
+    #[type_visitable(ignore)]
     span: Span,
 }
 
 impl ObligationCause {
     #[inline]
-    pub fn new() -> ObligationCause {
-        ObligationCause { span: Span::Dummy }
-    }
-
-    #[inline]
-    pub fn with_span(span: Span) -> ObligationCause {
-        ObligationCause { span }
+    pub fn new<S: Into<Span>>(span: S) -> ObligationCause {
+        ObligationCause { span: span.into() }
     }
 
     #[inline]
     pub fn dummy() -> ObligationCause {
-        ObligationCause::new()
-    }
-
-    #[inline]
-    pub fn misc() -> ObligationCause {
-        ObligationCause::new()
+        ObligationCause::new(Span::Dummy)
     }
 
     #[inline]
     pub(crate) fn span(&self) -> Span {
         self.span
-    }
-}
-
-impl Default for ObligationCause {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -118,7 +95,7 @@ impl<'db> Elaboratable<DbInterner<'db>> for PredicateObligation<'db> {
 
     fn child(&self, clause: Clause<'db>) -> Self {
         Obligation {
-            cause: self.cause.clone(),
+            cause: self.cause,
             param_env: self.param_env,
             recursion_depth: 0,
             predicate: clause.as_predicate(),
@@ -128,11 +105,11 @@ impl<'db> Elaboratable<DbInterner<'db>> for PredicateObligation<'db> {
     fn child_with_derived_cause(
         &self,
         clause: Clause<'db>,
-        _span: Span,
+        span: Span,
         _parent_trait_pred: PolyTraitPredicate<'db>,
         _index: usize,
     ) -> Self {
-        let cause = ObligationCause::new();
+        let cause = ObligationCause::new(span);
         Obligation {
             cause,
             param_env: self.param_env,
@@ -186,7 +163,7 @@ impl<'db> PredicateObligation<'db> {
     /// Given `T: Trait` predicate it returns `T: !Trait` and given `T: !Trait` returns `T: Trait`.
     pub fn flip_polarity(&self, _interner: DbInterner<'db>) -> Option<PredicateObligation<'db>> {
         Some(PredicateObligation {
-            cause: self.cause.clone(),
+            cause: self.cause,
             param_env: self.param_env,
             predicate: self.predicate.flip_polarity()?,
             recursion_depth: self.recursion_depth,
@@ -228,7 +205,7 @@ impl<'db, O> Obligation<'db, O> {
         tcx: DbInterner<'db>,
         value: impl Upcast<DbInterner<'db>, P>,
     ) -> Obligation<'db, P> {
-        Obligation::with_depth(tcx, self.cause.clone(), self.recursion_depth, self.param_env, value)
+        Obligation::with_depth(tcx, self.cause, self.recursion_depth, self.param_env, value)
     }
 }
 

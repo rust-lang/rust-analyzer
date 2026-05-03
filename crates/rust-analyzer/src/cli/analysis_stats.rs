@@ -2,6 +2,7 @@
 //! errors.
 
 use std::{
+    cell::LazyCell,
     env, fmt,
     ops::AddAssign,
     panic::{AssertUnwindSafe, catch_unwind},
@@ -908,6 +909,18 @@ impl flags::AnalysisStats {
             // region:expressions
             let (previous_exprs, previous_unknown, previous_partially_unknown) =
                 (num_exprs, num_exprs_unknown, num_exprs_partially_unknown);
+            let type_mismatch_for_node = LazyCell::new(|| {
+                inference_result
+                    .diagnostics()
+                    .iter()
+                    .filter_map(|diag| match diag {
+                        hir_ty::InferenceDiagnostic::TypeMismatch { node, expected, found } => {
+                            Some((*node, (expected.as_ref(), found.as_ref())))
+                        }
+                        _ => None,
+                    })
+                    .collect::<FxHashMap<_, _>>()
+            });
             for (expr_id, _) in body.exprs() {
                 let ty = inference_result.expr_ty(expr_id);
                 num_exprs += 1;
@@ -964,9 +977,10 @@ impl flags::AnalysisStats {
                         ty.display(db, display_target)
                     );
                 }
-                if let Some(mismatch) = inference_result.type_mismatch_for_expr(expr_id) {
+                if inference_result.expr_has_type_mismatch(expr_id) {
                     num_expr_type_mismatches += 1;
                     if verbosity.is_verbose() {
+                        let (expected, actual) = type_mismatch_for_node[&expr_id.into()];
                         if let Some((path, start, end)) = expr_syntax_range(db, vfs, sm(), expr_id)
                         {
                             bar.println(format!(
@@ -976,24 +990,25 @@ impl flags::AnalysisStats {
                                 start.col,
                                 end.line + 1,
                                 end.col,
-                                mismatch.expected.as_ref().display(db, display_target),
-                                mismatch.actual.as_ref().display(db, display_target)
+                                expected.display(db, display_target),
+                                actual.display(db, display_target)
                             ));
                         } else {
                             bar.println(format!(
                                 "{}: Expected {}, got {}",
                                 name.display(db, Edition::LATEST),
-                                mismatch.expected.as_ref().display(db, display_target),
-                                mismatch.actual.as_ref().display(db, display_target)
+                                expected.display(db, display_target),
+                                actual.display(db, display_target)
                             ));
                         }
                     }
                     if self.output == Some(OutputFormat::Csv) {
+                        let (expected, actual) = type_mismatch_for_node[&expr_id.into()];
                         println!(
                             r#"{},mismatch,"{}","{}""#,
                             location_csv_expr(db, vfs, sm(), expr_id),
-                            mismatch.expected.as_ref().display(db, display_target),
-                            mismatch.actual.as_ref().display(db, display_target)
+                            expected.display(db, display_target),
+                            actual.display(db, display_target)
                         );
                     }
                 }
@@ -1067,9 +1082,10 @@ impl flags::AnalysisStats {
                         ty.display(db, display_target)
                     );
                 }
-                if let Some(mismatch) = inference_result.type_mismatch_for_pat(pat_id) {
+                if inference_result.pat_has_type_mismatch(pat_id) {
                     num_pat_type_mismatches += 1;
                     if verbosity.is_verbose() {
+                        let (expected, actual) = type_mismatch_for_node[&pat_id.into()];
                         if let Some((path, start, end)) = pat_syntax_range(db, vfs, sm(), pat_id) {
                             bar.println(format!(
                                 "{} {}:{}-{}:{}: Expected {}, got {}",
@@ -1078,24 +1094,25 @@ impl flags::AnalysisStats {
                                 start.col,
                                 end.line + 1,
                                 end.col,
-                                mismatch.expected.as_ref().display(db, display_target),
-                                mismatch.actual.as_ref().display(db, display_target)
+                                expected.display(db, display_target),
+                                actual.display(db, display_target)
                             ));
                         } else {
                             bar.println(format!(
                                 "{}: Expected {}, got {}",
                                 name.display(db, Edition::LATEST),
-                                mismatch.expected.as_ref().display(db, display_target),
-                                mismatch.actual.as_ref().display(db, display_target)
+                                expected.display(db, display_target),
+                                actual.display(db, display_target)
                             ));
                         }
                     }
                     if self.output == Some(OutputFormat::Csv) {
+                        let (expected, actual) = type_mismatch_for_node[&pat_id.into()];
                         println!(
                             r#"{},mismatch,"{}","{}""#,
                             location_csv_pat(db, vfs, sm(), pat_id),
-                            mismatch.expected.as_ref().display(db, display_target),
-                            mismatch.actual.as_ref().display(db, display_target)
+                            expected.display(db, display_target),
+                            actual.display(db, display_target)
                         );
                     }
                 }

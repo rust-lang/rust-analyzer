@@ -717,7 +717,7 @@ pub(crate) fn clauses_as_obligations<'db>(
     param_env: ParamEnv<'db>,
 ) -> impl Iterator<Item = PredicateObligation<'db>> {
     clauses.into_iter().map(move |clause| Obligation {
-        cause: cause.clone(),
+        cause,
         param_env,
         predicate: clause.as_predicate(),
         recursion_depth: 0,

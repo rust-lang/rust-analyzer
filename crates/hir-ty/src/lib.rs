@@ -50,6 +50,7 @@ pub mod layout;
 pub mod method_resolution;
 pub mod mir;
 pub mod primitive;
+pub mod solver_errors;
 pub mod traits;
 pub mod upvars;
 
@@ -63,7 +64,7 @@ use std::{hash::Hash, ops::ControlFlow};
 use hir_def::{
     CallableDefId, ExpressionStoreOwnerId, GenericDefId, LifetimeParamId, TypeAliasId,
     TypeOrConstParamId, TypeParamId,
-    hir::{ExprId, ExprOrPatId, PatId},
+    hir::{BindingId, ExprId, ExprOrPatId, PatId},
     resolver::TypeNs,
     type_ref::{Rawness, TypeRefId},
 };
@@ -553,7 +554,7 @@ pub fn callable_sig_from_fn_trait<'db>(
         let args = GenericArgs::new_from_slice(&[self_ty.into(), tupled_args.into()]);
         let trait_id = trait_.get_id(lang_items)?;
         let trait_ref = TraitRef::new_from_args(interner, trait_id.into(), args);
-        let obligation = Obligation::new(interner, cause.clone(), param_env, trait_ref);
+        let obligation = Obligation::new(interner, cause, param_env, trait_ref);
         ocx.register_obligation(obligation);
         if !ocx.try_evaluate_obligations().is_empty() {
             return None;
@@ -678,11 +679,12 @@ pub fn known_const_to_ast<'db>(
 pub enum Span {
     ExprId(ExprId),
     PatId(PatId),
+    BindingId(BindingId),
     TypeRefId(TypeRefId),
     /// An unimportant location. Errors on this will be suppressed.
     Dummy,
 }
-impl_from!(ExprId, PatId, TypeRefId for Span);
+impl_from!(ExprId, PatId, BindingId, TypeRefId for Span);
 
 impl From<ExprOrPatId> for Span {
     fn from(value: ExprOrPatId) -> Self {

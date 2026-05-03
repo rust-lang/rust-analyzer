@@ -738,6 +738,30 @@ pub mod ops {
         pub struct RangeToInclusive<Idx> {
             pub end: Idx,
         }
+
+        // region:iterator
+        pub trait Step {}
+        macro_rules! impl_step {
+            ( $( $ty:ty ),* $(,)? ) => {
+                $(
+                    impl Step for $ty {}
+                )*
+            };
+        }
+        impl_step!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
+
+        macro_rules! impl_iterator {
+            ( $( $range:ident ),* $(,)? ) => {
+                $(
+                    impl<Idx: Step> Iterator for $range<Idx> {
+                        type Item = Idx;
+                        fn next(&mut self) -> Option<Self::Item> { loop {} }
+                    }
+                )*
+            };
+        }
+        impl_iterator!(Range, RangeFrom, RangeTo, RangeInclusive, RangeToInclusive);
+        // endregion:iterator
     }
     pub use self::range::{Range, RangeFrom, RangeFull, RangeTo};
     pub use self::range::{RangeInclusive, RangeToInclusive};
@@ -1291,6 +1315,38 @@ pub mod fmt {
     pub trait Display: PointeeSized {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result;
     }
+
+    impl<T: ?Sized + Debug> Debug for &T {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            T::fmt(&**self, f)
+        }
+    }
+    impl<T: ?Sized + Display> Display for &T {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            T::fmt(&**self, f)
+        }
+    }
+
+    macro_rules! impl_fmt_traits {
+        ( $($ty:ty),* $(,)? ) => {
+            $(
+                impl Debug for $ty {
+                    fn fmt(&self, f: &mut Formatter<'_>) -> Result { loop {} }
+                }
+                impl Display for $ty {
+                    fn fmt(&self, f: &mut Formatter<'_>) -> Result { loop {} }
+                }
+            )*
+        }
+    }
+
+    impl_fmt_traits!(str);
+
+    // region:builtin_impls
+    impl_fmt_traits!(
+        i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64, bool, char,
+    );
+    // endregion:builtin_impls
 
     mod rt {
         use super::*;

@@ -205,6 +205,7 @@ trait Foo { fn method(&self, _arg: usize) {} }
 
 fn f() {
     let x;
+     // ^ error: type annotations needed
     x.method();
 }
 "#,

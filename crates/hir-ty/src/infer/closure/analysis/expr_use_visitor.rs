@@ -14,22 +14,19 @@ use hir_def::{
     },
     resolver::ValueNs,
 };
-use rustc_ast_ir::{try_visit, visit::VisitorResult};
-use rustc_type_ir::{
-    FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor,
-    inherent::{IntoKind, Ty as _},
-};
+use macros::{TypeFoldable, TypeVisitable};
+use rustc_type_ir::inherent::{IntoKind, Ty as _};
 use smallvec::{SmallVec, smallvec};
 use syntax::ast::{BinaryOp, UnaryOp};
 use tracing::{debug, instrument, trace};
 
 use crate::{
-    Adjust, Adjustment, AutoBorrow,
+    Adjust, Adjustment, AutoBorrow, Span,
     infer::{
         ByRef, CaptureSourceStack, InferenceContext, UpvarCapture, closure::analysis::BorrowKind,
     },
     method_resolution::CandidateId,
-    next_solver::{DbInterner, ErrorGuaranteed, StoredTy, Ty, TyKind},
+    next_solver::{ErrorGuaranteed, StoredTy, Ty, TyKind},
     upvars::UpvarsRef,
     utils::EnumerateAndAdjustIterator,
 };
@@ -71,12 +68,13 @@ pub enum PlaceBase {
     Upvar { closure: ExprId, var_id: BindingId },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, TypeVisitable, TypeFoldable)]
 pub struct Projection {
     /// Type after the projection is applied.
     pub ty: StoredTy,
 
     /// Defines the kind of access made by the projection.
+    #[type_visitable(ignore)]
     pub kind: ProjectionKind,
 }
 
@@ -84,59 +82,15 @@ pub struct Projection {
 /// always correspond to a syntactic place expression. For example, when
 /// processing a pattern, a `Place` can be used to refer to the sub-value
 /// currently being inspected.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, TypeVisitable, TypeFoldable)]
 pub struct Place {
     /// The type of the `PlaceBase`
     pub base_ty: StoredTy,
     /// The "outermost" place that holds this value.
+    #[type_visitable(ignore)]
     pub base: PlaceBase,
     /// How this place is derived from the base place.
     pub projections: Vec<Projection>,
-}
-
-impl<'db> TypeVisitable<DbInterner<'db>> for Place {
-    fn visit_with<V: TypeVisitor<DbInterner<'db>>>(&self, visitor: &mut V) -> V::Result {
-        let Self { base_ty, base: _, projections } = self;
-        try_visit!(base_ty.as_ref().visit_with(visitor));
-        for proj in projections {
-            let Projection { ty, kind: _ } = proj;
-            try_visit!(ty.as_ref().visit_with(visitor));
-        }
-        V::Result::output()
-    }
-}
-
-impl<'db> TypeFoldable<DbInterner<'db>> for Place {
-    fn try_fold_with<F: FallibleTypeFolder<DbInterner<'db>>>(
-        self,
-        folder: &mut F,
-    ) -> Result<Self, F::Error> {
-        let Self { base_ty, base, projections } = self;
-        let base_ty = base_ty.as_ref().try_fold_with(folder)?.store();
-        let projections = projections
-            .into_iter()
-            .map(|proj| {
-                let Projection { ty, kind } = proj;
-                let ty = ty.as_ref().try_fold_with(folder)?.store();
-                Ok(Projection { ty, kind })
-            })
-            .collect::<Result<_, _>>()?;
-        Ok(Self { base_ty, base, projections })
-    }
-
-    fn fold_with<F: TypeFolder<DbInterner<'db>>>(self, folder: &mut F) -> Self {
-        let Self { base_ty, base, projections } = self;
-        let base_ty = base_ty.as_ref().fold_with(folder).store();
-        let projections = projections
-            .into_iter()
-            .map(|proj| {
-                let Projection { ty, kind } = proj;
-                let ty = ty.as_ref().fold_with(folder).store();
-                Projection { ty, kind }
-            })
-            .collect();
-        Self { base_ty, base, projections }
-    }
 }
 
 impl Place {
@@ -214,6 +168,13 @@ impl PlaceWithOrigin {
         self.place.projections.push(projection);
         for origin_stack in &mut self.origins {
             origin_stack.push(origin);
+        }
+    }
+
+    pub(crate) fn span(&self) -> Span {
+        match self.origins.first() {
+            Some(origin) => origin.final_source().into(),
+            None => Span::Dummy,
         }
     }
 }

@@ -73,6 +73,7 @@ mod handlers {
     pub(crate) mod typed_hole;
     pub(crate) mod undeclared_label;
     pub(crate) mod unimplemented_builtin_macro;
+    pub(crate) mod unimplemented_trait;
     pub(crate) mod union_expr_must_have_exactly_one_field;
     pub(crate) mod unreachable_label;
     pub(crate) mod unresolved_assoc_item;
@@ -495,6 +496,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::TypeMustBeKnown(d) => handlers::type_must_be_known::type_must_be_known(&ctx, &d),
             AnyDiagnostic::PatternArgInExternFn(d) => handlers::pattern_arg_in_extern_fn::pattern_arg_in_extern_fn(&ctx, &d),
             AnyDiagnostic::UnionExprMustHaveExactlyOneField(d) => handlers::union_expr_must_have_exactly_one_field::union_expr_must_have_exactly_one_field(&ctx, &d),
+            AnyDiagnostic::UnimplementedTrait(d) => handlers::unimplemented_trait::unimplemented_trait(&ctx, &d),
         };
         res.push(d)
     }

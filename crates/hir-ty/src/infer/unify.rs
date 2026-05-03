@@ -11,9 +11,10 @@ use rustc_type_ir::{
     solve::Certainty,
 };
 use smallvec::SmallVec;
+use thin_vec::ThinVec;
 
 use crate::{
-    Span,
+    InferenceDiagnostic, Span,
     db::HirDatabase,
     next_solver::{
         Canonical, ClauseKind, Const, DbInterner, ErrorGuaranteed, GenericArg, GenericArgs,
@@ -29,6 +30,7 @@ use crate::{
         inspect::{InspectConfig, InspectGoal, ProofTreeVisitor},
         obligation_ctxt::ObligationCtxt,
     },
+    solver_errors::SolverDiagnostic,
     traits::ParamEnvAndCrate,
 };
 
@@ -65,7 +67,7 @@ impl<'a, 'db> ProofTreeVisitor<'db> for NestedObligationsForSelfTy<'a, 'db> {
         if self.ctx.predicate_has_self_ty(goal.predicate, self.self_ty) {
             self.obligations_for_self_ty.push(Obligation::new(
                 db,
-                self.root_cause.clone(),
+                *self.root_cause,
                 goal.param_env,
                 goal.predicate,
             ));
@@ -133,6 +135,7 @@ pub(crate) struct InferenceTable<'db> {
     pub(crate) infer_ctxt: InferCtxt<'db>,
     pub(super) fulfillment_cx: FulfillmentCtxt<'db>,
     pub(super) diverging_type_vars: FxHashSet<Ty<'db>>,
+    trait_errors: Vec<NextSolverError<'db>>,
 }
 
 impl<'db> InferenceTable<'db> {
@@ -153,6 +156,7 @@ impl<'db> InferenceTable<'db> {
             fulfillment_cx: FulfillmentCtxt::new(&infer_ctxt),
             infer_ctxt,
             diverging_type_vars: FxHashSet::default(),
+            trait_errors: Vec::new(),
         }
     }
 
@@ -320,15 +324,18 @@ impl<'db> InferenceTable<'db> {
     /// In case there is still ambiguity, the returned type may be an inference
     /// variable. This is different from `structurally_resolve_type` which errors
     /// in this case.
-    pub(crate) fn try_structurally_resolve_type(&mut self, ty: Ty<'db>) -> Ty<'db> {
+    pub(crate) fn try_structurally_resolve_type(&mut self, span: Span, ty: Ty<'db>) -> Ty<'db> {
         if let TyKind::Alias(..) = ty.kind() {
             let result = self
                 .infer_ctxt
-                .at(&ObligationCause::misc(), self.param_env)
+                .at(&ObligationCause::new(span), self.param_env)
                 .structurally_normalize_ty(ty, &mut self.fulfillment_cx);
             match result {
                 Ok(normalized_ty) => normalized_ty,
-                Err(_errors) => Ty::new_error(self.interner(), ErrorGuaranteed),
+                Err(errors) => {
+                    self.trait_errors.extend(errors);
+                    Ty::new_error(self.interner(), ErrorGuaranteed)
+                }
             }
         } else {
             self.resolve_vars_with_obligations(ty)
@@ -376,7 +383,8 @@ impl<'db> InferenceTable<'db> {
     }
 
     pub(crate) fn select_obligations_where_possible(&mut self) {
-        self.fulfillment_cx.try_evaluate_obligations(&self.infer_ctxt);
+        let errors = self.fulfillment_cx.try_evaluate_obligations(&self.infer_ctxt);
+        self.trait_errors.extend(errors);
     }
 
     pub(super) fn register_predicate(&mut self, obligation: PredicateObligation<'db>) {
@@ -396,22 +404,18 @@ impl<'db> InferenceTable<'db> {
 
     /// checking later, during regionck, that `arg` is well-formed.
     pub(crate) fn register_wf_obligation(&mut self, term: Term<'db>, cause: ObligationCause) {
-        let _ = (term, cause);
-        // FIXME: We don't currently register an obligation here because we don't implement
-        // wf checking anyway and this function is currently often passed dummy spans, which could
-        // prevent reporting "type annotation needed" errors.
-        // self.register_predicate(Obligation::new(
-        //     self.interner(),
-        //     cause,
-        //     self.param_env,
-        //     ClauseKind::WellFormed(term),
-        // ));
+        self.register_predicate(Obligation::new(
+            self.interner(),
+            cause,
+            self.param_env,
+            ClauseKind::WellFormed(term),
+        ));
     }
 
     /// Registers obligations that all `args` are well-formed.
-    pub(crate) fn add_wf_bounds(&mut self, args: GenericArgs<'db>) {
+    pub(crate) fn add_wf_bounds(&mut self, span: Span, args: GenericArgs<'db>) {
         for term in args.iter().filter_map(|it| it.as_term()) {
-            self.register_wf_obligation(term, ObligationCause::new());
+            self.register_wf_obligation(term, ObligationCause::new(span));
         }
     }
 
@@ -425,7 +429,7 @@ impl<'db> InferenceTable<'db> {
     /// Whenever you lower a user-written type, you should call this.
     pub(crate) fn process_user_written_ty(&mut self, span: Span, ty: Ty<'db>) -> Ty<'db> {
         let ty = self.insert_type_vars(ty, span);
-        self.try_structurally_resolve_type(ty)
+        self.try_structurally_resolve_type(span, ty)
     }
 
     /// The difference of this method from `process_user_written_ty()` is that this method doesn't register a well-formed obligation,
@@ -435,8 +439,17 @@ impl<'db> InferenceTable<'db> {
         // See https://github.com/rust-lang/rust/blob/cdb45c87e2cd43495379f7e867e3cc15dcee9f93/compiler/rustc_hir_typeck/src/fn_ctxt/mod.rs#L487-L495:
         // Even though the new solver only lazily normalizes usually, here we eagerly normalize so that not everything needs
         // to normalize before inspecting the `TyKind`.
-        // FIXME(next-solver): We should not deeply normalize here, only shallowly.
-        self.try_structurally_resolve_type(ty)
+        self.try_structurally_resolve_type(Span::Dummy, ty)
+    }
+
+    fn emit_trait_errors(&mut self, diagnostics: &mut ThinVec<InferenceDiagnostic>) {
+        diagnostics.extend(std::mem::take(&mut self.trait_errors).into_iter().filter_map(
+            |error| {
+                let error = error.into_fulfillment_error(&self.infer_ctxt);
+                SolverDiagnostic::from_fulfillment_error(&error)
+                    .map(InferenceDiagnostic::SolverDiagnostic)
+            },
+        ));
     }
 }
 
@@ -460,7 +473,7 @@ pub(super) mod resolve_completely {
 
     use crate::{
         InferenceDiagnostic, Span,
-        infer::{TypeMismatch, unify::InferenceTable},
+        infer::unify::InferenceTable,
         next_solver::{
             Const, ConstKind, DbInterner, DefaultAny, GenericArg, Goal, Predicate, Region, Term,
             TermKind, Ty, TyKind,
@@ -510,14 +523,6 @@ pub(super) mod resolve_completely {
             }
         }
 
-        pub(crate) fn resolve_type_mismatch(&mut self, value_ref: &mut TypeMismatch) {
-            // Ignore diagnostics from type mismatches, which are diagnostics themselves.
-            // FIXME: We should make type mismatches just regular diagnostics.
-            let prev_diagnostics_len = self.diagnostics.len();
-            self.resolve_completely(value_ref);
-            self.diagnostics.truncate(prev_diagnostics_len);
-        }
-
         pub(crate) fn resolve_completely<T>(&mut self, value_ref: &mut T)
         where
             T: TypeFoldable<DbInterner<'db>>,
@@ -542,6 +547,8 @@ pub(super) mod resolve_completely {
 
         pub(crate) fn resolve_diagnostics(mut self) -> (ThinVec<InferenceDiagnostic>, bool) {
             let has_errors = self.has_errors;
+
+            self.table.emit_trait_errors(&mut self.diagnostics);
 
             // Ignore diagnostics made from resolving diagnostics.
             let mut diagnostics = std::mem::take(&mut self.diagnostics);
@@ -700,7 +707,8 @@ pub(super) mod resolve_completely {
             T: Into<Term<'db>> + TypeSuperFoldable<DbInterner<'db>> + Copy,
         {
             let value = if self.should_normalize {
-                let cause = ObligationCause::new();
+                // FIXME: This should not use a dummy span.
+                let cause = ObligationCause::new(Span::Dummy);
                 let at = self.ctx.table.at(&cause);
                 let universes = vec![None; outer_exclusive_binder(value).as_usize()];
                 match deeply_normalize_with_skipped_universes_and_ambiguous_coroutine_goals(
@@ -710,8 +718,8 @@ pub(super) mod resolve_completely {
                         self.nested_goals.extend(goals);
                         value
                     }
-                    Err(_errors) => {
-                        // FIXME: Report the error.
+                    Err(errors) => {
+                        self.ctx.table.trait_errors.extend(errors);
                         value
                     }
                 }

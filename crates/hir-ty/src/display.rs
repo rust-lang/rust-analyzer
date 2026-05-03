@@ -59,8 +59,8 @@ use crate::{
     next_solver::{
         AliasTy, Allocation, Clause, ClauseKind, Const, ConstKind, DbInterner,
         ExistentialPredicate, FnSig, GenericArg, GenericArgKind, GenericArgs, ParamEnv, PolyFnSig,
-        Region, SolverDefId, StoredEarlyBinder, StoredTy, Term, TermKind, TraitRef, Ty, TyKind,
-        TypingMode, ValTree,
+        Region, SolverDefId, StoredEarlyBinder, StoredTy, Term, TermKind, TraitPredicate, TraitRef,
+        Ty, TyKind, TypingMode, ValTree,
         abi::Safety,
         infer::{DbInternerInferExt, traits::ObligationCause},
     },
@@ -771,7 +771,7 @@ fn render_const_scalar<'db>(
 ) -> Result {
     let param_env = ParamEnv::empty();
     let infcx = f.interner.infer_ctxt().build(TypingMode::PostAnalysis);
-    let ty = infcx.at(&ObligationCause::new(), param_env).deeply_normalize(ty).unwrap_or(ty);
+    let ty = infcx.at(&ObligationCause::dummy(), param_env).deeply_normalize(ty).unwrap_or(ty);
     render_const_scalar_inner(f, b, memory_map, ty, param_env)
 }
 
@@ -1056,7 +1056,7 @@ fn render_const_scalar_from_valtree<'db>(
 ) -> Result {
     let param_env = ParamEnv::empty();
     let infcx = f.interner.infer_ctxt().build(TypingMode::PostAnalysis);
-    let ty = infcx.at(&ObligationCause::new(), param_env).deeply_normalize(ty).unwrap_or(ty);
+    let ty = infcx.at(&ObligationCause::dummy(), param_env).deeply_normalize(ty).unwrap_or(ty);
     render_const_scalar_from_valtree_inner(f, ty, valtree, param_env)
 }
 
@@ -2272,6 +2272,23 @@ impl<'db> HirDisplay<'db> for TraitRef<'db> {
         f.end_location_link();
         let substs = self.args.as_slice();
         hir_fmt_generic_args(f, &substs[1..], None, Some(self.self_ty()))
+    }
+}
+
+impl<'db> HirDisplay<'db> for TraitPredicate<'db> {
+    fn hir_fmt(&self, f: &mut HirFormatter<'_, 'db>) -> Result {
+        self.self_ty().hir_fmt(f)?;
+        f.write_str(": ")?;
+        match self.polarity {
+            rustc_type_ir::PredicatePolarity::Positive => {}
+            rustc_type_ir::PredicatePolarity::Negative => f.write_char('!')?,
+        }
+        let trait_ = self.def_id().0;
+        f.start_location_link(trait_.into());
+        write!(f, "{}", TraitSignature::of(f.db, trait_).name.display(f.db, f.edition()))?;
+        f.end_location_link();
+        let substs = &self.trait_ref.args[1..];
+        hir_fmt_generic_args(f, substs, None, None)
     }
 }
 

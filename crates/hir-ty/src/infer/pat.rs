@@ -29,7 +29,7 @@ use crate::{
     BindingMode, InferenceDiagnostic, Span,
     infer::{
         AllowTwoPhase, ByRef, Expectation, InferenceContext, PatAdjust, PatAdjustment,
-        TypeMismatch, expr::ExprIsRead,
+        expr::ExprIsRead,
     },
     next_solver::{
         Const, TraitRef, Ty, TyKind, Tys,
@@ -309,7 +309,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             Pat::TupleStruct { path, .. } => Some(self.resolve_tuple_struct_pat(pat_id, path)),
             _ => None,
         };
-        let adjust_mode = self.calc_adjust_mode(pat, opt_path_res);
+        let adjust_mode = self.calc_adjust_mode(pat_id, pat, opt_path_res);
         let ty = self.infer_pat_inner(pat_id, opt_path_res, adjust_mode, expected, pat_info);
         let ty = self.insert_type_vars_shallow(ty);
         self.write_pat_ty(pat_id, ty);
@@ -320,6 +320,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             && derefed_tys.iter().any(|adjust| adjust.kind == PatAdjust::OverloadedDeref)
         {
             let infer_ok = self.register_deref_mut_bounds_if_needed(
+                pat_id,
                 pat_id,
                 derefed_tys.iter().filter_map(|adjust| match adjust.kind {
                     PatAdjust::OverloadedDeref => Some(adjust.source.as_ref()),
@@ -393,7 +394,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         let expected = if let AdjustMode::Peel { .. } = adjust_mode
             && pat_info.pat_origin.default_binding_modes()
         {
-            self.table.try_structurally_resolve_type(expected)
+            self.table.try_structurally_resolve_type(pat.into(), expected)
         } else {
             expected
         };
@@ -432,7 +433,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
 
                 // The scrutinee is a smart pointer; implicitly dereference it. This adds a
                 // requirement that `expected: DerefPure`.
-                let inner_ty = self.deref_pat_target(expected);
+                let inner_ty = self.deref_pat_target(pat, expected);
                 // Once we've checked `pat`, we'll add a `DerefMut` bound if it contains any
                 // `ref mut` bindings. See `Self::register_deref_mut_bounds_if_needed`.
 
@@ -604,6 +605,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
     /// When the pattern contains a path, `opt_path_res` must be `Some(path_res)`.
     fn calc_adjust_mode(
         &mut self,
+        pat_id: PatId,
         pat: &Pat,
         opt_path_res: Option<Result<ResolvedPat<'db>, ()>>,
     ) -> AdjustMode {
@@ -640,7 +642,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                     let mut peeled_ty = lit_ty;
                     let mut pat_ref_layers = 0;
                     while let TyKind::Ref(_, inner_ty, mutbl) =
-                        self.table.try_structurally_resolve_type(peeled_ty).kind()
+                        self.table.try_structurally_resolve_type(pat_id.into(), peeled_ty).kind()
                     {
                         // We rely on references at the head of constants being immutable.
                         debug_assert!(mutbl.is_not());
@@ -763,7 +765,10 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
             match expected.kind() {
                 // Allow `b"...": &[u8]`
                 TyKind::Ref(_, inner_ty, _)
-                    if self.table.try_structurally_resolve_type(inner_ty).is_slice() =>
+                    if self
+                        .table
+                        .try_structurally_resolve_type(expr.into(), inner_ty)
+                        .is_slice() =>
                 {
                     trace!(?expr, "polymorphic byte string lit");
                     pat_ty = self.types.types.static_u8_slice;
@@ -788,7 +793,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // string literal patterns to have type `str`. This is accounted for when lowering to MIR.
         if self.features.deref_patterns
             && matches!(literal, Literal::String(_))
-            && self.table.try_structurally_resolve_type(expected).is_str()
+            && self.table.try_structurally_resolve_type(expr.into(), expected).is_str()
         {
             pat_ty = self.types.types.str;
         }
@@ -825,7 +830,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 // be peeled to `str` while ty here is still `&str`, if we don't
                 // err early here, a rather confusing unification error will be
                 // emitted instead).
-                let ty = self.table.try_structurally_resolve_type(ty);
+                let ty = self.table.try_structurally_resolve_type(expr.into(), ty);
                 let fail =
                     !(ty.is_numeric() || ty.is_char() || ty.is_ty_var() || ty.references_error());
                 Some((fail, ty, expr))
@@ -1118,7 +1123,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         let pat_ty = Ty::new(interner, TyKind::Tuple(element_tys));
         if self.demand_eqtype(pat.into(), expected, pat_ty).is_err() {
             let expected = if let TyKind::Tuple(tys) =
-                self.table.try_structurally_resolve_type(expected).kind()
+                self.table.try_structurally_resolve_type(Span::Dummy, expected).kind()
             {
                 for (expected_var, found) in iter::zip(element_tys, tys) {
                     // Constrain the infer var so that the type mismatch error message, which contains it,
@@ -1265,15 +1270,21 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         box_ty
     }
 
-    fn _infer_deref_pat(&mut self, inner: PatId, expected: Ty<'db>, pat_info: PatInfo) -> Ty<'db> {
-        let target_ty = self.deref_pat_target(expected);
+    fn _infer_deref_pat(
+        &mut self,
+        pat: PatId,
+        inner: PatId,
+        expected: Ty<'db>,
+        pat_info: PatInfo,
+    ) -> Ty<'db> {
+        let target_ty = self.deref_pat_target(pat, expected);
         self.infer_pat(inner, target_ty, pat_info);
-        let infer_ok = self.register_deref_mut_bounds_if_needed(inner, [expected]);
+        let infer_ok = self.register_deref_mut_bounds_if_needed(pat, inner, [expected]);
         self.table.register_infer_ok(infer_ok);
         expected
     }
 
-    fn deref_pat_target(&mut self, source_ty: Ty<'db>) -> Ty<'db> {
+    fn deref_pat_target(&mut self, pat: PatId, source_ty: Ty<'db>) -> Ty<'db> {
         let (Some(deref_pure), Some(deref_target)) =
             (self.lang_items.DerefPure, self.lang_items.DerefTarget)
         else {
@@ -1281,10 +1292,10 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         };
         // Register a `DerefPure` bound, which is required by all `deref!()` pats.
         let interner = self.interner();
-        self.table.register_bound(source_ty, deref_pure, ObligationCause::new());
+        self.table.register_bound(source_ty, deref_pure, ObligationCause::new(pat));
         // The expected type for the deref pat's inner pattern is `<expected as Deref>::Target`.
         let target_ty = Ty::new_projection(interner, deref_target.into(), [source_ty]);
-        self.table.try_structurally_resolve_type(target_ty)
+        self.table.try_structurally_resolve_type(pat.into(), target_ty)
     }
 
     /// Check if the interior of a deref pattern (either explicit or implicit) has any `ref mut`
@@ -1293,6 +1304,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
     /// account for `ref mut` binding modes inherited from implicitly dereferencing `&mut` refs.
     fn register_deref_mut_bounds_if_needed(
         &self,
+        pat: PatId,
         inner: PatId,
         derefed_tys: impl IntoIterator<Item = Ty<'db>>,
     ) -> InferOk<'db, ()> {
@@ -1303,7 +1315,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
             for mutably_derefed_ty in derefed_tys {
                 infer_ok.obligations.push(Obligation::new(
                     interner,
-                    ObligationCause::new(),
+                    ObligationCause::new(pat),
                     self.table.param_env,
                     TraitRef::new(interner, deref_mut.into(), [mutably_derefed_ty]),
                 ));
@@ -1350,7 +1362,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
             pat_info.max_ref_mutbl = pat_info.max_ref_mutbl.cap_to_weakly_not();
         }
 
-        expected = self.table.try_structurally_resolve_type(expected);
+        expected = self.table.try_structurally_resolve_type(pat.into(), expected);
         // Determine whether we're consuming an inherited reference and resetting the default
         // binding mode, based on edition and enabled experimental features.
         if let ByRef::Yes(inh_mut) = pat_info.binding_mode {
@@ -1574,7 +1586,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         expected: Ty<'db>,
         pat_info: PatInfo,
     ) -> Ty<'db> {
-        let expected = self.table.try_structurally_resolve_type(expected);
+        let expected = self.table.try_structurally_resolve_type(pat.into(), expected);
 
         // If the pattern is irrefutable and `expected` is an infer ty, we try to equate it
         // to an array if the given pattern allows it. See issue #76342
@@ -1693,10 +1705,7 @@ https://doc.rust-lang.org/reference/types.html#trait-objects";
         match self.coerce(expr, expected, lhs_ty, AllowTwoPhase::No, expr_is_read) {
             Ok(ty) => ty,
             Err(_) => {
-                self.result.type_mismatches.get_or_insert_default().insert(
-                    expr.into(),
-                    TypeMismatch { expected: expected.store(), actual: lhs_ty.store() },
-                );
+                self.emit_type_mismatch(expr.into(), expected, lhs_ty);
                 // `rhs_ty` is returned so no further type mismatches are
                 // reported because of this mismatch.
                 expected

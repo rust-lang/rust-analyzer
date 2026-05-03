@@ -40,7 +40,7 @@ impl<'db> InferenceContext<'_, 'db> {
             };
         let args = self.insert_type_vars(substs, id.into());
 
-        self.add_required_obligations_for_value_path(generic_def, args);
+        self.add_required_obligations_for_value_path(id, generic_def, args);
 
         let ty = self.db.value_ty(value_def)?.instantiate(self.interner(), args);
         let ty = self.process_remote_user_written_ty(ty);
@@ -226,6 +226,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
     pub(super) fn add_required_obligations_for_value_path(
         &mut self,
+        node: ExprOrPatId,
         def: GenericDefId,
         subst: GenericArgs<'db>,
     ) {
@@ -234,7 +235,7 @@ impl<'db> InferenceContext<'_, 'db> {
         let param_env = self.table.param_env;
         self.table.register_predicates(clauses_as_obligations(
             predicates.iter_instantiated(interner, subst.as_slice()),
-            ObligationCause::new(),
+            ObligationCause::new(node),
             param_env,
         ));
     }
@@ -348,7 +349,7 @@ impl<'db> InferenceContext<'_, 'db> {
         name: &Name,
         id: ExprOrPatId,
     ) -> Option<(ValueNs, GenericArgs<'db>)> {
-        let ty = self.table.try_structurally_resolve_type(ty);
+        let ty = self.table.try_structurally_resolve_type(id.into(), ty);
         let (enum_id, subst) = match ty.as_adt() {
             Some((AdtId::EnumId(e), subst)) => (e, subst),
             _ => return None,

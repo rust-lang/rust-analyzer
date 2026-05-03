@@ -90,7 +90,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // autoderef that normal method probing does. They could likely be
         // consolidated.
 
-        let mut autoderef = InferenceContextAutoderef::new_from_inference_context(self, base_ty);
+        let mut autoderef =
+            InferenceContextAutoderef::new_from_inference_context(self, base_ty, base_expr.into());
         let mut result = None;
         while result.is_none() && autoderef.next().is_some() {
             result = Self::try_index_step(expr, base_expr, index_expr, &mut autoderef, idx_ty);
@@ -126,7 +127,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                     let ctx = autoderef.ctx();
                     ctx.table.register_predicate(Obligation::new(
                         ctx.interner(),
-                        ObligationCause::new(),
+                        ObligationCause::new(base_expr),
                         ctx.table.param_env,
                         ClauseKind::ConstArgHasType(ct, ctx.types.types.usize),
                     ));
@@ -206,7 +207,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // opaque types as rigid here to support `impl Deref<Target = impl Index<usize>>`.
         let treat_opaques = TreatNotYetDefinedOpaques::AsInfer;
         self.table.lookup_method_for_operator(
-            ObligationCause::with_span(expr.into()),
+            ObligationCause::new(expr),
             imm_op,
             imm_tr,
             base_ty,
@@ -239,7 +240,7 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
         // of the opaque.
         let treat_opaques = TreatNotYetDefinedOpaques::AsInfer;
         table.lookup_method_for_operator(
-            ObligationCause::with_span(expr.into()),
+            ObligationCause::new(expr),
             mut_op,
             mut_tr,
             base_ty,

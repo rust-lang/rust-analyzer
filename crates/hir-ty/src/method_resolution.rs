@@ -256,7 +256,7 @@ impl<'db> InferenceTable<'db> {
 
         let obligation = Obligation::new(
             self.interner(),
-            cause.clone(),
+            cause,
             self.param_env,
             TraitRef::new_from_args(self.interner(), trait_def_id.into(), args),
         );
@@ -316,7 +316,7 @@ impl<'db> InferenceTable<'db> {
         let bounds = GenericPredicates::query_all(self.db, method_item.into());
         let bounds = clauses_as_obligations(
             bounds.iter_instantiated(interner, args.as_slice()),
-            ObligationCause::new(),
+            cause,
             self.param_env,
         );
 
@@ -330,7 +330,7 @@ impl<'db> InferenceTable<'db> {
         for ty in fn_sig.inputs_and_output {
             obligations.push(Obligation::new(
                 interner,
-                obligation.cause.clone(),
+                obligation.cause,
                 self.param_env,
                 Binder::dummy(PredicateKind::Clause(ClauseKind::WellFormed(ty.into()))),
             ));

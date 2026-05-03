@@ -1062,7 +1062,7 @@ impl FooTrait for S2 {
     fn no_false_positive_on_format_args_since_1_89_0() {
         check_diagnostics(
             r#"
-//- minicore: fmt
+//- minicore: fmt, builtin_impls
 fn test() {
     let foo = 10;
     let bar = true;

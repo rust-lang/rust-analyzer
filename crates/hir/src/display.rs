@@ -30,8 +30,8 @@ use rustc_type_ir::inherent::IntoKind;
 use crate::{
     Adt, AnyFunctionId, AsAssocItem, AssocItem, AssocItemContainer, Const, ConstParam, Crate, Enum,
     EnumVariant, ExternCrateDecl, Field, Function, GenericParam, HasCrate, HasVisibility, Impl,
-    LifetimeParam, Macro, Module, SelfParam, Static, Struct, StructKind, Trait, TraitRef,
-    TupleField, Type, TypeAlias, TypeNs, TypeOrConstParam, TypeParam, Union,
+    LifetimeParam, Macro, Module, SelfParam, Static, Struct, StructKind, Trait, TraitPredicate,
+    TraitRef, TupleField, Type, TypeAlias, TypeNs, TypeOrConstParam, TypeParam, Union,
 };
 
 fn write_builtin_derive_impl_method<'db>(
@@ -850,6 +850,12 @@ impl<'db> HirDisplay<'db> for Static {
 impl<'db> HirDisplay<'db> for TraitRef<'db> {
     fn hir_fmt(&self, f: &mut HirFormatter<'_, 'db>) -> Result {
         self.trait_ref.hir_fmt(f)
+    }
+}
+
+impl<'db> HirDisplay<'db> for TraitPredicate<'db> {
+    fn hir_fmt(&self, f: &mut HirFormatter<'_, 'db>) -> Result {
+        self.inner.hir_fmt(f)
     }
 }
 

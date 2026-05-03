@@ -338,7 +338,8 @@ fn str_ref_to_owned(
 #[cfg(test)]
 mod tests {
     use crate::tests::{
-        check_diagnostics, check_diagnostics_with_disabled, check_fix, check_has_fix, check_no_fix,
+        check_diagnostics, check_diagnostics_with_disabled, check_fix, check_fix_with_disabled,
+        check_has_fix, check_no_fix,
     };
 
     #[test]
@@ -755,7 +756,7 @@ fn foo() -> Result<(), ()> {
 
     #[test]
     fn wrapped_unit_as_return_expr() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: result
 fn foo(b: bool) -> Result<(), String> {
@@ -773,6 +774,7 @@ fn foo(b: bool) -> Result<(), String> {
 
     Err("oh dear".to_owned())
 }"#,
+            &["E0599"],
         );
     }
 
@@ -822,7 +824,7 @@ fn foo() -> SomeOtherEnum { 0$0 }
 
     #[test]
     fn unwrap_return_type() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: option, result
 fn div(x: i32, y: i32) -> i32 {
@@ -840,6 +842,7 @@ fn div(x: i32, y: i32) -> i32 {
     x / y
 }
 "#,
+            &["E0282"],
         );
     }
 
@@ -897,7 +900,7 @@ fn div(x: i32, y: i32) -> i32 {
 
     #[test]
     fn unwrap_return_type_option_tail_unit() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: option, result
 fn div(x: i32, y: i32) {
@@ -915,12 +918,13 @@ fn div(x: i32, y: i32) {
     }
 }
 "#,
+            &["E0282"],
         );
     }
 
     #[test]
     fn unwrap_return_type_handles_generic_functions() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: option, result
 fn div<T>(x: T) -> T {
@@ -938,12 +942,13 @@ fn div<T>(x: T) -> T {
     x
 }
 "#,
+            &["E0282"],
         );
     }
 
     #[test]
     fn unwrap_return_type_handles_type_aliases() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: option, result
 type MyResult<T> = T;
@@ -965,12 +970,13 @@ fn div(x: i32, y: i32) -> MyResult<i32> {
     x / y
 }
 "#,
+            &["E0282"],
         );
     }
 
     #[test]
     fn unwrap_tail_expr() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: result
 fn foo() -> () {
@@ -983,12 +989,13 @@ fn foo() -> () {
     println!("Hello, world!");
 }
             "#,
+            &["E0282"],
         );
     }
 
     #[test]
     fn unwrap_to_empty_block() {
-        check_fix(
+        check_fix_with_disabled(
             r#"
 //- minicore: result
 fn foo() -> () {
@@ -998,6 +1005,7 @@ fn foo() -> () {
             r#"
 fn foo() -> () {}
             "#,
+            &["E0282"],
         );
     }
 
@@ -1341,6 +1349,7 @@ pub fn foo<T: Foo>(_: T) -> (T::Out,) { loop { } }
 fn main() {
     let _x = foo(2);
      // ^^ error: type annotations needed
+          // ^^^ error: the trait bound `i32: Foo` is not satisfied
 }
 "#,
         );

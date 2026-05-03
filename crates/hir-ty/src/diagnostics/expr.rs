@@ -182,7 +182,7 @@ impl<'db> ExprValidator<'db> {
         }
         // Check that the number of arguments matches the number of parameters.
 
-        if self.infer.expr_type_mismatches().next().is_some() {
+        if self.infer.exprs_have_type_mismatches() {
             // FIXME: Due to shortcomings in the current type system implementation, only emit
             // this diagnostic if there are no type mismatches in the containing function.
         } else if let Expr::MethodCall { receiver, .. } = expr {
@@ -355,7 +355,7 @@ impl<'db> ExprValidator<'db> {
         pat: PatId,
         initializer: Option<ExprId>,
     ) -> Option<BodyValidationDiagnostic> {
-        if self.infer.type_mismatch_for_pat(pat).is_some() {
+        if self.infer.pat_has_type_mismatch(pat) {
             return None;
         }
         let initializer = initializer?;
@@ -683,13 +683,13 @@ pub fn record_pattern_missing_fields(
 
 fn types_of_subpatterns_do_match(pat: PatId, body: &Body, infer: &InferenceResult) -> bool {
     fn walk(pat: PatId, body: &Body, infer: &InferenceResult, has_type_mismatches: &mut bool) {
-        match infer.type_mismatch_for_pat(pat) {
-            Some(_) => *has_type_mismatches = true,
-            None if *has_type_mismatches => (),
-            None => {
+        match infer.pat_has_type_mismatch(pat) {
+            true => *has_type_mismatches = true,
+            false if *has_type_mismatches => (),
+            false => {
                 let pat = &body[pat];
                 if let Pat::ConstBlock(expr) | Pat::Lit(expr) = *pat {
-                    *has_type_mismatches |= infer.type_mismatch_for_expr(expr).is_some();
+                    *has_type_mismatches |= infer.expr_has_type_mismatch(expr);
                     if *has_type_mismatches {
                         return;
                     }
