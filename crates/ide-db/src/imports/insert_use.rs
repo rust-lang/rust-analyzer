@@ -548,14 +548,22 @@ fn insert_use_with_editor_(
     } else {
         match l_curly {
             Some(b) => {
-                cov_mark::hit!(insert_empty_module);
+                let close_ws = if let Some(next) = syntax::algo::next_non_trivia_token(b.clone())
+                    && next.kind() == SyntaxKind::R_CURLY
+                {
+                    cov_mark::hit!(insert_empty_module);
+                    newline("\n", scope_syntax)
+                } else {
+                    cov_mark::hit!(insert_first_of_module);
+                    make.whitespace("\n")
+                };
                 let indent = IndentLevel::from_node(scope_syntax) + 1;
                 syntax_editor.insert_all(
                     Position::after(&b),
                     vec![
                         make.whitespace(&format!("\n{indent}")).into(),
                         use_item.syntax().clone().into(),
-                        newline("\n", scope_syntax).into(),
+                        close_ws.into(),
                     ],
                 );
             }

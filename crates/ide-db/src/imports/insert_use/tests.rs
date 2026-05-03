@@ -76,6 +76,27 @@ mod tests {
 }
 "#,
     );
+
+    cov_mark::check!(insert_first_of_module);
+    check_none(
+        "baz::Baz",
+        r#"
+mod foo {
+    mod bar {
+        const _: Baz$0 = ();
+    }
+}
+"#,
+        r#"
+mod foo {
+    mod bar {
+        use baz::Baz;
+
+        const _: Baz = ();
+    }
+}
+"#,
+    );
 }
 
 #[test]
@@ -609,6 +630,7 @@ fn main() {}",
 
 #[test]
 fn inserts_after_single_line_inner_comments() {
+    cov_mark::check_count!(insert_empty_inner_attr, 2);
     check_none(
         "foo::bar::Baz",
         "//! Single line inner comments do not allow any code before them.",
