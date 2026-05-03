@@ -6,12 +6,13 @@
 use std::iter;
 
 use either::Either;
-use hir_def::{DefWithBodyId, ExpressionStoreOwnerId, HasModule};
+use hir_def::HasModule;
 use la_arena::ArenaMap;
 use rustc_hash::FxHashMap;
 use stdx::never;
 
 use crate::{
+    InferBodyId,
     closure_analysis::ProjectionKind as HirProjectionKind,
     db::{HirDatabase, InternedClosureId},
     display::DisplayTarget,
@@ -57,7 +58,7 @@ pub struct BorrowRegion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BorrowckResult {
-    owner: Either<DefWithBodyId, InternedClosureId>,
+    owner: Either<InferBodyId, InternedClosureId>,
     pub mutability_of_locals: ArenaMap<LocalId, MutabilityReason>,
     pub moved_out_of_ref: Vec<MovedOutOfRef>,
     pub partially_moved: Vec<PartiallyMoved>,
@@ -75,8 +76,8 @@ impl BorrowckResult {
 
 fn all_mir_bodies<'db>(
     db: &'db dyn HirDatabase,
-    def: DefWithBodyId,
-    mut cb: impl FnMut(&'db MirBody, Either<DefWithBodyId, InternedClosureId>) -> BorrowckResult,
+    def: InferBodyId,
+    mut cb: impl FnMut(&'db MirBody, Either<InferBodyId, InternedClosureId>) -> BorrowckResult,
     mut merge_from_closures: impl FnMut(
         (&mut BorrowckResult, &'db MirBody),
         (&BorrowckResult, &'db MirBody),
@@ -86,7 +87,7 @@ fn all_mir_bodies<'db>(
         db: &'db dyn HirDatabase,
         c: InternedClosureId,
         results: &mut Vec<(BorrowckResult, &'db MirBody)>,
-        cb: &mut impl FnMut(&'db MirBody, Either<DefWithBodyId, InternedClosureId>) -> BorrowckResult,
+        cb: &mut impl FnMut(&'db MirBody, Either<InferBodyId, InternedClosureId>) -> BorrowckResult,
         merge_from_closures: &mut impl FnMut(
             (&mut BorrowckResult, &'db MirBody),
             (&BorrowckResult, &'db MirBody),
@@ -135,12 +136,12 @@ fn all_mir_bodies<'db>(
 #[salsa_macros::tracked(returns(ref), lru = 2024)]
 pub fn borrowck_query(
     db: &dyn HirDatabase,
-    def: DefWithBodyId,
+    def: InferBodyId,
 ) -> Result<Box<[BorrowckResult]>, MirLowerError> {
     let _p = tracing::info_span!("borrowck_query").entered();
     let module = def.module(db);
     let interner = DbInterner::new_with(db, module.krate(db));
-    let env = db.trait_environment(ExpressionStoreOwnerId::from(def));
+    let env = db.trait_environment(def.expression_store_owner(db));
     // This calculates opaques defining scope which is a bit costly therefore is put outside `all_mir_bodies()`.
     let typing_mode = TypingMode::borrowck(interner, def.into());
     let res = all_mir_bodies(

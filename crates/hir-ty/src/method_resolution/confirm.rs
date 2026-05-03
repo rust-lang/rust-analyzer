@@ -403,7 +403,7 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                             unreachable!("non-const param ID for const param");
                         };
                         let const_ty = self.ctx.db.const_param_ty(const_id);
-                        self.ctx.make_body_const(*konst, const_ty).into()
+                        self.ctx.create_body_anon_const(konst.expr, const_ty, false).into()
                     }
                     _ => unreachable!("unmatching param kinds were passed to `provided_kind()`"),
                 }
@@ -411,14 +411,12 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
 
             fn provided_type_like_const(
                 &mut self,
-                type_ref: TypeRefId,
-                const_ty: Ty<'db>,
+                _type_ref: TypeRefId,
+                _const_ty: Ty<'db>,
                 arg: TypeLikeConst<'_>,
             ) -> Const<'db> {
                 match arg {
-                    TypeLikeConst::Path(path) => {
-                        self.ctx.make_path_as_body_const(type_ref, path, const_ty)
-                    }
+                    TypeLikeConst::Path(path) => self.ctx.make_path_as_body_const(path),
                     TypeLikeConst::Infer => self.ctx.table.next_const_var(Span::Dummy),
                 }
             }
@@ -428,12 +426,15 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
                 _def: GenericDefId,
                 param_id: GenericParamId,
                 _param: GenericParamDataRef<'_>,
-                _infer_args: bool,
+                infer_args: bool,
                 _preceding_args: &[GenericArg<'db>],
+                had_count_error: bool,
             ) -> GenericArg<'db> {
                 // Always create an inference var, even when `infer_args == false`. This helps with diagnostics,
                 // and I think it's also required in the presence of `impl Trait` (that must be inferred).
-                self.ctx.table.var_for_def(param_id, Span::Dummy)
+                let span =
+                    if !infer_args || had_count_error { Span::Dummy } else { self.expr.into() };
+                self.ctx.table.var_for_def(param_id, span)
             }
 
             fn parent_arg(&mut self, param_idx: u32, _param_id: GenericParamId) -> GenericArg<'db> {

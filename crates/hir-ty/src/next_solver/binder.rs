@@ -4,8 +4,9 @@ use macros::{TypeFoldable, TypeVisitable};
 use crate::{
     FnAbi,
     next_solver::{
-        Binder, Clauses, DbInterner, EarlyBinder, FnSig, PolyFnSig, StoredBoundVarKinds,
-        StoredClauses, StoredGenericArgs, StoredTy, StoredTys, TraitRef, Ty, abi::Safety,
+        Binder, Clauses, DbInterner, EarlyBinder, FnSig, GenericArg, PolyFnSig,
+        StoredBoundVarKinds, StoredClauses, StoredGenericArg, StoredGenericArgs, StoredTy,
+        StoredTys, TraitRef, Ty, abi::Safety,
     },
 };
 
@@ -41,10 +42,31 @@ impl StoredEarlyBinder<StoredTy> {
     }
 }
 
+impl StoredEarlyBinder<StoredGenericArg> {
+    #[inline]
+    pub fn get<'db>(&self) -> EarlyBinder<'db, GenericArg<'db>> {
+        self.get_with(|it| it.as_ref())
+    }
+}
+
 impl StoredEarlyBinder<StoredClauses> {
     #[inline]
     pub fn get<'db>(&self) -> EarlyBinder<'db, Clauses<'db>> {
         self.get_with(|it| it.as_ref())
+    }
+}
+
+impl StoredEarlyBinder<StoredPolyFnSig> {
+    #[inline]
+    pub fn get<'db>(&'db self) -> EarlyBinder<'db, PolyFnSig<'db>> {
+        self.get_with(|it| it.get())
+    }
+}
+
+impl StoredEarlyBinder<StoredTraitRef> {
+    #[inline]
+    pub fn get<'db>(&'db self, interner: DbInterner<'db>) -> EarlyBinder<'db, TraitRef<'db>> {
+        self.get_with(|it| it.get(interner))
     }
 }
 

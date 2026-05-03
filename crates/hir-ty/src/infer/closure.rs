@@ -22,8 +22,8 @@ use crate::{
     db::{InternedClosure, InternedClosureId, InternedCoroutineClosureId, InternedCoroutineId},
     infer::{BreakableKind, Diverges, coerce::CoerceMany, pat::PatOrigin},
     next_solver::{
-        AliasTy, Binder, ClauseKind, DbInterner, ErrorGuaranteed, FnSig, GenericArg, GenericArgs,
-        PolyFnSig, PolyProjectionPredicate, Predicate, PredicateKind, SolverDefId, Ty, TyKind,
+        AliasTy, Binder, ClauseKind, DbInterner, ErrorGuaranteed, FnSig, GenericArg, PolyFnSig,
+        PolyProjectionPredicate, Predicate, PredicateKind, SolverDefId, Ty, TyKind,
         abi::Safety,
         infer::{
             BoundRegionConversionTime, InferOk, InferResult,
@@ -78,7 +78,7 @@ impl<'db> InferenceContext<'_, 'db> {
         // It's always helpful for inference if we know the kind of
         // closure sooner rather than later, so first examine the expected
         // type, and see if can glean a closure kind from there.
-        let (expected_sig, expected_kind) = match expected.to_option(&mut self.table) {
+        let (expected_sig, expected_kind) = match expected.to_option(&self.table) {
             Some(ty) => {
                 let ty = self.table.try_structurally_resolve_type(closure_expr.into(), ty);
                 self.deduce_closure_signature(closure_expr, ty, closure_kind)
@@ -91,7 +91,7 @@ impl<'db> InferenceContext<'_, 'db> {
 
         debug!(?bound_sig, ?liberated_sig);
 
-        let parent_args = GenericArgs::identity_for_item(interner, self.generic_def.into());
+        let parent_args = self.identity_args();
 
         let tupled_upvars_ty = self.table.next_ty_var(closure_expr.into());
 

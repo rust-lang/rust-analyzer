@@ -431,13 +431,12 @@ impl<'db> InferCtxt<'db> {
         ))
     }
 
-    pub(crate) fn insert_type_vars<T>(&self, ty: T, span: Span) -> T
+    pub(crate) fn insert_type_vars<T>(&self, ty: T) -> T
     where
         T: TypeFoldable<DbInterner<'db>>,
     {
         struct Folder<'a, 'db> {
             infcx: &'a InferCtxt<'db>,
-            span: Span,
         }
         impl<'db> TypeFolder<DbInterner<'db>> for Folder<'_, 'db> {
             fn cx(&self) -> DbInterner<'db> {
@@ -450,7 +449,7 @@ impl<'db> InferCtxt<'db> {
                 }
 
                 if ty.is_ty_error() {
-                    self.infcx.next_ty_var(self.span)
+                    self.infcx.next_ty_var(Span::Dummy)
                 } else {
                     ty.super_fold_with(self)
                 }
@@ -462,18 +461,18 @@ impl<'db> InferCtxt<'db> {
                 }
 
                 if ct.is_ct_error() {
-                    self.infcx.next_const_var(self.span)
+                    self.infcx.next_const_var(Span::Dummy)
                 } else {
                     ct.super_fold_with(self)
                 }
             }
 
             fn fold_region(&mut self, r: Region<'db>) -> Region<'db> {
-                if r.is_error() { self.infcx.next_region_var(self.span) } else { r }
+                if r.is_error() { self.infcx.next_region_var(Span::Dummy) } else { r }
             }
         }
 
-        ty.fold_with(&mut Folder { infcx: self, span })
+        ty.fold_with(&mut Folder { infcx: self })
     }
 
     /// Evaluates whether the predicate can be satisfied in the given

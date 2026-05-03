@@ -208,13 +208,16 @@ fn main() {
 }
 "#,
         );
-        // note: this may break later if we add more consteval. it just needs to be something that our
-        // consteval engine doesn't understand
-        check_assist_not_applicable(
+        check_assist(
             add_explicit_type,
             r#"
 fn main() {
     let $0l = [0.0; unresolved_function(5)];
+}
+"#,
+            r#"
+fn main() {
+    let l: [f64; _] = [0.0; unresolved_function(5)];
 }
 "#,
         );

@@ -1,21 +1,22 @@
 use std::{fmt, ops::ControlFlow};
 
-use hir_def::{GeneralConstId, attrs::AttrFlags};
+use hir_def::attrs::AttrFlags;
 use rustc_next_trait_solver::solve::{GoalEvaluation, SolverDelegateEvalExt};
 use rustc_type_ir::{
     AliasRelationDirection, AliasTermKind, PredicatePolarity,
     error::ExpectedFound,
-    inherent::{IntoKind as _, Ty as _},
+    inherent::IntoKind as _,
     solve::{CandidateSource, Certainty, GoalSource, MaybeCause, NoSolution},
 };
 use tracing::{instrument, trace};
 
 use crate::{
     Span,
+    db::GeneralConstId,
     next_solver::{
-        AliasTerm, AnyImplId, Binder, ClauseKind, Const, ConstKind, DbInterner, EarlyBinder,
-        ErrorGuaranteed, HostEffectPredicate, PolyTraitPredicate, PredicateKind, SolverContext,
-        Term, TraitPredicate, Ty, TyKind, TypeError,
+        AliasTerm, AnyImplId, Binder, ClauseKind, Const, ConstKind, DbInterner,
+        HostEffectPredicate, PolyTraitPredicate, PredicateKind, SolverContext, Term,
+        TraitPredicate, Ty, TyKind, TypeError,
         fulfill::NextSolverError,
         infer::{
             InferCtxt,
@@ -144,10 +145,7 @@ fn fulfillment_error_for_no_solution<'db>(
                     let ct_ty = match uv.def.0 {
                         GeneralConstId::ConstId(konst) => db.value_ty(konst.into()).unwrap(),
                         GeneralConstId::StaticId(statik) => db.value_ty(statik.into()).unwrap(),
-                        // FIXME: Return the type of the const here.
-                        GeneralConstId::AnonConstId(_) => {
-                            EarlyBinder::bind(Ty::new_error(interner, ErrorGuaranteed))
-                        }
+                        GeneralConstId::AnonConstId(konst) => konst.loc(db).ty.get(),
                     };
                     ct_ty.instantiate(interner, uv.args)
                 }

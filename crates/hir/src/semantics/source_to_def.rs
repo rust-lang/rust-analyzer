@@ -114,7 +114,10 @@ use syntax::{
 };
 use tt::TextRange;
 
-use crate::{InFile, InlineAsmOperand, db::HirDatabase, semantics::child_by_source::ChildBySource};
+use crate::{
+    InFile, InlineAsmOperand, SemanticsImpl, db::HirDatabase,
+    semantics::child_by_source::ChildBySource,
+};
 
 #[derive(Default)]
 pub(super) struct SourceToDefCache<'db> {
@@ -345,14 +348,16 @@ impl SourceToDefCtx<'_, '_> {
     pub(super) fn bind_pat_to_def(
         &mut self,
         src: InFile<&ast::IdentPat>,
-    ) -> Option<(ExpressionStoreOwnerId, BindingId)> {
+        semantics: &SemanticsImpl<'_>,
+    ) -> Option<crate::Local> {
         let container = self.find_container(src.syntax_ref())?.as_expression_store_owner()?;
         let (store, source_map) = ExpressionStore::with_source_map(self.db, container);
         let src = src.cloned().map(ast::Pat::from);
         let pat_id = source_map.node_pat(src.as_ref())?;
         // the pattern could resolve to a constant, verify that this is not the case
         if let crate::Pat::Bind { id, .. } = store[pat_id.as_pat()?] {
-            Some((container, id))
+            let parent_infer = semantics.infer_body_for_expr_or_pat(container, store, pat_id)?;
+            Some(crate::Local { parent: container, parent_infer, binding_id: id })
         } else {
             None
         }

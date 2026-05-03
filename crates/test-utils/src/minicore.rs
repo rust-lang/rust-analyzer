@@ -1961,7 +1961,7 @@ pub mod iter {
             pub struct Iter<'a, T> {
                 slice: &'a [T],
             }
-            impl<'a, T> IntoIterator for &'a [T; N] {
+            impl<'a, T, const N: usize> IntoIterator for &'a [T; N] {
                 type Item = &'a T;
                 type IntoIter = Iter<'a, T>;
                 fn into_iter(self) -> Self::IntoIter {

@@ -39,7 +39,7 @@ type PendingObligations<'db> =
 ///
 /// It is also likely that we want to use slightly different datastructures
 /// here as this will have to deal with far more root goals than `evaluate_all`.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FulfillmentCtxt<'db> {
     obligations: ObligationStorage<'db>,
 

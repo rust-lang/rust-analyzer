@@ -10,7 +10,7 @@ use rustc_type_ir::inherent::Ty as _;
 use syntax::ast;
 
 use crate::{
-    ImplTraitId, InferenceResult, Span,
+    ImplTraitId, InferBodyId, InferenceResult,
     db::{HirDatabase, InternedOpaqueTyId},
     lower::{ImplTraitIdx, ImplTraits},
     next_solver::{
@@ -22,10 +22,10 @@ use crate::{
 
 pub(crate) fn opaque_types_defined_by(
     db: &dyn HirDatabase,
-    def_id: DefWithBodyId,
+    def_id: InferBodyId,
     result: &mut Vec<SolverDefId>,
 ) {
-    if let DefWithBodyId::FunctionId(func) = def_id {
+    if let Some(func) = def_id.as_function() {
         // A function may define its own RPITs.
         extend_with_opaques(
             db,
@@ -66,9 +66,15 @@ pub(crate) fn opaque_types_defined_by(
         _ => {}
     };
     match def_id {
-        DefWithBodyId::ConstId(id) => extend_with_atpit_from_container(id.loc(db).container),
-        DefWithBodyId::FunctionId(id) => extend_with_atpit_from_container(id.loc(db).container),
-        DefWithBodyId::StaticId(_) | DefWithBodyId::VariantId(_) => {}
+        InferBodyId::DefWithBodyId(DefWithBodyId::ConstId(id)) => {
+            extend_with_atpit_from_container(id.loc(db).container)
+        }
+        InferBodyId::DefWithBodyId(DefWithBodyId::FunctionId(id)) => {
+            extend_with_atpit_from_container(id.loc(db).container)
+        }
+        InferBodyId::DefWithBodyId(DefWithBodyId::StaticId(_))
+        | InferBodyId::DefWithBodyId(DefWithBodyId::VariantId(_))
+        | InferBodyId::AnonConstId(_) => {}
     }
 
     // FIXME: Collect opaques from `#[define_opaque]`.
@@ -140,7 +146,7 @@ pub(crate) fn tait_hidden_types<'db>(
             }
             // In the presence of errors, we attempt to create a unified type from all
             // types. rustc doesn't do that, but this should improve the experience.
-            let hidden_type = infcx.insert_type_vars(hidden_type.as_ref(), Span::Dummy);
+            let hidden_type = infcx.insert_type_vars(hidden_type.as_ref());
             match result.entry(opaque_idx) {
                 la_arena::Entry::Vacant(entry) => {
                     entry.insert(StoredEarlyBinder::bind(hidden_type.store()));

@@ -218,8 +218,7 @@ impl<'a> PathTransform<'a> {
                     }
                 }
                 (Either::Left(k), None) => {
-                    if let Some(default) =
-                        k.default(db, target_module.krate(db).to_display_target(db))
+                    if let Some(default) = k.default_source_code(db, target_module)
                         && let Some(default) = default.expr()
                     {
                         const_substs.insert(k, default.syntax().clone());

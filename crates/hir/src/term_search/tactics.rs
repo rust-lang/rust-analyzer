@@ -53,7 +53,7 @@ pub(super) fn trivial<'a, 'lt, 'db, DB: HirDatabase>(
             ScopeDef::GenericParam(GenericParam::ConstParam(it)) => Some(Expr::ConstParam(*it)),
             ScopeDef::Local(it) => {
                 if ctx.config.enable_borrowcheck {
-                    let borrowck = db.borrowck(it.parent.as_def_with_body()?).ok()?;
+                    let borrowck = db.borrowck(it.parent_infer).ok()?;
 
                     let invalid = borrowck.iter().any(|b| {
                         let mir_body = b.mir_body(ctx.sema.db);

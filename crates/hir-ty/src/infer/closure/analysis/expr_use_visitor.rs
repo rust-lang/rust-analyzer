@@ -655,7 +655,7 @@ impl<'a, 'b, 'db, D: Delegate<'db>> ExprUseVisitor<'a, 'b, 'db, D> {
                 self.walk_expr(value)?;
                 let expr_place = self.cat_expr(value)?;
                 let update_guard =
-                    self.cx.resolver.update_to_inner_scope(self.cx.db, self.cx.owner, expr);
+                    self.cx.resolver.update_to_inner_scope(self.cx.db, self.cx.store_owner, expr);
                 self.walk_pat(expr_place, target, false)?;
                 self.cx.resolver.reset_to_guard(update_guard);
             }
@@ -1308,7 +1308,7 @@ impl<'db, D: Delegate<'db>> ExprUseVisitor<'_, '_, 'db, D> {
 
             Expr::Path(ref path) => {
                 let resolver_guard =
-                    self.cx.resolver.update_to_inner_scope(self.cx.db, self.cx.owner, expr);
+                    self.cx.resolver.update_to_inner_scope(self.cx.db, self.cx.store_owner, expr);
                 let resolution = self.cx.resolver.resolve_path_in_value_ns_fully(
                     self.cx.db,
                     path,

@@ -1240,6 +1240,9 @@ fn infer_array() {
             274..275 'x': [u8; 0]
             287..289 '[]': [u8; 0]
             299..300 'y': [u8; 4]
+            307..308 '2': usize
+            307..310 '2+2': usize
+            309..310 '2': usize
             314..323 '[1,2,3,4]': [u8; 4]
             315..316 '1': u8
             317..318 '2': u8
@@ -1811,8 +1814,6 @@ impl Foo for u8 {
 }
 
 #[test]
-// FIXME
-#[should_panic]
 fn const_eval_in_function_signature() {
     check_types(
         r#"
@@ -2713,7 +2714,7 @@ fn generic_default_depending_on_other_type_arg() {
             83..130 '{     ...2 }; }': ()
             89..91 't1': Thing<u32, fn() -> u32>
             97..99 't2': Thing<u128, fn() -> u128>
-            105..127 'Thing:...1u32 }': Thing<u32, fn() -> {unknown}>
+            105..127 'Thing:...1u32 }': Thing<u32, fn() -> u32>
             121..125 '1u32': u32
         "#]],
     );
@@ -3763,7 +3764,7 @@ fn const_dependent_on_local() {
 fn main() {
     let s = 5;
     let t = [2; s];
-      //^ [i32; _]
+      //^ [i32; {const}]
 }
 "#,
     );
@@ -3999,8 +4000,6 @@ fn main() {
             208..209 'c': u8
             213..214 'a': A
             213..221 'a.into()': [u8; 2]
-            33..34 '2': usize
-            111..112 '3': usize
         "#]],
     );
 }
@@ -4186,14 +4185,14 @@ fn foo() {
             130..153 '{     ...     }': &'? T
             140..147 'loop {}': !
             145..147 '{}': ()
-            207..220 'LazyLock::new': fn new<[u32; _]>() -> LazyLock<[u32; _]>
-            207..222 'LazyLock::new()': LazyLock<[u32; _]>
+            207..220 'LazyLock::new': fn new<[u32; 0]>() -> LazyLock<[u32; 0]>
+            207..222 'LazyLock::new()': LazyLock<[u32; 0]>
             234..285 '{     ...CK); }': ()
-            244..245 '_': &'? [u32; _]
-            248..263 'LazyLock::force': fn force<[u32; _]>(&'? LazyLock<[u32; _]>) -> &'? [u32; _]
-            248..282 'LazyLo..._LOCK)': &'? [u32; _]
-            264..281 '&VALUE...Y_LOCK': &'? LazyLock<[u32; _]>
-            265..281 'VALUES...Y_LOCK': LazyLock<[u32; _]>
+            244..245 '_': &'? [u32; 0]
+            248..263 'LazyLock::force': fn force<[u32; 0]>(&'? LazyLock<[u32; 0]>) -> &'? [u32; 0]
+            248..282 'LazyLo..._LOCK)': &'? [u32; 0]
+            264..281 '&VALUE...Y_LOCK': &'? LazyLock<[u32; 0]>
+            265..281 'VALUES...Y_LOCK': LazyLock<[u32; 0]>
             197..202 '{ 0 }': usize
             199..200 '0': usize
         "#]],
@@ -4271,11 +4270,6 @@ union U {
     "#,
         expect![[r#"
             242..243 '0': isize
-            46..47 '2': i32
-            65..68 '0.0': f32
-            90..91 '2': i32
-            200..201 '0': i32
-            212..213 '0': i32
         "#]],
     );
 }

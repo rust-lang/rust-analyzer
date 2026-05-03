@@ -13,7 +13,7 @@ use stdx::never;
 use crate::{
     InferenceDiagnostic, Span, ValueTyDefId,
     infer::diagnostics::InferenceTyLoweringContext as TyLoweringContext,
-    lower::{GenericPredicates, LifetimeElisionKind},
+    lower::{GenericPredicates, LifetimeElisionKind, TyLoweringInferVarsCtx},
     method_resolution::{self, CandidateId, MethodError},
     next_solver::{
         GenericArg, GenericArgs, TraitRef, Ty, infer::traits::ObligationCause,
@@ -38,7 +38,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 }
                 ValuePathResolution::NonGeneric(ty) => return Some((value, ty)),
             };
-        let args = self.insert_type_vars(substs, id.into());
+        let args = self.insert_type_vars(substs);
 
         self.add_required_obligations_for_value_path(id, generic_def, args);
 
@@ -117,7 +117,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 if let Some(last_segment) = last_segment {
                     path_ctx.set_current_segment(last_segment)
                 }
-                path_ctx.substs_from_path(value_def, true, false)
+                path_ctx.substs_from_path(value_def, true, false, id.into())
             })
         };
 
@@ -145,8 +145,16 @@ impl<'db> InferenceContext<'_, 'db> {
             self.store,
             &self.diagnostics,
             InferenceTyDiagnosticSource::Body,
+            self.store_owner,
             self.generic_def,
+            &self.generics,
             LifetimeElisionKind::Infer,
+            self.allow_using_generic_params,
+            Some(TyLoweringInferVarsCtx {
+                table: &mut self.table,
+                type_of_placeholder: &mut self.result.type_of_type_placeholder,
+            }),
+            &self.defined_anon_consts,
         );
         let mut path_ctx = if no_diagnostics {
             ctx.at_path_forget_diagnostics(path)
@@ -157,12 +165,12 @@ impl<'db> InferenceContext<'_, 'db> {
             let last = path.segments().last()?;
 
             let (ty, orig_ns) = path_ctx.ty_ctx().lower_ty_ext(type_ref);
-            let ty = self.table.process_user_written_ty(type_ref.into(), ty);
+            let ty = path_ctx.expect_table().process_user_written_ty(ty);
 
             path_ctx.ignore_last_segment();
-            let (ty, _) = path_ctx.lower_ty_relative_path(ty, orig_ns, true);
+            let (ty, _) = path_ctx.lower_ty_relative_path(ty, orig_ns, true, id.into());
             drop_ctx(ctx, no_diagnostics);
-            let ty = self.table.process_user_written_ty(id.into(), ty);
+            let ty = self.table.process_user_written_ty(ty);
             self.resolve_ty_assoc_item(ty, last.name, id).map(|(it, substs)| (it, Some(substs)))?
         } else {
             let hygiene = self.store.expr_or_pat_path_hygiene(id);
@@ -187,9 +195,13 @@ impl<'db> InferenceContext<'_, 'db> {
 
                     let (resolution, substs) = match (def, is_before_last) {
                         (TypeNs::TraitId(trait_), true) => {
-                            let self_ty = self.table.next_ty_var(id.into());
-                            let trait_ref =
-                                path_ctx.lower_trait_ref_from_resolved_path(trait_, self_ty, true);
+                            let self_ty = path_ctx.expect_table().next_ty_var(id.into());
+                            let trait_ref = path_ctx.lower_trait_ref_from_resolved_path(
+                                trait_,
+                                self_ty,
+                                true,
+                                id.into(),
+                            );
                             drop_ctx(ctx, no_diagnostics);
                             self.resolve_trait_assoc_item(trait_ref, last_segment, id)
                         }
@@ -199,13 +211,13 @@ impl<'db> InferenceContext<'_, 'db> {
                             // should resolve to an associated type of that trait (e.g. `<T
                             // as Iterator>::Item::default`)
                             path_ctx.ignore_last_segment();
-                            let (ty, _) = path_ctx.lower_partly_resolved_path(def, true);
+                            let (ty, _) = path_ctx.lower_partly_resolved_path(def, true, id.into());
                             drop_ctx(ctx, no_diagnostics);
                             if ty.is_ty_error() {
                                 return None;
                             }
 
-                            let ty = self.process_user_written_ty(id.into(), ty);
+                            let ty = self.process_user_written_ty(ty);
 
                             self.resolve_ty_assoc_item(ty, last_segment.name, id)
                         }
