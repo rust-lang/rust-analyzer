@@ -10,7 +10,6 @@ use syntax::{
     ast::{
         self, BlockExpr, Expr, ExprStmt, HasArgList,
         edit::{AstNodeEdit, IndentLevel},
-        syntax_factory::SyntaxFactory,
     },
 };
 
@@ -94,14 +93,18 @@ fn add_reference(
         return None;
     }
 
-    let mut builder =
-        SourceChangeBuilder::new(expr_ptr.file_id.original_file(ctx.db()).file_id(ctx.db()));
+    let file_id = expr_ptr.file_id.original_file(ctx.db()).file_id(ctx.db());
     let expr = expr_ptr.to_node(ctx.db());
-    // TODO: should this be `with_mappings` instead?
-    let syntax_factory = SyntaxFactory::without_mappings();
-    let expr_with_ref = syntax_factory.expr_ref(expr.clone_for_update(), mutability.is_mut());
-    builder.replace_ast(expr, expr_with_ref);
+
+    let mut builder = SourceChangeBuilder::new(file_id);
+    let editor = builder.make_editor(expr.syntax());
+    let make = editor.make();
+
+    let expr_with_ref = make.expr_ref(expr.clone_for_update(), mutability.is_mut());
+    editor.replace(expr.syntax(), expr_with_ref.syntax());
+    builder.add_file_edits(file_id, editor);
     let source_change = builder.finish();
+
     acc.push(fix("add_reference_here", "Add reference here", source_change, range.range));
     Some(())
 }
