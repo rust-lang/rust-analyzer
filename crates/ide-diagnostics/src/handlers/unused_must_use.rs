@@ -4,14 +4,18 @@ use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
 //
 // This diagnostic is triggered when a value with the `#[must_use]` attribute
 // is dropped without being used.
-pub(crate) fn unused_must_use(
-    ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::UnusedMustUse,
+pub(crate) fn unused_must_use<'db>(
+    ctx: &DiagnosticsContext<'_, 'db>,
+    d: &hir::UnusedMustUse<'db>,
 ) -> Diagnostic {
+    let message = match d.message {
+        Some(message) => format!("unused return value that must be used: {message}"),
+        None => "unused return value that must be used".to_owned(),
+    };
     Diagnostic::new_with_syntax_node_ptr(
         ctx,
         DiagnosticCode::RustcLint("unused_must_use"),
-        "unused return value that must be used",
+        message,
         d.expr.map(Into::into),
     )
     .stable()
@@ -48,6 +52,24 @@ fn main() {
     let s = S;
     s.produces();
   //^^^^^^^^^^^^ warn: unused return value that must be used
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn with_message() {
+        check_diagnostics(
+            r#"
+struct S;
+impl S {
+    #[must_use = "custom message"]
+    fn produces(&self) -> i32 { 0 }
+}
+fn main() {
+    let s = S;
+    s.produces();
+  //^^^^^^^^^^^^ warn: unused return value that must be used: custom message
 }
 "#,
         );

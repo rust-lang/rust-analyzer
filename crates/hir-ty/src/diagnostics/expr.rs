@@ -7,8 +7,7 @@ use std::fmt;
 use base_db::Crate;
 use either::Either;
 use hir_def::{
-    AdtId, AssocItemId, AttrDefId, CallableDefId, DefWithBodyId, HasModule, ItemContainerId,
-    Lookup,
+    AdtId, AssocItemId, CallableDefId, DefWithBodyId, HasModule, ItemContainerId, Lookup,
     attrs::AttrFlags,
     lang_item::LangItems,
     resolver::{HasResolver, ValueNs},
@@ -46,7 +45,7 @@ pub(crate) use hir_def::{
     hir::{Expr, ExprId, MatchArm, Pat, PatId, RecordSpread, Statement},
 };
 
-pub enum BodyValidationDiagnostic {
+pub enum BodyValidationDiagnostic<'db> {
     RecordMissingFields {
         record: Either<ExprId, PatId>,
         variant: VariantId,
@@ -71,15 +70,16 @@ pub enum BodyValidationDiagnostic {
     },
     UnusedMustUse {
         expr: ExprId,
+        message: Option<&'db str>,
     },
 }
 
-impl BodyValidationDiagnostic {
+impl<'db> BodyValidationDiagnostic<'db> {
     pub fn collect(
-        db: &dyn HirDatabase,
+        db: &'db dyn HirDatabase,
         owner: DefWithBodyId,
         validate_lints: bool,
-    ) -> Vec<BodyValidationDiagnostic> {
+    ) -> Vec<BodyValidationDiagnostic<'db>> {
         let _p = tracing::info_span!("BodyValidationDiagnostic::collect").entered();
         let infer = InferenceResult::of(db, owner);
         let body = Body::of(db, owner);
@@ -106,7 +106,7 @@ struct ExprValidator<'db> {
     body: &'db Body,
     infer: &'db InferenceResult,
     env: ParamEnv<'db>,
-    diagnostics: Vec<BodyValidationDiagnostic>,
+    diagnostics: Vec<BodyValidationDiagnostic<'db>>,
     validate_lints: bool,
     infcx: InferCtxt<'db>,
 }
@@ -354,7 +354,7 @@ impl<'db> ExprValidator<'db> {
         pattern_arena: &'a Arena<DeconstructedPat<'a, 'db>>,
         pat: PatId,
         initializer: Option<ExprId>,
-    ) -> Option<BodyValidationDiagnostic> {
+    ) -> Option<BodyValidationDiagnostic<'db>> {
         if self.infer.pat_has_type_mismatch(pat) {
             return None;
         }
@@ -415,35 +415,32 @@ impl<'db> ExprValidator<'db> {
         pattern
     }
 
-    fn check_unused_must_use(&self, expr: ExprId) -> Option<BodyValidationDiagnostic> {
-        let db = self.db();
-        let must_use_fn = match &self.body[expr] {
+    fn check_unused_must_use(&self, expr: ExprId) -> Option<BodyValidationDiagnostic<'db>> {
+        let fn_def = match &self.body[expr] {
             Expr::Call { callee, .. } => {
                 let callee_ty = self.infer.expr_ty(*callee);
                 if let TyKind::FnDef(CallableIdWrapper(CallableDefId::FunctionId(func)), _) =
                     callee_ty.kind()
                 {
-                    AttrFlags::query(db, AttrDefId::FunctionId(func))
-                        .contains(AttrFlags::IS_MUST_USE)
+                    Some(func.into())
                 } else {
-                    false
+                    None
                 }
             }
             Expr::MethodCall { .. } => {
-                self.infer.method_resolution(expr).is_some_and(|(func, _)| {
-                    AttrFlags::query(db, AttrDefId::FunctionId(func))
-                        .contains(AttrFlags::IS_MUST_USE)
-                })
+                self.infer.method_resolution(expr).map(|(func, _)| func.into())
             }
             _ => return None,
         };
-        let must_use_ty =
-            self.infer.type_of_expr_with_adjust(expr).is_some_and(|ty| match ty.kind() {
-                TyKind::Adt(adt, _) => AttrFlags::query(db, AttrDefId::AdtId(adt.def_id()))
-                    .contains(AttrFlags::IS_MUST_USE),
-                _ => false,
-            });
-        (must_use_fn || must_use_ty).then_some(BodyValidationDiagnostic::UnusedMustUse { expr })
+        let ty_def = self.infer.type_of_expr_with_adjust(expr).and_then(|ty| match ty.kind() {
+            TyKind::Adt(adt, _) => Some(adt.def_id().into()),
+            _ => None,
+        });
+        let must_use_diag = |owner| {
+            AttrFlags::must_use_message(self.db(), owner?)
+                .map(|message| BodyValidationDiagnostic::UnusedMustUse { expr, message })
+        };
+        must_use_diag(fn_def).or_else(|| must_use_diag(ty_def))
     }
 
     fn check_for_trailing_return(&mut self, body_expr: ExprId, body: &Body) {

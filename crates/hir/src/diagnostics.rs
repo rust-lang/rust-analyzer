@@ -133,7 +133,7 @@ diagnostics![AnyDiagnostic<'db> ->
     PrivateField,
     RemoveTrailingReturn,
     RemoveUnnecessaryElse,
-    UnusedMustUse,
+    UnusedMustUse<'db>,
     ReplaceFilterMapNextWithFindMap,
     TraitImplIncorrectSafety,
     TraitImplMissingAssocItems,
@@ -455,8 +455,9 @@ pub struct RemoveUnnecessaryElse {
 }
 
 #[derive(Debug)]
-pub struct UnusedMustUse {
+pub struct UnusedMustUse<'db> {
     pub expr: InFile<ExprOrPatPtr>,
+    pub message: Option<&'db str>,
 }
 
 #[derive(Debug)]
@@ -576,7 +577,7 @@ pub struct UnimplementedTrait<'db> {
 impl<'db> AnyDiagnostic<'db> {
     pub(crate) fn body_validation_diagnostic(
         db: &'db dyn HirDatabase,
-        diagnostic: BodyValidationDiagnostic,
+        diagnostic: BodyValidationDiagnostic<'db>,
         source_map: &hir_def::expr_store::BodySourceMap,
     ) -> Option<AnyDiagnostic<'db>> {
         match diagnostic {
@@ -697,9 +698,9 @@ impl<'db> AnyDiagnostic<'db> {
                     );
                 }
             }
-            BodyValidationDiagnostic::UnusedMustUse { expr } => {
+            BodyValidationDiagnostic::UnusedMustUse { expr, message } => {
                 if let Ok(source_ptr) = source_map.expr_syntax(expr) {
-                    return Some(UnusedMustUse { expr: source_ptr }.into());
+                    return Some(UnusedMustUse { expr: source_ptr, message }.into());
                 }
             }
         }
