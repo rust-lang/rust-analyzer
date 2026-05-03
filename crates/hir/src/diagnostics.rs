@@ -15,12 +15,12 @@ use hir_def::{
 };
 use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
 use hir_ty::{
-    CastError, InferenceDiagnostic, InferenceTyDiagnosticSource, ParamEnvAndCrate,
-    PathGenericsSource, PathLoweringDiagnostic, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
+    CastError, InferenceDiagnostic, InferenceTyDiagnosticSource, PathGenericsSource,
+    PathLoweringDiagnostic, TyLoweringDiagnostic, TyLoweringDiagnosticKind,
     db::HirDatabase,
     diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
     display::{DisplayTarget, HirDisplay},
-    next_solver::DbInterner,
+    next_solver::{DbInterner, EarlyBinder},
     solver_errors::SolverDiagnosticKind,
 };
 use stdx::{impl_from, never};
@@ -31,7 +31,7 @@ use syntax::{
 };
 use triomphe::Arc;
 
-use crate::{AssocItem, Field, Function, GenericDef, Local, Trait, Type};
+use crate::{AssocItem, Field, Function, GenericDef, Local, Trait, Type, TypeOwnerId};
 
 pub use hir_def::VariantId;
 pub use hir_ty::{
@@ -712,7 +712,7 @@ impl<'db> AnyDiagnostic<'db> {
         d: &'db InferenceDiagnostic,
         source_map: &hir_def::expr_store::BodySourceMap,
         sig_map: &hir_def::expr_store::ExpressionStoreSourceMap,
-        env: ParamEnvAndCrate<'db>,
+        type_owner: TypeOwnerId,
     ) -> Option<AnyDiagnostic<'db>> {
         let expr_syntax = |expr| {
             source_map
@@ -736,6 +736,7 @@ impl<'db> AnyDiagnostic<'db> {
             ExprOrPatId::ExprId(expr) => expr_syntax(expr),
             ExprOrPatId::PatId(pat) => pat_syntax(pat),
         };
+        let generic_def = || def.generic_def(db);
         let span_syntax = |span| match span {
             hir_ty::Span::ExprId(idx) => expr_syntax(idx).map(|it| it.upcast()),
             hir_ty::Span::PatId(idx) => pat_syntax(idx).map(|it| it.upcast()),
@@ -778,8 +779,11 @@ impl<'db> AnyDiagnostic<'db> {
             }
             InferenceDiagnostic::ExpectedFunction { call_expr, found } => {
                 let call_expr = expr_syntax(*call_expr)?;
-                ExpectedFunction { call: call_expr, found: Type::new(db, def, found.as_ref()) }
-                    .into()
+                ExpectedFunction {
+                    call: call_expr,
+                    found: Type::new(generic_def(), found.as_ref()),
+                }
+                .into()
             }
             InferenceDiagnostic::UnresolvedField {
                 expr,
@@ -791,7 +795,7 @@ impl<'db> AnyDiagnostic<'db> {
                 UnresolvedField {
                     expr,
                     name: name.clone(),
-                    receiver: Type::new(db, def, receiver.as_ref()),
+                    receiver: Type::new(generic_def(), receiver.as_ref()),
                     method_with_same_name_exists: *method_with_same_name_exists,
                 }
                 .into()
@@ -807,10 +811,10 @@ impl<'db> AnyDiagnostic<'db> {
                 UnresolvedMethodCall {
                     expr,
                     name: name.clone(),
-                    receiver: Type::new(db, def, receiver.as_ref()),
+                    receiver: Type::new(generic_def(), receiver.as_ref()),
                     field_with_same_name: field_with_same_name
                         .as_ref()
-                        .map(|ty| Type::new(db, def, ty.as_ref())),
+                        .map(|ty| Type::new(generic_def(), ty.as_ref())),
                     assoc_func_with_same_name: assoc_func_with_same_name.map(Into::into),
                 }
                 .into()
@@ -840,7 +844,7 @@ impl<'db> AnyDiagnostic<'db> {
             }
             InferenceDiagnostic::TypedHole { expr, expected } => {
                 let expr = expr_syntax(*expr)?;
-                TypedHole { expr, expected: Type::new(db, def, expected.as_ref()) }.into()
+                TypedHole { expr, expected: Type::new(generic_def(), expected.as_ref()) }.into()
             }
             &InferenceDiagnostic::MismatchedTupleStructPatArgCount { pat, expected, found } => {
                 let InFile { file_id, value } = pat_syntax(pat)?;
@@ -851,12 +855,12 @@ impl<'db> AnyDiagnostic<'db> {
             }
             InferenceDiagnostic::CastToUnsized { expr, cast_ty } => {
                 let expr = expr_syntax(*expr)?;
-                CastToUnsized { expr, cast_ty: Type::new(db, def, cast_ty.as_ref()) }.into()
+                CastToUnsized { expr, cast_ty: Type::new(generic_def(), cast_ty.as_ref()) }.into()
             }
             InferenceDiagnostic::InvalidCast { expr, error, expr_ty, cast_ty } => {
                 let expr = expr_syntax(*expr)?;
-                let expr_ty = Type::new(db, def, expr_ty.as_ref());
-                let cast_ty = Type::new(db, def, cast_ty.as_ref());
+                let expr_ty = Type::new(generic_def(), expr_ty.as_ref());
+                let cast_ty = Type::new(generic_def(), cast_ty.as_ref());
                 InvalidCast { expr, error: *error, expr_ty, cast_ty }.into()
             }
             InferenceDiagnostic::TyDiagnostic { source, diag } => {
@@ -929,10 +933,9 @@ impl<'db> AnyDiagnostic<'db> {
             &InferenceDiagnostic::TypeMustBeKnown { at_point, ref top_term } => {
                 let at_point = span_syntax(at_point)?;
                 let top_term = top_term.as_ref().map(|top_term| match top_term.as_ref().kind() {
-                    rustc_type_ir::GenericArgKind::Type(ty) => Either::Left(Type {
-                        ty,
-                        env: crate::body_param_env_from_has_crate(db, def),
-                    }),
+                    rustc_type_ir::GenericArgKind::Type(ty) => {
+                        Either::Left(Type::new(generic_def(), ty))
+                    }
                     // FIXME: Printing the const to string is definitely not the correct thing to do here.
                     rustc_type_ir::GenericArgKind::Const(konst) => Either::Right(
                         konst.display(db, DisplayTarget::from_crate(db, def.krate(db))).to_string(),
@@ -951,14 +954,14 @@ impl<'db> AnyDiagnostic<'db> {
                 let expr_or_pat = expr_or_pat_syntax(*node)?;
                 TypeMismatch {
                     expr_or_pat,
-                    expected: Type { env, ty: expected.as_ref() },
-                    actual: Type { env, ty: found.as_ref() },
+                    expected: Type { owner: type_owner, ty: EarlyBinder::bind(expected.as_ref()) },
+                    actual: Type { owner: type_owner, ty: EarlyBinder::bind(found.as_ref()) },
                 }
                 .into()
             }
             InferenceDiagnostic::SolverDiagnostic(d) => {
                 let span = span_syntax(d.span)?;
-                Self::solver_diagnostic(db, &d.kind, span, env)?
+                Self::solver_diagnostic(db, &d.kind, span, type_owner)?
             }
         })
     }
@@ -967,16 +970,21 @@ impl<'db> AnyDiagnostic<'db> {
         db: &'db dyn HirDatabase,
         d: &'db SolverDiagnosticKind,
         span: SpanSyntax,
-        env: ParamEnvAndCrate<'db>,
+        type_owner: TypeOwnerId,
     ) -> Option<AnyDiagnostic<'db>> {
         let interner = DbInterner::new_no_crate(db);
         Some(match d {
             SolverDiagnosticKind::TraitUnimplemented { trait_predicate, root_trait_predicate } => {
-                let trait_predicate =
-                    crate::TraitPredicate { inner: trait_predicate.get(interner), env };
+                let trait_predicate = crate::TraitPredicate {
+                    inner: trait_predicate.get(interner),
+                    owner: type_owner,
+                };
                 let root_trait_predicate =
                     root_trait_predicate.as_ref().map(|root_trait_predicate| {
-                        crate::TraitPredicate { inner: root_trait_predicate.get(interner), env }
+                        crate::TraitPredicate {
+                            inner: root_trait_predicate.get(interner),
+                            owner: type_owner,
+                        }
                     });
                 UnimplementedTrait { span, trait_predicate, root_trait_predicate }.into()
             }

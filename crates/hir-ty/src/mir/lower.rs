@@ -4,8 +4,8 @@ use std::{fmt::Write, iter, mem};
 
 use base_db::Crate;
 use hir_def::{
-    AdtId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, GeneralConstId, GenericParamId,
-    HasModule, ItemContainerId, LocalFieldId, Lookup, TraitId, TupleId,
+    AdtId, DefWithBodyId, EnumVariantId, GeneralConstId, GenericParamId, HasModule,
+    ItemContainerId, LocalFieldId, Lookup, TraitId, TupleId,
     expr_store::{Body, ExpressionStore, HygieneId, path::Path},
     hir::{
         ArithOp, Array, BinaryOp, BindingAnnotation, BindingId, ClosureKind, ExprId, ExprOrPatId,
@@ -305,7 +305,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
             closures: vec![],
         };
         let resolver = owner.resolver(db);
-        let env = db.trait_environment(ExpressionStoreOwnerId::from(owner));
+        let env = db.trait_environment(owner.generic_def(db));
         let interner = DbInterner::new_with(db, resolver.krate());
         // FIXME(next-solver): Is `non_body_analysis()` correct here? Don't we want to reveal opaque types defined by this body?
         let infcx = interner.infer_ctxt().build(TypingMode::non_body_analysis());
@@ -555,9 +555,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                         Ok(Some(current))
                     }
                     ValueNs::GenericParam(p) => {
-                        let Some(def) = self.owner.as_generic_def_id(self.db) else {
-                            not_supported!("owner without generic def id");
-                        };
+                        let def = self.owner.generic_def(self.db);
                         let generics = generics(self.db, def);
                         let index = generics.type_or_const_param_idx(p.into());
                         self.push_assignment(

@@ -1298,17 +1298,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         store: &'body ExpressionStore,
         resolver: Resolver<'db>,
     ) -> Self {
-        let trait_env = match owner {
-            ExpressionStoreOwnerId::Signature(generic_def_id) => {
-                db.trait_environment(ExpressionStoreOwnerId::from(generic_def_id))
-            }
-            ExpressionStoreOwnerId::Body(def_with_body_id) => {
-                db.trait_environment(ExpressionStoreOwnerId::Body(def_with_body_id))
-            }
-            ExpressionStoreOwnerId::VariantFields(variant_id) => {
-                db.trait_environment(ExpressionStoreOwnerId::VariantFields(variant_id))
-            }
-        };
+        let generic_def = owner.generic_def(db);
+        let trait_env = db.trait_environment(generic_def);
         let table = unify::InferenceTable::new(db, trait_env, resolver.krate(), owner);
         let types = crate::next_solver::default_types(db);
         InferenceContext {
@@ -1325,7 +1316,7 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
             return_coercion: None,
             db,
             owner,
-            generic_def: owner.generic_def(db),
+            generic_def,
             store,
             traits_in_scope: resolver.traits_in_scope(db),
             resolver,
