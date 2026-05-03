@@ -4930,6 +4930,7 @@ async fn baz<T: AsyncFnOnce(u32) -> i32>(c: T) {
     "#,
         expect![[r#"
             37..38 'a': T
+            37..38 'a': T
             43..83 '{     ...ait; }': ()
             53..57 'fut1': <T as AsyncFnMut<(u32,)>>::CallRefFuture<'?>
             60..61 'a': T
@@ -4938,6 +4939,7 @@ async fn baz<T: AsyncFnOnce(u32) -> i32>(c: T) {
             70..74 'fut1': <T as AsyncFnMut<(u32,)>>::CallRefFuture<'?>
             70..80 'fut1.await': i32
             124..129 'mut b': T
+            124..129 'mut b': T
             134..174 '{     ...ait; }': ()
             144..148 'fut2': <T as AsyncFnMut<(u32,)>>::CallRefFuture<'?>
             151..152 'b': T
@@ -4945,6 +4947,7 @@ async fn baz<T: AsyncFnOnce(u32) -> i32>(c: T) {
             153..154 '0': u32
             161..165 'fut2': <T as AsyncFnMut<(u32,)>>::CallRefFuture<'?>
             161..171 'fut2.await': i32
+            216..217 'c': T
             216..217 'c': T
             222..262 '{     ...ait; }': ()
             232..236 'fut3': <T as AsyncFnOnce<(u32,)>>::CallOnceFuture
