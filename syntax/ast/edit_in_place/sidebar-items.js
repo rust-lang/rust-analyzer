@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_or_insert_comma_after","normalize_ws_between_braces","normalize_ws_between_braces_with_editor"],"trait":["AttrsOwnerEdit","Indent","Removable"]};

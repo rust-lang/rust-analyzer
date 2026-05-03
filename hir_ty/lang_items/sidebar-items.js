@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["is_box","lang_items_for_bin_op"]};

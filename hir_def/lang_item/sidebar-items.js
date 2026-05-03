@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LangItemEnum","LangItemTarget"],"fn":["crate_lang_items","crate_notable_traits","lang_items","resolve_core_macro","resolve_core_trait"],"macro":["language_item_table"],"struct":["LangItems"]};

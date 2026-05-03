@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["as_trait_assoc_def","assoc_item_of_trait","convert_to_def_in_trait","get_missing_assoc_items","resolve_target_trait"]};

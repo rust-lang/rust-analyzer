@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["VendoredLibrariesConfig"],"fn":["all_modules","documentation_for_definition","get_definitions"],"struct":["ReferenceData","StaticIndex","StaticIndexedFile","TokenId","TokenStaticData","TokenStore"]};
