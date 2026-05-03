@@ -436,6 +436,9 @@ fn insert_use_with_editor_(
             Some((tree, node))
         });
 
+    let newline =
+        |nl, node: &SyntaxNode| make.whitespace(&format!("{nl}{}", IndentLevel::from_node(node)));
+
     if group_imports {
         // Iterator that discards anything that's not in the required grouping
         // This implementation allows the user to rearrange their import groups as this only takes the first group that fits
@@ -455,16 +458,16 @@ fn insert_use_with_editor_(
             cov_mark::hit!(insert_group);
             // insert our import before that element
             return syntax_editor.insert_all(
-                Position::before(node),
-                vec![use_item.syntax().clone().into(), make.whitespace("\n").into()],
+                Position::before(&node),
+                vec![use_item.syntax().clone().into(), newline("\n", &node).into()],
             );
         }
         if let Some(node) = last {
             cov_mark::hit!(insert_group_last);
             // there is no element after our new import, so append it to the end of the group
             return syntax_editor.insert_all(
-                Position::after(node),
-                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
+                Position::after(&node),
+                vec![newline("\n", &node).into(), use_item.syntax().clone().into()],
             );
         }
 
@@ -479,7 +482,7 @@ fn insert_use_with_editor_(
             cov_mark::hit!(insert_group_new_group);
             syntax_editor.insert_all(
                 Position::before(&node),
-                vec![use_item.syntax().clone().into(), make.whitespace("\n\n").into()],
+                vec![use_item.syntax().clone().into(), newline("\n\n", &node).into()],
             );
             return;
         }
@@ -488,7 +491,7 @@ fn insert_use_with_editor_(
             cov_mark::hit!(insert_group_no_group);
             syntax_editor.insert_all(
                 Position::after(&node),
-                vec![make.whitespace("\n\n").into(), use_item.syntax().clone().into()],
+                vec![newline("\n\n", &node).into(), use_item.syntax().clone().into()],
             );
             return;
         }
@@ -497,8 +500,8 @@ fn insert_use_with_editor_(
         if let Some((_, node)) = path_node_iter.last() {
             cov_mark::hit!(insert_no_grouping_last);
             syntax_editor.insert_all(
-                Position::after(node),
-                vec![make.whitespace("\n").into(), use_item.syntax().clone().into()],
+                Position::after(&node),
+                vec![newline("\n", &node).into(), use_item.syntax().clone().into()],
             );
             return;
         }
@@ -552,7 +555,7 @@ fn insert_use_with_editor_(
                     vec![
                         make.whitespace(&format!("\n{indent}")).into(),
                         use_item.syntax().clone().into(),
-                        make.whitespace("\n").into(),
+                        newline("\n", scope_syntax).into(),
                     ],
                 );
             }

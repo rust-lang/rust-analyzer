@@ -23,6 +23,62 @@ struct Struct;
 }
 
 #[test]
+fn insert_in_module_indent() {
+    cov_mark::check!(insert_group);
+    check(
+        "foo::bar",
+        r#"
+mod tests {
+    $0use xxx;
+}
+"#,
+        r#"
+mod tests {
+    use foo::bar;
+    use xxx;
+}
+"#,
+        ImportGranularity::Crate,
+    );
+
+    cov_mark::check!(insert_group_last);
+    check(
+        "foo::bar",
+        r#"
+mod tests {
+    $0use aaa;
+}
+"#,
+        r#"
+mod tests {
+    use aaa;
+    use foo::bar;
+}
+"#,
+        ImportGranularity::Crate,
+    );
+
+    cov_mark::check!(insert_group_new_group);
+    check_none(
+        "std::fmt",
+        r#"
+mod tests {
+    $0use foo::bar::A;
+    use foo::bar::D;
+}
+"#,
+        r#"
+mod tests {
+    use std::fmt;
+
+    use foo::bar::A;
+    use foo::bar::D;
+}
+"#,
+    );
+}
+
+#[test]
 fn respects_cfg_attr_fn_body() {
     check(
         r"bar::Bar",
@@ -473,11 +529,15 @@ fn insert_empty_module() {
     check(
         "foo::bar",
         r"
-mod x {$0}
+mod indent {
+    mod x {$0}
+}
 ",
         r"
-mod x {
-    use foo::bar;
+mod indent {
+    mod x {
+        use foo::bar;
+    }
 }
 ",
         ImportGranularity::Item,
