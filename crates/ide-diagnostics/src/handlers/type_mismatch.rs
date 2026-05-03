@@ -68,7 +68,16 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::TypeMismatch<'_>) -> Option<
     let mut fixes = Vec::new();
 
     if let Some(expr_ptr) = d.expr_or_pat.value.cast::<ast::Expr>() {
-        let expr_ptr = &InFile { file_id: d.expr_or_pat.file_id, value: expr_ptr };
+        let file_id = d.expr_or_pat.file_id;
+        let root = ctx.sema.db.parse_or_expand(file_id);
+        let mut expr = expr_ptr.to_node(&root);
+        while let ast::Expr::BlockExpr(block) = expr.clone() {
+            match block.tail_expr() {
+                Some(tail) => expr = tail,
+                None => break,
+            }
+        }
+        let expr_ptr = &InFile { file_id, value: AstPtr::new(&expr) };
         add_reference(ctx, d, expr_ptr, &mut fixes);
         add_missing_ok_or_some(ctx, d, expr_ptr, &mut fixes);
         remove_unnecessary_wrapper(ctx, d, expr_ptr, &mut fixes);
