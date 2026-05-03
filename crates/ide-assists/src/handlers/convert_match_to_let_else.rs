@@ -64,9 +64,17 @@ pub(crate) fn convert_match_to_let_else(
         |builder| {
             let extracting_arm_pat =
                 rename_variable(&extracting_arm_pat, &extracted_variable_positions, pat);
+            let (open_paren, close_paren) = if ast::OrPat::can_cast(extracting_arm_pat.kind()) {
+                // Or patterns cannot put put directly under let statements.
+                // FIXME: Do this with `SyntaxEditor` in `rename_variable()`, it's just difficult right now
+                // since it re-roots nodes.
+                ("(", ")")
+            } else {
+                ("", "")
+            };
             builder.replace(
                 let_stmt.syntax().text_range(),
-                format!("let {extracting_arm_pat} = {initializer_expr} else {diverging_arm_expr};"),
+                format!("let {open_paren}{extracting_arm_pat}{close_paren} = {initializer_expr} else {diverging_arm_expr};"),
             )
         },
     )
@@ -544,6 +552,40 @@ fn f() {
     };
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn top_level_or_pat() {
+        check_assist(
+            convert_match_to_let_else,
+            r#"
+enum E {
+    A(u32),
+    B(u32),
+    C,
+}
+
+fn foo() {
+    let e = E::A(0);
+    let _$0 = match e {
+        E::A(v) | E::B(v) => v,
+        _ => return,
+    };
+}
+        "#,
+            r#"
+enum E {
+    A(u32),
+    B(u32),
+    C,
+}
+
+fn foo() {
+    let e = E::A(0);
+    let (E::A(_) | E::B(_)) = e else { return };
+}
+        "#,
         );
     }
 }
