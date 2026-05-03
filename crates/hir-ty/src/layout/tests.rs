@@ -565,8 +565,6 @@ fn const_eval_simple() {
 }
 
 #[test]
-// FIXME
-#[should_panic]
 fn const_eval_complex() {
     size_and_align! {
         struct Goal([i32; 2 + 2]);

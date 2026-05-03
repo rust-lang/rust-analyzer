@@ -83,10 +83,10 @@ use hir_expand::{
     proc_macro::ProcMacroKind,
 };
 use hir_ty::{
-    GenericPredicates, InferenceResult, ParamEnvAndCrate, TyDefId, TyLoweringDiagnostic,
-    ValueTyDefId, all_super_traits, autoderef, check_orphan_rules,
+    GenericPredicates, InferBodyId, InferenceResult, ParamEnvAndCrate, TyDefId,
+    TyLoweringDiagnostic, ValueTyDefId, all_super_traits, autoderef, check_orphan_rules,
     consteval::try_const_usize,
-    db::{InternedClosure, InternedClosureId, InternedCoroutineClosureId},
+    db::{AnonConstId, InternedClosure, InternedClosureId, InternedCoroutineClosureId},
     diagnostics::BodyValidationDiagnostic,
     direct_super_traits, known_const_to_ast,
     layout::{Layout as TyLayout, RustcEnumVariantIdx, RustcFieldIdx, TagEncoding},
@@ -114,7 +114,7 @@ use syntax::{
     ast::{self, HasName as _, HasVisibility as _},
     format_smolstr,
 };
-use triomphe::{Arc, ThinArc};
+use triomphe::Arc;
 
 use crate::db::{DefDatabase, HirDatabase};
 
@@ -759,7 +759,7 @@ impl Module {
                             push_ty_diagnostics(
                                 db,
                                 acc,
-                                db.field_types_with_diagnostics(s.id.into()).1.clone(),
+                                db.field_types_with_diagnostics(s.id.into()).diagnostics(),
                                 source_map,
                             );
                         }
@@ -771,7 +771,7 @@ impl Module {
                             push_ty_diagnostics(
                                 db,
                                 acc,
-                                db.field_types_with_diagnostics(u.id.into()).1.clone(),
+                                db.field_types_with_diagnostics(u.id.into()).diagnostics(),
                                 source_map,
                             );
                         }
@@ -801,7 +801,7 @@ impl Module {
                                 push_ty_diagnostics(
                                     db,
                                     acc,
-                                    db.field_types_with_diagnostics(v.into()).1.clone(),
+                                    db.field_types_with_diagnostics(v.into()).diagnostics(),
                                     source_map,
                                 );
                                 expr_store_diagnostics(db, acc, source_map);
@@ -817,7 +817,7 @@ impl Module {
                     push_ty_diagnostics(
                         db,
                         acc,
-                        db.type_for_type_alias_with_diagnostics(type_alias.id).1,
+                        db.type_for_type_alias_with_diagnostics(type_alias.id).diagnostics(),
                         source_map,
                     );
                     acc.extend(def.diagnostics(db, style_lints));
@@ -1027,11 +1027,19 @@ impl Module {
                 impl_assoc_items_scratch.clear();
             }
 
-            push_ty_diagnostics(db, acc, db.impl_self_ty_with_diagnostics(impl_id).1, source_map);
             push_ty_diagnostics(
                 db,
                 acc,
-                db.impl_trait_with_diagnostics(impl_id).and_then(|it| it.1),
+                db.impl_self_ty_with_diagnostics(impl_id).diagnostics(),
+                source_map,
+            );
+            push_ty_diagnostics(
+                db,
+                acc,
+                db.impl_trait_with_diagnostics(impl_id)
+                    .as_ref()
+                    .map(|it| it.diagnostics())
+                    .unwrap_or_default(),
                 source_map,
             );
 
@@ -1344,7 +1352,7 @@ impl<'db> InstantiatedField<'db> {
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub struct TupleField {
-    pub owner: ExpressionStoreOwnerId,
+    pub owner: InferBodyId,
     pub tuple: TupleId,
     pub index: u32,
 }
@@ -1362,7 +1370,7 @@ impl TupleField {
             .get(self.index as usize)
             .copied()
             .unwrap_or_else(|| Ty::new_error(interner, ErrorGuaranteed));
-        Type { env: body_param_env_from_has_crate(db, self.owner), ty }
+        Type { env: body_param_env_from_has_crate(db, self.owner.expression_store_owner(db)), ty }
     }
 }
 
@@ -1997,6 +2005,39 @@ impl Variant {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AnonConst {
+    id: AnonConstId,
+}
+
+impl AnonConst {
+    pub fn owner(self, db: &dyn HirDatabase) -> ExpressionStoreOwner {
+        self.id.loc(db).owner.into()
+    }
+
+    pub fn ty<'db>(self, db: &'db dyn HirDatabase) -> Type<'db> {
+        let loc = self.id.loc(db);
+        let env = body_param_env_from_has_crate(db, loc.owner);
+        Type { env, ty: loc.ty.get().instantiate_identity() }
+    }
+
+    pub fn eval(self, db: &dyn HirDatabase) -> Result<EvaluatedConst<'_>, ConstEvalError> {
+        let interner = DbInterner::new_no_crate(db);
+        let ty = self.id.loc(db).ty.get().instantiate_identity();
+        db.anon_const_eval(self.id, GenericArgs::empty(interner), None).map(|it| EvaluatedConst {
+            allocation: it,
+            def: self.id.into(),
+            ty,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InferBody {
+    Body(DefWithBody),
+    AnonConst(AnonConst),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExpressionStoreOwner {
     Body(DefWithBody),
     Signature(GenericDef),
@@ -2090,6 +2131,12 @@ impl DefWithBody {
         })
     }
 
+    #[deprecated = "you should really not use this, this is exported for analysis-stats only"]
+    pub fn run_mir_body(self, db: &dyn HirDatabase) -> Result<(), MirLowerError> {
+        let Some(id) = self.id() else { return Ok(()) };
+        db.mir_body(id.into()).map(drop)
+    }
+
     /// A textual representation of the HIR of this def's body for debugging purposes.
     pub fn debug_hir(self, db: &dyn HirDatabase) -> String {
         let Some(id) = self.id() else {
@@ -2104,7 +2151,7 @@ impl DefWithBody {
         let Some(id) = self.id() else {
             return String::new();
         };
-        let body = db.mir_body(id);
+        let body = db.mir_body(id.into());
         match body {
             Ok(body) => body.pretty_print(db, self.module(db).krate(db).to_display_target(db)),
             Err(e) => format!("error:\n{e:?}"),
@@ -2190,7 +2237,7 @@ impl DefWithBody {
             }
         }
 
-        if let Ok(borrowck_results) = db.borrowck(id) {
+        if let Ok(borrowck_results) = db.borrowck(id.into()) {
             for borrowck_result in borrowck_results.iter() {
                 let mir_body = borrowck_result.mir_body(db);
                 for moof in &borrowck_result.moved_out_of_ref {
@@ -2247,7 +2294,8 @@ impl DefWithBody {
                     {
                         need_mut = &mir::MutabilityReason::Not;
                     }
-                    let local = Local { parent: id.into(), binding_id };
+                    let local =
+                        Local { parent: id.into(), parent_infer: mir_body.owner, binding_id };
                     let is_mut = body[binding_id].mode == BindingAnnotation::Mutable;
 
                     match (need_mut, is_mut) {
@@ -2948,24 +2996,37 @@ impl<'db> Param<'db> {
                 let parent = DefWithBodyId::FunctionId(it);
                 let body = Body::of(db, parent);
                 if let Some(self_param) = body.self_param.filter(|_| self.idx == 0) {
-                    Some(Local { parent: parent.into(), binding_id: self_param })
+                    Some(Local {
+                        parent: parent.into(),
+                        parent_infer: parent.into(),
+                        binding_id: self_param,
+                    })
                 } else if let Pat::Bind { id, .. } =
                     &body[body.params[self.idx - body.self_param.is_some() as usize]]
                 {
-                    Some(Local { parent: parent.into(), binding_id: *id })
+                    Some(Local {
+                        parent: parent.into(),
+                        parent_infer: parent.into(),
+                        binding_id: *id,
+                    })
                 } else {
                     None
                 }
             }
             Callee::Closure(closure, _) => {
                 let c = closure.loc(db);
-                let body_owner = c.owner;
-                let store = ExpressionStore::of(db, c.owner);
+                let body_infer_owner = c.owner;
+                let body_owner = c.owner.expression_store_owner(db);
+                let store = ExpressionStore::of(db, body_owner);
 
                 if let Expr::Closure { args, .. } = &store[c.expr]
                     && let Pat::Bind { id, .. } = &store[args[self.idx]]
                 {
-                    return Some(Local { parent: body_owner, binding_id: *id });
+                    return Some(Local {
+                        parent: body_owner,
+                        parent_infer: body_infer_owner,
+                        binding_id: *id,
+                    });
                 }
                 None
             }
@@ -3146,7 +3207,7 @@ impl HasVisibility for Const {
 }
 
 pub struct EvaluatedConst<'db> {
-    def: DefWithBodyId,
+    def: InferBodyId,
     allocation: hir_ty::next_solver::Allocation<'db>,
     ty: Ty<'db>,
 }
@@ -4008,7 +4069,7 @@ impl AssocItem {
                 push_ty_diagnostics(
                     db,
                     acc,
-                    db.type_for_type_alias_with_diagnostics(type_alias.id).1,
+                    db.type_for_type_alias_with_diagnostics(type_alias.id).diagnostics(),
                     &TypeAliasSignature::with_source_map(db, type_alias.id).1,
                 );
                 for diag in hir_ty::diagnostics::incorrect_case(db, type_alias.id.into()) {
@@ -4172,26 +4233,24 @@ impl GenericDef {
         };
 
         expr_store_diagnostics(db, acc, source_map);
-        push_ty_diagnostics(db, acc, db.generic_defaults_with_diagnostics(def).1, source_map);
         push_ty_diagnostics(
             db,
             acc,
-            GenericPredicates::query_with_diagnostics(db, def).1.clone(),
+            db.generic_defaults_with_diagnostics(def).diagnostics(),
             source_map,
         );
-        for (param_id, param) in generics.iter_type_or_consts() {
-            if let TypeOrConstParamData::ConstParamData(_) = param {
-                push_ty_diagnostics(
-                    db,
-                    acc,
-                    db.const_param_ty_with_diagnostics(ConstParamId::from_unchecked(
-                        TypeOrConstParamId { parent: def, local_id: param_id },
-                    ))
-                    .1,
-                    source_map,
-                );
-            }
-        }
+        push_ty_diagnostics(
+            db,
+            acc,
+            GenericPredicates::query_with_diagnostics(db, def).diagnostics(),
+            source_map,
+        );
+        push_ty_diagnostics(
+            db,
+            acc,
+            db.const_param_types_with_diagnostics(def).diagnostics(),
+            source_map,
+        );
     }
 
     /// Returns a string describing the kind of this type.
@@ -4286,6 +4345,7 @@ impl<'db> GenericSubstitution<'db> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Local {
     pub(crate) parent: ExpressionStoreOwnerId,
+    pub(crate) parent_infer: InferBodyId,
     pub(crate) binding_id: BindingId,
 }
 
@@ -4387,7 +4447,7 @@ impl Local {
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type<'_> {
         let def = self.parent;
-        let infer = InferenceResult::of(db, def);
+        let infer = InferenceResult::of(db, self.parent_infer);
         let ty = infer.binding_ty(self.binding_id);
         Type::new(db, def, ty)
     }
@@ -4781,13 +4841,18 @@ impl ConstParam {
         Type::new(db, self.id.parent(), db.const_param_ty(self.id))
     }
 
-    pub fn default(
+    pub fn default(self, db: &dyn HirDatabase, display_target: DisplayTarget) -> Option<String> {
+        let arg = generic_arg_from_param(db, self.id.into())?;
+        Some(arg.display(db, display_target).to_string())
+    }
+
+    pub fn default_source_code(
         self,
         db: &dyn HirDatabase,
-        display_target: DisplayTarget,
+        target_module: Module,
     ) -> Option<ast::ConstArg> {
         let arg = generic_arg_from_param(db, self.id.into())?;
-        known_const_to_ast(arg.konst()?, db, display_target)
+        known_const_to_ast(arg.konst()?, db, target_module.id)
     }
 }
 
@@ -5148,14 +5213,15 @@ impl<'db> Closure<'db> {
             AnyClosureId::ClosureId(it) => it.loc(db),
             AnyClosureId::CoroutineClosureId(it) => it.loc(db),
         };
-        let InternedClosure { owner, expr: closure, .. } = closure;
-        let infer = InferenceResult::of(db, owner);
+        let InternedClosure { owner: infer_owner, expr: closure, .. } = closure;
+        let infer = InferenceResult::of(db, infer_owner);
+        let owner = infer_owner.expression_store_owner(db);
         let param_env = body_param_env_from_has_crate(db, owner);
         infer.closures_data[&closure]
             .min_captures
             .values()
             .flatten()
-            .map(|capture| ClosureCapture { owner, closure, capture, param_env })
+            .map(|capture| ClosureCapture { owner, infer_owner, closure, capture, param_env })
             .collect()
     }
 
@@ -5243,6 +5309,7 @@ impl FnTrait {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClosureCapture<'db> {
     owner: ExpressionStoreOwnerId,
+    infer_owner: InferBodyId,
     closure: ExprId,
     capture: &'db hir_ty::closure_analysis::CapturedPlace,
     param_env: ParamEnvAndCrate<'db>,
@@ -5250,7 +5317,11 @@ pub struct ClosureCapture<'db> {
 
 impl<'db> ClosureCapture<'db> {
     pub fn local(&self) -> Local {
-        Local { parent: self.owner, binding_id: self.capture.captured_local() }
+        Local {
+            parent: self.owner,
+            parent_infer: self.infer_owner,
+            binding_id: self.capture.captured_local(),
+        }
     }
 
     /// Returns whether this place has any field (aka. non-deref) projections.
@@ -7050,6 +7121,12 @@ impl HasCrate for Module {
     }
 }
 
+impl HasCrate for AnonConst {
+    fn krate(&self, db: &dyn HirDatabase) -> Crate {
+        hir_def::HasModule::krate(&self.id.loc(db).owner, db).into()
+    }
+}
+
 pub trait HasContainer {
     fn container(&self, db: &dyn HirDatabase) -> ItemContainer;
 }
@@ -7226,17 +7303,14 @@ pub enum DocLinkDef {
 fn push_ty_diagnostics<'db>(
     db: &'db dyn HirDatabase,
     acc: &mut Vec<AnyDiagnostic<'db>>,
-    diagnostics: Option<ThinArc<(), TyLoweringDiagnostic>>,
+    diagnostics: &[TyLoweringDiagnostic],
     source_map: &ExpressionStoreSourceMap,
 ) {
-    if let Some(diagnostics) = diagnostics {
-        acc.extend(
-            diagnostics
-                .slice
-                .iter()
-                .filter_map(|diagnostic| AnyDiagnostic::ty_diagnostic(diagnostic, source_map, db)),
-        );
-    }
+    acc.extend(
+        diagnostics
+            .iter()
+            .filter_map(|diagnostic| AnyDiagnostic::ty_diagnostic(diagnostic, source_map, db)),
+    );
 }
 
 pub trait MethodCandidateCallback {

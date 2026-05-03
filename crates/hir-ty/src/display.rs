@@ -22,8 +22,8 @@ use hir_def::{
     item_tree::FieldsShape,
     lang_item::LangItems,
     signatures::{
-        EnumSignature, FunctionSignature, StructSignature, TraitSignature, TypeAliasSignature,
-        UnionSignature, VariantFields,
+        ConstSignature, EnumSignature, FunctionSignature, StaticSignature, StructSignature,
+        TraitSignature, TypeAliasSignature, UnionSignature, VariantFields,
     },
     type_ref::{
         ConstRef, LifetimeRef, LifetimeRefId, TraitBoundModifier, TypeBound, TypeRef, TypeRefId,
@@ -51,7 +51,7 @@ use stdx::never;
 
 use crate::{
     CallableDefId, FnAbi, ImplTraitId, MemoryMap, ParamEnvAndCrate, consteval,
-    db::HirDatabase,
+    db::{GeneralConstId, HirDatabase},
     generics::{ProvenanceSplit, generics},
     layout::Layout,
     lower::GenericPredicates,
@@ -753,7 +753,25 @@ impl<'db> HirDisplay<'db> for Const<'db> {
             ConstKind::Value(value) => render_const_scalar_from_valtree(f, value.ty, value.value),
             ConstKind::Unevaluated(unev) => {
                 let c = unev.def.0;
-                write!(f, "{}", c.name(f.db))?;
+                match c {
+                    GeneralConstId::ConstId(id) => match &ConstSignature::of(f.db, id).name {
+                        Some(name) => {
+                            f.start_location_link(id.into());
+                            write!(f, "{}", name.display(f.db, f.edition()))?;
+                            f.end_location_link();
+                        }
+                        None => f.write_str("_")?,
+                    },
+                    GeneralConstId::StaticId(id) => {
+                        let name = &StaticSignature::of(f.db, id).name;
+                        f.start_location_link(id.into());
+                        write!(f, "{}", name.display(f.db, f.edition()))?;
+                        f.end_location_link();
+                    }
+                    GeneralConstId::AnonConstId(_) => {
+                        f.write_str(if f.display_kind.is_source_code() { "_" } else { "{const}" })?
+                    }
+                };
                 hir_fmt_generics(f, unev.args.as_slice(), c.generic_def(f.db), None)?;
                 Ok(())
             }

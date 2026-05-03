@@ -12,7 +12,7 @@ use std::{
 use cfg::{CfgAtom, CfgDiff};
 use hir::{
     Adt, AssocItem, Crate, DefWithBody, FindPathConfig, GenericDef, HasCrate, HasSource,
-    HirDisplay, ModuleDef, Name, Variant, VariantId, crate_lang_items,
+    HirDisplay, ModuleDef, Name, Variant, crate_lang_items,
     db::{DefDatabase, ExpandDatabase, HirDatabase},
     next_solver::{DbInterner, GenericArgs},
 };
@@ -746,10 +746,8 @@ impl flags::AnalysisStats {
             }
 
             all += 1;
-            let Ok(body_id) = body.try_into() else {
-                continue;
-            };
-            let Err(e) = db.mir_body(body_id) else {
+            #[expect(deprecated)]
+            let Err(e) = body.run_mir_body(db) else {
                 continue;
             };
             if verbosity.is_spammy() {
@@ -780,7 +778,7 @@ impl flags::AnalysisStats {
         vfs: &Vfs,
         bodies: &[DefWithBody],
         signatures: &[GenericDef],
-        variants: &[Variant],
+        _variants: &[Variant],
         verbosity: Verbosity,
     ) {
         let mut bar = match verbosity {
@@ -801,23 +799,24 @@ impl flags::AnalysisStats {
                     InferenceResult::of(snap, body);
                 })
                 .count();
-            let signatures = signatures
+            let _signatures = signatures
                 .iter()
                 .filter_map(|&signatures| signatures.try_into().ok())
                 .collect::<Vec<GenericDefId>>();
-            signatures
-                .par_iter()
-                .map_with(db.clone(), |snap, &signatures| {
-                    InferenceResult::of(snap, signatures);
-                })
-                .count();
-            let variants = variants.iter().copied().map(Into::into).collect::<Vec<VariantId>>();
-            variants
-                .par_iter()
-                .map_with(db.clone(), |snap, &variants| {
-                    InferenceResult::of(snap, variants);
-                })
-                .count();
+            // FIXME: We don't have access to the necessary types here (nor we should have).
+            // signatures
+            //     .par_iter()
+            //     .map_with(db.clone(), |snap, &signatures| {
+            //         InferenceResult::of(snap, signatures);
+            //     })
+            //     .count();
+            // let variants = variants.iter().copied().map(Into::into).collect::<Vec<VariantId>>();
+            // variants
+            //     .par_iter()
+            //     .map_with(db.clone(), |snap, &variants| {
+            //         InferenceResult::of(snap, variants);
+            //     })
+            //     .count();
             eprintln!("{:<20} {}", "Parallel Inference:", inference_sw.elapsed());
         }
 

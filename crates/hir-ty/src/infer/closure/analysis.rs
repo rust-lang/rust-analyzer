@@ -195,7 +195,7 @@ type InferredCaptureInformation = Vec<(Place, CaptureInfo)>;
 
 impl<'a, 'db> InferenceContext<'a, 'db> {
     pub(crate) fn closure_analyze(&mut self) {
-        let upvars = crate::upvars::upvars_mentioned(self.db, self.owner)
+        let upvars = crate::upvars::upvars_mentioned(self.db, self.store_owner)
             .unwrap_or(const { &FxHashMap::with_hasher(FxBuildHasher) });
         for root_expr in self.store.expr_roots() {
             self.analyze_closures_in_expr(root_expr, upvars);
@@ -329,7 +329,8 @@ impl<'a, 'db> InferenceContext<'a, 'db> {
                 let Expr::Path(path) = &self.store[init] else {
                     panic!();
                 };
-                let update_guard = self.resolver.update_to_inner_scope(self.db, self.owner, init);
+                let update_guard =
+                    self.resolver.update_to_inner_scope(self.db, self.store_owner, init);
                 let Some(ValueNs::LocalBinding(local_id)) =
                     self.resolver.resolve_path_in_value_ns_fully(
                         self.db,

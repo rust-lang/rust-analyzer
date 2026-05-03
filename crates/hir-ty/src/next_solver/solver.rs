@@ -1,7 +1,7 @@
 //! Defining `SolverContext` for next-trait-solver.
 
 use hir_def::{
-    AssocItemId, GeneralConstId,
+    AssocItemId,
     signatures::{ConstSignature, TypeAliasSignature},
 };
 use rustc_next_trait_solver::delegate::SolverDelegate;
@@ -16,6 +16,7 @@ use tracing::debug;
 
 use crate::{
     ParamEnvAndCrate, Span,
+    db::GeneralConstId,
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, GenericArgs,
         ParamEnv, Predicate, PredicateKind, SubtypePredicate, Ty, TyKind, UnevaluatedConst,
@@ -260,11 +261,10 @@ impl<'db> SolverDelegate for SolverContext<'db> {
                 self.cx().db.const_eval(c, subst, None).ok()?
             }
             GeneralConstId::StaticId(c) => self.cx().db.const_eval_static(c).ok()?,
-            // TODO: Wire up const_eval_anon query in Phase 5.
-            // For now, return an error const so normalization resolves the
-            // unevaluated const to Error (matching the old behavior where
-            // complex expressions produced ConstKind::Error directly).
-            GeneralConstId::AnonConstId(_) => return Some(Const::error(self.cx())),
+            GeneralConstId::AnonConstId(c) => {
+                let subst = uv.args;
+                self.cx().db.anon_const_eval(c, subst, None).ok()?
+            }
         };
         Some(Const::new_from_allocation(
             self.interner,

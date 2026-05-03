@@ -8,8 +8,7 @@ use hir_def::{
     expr_store::path::{GenericArgs as HirGenericArgs, Path},
     hir::{
         Array, AsmOperand, AsmOptions, BinaryOp, BindingAnnotation, Expr, ExprId, ExprOrPatId,
-        InlineAsmKind, LabelId, Literal, Pat, PatId, RecordLitField, RecordSpread, Statement,
-        UnaryOp,
+        InlineAsmKind, LabelId, Pat, PatId, RecordLitField, RecordSpread, Statement, UnaryOp,
     },
     resolver::ValueNs,
     signatures::VariantFields,
@@ -27,7 +26,8 @@ use syntax::ast::RangeOp;
 use tracing::debug;
 
 use crate::{
-    Adjust, Adjustment, CallableDefId, Rawness, Span, consteval,
+    Adjust, Adjustment, CallableDefId, Rawness, Span,
+    consteval::{self, literal_ty},
     infer::{AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable, pat::PatOrigin},
     lower::lower_mutability,
     method_resolution::{self, CandidateId, MethodCallee, MethodError},
@@ -668,7 +668,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 } else {
                     let rhs_ty = self.infer_expr(value, &Expectation::none(), ExprIsRead::Yes);
                     let resolver_guard =
-                        self.resolver.update_to_inner_scope(self.db, self.owner, tgt_expr);
+                        self.resolver.update_to_inner_scope(self.db, self.store_owner, tgt_expr);
                     self.inside_assignment = true;
                     self.infer_top_pat(target, rhs_ty, PatOrigin::DestructuringAssignment);
                     self.inside_assignment = false;
@@ -773,106 +773,45 @@ impl<'db> InferenceContext<'_, 'db> {
                 Ty::new_tup(self.interner(), &tys)
             }
             Expr::Array(array) => self.infer_expr_array(tgt_expr, array, expected),
-            Expr::Literal(lit) => match lit {
-                Literal::Bool(..) => self.types.types.bool,
-                Literal::String(..) => self.types.types.static_str_ref,
-                Literal::ByteString(bs) => {
-                    let byte_type = self.types.types.u8;
-
-                    let len = consteval::usize_const(
-                        self.db,
-                        Some(bs.len() as u128),
-                        self.resolver.krate(),
-                    );
-
-                    let array_type = Ty::new_array_with_const_len(self.interner(), byte_type, len);
-                    Ty::new_ref(
-                        self.interner(),
-                        self.types.regions.statik,
-                        array_type,
-                        Mutability::Not,
-                    )
-                }
-                Literal::CString(..) => Ty::new_ref(
-                    self.interner(),
-                    self.types.regions.statik,
-                    self.lang_items.CStr.map_or_else(
-                        || self.err_ty(),
-                        |strukt| {
-                            Ty::new_adt(
-                                self.interner(),
-                                strukt.into(),
-                                self.types.empty.generic_args,
-                            )
-                        },
-                    ),
-                    Mutability::Not,
-                ),
-                Literal::Char(..) => self.types.types.char,
-                Literal::Int(_v, ty) => match ty {
-                    Some(int_ty) => match int_ty {
-                        hir_def::builtin_type::BuiltinInt::Isize => self.types.types.isize,
-                        hir_def::builtin_type::BuiltinInt::I8 => self.types.types.i8,
-                        hir_def::builtin_type::BuiltinInt::I16 => self.types.types.i16,
-                        hir_def::builtin_type::BuiltinInt::I32 => self.types.types.i32,
-                        hir_def::builtin_type::BuiltinInt::I64 => self.types.types.i64,
-                        hir_def::builtin_type::BuiltinInt::I128 => self.types.types.i128,
-                    },
-                    None => {
-                        let expected_ty = expected.to_option(&mut self.table);
-                        tracing::debug!(?expected_ty);
-                        let opt_ty = match expected_ty.as_ref().map(|it| it.kind()) {
-                            Some(TyKind::Int(_) | TyKind::Uint(_)) => expected_ty,
-                            Some(TyKind::Char) => Some(self.types.types.u8),
-                            Some(TyKind::RawPtr(..) | TyKind::FnDef(..) | TyKind::FnPtr(..)) => {
-                                Some(self.types.types.usize)
-                            }
-                            _ => None,
-                        };
-                        opt_ty.unwrap_or_else(|| self.table.next_int_var())
-                    }
+            Expr::Literal(lit) => literal_ty(
+                self.interner(),
+                lit,
+                |_| {
+                    let expected_ty = expected.to_option(&self.table);
+                    tracing::debug!(?expected_ty);
+                    let opt_ty = match expected_ty.as_ref().map(|it| it.kind()) {
+                        Some(TyKind::Int(_) | TyKind::Uint(_)) => expected_ty,
+                        Some(TyKind::Char) => Some(self.types.types.u8),
+                        Some(TyKind::RawPtr(..) | TyKind::FnDef(..) | TyKind::FnPtr(..)) => {
+                            Some(self.types.types.usize)
+                        }
+                        _ => None,
+                    };
+                    opt_ty.unwrap_or_else(|| self.table.next_int_var())
                 },
-                Literal::Uint(_v, ty) => match ty {
-                    Some(int_ty) => match int_ty {
-                        hir_def::builtin_type::BuiltinUint::Usize => self.types.types.usize,
-                        hir_def::builtin_type::BuiltinUint::U8 => self.types.types.u8,
-                        hir_def::builtin_type::BuiltinUint::U16 => self.types.types.u16,
-                        hir_def::builtin_type::BuiltinUint::U32 => self.types.types.u32,
-                        hir_def::builtin_type::BuiltinUint::U64 => self.types.types.u64,
-                        hir_def::builtin_type::BuiltinUint::U128 => self.types.types.u128,
-                    },
-                    None => {
-                        let expected_ty = expected.to_option(&mut self.table);
-                        let opt_ty = match expected_ty.as_ref().map(|it| it.kind()) {
-                            Some(TyKind::Int(_) | TyKind::Uint(_)) => expected_ty,
-                            Some(TyKind::Char) => Some(self.types.types.u8),
-                            Some(TyKind::RawPtr(..) | TyKind::FnDef(..) | TyKind::FnPtr(..)) => {
-                                Some(self.types.types.usize)
-                            }
-                            _ => None,
-                        };
-                        opt_ty.unwrap_or_else(|| self.table.next_int_var())
-                    }
+                |_| {
+                    let expected_ty = expected.to_option(&self.table);
+                    let opt_ty = match expected_ty.as_ref().map(|it| it.kind()) {
+                        Some(TyKind::Int(_) | TyKind::Uint(_)) => expected_ty,
+                        Some(TyKind::Char) => Some(self.types.types.u8),
+                        Some(TyKind::RawPtr(..) | TyKind::FnDef(..) | TyKind::FnPtr(..)) => {
+                            Some(self.types.types.usize)
+                        }
+                        _ => None,
+                    };
+                    opt_ty.unwrap_or_else(|| self.table.next_int_var())
                 },
-                Literal::Float(_v, ty) => match ty {
-                    Some(float_ty) => match float_ty {
-                        hir_def::builtin_type::BuiltinFloat::F16 => self.types.types.f16,
-                        hir_def::builtin_type::BuiltinFloat::F32 => self.types.types.f32,
-                        hir_def::builtin_type::BuiltinFloat::F64 => self.types.types.f64,
-                        hir_def::builtin_type::BuiltinFloat::F128 => self.types.types.f128,
-                    },
-                    None => {
-                        let opt_ty = expected
-                            .to_option(&mut self.table)
-                            .filter(|ty| matches!(ty.kind(), TyKind::Float(_)));
-                        opt_ty.unwrap_or_else(|| self.table.next_float_var())
-                    }
+                |_| {
+                    let opt_ty = expected
+                        .to_option(&self.table)
+                        .filter(|ty| matches!(ty.kind(), TyKind::Float(_)));
+                    opt_ty.unwrap_or_else(|| self.table.next_float_var())
                 },
-            },
+            ),
             Expr::Underscore => {
                 // Underscore expression is an error, we render a specialized diagnostic
                 // to let the user know what type is expected though.
-                let expected = expected.to_option(&mut self.table).unwrap_or_else(|| self.err_ty());
+                let expected = expected.to_option(&self.table).unwrap_or_else(|| self.err_ty());
                 self.push_diagnostic(InferenceDiagnostic::TypedHole {
                     expr: tgt_expr,
                     expected: expected.store(),
@@ -1277,7 +1216,7 @@ impl<'db> InferenceContext<'_, 'db> {
     }
 
     fn infer_expr_path(&mut self, path: &Path, id: ExprOrPatId, scope_id: ExprId) -> Ty<'db> {
-        let g = self.resolver.update_to_inner_scope(self.db, self.owner, scope_id);
+        let g = self.resolver.update_to_inner_scope(self.db, self.store_owner, scope_id);
         let ty = match self.infer_path(path, id) {
             Some((_, ty)) => ty,
             None => {
@@ -1340,7 +1279,7 @@ impl<'db> InferenceContext<'_, 'db> {
         expected: &Expectation<'db>,
     ) -> Ty<'db> {
         let elem_ty = match expected
-            .to_option(&mut self.table)
+            .to_option(&self.table)
             .map(|t| self.table.try_structurally_resolve_type(expr.into(), t).kind())
         {
             Some(TyKind::Array(st, _) | TyKind::Slice(st)) => st,
@@ -1377,23 +1316,11 @@ impl<'db> InferenceContext<'_, 'db> {
                     &Expectation::has_type(elem_ty),
                     ExprIsRead::Yes,
                 );
-                let usize = self.types.types.usize;
-                let len = match self.store[repeat] {
-                    Expr::Underscore => {
-                        self.write_expr_ty(repeat, usize);
-                        self.table.next_const_var(repeat.into())
-                    }
-                    _ => {
-                        self.infer_expr(repeat, &Expectation::HasType(usize), ExprIsRead::Yes);
-                        consteval::eval_to_const(repeat, self)
-                    }
-                };
+                let len = self.create_body_anon_const(repeat, self.types.types.usize, true);
 
                 (elem_ty, len)
             }
         };
-        // Try to evaluate unevaluated constant, and insert variable if is not possible.
-        let len = self.insert_const_vars_shallow(len);
         Ty::new_array_with_const_len(self.interner(), elem_ty, len)
     }
 
@@ -1494,7 +1421,7 @@ impl<'db> InferenceContext<'_, 'db> {
         expected: &Expectation<'db>,
     ) -> Ty<'db> {
         let coerce_ty = expected.coercion_target_type(&mut self.table, expr.into());
-        let g = self.resolver.update_to_inner_scope(self.db, self.owner, expr);
+        let g = self.resolver.update_to_inner_scope(self.db, self.store_owner, expr);
 
         let (break_ty, ty) =
             self.with_breakable_ctx(BreakableKind::Block, Some(coerce_ty), label, |this| {

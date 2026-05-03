@@ -86,19 +86,14 @@ use crate::{
     builtin_type::BuiltinType,
     db::DefDatabase,
     expr_store::ExpressionStoreSourceMap,
-    hir::{
-        ExprId,
-        generics::{GenericParams, LocalLifetimeParamId, LocalTypeOrConstParamId},
-    },
+    hir::generics::{GenericParams, LocalLifetimeParamId, LocalTypeOrConstParamId},
     nameres::{
         LocalDefMap,
         assoc::{ImplItems, TraitItems},
         block_def_map, crate_def_map, crate_local_def_map,
         diagnostics::DefDiagnostics,
     },
-    signatures::{
-        ConstSignature, EnumVariants, InactiveEnumVariantCode, StaticSignature, VariantFields,
-    },
+    signatures::{EnumVariants, InactiveEnumVariantCode, VariantFields},
 };
 
 type FxIndexMap<K, V> = indexmap::IndexMap<K, V, rustc_hash::FxBuildHasher>;
@@ -312,19 +307,6 @@ impl_intern!(ConstId, ConstLoc, intern_const, lookup_intern_const);
 
 pub type StaticLoc = AssocItemLoc<ast::Static>;
 impl_intern!(StaticId, StaticLoc, intern_static, lookup_intern_static);
-
-/// An anonymous const expression that appears in a type position (e.g., array lengths,
-/// const generic arguments like `{ N + 1 }`). Unlike named constants, these don't have
-/// their own `Body` — their expressions live in the parent's signature `ExpressionStore`.
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct AnonConstLoc {
-    /// The owner store containing this expression.
-    pub owner: ExpressionStoreOwnerId,
-    /// The ExprId within the owner's ExpressionStore that is the root
-    /// of this anonymous const expression.
-    pub expr: ExprId,
-}
-impl_intern!(AnonConstId, AnonConstLoc, intern_anon_const, lookup_intern_anon_const);
 
 pub type TraitLoc = ItemLoc<ast::Trait>;
 impl_intern!(TraitId, TraitLoc, intern_trait, lookup_intern_trait);
@@ -721,42 +703,6 @@ impl From<DefWithBodyId> for ModuleDefId {
     }
 }
 
-/// A constant, which might appears as a const item, an anonymous const block in expressions
-/// or patterns, or as a constant in types with const generics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa_macros::Supertype)]
-pub enum GeneralConstId {
-    ConstId(ConstId),
-    StaticId(StaticId),
-    AnonConstId(AnonConstId),
-}
-
-impl_from!(ConstId, StaticId, AnonConstId for GeneralConstId);
-
-impl GeneralConstId {
-    pub fn generic_def(self, db: &dyn DefDatabase) -> Option<GenericDefId> {
-        match self {
-            GeneralConstId::ConstId(it) => Some(it.into()),
-            GeneralConstId::StaticId(it) => Some(it.into()),
-            GeneralConstId::AnonConstId(it) => Some(it.lookup(db).owner.generic_def(db)),
-        }
-    }
-
-    pub fn name(self, db: &dyn DefDatabase) -> String {
-        match self {
-            GeneralConstId::StaticId(it) => {
-                StaticSignature::of(db, it).name.display(db, Edition::CURRENT).to_string()
-            }
-            GeneralConstId::ConstId(const_id) => {
-                ConstSignature::of(db, const_id).name.as_ref().map_or_else(
-                    || "_".to_owned(),
-                    |name| name.display(db, Edition::CURRENT).to_string(),
-                )
-            }
-            GeneralConstId::AnonConstId(_) => "{anon const}".to_owned(),
-        }
-    }
-}
-
 /// The defs which have a body.
 #[derive(Debug, PartialOrd, Ord, Clone, Copy, PartialEq, Eq, Hash, salsa_macros::Supertype)]
 pub enum DefWithBodyId {
@@ -778,12 +724,12 @@ impl From<EnumVariantId> for DefWithBodyId {
 }
 
 impl DefWithBodyId {
-    pub fn as_generic_def_id(self, db: &dyn DefDatabase) -> Option<GenericDefId> {
+    pub fn generic_def(self, db: &dyn DefDatabase) -> GenericDefId {
         match self {
-            DefWithBodyId::FunctionId(f) => Some(f.into()),
-            DefWithBodyId::StaticId(s) => Some(s.into()),
-            DefWithBodyId::ConstId(c) => Some(c.into()),
-            DefWithBodyId::VariantId(c) => Some(c.lookup(db).parent.into()),
+            DefWithBodyId::FunctionId(f) => f.into(),
+            DefWithBodyId::StaticId(s) => s.into(),
+            DefWithBodyId::ConstId(c) => c.into(),
+            DefWithBodyId::VariantId(c) => c.lookup(db).parent.into(),
         }
     }
 }

@@ -62,10 +62,13 @@ mod tests;
 use std::{hash::Hash, ops::ControlFlow};
 
 use hir_def::{
-    CallableDefId, ExpressionStoreOwnerId, GenericDefId, LifetimeParamId, TypeAliasId,
-    TypeOrConstParamId, TypeParamId,
+    CallableDefId, ConstId, DefWithBodyId, EnumVariantId, ExpressionStoreOwnerId, FunctionId,
+    GenericDefId, HasModule, LifetimeParamId, ModuleId, StaticId, TypeAliasId, TypeOrConstParamId,
+    TypeParamId,
+    db::DefDatabase,
+    expr_store::{Body, ExpressionStore},
     hir::{BindingId, ExprId, ExprOrPatId, PatId},
-    resolver::TypeNs,
+    resolver::{HasResolver, Resolver, TypeNs},
     type_ref::{Rawness, TypeRefId},
 };
 use hir_expand::name::Name;
@@ -83,8 +86,8 @@ use syntax::ast::{ConstArg, make};
 use traits::FnTrait;
 
 use crate::{
-    db::HirDatabase,
-    display::{DisplayTarget, HirDisplay},
+    db::{AnonConstId, HirDatabase},
+    display::HirDisplay,
     lower::SupertraitsInfo,
     next_solver::{
         AliasTy, Binder, BoundConst, BoundRegion, BoundRegionKind, BoundTy, BoundTyKind, Canonical,
@@ -106,8 +109,8 @@ pub use infer::{
     could_unify, could_unify_deeply, infer_query_with_inspect,
 };
 pub use lower::{
-    GenericPredicates, ImplTraits, LifetimeElisionKind, TyDefId, TyLoweringContext, ValueTyDefId,
-    diagnostics::*,
+    GenericDefaults, GenericDefaultsRef, GenericPredicates, ImplTraits, LifetimeElisionKind,
+    TyDefId, TyLoweringContext, TyLoweringResult, ValueTyDefId, diagnostics::*,
 };
 pub use next_solver::interner::{attach_db, attach_db_allow_change, with_attached_db};
 pub use target_feature::TargetFeatures;
@@ -665,9 +668,11 @@ where
 pub fn known_const_to_ast<'db>(
     konst: Const<'db>,
     db: &'db dyn HirDatabase,
-    display_target: DisplayTarget,
+    target_module: ModuleId,
 ) -> Option<ConstArg> {
-    Some(make::expr_const_value(konst.display(db, display_target).to_string().as_str()))
+    Some(make::expr_const_value(
+        &konst.display_source_code(db, target_module, true).unwrap_or_else(|_| "_".to_owned()),
+    ))
 }
 
 /// A `Span` represents some location in lowered code - a type, expression or pattern.
@@ -704,6 +709,83 @@ impl Span {
     #[inline]
     pub fn is_dummy(&self) -> bool {
         matches!(self, Self::Dummy)
+    }
+}
+
+/// A [`DefWithBodyId`], or an anon const.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, salsa::Supertype)]
+pub enum InferBodyId {
+    DefWithBodyId(DefWithBodyId),
+    AnonConstId(AnonConstId),
+}
+impl_from!(DefWithBodyId(FunctionId, ConstId, StaticId), AnonConstId for InferBodyId);
+impl From<EnumVariantId> for InferBodyId {
+    fn from(id: EnumVariantId) -> Self {
+        InferBodyId::DefWithBodyId(DefWithBodyId::VariantId(id))
+    }
+}
+
+impl HasModule for InferBodyId {
+    fn module(&self, db: &dyn DefDatabase) -> ModuleId {
+        match self {
+            InferBodyId::DefWithBodyId(id) => id.module(db),
+            InferBodyId::AnonConstId(id) => id.module(db),
+        }
+    }
+}
+
+impl HasResolver for InferBodyId {
+    fn resolver(self, db: &dyn DefDatabase) -> Resolver<'_> {
+        match self {
+            InferBodyId::DefWithBodyId(id) => id.resolver(db),
+            InferBodyId::AnonConstId(id) => id.resolver(db),
+        }
+    }
+}
+
+impl InferBodyId {
+    pub fn expression_store_owner(self, db: &dyn HirDatabase) -> ExpressionStoreOwnerId {
+        match self {
+            InferBodyId::DefWithBodyId(id) => id.into(),
+            InferBodyId::AnonConstId(id) => id.loc(db).owner,
+        }
+    }
+
+    pub fn generic_def(self, db: &dyn HirDatabase) -> GenericDefId {
+        match self {
+            InferBodyId::DefWithBodyId(id) => id.generic_def(db),
+            InferBodyId::AnonConstId(id) => id.loc(db).owner.generic_def(db),
+        }
+    }
+
+    #[inline]
+    pub fn as_function(self) -> Option<FunctionId> {
+        match self {
+            InferBodyId::DefWithBodyId(DefWithBodyId::FunctionId(it)) => Some(it),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn as_variant(self) -> Option<EnumVariantId> {
+        match self {
+            InferBodyId::DefWithBodyId(DefWithBodyId::VariantId(it)) => Some(it),
+            _ => None,
+        }
+    }
+
+    pub fn store_and_root_expr(self, db: &dyn HirDatabase) -> (&ExpressionStore, ExprId) {
+        match self {
+            InferBodyId::DefWithBodyId(id) => {
+                let body = Body::of(db, id);
+                (body, body.root_expr())
+            }
+            InferBodyId::AnonConstId(id) => {
+                let loc = id.loc(db);
+                let store = ExpressionStore::of(db, loc.owner);
+                (store, loc.expr)
+            }
+        }
     }
 }
 

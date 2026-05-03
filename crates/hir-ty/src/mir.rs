@@ -5,7 +5,7 @@ use std::{collections::hash_map::Entry, fmt::Display, iter};
 use base_db::Crate;
 use either::Either;
 use hir_def::{
-    DefWithBodyId, FieldId, StaticId, TupleFieldId, UnionId, VariantId,
+    FieldId, StaticId, TupleFieldId, UnionId, VariantId,
     hir::{BindingId, Expr, ExprId, Ordering, PatId},
 };
 use la_arena::{Arena, ArenaMap, Idx, RawIdx};
@@ -16,7 +16,7 @@ use smallvec::{SmallVec, smallvec};
 use stdx::{impl_from, never};
 
 use crate::{
-    CallableDefId, InferenceResult, MemoryMap,
+    CallableDefId, InferBodyId, InferenceResult, MemoryMap,
     consteval::usize_const,
     db::{HirDatabase, InternedClosureId},
     display::{DisplayTarget, HirDisplay},
@@ -1084,7 +1084,7 @@ pub struct MirBody {
     pub basic_blocks: Arena<BasicBlock>,
     pub locals: Arena<Local>,
     pub start_block: BasicBlockId,
-    pub owner: DefWithBodyId,
+    pub owner: InferBodyId,
     pub binding_locals: ArenaMap<BindingId, LocalId>,
     pub upvar_locals: FxHashMap<BindingId, Vec<(LocalId, crate::closure_analysis::Place)>>,
     pub param_locals: Vec<LocalId>,

@@ -117,7 +117,9 @@ impl Body {
 
 impl Body {
     pub fn root_expr(&self) -> ExprId {
-        self.store.expr_roots().next().unwrap()
+        // A `Body` can also contain root expressions that aren't the body (in the param patterns),
+        // but the body always come last.
+        self.store.expr_roots().next_back().unwrap()
     }
 
     pub fn pretty_print(

@@ -1598,7 +1598,7 @@ fn coerce<'db>(
 
 fn is_capturing_closure(db: &dyn HirDatabase, closure: InternedClosureId) -> bool {
     let InternedClosure { owner, expr, .. } = closure.loc(db);
-    upvars_mentioned(db, owner)
+    upvars_mentioned(db, owner.expression_store_owner(db))
         .is_some_and(|upvars| upvars.get(&expr).is_some_and(|upvars| !upvars.is_empty()))
 }
 

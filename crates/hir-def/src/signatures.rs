@@ -984,7 +984,7 @@ fn lower_fields<Field: ast::HasAttrs + ast::HasVisibility>(
     override_visibility: Option<Option<ast::Visibility>>,
 ) -> Option<(Arena<FieldData>, ExpressionStore, ExpressionStoreSourceMap)> {
     let cfg_options = module.krate(db).cfg_options(db);
-    let mut col = ExprCollector::signature(db, module, fields.file_id);
+    let mut col = ExprCollector::new(db, module, fields.file_id);
     let override_visibility = override_visibility.map(|vis| {
         LazyCell::new(|| {
             let span_map = db.span_map(fields.file_id);
