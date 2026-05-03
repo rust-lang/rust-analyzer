@@ -736,7 +736,7 @@ pub const DEFAULT_LINTS: &[Lint] = &[
     Lint {
         label: "linker_messages",
         description: r##"warnings emitted at runtime by the target-specific linker program"##,
-        default_severity: Severity::Allow,
+        default_severity: Severity::Warning,
         warn_since: None,
         deny_since: None,
     },
@@ -4325,6 +4325,22 @@ pub unsafe extern "C" fn add(n: usize, mut args: ...) -> usize {
     sum
 }
 ```
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
+        label: "c_variadic_experimental_arch",
+        description: r##"# `c_variadic_experimental_arch`
+
+Allows defining c-variadic functions on targets where this feature has not yet undergone sufficient testing for stabilization.
+
+The tracking issue for this feature is: [#155973]
+
+[#155973]: https://github.com/rust-lang/rust/issues/155973
+
+------------------------
 "##,
         default_severity: Severity::Allow,
         warn_since: None,
@@ -8851,6 +8867,22 @@ This feature has no tracking issue, and is therefore likely internal to the comp
         deny_since: None,
     },
     Lint {
+        label: "gpu_launch_sized_workgroup_mem",
+        description: r##"# `gpu_launch_sized_workgroup_mem`
+
+
+
+The tracking issue for this feature is: [#135513]
+
+[#135513]: https://github.com/rust-lang/rust/issues/135513
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
         label: "guard_patterns",
         description: r##"# `guard_patterns`
 
@@ -12146,6 +12178,20 @@ Experimental features that make `Pin` more ergonomic.
 The tracking issue for this feature is: [#130494]
 
 [#130494]: https://github.com/rust-lang/rust/issues/130494
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
+        label: "pin_macro_internals",
+        description: r##"# `pin_macro_internals`
+
+
+
+This feature has no tracking issue, and is therefore likely internal to the compiler, not being intended for general use.
 
 ------------------------
 "##,
@@ -16461,6 +16507,22 @@ The tracking issue for this feature is: [#146954]
         deny_since: None,
     },
     Lint {
+        label: "view_types",
+        description: r##"# `view_types`
+
+Allows view types.
+
+The tracking issue for this feature is: [#155938]
+
+[#155938]: https://github.com/rust-lang/rust/issues/155938
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
         label: "waker_fn",
         description: r##"# `waker_fn`
 
@@ -16633,6 +16695,22 @@ This feature is internal to the Rust compiler and is not intended for general us
         description: r##"# `windows_net`
 
 This feature is internal to the Rust compiler and is not intended for general use.
+
+------------------------
+"##,
+        default_severity: Severity::Allow,
+        warn_since: None,
+        deny_since: None,
+    },
+    Lint {
+        label: "windows_permissions_ext",
+        description: r##"# `windows_permissions_ext`
+
+
+
+The tracking issue for this feature is: [#152956]
+
+[#152956]: https://github.com/rust-lang/rust/issues/152956
 
 ------------------------
 "##,
