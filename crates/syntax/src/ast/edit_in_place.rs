@@ -9,7 +9,7 @@ use crate::{
     SyntaxKind::{ATTR, COMMENT, WHITESPACE},
     SyntaxNode, SyntaxToken,
     algo::{self, neighbor},
-    ast::{self, edit::IndentLevel, make},
+    ast::{self, edit::IndentLevel, make, syntax_factory::SyntaxFactory},
     syntax_editor::{self, SyntaxEditor},
     ted,
 };
@@ -43,33 +43,18 @@ pub trait AttrsOwnerEdit: ast::HasAttrs {
 impl<T: ast::HasAttrs> AttrsOwnerEdit for T {}
 
 impl ast::GenericParamList {
-    /// Removes the existing generic param
-    pub fn remove_generic_param(&self, generic_param: ast::GenericParam) {
-        if let Some(previous) = generic_param.syntax().prev_sibling() {
-            if let Some(next_token) = previous.next_sibling_or_token() {
-                ted::remove_all(next_token..=generic_param.syntax().clone().into());
-            }
-        } else if let Some(next) = generic_param.syntax().next_sibling() {
-            if let Some(next_token) = next.prev_sibling_or_token() {
-                ted::remove_all(generic_param.syntax().clone().into()..=next_token);
-            }
-        } else {
-            ted::remove(generic_param.syntax());
-        }
-    }
-
     /// Constructs a matching [`ast::GenericArgList`]
-    pub fn to_generic_args(&self) -> ast::GenericArgList {
+    pub fn to_generic_args(&self, make: &SyntaxFactory) -> ast::GenericArgList {
         let args = self.generic_params().filter_map(|param| match param {
             ast::GenericParam::LifetimeParam(it) => {
-                Some(ast::GenericArg::LifetimeArg(make::lifetime_arg(it.lifetime()?)))
+                Some(ast::GenericArg::LifetimeArg(make.lifetime_arg(it.lifetime()?)))
             }
             ast::GenericParam::TypeParam(it) => {
-                Some(ast::GenericArg::TypeArg(make::type_arg(make::ext::ty_name(it.name()?))))
+                Some(ast::GenericArg::TypeArg(make.type_arg(make.ty_name(it.name()?))))
             }
             ast::GenericParam::ConstParam(it) => {
                 // Name-only const params get parsed as `TypeArg`s
-                Some(ast::GenericArg::TypeArg(make::type_arg(make::ext::ty_name(it.name()?))))
+                Some(ast::GenericArg::TypeArg(make.type_arg(make.ty_name(it.name()?))))
             }
         });
 

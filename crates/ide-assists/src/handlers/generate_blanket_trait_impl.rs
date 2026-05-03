@@ -89,7 +89,7 @@ pub(crate) fn generate_blanket_trait_impl(
             ))]);
 
             let trait_gen_args =
-                traitd.generic_param_list().map(|param_list| param_list.to_generic_args());
+                traitd.generic_param_list().map(|param_list| param_list.to_generic_args(make));
 
             let body = traitd.assoc_item_list().and_then(|trait_assoc_list| {
                 let items = trait_assoc_list
