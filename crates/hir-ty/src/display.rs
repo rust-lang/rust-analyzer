@@ -10,8 +10,8 @@ use std::{
 use base_db::{Crate, FxIndexMap};
 use either::Either;
 use hir_def::{
-    ExpressionStoreOwnerId, FindPathConfig, GenericDefId, GenericParamId, HasModule, LocalFieldId,
-    Lookup, ModuleDefId, ModuleId, TraitId,
+    ExpressionStoreOwnerId, FindPathConfig, GenericDefId, GenericParamId, HasModule,
+    ItemContainerId, LocalFieldId, Lookup, ModuleDefId, ModuleId, TraitId,
     expr_store::{ExpressionStore, path::Path},
     find_path::{self, PrefixKind},
     hir::{
@@ -134,7 +134,15 @@ pub struct HirFormatter<'a, 'db> {
     display_lifetimes: DisplayLifetime,
     display_kind: DisplayKind,
     display_target: DisplayTarget,
-    bounds_formatting_ctx: BoundsFormattingCtx<'db>,
+    /// We can have recursive bounds like the following case:
+    /// ```ignore
+    /// where
+    ///     T: Foo,
+    ///     T::FooAssoc: Baz<<T::FooAssoc as Bar>::BarAssoc> + Bar
+    /// ```
+    /// So, record the projection types met while formatting bounds and
+    /// prevent recursing into their bounds to avoid infinite loops.
+    currently_formatting_bounds: FxHashSet<AliasTy<'db>>,
     /// Whether formatting `impl Trait1 + Trait2` or `dyn Trait1 + Trait2` needs parentheses around it,
     /// for example when formatting `&(impl Trait1 + Trait2)`.
     trait_bounds_need_parens: bool,
@@ -154,34 +162,6 @@ pub enum DisplayLifetime {
     Never,
 }
 
-#[derive(Default)]
-enum BoundsFormattingCtx<'db> {
-    Entered {
-        /// We can have recursive bounds like the following case:
-        /// ```ignore
-        /// where
-        ///     T: Foo,
-        ///     T::FooAssoc: Baz<<T::FooAssoc as Bar>::BarAssoc> + Bar
-        /// ```
-        /// So, record the projection types met while formatting bounds and
-        //. prevent recursing into their bounds to avoid infinite loops.
-        projection_tys_met: FxHashSet<AliasTy<'db>>,
-    },
-    #[default]
-    Exited,
-}
-
-impl<'db> BoundsFormattingCtx<'db> {
-    fn contains(&self, proj: &AliasTy<'db>) -> bool {
-        match self {
-            BoundsFormattingCtx::Entered { projection_tys_met } => {
-                projection_tys_met.contains(proj)
-            }
-            BoundsFormattingCtx::Exited => false,
-        }
-    }
-}
-
 impl<'db> HirFormatter<'_, 'db> {
     pub fn start_location_link(&mut self, location: ModuleDefId) {
         self.fmt.start_location_link(location);
@@ -195,26 +175,42 @@ impl<'db> HirFormatter<'_, 'db> {
         self.fmt.end_location_link();
     }
 
-    fn format_bounds_with<T, F: FnOnce(&mut Self) -> T>(
+    fn format_bounds_with<F: FnOnce(&mut Self) -> Result>(
         &mut self,
         target: AliasTy<'db>,
         format_bounds: F,
-    ) -> T {
-        match self.bounds_formatting_ctx {
-            BoundsFormattingCtx::Entered { ref mut projection_tys_met } => {
-                projection_tys_met.insert(target);
-                format_bounds(self)
-            }
-            BoundsFormattingCtx::Exited => {
-                let mut projection_tys_met = FxHashSet::default();
-                projection_tys_met.insert(target);
-                self.bounds_formatting_ctx = BoundsFormattingCtx::Entered { projection_tys_met };
-                let res = format_bounds(self);
-                // Since we want to prevent only the infinite recursions in bounds formatting
-                // and do not want to skip formatting of other separate bounds, clear context
-                // when exiting the formatting of outermost bounds
-                self.bounds_formatting_ctx = BoundsFormattingCtx::Exited;
-                res
+    ) -> Result {
+        if self.currently_formatting_bounds.insert(target) {
+            let result = format_bounds(self);
+            self.currently_formatting_bounds.remove(&target);
+            result
+        } else {
+            if self.display_kind.is_source_code() {
+                Err(HirDisplayError::DisplaySourceCodeError(DisplaySourceCodeError::Cycle))
+            } else {
+                match target.kind {
+                    AliasTyKind::Projection { def_id } => {
+                        let def_id = def_id.expect_type_alias();
+                        let ItemContainerId::TraitId(trait_) = def_id.loc(self.db).container else {
+                            panic!("expected an assoc type");
+                        };
+                        let trait_name = &TraitSignature::of(self.db, trait_).name;
+                        let assoc_type_name = &TypeAliasSignature::of(self.db, def_id).name;
+                        write!(
+                            self,
+                            "<… as {}>::{}",
+                            trait_name.display(self.db, self.edition()),
+                            assoc_type_name.display(self.db, self.edition()),
+                        )?;
+                        if target.args.len() > 1 {
+                            self.write_str("<…>")?;
+                        }
+                        Ok(())
+                    }
+                    AliasTyKind::Inherent { .. }
+                    | AliasTyKind::Opaque { .. }
+                    | AliasTyKind::Free { .. } => self.write_str("…"),
+                }
             }
         }
     }
@@ -368,7 +364,7 @@ pub trait HirDisplay<'db> {
             display_kind: DisplayKind::SourceCode { target_module_id: module_id, allow_opaque },
             show_container_bounds: false,
             display_lifetimes: DisplayLifetime::OnlyNamedOrStatic,
-            bounds_formatting_ctx: Default::default(),
+            currently_formatting_bounds: Default::default(),
             trait_bounds_need_parens: false,
         }) {
             Ok(()) => {}
@@ -544,6 +540,7 @@ pub enum DisplaySourceCodeError {
     PathNotFound,
     Coroutine,
     OpaqueType,
+    Cycle,
 }
 
 pub enum HirDisplayError {
@@ -604,7 +601,7 @@ impl<'db, T: HirDisplay<'db>> HirDisplayWrapper<'_, 'db, T> {
             closure_style: self.closure_style,
             show_container_bounds: self.show_container_bounds,
             display_lifetimes: self.display_lifetimes,
-            bounds_formatting_ctx: Default::default(),
+            currently_formatting_bounds: Default::default(),
             trait_bounds_need_parens: false,
         })
     }
@@ -657,62 +654,61 @@ fn write_projection<'db>(
     alias: &AliasTy<'db>,
     needs_parens_if_multi: bool,
 ) -> Result {
-    if f.should_truncate() {
-        return write!(f, "{TYPE_HINT_TRUNCATION}");
-    }
-    let trait_ref = alias.trait_ref(f.interner);
-    let self_ty = trait_ref.self_ty();
+    f.format_bounds_with(*alias, |f| {
+        if f.should_truncate() {
+            return write!(f, "{TYPE_HINT_TRUNCATION}");
+        }
+        let trait_ref = alias.trait_ref(f.interner);
+        let self_ty = trait_ref.self_ty();
 
-    // if we are projection on a type parameter, check if the projection target has bounds
-    // itself, if so, we render them directly as `impl Bound` instead of the less useful
-    // `<Param as Trait>::Assoc`
-    if !f.display_kind.is_source_code()
-        && let TyKind::Param(param) = self_ty.kind()
-        && !f.bounds_formatting_ctx.contains(alias)
-    {
-        // FIXME: We shouldn't use `param.id`, it should be removed. We should know the
-        // `GenericDefId` from the formatted type (store it inside the `HirFormatter`).
-        let bounds = GenericPredicates::query_all(f.db, param.id.parent())
-            .iter_identity()
-            .filter(|wc| {
-                let ty = match wc.kind().skip_binder() {
-                    ClauseKind::Trait(tr) => tr.self_ty(),
-                    ClauseKind::TypeOutlives(t) => t.0,
-                    _ => return false,
-                };
-                let TyKind::Alias(a) = ty.kind() else {
-                    return false;
-                };
-                a == *alias
-            })
-            .collect::<Vec<_>>();
-        if !bounds.is_empty() {
-            return f.format_bounds_with(*alias, |f| {
-                write_bounds_like_dyn_trait_with_prefix(
+        // if we are projection on a type parameter, check if the projection target has bounds
+        // itself, if so, we render them directly as `impl Bound` instead of the less useful
+        // `<Param as Trait>::Assoc`
+        if !f.display_kind.is_source_code()
+            && let TyKind::Param(param) = self_ty.kind()
+        {
+            // FIXME: We shouldn't use `param.id`, it should be removed. We should know the
+            // `GenericDefId` from the formatted type (store it inside the `HirFormatter`).
+            let bounds = GenericPredicates::query_all(f.db, param.id.parent())
+                .iter_identity()
+                .filter(|wc| {
+                    let ty = match wc.kind().skip_binder() {
+                        ClauseKind::Trait(tr) => tr.self_ty(),
+                        ClauseKind::TypeOutlives(t) => t.0,
+                        _ => return false,
+                    };
+                    let TyKind::Alias(a) = ty.kind() else {
+                        return false;
+                    };
+                    a == *alias
+                })
+                .collect::<Vec<_>>();
+            if !bounds.is_empty() {
+                return write_bounds_like_dyn_trait_with_prefix(
                     f,
                     "impl",
                     Either::Left(Ty::new_alias(f.interner, *alias)),
                     &bounds,
                     SizedByDefault::NotSized,
                     needs_parens_if_multi,
-                )
-            });
+                );
+            }
         }
-    }
 
-    write!(f, "<")?;
-    self_ty.hir_fmt(f)?;
-    write!(f, " as ")?;
-    trait_ref.hir_fmt(f)?;
-    write!(
-        f,
-        ">::{}",
-        TypeAliasSignature::of(f.db, alias.kind.def_id().expect_type_alias())
-            .name
-            .display(f.db, f.edition())
-    )?;
-    let proj_params = &alias.args.as_slice()[trait_ref.args.len()..];
-    hir_fmt_generics(f, proj_params, None, None)
+        write!(f, "<")?;
+        self_ty.hir_fmt(f)?;
+        write!(f, " as ")?;
+        trait_ref.hir_fmt(f)?;
+        write!(
+            f,
+            ">::{}",
+            TypeAliasSignature::of(f.db, alias.kind.def_id().expect_type_alias())
+                .name
+                .display(f.db, f.edition())
+        )?;
+        let proj_params = &alias.args.as_slice()[trait_ref.args.len()..];
+        hir_fmt_generics(f, proj_params, None, None)
+    })
 }
 
 impl<'db> HirDisplay<'db> for GenericArg<'db> {
