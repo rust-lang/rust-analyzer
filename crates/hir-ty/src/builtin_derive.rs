@@ -52,18 +52,7 @@ fn trait_args(trait_: BuiltinDeriveImplTrait, self_ty: Ty<'_>) -> GenericArgs<'_
         BuiltinDeriveImplTrait::CoerceUnsized | BuiltinDeriveImplTrait::DispatchFromDyn => {
             panic!("`CoerceUnsized` and `DispatchFromDyn` have special generics")
         }
-        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
-}
-
-fn coerce_shared_builtin_impl_unreachable() -> ! {
-    // `CoerceShared` needs the explicit target type from `#[coerce_shared(...)]`.
-    // `BuiltinDeriveImplLoc` does not store that type, so `hir-def` does not create
-    // a builtin derive impl for it and instead lets the derive macro expand normally.
-    unreachable!(
-        "`CoerceShared` derives are expanded normally because their trait target comes from \
-        `#[coerce_shared(...)]`"
-    )
 }
 
 pub(crate) fn generics_of<'db>(
@@ -91,7 +80,6 @@ pub(crate) fn generics_of<'db>(
             let additional_param = coerce_pointee_new_type_param(trait_id).into();
             Generics::from_generic_def_plus_one(db, loc.adt.into(), additional_param)
         }
-        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
 }
 
@@ -110,7 +98,6 @@ pub fn generic_params_count(db: &dyn HirDatabase, id: BuiltinDeriveImplId) -> us
         | BuiltinDeriveImplTrait::Eq
         | BuiltinDeriveImplTrait::PartialEq => 0,
         BuiltinDeriveImplTrait::CoerceUnsized | BuiltinDeriveImplTrait::DispatchFromDyn => 1,
-        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     };
     adt_params.len() + extra_params_count
 }
@@ -166,7 +153,6 @@ pub fn impl_trait<'db>(
             let changed_self_ty = Ty::new_adt(interner, loc.adt, changed_args);
             EarlyBinder::bind(TraitRef::new(interner, trait_id.into(), [self_ty, changed_self_ty]))
         }
-        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
 }
 
@@ -242,7 +228,6 @@ pub fn predicates(db: &dyn HirDatabase, impl_: BuiltinDeriveImplId) -> GenericPr
                 .store(),
             ))
         }
-        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
 }
 
