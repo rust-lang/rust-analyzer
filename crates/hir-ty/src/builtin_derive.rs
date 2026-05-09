@@ -39,6 +39,7 @@ fn coerce_pointee_new_type_param(trait_id: TraitId) -> TypeParamId {
 fn trait_args(trait_: BuiltinDeriveImplTrait, self_ty: Ty<'_>) -> GenericArgs<'_> {
     match trait_ {
         BuiltinDeriveImplTrait::Copy
+        | BuiltinDeriveImplTrait::Reborrow
         | BuiltinDeriveImplTrait::Clone
         | BuiltinDeriveImplTrait::Default
         | BuiltinDeriveImplTrait::Debug
@@ -51,7 +52,18 @@ fn trait_args(trait_: BuiltinDeriveImplTrait, self_ty: Ty<'_>) -> GenericArgs<'_
         BuiltinDeriveImplTrait::CoerceUnsized | BuiltinDeriveImplTrait::DispatchFromDyn => {
             panic!("`CoerceUnsized` and `DispatchFromDyn` have special generics")
         }
+        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
+}
+
+fn coerce_shared_builtin_impl_unreachable() -> ! {
+    // `CoerceShared` needs the explicit target type from `#[coerce_shared(...)]`.
+    // `BuiltinDeriveImplLoc` does not store that type, so `hir-def` does not create
+    // a builtin derive impl for it and instead lets the derive macro expand normally.
+    unreachable!(
+        "`CoerceShared` derives are expanded normally because their trait target comes from \
+        `#[coerce_shared(...)]`"
+    )
 }
 
 pub(crate) fn generics_of<'db>(
@@ -62,6 +74,7 @@ pub(crate) fn generics_of<'db>(
     let loc = id.loc(db);
     match loc.trait_ {
         BuiltinDeriveImplTrait::Copy
+        | BuiltinDeriveImplTrait::Reborrow
         | BuiltinDeriveImplTrait::Clone
         | BuiltinDeriveImplTrait::Default
         | BuiltinDeriveImplTrait::Debug
@@ -78,6 +91,7 @@ pub(crate) fn generics_of<'db>(
             let additional_param = coerce_pointee_new_type_param(trait_id).into();
             Generics::from_generic_def_plus_one(db, loc.adt.into(), additional_param)
         }
+        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
 }
 
@@ -86,6 +100,7 @@ pub fn generic_params_count(db: &dyn HirDatabase, id: BuiltinDeriveImplId) -> us
     let adt_params = GenericParams::of(db, loc.adt.into());
     let extra_params_count = match loc.trait_ {
         BuiltinDeriveImplTrait::Copy
+        | BuiltinDeriveImplTrait::Reborrow
         | BuiltinDeriveImplTrait::Clone
         | BuiltinDeriveImplTrait::Default
         | BuiltinDeriveImplTrait::Debug
@@ -95,6 +110,7 @@ pub fn generic_params_count(db: &dyn HirDatabase, id: BuiltinDeriveImplId) -> us
         | BuiltinDeriveImplTrait::Eq
         | BuiltinDeriveImplTrait::PartialEq => 0,
         BuiltinDeriveImplTrait::CoerceUnsized | BuiltinDeriveImplTrait::DispatchFromDyn => 1,
+        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     };
     adt_params.len() + extra_params_count
 }
@@ -111,6 +127,7 @@ pub fn impl_trait<'db>(
         .expect("we don't pass the impl to the solver if we can't resolve the trait");
     match loc.trait_ {
         BuiltinDeriveImplTrait::Copy
+        | BuiltinDeriveImplTrait::Reborrow
         | BuiltinDeriveImplTrait::Clone
         | BuiltinDeriveImplTrait::Default
         | BuiltinDeriveImplTrait::Debug
@@ -149,6 +166,7 @@ pub fn impl_trait<'db>(
             let changed_self_ty = Ty::new_adt(interner, loc.adt, changed_args);
             EarlyBinder::bind(TraitRef::new(interner, trait_id.into(), [self_ty, changed_self_ty]))
         }
+        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
 }
 
@@ -173,16 +191,13 @@ pub fn predicates(db: &dyn HirDatabase, impl_: BuiltinDeriveImplId) -> GenericPr
         | BuiltinDeriveImplTrait::PartialEq => {
             simple_trait_predicates(interner, loc, generic_params, adt_predicates, trait_id)
         }
+        BuiltinDeriveImplTrait::Reborrow => {
+            explicit_own_predicates(interner, adt_predicates.own_explicit_predicates())
+        }
         BuiltinDeriveImplTrait::Default => {
             if matches!(loc.adt, AdtId::EnumId(_)) {
                 // Enums don't have extra bounds.
-                GenericPredicates::from_explicit_own_predicates(StoredEarlyBinder::bind(
-                    Clauses::new_from_iter(
-                        interner,
-                        adt_predicates.own_explicit_predicates().skip_binder(),
-                    )
-                    .store(),
-                ))
+                explicit_own_predicates(interner, adt_predicates.own_explicit_predicates())
             } else {
                 simple_trait_predicates(interner, loc, generic_params, adt_predicates, trait_id)
             }
@@ -227,7 +242,17 @@ pub fn predicates(db: &dyn HirDatabase, impl_: BuiltinDeriveImplId) -> GenericPr
                 .store(),
             ))
         }
+        BuiltinDeriveImplTrait::CoerceShared => coerce_shared_builtin_impl_unreachable(),
     }
+}
+
+fn explicit_own_predicates<'db>(
+    interner: DbInterner<'db>,
+    predicates: EarlyBinder<'db, impl Iterator<Item = Clause<'db>>>,
+) -> GenericPredicates {
+    GenericPredicates::from_explicit_own_predicates(StoredEarlyBinder::bind(
+        Clauses::new_from_iter(interner, predicates.skip_binder()).store(),
+    ))
 }
 
 /// Not cached in a query, currently used in `hir` only. If you need this in `hir-ty` consider introducing a query.
@@ -516,6 +541,21 @@ struct MultiGenericParams<'a, T, #[pointee] U: ?Sized, const N: usize>(*const U)
     }
 
     #[test]
+    fn reborrow_trait_ref() {
+        check_trait_refs(
+            r#"
+//- minicore: reborrow
+use core::marker::Reborrow;
+
+#[derive(Reborrow)]
+struct Marker<'a, T>(&'a mut T);
+        "#,
+            expect![[r#"
+                Marker<#0, #1>: Reborrow"#]],
+        );
+    }
+
+    #[test]
     fn simple_macros_predicates() {
         check_predicates(
             r#"
@@ -595,6 +635,27 @@ struct WithGenerics<'a, T: Trait, const N: usize>(&'a [T; N], T::Assoc);
                 Clause(Binder { value: TraitPredicate(#1: Sized, polarity:Positive), bound_vars: [] })
                 Clause(Binder { value: TraitPredicate(#1: Hash, polarity:Positive), bound_vars: [] })
                 Clause(Binder { value: TraitPredicate(Alias(AliasTy { args: [#1], kind: Projection { def_id: TypeAliasId("Assoc") }, .. }): Hash, polarity:Positive), bound_vars: [] })
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn reborrow_predicates() {
+        check_predicates(
+            r#"
+//- minicore: reborrow
+use core::marker::Reborrow;
+
+trait Trait {}
+
+#[derive(Reborrow)]
+struct Marker<'a, T: Trait, const N: usize>(&'a mut [T; N]);
+        "#,
+            expect![[r#"
+                Clause(Binder { value: TraitPredicate(#1: Trait, polarity:Positive), bound_vars: [] })
+                Clause(Binder { value: ConstArgHasType(#2, usize), bound_vars: [] })
+                Clause(Binder { value: TraitPredicate(#1: Sized, polarity:Positive), bound_vars: [] })
 
             "#]],
         );
