@@ -886,9 +886,9 @@ impl<'db> AnyDiagnostic<'db> {
                 else {
                     return None;
                 };
-                if record_expr.record_expr_field_list().is_none() {
-                    return None;
-                }
+
+                record_expr.record_expr_field_list()?;
+
                 let field_list_parent_path = record_expr.path().map(|path| AstPtr::new(&path));
                 MissingFields {
                     file,
