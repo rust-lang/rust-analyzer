@@ -84,8 +84,8 @@ use hir_expand::{
     proc_macro::ProcMacroKind,
 };
 use hir_ty::{
-    GenericPredicates, InferBodyId, InferenceResult, ParamEnvAndCrate, TyDefId,
-    TyLoweringDiagnostic, ValueTyDefId, all_super_traits, autoderef, check_orphan_rules,
+    GenericPredicates, InferBodyId, InferenceDiagnostic, InferenceResult, ParamEnvAndCrate,
+    TyDefId, TyLoweringDiagnostic, ValueTyDefId, all_super_traits, autoderef, check_orphan_rules,
     consteval::try_const_usize,
     db::{AnonConstId, InternedClosure, InternedClosureId, InternedCoroutineClosureId},
     diagnostics::BodyValidationDiagnostic,
@@ -2022,7 +2022,13 @@ impl DefWithBody {
 
         let infer = InferenceResult::of(db, id);
         let type_owner = id.generic_def(db).into();
+        let mut delayed_missing_fields_diagnostics = Vec::new();
+
         for d in infer.diagnostics() {
+            if matches!(d, InferenceDiagnostic::MissingFields { .. }) {
+                delayed_missing_fields_diagnostics.push(d);
+                continue;
+            }
             acc.extend(AnyDiagnostic::inference_diagnostic(
                 db,
                 id,
@@ -2185,6 +2191,16 @@ impl DefWithBody {
 
         for diagnostic in BodyValidationDiagnostic::collect(db, id, style_lints) {
             acc.extend(AnyDiagnostic::body_validation_diagnostic(db, diagnostic, source_map));
+        }
+        for d in delayed_missing_fields_diagnostics {
+            acc.extend(AnyDiagnostic::inference_diagnostic(
+                db,
+                id,
+                d,
+                source_map,
+                sig_source_map,
+                env,
+            ));
         }
 
         for diag in hir_ty::diagnostics::incorrect_case(db, id.into()) {
