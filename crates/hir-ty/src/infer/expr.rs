@@ -1192,13 +1192,7 @@ impl<'db> InferenceContext<'_, 'db> {
                 {
                     debug!(?remaining_fields);
 
-                    let missing_fields = variant_fields
-                        .fields()
-                        .iter()
-                        .filter_map(|(field_idx, field)| {
-                            remaining_fields.contains_key(&field.name).then_some(field_idx)
-                        })
-                        .collect::<Vec<_>>();
+                    let missing_fields = remaining_fields.values().copied().collect();
                     if !missing_fields.is_empty() {
                         self.push_diagnostic(InferenceDiagnostic::MissingFields {
                             expr,

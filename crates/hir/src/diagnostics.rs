@@ -884,6 +884,7 @@ impl<'db> AnyDiagnostic<'db> {
                 let root = record.file_syntax(db);
                 let Either::Left(ast::Expr::RecordExpr(record_expr)) = record.value.to_node(&root)
                 else {
+                    never!("should always map to a `ast::RecordExpr`");
                     return None;
                 };
 
