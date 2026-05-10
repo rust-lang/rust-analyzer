@@ -1193,13 +1193,12 @@ impl<'db> InferenceContext<'_, 'db> {
                     debug!(?remaining_fields);
 
                     let missing_fields = remaining_fields.values().copied().collect();
-                    if !missing_fields.is_empty() {
-                        self.push_diagnostic(InferenceDiagnostic::MissingFields {
-                            expr,
-                            fields: missing_fields,
-                            variant,
-                        });
-                    }
+
+                    self.push_diagnostic(InferenceDiagnostic::MissingFields {
+                        expr,
+                        fields: missing_fields,
+                        variant,
+                    });
                 }
             }
         }
