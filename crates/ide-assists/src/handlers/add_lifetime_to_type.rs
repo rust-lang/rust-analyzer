@@ -23,11 +23,9 @@ use crate::{AssistContext, AssistId, Assists};
 // }
 // ```
 pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
-    let ref_type_focused = ctx.find_node_at_offset::<ast::RefType>()?;
-    if ref_type_focused.lifetime().is_some_and(|lifetime| lifetime.text() != "'_") {
+    if !trigger_assist(ctx) {
         return None;
     }
-
     let node = ctx.find_node_at_offset::<ast::Adt>()?;
     let has_lifetime = node
         .generic_param_list()
@@ -65,6 +63,16 @@ pub(crate) fn add_lifetime_to_type(acc: &mut Assists, ctx: &AssistContext<'_, '_
             }
         }
     })
+}
+
+fn trigger_assist(ctx: &AssistContext<'_, '_>) -> bool {
+    ctx.find_node_at_offset::<ast::RefType>()
+        .is_some_and(|it| it.lifetime().is_none_or(|it| it.text() == "'_"))
+        || ctx
+            .find_node_at_offset::<ast::PathType>()
+            .map(ast::Type::from)
+            .and_then(|it| it.generic_arg_list()?.lifetime_args().next()?.lifetime())
+            .is_some_and(|it| it.text() == "'_")
 }
 
 fn fetch_borrowed_types(node: &ast::Adt) -> Option<Vec<Change>> {
@@ -182,6 +190,18 @@ mod tests {
             add_lifetime_to_type,
             r#"struct Foo { a: &'_ $0i32, b: &'_ (&'_ i32, fn(&str) -> &str) }"#,
             r#"struct Foo<'a> { a: &'a i32, b: &'a (&'a i32, fn(&str) -> &str) }"#,
+        );
+
+        check_assist(
+            add_lifetime_to_type,
+            r#"struct Foo { a: &'_ $0i32, b: Foo<'_> }"#,
+            r#"struct Foo<'a> { a: &'a i32, b: Foo<'a> }"#,
+        );
+
+        check_assist(
+            add_lifetime_to_type,
+            r#"struct Foo { a: &'_ i32, b: Foo<'_$0> }"#,
+            r#"struct Foo<'a> { a: &'a i32, b: Foo<'a> }"#,
         );
     }
 
