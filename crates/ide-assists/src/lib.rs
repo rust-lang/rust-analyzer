@@ -211,6 +211,7 @@ mod handlers {
     mod remove_unused_imports;
     mod remove_unused_param;
     mod reorder_fields;
+    mod reorder_fn_modifiers;
     mod reorder_impl_items;
     mod replace_arith_op;
     mod replace_derive_with_manual_impl;
@@ -356,6 +357,7 @@ mod handlers {
             remove_unused_param::remove_unused_param,
             reorder_fields::reorder_fields,
             reorder_impl_items::reorder_impl_items,
+            reorder_fn_modifiers::reorder_fn_modifiers,
             replace_arith_op::replace_arith_with_checked,
             replace_arith_op::replace_arith_with_saturating,
             replace_arith_op::replace_arith_with_wrapping,

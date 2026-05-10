@@ -3158,6 +3158,19 @@ const test: Foo = Foo {foo: 1, bar: 0}
 }
 
 #[test]
+fn doctest_reorder_fn_modifiers() {
+    check_doc_test(
+        "reorder_fn_modifiers",
+        r#####"
+$0const extern extern pub fn async "C" unsafe foo() {}
+"#####,
+        r#####"
+pub const async unsafe extern "C" fn foo() {}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_reorder_impl_items() {
     check_doc_test(
         "reorder_impl_items",
