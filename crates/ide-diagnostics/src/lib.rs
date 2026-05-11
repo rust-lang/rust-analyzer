@@ -36,6 +36,7 @@ mod handlers {
     pub(crate) mod elided_lifetimes_in_path;
     pub(crate) mod expected_array_or_slice_pat;
     pub(crate) mod expected_function;
+    pub(crate) mod explicit_destructor_call;
     pub(crate) mod functional_record_update_on_non_struct;
     pub(crate) mod generic_args_prohibited;
     pub(crate) mod generic_default_refers_to_self;
@@ -518,6 +519,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::ElidedLifetimesInPath(d) => handlers::elided_lifetimes_in_path::elided_lifetimes_in_path(&ctx, &d),
             AnyDiagnostic::GenericDefaultRefersToSelf(d) => handlers::generic_default_refers_to_self::generic_default_refers_to_self(&ctx, &d),
             AnyDiagnostic::InvalidLhsOfAssignment(d) => handlers::invalid_lhs_of_assignment::invalid_lhs_of_assignment(&ctx, &d),
+            AnyDiagnostic::ExplicitDestructorCall(d) => handlers::explicit_destructor_call::explicit_destructor_call(&ctx, &d),
             AnyDiagnostic::TypeMustBeKnown(d) => handlers::type_must_be_known::type_must_be_known(&ctx, &d),
             AnyDiagnostic::PatternArgInExternFn(d) => handlers::pattern_arg_in_extern_fn::pattern_arg_in_extern_fn(&ctx, &d),
             AnyDiagnostic::UnionExprMustHaveExactlyOneField(d) => handlers::union_expr_must_have_exactly_one_field::union_expr_must_have_exactly_one_field(&ctx, &d),

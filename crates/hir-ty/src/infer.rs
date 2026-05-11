@@ -384,6 +384,10 @@ pub enum InferenceDiagnostic {
         call_expr: ExprId,
         found: StoredTy,
     },
+    ExplicitDestructorCall {
+        #[type_visitable(ignore)]
+        expr: ExprId,
+    },
     TypedHole {
         #[type_visitable(ignore)]
         expr: ExprId,

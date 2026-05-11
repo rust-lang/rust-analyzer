@@ -105,6 +105,7 @@ diagnostics![AnyDiagnostic<'db> ->
     CastToUnsized<'db>,
     ExpectedArrayOrSlicePat<'db>,
     ExpectedFunction<'db>,
+    ExplicitDestructorCall,
     FunctionalRecordUpdateOnNonStruct,
     GenericDefaultRefersToSelf,
     InactiveCode,
@@ -307,6 +308,11 @@ pub struct ExpectedArrayOrSlicePat<'db> {
 pub struct ExpectedFunction<'db> {
     pub call: InFile<ExprOrPatPtr>,
     pub found: Type<'db>,
+}
+
+#[derive(Debug)]
+pub struct ExplicitDestructorCall {
+    pub expr: InFile<ExprOrPatPtr>,
 }
 
 #[derive(Debug)]
@@ -814,6 +820,9 @@ impl<'db> AnyDiagnostic<'db> {
                 let call_expr = expr_syntax(*call_expr)?;
                 ExpectedFunction { call: call_expr, found: Type::new(db, def, found.as_ref()) }
                     .into()
+            }
+            &InferenceDiagnostic::ExplicitDestructorCall { expr } => {
+                ExplicitDestructorCall { expr: expr_syntax(expr)? }.into()
             }
             InferenceDiagnostic::UnresolvedField {
                 expr,
