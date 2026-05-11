@@ -437,6 +437,10 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         has_self_arg: bool,
     },
+    ExplicitDestructorCall {
+        #[type_visitable(ignore)]
+        expr: ExprId,
+    },
     InvalidLhsOfAssignment {
         #[type_visitable(ignore)]
         lhs: ExprId,

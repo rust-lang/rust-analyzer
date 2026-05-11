@@ -582,7 +582,9 @@ impl<'a, 'b, 'db> ConfirmContext<'a, 'b, 'db> {
     fn check_for_illegal_method_calls(&self) {
         // Disallow calls to the method `drop` defined in the `Drop` trait.
         if self.ctx.lang_items.Drop_drop.is_some_and(|drop_fn| drop_fn == self.candidate) {
-            // FIXME: Report an error.
+            self.ctx.push_diagnostic(InferenceDiagnostic::ExplicitDestructorCall {
+                expr: self.call_expr,
+            });
         }
     }
 
