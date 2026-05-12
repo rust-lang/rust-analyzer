@@ -39,28 +39,31 @@ pub fn format_docs(src: &Documentation<'_>) -> String {
 
 fn format_docs_(src: &str) -> String {
     let mut processed_lines = Vec::new();
-    let mut in_code_block = false;
+    let mut current_fence: Option<&'static str> = None;
     let mut is_rust = false;
 
     for mut line in src.lines() {
-        if in_code_block && is_rust && code_line_ignored_by_rustdoc(line) {
+        if current_fence.is_some() && is_rust && code_line_ignored_by_rustdoc(line) {
             continue;
         }
 
-        if let Some(header) = RUSTDOC_FENCES.into_iter().find_map(|fence| line.strip_prefix(fence))
+        if let Some(fence) = current_fence {
+            if line.starts_with(fence) {
+                current_fence = None;
+            }
+        } else if let Some((fence, header)) = RUSTDOC_FENCES
+            .into_iter()
+            .find_map(|fence| line.strip_prefix(fence).map(|header| (fence, header)))
         {
-            in_code_block ^= true;
+            current_fence = Some(fence);
+            is_rust = is_rust_fence(header);
 
-            if in_code_block {
-                is_rust = is_rust_fence(header);
-
-                if is_rust {
-                    line = "```rust";
-                }
+            if is_rust {
+                line = "```rust";
             }
         }
 
-        if in_code_block {
+        if current_fence.is_some() {
             let trimmed = line.trim_start();
             if is_rust && trimmed.starts_with("##") {
                 line = &trimmed[1..];
@@ -195,5 +198,17 @@ let s = "foo
 ## A second-level heading
 ```"#;
         assert_eq!(format_docs_(comment), "```markdown\n## A second-level heading\n```");
+    }
+
+    #[test]
+    fn test_format_docs_preserves_tilde_inside_backtick_fence() {
+        let comment = "```text\n~~~\n```";
+        assert_eq!(format_docs_(comment), "```text\n~~~\n```");
+    }
+
+    #[test]
+    fn test_format_docs_preserves_backtick_inside_tilde_fence() {
+        let comment = "~~~text\n```\n~~~";
+        assert_eq!(format_docs_(comment), "~~~text\n```\n~~~");
     }
 }
