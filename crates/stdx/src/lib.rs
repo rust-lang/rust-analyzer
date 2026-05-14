@@ -460,6 +460,3 @@ mod tests {
         test_replace(".a.b.c.", '.', "", "abc");
     }
 }
-// private comment
-// private comment
-// private comment

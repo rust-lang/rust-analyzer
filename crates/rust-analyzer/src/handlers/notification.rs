@@ -300,7 +300,7 @@ pub(crate) fn handle_did_change_watched_files(
     for change in params.changes.iter().unique_by(|&it| &it.uri) {
         if let Ok(path) = from_proto::abs_path(&change.uri) {
             if !trigger_flycheck {
-                // Trigger if no workspaces contain this file
+                // Trigger if no workspaces contain this file.
                 trigger_flycheck =
                     state.config.workspace_roots().iter().all(|root| !path.starts_with(root));
             }
