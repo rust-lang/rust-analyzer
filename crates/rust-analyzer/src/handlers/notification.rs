@@ -6,6 +6,7 @@ use std::{
     panic::UnwindSafe,
 };
 
+use indexmap::IndexSet;
 use itertools::Itertools;
 use lsp_types::{
     CancelParams, DidChangeConfigurationParams, DidChangeTextDocumentParams,
@@ -292,22 +293,33 @@ pub(crate) fn handle_did_change_watched_files(
     // we want to trigger flycheck if a file outside of our workspaces has changed,
     // as to reduce stale diagnostics when outside changes happen
     let mut trigger_flycheck = false;
+    let mut vfs_paths_to_rescan = IndexSet::new();
     for change in params.changes.iter().unique_by(|&it| &it.uri) {
         if let Ok(path) = from_proto::abs_path(&change.uri) {
             if !trigger_flycheck {
-                // Trigger if no workspaces contain this file.
+                // Trigger if no workspaces contain this file
                 trigger_flycheck =
                     state.config.workspace_roots().iter().all(|root| !path.starts_with(root));
             }
             state.loader.handle.invalidate(path);
         }
-    }
-
-    if trigger_flycheck && state.config.check_on_save(None) {
-        for flycheck in state.flycheck.iter() {
-            flycheck.restart_workspace(None);
+        if let Ok(path) = from_proto::vfs_path(&change.uri) {
+            vfs_paths_to_rescan.insert(path);
         }
     }
+
+    if state.config.check_on_save(None) {
+        if trigger_flycheck {
+            for flycheck in state.flycheck.iter() {
+                flycheck.restart_workspace(None);
+            }
+        } else {
+            for path in vfs_paths_to_rescan {
+                run_flycheck(state, path);
+            }
+        }
+    }
+
     Ok(())
 }
 
