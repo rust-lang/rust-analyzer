@@ -2556,6 +2556,16 @@
                 }
             },
             {
+                "title": "Inlay Hints",
+                "properties": {
+                    "rust-analyzer.inlayHints.typeHints.renderColons": {
+                        "markdownDescription": "Whether to render the leading colon for type hints.    When `false`, suppresses\ntype-hint colons regardless of placement; parameter-hint colons are still\ncontrolled by `#rust-analyzer.inlayHints.renderColons#`.",
+                        "default": true,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
                 "title": "Interpret",
                 "properties": {
                     "rust-analyzer.interpret.tests": {

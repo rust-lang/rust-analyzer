@@ -317,6 +317,11 @@ config_data! {
         /// Where to render type hints relative to their binding pattern.
         inlayHints_typeHints_location: TypeHintsLocation = TypeHintsLocation::Inline,
 
+        /// Whether to render the leading colon for type hints.  When `false`, suppresses
+        /// type-hint colons regardless of placement; parameter-hint colons are still
+        /// controlled by `#rust-analyzer.inlayHints.renderColons#`.
+        inlayHints_typeHints_renderColons: bool = true,
+
         /// Enable the experimental support for interpreting tests.
         interpret_tests: bool = false,
 
@@ -2065,6 +2070,7 @@ impl Config {
 
         InlayHintsConfig {
             render_colons: self.inlayHints_renderColons().to_owned(),
+            type_hints_render_colons: self.inlayHints_typeHints_renderColons().to_owned(),
             type_hints: self.inlayHints_typeHints_enable().to_owned(),
             type_hints_placement: match self.inlayHints_typeHints_location() {
                 TypeHintsLocation::Inline => ide::TypeHintsPlacement::Inline,

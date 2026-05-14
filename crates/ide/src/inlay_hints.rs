@@ -302,6 +302,7 @@ fn hints(
 #[derive(Clone, Debug)]
 pub struct InlayHintsConfig<'a> {
     pub render_colons: bool,
+    pub type_hints_render_colons: bool,
     pub type_hints: bool,
     pub type_hints_placement: TypeHintsPlacement,
     pub sized_bound: bool,
@@ -922,6 +923,7 @@ mod tests {
     pub(super) const DISABLED_CONFIG: InlayHintsConfig<'_> = InlayHintsConfig {
         discriminant_hints: DiscriminantHints::Never,
         render_colons: false,
+        type_hints_render_colons: true,
         type_hints: false,
         type_hints_placement: TypeHintsPlacement::Inline,
         parameter_hints: false,

@@ -1180,6 +1180,15 @@ Default: `"inline"`
 Where to render type hints relative to their binding pattern.
 
 
+## rust-analyzer.inlayHints.typeHints.renderColons {#inlayHints.typeHints.renderColons}
+
+Default: `true`
+
+Whether to render the leading colon for type hints.  When `false`, suppresses
+type-hint colons regardless of placement; parameter-hint colons are still
+controlled by `#rust-analyzer.inlayHints.renderColons#`.
+
+
 ## rust-analyzer.interpret.tests {#interpret.tests}
 
 Default: `false`

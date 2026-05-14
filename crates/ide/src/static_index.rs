@@ -158,6 +158,7 @@ impl StaticIndex<'_> {
             .inlay_hints(
                 &InlayHintsConfig {
                     render_colons: true,
+                    type_hints_render_colons: true,
                     discriminant_hints: crate::DiscriminantHints::Fieldless,
                     type_hints: true,
                     type_hints_placement: TypeHintsPlacement::Inline,

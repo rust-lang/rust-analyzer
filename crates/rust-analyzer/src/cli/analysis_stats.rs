@@ -1384,6 +1384,7 @@ impl flags::AnalysisStats {
             _ = analysis.inlay_hints(
                 &InlayHintsConfig {
                     render_colons: false,
+                    type_hints_render_colons: true,
                     type_hints: true,
                     type_hints_placement: ide::TypeHintsPlacement::Inline,
                     sized_bound: false,

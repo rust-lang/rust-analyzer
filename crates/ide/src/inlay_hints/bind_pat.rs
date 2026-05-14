@@ -96,7 +96,9 @@ pub(super) fn hints(
         None
     };
 
-    let render_colons = config.render_colons && !matches!(type_ascriptable, Some(Some(_)));
+    let render_colons = config.render_colons
+        && config.type_hints_render_colons
+        && !matches!(type_ascriptable, Some(Some(_)));
     if render_colons {
         label.prepend_str(": ");
     }
@@ -234,6 +236,88 @@ fn main() {
                 [
                     (
                         20..33,
+                        [
+                            "i32",
+                        ],
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn type_hints_render_colons_renders_colon_by_default() {
+        let mut config =
+            InlayHintsConfig { type_hints: true, render_colons: true, ..DISABLED_CONFIG };
+        config.type_hints_placement = TypeHintsPlacement::EndOfLine;
+        check_expect(
+            config,
+            r#"
+fn main() {
+    let foo = 92_i32;
+}
+            "#,
+            expect![[r#"
+                [
+                    (
+                        20..33,
+                        [
+                            ": i32",
+                        ],
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn type_hints_render_colons_suppresses_eol_colon_when_disabled() {
+        let mut config = InlayHintsConfig {
+            type_hints: true,
+            render_colons: true,
+            type_hints_render_colons: false,
+            ..DISABLED_CONFIG
+        };
+        config.type_hints_placement = TypeHintsPlacement::EndOfLine;
+        check_expect(
+            config,
+            r#"
+fn main() {
+    let foo = 92_i32;
+}
+            "#,
+            expect![[r#"
+                [
+                    (
+                        20..33,
+                        [
+                            "i32",
+                        ],
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn type_hints_render_colons_suppresses_inline_colon_when_disabled() {
+        let config = InlayHintsConfig {
+            type_hints: true,
+            render_colons: true,
+            type_hints_render_colons: false,
+            ..DISABLED_CONFIG
+        };
+        check_expect(
+            config,
+            r#"
+fn main() {
+    let foo = 92_i32;
+}
+            "#,
+            expect![[r#"
+                [
+                    (
+                        20..23,
                         [
                             "i32",
                         ],
