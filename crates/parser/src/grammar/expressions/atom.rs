@@ -68,7 +68,7 @@ pub(in crate::grammar) const ATOM_EXPR_FIRST: TokenSet =
     ]));
 
 pub(in crate::grammar) const EXPR_RECOVERY_SET: TokenSet =
-    TokenSet::new(&[T!['}'], T![')'], T![']'], T![,]])
+    TokenSet::new(&[T!['}'], T![')'], T![']'], T![,], T![;]])
         .union(items::ITEM_RECOVERY_SET)
         .union(ATOM_EXPR_FIRST);
 
@@ -752,6 +752,7 @@ fn match_expr(p: &mut Parser<'_>) -> CompletedMarker {
 //         if true => (),
 //         _ => (),
 //         () if => (),
+//         _ => foo!();
 //     }
 // }
 pub(crate) fn match_arm_list(p: &mut Parser<'_>) {

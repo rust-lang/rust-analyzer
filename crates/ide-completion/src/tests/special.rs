@@ -1197,11 +1197,15 @@ fn foo { crate:::$0 }
 "#,
         expect![""],
     );
+    // expected, as recovery reconsiders this as the start of a new path
     check_no_kw(
         r#"
 fn foo { crate::::$0 }
 "#,
-        expect![""],
+        expect![[r#"
+            fn foo() fn()
+            bt u32    u32
+        "#]],
     )
 }
 

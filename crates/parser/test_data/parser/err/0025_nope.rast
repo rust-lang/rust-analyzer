@@ -175,7 +175,8 @@ SOURCE_FILE
         WHITESPACE "\n    "
         LET_STMT
           LET_KW "let"
-          SEMICOLON ";"
+          ERROR
+            SEMICOLON ";"
         WHITESPACE " "
         COMMENT "//~ ERROR: expected pattern"
         WHITESPACE "\n    "
@@ -193,7 +194,7 @@ SOURCE_FILE
         WHITESPACE "\n"
         R_CURLY "}"
   WHITESPACE "\n"
-error 95: expected type, found `{`
+error 95: expected type
 error 95: expected `,`
 error 96: expected field
 error 98: expected field declaration
@@ -202,3 +203,4 @@ error 371: expected `,`
 error 372: expected enum variant
 error 374: expected enum variant
 error 494: expected pattern
+error 495: expected `;`

@@ -44,7 +44,6 @@ pub(super) const ITEM_RECOVERY_SET: TokenSet = TokenSet::new(&[
     T![crate],
     T![use],
     T![macro],
-    T![;],
     T![#],
 ]);
 

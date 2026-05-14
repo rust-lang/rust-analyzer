@@ -270,7 +270,7 @@ impl<'t> Parser<'t> {
         } else if kind.is_punct() {
             self.error(format!("expected `{}`", kind.text()));
         } else if kind.is_literal() {
-            self.error(format!("expected literal"));
+            self.error("expected literal");
         } else {
             self.error(format!("expected {kind:?}"));
         }
