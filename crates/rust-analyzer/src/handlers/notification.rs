@@ -18,7 +18,7 @@ use triomphe::Arc;
 use vfs::{AbsPathBuf, ChangeKind, VfsPath};
 
 use crate::{
-    config::{Config, ConfigChange},
+    config::{Config, ConfigChange, FilesWatcher},
     flycheck::{InvocationStrategy, PackageSpecifier, Target},
     global_state::{FetchWorkspaceRequest, GlobalState},
     lsp::{from_proto, utils::apply_document_changes},
@@ -197,7 +197,10 @@ pub(crate) fn handle_did_save_text_document(
             }
         }
 
-        if !state.config.check_on_save(Some(sr)) || run_flycheck(state, vfs_path) {
+        if !state.config.check_on_save(Some(sr))
+            || matches!(state.config.files().watcher, FilesWatcher::Server)
+            || run_flycheck(state, vfs_path)
+        {
             return Ok(());
         }
     } else if state.config.check_on_save(None) && state.config.flycheck_workspace(None) {
