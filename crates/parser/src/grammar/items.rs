@@ -28,9 +28,11 @@ pub(super) fn mod_contents(p: &mut Parser<'_>, stop_on_r_curly: bool) {
 pub(super) const ITEM_RECOVERY_SET: TokenSet = TokenSet::new(&[
     T![fn],
     T![struct],
+    T![union],
     T![enum],
     T![impl],
     T![trait],
+    T![type],
     T![const],
     T![async],
     T![unsafe],
@@ -43,6 +45,7 @@ pub(super) const ITEM_RECOVERY_SET: TokenSet = TokenSet::new(&[
     T![use],
     T![macro],
     T![;],
+    T![#],
 ]);
 
 pub(super) fn item_or_macro(p: &mut Parser<'_>, stop_on_r_curly: bool, is_in_extern: bool) {

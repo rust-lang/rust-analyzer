@@ -89,8 +89,8 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n\n"
 error 24: expected a name
-error 27: expected SEMICOLON
+error 27: expected `;`
 error 48: expected a name
-error 51: expected SEMICOLON
+error 51: expected `;`
 error 76: expected a name
-error 79: expected SEMICOLON
+error 79: expected `;`

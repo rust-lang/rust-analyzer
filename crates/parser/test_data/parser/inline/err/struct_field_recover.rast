@@ -54,8 +54,8 @@ SOURCE_FILE
       WHITESPACE " "
       R_CURLY "}"
   WHITESPACE "\n"
-error 12: expected COLON
+error 12: expected `:`
 error 12: expected type
-error 12: expected COMMA
+error 12: expected `,`
 error 38: expected type
-error 38: expected COMMA
+error 38: expected `,`

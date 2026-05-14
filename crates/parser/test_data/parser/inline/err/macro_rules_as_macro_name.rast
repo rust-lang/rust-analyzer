@@ -35,5 +35,5 @@ SOURCE_FILE
       R_BRACK "]"
   WHITESPACE "\n"
 error 15: expected an item
-error 32: expected SEMICOLON
-error 48: expected SEMICOLON
+error 32: expected `;`
+error 48: expected `;`

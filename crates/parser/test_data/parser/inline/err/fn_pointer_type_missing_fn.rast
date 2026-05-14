@@ -17,7 +17,7 @@ SOURCE_FILE
     SEMICOLON ";"
   WHITESPACE "\n"
 error 15: expected `fn`
-error 15: expected SEMICOLON
+error 15: expected `;`
 error 16: expected an item
 error 17: expected an item
 error 18: expected an item

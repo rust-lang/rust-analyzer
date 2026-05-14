@@ -265,7 +265,15 @@ impl<'t> Parser<'t> {
         if self.eat(kind) {
             return true;
         }
-        self.error(format!("expected {kind:?}"));
+        if kind.is_keyword(self.current_edition()) {
+            self.error(format!("expected keyword `{}`", kind.text()));
+        } else if kind.is_punct() {
+            self.error(format!("expected `{}`", kind.text()));
+        } else if kind.is_literal() {
+            self.error(format!("expected literal"));
+        } else {
+            self.error(format!("expected {kind:?}"));
+        }
         false
     }
 

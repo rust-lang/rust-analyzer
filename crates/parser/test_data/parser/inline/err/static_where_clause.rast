@@ -36,7 +36,7 @@ SOURCE_FILE
   ERROR
     SEMICOLON ";"
   WHITESPACE "\n"
-error 17: expected SEMICOLON
+error 17: expected `;`
 error 18: expected an item
 error 27: expected an item
 error 27: expected an item

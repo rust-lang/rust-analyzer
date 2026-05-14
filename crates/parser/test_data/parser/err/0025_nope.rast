@@ -175,8 +175,7 @@ SOURCE_FILE
         WHITESPACE "\n    "
         LET_STMT
           LET_KW "let"
-          ERROR
-            SEMICOLON ";"
+          SEMICOLON ";"
         WHITESPACE " "
         COMMENT "//~ ERROR: expected pattern"
         WHITESPACE "\n    "
@@ -195,12 +194,11 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 95: expected type, found `{`
-error 95: expected COMMA
+error 95: expected `,`
 error 96: expected field
 error 98: expected field declaration
-error 371: expected R_PAREN
-error 371: expected COMMA
+error 371: expected `)`
+error 371: expected `,`
 error 372: expected enum variant
 error 374: expected enum variant
 error 494: expected pattern
-error 495: expected SEMICOLON

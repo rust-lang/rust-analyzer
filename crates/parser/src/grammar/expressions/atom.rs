@@ -1,4 +1,4 @@
-use crate::grammar::types::type_;
+use crate::grammar::{patterns::PAT_RECOVERY_SET, types::type_};
 
 use super::*;
 
@@ -39,7 +39,7 @@ pub(crate) fn literal(p: &mut Parser<'_>) -> Option<CompletedMarker> {
 }
 
 // E.g. for after the break in `if break {}`, this should not match
-pub(super) const ATOM_EXPR_FIRST: TokenSet =
+pub(in crate::grammar) const ATOM_EXPR_FIRST: TokenSet =
     LITERAL_FIRST.union(paths::PATH_FIRST).union(TokenSet::new(&[
         T!['('],
         T!['{'],
@@ -68,7 +68,9 @@ pub(super) const ATOM_EXPR_FIRST: TokenSet =
     ]));
 
 pub(in crate::grammar) const EXPR_RECOVERY_SET: TokenSet =
-    TokenSet::new(&[T!['}'], T![')'], T![']'], T![,]]);
+    TokenSet::new(&[T!['}'], T![')'], T![']'], T![,]])
+        .union(items::ITEM_RECOVERY_SET)
+        .union(ATOM_EXPR_FIRST);
 
 pub(super) fn atom_expr(
     p: &mut Parser<'_>,
@@ -810,7 +812,15 @@ fn match_arm(p: &mut Parser<'_>) {
     // }
     attributes::outer_attrs(p);
 
-    patterns::pattern_top_r(p, TokenSet::new(&[T![=], T![if]]));
+    // test_err match_arm_guard_recovery
+    // fn foo() {
+    //     match () {
+    //         => (),
+    //         if true => (),
+    //         A A => (),
+    //     };
+    // }
+    patterns::pattern_top_r(p, const { PAT_RECOVERY_SET.union(TokenSet::new(&[T![=], T![if]])) });
     if p.at(T![if]) {
         match_guard(p);
     }

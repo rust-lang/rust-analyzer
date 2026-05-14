@@ -67,5 +67,5 @@ SOURCE_FILE
         R_CURLY "}"
     SEMICOLON ";"
   WHITESPACE "\n"
-error 6: expected R_CURLY
+error 6: expected `}`
 error 46: expected use tree
