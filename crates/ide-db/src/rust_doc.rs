@@ -1,5 +1,9 @@
 //! Rustdoc specific doc comment handling
 
+use std::ops::Range;
+
+use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
+
 use crate::documentation::Documentation;
 
 // stripped down version of https://github.com/rust-lang/rust/blob/392ba2ba1a7d6c542d2459fb8133bebf62a4a423/src/librustdoc/html/markdown.rs#L810-L933
@@ -31,48 +35,79 @@ pub fn is_rust_fence(s: &str) -> bool {
     !seen_other_tags || seen_rust_tags
 }
 
-const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
-
 pub fn format_docs(src: &Documentation<'_>) -> String {
     format_docs_(src.as_str())
 }
 
 fn format_docs_(src: &str) -> String {
-    let mut processed_lines = Vec::new();
-    let mut current_fence: Option<&'static str> = None;
-    let mut is_rust = false;
+    // Use `pulldown-cmark` to delimit fenced code blocks per the CommonMark
+    // spec, so that mixed fence characters (``` vs ~~~) and variable fence
+    // lengths are handled correctly. Text outside fenced code blocks is
+    // emitted byte-for-byte; inside, the info string is rewritten to `rust`
+    // for Rust-flavored fences, hidden `#` lines are stripped, and `##` is
+    // de-escaped to `#`.
+    let blocks = collect_fenced_blocks(src);
+    let mut out = String::with_capacity(src.len());
+    let mut cursor: usize = 0;
+    for FencedBlock { range, is_rust } in &blocks {
+        out.push_str(&src[cursor..range.start]);
+        write_block(&src[range.clone()], *is_rust, &mut out);
+        cursor = range.end;
+    }
+    out.push_str(&src[cursor..]);
+    out
+}
 
-    for mut line in src.lines() {
-        if current_fence.is_some() && is_rust && code_line_ignored_by_rustdoc(line) {
+struct FencedBlock {
+    range: Range<usize>,
+    is_rust: bool,
+}
+
+fn collect_fenced_blocks(src: &str) -> Vec<FencedBlock> {
+    let mut blocks = Vec::new();
+    let mut pending: Option<(usize, bool)> = None;
+    for (event, range) in Parser::new(src).into_offset_iter() {
+        match event {
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => {
+                pending = Some((range.start, is_rust_fence(&info)));
+            }
+            Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(_))) => {
+                if let Some((start, is_rust)) = pending.take() {
+                    blocks.push(FencedBlock { range: start..range.end, is_rust });
+                }
+            }
+            _ => {}
+        }
+    }
+    blocks
+}
+
+fn write_block(block: &str, is_rust: bool, out: &mut String) {
+    let mut lines = block.split('\n');
+    if let Some(first_line) = lines.next() {
+        let fence_run_len = first_line.bytes().take_while(|&b| b == b'`' || b == b'~').count();
+        if is_rust && fence_run_len > 0 {
+            out.push_str(&first_line[..fence_run_len]);
+            out.push_str("rust");
+        } else {
+            out.push_str(first_line);
+        }
+    }
+
+    for line in lines {
+        if is_rust && code_line_ignored_by_rustdoc(line) {
             continue;
         }
-
-        if let Some(fence) = current_fence {
-            if line.starts_with(fence) {
-                current_fence = None;
-            }
-        } else if let Some((fence, header)) = RUSTDOC_FENCES
-            .into_iter()
-            .find_map(|fence| line.strip_prefix(fence).map(|header| (fence, header)))
-        {
-            current_fence = Some(fence);
-            is_rust = is_rust_fence(header);
-
-            if is_rust {
-                line = "```rust";
-            }
+        out.push('\n');
+        let trimmed = line.trim_start();
+        if is_rust && trimmed.starts_with("##") {
+            let leading_ws_len = line.len() - trimmed.len();
+            out.push_str(&line[..leading_ws_len]);
+            out.push_str(&trimmed[1..]);
+        } else {
+            out.push_str(line);
         }
-
-        if current_fence.is_some() {
-            let trimmed = line.trim_start();
-            if is_rust && trimmed.starts_with("##") {
-                line = &trimmed[1..];
-            }
-        }
-
-        processed_lines.push(line);
     }
-    processed_lines.join("\n")
 }
 
 fn code_line_ignored_by_rustdoc(line: &str) -> bool {
