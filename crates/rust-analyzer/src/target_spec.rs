@@ -238,7 +238,7 @@ impl CargoTargetSpec {
         )
     }
 
-    pub(crate) fn debug_override_command(
+    pub(crate) fn override_debug_command(
         snap: &GlobalStateSnapshot,
         spec: Option<CargoTargetSpec>,
         kind: &RunnableKind,
@@ -246,17 +246,17 @@ impl CargoTargetSpec {
         let config = snap.config.runnables(None);
         let (args, test_name) = match kind {
             RunnableKind::Test { test_id, .. } => {
-                (config.test_debug_override_command, Some(test_id.to_string()))
+                (config.test_override_debug_command, Some(test_id.to_string()))
             }
             RunnableKind::TestMod { path } => {
-                (config.test_debug_override_command, Some(path.clone()))
+                (config.test_override_debug_command, Some(path.clone()))
             }
             RunnableKind::Bench { test_id } => {
-                (config.bench_debug_override_command, Some(test_id.to_string()))
+                (config.bench_override_debug_command, Some(test_id.to_string()))
             }
             RunnableKind::Bin => match &spec {
                 Some(CargoTargetSpec { target_kind: TargetKind::Test, .. }) => {
-                    (config.test_debug_override_command, None)
+                    (config.test_override_debug_command, None)
                 }
                 _ => (None, None),
             },

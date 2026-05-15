@@ -452,7 +452,7 @@ pub struct Runnable {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<lsp_types::LocationLink>,
     #[serde(flatten)]
-    pub args: RunnableArgs,
+    pub command: RunnableCommand,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub debug: Option<RunnableCommand>,
 }
@@ -460,7 +460,7 @@ pub struct Runnable {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RunnableCommand {
-    pub kind: RunnableKind,
+    #[serde(flatten)]
     pub args: RunnableArgs,
 }
 
@@ -893,21 +893,24 @@ mod tests {
         let runnable = Runnable {
             label: "cargo test -p my-crate".to_owned(),
             location: None,
-            args: RunnableArgs::Cargo(CargoRunnableArgs {
-                environment: [("RUSTC_TOOLCHAIN".to_owned(), "/toolchain".to_owned())]
-                    .into_iter()
-                    .collect(),
-                cwd: "/project".into(),
-                override_cargo: None,
-                workspace_root: Some("/project".into()),
-                cargo_args: vec![
-                    "test".into(),
-                    "--package".into(),
-                    "my-crate".into(),
-                    "--lib".into(),
-                ],
-                executable_args: vec!["my_test".into(), "--exact".into()],
-            }),
+            command: RunnableCommand {
+                args: RunnableArgs::Cargo(CargoRunnableArgs {
+                    environment: [("RUSTC_TOOLCHAIN".to_owned(), "/toolchain".to_owned())]
+                        .into_iter()
+                        .collect(),
+                    cwd: "/project".into(),
+                    override_cargo: None,
+                    workspace_root: Some("/project".into()),
+                    cargo_args: vec![
+                        "test".into(),
+                        "--package".into(),
+                        "my-crate".into(),
+                        "--lib".into(),
+                    ],
+                    executable_args: vec!["my_test".into(), "--exact".into()],
+                }),
+            },
+            debug: None,
         };
         let expected = json!({
             "label": "cargo test -p my-crate",
@@ -927,8 +930,8 @@ mod tests {
 
         let deserialized: Runnable =
             serde_json::from_value(expected).expect("cargo runnable should deserialize");
-        let RunnableArgs::Cargo(cargo) = &deserialized.args else {
-            panic!("expected Cargo variant, got {:?}", deserialized.args);
+        let RunnableArgs::Cargo(cargo) = &deserialized.command.args else {
+            panic!("expected Cargo variant, got {:?}", deserialized.command.args);
         };
         assert_eq!(cargo.cargo_args, vec!["test", "--package", "my-crate", "--lib"]);
         assert_eq!(cargo.executable_args, vec!["my_test", "--exact"]);
@@ -939,14 +942,22 @@ mod tests {
         let runnable = Runnable {
             label: "nextest test_one".to_owned(),
             location: None,
-            args: RunnableArgs::Shell(ShellRunnableArgs {
-                environment: [("RUSTC_TOOLCHAIN".to_owned(), "/toolchain".to_owned())]
-                    .into_iter()
-                    .collect(),
-                cwd: "/project".into(),
-                program: "cargo".into(),
-                args: vec!["nextest".into(), "run".into(), "--package".into(), "my-crate".into()],
-            }),
+            command: RunnableCommand {
+                args: RunnableArgs::Shell(ShellRunnableArgs {
+                    environment: [("RUSTC_TOOLCHAIN".to_owned(), "/toolchain".to_owned())]
+                        .into_iter()
+                        .collect(),
+                    cwd: "/project".into(),
+                    program: "cargo".into(),
+                    args: vec![
+                        "nextest".into(),
+                        "run".into(),
+                        "--package".into(),
+                        "my-crate".into(),
+                    ],
+                }),
+            },
+            debug: None,
         };
         let expected = json!({
             "label": "nextest test_one",
@@ -966,8 +977,8 @@ mod tests {
         // used. This test ensures that the `kind` tag is used.
         let deserialized: Runnable =
             serde_json::from_value(expected).expect("shell runnable should deserialize");
-        let RunnableArgs::Shell(shell) = &deserialized.args else {
-            panic!("expected Shell variant, got {:?}", deserialized.args);
+        let RunnableArgs::Shell(shell) = &deserialized.command.args else {
+            panic!("expected Shell variant, got {:?}", deserialized.command.args);
         };
         assert_eq!(shell.program, "cargo");
         assert_eq!(shell.args, vec!["nextest", "run", "--package", "my-crate"]);

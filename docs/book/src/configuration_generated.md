@@ -1406,11 +1406,11 @@ Default: `"bench"`
 Subcommand used for bench runnables instead of `bench`.
 
 
-## rust-analyzer.runnables.bench.debugOverrideCommand {#runnables.bench.debugOverrideCommand}
+## rust-analyzer.runnables.bench.overrideCommand {#runnables.bench.overrideCommand}
 
 Default: `null`
 
-Override the command used for debugging bench runnables.
+Override the command used for bench runnables.
 The first element of the array should be the program to execute (for example, `cargo`).
 
 Use the placeholders:
@@ -1424,11 +1424,11 @@ Use the placeholders:
   (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
 
 
-## rust-analyzer.runnables.bench.overrideCommand {#runnables.bench.overrideCommand}
+## rust-analyzer.runnables.bench.overrideDebugCommand {#runnables.bench.overrideDebugCommand}
 
 Default: `null`
 
-Override the command used for bench runnables.
+Override the command used for debugging bench runnables.
 The first element of the array should be the program to execute (for example, `cargo`).
 
 Use the placeholders:
@@ -1500,11 +1500,11 @@ Default: `"test"`
 Subcommand used for test runnables instead of `test`.
 
 
-## rust-analyzer.runnables.test.debugOverrideCommand {#runnables.test.debugOverrideCommand}
+## rust-analyzer.runnables.test.overrideCommand {#runnables.test.overrideCommand}
 
 Default: `null`
 
-Override the command used for debugging test runnables.
+Override the command used for test runnables.
 The first element of the array should be the program to execute (for example, `cargo`).
 
 Available placeholders:
@@ -1518,11 +1518,11 @@ Available placeholders:
   (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
 
 
-## rust-analyzer.runnables.test.overrideCommand {#runnables.test.overrideCommand}
+## rust-analyzer.runnables.test.overrideDebugCommand {#runnables.test.overrideDebugCommand}
 
 Default: `null`
 
-Override the command used for test runnables.
+Override the command used for debugging test runnables.
 The first element of the array should be the program to execute (for example, `cargo`).
 
 Available placeholders:

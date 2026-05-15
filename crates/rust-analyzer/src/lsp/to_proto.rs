@@ -1604,7 +1604,7 @@ pub(crate) fn runnable(
                 .into_iter()
                 .collect();
             let debug =
-                CargoTargetSpec::debug_override_command(snap, Some(spec.clone()), &runnable.kind)
+                CargoTargetSpec::override_debug_command(snap, Some(spec.clone()), &runnable.kind)
                     .and_then(|override_command| {
                         shell_runnable_command(
                             override_command,
@@ -1618,12 +1618,14 @@ pub(crate) fn runnable(
                     Some((program, args)) => Some(lsp_ext::Runnable {
                         label,
                         location: Some(location),
-                        args: lsp_ext::RunnableArgs::Shell(lsp_ext::ShellRunnableArgs {
-                            environment,
-                            cwd: cwd.into(),
-                            program: program.to_string(),
-                            args: args.to_vec(),
-                        }),
+                        command: lsp_ext::RunnableCommand {
+                            args: lsp_ext::RunnableArgs::Shell(lsp_ext::ShellRunnableArgs {
+                                environment,
+                                cwd: cwd.into(),
+                                program: program.to_string(),
+                                args: args.to_vec(),
+                            }),
+                        },
                         debug,
                     }),
                     _ => None,
@@ -1631,14 +1633,16 @@ pub(crate) fn runnable(
                 None => Some(lsp_ext::Runnable {
                     label,
                     location: Some(location),
-                    args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
-                        workspace_root: Some(workspace_root.into()),
-                        override_cargo: config.override_cargo,
-                        cargo_args,
-                        cwd: cwd.into(),
-                        executable_args,
-                        environment,
-                    }),
+                    command: lsp_ext::RunnableCommand {
+                        args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
+                            workspace_root: Some(workspace_root.into()),
+                            override_cargo: config.override_cargo,
+                            cargo_args,
+                            cwd: cwd.into(),
+                            executable_args,
+                            environment,
+                        }),
+                    },
                     debug,
                 }),
             })
@@ -1649,17 +1653,19 @@ pub(crate) fn runnable(
 
             match spec.runnable_args(&runnable.kind) {
                 Some(json_shell_runnable_args) => {
-                    let runnable_args = ShellRunnableArgs {
-                        program: json_shell_runnable_args.program,
-                        args: json_shell_runnable_args.args,
-                        cwd: json_shell_runnable_args.cwd,
-                        environment: Default::default(),
+                    let command = lsp_ext::RunnableCommand {
+                        args: lsp_ext::RunnableArgs::Shell(ShellRunnableArgs {
+                            program: json_shell_runnable_args.program,
+                            args: json_shell_runnable_args.args,
+                            cwd: json_shell_runnable_args.cwd,
+                            environment: Default::default(),
+                        }),
                     };
                     Ok(Some(lsp_ext::Runnable {
                         label,
                         location: Some(location),
-                        args: lsp_ext::RunnableArgs::Shell(runnable_args),
-                        debug: None,
+                        command: command.clone(),
+                        debug: Some(command),
                     }))
                 }
                 None => Ok(None),
@@ -1675,9 +1681,7 @@ pub(crate) fn runnable(
             let label = runnable.label(None);
             let location = location_link(snap, None, runnable.nav)?;
 
-            Ok(Some(lsp_ext::Runnable {
-                label,
-                location: Some(location),
+            let command = lsp_ext::RunnableCommand {
                 args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
                     workspace_root: None,
                     override_cargo: config.override_cargo,
@@ -1686,7 +1690,13 @@ pub(crate) fn runnable(
                     executable_args,
                     environment: Default::default(),
                 }),
-                debug: None,
+            };
+
+            Ok(Some(lsp_ext::Runnable {
+                label,
+                location: Some(location),
+                command: command.clone(),
+                debug: Some(command),
             }))
         }
     }
@@ -1699,7 +1709,6 @@ fn shell_runnable_command(
 ) -> Option<lsp_ext::RunnableCommand> {
     let (program, args) = override_command.split_first()?;
     Some(lsp_ext::RunnableCommand {
-        kind: lsp_ext::RunnableKind::Shell,
         args: lsp_ext::RunnableArgs::Shell(lsp_ext::ShellRunnableArgs {
             environment,
             cwd,
@@ -1732,7 +1741,7 @@ pub(crate) fn code_lens(
             let r = runnable(snap, run)?;
 
             if let Some(r) = r {
-                let has_root = match &r.args {
+                let has_root = match &r.command.args {
                     lsp_ext::RunnableArgs::Cargo(c) => c.workspace_root.is_some(),
                     lsp_ext::RunnableArgs::Shell(_) => true,
                 };
@@ -2013,7 +2022,7 @@ pub(crate) fn make_update_runnable(
     runnable.label = format!("{} + {}", runnable.label, label);
     runnable.debug = None;
 
-    let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.args else {
+    let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.command.args else {
         return None;
     };
 

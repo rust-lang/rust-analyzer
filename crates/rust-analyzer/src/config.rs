@@ -974,7 +974,7 @@ config_data! {
         /// - `${include_ignored}`: always empty for benchmarks.
         /// - `${executable_args}`: all of the above binary args bundled together
         ///   (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
-        runnables_bench_debugOverrideCommand: Option<Vec<String>> = None,
+        runnables_bench_overrideDebugCommand: Option<Vec<String>> = None,
         /// Override the command used for bench runnables.
         /// The first element of the array should be the program to execute (for example, `cargo`).
         ///
@@ -1028,7 +1028,7 @@ config_data! {
         /// - `${include_ignored}`: `--include-ignored` for single tests, empty otherwise.
         /// - `${executable_args}`: all of the above binary args bundled together
         ///   (includes `rust-analyzer.runnables.extraTestBinaryArgs`).
-        runnables_test_debugOverrideCommand: Option<Vec<String>> = None,
+        runnables_test_overrideDebugCommand: Option<Vec<String>> = None,
         /// Override the command used for test runnables.
         /// The first element of the array should be the program to execute (for example, `cargo`).
         ///
@@ -1711,13 +1711,13 @@ pub struct RunnablesConfig {
     /// Override the command used for test runnables.
     pub test_override_command: Option<Vec<String>>,
     /// Override the command used for debugging test runnables.
-    pub test_debug_override_command: Option<Vec<String>>,
+    pub test_override_debug_command: Option<Vec<String>>,
     /// Subcommand used for doctest runnables instead of `bench`.
     pub bench_command: String,
     /// Override the command used for bench runnables.
     pub bench_override_command: Option<Vec<String>>,
     /// Override the command used for debugging bench runnables.
-    pub bench_debug_override_command: Option<Vec<String>>,
+    pub bench_override_debug_command: Option<Vec<String>>,
     /// Override the command used for doctest runnables.
     pub doc_test_override_command: Option<Vec<String>>,
 }
@@ -2678,13 +2678,13 @@ impl Config {
             extra_test_binary_args: self.runnables_extraTestBinaryArgs(source_root).clone(),
             test_command: self.runnables_test_command(source_root).clone(),
             test_override_command: self.runnables_test_overrideCommand(source_root).clone(),
-            test_debug_override_command: self
-                .runnables_test_debugOverrideCommand(source_root)
+            test_override_debug_command: self
+                .runnables_test_overrideDebugCommand(source_root)
                 .clone(),
             bench_command: self.runnables_bench_command(source_root).clone(),
             bench_override_command: self.runnables_bench_overrideCommand(source_root).clone(),
-            bench_debug_override_command: self
-                .runnables_bench_debugOverrideCommand(source_root)
+            bench_override_debug_command: self
+                .runnables_bench_overrideDebugCommand(source_root)
                 .clone(),
             doc_test_override_command: self.runnables_doctest_overrideCommand(source_root).clone(),
         }

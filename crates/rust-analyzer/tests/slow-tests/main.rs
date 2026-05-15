@@ -351,7 +351,7 @@ fn main() {}
 }
 
 #[test]
-fn test_runnables_debug_override_command() {
+fn test_runnables_override_debug_command() {
     if skip_slow_tests() {
         return;
     }
@@ -376,7 +376,7 @@ fn test_eggs() {}
                     "--package", "${package}", "${target_arg}", "${target}",
                     "--", "${executable_args}",
                 ],
-                "debugOverrideCommand": [
+                "overrideDebugCommand": [
                     "cargo", "nextest", "run",
                     "--debugger", "codelldb-launch --",
                     "--package", "${package}", "${target_arg}", "${target}",
