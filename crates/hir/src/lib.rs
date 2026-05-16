@@ -895,13 +895,45 @@ impl Module {
 
             match (impl_is_unsafe, trait_is_unsafe, impl_is_negative, drop_maybe_dangle) {
                 // unsafe negative impl
-                (true, _, true, _) |
-                // unsafe impl for safe trait
-                (true, false, _, false) => acc.push(TraitImplIncorrectSafety { impl_: ast_id_map.get(loc.id.value), file_id, should_be_safe: true }.into()),
-                // safe impl for unsafe trait
-                (false, true, false, _) |
+                (true, _, true, _) => {
+                    acc.push(
+                        UnsafeNegativeImpl { file_id, impl_: ast_id_map.get(loc.id.value) }.into(),
+                    );
+                }
+
+                (true, false, _, false) => {
+                    let impl_ = ast_id_map.get(loc.id.value);
+
+                    if let Some(trait_) = trait_ {
+                        // unsafe impl of safe trait
+                        acc.push(UnsafeImplOfSafeTrait { trait_, file_id, impl_ }.into());
+                    } else {
+                        // unsafe inherent impl
+                        acc.push(UnsafeInherentImpl { file_id, impl_ }.into());
+                    }
+                }
+
+                // safe impl of unsafe trait
+                (false, true, false, _) => {
+                    if let Some(trait_) = trait_ {
+                        acc.push(
+                            SafeImplOfUnsafeTrait {
+                                trait_,
+                                file_id,
+                                impl_: ast_id_map.get(loc.id.value),
+                            }
+                            .into(),
+                        );
+                    }
+                }
+
                 // safe impl of dangling drop
-                (false, false, _, true) => acc.push(TraitImplIncorrectSafety { impl_: ast_id_map.get(loc.id.value), file_id, should_be_safe: false }.into()),
+                (false, false, _, true) => {
+                    acc.push(
+                        SafeImplOfDanglingDrop { file_id, impl_: ast_id_map.get(loc.id.value) }
+                            .into(),
+                    );
+                }
                 _ => (),
             };
 

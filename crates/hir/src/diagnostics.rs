@@ -146,9 +146,10 @@ diagnostics![AnyDiagnostic<'db> ->
     PrivateField,
     RemoveTrailingReturn,
     RemoveUnnecessaryElse,
+    SafeImplOfDanglingDrop,
+    SafeImplOfUnsafeTrait,
     UnusedMustUse<'db>,
     ReplaceFilterMapNextWithFindMap,
-    TraitImplIncorrectSafety,
     TraitImplMissingAssocItems,
     TraitImplOrphan,
     TraitImplRedundantAssocItems,
@@ -165,6 +166,9 @@ diagnostics![AnyDiagnostic<'db> ->
     UnresolvedMethodCall<'db>,
     UnresolvedModule,
     UnresolvedIdent,
+    UnsafeImplOfSafeTrait,
+    UnsafeInherentImpl,
+    UnsafeNegativeImpl,
     UnusedMut,
     UnusedVariable,
     GenericArgsProhibited,
@@ -495,14 +499,6 @@ pub struct TraitImplOrphan {
     pub impl_: AstPtr<ast::Impl>,
 }
 
-// FIXME: Split this off into the corresponding 4 rustc errors
-#[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplIncorrectSafety {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-    pub should_be_safe: bool,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct TraitImplMissingAssocItems {
     pub file_id: HirFileId,
@@ -526,6 +522,38 @@ pub struct RemoveTrailingReturn {
 #[derive(Debug)]
 pub struct RemoveUnnecessaryElse {
     pub if_expr: InFile<AstPtr<ast::IfExpr>>,
+}
+
+#[derive(Debug)]
+pub struct SafeImplOfDanglingDrop {
+    pub file_id: HirFileId,
+    pub impl_: AstPtr<ast::Impl>,
+}
+
+#[derive(Debug)]
+pub struct SafeImplOfUnsafeTrait {
+    pub file_id: HirFileId,
+    pub trait_: Trait,
+    pub impl_: AstPtr<ast::Impl>,
+}
+
+#[derive(Debug)]
+pub struct UnsafeImplOfSafeTrait {
+    pub file_id: HirFileId,
+    pub trait_: Trait,
+    pub impl_: AstPtr<ast::Impl>,
+}
+
+#[derive(Debug)]
+pub struct UnsafeInherentImpl {
+    pub file_id: HirFileId,
+    pub impl_: AstPtr<ast::Impl>,
+}
+
+#[derive(Debug)]
+pub struct UnsafeNegativeImpl {
+    pub file_id: HirFileId,
+    pub impl_: AstPtr<ast::Impl>,
 }
 
 #[derive(Debug)]
