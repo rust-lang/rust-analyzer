@@ -1,37 +1,95 @@
 use hir::InFile;
-use syntax::ast;
+use syntax::AstNode;
 
-use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, Severity, adjusted_display_range};
+use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
 
-// Diagnostic: trait-impl-incorrect-safety
+// Diagnostic: unsafe-inherent-impl
 //
-// Diagnoses incorrect safety annotations of trait impls.
-pub(crate) fn trait_impl_incorrect_safety(
+// This diagnostic is triggered when an inherent implementation is marked `unsafe`
+pub(crate) fn unsafe_inherent_impl(
     ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::TraitImplIncorrectSafety,
+    d: &hir::UnsafeInherentImpl,
 ) -> Diagnostic {
     Diagnostic::new(
-        DiagnosticCode::Ra("trait-impl-incorrect-safety", Severity::Error),
-        if d.should_be_safe {
-            "unsafe impl for safe trait"
-        } else {
-            "impl for unsafe trait needs to be unsafe"
-        },
-        adjusted_display_range::<ast::Impl>(
-            ctx,
-            InFile { file_id: d.file_id, value: d.impl_ },
-            &|impl_| {
-                if d.should_be_safe {
-                    Some(match (impl_.unsafe_token(), impl_.impl_token()) {
-                        (None, None) => return None,
-                        (None, Some(t)) | (Some(t), None) => t.text_range(),
-                        (Some(t1), Some(t2)) => t1.text_range().cover(t2.text_range()),
-                    })
-                } else {
-                    impl_.impl_token().map(|t| t.text_range())
-                }
-            },
-        ),
+        DiagnosticCode::RustcHardError("E0197"),
+        "inherent impls cannot be unsafe",
+        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+            Some((impl_.unsafe_token()?.text_range()).cover(impl_.self_ty()?.syntax().text_range()))
+        }),
+    )
+    .stable()
+}
+
+// Diagnostic: unsafe-negative-impl
+//
+// This diagnostic is triggered when a negative implementation is marked `unsafe`
+pub(crate) fn unsafe_negative_impl(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::UnsafeNegativeImpl,
+) -> Diagnostic {
+    Diagnostic::new(
+        DiagnosticCode::RustcHardError("E0198"),
+        "negative impls cannot be unsafe",
+        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+            Some((impl_.unsafe_token()?.text_range()).cover(impl_.self_ty()?.syntax().text_range()))
+        }),
+    )
+    .stable()
+}
+
+// Diagnostic: unsafe-impl-of-safe-trait
+//
+// This diagnostic is triggered when an implementation of a safe trait is marked `unsafe`
+pub(crate) fn unsafe_impl_of_safe_trait(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::UnsafeImplOfSafeTrait,
+) -> Diagnostic {
+    let trait_name = d.trait_.name(ctx.db());
+    let trait_name = trait_name.display(ctx.db(), ctx.edition);
+
+    Diagnostic::new(
+        DiagnosticCode::RustcHardError("E0199"),
+        format!("implementing the trait `{trait_name}` is not unsafe"),
+        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+            Some(impl_.unsafe_token()?.text_range().cover(impl_.self_ty()?.syntax().text_range()))
+        }),
+    )
+    .stable()
+}
+
+// Diagnostic: safe-impl-of-unsafe-trait
+//
+// This diagnostic is triggered when an implementation of an unsafe trait is missing `unsafe`
+pub(crate) fn safe_impl_of_unsafe_trait(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::SafeImplOfUnsafeTrait,
+) -> Diagnostic {
+    let trait_name = d.trait_.name(ctx.db());
+    let trait_name = trait_name.display(ctx.db(), ctx.edition);
+
+    Diagnostic::new(
+        DiagnosticCode::RustcHardError("E0200"),
+        format!("the trait `{trait_name}` requires an `unsafe impl` declaration"),
+        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+            Some(impl_.impl_token()?.text_range().cover(impl_.self_ty()?.syntax().text_range()))
+        }),
+    )
+    .stable()
+}
+
+// Diagnostic: safe-impl-of-dangling-drop
+//
+// This diagnostic is triggered when an implementation of `Drop` using `#[may_dangle]` is missing `unsafe`
+pub(crate) fn safe_impl_of_dangling_drop(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::SafeImplOfDanglingDrop,
+) -> Diagnostic {
+    Diagnostic::new(
+        DiagnosticCode::RustcHardError("E0569"),
+        "requires an `unsafe impl` declaration due to `#[may_dangle]` attribute",
+        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+            Some(impl_.impl_token()?.text_range().cover(impl_.self_ty()?.syntax().text_range()))
+        }),
     )
     .stable()
 }
@@ -50,10 +108,10 @@ unsafe trait Unsafe {}
   impl Safe for () {}
 
   impl Unsafe for () {}
-//^^^^  error: impl for unsafe trait needs to be unsafe
+//^^^^^^^^^^^^^^^^^^  error: the trait `Unsafe` requires an `unsafe impl` declaration
 
   unsafe impl Safe for () {}
-//^^^^^^^^^^^ error: unsafe impl for safe trait
+//^^^^^^^^^^^^^^^^^^^^^^^ error: implementing the trait `Safe` is not unsafe
 
   unsafe impl Unsafe for () {}
 "#,
@@ -73,20 +131,20 @@ struct L<'l>;
   impl<T> Drop for S<T> {}
 
   impl<#[may_dangle] T> Drop for S<T> {}
-//^^^^ error: impl for unsafe trait needs to be unsafe
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: requires an `unsafe impl` declaration due to `#[may_dangle]` attribute
 
   unsafe impl<T> Drop for S<T> {}
-//^^^^^^^^^^^ error: unsafe impl for safe trait
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: implementing the trait `Drop` is not unsafe
 
   unsafe impl<#[may_dangle] T> Drop for S<T> {}
 
   impl<'l> Drop for L<'l> {}
 
   impl<#[may_dangle] 'l> Drop for L<'l> {}
-//^^^^ error: impl for unsafe trait needs to be unsafe
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: requires an `unsafe impl` declaration due to `#[may_dangle]` attribute
 
   unsafe impl<'l> Drop for L<'l> {}
-//^^^^^^^^^^^ error: unsafe impl for safe trait
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: implementing the trait `Drop` is not unsafe
 
   unsafe impl<#[may_dangle] 'l> Drop for L<'l> {}
 "#,
@@ -102,14 +160,14 @@ trait Trait {}
   impl !Trait for () {}
 
   unsafe impl !Trait for () {}
-//^^^^^^^^^^^ error: unsafe impl for safe trait
+//^^^^^^^^^^^^^^^^^^^^^^^^^ error: negative impls cannot be unsafe
 
 unsafe trait UnsafeTrait {}
 
   impl !UnsafeTrait for () {}
 
   unsafe impl !UnsafeTrait for () {}
-//^^^^^^^^^^^ error: unsafe impl for safe trait
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: negative impls cannot be unsafe
 
 "#,
         );
@@ -124,7 +182,7 @@ struct S;
   impl S {}
 
   unsafe impl S {}
-//^^^^^^^^^^^ error: unsafe impl for safe trait
+//^^^^^^^^^^^^^ error: inherent impls cannot be unsafe
 "#,
         );
     }
