@@ -17,6 +17,20 @@ fn bar(file_id: usize) {}
 fn baz(file_id: usize) {}
 "#,
     );
+
+    check_edit(
+        "file_id: usize",
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(/*...*/ file$0) {}
+"#,
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(/*...*/ file_id: usize) {}
+"#,
+    );
 }
 
 #[test]
@@ -34,6 +48,68 @@ fn bar(file_id: usize) {}
 fn baz(foo: (), file_id: usize) {}
 "#,
     );
+
+    check_edit(
+        "file_id: usize",
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    foo: ()
+    file$0
+) {}
+"#,
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    foo: (),
+    file_id: usize,
+) {}
+"#,
+    );
+
+    check_edit(
+        "file_id: usize",
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    foo: (),
+    file$0
+) {}
+"#,
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    foo: (),
+    file_id: usize,
+) {}
+"#,
+    );
+
+    check_edit(
+        "file_id: usize",
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    foo: (),
+    // comment
+    file$0
+) {}
+"#,
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    foo: (),
+    // comment
+    file_id: usize,
+) {}
+"#,
+    );
 }
 
 #[test]
@@ -49,6 +125,26 @@ fn baz(file$0 id: u32) {}
 fn foo(file_id: usize) {}
 fn bar(file_id: usize) {}
 fn baz(file_id: usize, id: u32) {}
+"#,
+    );
+
+    check_edit(
+        "file_id: usize",
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    file$0
+    id: u32
+) {}
+"#,
+        r#"
+fn foo(file_id: usize) {}
+fn bar(file_id: usize) {}
+fn baz(
+    file_id: usize,
+    id: u32
+) {}
 "#,
     );
 }
