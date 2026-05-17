@@ -1,4 +1,3 @@
-use hir;
 use syntax::{
     AstNode,
     ast::{self, HasArgList, edit::AstNodeEdit},
