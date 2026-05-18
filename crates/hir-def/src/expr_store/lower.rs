@@ -557,9 +557,8 @@ impl BindingList {
 pub struct NamedLifetimeStore {
     lifetime_bound_scope: Option<LifetimeBoundScope>,
     lifetimes_in_where_clause: FxIndexSet<Name>,
-    lifetimes_constraint_by_input: FxIndexSet<Name>,
+    lifetimes_constrained_by_input: FxIndexSet<Name>,
     lifetimes_in_output: FxIndexSet<Name>,
-    opaque_captured_lifetimes: FxIndexSet<Name>,
 }
 
 #[derive(Debug)]
@@ -567,7 +566,7 @@ enum LifetimeBoundScope {
     Argument,
     Return,
     WhereClause,
-    ImplTrait(bool),
+    ImplTrait { is_argument_scope: bool },
 }
 
 impl NamedLifetimeStore {
@@ -576,7 +575,7 @@ impl NamedLifetimeStore {
     pub(crate) fn push_named_lifetime(&mut self, lifetime: Name) {
         match self.lifetime_bound_scope {
             Some(LifetimeBoundScope::Argument) => {
-                self.lifetimes_constraint_by_input.insert(lifetime);
+                self.lifetimes_constrained_by_input.insert(lifetime);
             }
             Some(LifetimeBoundScope::Return) => {
                 self.lifetimes_in_output.insert(lifetime);
@@ -584,11 +583,10 @@ impl NamedLifetimeStore {
             Some(LifetimeBoundScope::WhereClause) => {
                 self.lifetimes_in_where_clause.insert(lifetime);
             }
-            Some(LifetimeBoundScope::ImplTrait(is_argument_scope)) => {
+            Some(LifetimeBoundScope::ImplTrait { is_argument_scope }) => {
                 if is_argument_scope {
                     self.lifetimes_in_where_clause.insert(lifetime);
                 } else {
-                    self.opaque_captured_lifetimes.insert(lifetime.clone());
                     self.lifetimes_in_output.insert(lifetime);
                 }
             }
@@ -764,9 +762,9 @@ impl<'db> ExprCollector<'db> {
                     TypeRef::Error
                 } else {
                     return self.with_outer_impl_trait_scope(true, |this| {
-                        let is_argument_lt_bound_scope = this.is_argument_lt_bound_scope();
+                        let is_argument_scope = this.is_argument_lt_bound_scope();
                         let type_bounds = this.with_lifetime_bound_scope(
-                            LifetimeBoundScope::ImplTrait(is_argument_lt_bound_scope),
+                            LifetimeBoundScope::ImplTrait { is_argument_scope },
                             |this| {
                                 this.type_bounds_from_ast(
                                     inner.type_bound_list(),
@@ -3444,7 +3442,7 @@ impl ExprCollector<'_> {
     }
 
     fn extend_type_alias_lifetime(&mut self, lifetimes: impl Iterator<Item = Name>) {
-        self.named_lifetime_store.lifetimes_constraint_by_input.extend(lifetimes);
+        self.named_lifetime_store.lifetimes_constrained_by_input.extend(lifetimes);
     }
 
     fn is_argument_lt_bound_scope(&mut self) -> bool {
@@ -3495,7 +3493,7 @@ impl ExprCollector<'_> {
                     },
                 )
             });
-            expr_collector.named_lifetime_store.lifetimes_constraint_by_input
+            expr_collector.named_lifetime_store.lifetimes_constrained_by_input
         }
 
         fn get_constrained_lifetimes_cycle_result(
