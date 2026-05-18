@@ -2313,7 +2313,7 @@ impl<'db> HirDisplay<'db> for Region<'db> {
             }
             RegionKind::ReErased => write!(f, "'<erased>"),
             RegionKind::RePlaceholder(_) => write!(f, "'<placeholder>"),
-            RegionKind::ReLateParam(_) => write!(f, "'<late-param>"),
+            RegionKind::ReLateParam(_) => write!(f, "'_"),
         }
     }
 }
