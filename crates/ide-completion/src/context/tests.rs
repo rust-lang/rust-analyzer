@@ -810,3 +810,39 @@ fn foo() {
         expect![[r#"ty: bool, name: ?"#]],
     );
 }
+
+#[test]
+fn expected_type_some_incomplete_ast() {
+    check_expected_type_and_name(
+        r#"
+fn foo(x: u32) {
+    foo(y.$0)
+}
+"#,
+        expect!["ty: u32, name: x"],
+    );
+    check_expected_type_and_name(
+        r#"
+fn foo(x: u32) {
+    foo(y.in$0)
+}
+"#,
+        expect!["ty: u32, name: x"],
+    );
+    check_expected_type_and_name(
+        r#"
+fn foo(x: u32) {
+    foo(y::$0)
+}
+"#,
+        expect!["ty: u32, name: x"],
+    );
+    check_expected_type_and_name(
+        r#"
+fn foo(x: u32) {
+    foo(crate::$0)
+}
+"#,
+        expect!["ty: u32, name: x"],
+    );
+}
