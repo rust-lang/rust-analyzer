@@ -1,0 +1,70 @@
+SOURCE_FILE
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "foo"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          FIELD_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "x"
+            DOT "."
+            ERROR
+              REF_KW "ref"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          CALL_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "f"
+            ARG_LIST
+              L_PAREN "("
+              FIELD_EXPR
+                PATH_EXPR
+                  PATH
+                    PATH_SEGMENT
+                      NAME_REF
+                        IDENT "x"
+                DOT "."
+                ERROR
+                  REF_KW "ref"
+              R_PAREN ")"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          CALL_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "f"
+            ARG_LIST
+              L_PAREN "("
+              FIELD_EXPR
+                LITERAL
+                  INT_NUMBER "2"
+                DOT "."
+                ERROR
+                  REF_KW "ref"
+              R_PAREN ")"
+          SEMICOLON ";"
+        WHITESPACE "\n"
+        R_CURLY "}"
+  WHITESPACE "\n"
+error 17: expected field name or number
+error 30: expected field name or number
+error 44: expected field name or number

@@ -597,6 +597,14 @@ fn field_expr<const FLOAT_RECOVERY: bool>(
             }
             (false, m) => Ok(m.complete(p, FIELD_EXPR)),
         };
+    } else if !p.at(EOF) && p.current().is_keyword(p.current_edition()) {
+        // test_err field_expr_keyword_field
+        // fn foo() {
+        //     x.ref;
+        //     f(x.ref);
+        //     f(2.ref);
+        // }
+        p.err_and_bump("expected field name or number");
     } else {
         p.error("expected field name or number");
     }

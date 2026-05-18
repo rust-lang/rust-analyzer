@@ -827,6 +827,10 @@ mod err {
     #[test]
     fn empty_segment() { run_and_expect_errors("test_data/parser/inline/err/empty_segment.rs"); }
     #[test]
+    fn field_expr_keyword_field() {
+        run_and_expect_errors("test_data/parser/inline/err/field_expr_keyword_field.rs");
+    }
+    #[test]
     fn fn_pointer_type_missing_fn() {
         run_and_expect_errors("test_data/parser/inline/err/fn_pointer_type_missing_fn.rs");
     }
