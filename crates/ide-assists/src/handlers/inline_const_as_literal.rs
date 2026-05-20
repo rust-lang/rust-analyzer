@@ -176,7 +176,7 @@ mod tests {
     /// types we now annotate the literal with its type suffix to preserve type info
     /// across the inlining (see `numeric_type_suffix`).
     fn expected_inlined(ty: &str, val: &str, kind: u8) -> String {
-        if kind == NUMBER { format!("{val}{ty}") } else { val.to_string() }
+        if kind == NUMBER { format!("{val}{ty}") } else { val.to_owned() }
     }
 
     // -----------Not supported-----------
