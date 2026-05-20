@@ -198,7 +198,7 @@ pub(crate) fn handle_did_save_text_document(
         }
 
         if !state.config.check_on_save(Some(sr))
-            || matches!(state.config.files().watcher, FilesWatcher::Server)
+            || matches!(state.config.files().watcher, FilesWatcher::Client)
             || run_flycheck(state, vfs_path)
         {
             return Ok(());
