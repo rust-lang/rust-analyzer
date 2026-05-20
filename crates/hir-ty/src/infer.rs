@@ -352,9 +352,9 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         id: ExprOrPatId,
     },
-    UnresolvedRecordExpr {
+    UnresolvedVariant {
         #[type_visitable(ignore)]
-        expr: ExprId,
+        id: ExprOrPatId,
     },
     // FIXME: This should be emitted in body lowering
     BreakOutsideOfLoop {
@@ -2278,6 +2278,8 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         let interner = DbInterner::conjure();
         let (resolution, unresolved) = if value_ns {
             let Some(res) = path_ctx.resolve_path_in_value_ns(HygieneId::ROOT) else {
+                drop(ctx);
+                self.push_diagnostic(InferenceDiagnostic::UnresolvedVariant { id: node });
                 return (self.types.types.error, None);
             };
             match res {
@@ -2313,7 +2315,11 @@ impl<'body, 'db> InferenceContext<'body, 'db> {
         } else {
             match path_ctx.resolve_path_in_type_ns() {
                 Some((it, idx)) => (it, idx),
-                None => return (self.types.types.error, None),
+                None => {
+                    drop(ctx);
+                    self.push_diagnostic(InferenceDiagnostic::UnresolvedVariant { id: node });
+                    return (self.types.types.error, None);
+                }
             }
         };
         return match resolution {

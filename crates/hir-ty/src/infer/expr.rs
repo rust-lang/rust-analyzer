@@ -964,7 +964,6 @@ impl<'db> InferenceContext<'_, 'db> {
     ) -> Ty<'db> {
         // Find the relevant variant
         let (adt_ty, Some(variant)) = self.resolve_variant(expr.into(), path, false) else {
-            self.push_diagnostic(InferenceDiagnostic::UnresolvedRecordExpr { expr });
             for field in fields {
                 self.infer_expr_no_expect(field.expr, ExprIsRead::Yes);
             }

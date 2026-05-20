@@ -160,7 +160,7 @@ diagnostics![AnyDiagnostic<'db> ->
     UnresolvedMethodCall<'db>,
     UnresolvedModule,
     UnresolvedIdent,
-    UnresolvedRecordExpr,
+    UnresolvedVariant,
     UnusedMut,
     UnusedVariable,
     GenericArgsProhibited,
@@ -364,8 +364,8 @@ pub struct UnresolvedIdent {
 }
 
 #[derive(Debug)]
-pub struct UnresolvedRecordExpr {
-    pub expr: InFile<ExprOrPatPtr>,
+pub struct UnresolvedVariant {
+    pub node: InFile<ExprOrPatPtr>,
 }
 
 #[derive(Debug)]
@@ -907,9 +907,9 @@ impl<'db> AnyDiagnostic<'db> {
                 };
                 UnresolvedIdent { node }.into()
             }
-            &InferenceDiagnostic::UnresolvedRecordExpr { expr } => {
-                let expr = expr_syntax(expr)?;
-                UnresolvedRecordExpr { expr }.into()
+            &InferenceDiagnostic::UnresolvedVariant { id } => {
+                let node = expr_or_pat_syntax(id)?;
+                UnresolvedVariant { node }.into()
             }
             &InferenceDiagnostic::BreakOutsideOfLoop { expr, is_break, bad_value_break } => {
                 let expr = expr_syntax(expr)?;
