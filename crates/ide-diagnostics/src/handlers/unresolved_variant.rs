@@ -3,7 +3,7 @@ use syntax::{AstNode, ast};
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
 
-// Diagnostic: unresolved-record-expr
+// Diagnostic: unresolved-variant
 //
 // This diagnostic is triggered if the struct, variant, or union type referred to by a record expression does not exist in the current scope.
 pub(crate) fn unresolved_variant(
