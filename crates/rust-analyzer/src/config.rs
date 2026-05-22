@@ -950,6 +950,10 @@ config_data! {
         /// Whether `--workspace` should be passed to `cargo check`.
         /// If false, `-p <package>` will be passed instead if applicable. In case it is not, no
         /// check will be performed.
+        ///
+        /// After a single file is saved, the check may use `-p <package>` regardless of this
+        /// setting; if you need to always do a workspace-level check, consider setting an override
+        /// command with `#rust-analyzer.cargo.buildScripts.overrideCommand#`.
         check_workspace: bool = true,
 
         /// Exclude all locals from document symbol search.
