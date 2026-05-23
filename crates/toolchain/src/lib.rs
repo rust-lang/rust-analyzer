@@ -143,3 +143,16 @@ pub fn probe_for_binary(path: Utf8PathBuf) -> Option<Utf8PathBuf> {
     };
     iter::once(path).chain(with_extension).find(|it| it.is_file())
 }
+
+/// Uses targets in a Cargo process.
+pub fn cargo_use_targets(cmd: &mut Command, targets: impl IntoIterator<Item = impl AsRef<str>>) {
+    let mut has_target_json = false;
+    for target in targets {
+        let target = target.as_ref();
+        cmd.args(["--target", target]);
+        has_target_json |= target.ends_with(".json");
+    }
+    if has_target_json {
+        cmd.arg("-Zjson-target-spec");
+    }
+}
