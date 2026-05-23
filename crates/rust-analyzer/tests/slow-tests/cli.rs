@@ -3,6 +3,26 @@ use test_utils::skip_slow_tests;
 
 use crate::support::Project;
 
+#[test]
+fn unresolved_references_empty_crate_does_not_panic() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    Project::with_fixture(
+        r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+edition = "2024"
+
+//- /src/lib.rs
+"#,
+    )
+    .run_unresolved_references();
+}
+
 // If you choose to change the test fixture here, please inform the ferrocene/needy maintainers by
 // opening an issue at https://github.com/ferrocene/needy as the tool relies on specific token
 // mapping behavior.

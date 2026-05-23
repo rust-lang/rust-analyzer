@@ -127,6 +127,46 @@ impl Project<'_> {
         String::from_utf8(buf).unwrap()
     }
 
+    pub(crate) fn run_unresolved_references(self) {
+        let tmp_dir = self.tmp_dir.unwrap_or_else(|| {
+            if self.root_dir_contains_symlink { TestDir::new_symlink() } else { TestDir::new() }
+        });
+
+        let FixtureWithProjectMeta {
+            fixture,
+            mini_core,
+            proc_macro_names,
+            toolchain,
+            target_data_layout: _,
+            target_arch: _,
+        } = FixtureWithProjectMeta::parse(self.fixture);
+        assert!(proc_macro_names.is_empty());
+        assert!(mini_core.is_none());
+        assert!(toolchain.is_none());
+
+        for entry in fixture {
+            let path = tmp_dir.path().join(&entry.path['/'.len_utf8()..]);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path.as_path(), entry.text.as_bytes()).unwrap();
+        }
+
+        let tmp_dir_path = AbsPathBuf::assert(tmp_dir.path().to_path_buf());
+        let root = self
+            .roots
+            .into_iter()
+            .map(|root| tmp_dir_path.join(root))
+            .next()
+            .unwrap_or(tmp_dir_path);
+        flags::UnresolvedReferences {
+            path: root.into(),
+            disable_build_scripts: true,
+            disable_proc_macros: true,
+            proc_macro_srv: None,
+        }
+        .run()
+        .unwrap();
+    }
+
     pub(crate) fn server(self) -> Server {
         Project::server_with_lock(self, false)
     }

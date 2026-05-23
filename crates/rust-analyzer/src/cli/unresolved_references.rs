@@ -53,42 +53,44 @@ impl flags::UnresolvedReferences {
         let db = host.raw_database();
         let sema = Semantics::new(db);
 
-        let mut visited_files = FxHashSet::default();
+        hir::attach_db(db, || {
+            let mut visited_files = FxHashSet::default();
 
-        let work = all_modules(db).into_iter().filter(|module| {
-            let file_id = module.definition_source_file_id(db).original_file(db);
-            let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
-            let source_root = db.source_root(source_root).source_root(db);
-            !source_root.is_library
-        });
+            let work = all_modules(db).into_iter().filter(|module| {
+                let file_id = module.definition_source_file_id(db).original_file(db);
+                let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+                let source_root = db.source_root(source_root).source_root(db);
+                !source_root.is_library
+            });
 
-        for module in work {
-            let file_id = module.definition_source_file_id(db).original_file(db);
-            let file_id = file_id.file_id(db);
-            if !visited_files.contains(&file_id) {
-                let crate_name = module
-                    .krate(db)
-                    .display_name(db)
-                    .as_deref()
-                    .unwrap_or(&sym::unknown)
-                    .to_owned();
-                let file_path = vfs.file_path(file_id);
-                eprintln!("processing crate: {crate_name}, module: {file_path}",);
+            for module in work {
+                let file_id = module.definition_source_file_id(db).original_file(db);
+                let file_id = file_id.file_id(db);
+                if !visited_files.contains(&file_id) {
+                    let crate_name = module
+                        .krate(db)
+                        .display_name(db)
+                        .as_deref()
+                        .unwrap_or(&sym::unknown)
+                        .to_owned();
+                    let file_path = vfs.file_path(file_id);
+                    eprintln!("processing crate: {crate_name}, module: {file_path}",);
 
-                let line_index = line_index(db, file_id);
-                let file_text = db.file_text(file_id);
+                    let line_index = line_index(db, file_id);
+                    let file_text = db.file_text(file_id);
 
-                for range in find_unresolved_references(db, &sema, file_id, &module) {
-                    let line_col = line_index.line_col(range.start());
-                    let line = line_col.line + 1;
-                    let col = line_col.col + 1;
-                    let text = &file_text.text(db)[range];
-                    println!("{file_path}:{line}:{col}: {text}");
+                    for range in find_unresolved_references(db, &sema, file_id, &module) {
+                        let line_col = line_index.line_col(range.start());
+                        let line = line_col.line + 1;
+                        let col = line_col.col + 1;
+                        let text = &file_text.text(db)[range];
+                        println!("{file_path}:{line}:{col}: {text}");
+                    }
+
+                    visited_files.insert(file_id);
                 }
-
-                visited_files.insert(file_id);
             }
-        }
+        });
 
         eprintln!();
         eprintln!("scan complete");
