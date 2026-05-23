@@ -699,6 +699,10 @@ impl FetchMetadata {
             other_options.extend(
                 config.targets.iter().flat_map(|it| ["--filter-platform".to_owned(), it.clone()]),
             );
+            // .json target specs require `-Zjson-target-spec` since rust-lang/cargo#16557.
+            if config.targets.iter().any(|it| it.ends_with(".json")) {
+                other_options.push("-Zjson-target-spec".to_owned());
+            }
         }
 
         command.other_options(other_options.clone());

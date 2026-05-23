@@ -461,6 +461,11 @@ impl WorkspaceBuildScripts {
 
                 if let Some(target) = &config.target {
                     cmd.args(["--target", target]);
+                    // .json target specs require `-Zjson-target-spec` since rust-lang/cargo#16557.
+                    if target.ends_with(".json") {
+                        requires_unstable_options = true;
+                        cmd.arg("-Zjson-target-spec");
+                    }
                 }
                 let mut lockfile_copy = None;
                 if let Some(toolchain) = toolchain {
