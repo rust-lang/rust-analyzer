@@ -398,3 +398,58 @@ pub(super) struct S {
 "#,
     );
 }
+
+#[test]
+fn local_record_shows_locals_for_record_def_fields() {
+    check(
+        r#"
+fn outer() {
+    let foo = 3;
+    {
+        let bar = 3;
+        struct Foo {
+            b$0
+        }
+        let baz = 3;
+        let qux = 3;
+    }
+    let fez = 3;
+}
+"#,
+        expect![[r#"
+            bn bar: i32,
+            bn baz: i32,
+            bn foo: i32,
+            kw pub
+            kw pub(crate)
+            kw pub(super)
+        "#]],
+    );
+
+    check(
+        r#"
+fn outer() {
+    let foo = 3;
+    {
+        let bar = 3;
+        enum Foo {
+            Variant {
+                b$0
+            }
+        }
+        let baz = 3;
+        let qux = 3;
+    }
+    let fez = 3;
+}
+"#,
+        expect![[r#"
+            bn bar: i32,
+            bn baz: i32,
+            bn foo: i32,
+            kw pub
+            kw pub(crate)
+            kw pub(super)
+        "#]],
+    );
+}
