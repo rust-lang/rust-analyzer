@@ -2274,6 +2274,35 @@ fn foo$0() {}
 }
 
 #[test]
+fn test_hover_skips_unrelated_proc_macro_generated_tokens_at_same_span() {
+    // `generate_suffixed_type` emits an extra `struct FooSuffix;` whose
+    // identifier carries the user's `Foo` span. Hovering on `Foo` should
+    // still show only the user's type, not the spurious generated one.
+    check(
+        r#"
+//- proc_macros: generate_suffixed_type
+#[proc_macros::generate_suffixed_type]
+struct Fo$0o;
+"#,
+        expect![[r#"
+            *Foo*
+
+            ```rust
+            ra_test_fixture
+            ```
+
+            ```rust
+            struct Foo
+            ```
+
+            ---
+
+            size = 0, align = 1, no Drop
+        "#]],
+    );
+}
+
+#[test]
 fn test_hover_through_expr_in_macro() {
     check(
         r#"

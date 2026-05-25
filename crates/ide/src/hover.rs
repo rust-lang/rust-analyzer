@@ -242,6 +242,13 @@ fn hover_offset(
 
     descended.sort_by_cached_key(|tok| !ranker.rank_token(tok));
 
+    // Drop lower-ranked tokens: usually proc-macro-generated content sharing
+    // the cursor's span via `set_span`.
+    if let Some(top_token) = descended.first() {
+        let top_rank = ranker.rank_token(top_token);
+        descended.retain(|tok| ranker.rank_token(tok) == top_rank);
+    }
+
     let mut res = vec![];
     for token in descended {
         let is_same_kind = token.kind() == ranker.kind;
