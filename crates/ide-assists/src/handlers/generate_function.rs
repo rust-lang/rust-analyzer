@@ -734,10 +734,25 @@ fn insert_rendered_impl(
         adt.name(ctx.db()).display(ctx.db(), function_builder.target_edition)
     )));
 
-    // FIXME: adt may have generic params.
+    let (adt_generic_params, adt_where_clause) = adt
+        .source(ctx.sema.db)
+        .map(|src| match src.value {
+            ast::Adt::Struct(it) => (it.generic_param_list(), it.where_clause()),
+            ast::Adt::Union(it) => (it.generic_param_list(), it.where_clause()),
+            ast::Adt::Enum(it) => (it.generic_param_list(), it.where_clause()),
+        })
+        .unwrap_or_default();
+    let generic_args = adt_generic_params.as_ref().map(|p| p.to_generic_args(make));
+
     let fn_ = function_builder.render(make).indent(IndentLevel(1));
-    let impl_ =
-        make.impl_(None, None, None, name.into(), None, Some(make.assoc_item_list([fn_.into()])));
+    let impl_ = make.impl_(
+        None,
+        adt_generic_params,
+        generic_args,
+        name.into(),
+        adt_where_clause,
+        Some(make.assoc_item_list([fn_.into()])),
+    );
     let impl_ = impl_.indent(impl_indent);
     if let Some(fn_) = impl_.syntax().descendants().find_map(ast::Fn::cast) {
         add_generated_fn_annotation(editor, edit, function_builder, &fn_, cap);
@@ -1901,7 +1916,7 @@ fn bar<T, U>(t: T, u: U) {
 
     #[test]
     fn generic_param_in_receiver_type() {
-        // FIXME: Generic parameter `T` should be part of impl, not method.
+        // FIXME: Generic parameter `T` from the impl should not also appear in the method's generics.
         check_assist(
             generate_function,
             r"
@@ -1910,7 +1925,7 @@ fn foo<T, U>(s: S<T>, u: U) { s.$0foo(u) }
 ",
             r"
 struct S<T>(T);
-impl S {
+impl<T> S<T> {
     fn foo<T, U>(&self, u: U) {
         ${0:todo!()}
     }
@@ -2560,6 +2575,86 @@ impl<S> Foo<S> {
     fn bar(&self) ${0:-> _} {
         todo!()
     }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn create_method_on_generic_struct_no_existing_impl() {
+        check_assist(
+            generate_function,
+            r#"
+struct Generic<T: Send>(T);
+
+fn foo() {
+    Generic("test").do_a_thing$0()
+}
+"#,
+            r#"
+struct Generic<T: Send>(T);
+impl<T: Send> Generic<T> {
+    fn do_a_thing(&self) {
+        ${0:todo!()}
+    }
+}
+
+fn foo() {
+    Generic("test").do_a_thing()
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn create_method_on_generic_struct_with_where_clause() {
+        check_assist(
+            generate_function,
+            r#"
+struct Generic<T>(T) where T: Send;
+
+fn foo() {
+    Generic("test").do_a_thing$0()
+}
+"#,
+            r#"
+struct Generic<T>(T) where T: Send;
+impl<T> Generic<T>
+where T: Send
+{
+    fn do_a_thing(&self) {
+        ${0:todo!()}
+    }
+}
+
+fn foo() {
+    Generic("test").do_a_thing()
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn create_method_on_generic_enum_no_existing_impl() {
+        check_assist(
+            generate_function,
+            r#"
+enum MyEnum<T> { A(T), B }
+
+fn foo() {
+    MyEnum::B.do_a_thing$0()
+}
+"#,
+            r#"
+enum MyEnum<T> { A(T), B }
+impl<T> MyEnum<T> {
+    fn do_a_thing(&self) {
+        ${0:todo!()}
+    }
+}
+
+fn foo() {
+    MyEnum::B.do_a_thing()
 }
 "#,
         )
