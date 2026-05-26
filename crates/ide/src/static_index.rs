@@ -44,7 +44,8 @@ pub struct ReferenceData {
 pub struct TokenStaticData {
     // FIXME: Make this have the lifetime of the database.
     pub documentation: Option<Documentation<'static>>,
-    pub hover: Option<HoverResult>,
+    // FIXME: Make this have the lifetime of the database.
+    pub hover: Option<HoverResult<'static>>,
     /// The position of the token itself.
     ///
     /// For example, in `fn foo() {}` this is the position of `foo`.

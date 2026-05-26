@@ -591,7 +591,7 @@ impl Analysis {
         &self,
         config: &HoverConfig<'_>,
         range: FileRange,
-    ) -> Cancellable<Option<RangeInfo<HoverResult>>> {
+    ) -> Cancellable<Option<RangeInfo<HoverResult<'static>>>> {
         self.with_db(|db| hover::hover(db, range, config))
     }
 

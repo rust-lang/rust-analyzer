@@ -39,7 +39,7 @@ pub(super) fn type_info_of(
     expr_or_pat: &Either<ast::Expr, ast::Pat>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     let ty_info = match expr_or_pat {
         Either::Left(expr) => sema.type_of_expr(expr)?,
         Either::Right(pat) => sema.type_of_pat(pat)?,
@@ -53,7 +53,7 @@ pub(super) fn closure_expr(
     c: ast::ClosureExpr,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     let TypeInfo { original, .. } = sema.type_of_expr(&c.into())?;
     closure_ty(sema, config, &TypeInfo { original, adjusted: None }, edition, display_target)
 }
@@ -64,7 +64,7 @@ pub(super) fn try_expr(
     try_expr: &ast::TryExpr,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     let inner_ty = sema.type_of_expr(&try_expr.expr()?)?.original;
     let mut ancestors = try_expr.syntax().ancestors();
     let mut body_ty = loop {
@@ -159,7 +159,7 @@ pub(super) fn deref_expr(
     deref_expr: &ast::PrefixExpr,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     let inner_ty = sema.type_of_expr(&deref_expr.expr()?)?.original;
     let TypeInfo { original, adjusted } =
         sema.type_of_expr(&ast::Expr::from(deref_expr.clone()))?;
@@ -223,7 +223,7 @@ pub(super) fn underscore(
     token: &SyntaxToken,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     if token.kind() != T![_] {
         return None;
     }
@@ -244,7 +244,7 @@ pub(super) fn keyword(
     token: &SyntaxToken,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     if !token.kind().is_keyword(edition) || !config.documentation || !config.keywords {
         return None;
     }
@@ -271,7 +271,7 @@ pub(super) fn struct_rest_pat(
     pattern: &ast::RecordPat,
     edition: Edition,
     display_target: DisplayTarget,
-) -> HoverResult {
+) -> HoverResult<'static> {
     let matched_fields = sema.record_pattern_matched_fields(pattern);
 
     // if there are no matched fields, the end result is a hover that shows ".."
@@ -306,7 +306,7 @@ pub(super) fn struct_rest_pat(
     res
 }
 
-pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<HoverResult> {
+pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<HoverResult<'static>> {
     let (path, tt) = attr.as_simple_call()?;
     if !tt.syntax().text_range().contains(token.text_range().start()) {
         return None;
@@ -948,7 +948,7 @@ fn type_info(
     ty: TypeInfo<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     if let Some(res) = closure_ty(sema, config, &ty, edition, display_target) {
         return Some(res);
     };
@@ -1007,7 +1007,7 @@ fn closure_ty(
     TypeInfo { original, adjusted }: &TypeInfo<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<HoverResult> {
+) -> Option<HoverResult<'static>> {
     let c = original.as_closure()?;
     let captures = c.captured_items(sema.db);
     let mut captures_rendered = captures

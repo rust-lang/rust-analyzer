@@ -117,9 +117,9 @@ pub struct HoverGotoTypeData<'db> {
 
 /// Contains the results when hovering over an item
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, UpmapFromRaFixture)]
-pub struct HoverResult {
+pub struct HoverResult<'db> {
     pub markup: Markup,
-    pub actions: Vec<HoverAction<'static>>,
+    pub actions: Vec<HoverAction<'db>>,
 }
 
 // Feature: Hover
@@ -132,7 +132,7 @@ pub(crate) fn hover(
     db: &RootDatabase,
     frange @ FileRange { file_id, range }: FileRange,
     config: &HoverConfig<'_>,
-) -> Option<RangeInfo<HoverResult>> {
+) -> Option<RangeInfo<HoverResult<'static>>> {
     let sema = &hir::Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let edition = sema.attach_first_edition(file_id).edition(db);
@@ -164,7 +164,7 @@ fn hover_offset(
     config: &HoverConfig<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<RangeInfo<HoverResult>> {
+) -> Option<RangeInfo<HoverResult<'static>>> {
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT
         | INT_NUMBER
@@ -385,12 +385,12 @@ fn hover_offset(
 
     res.into_iter()
         .unique()
-        .reduce(|mut acc: HoverResult, HoverResult { markup, actions }| {
+        .reduce(|mut acc: HoverResult<'_>, HoverResult { markup, actions }| {
             acc.actions.extend(actions);
             acc.markup = Markup::from(format!("{}\n\n---\n{markup}", acc.markup));
             acc
         })
-        .map(|mut res: HoverResult| {
+        .map(|mut res: HoverResult<'_>| {
             res.actions = dedupe_or_merge_hover_actions(res.actions);
             RangeInfo::new(original_token.text_range(), res)
         })
@@ -403,7 +403,7 @@ fn hover_ranged(
     config: &HoverConfig<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<RangeInfo<HoverResult>> {
+) -> Option<RangeInfo<HoverResult<'static>>> {
     // FIXME: make this work in attributes
     let expr_or_pat = file
         .covering_element(range)
@@ -458,7 +458,7 @@ pub(crate) fn hover_for_definition(
     config: &HoverConfig<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> HoverResult {
+) -> HoverResult<'static> {
     let famous_defs = match &def {
         Definition::BuiltinType(_) => sema.scope(scope_node).map(|it| FamousDefs(sema, it.krate())),
         _ => None,
