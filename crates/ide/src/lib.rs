@@ -403,19 +403,22 @@ impl Analysis {
         self.with_db(|db| view_item_tree::view_item_tree(db, file_id))
     }
 
-    pub fn discover_test_roots(&self) -> Cancellable<Vec<TestItem>> {
+    pub fn discover_test_roots(&self) -> Cancellable<Vec<TestItem<'static>>> {
         self.with_db(test_explorer::discover_test_roots)
     }
 
-    pub fn discover_tests_in_crate_by_test_id(&self, crate_id: &str) -> Cancellable<Vec<TestItem>> {
+    pub fn discover_tests_in_crate_by_test_id(
+        &self,
+        crate_id: &str,
+    ) -> Cancellable<Vec<TestItem<'static>>> {
         self.with_db(|db| test_explorer::discover_tests_in_crate_by_test_id(db, crate_id))
     }
 
-    pub fn discover_tests_in_crate(&self, crate_id: Crate) -> Cancellable<Vec<TestItem>> {
+    pub fn discover_tests_in_crate(&self, crate_id: Crate) -> Cancellable<Vec<TestItem<'static>>> {
         self.with_db(|db| test_explorer::discover_tests_in_crate(db, crate_id))
     }
 
-    pub fn discover_tests_in_file(&self, file_id: FileId) -> Cancellable<Vec<TestItem>> {
+    pub fn discover_tests_in_file(&self, file_id: FileId) -> Cancellable<Vec<TestItem<'static>>> {
         self.with_db(|db| test_explorer::discover_tests_in_file(db, file_id))
     }
 

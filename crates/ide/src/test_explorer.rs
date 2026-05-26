@@ -15,17 +15,17 @@ pub enum TestItemKind {
 }
 
 #[derive(Debug)]
-pub struct TestItem {
+pub struct TestItem<'db> {
     pub id: String,
     pub kind: TestItemKind,
     pub label: String,
     pub parent: Option<String>,
     pub file: Option<FileId>,
     pub text_range: Option<TextRange>,
-    pub runnable: Option<Runnable<'static>>,
+    pub runnable: Option<Runnable<'db>>,
 }
 
-pub(crate) fn discover_test_roots(db: &RootDatabase) -> Vec<TestItem> {
+pub(crate) fn discover_test_roots(db: &RootDatabase) -> Vec<TestItem<'static>> {
     all_crates(db)
         .iter()
         .copied()
@@ -59,7 +59,7 @@ fn discover_tests_in_module(
     module: Module,
     prefix_id: String,
     only_in_this_file: bool,
-) -> Vec<TestItem> {
+) -> Vec<TestItem<'static>> {
     let sema = Semantics::new(db);
 
     let mut r = vec![];
@@ -112,14 +112,14 @@ fn discover_tests_in_module(
 pub(crate) fn discover_tests_in_crate_by_test_id(
     db: &RootDatabase,
     crate_test_id: &str,
-) -> Vec<TestItem> {
+) -> Vec<TestItem<'static>> {
     let Some(crate_id) = find_crate_by_id(db, crate_test_id) else {
         return vec![];
     };
     discover_tests_in_crate(db, crate_id)
 }
 
-pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: FileId) -> Vec<TestItem> {
+pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: FileId) -> Vec<TestItem<'static>> {
     let sema = Semantics::new(db);
 
     let Some(module) = sema.file_to_module_def(file_id) else { return vec![] };
@@ -133,7 +133,7 @@ pub(crate) fn discover_tests_in_file(db: &RootDatabase, file_id: FileId) -> Vec<
 fn find_module_id_and_test_parents(
     sema: &Semantics<'_, RootDatabase>,
     module: Module,
-) -> Option<(Vec<TestItem>, String)> {
+) -> Option<(Vec<TestItem<'static>>, String)> {
     let Some(parent) = module.parent(sema.db) else {
         let name = module.krate(sema.db).display_name(sema.db)?.to_string();
         return Some((
@@ -171,7 +171,7 @@ fn find_module_id_and_test_parents(
 pub(crate) fn discover_tests_in_crate(
     db: &RootDatabase,
     crate_id: base_db::Crate,
-) -> Vec<TestItem> {
+) -> Vec<TestItem<'static>> {
     if !crate_id.data(db).origin.is_local() {
         return vec![];
     }

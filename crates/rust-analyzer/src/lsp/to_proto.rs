@@ -1843,7 +1843,7 @@ pub(crate) fn code_lens(
 
 pub(crate) fn test_item(
     snap: &GlobalStateSnapshot,
-    test_item: ide::TestItem,
+    test_item: ide::TestItem<'_>,
     line_index: Option<&LineIndex>,
 ) -> Option<lsp_ext::TestItem> {
     Some(lsp_ext::TestItem {
