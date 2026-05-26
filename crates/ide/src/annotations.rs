@@ -31,7 +31,7 @@ pub struct Annotation<'db> {
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum AnnotationKind<'db> {
-    Runnable(Runnable),
+    Runnable(Runnable<'db>),
     HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget<'db>>> },
     HasReferences { pos: FilePosition, data: Option<Vec<FileRange>> },
 }

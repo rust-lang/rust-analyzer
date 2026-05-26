@@ -78,7 +78,7 @@ pub enum HoverDocFormat {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, UpmapFromRaFixture)]
 pub enum HoverAction {
-    Runnable(Runnable),
+    Runnable(Runnable<'static>),
     Implementation(FilePosition),
     Reference(FilePosition),
     GoToType(Vec<HoverGotoTypeData<'static>>),

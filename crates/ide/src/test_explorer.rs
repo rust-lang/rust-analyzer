@@ -22,7 +22,7 @@ pub struct TestItem {
     pub parent: Option<String>,
     pub file: Option<FileId>,
     pub text_range: Option<TextRange>,
-    pub runnable: Option<Runnable>,
+    pub runnable: Option<Runnable<'static>>,
 }
 
 pub(crate) fn discover_test_roots(db: &RootDatabase) -> Vec<TestItem> {

@@ -1090,7 +1090,7 @@ pub(crate) fn handle_runnables(
     Ok(res)
 }
 
-fn should_skip_for_offset(runnable: &Runnable, offset: Option<TextSize>) -> bool {
+fn should_skip_for_offset(runnable: &Runnable<'_>, offset: Option<TextSize>) -> bool {
     match offset {
         None => false,
         _ if matches!(&runnable.kind, RunnableKind::TestMod { .. }) => false,
@@ -2244,7 +2244,7 @@ fn show_ref_command_link(
 
 fn runnable_action_links(
     snap: &GlobalStateSnapshot,
-    runnable: Runnable,
+    runnable: Runnable<'_>,
     hover_actions_config: &HoverActionsConfig,
     client_commands_config: &ClientCommandsConfig,
 ) -> Option<lsp_ext::CommandLinkGroup> {
@@ -2341,7 +2341,7 @@ fn prepare_hover_actions(
         .collect()
 }
 
-fn should_skip_target(runnable: &Runnable, cargo_spec: Option<&TargetSpec>) -> bool {
+fn should_skip_target(runnable: &Runnable<'_>, cargo_spec: Option<&TargetSpec>) -> bool {
     match runnable.kind {
         RunnableKind::Bin => {
             // Do not suggest binary run on other target than binary

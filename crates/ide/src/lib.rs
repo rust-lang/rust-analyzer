@@ -699,7 +699,7 @@ impl Analysis {
     }
 
     /// Returns the set of possible targets to run for the current file.
-    pub fn runnables(&self, file_id: FileId) -> Cancellable<Vec<Runnable>> {
+    pub fn runnables(&self, file_id: FileId) -> Cancellable<Vec<Runnable<'static>>> {
         self.with_db(|db| runnables::runnables(db, file_id))
     }
 
@@ -708,7 +708,7 @@ impl Analysis {
         &self,
         position: FilePosition,
         search_scope: Option<SearchScope>,
-    ) -> Cancellable<Vec<Runnable>> {
+    ) -> Cancellable<Vec<Runnable<'static>>> {
         let search_scope = AssertUnwindSafe(search_scope);
         self.with_db(|db| {
             let _ = &search_scope;

@@ -27,9 +27,9 @@ use syntax::{
 use crate::{FileId, NavigationTarget, ToNav, TryToNav, references};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, UpmapFromRaFixture)]
-pub struct Runnable {
+pub struct Runnable<'db> {
     pub use_name_in_title: bool,
-    pub nav: NavigationTarget<'static>,
+    pub nav: NavigationTarget<'db>,
     pub kind: RunnableKind,
     pub cfg: Option<CfgExpr>,
     pub update_test: UpdateTest,
@@ -82,7 +82,7 @@ impl RunnableKind {
     }
 }
 
-impl Runnable {
+impl Runnable<'_> {
     pub fn label(&self, target: Option<&str>) -> String {
         match &self.kind {
             RunnableKind::Test { test_id, .. } => format!("test {test_id}"),
@@ -126,14 +126,14 @@ impl Runnable {
 // | VS Code | **rust-analyzer: Run** |
 //
 // ![Run](https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif)
-pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
+pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable<'static>> {
     let sema = Semantics::new(db);
 
     let mut res = Vec::new();
     // Record all runnables that come from macro expansions here instead.
     // In case an expansion creates multiple runnables we want to name them to avoid emitting a bunch of equally named runnables.
-    let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable>>::default();
-    let mut add_opt = |runnable: Option<Runnable>, def| {
+    let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable<'static>>>::default();
+    let mut add_opt = |runnable: Option<Runnable<'static>>, def| {
         if let Some(runnable) = runnable.filter(|runnable| runnable.nav.file_id == file_id) {
             if let Some(def) = def {
                 let file_id = match def {
@@ -202,9 +202,9 @@ pub(crate) fn related_tests(
     db: &RootDatabase,
     position: FilePosition,
     search_scope: Option<SearchScope>,
-) -> Vec<Runnable> {
+) -> Vec<Runnable<'static>> {
     let sema = Semantics::new(db);
-    let mut res: FxIndexSet<Runnable> = FxIndexSet::default();
+    let mut res: FxIndexSet<Runnable<'static>> = FxIndexSet::default();
     let syntax = sema.parse_guess_edition(position.file_id).syntax().clone();
 
     find_related_tests(&sema, &syntax, position, search_scope, &mut res);
@@ -213,8 +213,8 @@ pub(crate) fn related_tests(
 }
 
 fn cmp_runnables(
-    Runnable { nav, kind, .. }: &Runnable,
-    Runnable { nav: nav_b, kind: kind_b, .. }: &Runnable,
+    Runnable { nav, kind, .. }: &Runnable<'_>,
+    Runnable { nav: nav_b, kind: kind_b, .. }: &Runnable<'_>,
 ) -> std::cmp::Ordering {
     // full_range.start < focus_range.start < name, should give us a decent unique ordering
     nav.full_range
@@ -235,7 +235,7 @@ fn find_related_tests(
     syntax: &SyntaxNode,
     position: FilePosition,
     search_scope: Option<SearchScope>,
-    tests: &mut FxIndexSet<Runnable>,
+    tests: &mut FxIndexSet<Runnable<'_>>,
 ) {
     // FIXME: why is this using references::find_defs, this should use ide_db::search
     let defs = match references::find_defs(sema, syntax, position.offset) {
@@ -275,7 +275,7 @@ fn find_related_tests_in_module(
     syntax: &SyntaxNode,
     fn_def: &ast::Fn,
     parent_module: &hir::Module,
-    tests: &mut FxIndexSet<Runnable>,
+    tests: &mut FxIndexSet<Runnable<'_>>,
 ) {
     let fn_name = match fn_def.name() {
         Some(it) => it,
@@ -292,7 +292,10 @@ fn find_related_tests_in_module(
     find_related_tests(sema, syntax, fn_pos, Some(mod_scope), tests)
 }
 
-fn as_test_runnable(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> Option<Runnable> {
+fn as_test_runnable(
+    sema: &Semantics<'_, RootDatabase>,
+    fn_def: &ast::Fn,
+) -> Option<Runnable<'static>> {
     if test_related_attribute_syn(fn_def).is_some() {
         let function = sema.to_def(fn_def)?;
         runnable_fn(sema, function)
@@ -317,7 +320,7 @@ fn parent_test_module(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> O
 pub(crate) fn runnable_fn(
     sema: &Semantics<'_, RootDatabase>,
     def: hir::Function,
-) -> Option<Runnable> {
+) -> Option<Runnable<'static>> {
     let edition = def.krate(sema.db).edition(sema.db);
     let under_cfg_test = has_cfg_test(def.module(sema.db).attrs(sema.db).cfgs(sema.db));
     let kind = if !under_cfg_test && def.is_main(sema.db) {
@@ -360,7 +363,7 @@ pub(crate) fn runnable_fn(
 pub(crate) fn runnable_mod(
     sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
-) -> Option<Runnable> {
+) -> Option<Runnable<'static>> {
     let cfg = def.attrs(sema.db).cfgs(sema.db);
     if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(cfg)) {
         return None;
@@ -399,7 +402,7 @@ pub(crate) fn runnable_mod(
 pub(crate) fn runnable_impl(
     sema: &Semantics<'_, RootDatabase>,
     def: &hir::Impl,
-) -> Option<Runnable> {
+) -> Option<Runnable<'static>> {
     let display_target = def.module(sema.db).krate(sema.db).to_display_target(sema.db);
     let edition = display_target.edition;
     let attrs = def.attrs(sema.db);
@@ -450,7 +453,7 @@ fn has_cfg_test(cfg: Option<&CfgExpr>) -> bool {
 fn runnable_mod_outline_definition(
     sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
-) -> Option<Runnable> {
+) -> Option<Runnable<'static>> {
     def.as_source_file_id(sema.db)?;
 
     let cfg = def.attrs(sema.db).cfgs(sema.db);
@@ -487,7 +490,10 @@ fn runnable_mod_outline_definition(
     })
 }
 
-fn module_def_doctest(sema: &Semantics<'_, RootDatabase>, def: Definition) -> Option<Runnable> {
+fn module_def_doctest(
+    sema: &Semantics<'_, RootDatabase>,
+    def: Definition,
+) -> Option<Runnable<'static>> {
     let db = sema.db;
     let attrs = match def {
         Definition::Module(it) => it.attrs(db),
