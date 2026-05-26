@@ -28,7 +28,7 @@ use crate::{
 #[derive(Debug)]
 pub struct StaticIndex<'a> {
     pub files: Vec<StaticIndexedFile>,
-    pub tokens: TokenStore,
+    pub tokens: TokenStore<'a>,
     analysis: &'a Analysis,
     db: &'a RootDatabase,
     def_map: FxHashMap<Definition, TokenId>,
@@ -71,24 +71,24 @@ impl TokenId {
 }
 
 #[derive(Default, Debug)]
-pub struct TokenStore(Vec<TokenStaticData<'static>>);
+pub struct TokenStore<'db>(Vec<TokenStaticData<'db>>);
 
-impl TokenStore {
-    pub fn insert(&mut self, data: TokenStaticData<'static>) -> TokenId {
+impl<'db> TokenStore<'db> {
+    pub fn insert(&mut self, data: TokenStaticData<'db>) -> TokenId {
         let id = TokenId(self.0.len());
         self.0.push(data);
         id
     }
 
-    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData<'static>> {
+    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData<'db>> {
         self.0.get_mut(id.0)
     }
 
-    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData<'static>> {
+    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData<'db>> {
         self.0.get(id.0)
     }
 
-    pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData<'static>)> {
+    pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData<'db>)> {
         self.0.into_iter().enumerate().map(|(id, data)| (TokenId(id), data))
     }
 }
@@ -149,7 +149,7 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
-impl StaticIndex<'_> {
+impl<'db> StaticIndex<'db> {
     fn add_file(&mut self, file_id: FileId) {
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
         let folds = self.analysis.folding_ranges(file_id, true).unwrap();
