@@ -2290,7 +2290,7 @@ fn runnable_action_links(
 
 fn goto_type_action_links(
     snap: &GlobalStateSnapshot,
-    nav_targets: &[HoverGotoTypeData],
+    nav_targets: &[HoverGotoTypeData<'_>],
     hover_actions: &HoverActionsConfig,
     client_commands: &ClientCommandsConfig,
 ) -> Option<lsp_ext::CommandLinkGroup> {

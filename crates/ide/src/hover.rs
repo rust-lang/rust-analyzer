@@ -81,7 +81,7 @@ pub enum HoverAction {
     Runnable(Runnable),
     Implementation(FilePosition),
     Reference(FilePosition),
-    GoToType(Vec<HoverGotoTypeData>),
+    GoToType(Vec<HoverGotoTypeData<'static>>),
 }
 
 impl HoverAction {
@@ -110,9 +110,9 @@ impl HoverAction {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, UpmapFromRaFixture)]
-pub struct HoverGotoTypeData {
+pub struct HoverGotoTypeData<'db> {
     pub mod_path: String,
-    pub nav: NavigationTarget<'static>,
+    pub nav: NavigationTarget<'db>,
 }
 
 /// Contains the results when hovering over an item
