@@ -26,13 +26,13 @@ mod fn_references;
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct Annotation {
     pub range: TextRange,
-    pub kind: AnnotationKind,
+    pub kind: AnnotationKind<'static>,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub enum AnnotationKind {
+pub enum AnnotationKind<'db> {
     Runnable(Runnable),
-    HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget<'static>>> },
+    HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget<'db>>> },
     HasReferences { pos: FilePosition, data: Option<Vec<FileRange>> },
 }
 
