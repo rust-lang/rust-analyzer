@@ -44,7 +44,7 @@ pub(crate) fn goto_definition(
     db: &RootDatabase,
     FilePosition { file_id, offset }: FilePosition,
     config: &GotoDefinitionConfig<'_>,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+) -> Option<RangeInfo<Vec<NavigationTarget<'static>>>> {
     let sema = &Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let edition = sema.attach_first_edition(file_id).edition(db);
@@ -202,7 +202,7 @@ fn goto_question_mark_conversions(
 fn find_definition_for_known_blanket_dual_impls(
     sema: &Semantics<'_, RootDatabase>,
     original_token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     let method_call = ast::MethodCallExpr::cast(original_token.parent()?.parent()?)?;
     let callable = sema.resolve_method_call_as_callable(&method_call)?;
     let CallableKind::Function(f) = callable.kind() else { return None };
@@ -273,7 +273,7 @@ fn find_definition_for_known_blanket_dual_impls(
 fn find_definition_for_comparison_operators(
     sema: &Semantics<'_, RootDatabase>,
     original_token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     let bin_expr = ast::BinExpr::cast(original_token.parent()?)?;
 
     let f = sema.resolve_bin_expr(&bin_expr)?;
@@ -329,7 +329,7 @@ fn try_lookup_include_path(
     sema: &Semantics<'_, RootDatabase>,
     token: InFile<ast::String>,
     file_id: FileId,
-) -> Option<NavigationTarget> {
+) -> Option<NavigationTarget<'static>> {
     let file = token.file_id.macro_file()?;
 
     // Check that we are in the eager argument expansion of an include macro
@@ -359,7 +359,7 @@ fn try_lookup_include_path(
 fn try_lookup_macro_def_in_macro_use(
     sema: &Semantics<'_, RootDatabase>,
     token: SyntaxToken,
-) -> Option<NavigationTarget> {
+) -> Option<NavigationTarget<'static>> {
     let extern_crate = token.parent()?.ancestors().find_map(ast::ExternCrate::cast)?;
     let extern_crate = sema.to_def(&extern_crate)?;
     let krate = extern_crate.resolved_crate(sema.db)?;
@@ -386,7 +386,7 @@ fn try_lookup_macro_def_in_macro_use(
 fn try_filter_trait_item_definition(
     sema: &Semantics<'_, RootDatabase>,
     def: &Definition,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     let db = sema.db;
     let assoc = def.as_assoc_item(db)?;
     match assoc {
@@ -408,7 +408,7 @@ fn try_filter_trait_item_definition(
 fn handle_control_flow_keywords(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     match token.kind() {
         // For `fn` / `loop` / `while` / `for` / `async` / `match`, return the keyword it self,
         // so that VSCode will find the references when using `ctrl + click`
@@ -456,7 +456,7 @@ pub(crate) fn find_fn_or_blocks(
 fn nav_for_exit_points(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     let db = sema.db;
     let token_kind = token.kind();
 
@@ -482,7 +482,7 @@ fn nav_for_exit_points(
                             .map(|(frange, _)| frange);
 
                         if let Some(FileRange { file_id, range }) = focus_frange {
-                            let contains_frange = |nav: &NavigationTarget| {
+                            let contains_frange = |nav: &NavigationTarget<'_>| {
                                 nav.file_id == file_id.file_id(db) && nav.full_range.contains_range(range)
                             };
 
@@ -563,7 +563,7 @@ pub(crate) fn find_branch_root(
 fn nav_for_branch_exit_points(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     let db = sema.db;
 
     let navs = match token.kind() {
@@ -615,7 +615,7 @@ fn nav_for_branch_exit_points(
 fn nav_for_break_points(
     sema: &Semantics<'_, RootDatabase>,
     token: &SyntaxToken,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<Vec<NavigationTarget<'static>>> {
     let db = sema.db;
 
     let navs = find_loops(sema, token)?
@@ -639,7 +639,10 @@ fn nav_for_break_points(
     Some(navs)
 }
 
-fn def_to_nav(sema: &Semantics<'_, RootDatabase>, def: Definition) -> Vec<NavigationTarget> {
+fn def_to_nav(
+    sema: &Semantics<'_, RootDatabase>,
+    def: Definition,
+) -> Vec<NavigationTarget<'static>> {
     def.try_to_nav(sema).map(|it| it.collect()).unwrap_or_default()
 }
 
@@ -647,7 +650,7 @@ fn expr_to_nav(
     db: &RootDatabase,
     InFile { file_id, value }: InFile<ast::Expr>,
     focus_range: Option<TextRange>,
-) -> UpmappingResult<NavigationTarget> {
+) -> UpmappingResult<NavigationTarget<'static>> {
     let kind = SymbolKind::Label;
 
     let value_range = value.syntax().text_range();

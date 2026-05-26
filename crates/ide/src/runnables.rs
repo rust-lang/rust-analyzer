@@ -29,7 +29,7 @@ use crate::{FileId, NavigationTarget, ToNav, TryToNav, references};
 #[derive(Debug, Clone, Hash, PartialEq, Eq, UpmapFromRaFixture)]
 pub struct Runnable {
     pub use_name_in_title: bool,
-    pub nav: NavigationTarget,
+    pub nav: NavigationTarget<'static>,
     pub kind: RunnableKind,
     pub cfg: Option<CfgExpr>,
     pub update_test: UpdateTest,

@@ -18,7 +18,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct CallItem {
-    pub target: NavigationTarget,
+    pub target: NavigationTarget<'static>,
     pub ranges: Vec<FileRange>,
 }
 
@@ -33,7 +33,7 @@ pub(crate) fn call_hierarchy(
     db: &RootDatabase,
     position: FilePosition,
     config: &CallHierarchyConfig<'_>,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+) -> Option<RangeInfo<Vec<NavigationTarget<'static>>>> {
     goto_definition::goto_definition(
         db,
         position,
@@ -159,11 +159,11 @@ pub(crate) fn outgoing_calls(
 
 #[derive(Default)]
 struct CallLocations {
-    funcs: FxIndexMap<NavigationTarget, Vec<FileRange>>,
+    funcs: FxIndexMap<NavigationTarget<'static>, Vec<FileRange>>,
 }
 
 impl CallLocations {
-    fn add(&mut self, target: NavigationTarget, range: FileRange) {
+    fn add(&mut self, target: NavigationTarget<'static>, range: FileRange) {
         self.funcs.entry(target).or_default().push(range);
     }
 

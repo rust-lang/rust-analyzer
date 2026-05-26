@@ -63,7 +63,7 @@ pub struct ReferenceSearchResult {
 #[derive(Debug, Clone, UpmapFromRaFixture)]
 pub struct Declaration {
     /// Navigation information to jump to the declaration
-    pub nav: NavigationTarget,
+    pub nav: NavigationTarget<'static>,
     /// Whether the declared item is mutable (relevant for variables)
     pub is_mut: bool,
 }

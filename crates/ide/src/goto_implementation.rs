@@ -25,7 +25,7 @@ pub(crate) fn goto_implementation(
     db: &RootDatabase,
     config: &GotoImplementationConfig,
     FilePosition { file_id, offset }: FilePosition,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+) -> Option<RangeInfo<Vec<NavigationTarget<'static>>>> {
     let sema = Semantics::new(db);
     let source_file = sema.parse_guess_edition(file_id);
     let syntax = source_file.syntax().clone();
@@ -100,7 +100,10 @@ pub(crate) fn goto_implementation(
     Some(RangeInfo { range, info: navs })
 }
 
-fn impls_for_ty(sema: &Semantics<'_, RootDatabase>, ty: hir::Type<'_>) -> Vec<NavigationTarget> {
+fn impls_for_ty(
+    sema: &Semantics<'_, RootDatabase>,
+    ty: hir::Type<'_>,
+) -> Vec<NavigationTarget<'static>> {
     Impl::all_for_type(sema.db, ty)
         .into_iter()
         .filter_map(|imp| imp.try_to_nav(sema))
@@ -111,7 +114,7 @@ fn impls_for_ty(sema: &Semantics<'_, RootDatabase>, ty: hir::Type<'_>) -> Vec<Na
 fn impls_for_trait(
     sema: &Semantics<'_, RootDatabase>,
     trait_: hir::Trait,
-) -> Vec<NavigationTarget> {
+) -> Vec<NavigationTarget<'static>> {
     Impl::all_for_trait(sema.db, trait_)
         .into_iter()
         .filter_map(|imp| imp.try_to_nav(sema))
@@ -123,7 +126,7 @@ fn impls_for_trait_item(
     sema: &Semantics<'_, RootDatabase>,
     trait_: hir::Trait,
     fun_name: hir::Name,
-) -> Vec<NavigationTarget> {
+) -> Vec<NavigationTarget<'static>> {
     Impl::all_for_trait(sema.db, trait_)
         .into_iter()
         .filter_map(|imp| {

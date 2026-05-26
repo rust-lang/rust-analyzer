@@ -28,7 +28,7 @@ use syntax::{
 /// Typically, a `NavigationTarget` corresponds to some element in the source
 /// code, like a function or a struct, but this is not strictly required.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct NavigationTarget {
+pub struct NavigationTarget<'db> {
     pub file_id: FileId,
     /// Range which encompasses the whole element.
     ///
@@ -50,14 +50,13 @@ pub struct NavigationTarget {
     pub kind: Option<SymbolKind>,
     pub container_name: Option<Symbol>,
     pub description: Option<String>,
-    // FIXME: Use the database lifetime here.
-    pub docs: Option<Documentation<'static>>,
+    pub docs: Option<Documentation<'db>>,
     /// In addition to a `name` field, a `NavigationTarget` may also be aliased
     /// In such cases we want a `NavigationTarget` to be accessible by its alias
     pub alias: Option<Symbol>,
 }
 
-impl fmt::Debug for NavigationTarget {
+impl fmt::Debug for NavigationTarget<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("NavigationTarget");
         macro_rules! opt {
@@ -75,7 +74,7 @@ impl fmt::Debug for NavigationTarget {
     }
 }
 
-impl UpmapFromRaFixture for NavigationTarget {
+impl UpmapFromRaFixture for NavigationTarget<'_> {
     fn upmap_from_ra_fixture(
         self,
         analysis: &ide_db::ra_fixture::RaFixtureAnalysis,
@@ -114,21 +113,21 @@ impl UpmapFromRaFixture for NavigationTarget {
 }
 
 pub(crate) trait ToNav {
-    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget>;
+    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget<'static>>;
 }
 
 pub trait TryToNav {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>>;
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>>;
 }
 
 impl<T: TryToNav, U: TryToNav> TryToNav for Either<T, U> {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         match self {
             Either::Left(it) => it.try_to_nav(sema),
             Either::Right(it) => it.try_to_nav(sema),
@@ -136,7 +135,7 @@ impl<T: TryToNav, U: TryToNav> TryToNav for Either<T, U> {
     }
 }
 
-impl NavigationTarget {
+impl<'db> NavigationTarget<'db> {
     pub fn focus_or_full_range(&self) -> TextRange {
         self.focus_range.unwrap_or(self.full_range)
     }
@@ -144,7 +143,7 @@ impl NavigationTarget {
     pub(crate) fn from_module_to_decl(
         db: &RootDatabase,
         module: hir::Module,
-    ) -> UpmappingResult<NavigationTarget> {
+    ) -> UpmappingResult<NavigationTarget<'static>> {
         let name = module.name(db).map(|it| it.symbol().clone()).unwrap_or_else(|| sym::underscore);
         match module.declaration_source(db) {
             Some(InFile { value, file_id }) => {
@@ -192,7 +191,7 @@ impl NavigationTarget {
         db: &RootDatabase,
         InFile { file_id, value }: InFile<&dyn ast::HasName>,
         kind: SymbolKind,
-    ) -> UpmappingResult<NavigationTarget> {
+    ) -> UpmappingResult<NavigationTarget<'static>> {
         let name =
             value.name().map(|it| Symbol::intern(&it.text())).unwrap_or_else(|| sym::underscore);
 
@@ -208,7 +207,7 @@ impl NavigationTarget {
         ranges: InFile<(TextRange, Option<TextRange>)>,
         name: Option<Name>,
         kind: SymbolKind,
-    ) -> UpmappingResult<NavigationTarget> {
+    ) -> UpmappingResult<NavigationTarget<'static>> {
         let InFile { file_id, value: (full_range, focus_range) } = ranges;
         let name = name.map(|name| name.symbol().clone()).unwrap_or_else(|| sym::underscore);
 
@@ -225,7 +224,7 @@ impl NavigationTarget {
         focus_range: Option<TextRange>,
         full_range: TextRange,
         kind: SymbolKind,
-    ) -> NavigationTarget {
+    ) -> NavigationTarget<'static> {
         NavigationTarget {
             file_id,
             name,
@@ -244,7 +243,7 @@ impl<'db> TryToNav for FileSymbol<'db> {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let display_target = self.def.krate(db).to_display_target(db);
         Some(
@@ -306,7 +305,7 @@ impl TryToNav for Definition {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         match self {
             Definition::Local(it) => Some(it.to_nav(sema.db)),
             Definition::Label(it) => it.try_to_nav(sema),
@@ -341,7 +340,7 @@ impl TryToNav for hir::ModuleDef {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         match self {
             hir::ModuleDef::Module(it) => Some(it.to_nav(sema.db)),
             hir::ModuleDef::Function(it) => it.try_to_nav(sema),
@@ -441,7 +440,7 @@ where
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let src = self.source_with_range(db)?;
         Some(
@@ -470,7 +469,7 @@ where
 }
 
 impl ToNav for hir::Module {
-    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget> {
+    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget<'static>> {
         let InFile { file_id, value } = self.definition_source(db);
 
         let name = self.name(db).map(|it| it.symbol().clone()).unwrap_or_else(|| sym::underscore);
@@ -490,7 +489,7 @@ impl ToNav for hir::Module {
 }
 
 impl ToNav for hir::Crate {
-    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget> {
+    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget<'static>> {
         self.root_module(db).to_nav(db)
     }
 }
@@ -499,7 +498,7 @@ impl TryToNav for hir::Impl {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let InFile { file_id, value: (full_range, source) } = self.source_with_range(db)?;
 
@@ -527,7 +526,7 @@ impl TryToNav for hir::ExternCrateDecl {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let src = self.source(db)?;
         let InFile { file_id, value } = src;
@@ -559,7 +558,7 @@ impl TryToNav for hir::Field {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let src = self.source(db)?;
         let krate = self.parent_def(db).module(db).krate(db);
@@ -595,7 +594,7 @@ impl TryToNav for hir::Macro {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let src = self.source(db)?;
         let name_owner: &dyn ast::HasName = match &src.value {
@@ -620,7 +619,7 @@ impl TryToNav for hir::Adt {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         match self {
             hir::Adt::Struct(it) => it.try_to_nav(sema),
             hir::Adt::Union(it) => it.try_to_nav(sema),
@@ -633,7 +632,7 @@ impl TryToNav for hir::AssocItem {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         match self {
             AssocItem::Function(it) => it.try_to_nav(sema),
             AssocItem::Const(it) => it.try_to_nav(sema),
@@ -646,7 +645,7 @@ impl TryToNav for hir::GenericParam {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         match self {
             hir::GenericParam::TypeParam(it) => it.try_to_nav(sema),
             hir::GenericParam::ConstParam(it) => it.try_to_nav(sema),
@@ -656,7 +655,7 @@ impl TryToNav for hir::GenericParam {
 }
 
 impl ToNav for LocalSource {
-    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget> {
+    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget<'static>> {
         let InFile { file_id, value } = &self.source;
         let file_id = *file_id;
         let local = self.local;
@@ -692,7 +691,7 @@ impl ToNav for LocalSource {
 }
 
 impl ToNav for hir::Local {
-    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget> {
+    fn to_nav(&self, db: &RootDatabase) -> UpmappingResult<NavigationTarget<'static>> {
         self.primary_source(db).to_nav(db)
     }
 }
@@ -701,7 +700,7 @@ impl TryToNav for hir::Label {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let InFile { file_id, value } = self.source(db)?;
         let name = self.name(db).symbol().clone();
@@ -726,7 +725,7 @@ impl TryToNav for hir::TypeParam {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let InFile { file_id, value } = self.merge().source(db)?;
         let name = self.name(db).symbol().clone();
@@ -766,7 +765,7 @@ impl TryToNav for hir::TypeOrConstParam {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         self.split(sema.db).try_to_nav(sema)
     }
 }
@@ -775,7 +774,7 @@ impl TryToNav for hir::LifetimeParam {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let InFile { file_id, value } = self.source(db)?;
         let name = self.name(db).symbol().clone();
@@ -800,7 +799,7 @@ impl TryToNav for hir::ConstParam {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let InFile { file_id, value } = self.merge().source(db)?;
         let name = self.name(db).symbol().clone();
@@ -833,7 +832,7 @@ impl TryToNav for hir::InlineAsmOperand {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let InFile { file_id, value } = &self.source(db)?;
         let file_id = *file_id;
@@ -858,7 +857,7 @@ impl TryToNav for hir::BuiltinType {
     fn try_to_nav(
         &self,
         sema: &Semantics<'_, RootDatabase>,
-    ) -> Option<UpmappingResult<NavigationTarget>> {
+    ) -> Option<UpmappingResult<NavigationTarget<'static>>> {
         let db = sema.db;
         let krate = all_crates(db)
             .iter()

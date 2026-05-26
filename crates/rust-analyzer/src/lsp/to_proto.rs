@@ -1042,7 +1042,7 @@ pub(crate) fn location(
 /// Prefer using `location_link`, if the client has the cap.
 pub(crate) fn location_from_nav(
     snap: &GlobalStateSnapshot,
-    nav: NavigationTarget,
+    nav: NavigationTarget<'_>,
 ) -> Cancellable<lsp_types::Location> {
     let url = url(snap, nav.file_id);
     let line_index = snap.file_line_index(nav.file_id)?;
@@ -1054,7 +1054,7 @@ pub(crate) fn location_from_nav(
 pub(crate) fn location_link(
     snap: &GlobalStateSnapshot,
     src: Option<FileRange>,
-    target: NavigationTarget,
+    target: NavigationTarget<'_>,
 ) -> Cancellable<lsp_types::LocationLink> {
     let origin_selection_range = match src {
         Some(src) => {
@@ -1076,7 +1076,7 @@ pub(crate) fn location_link(
 
 fn location_info(
     snap: &GlobalStateSnapshot,
-    target: NavigationTarget,
+    target: NavigationTarget<'_>,
 ) -> Cancellable<(lsp_types::Url, lsp_types::Range, lsp_types::Range)> {
     let line_index = snap.file_line_index(target.file_id)?;
 
@@ -1090,7 +1090,7 @@ fn location_info(
 pub(crate) fn goto_definition_response(
     snap: &GlobalStateSnapshot,
     src: Option<FileRange>,
-    targets: Vec<NavigationTarget>,
+    targets: Vec<NavigationTarget<'_>>,
 ) -> Cancellable<lsp_types::GotoDefinitionResponse> {
     if snap.config.location_link() {
         let links = targets
@@ -1491,7 +1491,7 @@ impl From<lsp_ext::SnippetTextEdit>
 
 pub(crate) fn call_hierarchy_item(
     snap: &GlobalStateSnapshot,
-    target: NavigationTarget,
+    target: NavigationTarget<'_>,
 ) -> Cancellable<lsp_types::CallHierarchyItem> {
     let name = target.name.to_string();
     let detail = target.description.clone();
@@ -1937,7 +1937,7 @@ pub(crate) mod command {
 
     pub(crate) fn goto_location(
         snap: &GlobalStateSnapshot,
-        nav: &NavigationTarget,
+        nav: &NavigationTarget<'_>,
     ) -> Option<lsp_types::Command> {
         let value = if snap.config.location_link() {
             let link = location_link(snap, None, nav.clone()).ok()?;

@@ -32,7 +32,7 @@ pub struct Annotation {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum AnnotationKind {
     Runnable(Runnable),
-    HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget>> },
+    HasImpls { pos: FilePosition, data: Option<Vec<NavigationTarget<'static>>> },
     HasReferences { pos: FilePosition, data: Option<Vec<FileRange>> },
 }
 

@@ -22,14 +22,14 @@ pub(crate) fn goto_declaration(
     db: &RootDatabase,
     position @ FilePosition { file_id, offset }: FilePosition,
     config: &GotoDefinitionConfig<'_>,
-) -> Option<RangeInfo<Vec<NavigationTarget>>> {
+) -> Option<RangeInfo<Vec<NavigationTarget<'static>>>> {
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let original_token = file
         .token_at_offset(offset)
         .find(|it| matches!(it.kind(), IDENT | T![self] | T![super] | T![crate] | T![Self]))?;
     let range = original_token.text_range();
-    let info: Vec<NavigationTarget> = sema
+    let info: Vec<NavigationTarget<'_>> = sema
         .descend_into_macros_no_opaque(original_token, false)
         .iter()
         .filter_map(|token| {

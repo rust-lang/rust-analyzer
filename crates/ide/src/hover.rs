@@ -112,7 +112,7 @@ impl HoverAction {
 #[derive(Debug, Clone, Eq, PartialEq, Hash, UpmapFromRaFixture)]
 pub struct HoverGotoTypeData {
     pub mod_path: String,
-    pub nav: NavigationTarget,
+    pub nav: NavigationTarget<'static>,
 }
 
 /// Contains the results when hovering over an item
@@ -544,7 +544,7 @@ fn show_implementations_action(
     sema: &Semantics<'_, RootDatabase>,
     def: Definition,
 ) -> Option<HoverAction> {
-    fn to_action(nav_target: NavigationTarget) -> HoverAction {
+    fn to_action(nav_target: NavigationTarget<'_>) -> HoverAction {
         HoverAction::Implementation(FilePosition {
             file_id: nav_target.file_id,
             offset: nav_target.focus_or_full_range().start(),

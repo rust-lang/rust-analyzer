@@ -519,7 +519,11 @@ impl Analysis {
     }
 
     /// Fuzzy searches for a symbol.
-    pub fn symbol_search(&self, query: Query, limit: usize) -> Cancellable<Vec<NavigationTarget>> {
+    pub fn symbol_search(
+        &self,
+        query: Query,
+        limit: usize,
+    ) -> Cancellable<Vec<NavigationTarget<'static>>> {
         // `world_symbols` currently clones the database to run stuff in parallel, which will make any query panic
         // if we were to attach it here.
         Cancelled::catch(|| {
@@ -540,7 +544,7 @@ impl Analysis {
         &self,
         position: FilePosition,
         config: &GotoDefinitionConfig<'_>,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget<'static>>>>> {
         self.with_db(|db| goto_definition::goto_definition(db, position, config))
     }
 
@@ -549,7 +553,7 @@ impl Analysis {
         &self,
         position: FilePosition,
         config: &GotoDefinitionConfig<'_>,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget<'static>>>>> {
         self.with_db(|db| goto_declaration::goto_declaration(db, position, config))
     }
 
@@ -558,7 +562,7 @@ impl Analysis {
         &self,
         config: &GotoImplementationConfig,
         position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget<'static>>>>> {
         self.with_db(|db| goto_implementation::goto_implementation(db, config, position))
     }
 
@@ -566,7 +570,7 @@ impl Analysis {
     pub fn goto_type_definition(
         &self,
         position: FilePosition,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget<'static>>>>> {
         self.with_db(|db| goto_type_definition::goto_type_definition(db, position))
     }
 
@@ -621,7 +625,7 @@ impl Analysis {
         &self,
         position: FilePosition,
         config: &CallHierarchyConfig<'_>,
-    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget>>>> {
+    ) -> Cancellable<Option<RangeInfo<Vec<NavigationTarget<'static>>>>> {
         self.with_db(|db| call_hierarchy::call_hierarchy(db, position, config))
     }
 
@@ -644,12 +648,18 @@ impl Analysis {
     }
 
     /// Returns a `mod name;` declaration which created the current module.
-    pub fn parent_module(&self, position: FilePosition) -> Cancellable<Vec<NavigationTarget>> {
+    pub fn parent_module(
+        &self,
+        position: FilePosition,
+    ) -> Cancellable<Vec<NavigationTarget<'static>>> {
         self.with_db(|db| parent_module::parent_module(db, position))
     }
 
     /// Returns vec of `mod name;` declaration which are created by the current module.
-    pub fn child_modules(&self, position: FilePosition) -> Cancellable<Vec<NavigationTarget>> {
+    pub fn child_modules(
+        &self,
+        position: FilePosition,
+    ) -> Cancellable<Vec<NavigationTarget<'static>>> {
         self.with_db(|db| child_modules::child_modules(db, position))
     }
 
