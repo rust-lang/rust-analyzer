@@ -121,7 +121,7 @@ pub(crate) fn annotation(
     snap: &GlobalStateSnapshot,
     range: lsp_types::Range,
     data: lsp_ext::CodeLensResolveData,
-) -> anyhow::Result<Option<Annotation>> {
+) -> anyhow::Result<Option<Annotation<'static>>> {
     match data.kind {
         lsp_ext::CodeLensResolveDataKind::Impls(params) => {
             if snap.url_file_version(&params.text_document_position_params.text_document.uri)

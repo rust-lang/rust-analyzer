@@ -1681,7 +1681,7 @@ pub(crate) fn runnable(
 pub(crate) fn code_lens(
     acc: &mut Vec<lsp_types::CodeLens>,
     snap: &GlobalStateSnapshot,
-    annotation: Annotation,
+    annotation: Annotation<'_>,
 ) -> Cancellable<()> {
     let client_commands_config = snap.config.client_commands();
     match annotation.kind {

@@ -24,9 +24,9 @@ mod fn_references;
 //
 // ![Annotations](https://user-images.githubusercontent.com/48062697/113020672-b7c34f00-917a-11eb-8f6e-858735660a0e.png)
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub struct Annotation {
+pub struct Annotation<'db> {
     pub range: TextRange,
-    pub kind: AnnotationKind<'static>,
+    pub kind: AnnotationKind<'db>,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -57,7 +57,7 @@ pub(crate) fn annotations(
     db: &RootDatabase,
     config: &AnnotationConfig<'_>,
     file_id: FileId,
-) -> Vec<Annotation> {
+) -> Vec<Annotation<'static>> {
     let mut annotations = FxIndexSet::default();
 
     if config.annotate_runnables {
@@ -198,11 +198,11 @@ pub(crate) fn annotations(
         .collect()
 }
 
-pub(crate) fn resolve_annotation(
+pub(crate) fn resolve_annotation<'db>(
     db: &RootDatabase,
     config: &AnnotationConfig<'_>,
-    mut annotation: Annotation,
-) -> Annotation {
+    mut annotation: Annotation<'db>,
+) -> Annotation<'db> {
     match annotation.kind {
         AnnotationKind::HasImpls { pos, ref mut data } => {
             let goto_implementation_config = GotoImplementationConfig {
@@ -274,7 +274,7 @@ mod tests {
     ) {
         let (analysis, file_id) = fixture::file(ra_fixture);
 
-        let annotations: Vec<Annotation> = analysis
+        let annotations: Vec<Annotation<'_>> = analysis
             .annotations(config, file_id)
             .unwrap()
             .into_iter()

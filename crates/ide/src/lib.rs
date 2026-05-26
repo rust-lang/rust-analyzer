@@ -902,15 +902,15 @@ impl Analysis {
         &self,
         config: &AnnotationConfig<'_>,
         file_id: FileId,
-    ) -> Cancellable<Vec<Annotation>> {
+    ) -> Cancellable<Vec<Annotation<'static>>> {
         self.with_db(|db| annotations::annotations(db, config, file_id))
     }
 
     pub fn resolve_annotation(
         &self,
         config: &AnnotationConfig<'_>,
-        annotation: Annotation,
-    ) -> Cancellable<Annotation> {
+        annotation: Annotation<'static>,
+    ) -> Cancellable<Annotation<'static>> {
         self.with_db(|db| annotations::resolve_annotation(db, config, annotation))
     }
 
