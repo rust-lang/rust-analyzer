@@ -581,6 +581,7 @@ impl GeneratedFunctionTarget {
                     function_builder,
                     adt,
                     position,
+                    item,
                     indent,
                     indent,
                     cap,
@@ -603,6 +604,7 @@ impl GeneratedFunctionTarget {
                     function_builder,
                     adt,
                     position,
+                    item_list,
                     indent,
                     leading_indent,
                     cap,
@@ -723,6 +725,7 @@ fn insert_rendered_impl(
     function_builder: &FunctionBuilder,
     adt: Adt,
     position: Position,
+    target_node: &SyntaxNode,
     impl_indent: IndentLevel,
     leading_ws_indent: IndentLevel,
     cap: Option<SnippetCap>,
@@ -734,14 +737,34 @@ fn insert_rendered_impl(
         adt.name(ctx.db()).display(ctx.db(), function_builder.target_edition)
     )));
 
-    let (adt_generic_params, adt_where_clause) = adt
-        .source(ctx.sema.db)
-        .map(|src| match src.value {
+    let adt_src = adt.source(ctx.sema.db);
+    let (adt_generic_params, adt_where_clause) = adt_src
+        .as_ref()
+        .map(|src| match &src.value {
             ast::Adt::Struct(it) => (it.generic_param_list(), it.where_clause()),
             ast::Adt::Union(it) => (it.generic_param_list(), it.where_clause()),
             ast::Adt::Enum(it) => (it.generic_param_list(), it.where_clause()),
         })
         .unwrap_or_default();
+
+    let source_scope = adt_src.as_ref().and_then(|src| ctx.sema.scope(src.value.syntax()));
+    let target_scope = source_scope.as_ref().and_then(|_| ctx.sema.scope(target_node));
+    let (adt_generic_params, adt_where_clause) = if let Some(source_scope) = source_scope
+        && let Some(target_scope) = target_scope
+        && source_scope.module() != target_scope.module()
+    {
+        let transform = PathTransform::generic_transformation(&target_scope, &source_scope);
+        let transformed_params = adt_generic_params.as_ref().map(|p| {
+            ast::GenericParamList::cast(transform.apply(p.syntax())).unwrap_or_else(|| p.clone())
+        });
+        let transformed_where = adt_where_clause.as_ref().map(|w| {
+            ast::WhereClause::cast(transform.apply(w.syntax())).unwrap_or_else(|| w.clone())
+        });
+        (transformed_params, transformed_where)
+    } else {
+        (adt_generic_params, adt_where_clause)
+    };
+
     let generic_args = adt_generic_params.as_ref().map(|p| p.to_generic_args(make));
 
     let fn_ = function_builder.render(make).indent(IndentLevel(1));
@@ -2629,6 +2652,36 @@ where T: Send
 
 fn foo() {
     Generic("test").do_a_thing()
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn create_method_on_generic_struct_in_different_module() {
+        check_assist(
+            generate_function,
+            r#"
+mod foo {
+    pub struct Generic<T: Send>(T);
+}
+
+fn bar() {
+    foo::Generic("test").do_a_thing$0()
+}
+"#,
+            r#"
+mod foo {
+    pub struct Generic<T: Send>(T);
+    impl<T: Send> Generic<T> {
+        pub(crate) fn do_a_thing(&self) {
+            ${0:todo!()}
+        }
+    }
+}
+
+fn bar() {
+    foo::Generic("test").do_a_thing()
 }
 "#,
         )
