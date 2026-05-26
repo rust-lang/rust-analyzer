@@ -507,16 +507,31 @@ impl Ctx<'_> {
                         cfg,
                     )?;
 
-                    if let Some(qual) =
-                        mod_path_to_ast_with_factory(make, &found_path, self.target_edition)
-                            .qualifier()
+                    let base_path =
+                        mod_path_to_ast_with_factory(make, &found_path, self.target_edition);
+                    let (path_editor, base_path) = SyntaxEditor::with_ast_node(&base_path);
+
+                    if let Some(args) =
+                        path_ty.path().and_then(|p| p.segment()).and_then(|s| s.generic_arg_list())
+                        && let Some(segment) = base_path.segment()
                     {
-                        editor.replace(
-                            path.syntax(),
-                            make::path_concat(qual, path_ty.path()?).syntax(),
-                        );
-                        return Some(());
+                        let new_args = if is_path_in_expr_ctx(path) {
+                            make::turbofish_generic_arg_list(args.generic_args())
+                        } else {
+                            make::generic_arg_list(args.generic_args())
+                        };
+                        if let Some(old_args) = segment.generic_arg_list() {
+                            path_editor.replace(old_args.syntax(), new_args.syntax());
+                        } else {
+                            path_editor.insert(
+                                syntax_editor::Position::last_child_of(segment.syntax()),
+                                new_args.syntax(),
+                            );
+                        }
                     }
+
+                    editor.replace(path.syntax().clone(), path_editor.finish().new_root().clone());
+                    return Some(());
                 }
 
                 editor.replace(path.syntax(), ast_ty.syntax());
@@ -596,6 +611,12 @@ impl Ctx<'_> {
             _ => None,
         }
     }
+}
+
+/// `Generic<T>` is invalid in expression position; `Generic::<T>` must be used instead.
+fn is_path_in_expr_ctx(path: &ast::Path) -> bool {
+    let top = path.top_path();
+    top.syntax().parent().and_then(ast::PathExpr::cast).is_some()
 }
 
 // FIXME: It would probably be nicer if we could get this via HIR (i.e. get the

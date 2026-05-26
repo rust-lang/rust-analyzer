@@ -21,9 +21,10 @@ use syntax::{
     ast::{
         self, HasArgList, HasGenericArgs, Pat, PathExpr,
         edit::{AstNodeEdit, IndentLevel},
+        make,
         syntax_factory::SyntaxFactory,
     },
-    syntax_editor::SyntaxEditor,
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::{
@@ -438,18 +439,32 @@ fn inline(
             .collect();
         for self_tok in self_tokens {
             let replace_with = if !is_in_type_path(&self_tok)
-                && let Some(generic_arg_list) = t.generic_arg_list()
+                && let Some(args) = t.generic_arg_list()
             {
-                // Strip the outer generic arg list and reparse, since turbofish-less
-                // generics aren't valid in expression position. The outermost
-                // `GenericArgList` text is unique within `t`'s text (any inner generics
-                // are nested inside it), so `replacen(.., 1)` is safe.
                 let stripped = t.syntax().text().to_string().replacen(
-                    &generic_arg_list.syntax().text().to_string(),
+                    &args.syntax().text().to_string(),
                     "",
                     1,
                 );
-                editor.make().ty(&stripped).syntax().clone()
+                // Lifetimes are inferred; only type/const params need turbofish in
+                // expression position (e.g. `Generic<T>(x)` is not valid there).
+                let type_args: Vec<_> = args
+                    .generic_args()
+                    .filter(|a| !matches!(a, ast::GenericArg::LifetimeArg(_)))
+                    .collect();
+                if type_args.is_empty() {
+                    editor.make().ty(&stripped).syntax().clone()
+                } else {
+                    let base = editor.make().path_from_text(&stripped);
+                    let (path_ed, path_node) = SyntaxEditor::with_ast_node(&base);
+                    if let Some(seg) = path_node.segment() {
+                        path_ed.insert(
+                            Position::last_child_of(seg.syntax()),
+                            make::turbofish_generic_arg_list(type_args).syntax(),
+                        );
+                    }
+                    path_ed.finish().new_root().clone()
+                }
             } else {
                 t.syntax().clone()
             };
@@ -1721,6 +1736,45 @@ fn a() -> bool {
     {
         let this = &Enum::A;
         this == &Enum::A || this == &Enum::B
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn inline_call_across_generic_impl_blocks() {
+        // rust-lang/rust-analyzer#19827: inlining across two separate `impl<T>` blocks for the
+        // same generic type must not produce `Generic<T>(...)` (invalid) — use turbofish instead.
+        check_assist(
+            inline_call,
+            r#"
+struct Generic<T>(T);
+
+impl<T> Generic<T> {
+    fn new() -> Self {
+        Generic::new2$0()
+    }
+}
+
+impl<T> Generic<T> {
+    fn new2() -> Self {
+        Self(todo!())
+    }
+}
+"#,
+            r#"
+struct Generic<T>(T);
+
+impl<T> Generic<T> {
+    fn new() -> Self {
+        Generic::<T>(todo!())
+    }
+}
+
+impl<T> Generic<T> {
+    fn new2() -> Self {
+        Self(todo!())
     }
 }
 "#,
