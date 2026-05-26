@@ -2199,7 +2199,7 @@ impl DefWithBody {
                 d,
                 source_map,
                 sig_source_map,
-                env,
+                type_owner,
             ));
         }
 
