@@ -41,11 +41,10 @@ pub struct ReferenceData {
 }
 
 #[derive(Debug)]
-pub struct TokenStaticData {
+pub struct TokenStaticData<'db> {
     // FIXME: Make this have the lifetime of the database.
     pub documentation: Option<Documentation<'static>>,
-    // FIXME: Make this have the lifetime of the database.
-    pub hover: Option<HoverResult<'static>>,
+    pub hover: Option<HoverResult<'db>>,
     /// The position of the token itself.
     ///
     /// For example, in `fn foo() {}` this is the position of `foo`.
@@ -72,24 +71,24 @@ impl TokenId {
 }
 
 #[derive(Default, Debug)]
-pub struct TokenStore(Vec<TokenStaticData>);
+pub struct TokenStore(Vec<TokenStaticData<'static>>);
 
 impl TokenStore {
-    pub fn insert(&mut self, data: TokenStaticData) -> TokenId {
+    pub fn insert(&mut self, data: TokenStaticData<'static>) -> TokenId {
         let id = TokenId(self.0.len());
         self.0.push(data);
         id
     }
 
-    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData> {
+    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData<'static>> {
         self.0.get_mut(id.0)
     }
 
-    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData> {
+    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData<'static>> {
         self.0.get(id.0)
     }
 
-    pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData)> {
+    pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData<'static>)> {
         self.0.into_iter().enumerate().map(|(id, data)| (TokenId(id), data))
     }
 }

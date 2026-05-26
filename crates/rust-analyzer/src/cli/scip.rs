@@ -311,7 +311,7 @@ Duplicate symbols encountered:
 fn compute_symbol_info(
     symbol: String,
     enclosing_symbol: Option<String>,
-    token: &TokenStaticData,
+    token: &TokenStaticData<'_>,
 ) -> SymbolInformation {
     let documentation = match &token.documentation {
         Some(doc) => vec![doc.as_str().to_owned()],
@@ -437,7 +437,7 @@ impl SymbolGenerator {
         self.local_count = 0;
     }
 
-    fn token_symbols(&mut self, id: TokenId, token: &TokenStaticData) -> Option<TokenSymbols> {
+    fn token_symbols(&mut self, id: TokenId, token: &TokenStaticData<'_>) -> Option<TokenSymbols> {
         let mut local_count = self.local_count;
         let token_symbols = self
             .token_to_symbols

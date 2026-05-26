@@ -151,7 +151,7 @@ impl LsifManager<'_, '_> {
         doc_id
     }
 
-    fn add_token(&mut self, id: TokenId, token: TokenStaticData) {
+    fn add_token(&mut self, id: TokenId, token: TokenStaticData<'_>) {
         let result_set_id = self.get_token_id(id);
         if let Some(hover) = token.hover {
             let hover_id = self.add_vertex(lsif::Vertex::HoverResult {
