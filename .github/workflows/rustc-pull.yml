@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write  # workflow opens/updates a tracking PR
 
 jobs:
   pull:
