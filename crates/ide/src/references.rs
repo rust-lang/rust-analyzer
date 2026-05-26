@@ -49,7 +49,7 @@ pub struct ReferenceSearchResult {
     /// Information about the declaration site of the searched item.
     /// For ADTs (structs/enums), this points to the type definition.
     /// May be None for primitives or items without clear declaration sites.
-    pub declaration: Option<Declaration>,
+    pub declaration: Option<Declaration<'static>>,
     /// All references found, grouped by file.
     /// For ADTs when searching from a constructor position (e.g. on '{', '(', ';'),
     /// this only includes constructor/initialization usages.
@@ -61,9 +61,9 @@ pub struct ReferenceSearchResult {
 
 /// Information about the declaration site of a searched item.
 #[derive(Debug, Clone, UpmapFromRaFixture)]
-pub struct Declaration {
+pub struct Declaration<'db> {
     /// Navigation information to jump to the declaration
-    pub nav: NavigationTarget<'static>,
+    pub nav: NavigationTarget<'db>,
     /// Whether the declared item is mutable (relevant for variables)
     pub is_mut: bool,
 }
