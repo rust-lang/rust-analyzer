@@ -121,11 +121,11 @@ pub struct FindAllRefsConfig<'a> {
 /// - `;` after unit struct: Shows unit literal initializations
 /// - Type name in definition: Shows all initialization usages
 ///   In these cases, other kinds of references (like type references) are filtered out.
-pub(crate) fn find_all_refs(
-    sema: &Semantics<'_, RootDatabase>,
+pub(crate) fn find_all_refs<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     position: FilePosition,
     config: &FindAllRefsConfig<'_>,
-) -> Option<Vec<ReferenceSearchResult<'static>>> {
+) -> Option<Vec<ReferenceSearchResult<'db>>> {
     let _p = tracing::info_span!("find_all_refs").entered();
     let syntax = sema.parse_guess_edition(position.file_id).syntax().clone();
     let exclude_library_refs = !is_library_file(sema.db, position.file_id);

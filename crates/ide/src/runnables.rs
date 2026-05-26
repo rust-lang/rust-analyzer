@@ -126,14 +126,14 @@ impl Runnable<'_> {
 // | VS Code | **rust-analyzer: Run** |
 //
 // ![Run](https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif)
-pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable<'static>> {
+pub(crate) fn runnables<'db>(db: &'db RootDatabase, file_id: FileId) -> Vec<Runnable<'db>> {
     let sema = Semantics::new(db);
 
     let mut res = Vec::new();
     // Record all runnables that come from macro expansions here instead.
     // In case an expansion creates multiple runnables we want to name them to avoid emitting a bunch of equally named runnables.
-    let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable<'static>>>::default();
-    let mut add_opt = |runnable: Option<Runnable<'static>>, def| {
+    let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable<'db>>>::default();
+    let mut add_opt = |runnable: Option<Runnable<'db>>, def| {
         if let Some(runnable) = runnable.filter(|runnable| runnable.nav.file_id == file_id) {
             if let Some(def) = def {
                 let file_id = match def {
@@ -360,10 +360,10 @@ pub(crate) fn runnable_fn(
     Some(Runnable { use_name_in_title: false, nav, kind, cfg, update_test })
 }
 
-pub(crate) fn runnable_mod(
-    sema: &Semantics<'_, RootDatabase>,
+pub(crate) fn runnable_mod<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     def: hir::Module,
-) -> Option<Runnable<'static>> {
+) -> Option<Runnable<'db>> {
     let cfg = def.attrs(sema.db).cfgs(sema.db);
     if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(cfg)) {
         return None;
@@ -490,10 +490,10 @@ fn runnable_mod_outline_definition(
     })
 }
 
-fn module_def_doctest(
-    sema: &Semantics<'_, RootDatabase>,
+fn module_def_doctest<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     def: Definition,
-) -> Option<Runnable<'static>> {
+) -> Option<Runnable<'db>> {
     let db = sema.db;
     let attrs = match def {
         Definition::Module(it) => it.attrs(db),

@@ -128,11 +128,11 @@ pub struct HoverResult<'db> {
 // Focusing is usually hovering with a mouse, but can also be triggered with a shortcut.
 //
 // ![Hover](https://user-images.githubusercontent.com/48062697/113020658-b5f98b80-917a-11eb-9f88-3dbc27320c95.gif)
-pub(crate) fn hover(
-    db: &RootDatabase,
+pub(crate) fn hover<'db>(
+    db: &'db RootDatabase,
     frange @ FileRange { file_id, range }: FileRange,
     config: &HoverConfig<'_>,
-) -> Option<RangeInfo<HoverResult<'static>>> {
+) -> Option<RangeInfo<HoverResult<'db>>> {
     let sema = &hir::Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let edition = sema.attach_first_edition(file_id).edition(db);
@@ -157,14 +157,14 @@ pub(crate) fn hover(
 }
 
 #[allow(clippy::field_reassign_with_default)]
-fn hover_offset(
-    sema: &Semantics<'_, RootDatabase>,
+fn hover_offset<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     FilePosition { file_id, offset }: FilePosition,
     file: SyntaxNode,
     config: &HoverConfig<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> Option<RangeInfo<HoverResult<'static>>> {
+) -> Option<RangeInfo<HoverResult<'db>>> {
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT
         | INT_NUMBER
@@ -447,8 +447,8 @@ fn hover_ranged(
 }
 
 // FIXME: Why is this pub(crate)?
-pub(crate) fn hover_for_definition(
-    sema: &Semantics<'_, RootDatabase>,
+pub(crate) fn hover_for_definition<'db>(
+    sema: &Semantics<'db, RootDatabase>,
     file_id: FileId,
     def: Definition,
     subst: Option<GenericSubstitution<'_>>,
@@ -458,7 +458,7 @@ pub(crate) fn hover_for_definition(
     config: &HoverConfig<'_>,
     edition: Edition,
     display_target: DisplayTarget,
-) -> HoverResult<'static> {
+) -> HoverResult<'db> {
     let famous_defs = match &def {
         Definition::BuiltinType(_) => sema.scope(scope_node).map(|it| FamousDefs(sema, it.krate())),
         _ => None,
@@ -579,11 +579,11 @@ fn show_fn_references_action(
     }
 }
 
-fn runnable_action(
-    sema: &hir::Semantics<'_, RootDatabase>,
+fn runnable_action<'db>(
+    sema: &hir::Semantics<'db, RootDatabase>,
     def: Definition,
     file_id: FileId,
-) -> Option<HoverAction<'static>> {
+) -> Option<HoverAction<'db>> {
     match def {
         Definition::Module(it) => runnable_mod(sema, it).map(HoverAction::Runnable),
         Definition::Function(func) => {

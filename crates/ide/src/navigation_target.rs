@@ -141,9 +141,9 @@ impl<'db> NavigationTarget<'db> {
     }
 
     pub(crate) fn from_module_to_decl(
-        db: &RootDatabase,
+        db: &'db RootDatabase,
         module: hir::Module,
-    ) -> UpmappingResult<NavigationTarget<'static>> {
+    ) -> UpmappingResult<NavigationTarget<'db>> {
         let name = module.name(db).map(|it| it.symbol().clone()).unwrap_or_else(|| sym::underscore);
         match module.declaration_source(db) {
             Some(InFile { value, file_id }) => {
@@ -156,7 +156,7 @@ impl<'db> NavigationTarget<'db> {
                             full_range,
                             SymbolKind::Module,
                         );
-                        res.docs = module.docs(db).map(Documentation::into_owned);
+                        res.docs = module.docs(db);
                         res.description = Some(
                             module.display(db, module.krate(db).to_display_target(db)).to_string(),
                         );

@@ -18,11 +18,11 @@ use crate::{
 // - outline modules will navigate to the `mod name;` item declaration
 // - trait assoc items will navigate to the assoc item of the trait declaration as opposed to the trait impl
 // - fields in patterns will navigate to the field declaration of the struct, union or variant
-pub(crate) fn goto_declaration(
-    db: &RootDatabase,
+pub(crate) fn goto_declaration<'db>(
+    db: &'db RootDatabase,
     position @ FilePosition { file_id, offset }: FilePosition,
     config: &GotoDefinitionConfig<'_>,
-) -> Option<RangeInfo<Vec<NavigationTarget<'static>>>> {
+) -> Option<RangeInfo<Vec<NavigationTarget<'db>>>> {
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let original_token = file
