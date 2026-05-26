@@ -2312,7 +2312,7 @@ fn goto_type_action_links(
 
 fn prepare_hover_actions(
     snap: &GlobalStateSnapshot,
-    actions: &[HoverAction],
+    actions: &[HoverAction<'_>],
 ) -> Vec<lsp_ext::CommandLinkGroup> {
     let hover_actions = snap.config.hover_actions();
     let client_commands = snap.config.client_commands();

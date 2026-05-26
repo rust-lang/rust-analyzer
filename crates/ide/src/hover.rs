@@ -77,14 +77,14 @@ pub enum HoverDocFormat {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, UpmapFromRaFixture)]
-pub enum HoverAction {
-    Runnable(Runnable<'static>),
+pub enum HoverAction<'db> {
+    Runnable(Runnable<'db>),
     Implementation(FilePosition),
     Reference(FilePosition),
-    GoToType(Vec<HoverGotoTypeData<'static>>),
+    GoToType(Vec<HoverGotoTypeData<'db>>),
 }
 
-impl HoverAction {
+impl HoverAction<'_> {
     fn goto_type_from_targets(
         sema: &Semantics<'_, RootDatabase>,
         targets: Vec<hir::ModuleDef>,
@@ -119,7 +119,7 @@ pub struct HoverGotoTypeData<'db> {
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, UpmapFromRaFixture)]
 pub struct HoverResult {
     pub markup: Markup,
-    pub actions: Vec<HoverAction>,
+    pub actions: Vec<HoverAction<'static>>,
 }
 
 // Feature: Hover
@@ -543,8 +543,8 @@ fn notable_traits<'db>(
 fn show_implementations_action(
     sema: &Semantics<'_, RootDatabase>,
     def: Definition,
-) -> Option<HoverAction> {
-    fn to_action(nav_target: NavigationTarget<'_>) -> HoverAction {
+) -> Option<HoverAction<'static>> {
+    fn to_action(nav_target: NavigationTarget<'_>) -> HoverAction<'static> {
         HoverAction::Implementation(FilePosition {
             file_id: nav_target.file_id,
             offset: nav_target.focus_or_full_range().start(),
@@ -565,7 +565,7 @@ fn show_implementations_action(
 fn show_fn_references_action(
     sema: &Semantics<'_, RootDatabase>,
     def: Definition,
-) -> Option<HoverAction> {
+) -> Option<HoverAction<'static>> {
     match def {
         Definition::Function(it) => {
             it.try_to_nav(sema).map(UpmappingResult::call_site).map(|nav_target| {
@@ -583,7 +583,7 @@ fn runnable_action(
     sema: &hir::Semantics<'_, RootDatabase>,
     def: Definition,
     file_id: FileId,
-) -> Option<HoverAction> {
+) -> Option<HoverAction<'static>> {
     match def {
         Definition::Module(it) => runnable_mod(sema, it).map(HoverAction::Runnable),
         Definition::Function(func) => {
@@ -606,7 +606,7 @@ fn goto_type_action_for_def(
     notable_traits: &[(hir::Trait, Vec<(Option<hir::Type<'_>>, hir::Name)>)],
     subst_types: Option<Vec<(hir::Symbol, hir::Type<'_>)>>,
     edition: Edition,
-) -> Option<HoverAction> {
+) -> Option<HoverAction<'static>> {
     let db = sema.db;
     let mut targets: Vec<hir::ModuleDef> = Vec::new();
     let mut push_new_def = |item: hir::ModuleDef| {
@@ -681,7 +681,7 @@ fn walk_and_push_ty(
     });
 }
 
-fn dedupe_or_merge_hover_actions(actions: Vec<HoverAction>) -> Vec<HoverAction> {
+fn dedupe_or_merge_hover_actions(actions: Vec<HoverAction<'_>>) -> Vec<HoverAction<'_>> {
     let mut deduped_actions = Vec::with_capacity(actions.len());
     let mut go_to_type_targets = FxIndexSet::default();
 

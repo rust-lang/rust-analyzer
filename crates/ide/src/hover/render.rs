@@ -1240,7 +1240,7 @@ fn render_memory_layout<'db>(
 struct KeywordHint {
     description: String,
     keyword_mod: String,
-    actions: Vec<HoverAction>,
+    actions: Vec<HoverAction<'static>>,
 }
 
 impl KeywordHint {
