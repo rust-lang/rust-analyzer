@@ -45,11 +45,11 @@ use crate::{
 
 /// Result of a reference search operation.
 #[derive(Debug, Clone, UpmapFromRaFixture)]
-pub struct ReferenceSearchResult {
+pub struct ReferenceSearchResult<'db> {
     /// Information about the declaration site of the searched item.
     /// For ADTs (structs/enums), this points to the type definition.
     /// May be None for primitives or items without clear declaration sites.
-    pub declaration: Option<Declaration<'static>>,
+    pub declaration: Option<Declaration<'db>>,
     /// All references found, grouped by file.
     /// For ADTs when searching from a constructor position (e.g. on '{', '(', ';'),
     /// this only includes constructor/initialization usages.
@@ -125,7 +125,7 @@ pub(crate) fn find_all_refs(
     sema: &Semantics<'_, RootDatabase>,
     position: FilePosition,
     config: &FindAllRefsConfig<'_>,
-) -> Option<Vec<ReferenceSearchResult>> {
+) -> Option<Vec<ReferenceSearchResult<'static>>> {
     let _p = tracing::info_span!("find_all_refs").entered();
     let syntax = sema.parse_guess_edition(position.file_id).syntax().clone();
     let exclude_library_refs = !is_library_file(sema.db, position.file_id);
@@ -445,7 +445,7 @@ fn is_lit_name_ref(name_ref: &ast::NameRef) -> bool {
 fn handle_control_flow_keywords(
     sema: &Semantics<'_, RootDatabase>,
     FilePosition { file_id, offset }: FilePosition,
-) -> Option<ReferenceSearchResult> {
+) -> Option<ReferenceSearchResult<'static>> {
     let file = sema.parse_guess_edition(file_id);
     let edition = sema.attach_first_edition(file_id).edition(sema.db);
     let token = pick_best_token(file.syntax().token_at_offset(offset), |kind| match kind {

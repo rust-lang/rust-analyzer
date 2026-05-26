@@ -581,7 +581,7 @@ impl Analysis {
         &self,
         position: FilePosition,
         config: &FindAllRefsConfig<'_>,
-    ) -> Cancellable<Option<Vec<ReferenceSearchResult>>> {
+    ) -> Cancellable<Option<Vec<ReferenceSearchResult<'static>>>> {
         let config = AssertUnwindSafe(config);
         self.with_db(|db| references::find_all_refs(&Semantics::new(db), position, &config))
     }
