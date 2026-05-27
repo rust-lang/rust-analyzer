@@ -16,10 +16,10 @@ use crate::NavigationTarget;
 // | VS Code | **rust-analyzer: Locate child modules** |
 
 /// This returns `Vec` because a module may be included from several places.
-pub(crate) fn child_modules<'db>(
-    db: &'db RootDatabase,
+pub(crate) fn child_modules(
+    db: &RootDatabase,
     position: FilePosition,
-) -> Vec<NavigationTarget<'db>> {
+) -> Vec<NavigationTarget<'static>> {
     let sema = Semantics::new(db);
     let source_file = sema.parse_guess_edition(position.file_id);
     // First go to the parent module which contains the cursor
@@ -32,6 +32,7 @@ pub(crate) fn child_modules<'db>(
                 .into_iter()
                 .flat_map(|module| module.children(db))
                 .map(|module| NavigationTarget::from_module_to_decl(db, module).call_site())
+                .map(NavigationTarget::into_owned)
                 .collect()
         }
         None => {
@@ -39,6 +40,7 @@ pub(crate) fn child_modules<'db>(
             sema.file_to_module_defs(position.file_id)
                 .flat_map(|module| module.children(db))
                 .map(|module| NavigationTarget::from_module_to_decl(db, module).call_site())
+                .map(NavigationTarget::into_owned)
                 .collect()
         }
     }

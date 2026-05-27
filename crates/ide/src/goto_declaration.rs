@@ -18,18 +18,18 @@ use crate::{
 // - outline modules will navigate to the `mod name;` item declaration
 // - trait assoc items will navigate to the assoc item of the trait declaration as opposed to the trait impl
 // - fields in patterns will navigate to the field declaration of the struct, union or variant
-pub(crate) fn goto_declaration<'db>(
-    db: &'db RootDatabase,
+pub(crate) fn goto_declaration(
+    db: &RootDatabase,
     position @ FilePosition { file_id, offset }: FilePosition,
     config: &GotoDefinitionConfig<'_>,
-) -> Option<RangeInfo<Vec<NavigationTarget<'db>>>> {
+) -> Option<RangeInfo<Vec<NavigationTarget<'static>>>> {
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let original_token = file
         .token_at_offset(offset)
         .find(|it| matches!(it.kind(), IDENT | T![self] | T![super] | T![crate] | T![Self]))?;
     let range = original_token.text_range();
-    let info: Vec<NavigationTarget<'_>> = sema
+    let info: Vec<NavigationTarget<'static>> = sema
         .descend_into_macros_no_opaque(original_token, false)
         .iter()
         .filter_map(|token| {
@@ -53,7 +53,10 @@ pub(crate) fn goto_declaration<'db>(
             };
             let assoc = match def? {
                 Definition::Module(module) => {
-                    return Some(NavigationTarget::from_module_to_decl(db, module));
+                    return Some(
+                        NavigationTarget::from_module_to_decl(db, module)
+                            .map(NavigationTarget::into_owned),
+                    );
                 }
                 Definition::Const(c) => c.as_assoc_item(db),
                 Definition::TypeAlias(ta) => ta.as_assoc_item(db),

@@ -53,11 +53,11 @@ pub enum AnnotationLocation {
     AboveWholeItem,
 }
 
-pub(crate) fn annotations<'db>(
-    db: &'db RootDatabase,
+pub(crate) fn annotations(
+    db: &RootDatabase,
     config: &AnnotationConfig<'_>,
     file_id: FileId,
-) -> Vec<Annotation<'db>> {
+) -> Vec<Annotation<'static>> {
     let mut annotations = FxIndexSet::default();
 
     if config.annotate_runnables {

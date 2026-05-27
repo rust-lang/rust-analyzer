@@ -22,10 +22,10 @@ use crate::NavigationTarget;
 // ![Parent Module](https://user-images.githubusercontent.com/48062697/113065580-04c21800-91b1-11eb-9a32-00086161c0bd.gif)
 
 /// This returns `Vec` because a module may be included from several places.
-pub(crate) fn parent_module<'db>(
-    db: &'db RootDatabase,
+pub(crate) fn parent_module(
+    db: &RootDatabase,
     position: FilePosition,
-) -> Vec<NavigationTarget<'db>> {
+) -> Vec<NavigationTarget<'static>> {
     let sema = Semantics::new(db);
     let source_file = sema.parse_guess_edition(position.file_id);
 
@@ -46,10 +46,12 @@ pub(crate) fn parent_module<'db>(
             .to_def(&module)
             .into_iter()
             .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
+            .map(NavigationTarget::into_owned)
             .collect(),
         None => sema
             .file_to_module_defs(position.file_id)
             .flat_map(|module| NavigationTarget::from_module_to_decl(db, module))
+            .map(NavigationTarget::into_owned)
             .collect(),
     }
 }

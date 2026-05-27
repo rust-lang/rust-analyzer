@@ -237,6 +237,10 @@ impl<'db> NavigationTarget<'db> {
             alias: None,
         }
     }
+
+    pub(crate) fn into_owned(self) -> NavigationTarget<'static> {
+        NavigationTarget { docs: self.docs.map(Documentation::into_owned), ..self }
+    }
 }
 
 impl<'db> TryToNav for FileSymbol<'db> {

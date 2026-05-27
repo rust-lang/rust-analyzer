@@ -113,6 +113,10 @@ impl Runnable<'_> {
         s.push_str(suffix);
         s
     }
+
+    pub(crate) fn into_owned(self) -> Runnable<'static> {
+        Runnable { nav: self.nav.into_owned(), ..self }
+    }
 }
 
 // Feature: Run
@@ -126,14 +130,14 @@ impl Runnable<'_> {
 // | VS Code | **rust-analyzer: Run** |
 //
 // ![Run](https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif)
-pub(crate) fn runnables<'db>(db: &'db RootDatabase, file_id: FileId) -> Vec<Runnable<'db>> {
+pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable<'static>> {
     let sema = Semantics::new(db);
 
     let mut res = Vec::new();
     // Record all runnables that come from macro expansions here instead.
     // In case an expansion creates multiple runnables we want to name them to avoid emitting a bunch of equally named runnables.
-    let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable<'db>>>::default();
-    let mut add_opt = |runnable: Option<Runnable<'db>>, def| {
+    let mut in_macro_expansion = FxIndexMap::<hir::HirFileId, Vec<Runnable<'static>>>::default();
+    let mut add_opt = |runnable: Option<Runnable<'static>>, def| {
         if let Some(runnable) = runnable.filter(|runnable| runnable.nav.file_id == file_id) {
             if let Some(def) = def {
                 let file_id = match def {
@@ -158,7 +162,10 @@ pub(crate) fn runnables<'db>(db: &'db RootDatabase, file_id: FileId) -> Vec<Runn
             Definition::SelfType(impl_) => runnable_impl(&sema, &impl_),
             _ => None,
         };
-        add_opt(runnable.or_else(|| module_def_doctest(&sema, def)), Some(def));
+        add_opt(
+            runnable.or_else(|| module_def_doctest(&sema, def).map(Runnable::into_owned)),
+            Some(def),
+        );
         if let Definition::SelfType(impl_) = def {
             impl_.items(db).into_iter().for_each(|assoc| {
                 let runnable = match assoc {
@@ -168,7 +175,7 @@ pub(crate) fn runnables<'db>(db: &'db RootDatabase, file_id: FileId) -> Vec<Runn
                     hir::AssocItem::Const(it) => module_def_doctest(&sema, it.into()),
                     hir::AssocItem::TypeAlias(it) => module_def_doctest(&sema, it.into()),
                 };
-                add_opt(runnable, Some(assoc.into()))
+                add_opt(runnable.map(Runnable::into_owned), Some(assoc.into()));
             });
         }
     });
@@ -360,10 +367,10 @@ pub(crate) fn runnable_fn(
     Some(Runnable { use_name_in_title: false, nav, kind, cfg, update_test })
 }
 
-pub(crate) fn runnable_mod<'db>(
-    sema: &Semantics<'db, RootDatabase>,
+pub(crate) fn runnable_mod(
+    sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
-) -> Option<Runnable<'db>> {
+) -> Option<Runnable<'static>> {
     let cfg = def.attrs(sema.db).cfgs(sema.db);
     if !has_test_function_or_multiple_test_submodules(sema, &def, has_cfg_test(cfg)) {
         return None;
@@ -380,7 +387,7 @@ pub(crate) fn runnable_mod<'db>(
         .join("::");
 
     let cfg = cfg.cloned();
-    let nav = NavigationTarget::from_module_to_decl(sema.db, def).call_site();
+    let nav = NavigationTarget::from_module_to_decl(sema.db, def).call_site().into_owned();
 
     let module_source = sema.module_definition_node(def);
     let module_syntax = module_source.file_syntax(sema.db);
@@ -490,10 +497,10 @@ fn runnable_mod_outline_definition(
     })
 }
 
-fn module_def_doctest<'db>(
-    sema: &Semantics<'db, RootDatabase>,
+fn module_def_doctest(
+    sema: &Semantics<'_, RootDatabase>,
     def: Definition,
-) -> Option<Runnable<'db>> {
+) -> Option<Runnable<'static>> {
     let db = sema.db;
     let attrs = match def {
         Definition::Module(it) => it.attrs(db),
@@ -545,7 +552,11 @@ fn module_def_doctest<'db>(
         .map_or_else(|| TestId::Name(def_name.display_no_db(edition).to_smolstr()), TestId::Path);
 
     let mut nav = match def {
-        Definition::Module(def) => NavigationTarget::from_module_to_decl(db, def),
+        Definition::Module(def) => {
+            // FIXME: this `into_owned` is unfortunate, since we overwrite `nav.docs` to `None` below,
+            // which will effectively make `nav: NavigationTarget<'static>` anyway
+            NavigationTarget::from_module_to_decl(db, def).map(NavigationTarget::into_owned)
+        }
         def => def.try_to_nav(sema)?,
     }
     .call_site();
