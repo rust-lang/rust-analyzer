@@ -1,96 +1,119 @@
 use hir::InFile;
-use syntax::AstNode;
+use syntax::{AstNode, AstPtr, ast};
 
 use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext, adjusted_display_range};
+
+pub(crate) fn impl_incorrect_safety(
+    ctx: &DiagnosticsContext<'_, '_>,
+    d: &hir::ImplIncorrectSafety,
+) -> Diagnostic {
+    use hir::ImplIncorrectSafetyKind as Kind;
+
+    let impl_ = InFile { file_id: d.file_id, value: d.impl_ };
+    match d.kind {
+        Kind::UnsafeInherentImpl => unsafe_inherent_impl(ctx, impl_),
+        Kind::UnsafeNegativeImpl => unsafe_negative_impl(ctx, impl_),
+        Kind::UnsafeImplOfSafeTrait(trait_) => unsafe_impl_of_safe_trait(ctx, impl_, trait_),
+        Kind::SafeImplOfUnsafeTrait(trait_) => safe_impl_of_unsafe_trait(ctx, impl_, trait_),
+        Kind::SafeImplOfDanglingDrop => safe_impl_of_dangling_drop(ctx, impl_),
+    }
+}
 
 // Diagnostic: unsafe-inherent-impl
 //
 // This diagnostic is triggered when an inherent implementation is marked `unsafe`
-pub(crate) fn unsafe_inherent_impl(
+fn unsafe_inherent_impl(
     ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::UnsafeInherentImpl,
+    impl_: InFile<AstPtr<ast::Impl>>,
 ) -> Diagnostic {
     Diagnostic::new(
         DiagnosticCode::RustcHardError("E0197"),
         "inherent impls cannot be unsafe",
-        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+        adjusted_display_range(ctx, impl_, &|impl_| {
             Some((impl_.unsafe_token()?.text_range()).cover(impl_.self_ty()?.syntax().text_range()))
         }),
     )
+    .with_main_node(impl_.map(Into::into))
     .stable()
 }
 
 // Diagnostic: unsafe-negative-impl
 //
 // This diagnostic is triggered when a negative implementation is marked `unsafe`
-pub(crate) fn unsafe_negative_impl(
+fn unsafe_negative_impl(
     ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::UnsafeNegativeImpl,
+    impl_: InFile<AstPtr<ast::Impl>>,
 ) -> Diagnostic {
     Diagnostic::new(
         DiagnosticCode::RustcHardError("E0198"),
         "negative impls cannot be unsafe",
-        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+        adjusted_display_range(ctx, impl_, &|impl_| {
             Some((impl_.unsafe_token()?.text_range()).cover(impl_.self_ty()?.syntax().text_range()))
         }),
     )
+    .with_main_node(impl_.map(Into::into))
     .stable()
 }
 
 // Diagnostic: unsafe-impl-of-safe-trait
 //
 // This diagnostic is triggered when an implementation of a safe trait is marked `unsafe`
-pub(crate) fn unsafe_impl_of_safe_trait(
+fn unsafe_impl_of_safe_trait(
     ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::UnsafeImplOfSafeTrait,
+    impl_: InFile<AstPtr<ast::Impl>>,
+    trait_: hir::Trait,
 ) -> Diagnostic {
-    let trait_name = d.trait_.name(ctx.db());
+    let trait_name = trait_.name(ctx.db());
     let trait_name = trait_name.display(ctx.db(), ctx.edition);
 
     Diagnostic::new(
         DiagnosticCode::RustcHardError("E0199"),
         format!("implementing the trait `{trait_name}` is not unsafe"),
-        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+        adjusted_display_range(ctx, impl_, &|impl_| {
             Some(impl_.unsafe_token()?.text_range().cover(impl_.self_ty()?.syntax().text_range()))
         }),
     )
+    .with_main_node(impl_.map(Into::into))
     .stable()
 }
 
 // Diagnostic: safe-impl-of-unsafe-trait
 //
 // This diagnostic is triggered when an implementation of an unsafe trait is missing `unsafe`
-pub(crate) fn safe_impl_of_unsafe_trait(
+fn safe_impl_of_unsafe_trait(
     ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::SafeImplOfUnsafeTrait,
+    impl_: InFile<AstPtr<ast::Impl>>,
+    trait_: hir::Trait,
 ) -> Diagnostic {
-    let trait_name = d.trait_.name(ctx.db());
+    let trait_name = trait_.name(ctx.db());
     let trait_name = trait_name.display(ctx.db(), ctx.edition);
 
     Diagnostic::new(
         DiagnosticCode::RustcHardError("E0200"),
         format!("the trait `{trait_name}` requires an `unsafe impl` declaration"),
-        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+        adjusted_display_range(ctx, impl_, &|impl_| {
             Some(impl_.impl_token()?.text_range().cover(impl_.self_ty()?.syntax().text_range()))
         }),
     )
+    .with_main_node(impl_.map(Into::into))
     .stable()
 }
 
 // Diagnostic: safe-impl-of-dangling-drop
 //
 // This diagnostic is triggered when an implementation of `Drop` using `#[may_dangle]` is missing `unsafe`
-pub(crate) fn safe_impl_of_dangling_drop(
+fn safe_impl_of_dangling_drop(
     ctx: &DiagnosticsContext<'_, '_>,
-    d: &hir::SafeImplOfDanglingDrop,
+    impl_: InFile<AstPtr<ast::Impl>>,
 ) -> Diagnostic {
     Diagnostic::new(
         DiagnosticCode::RustcHardError("E0569"),
         "requires an `unsafe impl` declaration due to `#[may_dangle]` attribute",
-        adjusted_display_range(ctx, InFile { file_id: d.file_id, value: d.impl_ }, &|impl_| {
+        adjusted_display_range(ctx, impl_, &|impl_| {
             Some(impl_.impl_token()?.text_range().cover(impl_.self_ty()?.syntax().text_range()))
         }),
     )
+    .with_main_node(impl_.map(Into::into))
     .stable()
 }
 
