@@ -113,6 +113,7 @@ diagnostics![AnyDiagnostic<'db> ->
     FruInDestructuringAssignment,
     FunctionalRecordUpdateOnNonStruct,
     GenericDefaultRefersToSelf,
+    ImplIncorrectSafety,
     InactiveCode,
     IncoherentImpl,
     IncorrectCase,
@@ -146,8 +147,6 @@ diagnostics![AnyDiagnostic<'db> ->
     PrivateField,
     RemoveTrailingReturn,
     RemoveUnnecessaryElse,
-    SafeImplOfDanglingDrop,
-    SafeImplOfUnsafeTrait,
     UnusedMustUse<'db>,
     ReplaceFilterMapNextWithFindMap,
     TraitImplMissingAssocItems,
@@ -166,9 +165,6 @@ diagnostics![AnyDiagnostic<'db> ->
     UnresolvedMethodCall<'db>,
     UnresolvedModule,
     UnresolvedIdent,
-    UnsafeImplOfSafeTrait,
-    UnsafeInherentImpl,
-    UnsafeNegativeImpl,
     UnusedMut,
     UnusedVariable,
     GenericArgsProhibited,
@@ -525,35 +521,19 @@ pub struct RemoveUnnecessaryElse {
 }
 
 #[derive(Debug)]
-pub struct SafeImplOfDanglingDrop {
+pub struct ImplIncorrectSafety {
     pub file_id: HirFileId,
     pub impl_: AstPtr<ast::Impl>,
+    pub kind: ImplIncorrectSafetyKind,
 }
 
 #[derive(Debug)]
-pub struct SafeImplOfUnsafeTrait {
-    pub file_id: HirFileId,
-    pub trait_: Trait,
-    pub impl_: AstPtr<ast::Impl>,
-}
-
-#[derive(Debug)]
-pub struct UnsafeImplOfSafeTrait {
-    pub file_id: HirFileId,
-    pub trait_: Trait,
-    pub impl_: AstPtr<ast::Impl>,
-}
-
-#[derive(Debug)]
-pub struct UnsafeInherentImpl {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-}
-
-#[derive(Debug)]
-pub struct UnsafeNegativeImpl {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
+pub enum ImplIncorrectSafetyKind {
+    UnsafeInherentImpl,
+    UnsafeNegativeImpl,
+    UnsafeImplOfSafeTrait(Trait),
+    SafeImplOfUnsafeTrait(Trait),
+    SafeImplOfDanglingDrop,
 }
 
 #[derive(Debug)]
