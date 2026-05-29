@@ -932,7 +932,12 @@ impl Module {
                 // unsafe negative impl
                 (true, _, true, _) => {
                     acc.push(
-                        UnsafeNegativeImpl { file_id, impl_: ast_id_map.get(loc.id.value) }.into(),
+                        ImplIncorrectSafety {
+                            file_id,
+                            impl_: ast_id_map.get(loc.id.value),
+                            kind: ImplIncorrectSafetyKind::UnsafeNegativeImpl,
+                        }
+                        .into(),
                     );
                 }
 
@@ -941,10 +946,24 @@ impl Module {
 
                     if let Some(trait_) = trait_ {
                         // unsafe impl of safe trait
-                        acc.push(UnsafeImplOfSafeTrait { trait_, file_id, impl_ }.into());
+                        acc.push(
+                            ImplIncorrectSafety {
+                                file_id,
+                                impl_,
+                                kind: ImplIncorrectSafetyKind::UnsafeImplOfSafeTrait(trait_),
+                            }
+                            .into(),
+                        );
                     } else {
                         // unsafe inherent impl
-                        acc.push(UnsafeInherentImpl { file_id, impl_ }.into());
+                        acc.push(
+                            ImplIncorrectSafety {
+                                file_id,
+                                impl_,
+                                kind: ImplIncorrectSafetyKind::UnsafeInherentImpl,
+                            }
+                            .into(),
+                        );
                     }
                 }
 
@@ -952,10 +971,10 @@ impl Module {
                 (false, true, false, _) => {
                     if let Some(trait_) = trait_ {
                         acc.push(
-                            SafeImplOfUnsafeTrait {
-                                trait_,
+                            ImplIncorrectSafety {
                                 file_id,
                                 impl_: ast_id_map.get(loc.id.value),
+                                kind: ImplIncorrectSafetyKind::SafeImplOfUnsafeTrait(trait_),
                             }
                             .into(),
                         );
@@ -965,8 +984,12 @@ impl Module {
                 // safe impl of dangling drop
                 (false, false, _, true) => {
                     acc.push(
-                        SafeImplOfDanglingDrop { file_id, impl_: ast_id_map.get(loc.id.value) }
-                            .into(),
+                        ImplIncorrectSafety {
+                            file_id,
+                            impl_: ast_id_map.get(loc.id.value),
+                            kind: ImplIncorrectSafetyKind::SafeImplOfDanglingDrop,
+                        }
+                        .into(),
                     );
                 }
                 _ => (),
