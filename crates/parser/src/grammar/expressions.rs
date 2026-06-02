@@ -247,6 +247,23 @@ fn expr_bp(
     r: Restrictions,
     bp: u8,
 ) -> Option<(CompletedMarker, BlockLike)> {
+    if !p.check_recursion_limit() {
+        if let Some(m) = m {
+            m.abandon(p);
+        }
+        return None;
+    }
+    let res = expr_bp_inner(p, m, r, bp);
+    p.decrease_recursion_limit();
+    res
+}
+
+fn expr_bp_inner(
+    p: &mut Parser<'_>,
+    m: Option<Marker>,
+    r: Restrictions,
+    bp: u8,
+) -> Option<(CompletedMarker, BlockLike)> {
     let m = m.unwrap_or_else(|| {
         let m = p.start();
         attributes::outer_attrs(p);
@@ -315,7 +332,7 @@ fn expr_bp(
 
         // test binop_resets_statementness
         // fn f() { v = {1}&2; }
-        expr_bp(p, None, Restrictions { prefer_stmt: false, ..r }, op_bp);
+        expr_bp_inner(p, None, Restrictions { prefer_stmt: false, ..r }, op_bp);
         lhs = m.complete(p, if is_range { RANGE_EXPR } else { BIN_EXPR });
     }
     Some((lhs, BlockLike::NotBlock))
