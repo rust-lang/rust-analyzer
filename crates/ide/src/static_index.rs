@@ -26,12 +26,9 @@ use crate::{
 ///
 /// The intended use-case is powering read-only code browsers and emitting LSIF/SCIP.
 #[derive(Debug)]
-pub struct StaticIndex<'a> {
+pub struct StaticIndex {
     pub files: Vec<StaticIndexedFile>,
     pub tokens: TokenStore,
-    analysis: &'a Analysis,
-    db: &'a RootDatabase,
-    def_map: FxHashMap<Definition<'a>, TokenId>,
 }
 
 #[derive(Debug)]
@@ -164,111 +161,110 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
-impl<'a> StaticIndex<'a> {
-    fn add_file(&mut self, file_id: FileId) {
-        let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
-        let folds = self.analysis.folding_ranges(file_id, true).unwrap();
-        // hovers
-        let sema = hir::Semantics::new(self.db);
-        let root = sema.parse_guess_edition(file_id).syntax().clone();
-        let edition = sema.attach_first_edition(file_id).edition(sema.db);
-        let display_target = match sema.first_crate(file_id) {
-            Some(krate) => krate.to_display_target(sema.db),
-            None => return,
-        };
-        let tokens = root.descendants_with_tokens().filter_map(|it| match it {
-            syntax::NodeOrToken::Node(_) => None,
-            syntax::NodeOrToken::Token(it) => Some(it),
-        });
-        let hover_config = HoverConfig {
-            links_in_hover: true,
-            memory_layout: None,
-            documentation: true,
-            keywords: true,
-            format: crate::HoverDocFormat::Markdown,
-            max_trait_assoc_items_count: None,
-            max_fields_count: Some(5),
-            max_enum_variants_count: Some(5),
-            max_subst_ty_len: SubstTyLen::Unlimited,
-            show_drop_glue: true,
-            ra_fixture: RaFixtureConfig::default(),
-        };
-        let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };
+fn index_file<'a>(
+    analysis: &'a Analysis,
+    token_store: &mut TokenStore,
+    def_map: &mut FxHashMap<Definition<'a>, TokenId>,
+    file_id: FileId,
+) -> Option<StaticIndexedFile> {
+    let db = &analysis.db;
 
-        let mut add_token = |def: Definition<'a>, range: TextRange, scope_node: &SyntaxNode| {
-            let id = if let Some(it) = self.def_map.get(&def) {
-                *it
-            } else {
-                let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
-                let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
-                        &sema,
-                        file_id,
-                        def,
-                        None,
-                        scope_node,
-                        None,
-                        false,
-                        &hover_config,
-                        edition,
-                        display_target,
-                    )),
-                    definition: nav.as_ref().map(|it| FileRange {
-                        file_id: it.file_id,
-                        range: it.focus_or_full_range(),
-                    }),
-                    definition_body: nav.as_ref().map(|it| FileRange {
-                        file_id: it.file_id,
-                        range: definition_range_excluding_trivia(&sema, it.file_id, it.full_range),
-                    }),
-                    references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
-                    kind: def_to_kind(self.db, def),
-                });
-                self.def_map.insert(def, it);
-                it
-            };
-            let token = self.tokens.get_mut(id).unwrap();
-            token.references.push(ReferenceData {
-                range: FileRange { range, file_id },
-                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                    Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
-                    None => false,
-                },
+    let current_crate = crates_for(db, file_id).pop().map(Into::into);
+    let folds = analysis.folding_ranges(file_id, true).unwrap();
+    // hovers
+    let sema = hir::Semantics::new(db);
+    let root = sema.parse_guess_edition(file_id).syntax().clone();
+    let edition = sema.attach_first_edition(file_id).edition(sema.db);
+    let display_target = sema.first_crate(file_id)?.to_display_target(sema.db);
+    let tokens = root.descendants_with_tokens().filter_map(|it| match it {
+        syntax::NodeOrToken::Node(_) => None,
+        syntax::NodeOrToken::Token(it) => Some(it),
+    });
+    let hover_config = HoverConfig {
+        links_in_hover: true,
+        memory_layout: None,
+        documentation: true,
+        keywords: true,
+        format: crate::HoverDocFormat::Markdown,
+        max_trait_assoc_items_count: None,
+        max_fields_count: Some(5),
+        max_enum_variants_count: Some(5),
+        max_subst_ty_len: SubstTyLen::Unlimited,
+        show_drop_glue: true,
+        ra_fixture: RaFixtureConfig::default(),
+    };
+    let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };
+
+    let mut add_token = |def: Definition<'a>, range: TextRange, scope_node: &SyntaxNode| {
+        let id = if let Some(it) = def_map.get(&def) {
+            *it
+        } else {
+            let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
+            let it = token_store.insert(TokenStaticData {
+                documentation: documentation_for_definition(&sema, def, scope_node),
+                hover: Some(hover_for_definition(
+                    &sema,
+                    file_id,
+                    def,
+                    None,
+                    scope_node,
+                    None,
+                    false,
+                    &hover_config,
+                    edition,
+                    display_target,
+                )),
+                definition: nav
+                    .as_ref()
+                    .map(|it| FileRange { file_id: it.file_id, range: it.focus_or_full_range() }),
+                definition_body: nav.as_ref().map(|it| FileRange {
+                    file_id: it.file_id,
+                    range: definition_range_excluding_trivia(&sema, it.file_id, it.full_range),
+                }),
+                references: vec![],
+                moniker: current_crate.and_then(|cc| def_to_moniker(db, def, cc)),
+                display_name: def.name(db).map(|name| name.display(db, edition).to_string()),
+                signature: Some(def.label(db, display_target)),
+                kind: def_to_kind(db, def),
             });
-            result.tokens.push((range, id));
+            def_map.insert(def, it);
+            it
         };
+        let token = token_store.get_mut(id).unwrap();
+        token.references.push(ReferenceData {
+            range: FileRange { range, file_id },
+            is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
+                Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
+                None => false,
+            },
+        });
+        result.tokens.push((range, id));
+    };
 
-        if let Some(module) = sema.file_to_module_def(file_id) {
-            let def = Definition::Module(module);
-            let range = root.text_range();
-            add_token(def, range, &root);
-        }
-
-        for token in tokens {
-            let range = token.text_range();
-            let node = token.parent().unwrap();
-            match hir::attach_db(self.db, || get_definitions(&sema, token.clone())) {
-                Some(defs) => {
-                    for (def, _) in defs {
-                        add_token(def, range, &node);
-                    }
-                }
-                None => continue,
-            };
-        }
-        self.files.push(result);
+    if let Some(module) = sema.file_to_module_def(file_id) {
+        let def = Definition::Module(module);
+        let range = root.text_range();
+        add_token(def, range, &root);
     }
 
-    pub fn compute(
-        analysis: &'a Analysis,
-        vendored_libs_config: VendoredLibrariesConfig<'_>,
-    ) -> StaticIndex<'a> {
+    for token in tokens {
+        let range = token.text_range();
+        let node = token.parent().unwrap();
+        match hir::attach_db(db, || get_definitions(&sema, token.clone())) {
+            Some(defs) => {
+                for (def, _) in defs {
+                    add_token(def, range, &node);
+                }
+            }
+            None => continue,
+        };
+    }
+
+    Some(result)
+}
+
+impl StaticIndex {
+    pub fn compute(analysis: &Analysis, vendored_libs_config: VendoredLibrariesConfig<'_>) -> Self {
         let db = &analysis.db;
 
         let files_to_index = {
@@ -300,18 +296,14 @@ impl<'a> StaticIndex<'a> {
             files_to_index
         };
 
+        let mut tokens = Default::default();
+        let mut def_map = Default::default();
         hir::attach_db(db, || {
-            let mut this = StaticIndex {
-                files: vec![],
-                tokens: Default::default(),
-                analysis,
-                db,
-                def_map: Default::default(),
-            };
-            for file_id in files_to_index {
-                this.add_file(file_id);
-            }
-            this
+            let files = files_to_index
+                .into_iter()
+                .flat_map(|file_id| index_file(analysis, &mut tokens, &mut def_map, file_id))
+                .collect();
+            StaticIndex { files, tokens }
         })
     }
 }
