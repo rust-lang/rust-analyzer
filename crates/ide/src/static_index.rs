@@ -26,9 +26,15 @@ use crate::{
 ///
 /// The intended use-case is powering read-only code browsers and emitting LSIF/SCIP.
 #[derive(Debug)]
-pub struct StaticIndex<'a> {
+pub struct StaticIndex {
     pub files: Vec<StaticIndexedFile>,
     pub tokens: FxHashMap<Definition, TokenStaticData>,
+}
+
+#[derive(Debug)]
+struct StaticIndexBuilder<'a> {
+    files: Vec<StaticIndexedFile>,
+    tokens: FxHashMap<Definition, TokenStaticData>,
     analysis: &'a Analysis,
     db: &'a RootDatabase,
 }
@@ -116,7 +122,7 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
-impl StaticIndex<'_> {
+impl StaticIndexBuilder<'_> {
     fn add_file(&mut self, file_id: FileId) {
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
         let folds = self.analysis.folding_ranges(file_id, true).unwrap();
@@ -252,10 +258,13 @@ impl StaticIndex<'_> {
         self.files.push(result);
     }
 
-    pub fn compute<'a>(
-        analysis: &'a Analysis,
-        vendored_libs_config: VendoredLibrariesConfig<'_>,
-    ) -> StaticIndex<'a> {
+    fn build(self) -> StaticIndex {
+        StaticIndex { files: self.files, tokens: self.tokens }
+    }
+}
+
+impl StaticIndex {
+    pub fn compute(analysis: &Analysis, vendored_libs_config: VendoredLibrariesConfig<'_>) -> Self {
         let db = &analysis.db;
         hir::attach_db(db, || {
             let work = all_modules(db).into_iter().filter(|module| {
@@ -272,7 +281,8 @@ impl StaticIndex<'_> {
 
                 !source_root.is_library || is_vendored
             });
-            let mut this = StaticIndex { files: vec![], tokens: Default::default(), analysis, db };
+            let mut builder =
+                StaticIndexBuilder { files: vec![], tokens: Default::default(), analysis, db };
             let mut visited_files = FxHashSet::default();
             for module in work {
                 let file_id =
@@ -280,10 +290,10 @@ impl StaticIndex<'_> {
                 if visited_files.contains(&file_id) {
                     continue;
                 }
-                this.add_file(file_id);
+                builder.add_file(file_id);
                 visited_files.insert(file_id);
             }
-            this
+            builder.build()
         })
     }
 }
