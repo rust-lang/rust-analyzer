@@ -264,7 +264,11 @@ impl StaticIndexBuilder<'_> {
 }
 
 impl StaticIndex {
-    pub fn compute(analysis: &Analysis, vendored_libs_config: VendoredLibrariesConfig<'_>) -> Self {
+    pub fn compute(
+        analysis: &Analysis,
+        vendored_libs_config: VendoredLibrariesConfig<'_>,
+        num_threads: usize,
+    ) -> Self {
         let db = &analysis.db;
 
         let files_to_index = {
@@ -296,14 +300,53 @@ impl StaticIndex {
             files_to_index
         };
 
-        hir::attach_db(db, || {
-            let mut builder =
-                StaticIndexBuilder { files: vec![], tokens: Default::default(), analysis, db };
-            for file_id in files_to_index {
-                builder.add_file(file_id);
-            }
-            builder.build()
+        std::thread::scope(|s| {
+            let threads: Vec<_> = (0..num_threads)
+                .map(|thread_index| {
+                    let files_to_index = files_to_index
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter(move |(index, _)| index % num_threads == thread_index)
+                        .map(|(_, file_id)| file_id);
+
+                    let analysis = analysis.clone();
+                    s.spawn(move || {
+                        let analysis = &analysis;
+                        let db = &analysis.db;
+                        hir::attach_db(db, || {
+                            let mut builder = StaticIndexBuilder {
+                                files: vec![],
+                                tokens: Default::default(),
+                                analysis,
+                                db,
+                            };
+                            for file_id in files_to_index {
+                                builder.add_file(file_id);
+                            }
+                            builder.build()
+                        })
+                    })
+                })
+                .collect();
+            threads
+                .into_iter()
+                .map(std::thread::ScopedJoinHandle::join)
+                .map(Result::unwrap)
+                .collect()
         })
+    }
+}
+
+impl FromIterator<StaticIndex> for StaticIndex {
+    fn from_iter<T: IntoIterator<Item = StaticIndex>>(iter: T) -> Self {
+        iter.into_iter()
+            .reduce(|mut acc, part| {
+                acc.files.extend(part.files);
+                acc.tokens.extend(part.tokens);
+                acc
+            })
+            .unwrap_or(StaticIndex { files: Default::default(), tokens: Default::default() })
     }
 }
 
@@ -320,7 +363,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -346,7 +389,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -371,7 +414,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
