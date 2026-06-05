@@ -4,10 +4,10 @@ use std::{path::PathBuf, time::Instant};
 
 use ide::{
     AnalysisHost, LineCol, Moniker, MonikerDescriptorKind, MonikerIdentifier, MonikerResult,
-    RootDatabase, StaticIndex, StaticIndexedFile, SymbolInformationKind, TextRange, TokenId,
+    RootDatabase, StaticIndex, StaticIndexedFile, SymbolInformationKind, TextRange,
     TokenStaticData, VendoredLibrariesConfig,
 };
-use ide_db::line_index;
+use ide_db::{defs::Definition, line_index};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scip::types::{self as scip_types, SymbolInformation};
@@ -90,10 +90,10 @@ impl flags::Scip {
 
         let mut documents = Vec::new();
 
-        // All TokenIds where an Occurrence has been emitted that references a symbol.
-        let mut token_ids_referenced: FxHashSet<TokenId> = FxHashSet::default();
-        // All TokenIds where the SymbolInformation has been written to the document.
-        let mut token_ids_emitted: FxHashSet<TokenId> = FxHashSet::default();
+        // All Definitions where an Occurrence has been emitted that references a symbol.
+        let mut token_ids_referenced: FxHashSet<Definition> = FxHashSet::default();
+        // All Definitions where the SymbolInformation has been written to the document.
+        let mut token_ids_emitted: FxHashSet<Definition> = FxHashSet::default();
         // All FileIds emitted as documents.
         let mut file_ids_emitted: FxHashSet<FileId> = FxHashSet::default();
 
@@ -141,11 +141,11 @@ impl flags::Scip {
             let mut occurrences = Vec::new();
             let mut symbols = Vec::new();
 
-            for (text_range, id) in tokens.into_iter() {
-                let token = si.tokens.get(id).unwrap();
+            for (text_range, def) in tokens.into_iter() {
+                let token = si.tokens.get(&def).unwrap();
 
                 let Some(TokenSymbols { symbol, enclosing_symbol, is_inherent_impl }) =
-                    symbol_generator.token_symbols(id, token)
+                    symbol_generator.token_symbols(def, token)
                 else {
                     // token did not have a moniker, so there is no reasonable occurrence to emit
                     // see ide::moniker::def_to_moniker
@@ -157,7 +157,7 @@ impl flags::Scip {
                     _ => false,
                 };
                 if is_defined_in_this_document {
-                    if token_ids_emitted.insert(id) {
+                    if token_ids_emitted.insert(def) {
                         // token_ids_emitted does deduplication. This checks that this results
                         // in unique emitted symbols, as otherwise references are ambiguous.
                         let should_emit = record_error_if_symbol_already_used(
@@ -176,7 +176,7 @@ impl flags::Scip {
                         }
                     }
                 } else {
-                    token_ids_referenced.insert(id);
+                    token_ids_referenced.insert(def);
                 }
 
                 // If the range of the def and the range of the token are the same, this must be the definition.
@@ -232,9 +232,8 @@ impl flags::Scip {
 
         // Collect all symbols referenced by the files but not defined within them.
         let mut external_symbols = Vec::new();
-        for id in token_ids_referenced.difference(&token_ids_emitted) {
-            let id = *id;
-            let token = si.tokens.get(id).unwrap();
+        for def in token_ids_referenced.difference(&token_ids_emitted) {
+            let token = si.tokens.get(def).unwrap();
 
             let Some(definition) = token.definition else {
                 break;
@@ -253,7 +252,7 @@ impl flags::Scip {
             }
 
             let TokenSymbols { symbol, enclosing_symbol, .. } = symbol_generator
-                .token_symbols(id, token)
+                .token_symbols(*def, token)
                 .expect("To have been referenced, the symbol must be in the cache.");
 
             record_error_if_symbol_already_used(
@@ -428,7 +427,7 @@ struct TokenSymbols {
 
 #[derive(Default)]
 struct SymbolGenerator {
-    token_to_symbols: FxHashMap<TokenId, Option<TokenSymbols>>,
+    token_to_symbols: FxHashMap<Definition, Option<TokenSymbols>>,
     local_count: usize,
 }
 
@@ -437,11 +436,11 @@ impl SymbolGenerator {
         self.local_count = 0;
     }
 
-    fn token_symbols(&mut self, id: TokenId, token: &TokenStaticData) -> Option<TokenSymbols> {
+    fn token_symbols(&mut self, def: Definition, token: &TokenStaticData) -> Option<TokenSymbols> {
         let mut local_count = self.local_count;
         let token_symbols = self
             .token_to_symbols
-            .entry(id)
+            .entry(def)
             .or_insert_with(|| {
                 Some(match token.moniker.as_ref()? {
                     MonikerResult::Moniker(moniker) => TokenSymbols {
@@ -553,11 +552,11 @@ mod test {
             if file.file_id != file_id {
                 continue;
             }
-            for &(range, id) in &file.tokens {
+            for &(range, def) in &file.tokens {
                 // check if cursor is within token, ignoring token for the module defined by the file (whose range is the whole file)
                 if range.start() != TextSize::from(0) && range.contains(offset - TextSize::from(1))
                 {
-                    let token = si.tokens.get(id).unwrap();
+                    let token = si.tokens.get(&def).unwrap();
                     found_symbol = match token.moniker.as_ref() {
                         None => None,
                         Some(MonikerResult::Moniker(moniker)) => {
@@ -915,8 +914,8 @@ pub mod example_mod {
         );
 
         let file = si.files.first().unwrap();
-        let (_, token_id) = file.tokens.get(1).unwrap(); // first token is file module, second is `bar`
-        let token = si.tokens.get(*token_id).unwrap();
+        let (_, def) = file.tokens.get(1).unwrap(); // first token is file module, second is `bar`
+        let token = si.tokens.get(def).unwrap();
 
         assert_eq!(token.documentation.as_ref().map(|d| d.as_str()), Some("foo"));
     }
@@ -938,8 +937,8 @@ pub mod example_mod {
         );
 
         let file = si.files.first().unwrap();
-        let (_, token_id) = file.tokens.get(1).unwrap(); // first token is file module, second is `foo`
-        let token = si.tokens.get(*token_id).unwrap();
+        let (_, def) = file.tokens.get(1).unwrap(); // first token is file module, second is `foo`
+        let token = si.tokens.get(def).unwrap();
 
         let expected_range = FileRangeWrapper {
             file_id: FileId::from_raw(0),
