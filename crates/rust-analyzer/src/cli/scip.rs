@@ -22,7 +22,8 @@ use crate::{
 
 impl flags::Scip {
     pub fn run(self) -> anyhow::Result<()> {
-        eprintln!("Generating SCIP start...");
+        let num_threads = self.num_threads.unwrap_or_else(num_cpus::get_physical);
+        eprintln!("Generating SCIP start with {num_threads} threads...");
         let now = Instant::now();
 
         let no_progress = &|s| eprintln!("rust-analyzer: Loading {s}");
@@ -52,7 +53,7 @@ impl flags::Scip {
             load_out_dirs_from_check: true,
             with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: true,
-            num_worker_threads: self.num_threads.unwrap_or_else(num_cpus::get_physical),
+            num_worker_threads: num_threads,
             proc_macro_processes: config.proc_macro_num_processes(),
         };
         let cargo_config = config.cargo(None);
@@ -72,7 +73,7 @@ impl flags::Scip {
             VendoredLibrariesConfig::Included { workspace_root: &root.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config);
+        let si = StaticIndex::compute(&analysis, vendored_libs_config, num_threads);
 
         let metadata = scip_types::Metadata {
             version: scip_types::ProtocolVersion::UnspecifiedProtocolVersion.into(),
@@ -543,6 +544,7 @@ mod test {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
         );
 
         let FilePosition { file_id, offset } = position;
@@ -911,6 +913,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
         );
 
         let file = si.files.first().unwrap();
@@ -934,6 +937,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            1,
         );
 
         let file = si.files.first().unwrap();
