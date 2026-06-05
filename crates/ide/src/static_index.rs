@@ -4,7 +4,7 @@
 use arrayvec::ArrayVec;
 use hir::{Crate, Module, Semantics, db::HirDatabase};
 use ide_db::{
-    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
+    FileId, FileRange, FxHashMap, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
     defs::{Definition, IdentClass},
     documentation::Documentation,
@@ -266,32 +266,41 @@ impl StaticIndexBuilder<'_> {
 impl StaticIndex {
     pub fn compute(analysis: &Analysis, vendored_libs_config: VendoredLibrariesConfig<'_>) -> Self {
         let db = &analysis.db;
-        hir::attach_db(db, || {
-            let work = all_modules(db).into_iter().filter(|module| {
-                let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
-                let source_root = db.source_root(source_root).source_root(db);
-                let is_vendored = match vendored_libs_config {
-                    VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
-                        .is_some_and(|module_path| module_path.starts_with(workspace_root)),
-                    VendoredLibrariesConfig::Excluded => false,
-                };
 
-                !source_root.is_library || is_vendored
+        let files_to_index = {
+            let mut files_to_index: Vec<_> = hir::attach_db(db, || {
+                let modules = all_modules(db).into_iter();
+
+                let modules_to_index = modules.filter(|module| {
+                    let file_id = module.definition_source_file_id(db).original_file(db);
+                    let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+                    let source_root = db.source_root(source_root).source_root(db);
+                    let is_vendored = match vendored_libs_config {
+                        VendoredLibrariesConfig::Included { workspace_root } => source_root
+                            .path_for_file(&file_id.file_id(db))
+                            .is_some_and(|module_path| module_path.starts_with(workspace_root)),
+                        VendoredLibrariesConfig::Excluded => false,
+                    };
+
+                    !source_root.is_library || is_vendored
+                });
+
+                let files_to_index = modules_to_index.map(|module| {
+                    module.definition_source_file_id(db).original_file(db).file_id(db)
+                });
+
+                files_to_index.collect()
             });
+            files_to_index.sort();
+            files_to_index.dedup();
+            files_to_index
+        };
+
+        hir::attach_db(db, || {
             let mut builder =
                 StaticIndexBuilder { files: vec![], tokens: Default::default(), analysis, db };
-            let mut visited_files = FxHashSet::default();
-            for module in work {
-                let file_id =
-                    module.definition_source_file_id(db).original_file(db).file_id(&analysis.db);
-                if visited_files.contains(&file_id) {
-                    continue;
-                }
+            for file_id in files_to_index {
                 builder.add_file(file_id);
-                visited_files.insert(file_id);
             }
             builder.build()
         })
