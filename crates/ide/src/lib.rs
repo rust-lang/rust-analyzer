@@ -115,9 +115,7 @@ pub use crate::{
     rename::{RenameConfig, RenameError},
     runnables::{Runnable, RunnableKind, TestId, UpdateTest},
     signature_help::SignatureHelp,
-    static_index::{
-        StaticIndex, StaticIndexedFile, TokenId, TokenStaticData, VendoredLibrariesConfig,
-    },
+    static_index::{StaticIndex, StaticIndexedFile, TokenStaticData, VendoredLibrariesConfig},
     syntax_highlighting::{
         HighlightConfig, HlRange,
         tags::{Highlight, HlMod, HlMods, HlOperator, HlPunct, HlTag},

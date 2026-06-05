@@ -28,10 +28,9 @@ use crate::{
 #[derive(Debug)]
 pub struct StaticIndex<'a> {
     pub files: Vec<StaticIndexedFile>,
-    pub tokens: TokenStore,
+    pub tokens: FxHashMap<Definition, TokenStaticData>,
     analysis: &'a Analysis,
     db: &'a RootDatabase,
-    def_map: FxHashMap<Definition, TokenId>,
 }
 
 #[derive(Debug)]
@@ -61,44 +60,12 @@ pub struct TokenStaticData {
     pub kind: SymbolInformationKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TokenId(usize);
-
-impl TokenId {
-    pub fn raw(self) -> usize {
-        self.0
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct TokenStore(Vec<TokenStaticData>);
-
-impl TokenStore {
-    pub fn insert(&mut self, data: TokenStaticData) -> TokenId {
-        let id = TokenId(self.0.len());
-        self.0.push(data);
-        id
-    }
-
-    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData> {
-        self.0.get_mut(id.0)
-    }
-
-    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData> {
-        self.0.get(id.0)
-    }
-
-    pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData)> {
-        self.0.into_iter().enumerate().map(|(id, data)| (TokenId(id), data))
-    }
-}
-
 #[derive(Debug)]
 pub struct StaticIndexedFile {
     pub file_id: FileId,
     pub folds: Vec<Fold>,
     pub inlay_hints: Vec<InlayHint>,
-    pub tokens: Vec<(TextRange, TokenId)>,
+    pub tokens: Vec<(TextRange, Definition)>,
 }
 
 fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
@@ -224,42 +191,36 @@ impl StaticIndex<'_> {
         let mut result = StaticIndexedFile { file_id, inlay_hints, folds, tokens: vec![] };
 
         let mut add_token = |def: Definition, range: TextRange, scope_node: &SyntaxNode| {
-            let id = if let Some(it) = self.def_map.get(&def) {
-                *it
-            } else {
-                let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
-                        &sema,
-                        file_id,
-                        def,
-                        None,
-                        scope_node,
-                        None,
-                        false,
-                        &hover_config,
-                        edition,
-                        display_target,
-                    )),
-                    definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
-                        FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
-                    }),
-                    definition_body: def
-                        .try_to_nav(&sema)
-                        .map(UpmappingResult::call_site)
-                        .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
-                    references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
-                    kind: def_to_kind(self.db, def),
-                });
-                self.def_map.insert(def, it);
-                it
-            };
-            let token = self.tokens.get_mut(id).unwrap();
+            let token = self.tokens.entry(def).or_insert_with(|| TokenStaticData {
+                documentation: documentation_for_definition(&sema, def, scope_node),
+                hover: Some(hover_for_definition(
+                    &sema,
+                    file_id,
+                    def,
+                    None,
+                    scope_node,
+                    None,
+                    false,
+                    &hover_config,
+                    edition,
+                    display_target,
+                )),
+                definition: def
+                    .try_to_nav(&sema)
+                    .map(UpmappingResult::call_site)
+                    .map(|it| FileRange { file_id: it.file_id, range: it.focus_or_full_range() }),
+                definition_body: def
+                    .try_to_nav(&sema)
+                    .map(UpmappingResult::call_site)
+                    .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
+                references: vec![],
+                moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
+                display_name: def
+                    .name(self.db)
+                    .map(|name| name.display(self.db, edition).to_string()),
+                signature: Some(def.label(self.db, display_target)),
+                kind: def_to_kind(self.db, def),
+            });
             token.references.push(ReferenceData {
                 range: FileRange { range, file_id },
                 is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
@@ -267,7 +228,7 @@ impl StaticIndex<'_> {
                     None => false,
                 },
             });
-            result.tokens.push((range, id));
+            result.tokens.push((range, def));
         };
 
         if let Some(module) = sema.file_to_module_def(file_id) {
@@ -311,13 +272,7 @@ impl StaticIndex<'_> {
 
                 !source_root.is_library || is_vendored
             });
-            let mut this = StaticIndex {
-                files: vec![],
-                tokens: Default::default(),
-                analysis,
-                db,
-                def_map: Default::default(),
-            };
+            let mut this = StaticIndex { files: vec![], tokens: Default::default(), analysis, db };
             let mut visited_files = FxHashSet::default();
             for module in work {
                 let file_id =
