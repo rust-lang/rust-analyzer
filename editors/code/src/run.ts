@@ -146,6 +146,7 @@ export function prepareEnv(inheritEnv: boolean, runnableEnv?: Env, runnableEnvCf
 export async function createTaskFromRunnable(
     runnable: ra.Runnable,
     config: Config,
+    includeShellExtraEnv = false,
 ): Promise<vscode.Task> {
     const target = vscode.workspace.workspaceFolders?.[0];
 
@@ -186,7 +187,13 @@ export async function createTaskFromRunnable(
         };
         options = {
             cwd: runnableArgs.cwd,
-            env: prepareBaseEnv(true),
+            env: includeShellExtraEnv
+                ? prepareEnv(
+                      true,
+                      runnableArgs.environment,
+                      config.runnablesExtraEnv(runnable.label),
+                  )
+                : prepareBaseEnv(true),
         };
     }
 

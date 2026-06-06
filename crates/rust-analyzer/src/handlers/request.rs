@@ -1008,7 +1008,7 @@ pub(crate) fn handle_runnables(
                 res.push(runnable);
             }
 
-            if let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.args
+            if let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.command.args
                 && let Some(TargetSpec::Cargo(CargoTargetSpec {
                     sysroot_root: Some(sysroot_root),
                     ..
@@ -1049,19 +1049,22 @@ pub(crate) fn handle_runnables(
                         all_targets = if all_targets { " --all-targets" } else { "" }
                     ),
                     location: None,
-                    args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
-                        workspace_root: Some(spec.workspace_root.clone().into()),
-                        cwd: cwd.into(),
-                        override_cargo: config.override_cargo.clone(),
-                        cargo_args,
-                        executable_args: Vec::new(),
-                        environment: spec
-                            .sysroot_root
-                            .as_ref()
-                            .map(|root| ("RUSTC_TOOLCHAIN".to_owned(), root.to_string()))
-                            .into_iter()
-                            .collect(),
-                    }),
+                    command: lsp_ext::RunnableCommand {
+                        args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
+                            workspace_root: Some(spec.workspace_root.clone().into()),
+                            cwd: cwd.into(),
+                            override_cargo: config.override_cargo.clone(),
+                            cargo_args,
+                            executable_args: Vec::new(),
+                            environment: spec
+                                .sysroot_root
+                                .as_ref()
+                                .map(|root| ("RUSTC_TOOLCHAIN".to_owned(), root.to_string()))
+                                .into_iter()
+                                .collect(),
+                        }),
+                    },
+                    debug: None,
                 })
             }
         }
@@ -1075,14 +1078,17 @@ pub(crate) fn handle_runnables(
                 res.push(lsp_ext::Runnable {
                     label: "cargo check --workspace".to_owned(),
                     location: None,
-                    args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
-                        workspace_root: None,
-                        cwd: path.as_path().unwrap().to_path_buf().into(),
-                        override_cargo: config.override_cargo,
-                        cargo_args,
-                        executable_args: Vec::new(),
-                        environment: Default::default(),
-                    }),
+                    command: lsp_ext::RunnableCommand {
+                        args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
+                            workspace_root: None,
+                            cwd: path.as_path().unwrap().to_path_buf().into(),
+                            override_cargo: config.override_cargo,
+                            cargo_args,
+                            executable_args: Vec::new(),
+                            environment: Default::default(),
+                        }),
+                    },
+                    debug: None,
                 });
             };
         }

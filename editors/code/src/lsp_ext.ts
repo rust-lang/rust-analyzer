@@ -232,7 +232,10 @@ export type OpenCargoTomlParams = {
 export type Runnable = {
     label: string;
     location?: lc.LocationLink;
-} & (RunnableCargo | RunnableShell);
+    debug?: RunnableCommand;
+} & RunnableCommand;
+
+export type RunnableCommand = RunnableCargo | RunnableShell;
 
 type RunnableCargo = {
     kind: "cargo";
