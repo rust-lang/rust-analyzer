@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use base_db::FxIndexSet;
+use base_db::{FxIndexSet, salsa::Update};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, AstIdLoc, Complete, DefWithBodyId, ExternCrateId, HasModule, ImplId,
@@ -29,7 +29,7 @@ use crate::{Crate, HasCrate, Module, ModuleDef, Semantics};
 
 /// The actual data that is stored in the index. It should be as compact as
 /// possible.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
 pub struct FileSymbol<'db> {
     pub name: Symbol,
     pub def: ModuleDef,
@@ -40,7 +40,7 @@ pub struct FileSymbol<'db> {
     pub is_assoc: bool,
     pub is_import: bool,
     pub do_not_complete: Complete,
-    _marker: PhantomData<&'db ()>,
+    _marker: PhantomData<fn() -> &'db ()>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
