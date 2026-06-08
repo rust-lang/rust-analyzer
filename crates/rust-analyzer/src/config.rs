@@ -3003,6 +3003,7 @@ pub enum AutoImportExclusion {
 pub enum AutoImportExclusionType {
     Always,
     Methods,
+    #[serde(alias = "subItems")]
     SubItems,
 }
 
