@@ -149,7 +149,7 @@ enum LinkNode<T> {
     Parent { idx: usize, len: usize },
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct BindingsBuilder<'a> {
     nodes: Vec<Vec<LinkNode<Rc<BindingKind<'a>>>>>,
     nested: Vec<Vec<LinkNode<usize>>>,
@@ -627,14 +627,14 @@ fn match_loop<'t>(
     src: &'t tt::TopSubtree,
 ) -> Match<'t> {
     let span = src.top_subtree().delimiter.delim_span();
-    let mut src = src.iter();
-    let mut stack: SmallVec<[TtIter<'_>; 1]> = SmallVec::new();
-    let mut res = Match::default();
-    let mut error_recover_item = None;
+    let src = src.iter();
+    let stack: SmallVec<[TtIter<'_>; 1]> = SmallVec::new();
+    let res = Match::default();
+    let error_recover_item = None;
 
     let mut bindings_builder = BindingsBuilder::default();
 
-    let mut cur_items = smallvec![MatchState {
+    let cur_items = smallvec![MatchState {
         dot: pattern.iter_delimited(span),
         stack: Default::default(),
         up: None,
@@ -646,6 +646,28 @@ fn match_loop<'t>(
         meta_result: None,
     }];
 
+    match_loop_with_state(
+        db,
+        span,
+        src,
+        stack,
+        res,
+        error_recover_item,
+        bindings_builder,
+        cur_items,
+    )
+}
+
+fn match_loop_with_state<'t>(
+    db: &dyn salsa::Database,
+    span: DelimSpan,
+    mut src: TtIter<'t>,
+    mut stack: SmallVec<[TtIter<'t>; 1]>,
+    mut res: Match<'t>,
+    mut error_recover_item: Option<BindingsIdx>,
+    mut bindings_builder: BindingsBuilder<'t>,
+    mut cur_items: SmallVec<[MatchState<'t>; 1]>,
+) -> Match<'t> {
     let mut next_items = vec![];
 
     loop {
@@ -692,6 +714,28 @@ fn match_loop<'t>(
                 res.add_err(ExpandError::new(span.open, ExpandErrorKind::UnexpectedToken));
             }
             return res;
+        }
+
+        // In nested macro calls, the current token can be a fragment forwarded from the outer
+        // macro (its span comes from a different origin than the generated call delimiter). Such
+        // fragments can make multiple built-in NT matchers look viable here, although only one
+        // continuation will actually consume the rest of the matcher. Try those continuations and
+        // keep a unique successful one instead of eagerly reporting `leftover tokens`.
+        if next_items.is_empty()
+            && bb_items.len() > 1
+            && can_resolve_ambiguous_bb(&src, span)
+            && let Some(match_) = try_resolve_ambiguous_bb(
+                db,
+                span,
+                &src,
+                &stack,
+                &res,
+                error_recover_item.clone(),
+                &bindings_builder,
+                &bb_items,
+            )
+        {
+            return match_;
         }
 
         // If there are no possible next positions AND we aren't waiting for the black-box parser,
@@ -746,29 +790,84 @@ fn match_loop<'t>(
         else {
             stdx::always!(bb_items.len() == 1);
             let mut item = bb_items.pop().unwrap();
-
-            if let Some(OpDelimited::Op(Op::Var { name, .. })) = item.dot.peek() {
-                let (iter, match_res) = item.meta_result.take().unwrap();
-                match match_res.value {
-                    Some(fragment) => {
-                        bindings_builder.push_fragment(&mut item.bindings, name, fragment);
-                    }
-                    None if match_res.err.is_none() => {
-                        bindings_builder.push_optional(&mut item.bindings, name);
-                    }
-                    None => {}
-                }
-                if let Some(err) = match_res.err {
-                    res.add_err(err);
-                }
-                src = iter.clone();
-                item.dot.next();
-            } else {
-                unreachable!()
-            }
+            accept_bb_item(&mut item, &mut src, &mut res, &mut bindings_builder);
             cur_items.push(item);
         }
         stdx::always!(!cur_items.is_empty());
+    }
+}
+
+fn can_resolve_ambiguous_bb(src: &TtIter<'_>, span: DelimSpan) -> bool {
+    src.clone().next().is_some_and(|tt| {
+        let token_span = tt.first_span();
+        token_span.anchor != span.open.anchor || token_span.ctx != span.open.ctx
+    })
+}
+
+fn try_resolve_ambiguous_bb<'t>(
+    db: &dyn salsa::Database,
+    span: DelimSpan,
+    src: &TtIter<'t>,
+    stack: &SmallVec<[TtIter<'t>; 1]>,
+    res: &Match<'t>,
+    error_recover_item: Option<BindingsIdx>,
+    bindings_builder: &BindingsBuilder<'t>,
+    bb_items: &SmallVec<[MatchState<'t>; 1]>,
+) -> Option<Match<'t>> {
+    let mut successful_match = None;
+
+    for mut item in bb_items.iter().cloned() {
+        let mut src = src.clone();
+        let mut res = res.clone();
+        let mut bindings_builder = bindings_builder.clone();
+        accept_bb_item(&mut item, &mut src, &mut res, &mut bindings_builder);
+
+        let match_ = match_loop_with_state(
+            db,
+            span,
+            src,
+            stack.clone(),
+            res,
+            error_recover_item.clone(),
+            bindings_builder,
+            smallvec![item],
+        );
+
+        if match_.err.is_none() {
+            if successful_match.is_some() {
+                return None;
+            }
+            successful_match = Some(match_);
+        }
+    }
+
+    successful_match
+}
+
+fn accept_bb_item<'t>(
+    item: &mut MatchState<'t>,
+    src: &mut TtIter<'t>,
+    res: &mut Match<'t>,
+    bindings_builder: &mut BindingsBuilder<'t>,
+) {
+    if let Some(OpDelimited::Op(Op::Var { name, .. })) = item.dot.peek() {
+        let (iter, match_res) = item.meta_result.take().unwrap();
+        match match_res.value {
+            Some(fragment) => {
+                bindings_builder.push_fragment(&mut item.bindings, name, fragment);
+            }
+            None if match_res.err.is_none() => {
+                bindings_builder.push_optional(&mut item.bindings, name);
+            }
+            None => {}
+        }
+        if let Some(err) = match_res.err {
+            res.add_err(err);
+        }
+        *src = iter;
+        item.dot.next();
+    } else {
+        unreachable!()
     }
 }
 

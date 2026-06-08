@@ -303,6 +303,42 @@ mod prim_never {}
     }
 
     #[test]
+    fn forwarded_ty_before_expr_repetition_does_not_report_leftover_tokens() {
+        check_diagnostics(
+            r#"
+macro_rules! attr_optional {
+    ($t:ty) => {{
+        attr_array_optional!($t; 1);
+    }};
+}
+
+macro_rules! attr_array_optional {
+    ($( $t:ty; )? $count:expr) => {
+        $count
+    };
+}
+
+macro_rules! attr_many {
+    ($t:ty) => {{
+        attr_array_many!($t; 1);
+    }};
+}
+
+macro_rules! attr_array_many {
+    ($( $t:ty; )* $count:expr) => {
+        $count
+    };
+}
+
+fn make<T>() {
+    attr_optional!(T);
+    attr_many!(T);
+}
+"#,
+        );
+    }
+
+    #[test]
     fn no_stack_overflow_for_missing_binding() {
         check_diagnostics(
             r#"
