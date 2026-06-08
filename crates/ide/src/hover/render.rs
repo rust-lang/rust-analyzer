@@ -345,7 +345,7 @@ pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<Hove
 
 pub(super) fn process_markup(
     db: &RootDatabase,
-    def: Definition,
+    def: Definition<'_>,
     markup: &Markup,
     markup_range_map: Option<hir::Docs>,
     config: &HoverConfig<'_>,
@@ -359,7 +359,11 @@ pub(super) fn process_markup(
     Markup::from(markup)
 }
 
-fn definition_owner_name(db: &RootDatabase, def: Definition, edition: Edition) -> Option<String> {
+fn definition_owner_name(
+    db: &RootDatabase,
+    def: Definition<'_>,
+    edition: Edition,
+) -> Option<String> {
     match def {
         Definition::Field(f) => {
             let parent = f.parent_def(db);
@@ -452,7 +456,7 @@ pub(super) fn path(
 
 pub(super) fn definition(
     db: &RootDatabase,
-    def: Definition,
+    def: Definition<'_>,
     famous_defs: Option<&FamousDefs<'_, '_>>,
     notable_traits: &[(Trait, Vec<(Option<Type<'_>>, Name)>)],
     macro_arm: Option<u32>,
@@ -1071,7 +1075,7 @@ fn closure_ty(
     Some(res)
 }
 
-fn definition_path(db: &RootDatabase, &def: &Definition, edition: Edition) -> Option<String> {
+fn definition_path(db: &RootDatabase, &def: &Definition<'_>, edition: Edition) -> Option<String> {
     if matches!(
         def,
         Definition::TupleField(_)

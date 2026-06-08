@@ -164,7 +164,7 @@ pub struct EarlyParamRegion {
 /// should basically always be `BoundRegionKind::Named` as otherwise there is no way of telling
 /// different parameters apart.
 pub struct LateParamRegion<'db> {
-    pub scope: SolverDefId,
+    pub scope: SolverDefId<'db>,
     pub bound_region: BoundRegionKind<'db>,
 }
 

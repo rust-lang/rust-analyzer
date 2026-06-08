@@ -543,7 +543,7 @@ impl<'db> GenericArgs<'db> {
     /// replace defaults of generic parameters.
     pub fn for_item<F>(
         interner: DbInterner<'db>,
-        def_id: SolverDefId,
+        def_id: SolverDefId<'db>,
         mk_kind: F,
     ) -> GenericArgs<'db>
     where
@@ -564,7 +564,7 @@ impl<'db> GenericArgs<'db> {
     }
 
     /// Creates an all-error `GenericArgs`.
-    pub fn error_for_item(interner: DbInterner<'db>, def_id: SolverDefId) -> GenericArgs<'db> {
+    pub fn error_for_item(interner: DbInterner<'db>, def_id: SolverDefId<'db>) -> GenericArgs<'db> {
         GenericArgs::for_item(interner, def_id, |_, id, _| GenericArg::error_from_id(interner, id))
     }
 
@@ -587,7 +587,7 @@ impl<'db> GenericArgs<'db> {
     /// Like `for_item()`, but calls first uses the args from `first`.
     pub fn fill_rest<F>(
         interner: DbInterner<'db>,
-        def_id: SolverDefId,
+        def_id: SolverDefId<'db>,
         first: impl IntoIterator<Item = GenericArg<'db>>,
         mut fallback: F,
     ) -> GenericArgs<'db>
