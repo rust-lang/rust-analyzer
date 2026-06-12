@@ -1080,10 +1080,20 @@ fn location_info(
 ) -> Cancellable<(lsp_types::Url, lsp_types::Range, lsp_types::Range)> {
     let line_index = snap.file_line_index(target.file_id)?;
 
+    let file_len = line_index.index.len();
+    let clamp_range = |r: TextRange| {
+        TextRange::new(
+            r.start().min(file_len),
+            r.end().min(file_len),
+        )
+    };
+
     let target_uri = url(snap, target.file_id);
-    let target_range = range(&line_index, target.full_range);
-    let target_selection_range =
-        target.focus_range.map(|it| range(&line_index, it)).unwrap_or(target_range);
+    let target_range = range(&line_index, clamp_range(target.full_range));
+    let target_selection_range = target
+        .focus_range
+        .map(|it| range(&line_index, clamp_range(it)))
+        .unwrap_or(target_range);
     Ok((target_uri, target_range, target_selection_range))
 }
 
