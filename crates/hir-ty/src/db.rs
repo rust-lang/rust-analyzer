@@ -294,14 +294,14 @@ fn hir_database_is_dyn_compatible() {
     fn _assert_dyn_compatible(_: &dyn HirDatabase) {}
 }
 
-#[salsa_macros::interned(no_lifetime, debug, revisions = usize::MAX)]
+#[salsa_macros::interned(debug, revisions = usize::MAX)]
 #[derive(PartialOrd, Ord)]
 pub struct InternedLifetimeParamId {
     /// This stores the param and its index.
     pub loc: (LifetimeParamId, u32),
 }
 
-#[salsa_macros::interned(no_lifetime, debug, revisions = usize::MAX)]
+#[salsa_macros::interned(debug, revisions = usize::MAX)]
 #[derive(PartialOrd, Ord)]
 pub struct InternedConstParamId {
     pub loc: ConstParamId,
