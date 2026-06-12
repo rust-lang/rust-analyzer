@@ -2915,3 +2915,15 @@ impl Foo for Bar {
 "#,
     );
 }
+
+#[test]
+fn regression_22573() {
+    check_types(
+        r#"
+//- minicore: fn
+fn test(varargsfp: unsafe extern "C" fn(i16, ...)) {
+     // ^^^^^^^^^ unsafe fn(i16, ...)
+}
+    "#,
+    );
+}

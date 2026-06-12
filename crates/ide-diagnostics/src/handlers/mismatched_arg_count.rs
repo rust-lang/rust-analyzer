@@ -338,16 +338,26 @@ extern "C" {
     fn varargs2(...);
 }
 
-fn f() {
+fn f(
+    varargsfp: unsafe extern "C" fn(i32, ...),
+    varargs2fp: unsafe extern "C" fn(...),
+) {
     unsafe {
         fixed(0);
         fixed(0, 1);
                //^^ error: expected 1 argument, found 2
         varargs(0);
         varargs(0, 1);
+        varargs(0, 1, 2);
         varargs2();
         varargs2(0);
         varargs2(0, 1);
+        varargsfp(0);
+        varargsfp(0, 1);
+        varargsfp(0, 1, 2);
+        varargs2fp();
+        varargs2fp(0);
+        varargs2fp(0, 1);
     }
 }
         "#,

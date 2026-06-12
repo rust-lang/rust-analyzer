@@ -361,14 +361,8 @@ pub(crate) fn lower_function(
                     });
                 }
             }
-            let p = param_list
-                .params()
+            let p = non_variadic_params(&mut has_variadic, &param_list)
                 .filter(|param| collector.check_cfg(param))
-                .filter(|param| {
-                    let is_variadic = param.dotdotdot_token().is_some();
-                    has_variadic |= is_variadic;
-                    !is_variadic
-                })
                 .map(|param| param.ty())
                 // FIXME
                 .collect::<Vec<_>>();
@@ -666,11 +660,7 @@ impl<'db> ExprCollector<'db> {
                     .unwrap_or_else(|| self.alloc_type_ref_desugared(TypeRef::unit()));
                 let mut is_varargs = false;
                 let mut params = if let Some(pl) = inner.param_list() {
-                    if let Some(param) = pl.params().last() {
-                        is_varargs = param.dotdotdot_token().is_some();
-                    }
-
-                    pl.params()
+                    non_variadic_params(&mut is_varargs, &pl)
                         .map(|it| {
                             let type_ref = self.lower_type_ref_opt(it.ty(), impl_trait_lower_fn);
                             let name = match it.pat() {
@@ -3353,6 +3343,17 @@ impl ExprCollector<'_> {
 fn comma_follows_token(t: Option<syntax::SyntaxToken>) -> bool {
     (|| syntax::algo::skip_trivia_token(t?.next_token()?, syntax::Direction::Next))()
         .is_some_and(|it| it.kind() == syntax::T![,])
+}
+
+fn non_variadic_params(
+    has_variadic: &mut bool,
+    param_list: &ast::ParamList,
+) -> impl Iterator<Item = ast::Param> {
+    param_list.params().filter(move |param| {
+        let is_variadic = param.dotdotdot_token().is_some();
+        *has_variadic |= is_variadic;
+        !is_variadic
+    })
 }
 
 /// This function find the AST fragment that corresponds to an `AssociatedTypeBinding` in the HIR.
