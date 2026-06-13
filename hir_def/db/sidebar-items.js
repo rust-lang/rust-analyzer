@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["crate_supports_no_std","create_data_DefDatabase","include_macro_invoc","macro_def"],"struct":["DefDatabaseData"],"trait":["DefDatabase"]};

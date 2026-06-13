@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["variance"],"macro":["first_token","phantom_lifetime","phantom_type"],"mod":["sealed"],"struct":["PhantomContravariant","PhantomContravariantLifetime","PhantomCovariant","PhantomCovariantLifetime","PhantomInvariant","PhantomInvariantLifetime"],"trait":["Variance"]};

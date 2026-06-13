@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProcMacroExpansionError","ProcMacroKind"],"fn":["proc_macros_for_crate"],"struct":["CrateProcMacros","CustomProcMacroExpander","ProcMacro","ProcMacros","ProcMacrosBuilder"],"trait":["ProcMacroExpander"],"type":["ProcMacroLoadResult","StoredProcMacroLoadResult"]};

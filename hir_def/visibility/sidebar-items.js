@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Visibility"],"fn":["assoc_visibility_query","trait_item_visibility","trait_visibility","visibility_from_ast"]};

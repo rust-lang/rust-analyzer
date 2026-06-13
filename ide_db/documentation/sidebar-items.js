@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["impl_has_docs"],"struct":["Documentation"],"trait":["HasDocs"]};

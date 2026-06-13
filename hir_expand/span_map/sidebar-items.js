@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SpanMap"],"fn":["expansion_span_map","real_span_map"],"struct":["RealSpanMap"],"type":["ExpansionSpanMap"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["allocation_to_const"],"macro":["from_scalar_int_for_x","from_scalar_int_for_x_signed","from_x_for_scalar_int","from_x_for_scalar_int_signed"],"struct":["CharTryFromScalarInt","ScalarInt","ValTree","ValTreeInterned","ValueConst"],"type":["ValTreeKind"]};
