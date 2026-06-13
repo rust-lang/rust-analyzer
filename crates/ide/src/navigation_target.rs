@@ -50,7 +50,11 @@ pub struct NavigationTarget {
     pub kind: Option<SymbolKind>,
     pub container_name: Option<Symbol>,
     pub description: Option<String>,
-    // FIXME: Use the database lifetime here.
+    // NOTE: We considered using `'db` here, but that doesn't bring much, as [`NavigationTarget`]
+    // appears inside a lot of structs which in turn are returned by the [`lsp`] queries, requiring
+    // all of them to be turned into their `'static` versions anyway.
+    //
+    // See https://github.com/rust-lang/rust-analyzer/pull/22470
     pub docs: Option<Documentation<'static>>,
     /// In addition to a `name` field, a `NavigationTarget` may also be aliased
     /// In such cases we want a `NavigationTarget` to be accessible by its alias
