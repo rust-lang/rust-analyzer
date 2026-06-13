@@ -195,9 +195,99 @@ fn f() {
                     Id(2000),
                 ),
                 block: Some(
-                    BlockId(
-                        4401,
-                    ),
+                    BlockIdLt {
+                        [salsa id]: Id(4401),
+                        ast_id: InFileWrapper {
+                            file_id: FileId(
+                                EditionedFileId {
+                                    field: EditionedFileId(
+                                        0,
+                                        Edition2024,
+                                    ),
+                                },
+                            ),
+                            value: FileAstId::<syntax::ast::generated::nodes::BlockExpr>(ErasedFileAstId { kind: BlockExpr, index: 0, hash: 9730 }),
+                        },
+                        module: ModuleIdLt {
+                            [salsa id]: Id(3402),
+                            krate: Crate(
+                                Id(2000),
+                            ),
+                            block: Some(
+                                BlockIdLt {
+                                    [salsa id]: Id(4400),
+                                    ast_id: InFileWrapper {
+                                        file_id: FileId(
+                                            EditionedFileId {
+                                                field: EditionedFileId(
+                                                    0,
+                                                    Edition2024,
+                                                ),
+                                            },
+                                        ),
+                                        value: FileAstId::<syntax::ast::generated::nodes::BlockExpr>(ErasedFileAstId { kind: BlockExpr, index: 0, hash: 5EF2 }),
+                                    },
+                                    module: ModuleIdLt {
+                                        [salsa id]: Id(3400),
+                                        krate: Crate(
+                                            Id(2000),
+                                        ),
+                                        block: None,
+                                        containing_module_inside_def_map: None,
+                                        name_or_empty: Name {
+                                            symbol: "",
+                                            ctx: (),
+                                        },
+                                    },
+                                },
+                            ),
+                            containing_module_inside_def_map: Some(
+                                ModuleIdLt {
+                                    [salsa id]: Id(3401),
+                                    krate: Crate(
+                                        Id(2000),
+                                    ),
+                                    block: Some(
+                                        BlockIdLt {
+                                            [salsa id]: Id(4400),
+                                            ast_id: InFileWrapper {
+                                                file_id: FileId(
+                                                    EditionedFileId {
+                                                        field: EditionedFileId(
+                                                            0,
+                                                            Edition2024,
+                                                        ),
+                                                    },
+                                                ),
+                                                value: FileAstId::<syntax::ast::generated::nodes::BlockExpr>(ErasedFileAstId { kind: BlockExpr, index: 0, hash: 5EF2 }),
+                                            },
+                                            module: ModuleIdLt {
+                                                [salsa id]: Id(3400),
+                                                krate: Crate(
+                                                    Id(2000),
+                                                ),
+                                                block: None,
+                                                containing_module_inside_def_map: None,
+                                                name_or_empty: Name {
+                                                    symbol: "",
+                                                    ctx: (),
+                                                },
+                                            },
+                                        },
+                                    ),
+                                    containing_module_inside_def_map: None,
+                                    name_or_empty: Name {
+                                        symbol: "",
+                                        ctx: (),
+                                    },
+                                },
+                            ),
+                            name_or_empty: Name {
+                                symbol: "module",
+                                ctx: (),
+                            },
+                        },
+                    },
                 ),
                 containing_module_inside_def_map: None,
                 name_or_empty: Name {
