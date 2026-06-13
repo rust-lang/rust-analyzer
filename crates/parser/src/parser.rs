@@ -37,9 +37,11 @@ pub(crate) struct Parser<'t> {
     /// into this vec, keeping `Event` itself a flat 8-byte enum.
     errors: Vec<String>,
     steps: Cell<u32>,
+    depth: u32,
 }
 
 const PARSER_STEP_LIMIT: usize = if cfg!(debug_assertions) { 150_000 } else { 15_000_000 };
+const PARSER_DEPTH_LIMIT: u32 = 256;
 
 impl<'t> Parser<'t> {
     pub(super) fn new(inp: &'t Input) -> Parser<'t> {
@@ -49,6 +51,7 @@ impl<'t> Parser<'t> {
             events: Vec::with_capacity(2 * inp.len()),
             errors: Vec::new(),
             steps: Cell::new(0),
+            depth: 0,
         }
     }
 
@@ -73,6 +76,21 @@ impl<'t> Parser<'t> {
         self.steps.set(steps + 1);
 
         self.inp.kind(self.pos + n)
+    }
+
+    pub(crate) fn check_recursion_limit(&mut self) -> bool {
+        if self.depth > PARSER_DEPTH_LIMIT {
+            self.error("recursion limit exceeded");
+            return false;
+        }
+        self.depth += 1;
+        true
+    }
+
+    pub(crate) fn decrease_recursion_limit(&mut self) {
+        if self.depth > 0 {
+            self.depth -= 1;
+        }
     }
 
     /// Checks if the current token is `kind`.
