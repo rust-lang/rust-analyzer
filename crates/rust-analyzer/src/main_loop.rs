@@ -390,10 +390,21 @@ impl GlobalState {
                             }
                             if !cancelled && !self.initial_ready_logged {
                                 // First completed cache priming: the workspace is loaded and
-                                // indexed; log the time-to-ready.
+                                // indexed; log the time-to-ready, and emit it as a metric under
+                                // `RA_METRICS`.
                                 self.initial_ready_logged = true;
                                 let elapsed = self.start_time.elapsed();
                                 tracing::info!("workspace loaded and indexed in {elapsed:?}");
+                                // The `METRIC:` line is consumed by the metrics benchmark; it must
+                                // be a bare stderr line (stdout is the LSP channel), like the
+                                // `report_metric` helper used by `analysis-stats`.
+                                #[allow(clippy::print_stderr)]
+                                if std::env::var("RA_METRICS").is_ok() {
+                                    eprintln!(
+                                        "METRIC:startup/time_to_primed:{}:ms",
+                                        elapsed.as_millis()
+                                    );
+                                }
                             }
                             if let Some((message, fraction, title)) = last_report.take() {
                                 self.report_progress(
