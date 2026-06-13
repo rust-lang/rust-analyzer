@@ -167,6 +167,7 @@ diagnostics![AnyDiagnostic<'db> ->
     UnresolvedMethodCall<'db>,
     UnresolvedModule,
     UnresolvedIdent,
+    UnresolvedVariant,
     UnusedMut,
     UnusedVariable,
     GenericArgsProhibited,
@@ -389,6 +390,11 @@ pub struct UnresolvedAssocItem {
 #[derive(Debug)]
 pub struct UnresolvedIdent {
     pub node: InFile<(ExprOrPatPtr, Option<TextRange>)>,
+}
+
+#[derive(Debug)]
+pub struct UnresolvedVariant {
+    pub node: InFile<ExprOrPatPtr>,
 }
 
 #[derive(Debug)]
@@ -920,6 +926,10 @@ impl<'db> AnyDiagnostic<'db> {
                     ExprOrPatId::PatId(id) => pat_syntax(id)?.map(|it| (it, None)),
                 };
                 UnresolvedIdent { node }.into()
+            }
+            &InferenceDiagnostic::UnresolvedVariant { id } => {
+                let node = expr_or_pat_syntax(id)?;
+                UnresolvedVariant { node }.into()
             }
             &InferenceDiagnostic::BreakOutsideOfLoop { expr, is_break, bad_value_break } => {
                 let expr = expr_syntax(expr)?;
