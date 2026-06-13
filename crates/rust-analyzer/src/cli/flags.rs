@@ -402,10 +402,10 @@ impl FromStr for Severity {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match &*s.to_ascii_lowercase() {
-            "weak" => Ok(Self::Weak),
-            "warning" => Ok(Self::Warning),
-            "error" => Ok(Self::Error),
+        match s {
+            weak if weak.eq_ignore_ascii_case("weak") => Ok(Self::Weak),
+            warning if warning.eq_ignore_ascii_case("warning") => Ok(Self::Warning),
+            error if error.eq_ignore_ascii_case("error") => Ok(Self::Error),
             _ => Err(format!("unknown severity `{s}`")),
         }
     }

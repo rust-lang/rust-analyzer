@@ -558,10 +558,12 @@ impl WorkspaceBuildScripts {
     }
 }
 
+const DLL_EXTENSIONS: &[&str] = &["dll", "dylib", "so"];
+
 // FIXME: Find a better way to know if it is a dylib.
 fn is_dylib(path: &Utf8Path) -> bool {
-    match path.extension().map(|e| e.to_owned().to_lowercase()) {
+    match path.extension() {
         None => false,
-        Some(ext) => matches!(ext.as_str(), "dll" | "dylib" | "so"),
+        Some(ext) => DLL_EXTENSIONS.iter().any(|e| e.eq_ignore_ascii_case(ext)),
     }
 }
