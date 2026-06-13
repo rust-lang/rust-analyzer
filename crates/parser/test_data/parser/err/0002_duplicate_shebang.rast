@@ -28,10 +28,10 @@ SOURCE_FILE
         NAME_REF
           IDENT "rusti"
   WHITESPACE "\n"
-error 23: expected L_BRACK
+error 23: expected `[`
 error 23: expected an item
 error 27: expected one of `*`, `::`, `{`, `self`, `super` or an identifier
-error 28: expected SEMICOLON
+error 28: expected `;`
 error 31: expected an item
 error 31: expected an item
 error 35: expected an item

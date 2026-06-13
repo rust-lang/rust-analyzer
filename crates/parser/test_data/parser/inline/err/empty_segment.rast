@@ -9,6 +9,9 @@ SOURCE_FILE
             NAME_REF
               CRATE_KW "crate"
         COLON2 "::"
-    SEMICOLON ";"
+        PATH_SEGMENT
+          ERROR
+            SEMICOLON ";"
   WHITESPACE "\n"
 error 11: expected identifier, `self`, `super`, `crate`, or `Self`
+error 12: expected `;`

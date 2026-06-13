@@ -75,11 +75,11 @@ error 20: expected identifier, `self`, `super`, `crate`, or `Self`
 error 28: expected identifier, `self`, `super`, `crate`, or `Self`
 error 30: expected expression
 error 30: expected expression
-error 41: expected L_PAREN
+error 41: expected `(`
 error 41: expected identifier, `self`, `super`, `crate`, or `Self`
-error 41: expected R_PAREN
-error 52: expected L_PAREN
+error 41: expected `)`
+error 52: expected `(`
 error 53: expected identifier, `self`, `super`, `crate`, or `Self`
 error 54: expected expression
 error 54: expected expression
-error 54: expected R_PAREN
+error 54: expected `)`
