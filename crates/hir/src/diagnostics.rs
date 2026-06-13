@@ -854,6 +854,38 @@ impl<'db> AnyDiagnostic<'db> {
                 };
                 DuplicateField { field: expr_or_pat, variant: variant.into() }.into()
             }
+            InferenceDiagnostic::MissingFields { expr, fields, variant } => {
+                let variant_data = variant.fields(db);
+                let missed_fields = fields
+                    .iter()
+                    .map(|&idx| {
+                        (
+                            variant_data.fields()[idx].name.clone(),
+                            Field { parent: (*variant).into(), id: idx },
+                        )
+                    })
+                    .collect();
+
+                let record = expr_syntax(*expr)?;
+                let file = record.file_id;
+                let root = record.file_syntax(db);
+                let Either::Left(ast::Expr::RecordExpr(record_expr)) = record.value.to_node(&root)
+                else {
+                    never!("should always map to a `ast::RecordExpr`");
+                    return None;
+                };
+
+                record_expr.record_expr_field_list()?;
+
+                let field_list_parent_path = record_expr.path().map(|path| AstPtr::new(&path));
+                MissingFields {
+                    file,
+                    field_list_parent: AstPtr::new(&Either::Left(record_expr)),
+                    field_list_parent_path,
+                    missed_fields,
+                }
+                .into()
+            }
             &InferenceDiagnostic::MismatchedArgCount { call_expr, expected, found } => {
                 MismatchedArgCount { call_expr: expr_syntax(call_expr)?, expected, found }.into()
             }

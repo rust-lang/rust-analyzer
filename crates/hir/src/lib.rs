@@ -2054,6 +2054,7 @@ impl DefWithBody {
 
         let infer = InferenceResult::of(db, id);
         let type_owner = id.generic_def(db).into();
+
         for d in infer.diagnostics() {
             acc.extend(AnyDiagnostic::inference_diagnostic(
                 db,

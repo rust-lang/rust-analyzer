@@ -320,6 +320,14 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         variant: VariantId,
     },
+    MissingFields {
+        #[type_visitable(ignore)]
+        expr: ExprId,
+        #[type_visitable(ignore)]
+        fields: Vec<LocalFieldId>,
+        #[type_visitable(ignore)]
+        variant: VariantId,
+    },
     PrivateField {
         #[type_visitable(ignore)]
         expr: ExprId,
