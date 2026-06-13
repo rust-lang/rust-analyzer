@@ -6,6 +6,7 @@
 use std::{
     ops::Not as _,
     panic::AssertUnwindSafe,
+    sync::Arc as SyncArc,
     time::{Duration, Instant},
 };
 
@@ -14,7 +15,9 @@ use hir::ChangeWithProcMacros;
 use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
 use ide_db::{
     MiniCore,
-    base_db::{Crate, ProcMacroPaths, SourceDatabase, salsa::Revision},
+    base_db::{
+        Crate, ProcMacroPaths, SourceDatabase, all_crates, relevant_crates, salsa::Revision,
+    },
 };
 use itertools::Itertools;
 use load_cargo::SourceRootConfig;
@@ -24,7 +27,9 @@ use parking_lot::{
     RwLockWriteGuard,
 };
 use proc_macro_api::ProcMacroClient;
-use project_model::{ManifestPath, ProjectWorkspace, ProjectWorkspaceKind, WorkspaceBuildScripts};
+use project_model::{
+    ManifestPath, ProjectWorkspace, ProjectWorkspaceKind, TargetKind, WorkspaceBuildScripts,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::thread;
 use tracing::{Level, span, trace};
@@ -42,7 +47,7 @@ use crate::{
     main_loop::Task,
     mem_docs::MemDocs,
     op_queue::{Cause, OpQueue},
-    reload,
+    priming_scope, reload,
     target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{DeferredTaskQueue, TaskPool},
     test_runner::{CargoTestHandle, CargoTestMessage},
@@ -175,7 +180,10 @@ pub(crate) struct GlobalState {
     pub(crate) fetch_workspaces_queue: OpQueue<FetchWorkspaceRequest, FetchWorkspaceResponse>,
     pub(crate) fetch_build_data_queue: OpQueue<(), FetchBuildDataResponse>,
     pub(crate) fetch_proc_macros_queue: OpQueue<(ChangeWithProcMacros, Vec<ProcMacroPaths>), bool>,
-    pub(crate) prime_caches_queue: OpQueue,
+    /// Args carry the `defer_workspace_flycheck` flag through the queue and
+    /// across "restart after cancellation" so the deferred initial workspace
+    /// flycheck still fires exactly once after priming completes.
+    pub(crate) prime_caches_queue: OpQueue<bool>,
 
     /// A deferred task queue.
     ///
@@ -726,6 +734,128 @@ impl GlobalState {
         if let Some((fetch_receiver, _)) = &mut self.fetch_ws_receiver {
             *fetch_receiver = crossbeam_channel::after(Duration::from_millis(100));
         }
+    }
+
+    /// Set of crates to prime: transitive-dependency closure of local
+    /// workspace lib/bin targets and the crates owning any open document, plus
+    /// sysroot `Lang` crates. Computed once when the server becomes quiescent;
+    /// files opened after that do not trigger a re-prime.
+    ///
+    /// Note: the lib/bin base only walks Cargo workspaces. For
+    /// `rust-project.json` projects, seeds come exclusively from documents
+    /// open at the initial-priming moment — if no such document exists, only
+    /// `Lang` crates are primed.
+    pub(crate) fn compute_priming_scope(&self) -> SyncArc<[Crate]> {
+        let db = self.analysis_host.raw_database();
+
+        let seeds = self.collect_priming_seeds();
+        priming_scope::compute(db, seeds)
+    }
+
+    fn collect_priming_seeds(&self) -> FxHashSet<Crate> {
+        let db = self.analysis_host.raw_database();
+        let all = all_crates(db);
+
+        let cargo_workspaces: Vec<_> = self
+            .workspaces
+            .iter()
+            .filter_map(|ws| match &ws.kind {
+                ProjectWorkspaceKind::Cargo { cargo, .. }
+                | ProjectWorkspaceKind::DetachedFile { cargo: Some((cargo, _, _)), .. } => {
+                    Some(cargo)
+                }
+                _ => None,
+            })
+            .collect();
+        let project_json_workspaces: Vec<_> = self
+            .workspaces
+            .iter()
+            .filter_map(|ws| match &ws.kind {
+                ProjectWorkspaceKind::Json(project) => Some(project),
+                _ => None,
+            })
+            .collect();
+
+        // Phase 1 holds the vfs read lock; Phase 2 runs salsa queries without it.
+        let (root_to_crate, mut seed, fallback_files): (
+            FxHashMap<AbsPathBuf, Vec<Crate>>,
+            FxHashSet<Crate>,
+            Vec<vfs::FileId>,
+        ) = {
+            let vfs = self.vfs.read();
+
+            let mut root_to_crate: FxHashMap<AbsPathBuf, Vec<Crate>> = FxHashMap::default();
+            for &krate in &*all {
+                let Some(abs) = (|| {
+                    let root_file = krate.data(db).root_file_id;
+                    let path = vfs.0.file_path(root_file);
+                    Some(path.as_path()?.to_path_buf())
+                })() else {
+                    continue;
+                };
+                root_to_crate.entry(abs).or_default().push(krate);
+            }
+
+            let mut seed: FxHashSet<Crate> = FxHashSet::default();
+            let mut fallback_files: Vec<vfs::FileId> = Vec::new();
+
+            for path in self.mem_docs.iter() {
+                let Some(abs) = path.as_path() else { continue };
+
+                let mut matched_via_root = false;
+                // Don't `break` on the first match — nested workspaces can both
+                // claim a root and we want every matching crate primed.
+                for cargo in &cargo_workspaces {
+                    if let Some(target_idx) = cargo.target_by_root(abs) {
+                        if let Some(krates) = root_to_crate.get(&*cargo[target_idx].root) {
+                            seed.extend(krates.iter().copied());
+                        }
+                        matched_via_root = true;
+                    }
+                }
+                for project in &project_json_workspaces {
+                    if let Some(krate) = project.crate_by_root(abs) {
+                        if let Some(krates) = root_to_crate.get(&*krate.root_module) {
+                            seed.extend(krates.iter().copied());
+                        }
+                        matched_via_root = true;
+                    }
+                }
+                if matched_via_root {
+                    continue;
+                }
+
+                if let Some((file_id, vfs::FileExcluded::No)) = vfs.0.file_id(path) {
+                    fallback_files.push(file_id);
+                }
+            }
+
+            (root_to_crate, seed, fallback_files)
+        };
+
+        for file_id in fallback_files {
+            for &krate in relevant_crates(db, file_id) {
+                seed.insert(krate);
+            }
+        }
+
+        for cargo in &cargo_workspaces {
+            for pkg in cargo.packages() {
+                if !cargo[pkg].is_local {
+                    continue;
+                }
+                for &target in &cargo[pkg].targets {
+                    if !matches!(cargo[target].kind, TargetKind::Lib { .. } | TargetKind::Bin) {
+                        continue;
+                    }
+                    if let Some(krates) = root_to_crate.get(&*cargo[target].root) {
+                        seed.extend(krates.iter().copied());
+                    }
+                }
+            }
+        }
+
+        seed
     }
 }
 
