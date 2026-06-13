@@ -1138,6 +1138,7 @@ mod derive {
                 de PartialEq, Eq, PartialOrd, Ord
                 de PartialEq, PartialOrd
                 md core::
+                md panic::
                 kw crate::
                 kw self::
             "#]],
@@ -1160,6 +1161,7 @@ mod derive {
                 de Eq, PartialOrd, Ord
                 de PartialOrd
                 md core::
+                md panic::
                 kw crate::
                 kw self::
             "#]],
@@ -1182,6 +1184,7 @@ mod derive {
                 de Eq, PartialOrd, Ord
                 de PartialOrd
                 md core::
+                md panic::
                 kw crate::
                 kw self::
             "#]],
@@ -1203,6 +1206,7 @@ mod derive {
                 de PartialOrd
                 de PartialOrd, Ord
                 md core::
+                md panic::
                 kw crate::
                 kw self::
             "#]],
