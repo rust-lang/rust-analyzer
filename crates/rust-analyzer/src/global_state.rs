@@ -195,6 +195,11 @@ pub(crate) struct GlobalState {
 
     pub(crate) minicore: MiniCoreRustAnalyzerInternalOnly,
     pub(crate) last_gc_revision: Revision,
+
+    /// Server start time, for reporting time-to-ready.
+    pub(crate) start_time: Instant,
+    /// Whether time-to-ready was already reported.
+    pub(crate) initial_ready_logged: bool,
 }
 
 // FIXME: This should move to the VFS once the rewrite is done.
@@ -324,6 +329,8 @@ impl GlobalState {
 
             minicore: MiniCoreRustAnalyzerInternalOnly::default(),
             last_gc_revision,
+            start_time: Instant::now(),
+            initial_ready_logged: false,
         };
         // Apply any required database inputs from the config.
         this.update_configuration(config);

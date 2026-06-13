@@ -125,8 +125,75 @@ impl Metrics {
         for (metric, value, unit) in parse_metrics(&output) {
             self.report(&format!("analysis-stats/{name}/{metric}"), value, unit.into());
         }
+        self.measure_startup(name, path)?;
         Ok(())
     }
+
+    /// Drive the real LSP server until initial cache priming completes (= time-to-ready), a path
+    /// `analysis-stats` never exercises. Build scripts, proc-macros and `cargo check` are off so
+    /// the number reflects rust-analyzer's own work, not subprocess compile time.
+    fn measure_startup(&mut self, name: &str, path: &str) -> anyhow::Result<()> {
+        use std::{
+            io::{BufRead, BufReader},
+            process::{Command, Stdio},
+            sync::mpsc,
+            time::Duration,
+        };
+
+        eprintln!("\nMeasuring startup/{name}");
+        // Resolve the binary before switching the child's cwd to the project.
+        let bin = Path::new("./target/release/rust-analyzer").canonicalize()?;
+        let root = Path::new(path).canonicalize()?;
+        let root_uri = format!("file://{}", root.display());
+
+        let mut child = Command::new(bin)
+            .current_dir(&root)
+            .env("RA_METRICS", "1")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let mut stdin = child.stdin.take().unwrap();
+        let init_opts = r#"{"cargo":{"buildScripts":{"enable":false}},"procMacro":{"enable":false},"check":{"enable":false},"checkOnSave":false}"#;
+        let initialize = format!(
+            r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{"processId":null,"rootUri":"{root_uri}","capabilities":{{}},"initializationOptions":{init_opts}}}}}"#
+        );
+        let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
+        write_lsp(&mut stdin, &initialize)?;
+        write_lsp(&mut stdin, initialized)?;
+
+        // Read the server's `METRIC:` line off its stderr; off-thread so a hang can't block us.
+        let stderr = child.stderr.take().unwrap();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                if let Some(rest) = line.strip_prefix("METRIC:startup/time_to_primed:")
+                    && let Some(ms) = rest.split(':').next().and_then(|s| s.parse::<u64>().ok())
+                {
+                    let _ = tx.send(ms);
+                    return;
+                }
+            }
+        });
+
+        let result = rx.recv_timeout(Duration::from_secs(600));
+        // Keep `stdin` open until here, or the server sees EOF and exits early.
+        drop(stdin);
+        let _ = child.kill();
+        let _ = child.wait();
+
+        match result {
+            Ok(ms) => self.report(&format!("startup/{name}/time_to_primed"), ms, "ms".into()),
+            Err(_) => eprintln!("startup/{name}: timed out waiting for priming, skipping metric"),
+        }
+        Ok(())
+    }
+}
+
+fn write_lsp(w: &mut impl std::io::Write, msg: &str) -> std::io::Result<()> {
+    write!(w, "Content-Length: {}\r\n\r\n{}", msg.len(), msg)?;
+    w.flush()
 }
 
 fn parse_metrics(output: &str) -> Vec<(&str, u64, &str)> {
