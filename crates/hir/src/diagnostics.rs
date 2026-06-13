@@ -176,6 +176,8 @@ diagnostics![AnyDiagnostic<'db> ->
     ElidedLifetimesInPath,
     TypeMustBeKnown<'db>,
     UnionExprMustHaveExactlyOneField,
+    UnionPatMustHaveExactlyOneField,
+    UnionPatHasRest,
     UnimplementedTrait<'db>,
 ];
 
@@ -639,6 +641,16 @@ pub struct UnionExprMustHaveExactlyOneField {
 }
 
 #[derive(Debug)]
+pub struct UnionPatMustHaveExactlyOneField {
+    pub pat: InFile<ExprOrPatPtr>,
+}
+
+#[derive(Debug)]
+pub struct UnionPatHasRest {
+    pub pat: InFile<ExprOrPatPtr>,
+}
+
+#[derive(Debug)]
 pub struct InvalidLhsOfAssignment {
     pub lhs: InFile<AstPtr<Either<ast::Expr, ast::Pat>>>,
 }
@@ -931,6 +943,14 @@ impl<'db> AnyDiagnostic<'db> {
             &InferenceDiagnostic::NonExhaustiveRecordPat { pat, variant } => {
                 let pat = pat_syntax(pat)?.map(Into::into);
                 NonExhaustiveRecordPat { pat, variant: variant.into() }.into()
+            }
+            &InferenceDiagnostic::UnionPatMustHaveExactlyOneField { pat } => {
+                let pat = pat_syntax(pat)?.map(Into::into);
+                UnionPatMustHaveExactlyOneField { pat }.into()
+            }
+            &InferenceDiagnostic::UnionPatHasRest { pat } => {
+                let pat = pat_syntax(pat)?.map(Into::into);
+                UnionPatHasRest { pat }.into()
             }
             &InferenceDiagnostic::FunctionalRecordUpdateOnNonStruct { base_expr } => {
                 FunctionalRecordUpdateOnNonStruct { base_expr: expr_syntax(base_expr)? }.into()
