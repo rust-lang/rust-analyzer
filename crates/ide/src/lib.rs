@@ -114,9 +114,7 @@ pub use crate::{
     rename::{RenameConfig, RenameError},
     runnables::{Runnable, RunnableKind, TestId, UpdateTest},
     signature_help::SignatureHelp,
-    static_index::{
-        StaticIndex, StaticIndexedFile, TokenId, TokenStaticData, VendoredLibrariesConfig,
-    },
+    static_index::{StaticIndex, StaticIndexedFile, TokenStaticData, VendoredLibrariesConfig},
     syntax_highlighting::{
         HighlightConfig, HlRange,
         tags::{Highlight, HlMod, HlMods, HlOperator, HlPunct, HlTag},
@@ -239,7 +237,7 @@ impl Default for AnalysisHost {
 /// entry point for asking semantic information about the world. When the world
 /// state is advanced using `AnalysisHost::apply_change` method, all existing
 /// `Analysis` are canceled (most method return `Err(Canceled)`).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Analysis {
     db: RootDatabase,
 }

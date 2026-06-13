@@ -5,10 +5,9 @@ use std::time::Instant;
 
 use ide::{
     Analysis, AnalysisHost, FileId, FileRange, MonikerKind, MonikerResult, PackageInformation,
-    RootDatabase, StaticIndex, StaticIndexedFile, TokenId, TokenStaticData,
-    VendoredLibrariesConfig,
+    RootDatabase, StaticIndex, StaticIndexedFile, TokenStaticData, VendoredLibrariesConfig,
 };
-use ide_db::{line_index, line_index::WideEncoding};
+use ide_db::{defs::Definition, line_index, line_index::WideEncoding};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace};
 use lsp_types::lsif;
 use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLibSource};
@@ -25,7 +24,7 @@ use crate::{
 
 struct LsifManager<'a, 'w> {
     count: i32,
-    token_map: FxHashMap<TokenId, Id>,
+    token_map: FxHashMap<Definition, Id>,
     range_map: FxHashMap<FileRange, Id>,
     file_map: FxHashMap<FileId, Id>,
     package_map: FxHashMap<PackageInformation, Id>,
@@ -83,12 +82,12 @@ impl LsifManager<'_, '_> {
         format_to!(self.out, "{data}\n");
     }
 
-    fn get_token_id(&mut self, id: TokenId) -> Id {
-        if let Some(it) = self.token_map.get(&id) {
+    fn get_token_id(&mut self, def: Definition) -> Id {
+        if let Some(it) = self.token_map.get(&def) {
             return *it;
         }
         let result_set_id = self.add_vertex(lsif::Vertex::ResultSet(lsif::ResultSet { key: None }));
-        self.token_map.insert(id, result_set_id);
+        self.token_map.insert(def, result_set_id);
         result_set_id
     }
 
@@ -151,8 +150,8 @@ impl LsifManager<'_, '_> {
         doc_id
     }
 
-    fn add_token(&mut self, id: TokenId, token: TokenStaticData) {
-        let result_set_id = self.get_token_id(id);
+    fn add_token(&mut self, def: Definition, token: TokenStaticData) {
+        let result_set_id = self.get_token_id(def);
         if let Some(hover) = token.hover {
             let hover_id = self.add_vertex(lsif::Vertex::HoverResult {
                 result: lsp_types::Hover {
@@ -316,7 +315,7 @@ impl flags::Lsif {
             VendoredLibrariesConfig::Included { workspace_root: &path.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config);
+        let si = StaticIndex::compute(&analysis, vendored_libs_config, 1);
 
         let mut lsif = LsifManager::new(&analysis, db, &vfs, out);
         lsif.add_vertex(lsif::Vertex::MetaData(lsif::MetaData {
@@ -332,8 +331,23 @@ impl flags::Lsif {
         for file in si.files {
             lsif.add_file(file);
         }
-        for (id, token) in si.tokens.iter() {
-            lsif.add_token(id, token);
+
+        // The output order depends on the iteration order, make that order somewhat stable to avoid making lsif_contains_generated_constant flaky
+        let tokens = {
+            let mut tokens: Vec<_> = si.tokens.into_iter().collect();
+            tokens.sort_by_key(|(_, token)| {
+                (
+                    token.references[0].range.file_id,
+                    token.references[0].range.range.start(),
+                    token.references[0].range.range.end(),
+                    token.kind,
+                )
+            });
+            tokens
+        };
+
+        for (def, token) in tokens {
+            lsif.add_token(def, token);
         }
         eprintln!("Generating LSIF finished in {:?}", now.elapsed());
         Ok(())
