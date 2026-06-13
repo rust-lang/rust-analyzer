@@ -388,6 +388,13 @@ impl GlobalState {
                                 self.prime_caches_queue
                                     .request_op("restart after cancellation".to_owned(), ());
                             }
+                            if !cancelled && !self.initial_ready_logged {
+                                // First completed cache priming: the workspace is loaded and
+                                // indexed; log the time-to-ready.
+                                self.initial_ready_logged = true;
+                                let elapsed = self.start_time.elapsed();
+                                tracing::info!("workspace loaded and indexed in {elapsed:?}");
+                            }
                             if let Some((message, fraction, title)) = last_report.take() {
                                 self.report_progress(
                                     title,
