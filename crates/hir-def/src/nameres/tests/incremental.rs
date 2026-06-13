@@ -303,8 +303,9 @@ fn f() { foo }
                 "file_item_tree_query",
                 "ast_id_map",
                 "parse_macro_expansion",
-                "expand_proc_macro",
                 "macro_arg",
+                "proc_macro_raw_output",
+                "macro_arg_key",
                 "proc_macro_span_shim",
             ]
         "#]],
@@ -315,8 +316,85 @@ fn f() { foo }
                 "file_item_tree_query",
                 "real_span_map",
                 "macro_arg",
-                "expand_proc_macro",
                 "parse_macro_expansion",
+                "macro_arg_key",
+                "proc_macro_raw_output",
+                "ast_id_map",
+                "file_item_tree_query",
+            ]
+        "#]],
+    );
+}
+
+#[test]
+fn typing_trivia_inside_proc_macro_attribute_does_not_invoke_subprocess() {
+    // Regression test for https://github.com/rust-lang/rust-analyzer/issues/17213.
+    // Adding a comment inside an attributed item (trivia-only edit) must not trigger the
+    // proc-macro subprocess call: `proc_macro_raw_output` is backdated because the token tree
+    // structure (ignoring span byte-ranges) is unchanged. `expand_proc_macro` is a plain
+    // function (not a salsa query) that re-runs inside `parse_macro_expansion` to remap
+    // stale span byte-ranges to fresh positions, keeping all IDE position-dependent features
+    // correct. The subprocess is never re-invoked; only cheap span remapping occurs.
+    check_def_map_is_not_recomputed(
+        r"
+//- proc_macros: identity
+//- /lib.rs
+mod foo;
+
+//- /foo/mod.rs
+pub mod bar;
+
+//- /foo/bar.rs
+$0
+#[proc_macros::identity]
+fn f() {}
+",
+        r"
+#[proc_macros::identity]
+fn f() {
+    // a comment was added — trivia only
+}
+",
+        expect![[r#"
+            [
+                "crate_local_def_map",
+                "file_item_tree_query",
+                "ast_id_map",
+                "parse",
+                "real_span_map",
+                "crate_local_def_map",
+                "proc_macros_for_crate_shim",
+                "file_item_tree_query",
+                "ast_id_map",
+                "parse",
+                "real_span_map",
+                "file_item_tree_query",
+                "ast_id_map",
+                "parse",
+                "real_span_map",
+                "file_item_tree_query",
+                "ast_id_map",
+                "parse",
+                "real_span_map",
+                "macro_def_shim",
+                "file_item_tree_query",
+                "ast_id_map",
+                "parse_macro_expansion",
+                "macro_arg",
+                "proc_macro_raw_output",
+                "macro_arg_key",
+                "proc_macro_span_shim",
+            ]
+        "#]],
+        expect![[r#"
+            [
+                "parse",
+                "ast_id_map",
+                "file_item_tree_query",
+                "real_span_map",
+                "macro_arg",
+                "parse_macro_expansion",
+                "macro_arg_key",
                 "ast_id_map",
                 "file_item_tree_query",
             ]
@@ -439,8 +517,9 @@ pub struct S {}
                 "file_item_tree_query",
                 "ast_id_map",
                 "parse_macro_expansion",
-                "expand_proc_macro",
                 "macro_arg",
+                "proc_macro_raw_output",
+                "macro_arg_key",
                 "proc_macro_span_shim",
             ]
         "#]],
