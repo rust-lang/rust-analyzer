@@ -32,7 +32,7 @@ use crate::{
         HygieneId,
         path::{GenericArgs, Path},
     },
-    type_ref::{Mutability, Rawness},
+    type_ref::{ConstRef, Mutability, Rawness},
 };
 
 pub use syntax::ast::{ArithOp, BinaryOp, CmpOp, LogicOp, Ordering, RangeOp, UnaryOp};
@@ -75,6 +75,38 @@ impl ExprOrPatId {
     }
 }
 stdx::impl_from!(ExprId, PatId for ExprOrPatId);
+
+// FIXME: Like ExprOrPatId above, eventually encode this as a single u32?
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, salsa::Update)]
+pub enum TypeRefIdOrConstRef {
+    TypeRefId(TypeRefId),
+    ConstRef(ConstRef),
+}
+
+impl TypeRefIdOrConstRef {
+    pub fn as_type_ref(self) -> Option<TypeRefId> {
+        match self {
+            Self::TypeRefId(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn is_type_ref(&self) -> bool {
+        matches!(self, Self::TypeRefId(_))
+    }
+
+    pub fn as_const_ref(self) -> Option<ConstRef> {
+        match self {
+            Self::ConstRef(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn is_expr(&self) -> bool {
+        matches!(self, Self::ConstRef(_))
+    }
+}
+stdx::impl_from!(TypeRefId, ConstRef for TypeRefIdOrConstRef);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Label {

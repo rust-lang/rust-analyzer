@@ -67,7 +67,7 @@ use hir_def::{
     TypeParamId,
     db::DefDatabase,
     expr_store::{Body, ExpressionStore},
-    hir::{BindingId, ExprId, ExprOrPatId, PatId},
+    hir::{BindingId, ExprId, ExprOrPatId, PatId, TypeRefIdOrConstRef},
     resolver::{HasResolver, Resolver, TypeNs},
     type_ref::{Rawness, TypeRefId},
 };
@@ -535,6 +535,15 @@ impl From<ExprOrPatId> for Span {
         match value {
             ExprOrPatId::ExprId(idx) => idx.into(),
             ExprOrPatId::PatId(idx) => idx.into(),
+        }
+    }
+}
+
+impl From<TypeRefIdOrConstRef> for Span {
+    fn from(value: TypeRefIdOrConstRef) -> Self {
+        match value {
+            TypeRefIdOrConstRef::TypeRefId(idx) => idx.into(),
+            TypeRefIdOrConstRef::ConstRef(idx) => idx.expr.into(),
         }
     }
 }
