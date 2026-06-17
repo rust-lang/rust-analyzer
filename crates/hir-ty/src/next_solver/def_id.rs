@@ -43,7 +43,7 @@ pub enum SolverDefId<'db> {
     InternedClosureId(InternedClosureId<'db>),
     InternedCoroutineId(InternedCoroutineId<'db>),
     InternedCoroutineClosureId(InternedCoroutineClosureId<'db>),
-    InternedOpaqueTyId(InternedOpaqueTyId),
+    InternedOpaqueTyId(InternedOpaqueTyId<'db>),
     EnumVariantId(EnumVariantId),
     Ctor(Ctor),
 }
@@ -197,8 +197,8 @@ impl<'db> From<InternedCoroutineClosureId<'db>> for SolverDefId<'db> {
         SolverDefId::InternedCoroutineClosureId(it)
     }
 }
-impl<'db> From<InternedOpaqueTyId> for SolverDefId<'db> {
-    fn from(it: InternedOpaqueTyId) -> SolverDefId<'db> {
+impl<'db> From<InternedOpaqueTyId<'db>> for SolverDefId<'db> {
+    fn from(it: InternedOpaqueTyId<'db>) -> SolverDefId<'db> {
         SolverDefId::InternedOpaqueTyId(it)
     }
 }
@@ -525,7 +525,7 @@ declare_id_wrapper_with_lt!(ClosureIdWrapper, InternedClosureId);
 declare_id_wrapper_with_lt!(CoroutineIdWrapper, InternedCoroutineId);
 declare_id_wrapper_with_lt!(CoroutineClosureIdWrapper, InternedCoroutineClosureId);
 declare_id_wrapper!(AdtIdWrapper, AdtId);
-declare_id_wrapper!(OpaqueTyIdWrapper, InternedOpaqueTyId, OpaqueTyIdWrapper);
+declare_id_wrapper_with_lt!(OpaqueTyIdWrapper, InternedOpaqueTyId, OpaqueTyIdWrapper<'db>);
 
 macro_rules! declare_ty_const_pair {
     ( $ty_id_name:ident, $const_id_name:ident, $term_id_name:ident ) => {

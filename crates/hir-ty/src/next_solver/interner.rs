@@ -896,8 +896,8 @@ impl<'db> Interner for DbInterner<'db> {
     type TraitAssocTyId = TraitAssocTyId;
     type TraitAssocConstId = TraitAssocConstId;
     type TraitAssocTermId = TraitAssocTermId;
-    type OpaqueTyId = OpaqueTyIdWrapper;
-    type LocalOpaqueTyId = OpaqueTyIdWrapper;
+    type OpaqueTyId = OpaqueTyIdWrapper<'db>;
+    type LocalOpaqueTyId = OpaqueTyIdWrapper<'db>;
     type FreeTyAliasId = FreeTyAliasId;
     type FreeConstAliasId = FreeConstAliasId;
     type FreeTermAliasId = FreeTermAliasId;
@@ -2346,7 +2346,7 @@ TrivialTypeTraversalImpls! {
     InherentAssocTyId,
     InherentAssocConstId,
     InherentAssocTermId,
-    OpaqueTyIdWrapper,
+    OpaqueTyIdWrapper<'_>,
     AnyImplId,
     GeneralConstIdWrapper<'_>,
     Safety,
