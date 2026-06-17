@@ -6,12 +6,12 @@ use hir::{Crate, Module, Semantics, db::HirDatabase};
 use ide_db::{
     FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
-    defs::{Definition, IdentClass},
+    defs::{Definition, IdentClass, NameClass},
     documentation::Documentation,
     famous_defs::FamousDefs,
     ra_fixture::RaFixtureConfig,
 };
-use syntax::{AstNode, SyntaxNode, SyntaxToken, TextRange};
+use syntax::{AstNode, NodeOrToken, SyntaxNode, SyntaxToken, TextRange, ast};
 
 use crate::navigation_target::UpmappingResult;
 use crate::{
@@ -98,7 +98,11 @@ pub struct StaticIndexedFile {
     pub file_id: FileId,
     pub folds: Vec<Fold>,
     pub inlay_hints: Vec<InlayHint>,
+    /// Tokens that occur in the file.
     pub tokens: Vec<(TextRange, TokenId)>,
+    /// Tokens that only occur after macro expansion. The text range
+    /// associated is the position of the macro call.
+    pub generated_tokens: Vec<(TextRange, TokenId)>,
 }
 
 fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
@@ -138,6 +142,33 @@ fn get_definitions<'db>(
         if let Some(defs) = def
             && !defs.is_empty()
         {
+            return Some(defs);
+        }
+    }
+    None
+}
+
+fn get_referenced_definitions<'db>(
+    sema: &Semantics<'db, RootDatabase>,
+    token: SyntaxToken,
+) -> Option<ArrayVec<(Definition, Option<hir::GenericSubstitution<'db>>), 2>> {
+    for token in sema.descend_into_macros_exact(token) {
+        let Some(class) = IdentClass::classify_token(sema, &token) else {
+            continue;
+        };
+
+        let mut defs = ArrayVec::new();
+        match class {
+            IdentClass::NameClass(NameClass::Definition(_)) => continue,
+            IdentClass::NameClass(NameClass::ConstReference(def)) => defs.push((def, None)),
+            IdentClass::NameClass(NameClass::PatFieldShorthand {
+                local_def: _,
+                field_ref,
+                adt_subst,
+            }) => defs.push((Definition::Field(field_ref), Some(adt_subst))),
+            IdentClass::NameRefClass(_) | IdentClass::Operator(_) => defs = class.definitions(),
+        }
+        if !defs.is_empty() {
             return Some(defs);
         }
     }
@@ -221,10 +252,16 @@ impl StaticIndex<'_> {
             show_drop_glue: true,
             ra_fixture: RaFixtureConfig::default(),
         };
-        let mut result = StaticIndexedFile { file_id, inlay_hints, folds, tokens: vec![] };
+        let mut result = StaticIndexedFile {
+            file_id,
+            inlay_hints,
+            folds,
+            tokens: vec![],
+            generated_tokens: vec![],
+        };
 
         let mut add_token =
-            |def: Definition, range: TextRange, scope_node: &SyntaxNode, _is_generated: bool| {
+            |def: Definition, range: TextRange, scope_node: &SyntaxNode, is_generated: bool| {
                 let id = if let Some(it) = self.def_map.get(&def) {
                     *it
                 } else {
@@ -263,18 +300,22 @@ impl StaticIndex<'_> {
                 let token = self.tokens.get_mut(id).unwrap();
                 token.references.push(ReferenceData {
                     range: FileRange { range, file_id },
-                    is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                        Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
+                    is_definition: match token.definition {
+                        Some(it) => it.file_id == file_id && it.range == range,
                         None => false,
                     },
                 });
-                result.tokens.push((range, id));
+                if is_generated {
+                    result.generated_tokens.push((range, id));
+                } else {
+                    result.tokens.push((range, id));
+                }
             };
 
         if let Some(module) = sema.file_to_module_def(file_id) {
             let def = Definition::Module(module);
             let range = root.text_range();
-            add_token(def, range, &root);
+            add_token(def, range, &root, false);
         }
 
         for token in tokens {
@@ -283,12 +324,63 @@ impl StaticIndex<'_> {
             match hir::attach_db(self.db, || get_definitions(&sema, token.clone())) {
                 Some(defs) => {
                     for (def, _) in defs {
-                        add_token(def, range, &node);
+                        add_token(def, range, &node, false);
                     }
                 }
                 None => continue,
             };
         }
+
+        // Walk expanded tokens and record references that occur due
+        // macro expansion or proc-macro expansion.
+        let mut seen_generated: FxHashSet<(Definition, TextRange)> = FxHashSet::default();
+        for node in root.descendants() {
+            let expansions: Vec<(SyntaxNode, TextRange)> = hir::attach_db(self.db, || {
+                if let Some(macro_call) = ast::MacroCall::cast(node.clone()) {
+                    // For macros, just expand one level for simplicity and performance.
+                    let call_site = macro_call.syntax().text_range();
+                    sema.expand_macro_call(&macro_call)
+                        .map(|exp| vec![(exp.value, call_site)])
+                        .unwrap_or_default()
+                } else if let Some(meta) = ast::Meta::cast(node.clone()) {
+                    // Derive macros: each derive on the attribute expands
+                    // separately. Non-derive attrs yield None here.
+                    let call_site = meta.parent_attr().map_or_else(
+                        || meta.syntax().text_range(),
+                        |attr| attr.syntax().text_range(),
+                    );
+                    sema.expand_derive_macro(&meta)
+                        .map(|exps| {
+                            exps.into_iter().flatten().map(|er| (er.value, call_site)).collect()
+                        })
+                        .unwrap_or_default()
+                } else if let Some(item) = ast::Item::cast(node.clone()) {
+                    // Attribute proc-macros attached to an item.
+                    let call_site = item.syntax().text_range();
+                    sema.expand_attr_macro(&item)
+                        .map(|er| vec![(er.value.value, call_site)])
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                }
+            });
+
+            for (expansion, call_site) in expansions {
+                for token in expansion.descendants_with_tokens().filter_map(NodeOrToken::into_token)
+                {
+                    let defs = hir::attach_db(self.db, || {
+                        get_referenced_definitions(&sema, token.clone())
+                    });
+                    let Some(defs) = defs else { continue };
+                    for (def, _) in defs {
+                        if seen_generated.insert((def, call_site)) {
+                            add_token(def, call_site, &node, true);
+                        }
+                    }
+                }
+            }
+        }
+
         self.files.push(result);
     }
 

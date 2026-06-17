@@ -152,7 +152,12 @@ impl LsifManager<'_, '_> {
     }
 
     fn add_token(&mut self, id: TokenId, token: TokenStaticData) {
-        let result_set_id = self.get_token_id(id);
+        // Ignore tokens that didn't occur in the original file
+        // (i.e. those from macro expansion).
+        let Some(&result_set_id) = self.token_map.get(&id) else {
+            return;
+        };
+
         if let Some(hover) = token.hover {
             let hover_id = self.add_vertex(lsif::Vertex::HoverResult {
                 result: lsp_types::Hover {

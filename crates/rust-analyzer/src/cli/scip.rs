@@ -132,7 +132,7 @@ impl flags::Scip {
         // Generates symbols from token monikers.
         let mut symbol_generator = SymbolGenerator::default();
 
-        for StaticIndexedFile { file_id, tokens, .. } in si.files {
+        for StaticIndexedFile { file_id, tokens, generated_tokens, .. } in si.files {
             symbol_generator.clear_document_local_state();
 
             let Some(relative_path) = get_relative_filepath(&vfs, &root, file_id) else { continue };
@@ -207,6 +207,36 @@ impl flags::Scip {
                     diagnostics: Vec::new(),
                     special_fields: Default::default(),
                     enclosing_range,
+                });
+            }
+
+            // Emit macro-expansion-generated references with the SCIP
+            // `Generated` role. These resolve to real definitions but their
+            // only occurrence is synthesized inside an expansion; recording
+            // them at the macro call-site lets reachability tooling see the
+            // edge, while keeping them out of `tokens` means find-references is
+            // unaffected. Always references (never definitions).
+            for (text_range, id) in generated_tokens.into_iter() {
+                let token = si.tokens.get(id).unwrap();
+
+                let Some(TokenSymbols { symbol, .. }) = symbol_generator.token_symbols(id, token)
+                else {
+                    continue;
+                };
+
+                // Record the reference so the external-symbols pass below emits
+                // SymbolInformation when the definition lives in another file.
+                token_ids_referenced.insert(id);
+
+                occurrences.push(scip_types::Occurrence {
+                    range: text_range_to_scip_range(&line_index, text_range),
+                    symbol,
+                    symbol_roles: scip_types::SymbolRole::Generated as i32,
+                    override_documentation: Vec::new(),
+                    syntax_kind: Default::default(),
+                    diagnostics: Vec::new(),
+                    special_fields: Default::default(),
+                    enclosing_range: Vec::new(),
                 });
             }
 
@@ -587,6 +617,25 @@ mod test {
         assert_eq!(found_symbol.unwrap(), expected);
     }
 
+    fn generated_token_names(#[rust_analyzer::rust_fixture] ra_fixture: &str) -> Vec<String> {
+        let (host, _position) = position(ra_fixture);
+        let analysis = host.analysis();
+        let si = StaticIndex::compute(
+            &analysis,
+            VendoredLibrariesConfig::Included {
+                workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
+            },
+        );
+        si.files
+            .iter()
+            .flat_map(|file| {
+                file.generated_tokens
+                    .iter()
+                    .filter_map(|&(_range, id)| si.tokens.get(id).unwrap().display_name.clone())
+            })
+            .collect()
+    }
+
     #[test]
     fn basic() {
         check_symbol(
@@ -602,6 +651,41 @@ pub mod example_mod {
 }
 "#,
             "rust-analyzer cargo foo 0.1.0 example_mod/func().",
+        );
+    }
+
+    #[test]
+    fn macro_generated_reference_is_indexed() {
+        // `foo` is only ever called from inside the expansion of `gen_call!`,
+        // so it has no occurrence among the original source tokens. It must
+        // still get a generated occurrence at the macro call-site; this
+        // underpins the SCIP `Generated` role support that keeps macro-only
+        // references from looking dead.
+        let fixture = r#"
+//- /workspace/lib.rs crate:main
+macro_rules! gen_call {
+    () => { fn __generated() { foo(); } };
+}
+fn foo() {}
+gen_call!();
+fn main() {}$0
+"#;
+
+        // The macro-only call to `foo` is recorded as a generated occurrence,
+        // and we do not spuriously record generated definitions or the macro
+        // invocation itself as uses.
+        let names = generated_token_names(fixture);
+        assert!(
+            names.iter().any(|n| n == "foo"),
+            "expected a macro-generated reference to `foo` from the gen_call! expansion, got {names:?}"
+        );
+        assert!(
+            !names.iter().any(|n| n == "__generated"),
+            "must not record generated definitions as uses, got {names:?}"
+        );
+        assert!(
+            !names.iter().any(|n| n == "gen_call"),
+            "must not record the macro invocation itself as a use, got {names:?}"
         );
     }
 
