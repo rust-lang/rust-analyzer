@@ -223,52 +223,53 @@ impl StaticIndex<'_> {
         };
         let mut result = StaticIndexedFile { file_id, inlay_hints, folds, tokens: vec![] };
 
-        let mut add_token = |def: Definition, range: TextRange, scope_node: &SyntaxNode| {
-            let id = if let Some(it) = self.def_map.get(&def) {
-                *it
-            } else {
-                let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
-                        &sema,
-                        file_id,
-                        def,
-                        None,
-                        scope_node,
-                        None,
-                        false,
-                        &hover_config,
-                        edition,
-                        display_target,
-                    )),
-                    definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
-                        FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
-                    }),
-                    definition_body: def
-                        .try_to_nav(&sema)
-                        .map(UpmappingResult::call_site)
-                        .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
-                    references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
-                    kind: def_to_kind(self.db, def),
+        let mut add_token =
+            |def: Definition, range: TextRange, scope_node: &SyntaxNode, _is_generated: bool| {
+                let id = if let Some(it) = self.def_map.get(&def) {
+                    *it
+                } else {
+                    let it = self.tokens.insert(TokenStaticData {
+                        documentation: documentation_for_definition(&sema, def, scope_node),
+                        hover: Some(hover_for_definition(
+                            &sema,
+                            file_id,
+                            def,
+                            None,
+                            scope_node,
+                            None,
+                            false,
+                            &hover_config,
+                            edition,
+                            display_target,
+                        )),
+                        definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(
+                            |it| FileRange { file_id: it.file_id, range: it.focus_or_full_range() },
+                        ),
+                        definition_body: def
+                            .try_to_nav(&sema)
+                            .map(UpmappingResult::call_site)
+                            .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
+                        references: vec![],
+                        moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
+                        display_name: def
+                            .name(self.db)
+                            .map(|name| name.display(self.db, edition).to_string()),
+                        signature: Some(def.label(self.db, display_target)),
+                        kind: def_to_kind(self.db, def),
+                    });
+                    self.def_map.insert(def, it);
+                    it
+                };
+                let token = self.tokens.get_mut(id).unwrap();
+                token.references.push(ReferenceData {
+                    range: FileRange { range, file_id },
+                    is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
+                        Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
+                        None => false,
+                    },
                 });
-                self.def_map.insert(def, it);
-                it
+                result.tokens.push((range, id));
             };
-            let token = self.tokens.get_mut(id).unwrap();
-            token.references.push(ReferenceData {
-                range: FileRange { range, file_id },
-                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                    Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
-                    None => false,
-                },
-            });
-            result.tokens.push((range, id));
-        };
 
         if let Some(module) = sema.file_to_module_def(file_id) {
             let def = Definition::Module(module);
