@@ -388,6 +388,9 @@ impl GlobalState {
                                 self.prime_caches_queue
                                     .request_op("restart after cancellation".to_owned(), ());
                             }
+                            if !cancelled {
+                                tracing::info!("workspace loaded and indexed");
+                            }
                             if let Some((message, fraction, title)) = last_report.take() {
                                 self.report_progress(
                                     title,
