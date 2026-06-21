@@ -5,7 +5,10 @@ use hir::AsAssocItem;
 use ide_db::RootDatabase;
 use ide_db::{
     helpers::mod_path_to_ast_with_factory,
-    imports::import_assets::{ImportCandidate, LocatedImport},
+    imports::{
+        import_assets::{ImportCandidate, LocatedImport},
+        insert_use::PrefixKind,
+    },
 };
 use syntax::Edition;
 use syntax::ast::HasGenericArgs;
@@ -35,6 +38,9 @@ use crate::{
 // # pub mod std { pub mod collections { pub struct HashMap { } } }
 // ```
 pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
+    if qualify_super_path(acc, ctx).is_some() {
+        return Some(());
+    }
     let (import_assets, syntax_under_caret, expected) = find_importable_node(ctx)?;
     let cfg = ctx.config.import_path_config();
 
@@ -250,11 +256,119 @@ fn label(
     }
 }
 
+fn qualify_super_path(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
+    let path = ctx.find_node_at_offset::<ast::Path>()?;
+    let path = path.top_path();
+
+    if path.first_segment()?.kind()? != ast::PathSegmentKind::SuperKw {
+        return None;
+    }
+    if path.syntax().ancestors().find_map(ast::UseTree::cast).is_some() {
+        return None;
+    }
+
+    let resolution = ctx.sema.resolve_path(&path)?;
+    let def = match resolution {
+        hir::PathResolution::Def(def) => hir::ItemInNs::from(def),
+        _ => return None,
+    };
+
+    let current_module = ctx.sema.scope(path.syntax())?.module();
+    let cfg = ctx.config.find_path_config(ctx.sema.is_nightly(current_module.krate(ctx.sema.db)));
+    let mod_path = current_module.find_use_path(ctx.sema.db, def, PrefixKind::ByCrate, cfg)?;
+
+    let edition = current_module.krate(ctx.db()).edition(ctx.db());
+    let replace_with = mod_path.display(ctx.db(), edition).to_string();
+
+    let target = path.syntax().text_range();
+    acc.add(
+        AssistId::refactor_rewrite("qualify_path"),
+        format!("Qualify as `{}`", replace_with),
+        target,
+        |builder| {
+            builder.replace(target, replace_with);
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tests::{check_assist, check_assist_not_applicable, check_assist_target};
 
     use super::*;
+
+    #[test]
+    fn qualify_super_path_simple() {
+        check_assist(
+            qualify_path,
+            r#"
+mod parent {
+    pub struct Foo;
+    mod child {
+        fn f() { super::Foo$0; }
+    }
+}
+"#,
+            r#"
+mod parent {
+    pub struct Foo;
+    mod child {
+        fn f() { crate::parent::Foo; }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn qualify_super_path_nested() {
+        check_assist(
+            qualify_path,
+            r#"
+mod grandparent {
+    pub struct Foo;
+    mod parent {
+        mod child {
+            fn f() { super::super::Foo$0; }
+        }
+    }
+}
+"#,
+            r#"
+mod grandparent {
+    pub struct Foo;
+    mod parent {
+        mod child {
+            fn f() { crate::grandparent::Foo; }
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn qualify_super_path_cursor_positions() {
+        check_assist(
+            qualify_path,
+            r#"
+mod parent {
+    pub struct Foo;
+    mod child {
+        fn f() { $0super::Foo; }
+    }
+}
+"#,
+            r#"
+mod parent {
+    pub struct Foo;
+    mod child {
+        fn f() { crate::parent::Foo; }
+    }
+}
+"#,
+        );
+    }
 
     #[test]
     fn applicable_when_found_an_import_partial() {
