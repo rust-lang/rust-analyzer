@@ -323,6 +323,16 @@ impl SemanticTokensBuilder {
     }
 }
 
+fn token_to_slice(token: lsp_types::SemanticToken) -> [u32; 5] {
+    [
+        token.delta_line,
+        token.delta_start,
+        token.length,
+        token.token_type,
+        token.token_modifiers_bitset,
+    ]
+}
+
 pub(crate) fn diff_tokens(
     old: &[lsp_types::SemanticToken],
     new: &[lsp_types::SemanticToken],
@@ -344,10 +354,14 @@ pub(crate) fn diff_tokens(
         // The lsp data field is actually a byte-diff but we
         // travel in tokens so `start` and `delete_count` are in multiples of the
         // serialized size of `SemanticToken`.
+        let mut data = Vec::with_capacity(new.len() * 5);
+        for token in new {
+            data.extend_from_slice(&token_to_slice(*token));
+        }
         vec![SemanticTokensEdit {
             start: 5 * offset as u32,
             delete_count: 5 * old.len() as u32,
-            data: Some(new.into()),
+            data: Some(data),
         }]
     }
 }
@@ -378,11 +392,7 @@ mod tests {
         let edits = diff_tokens(&before, &after);
         assert_eq!(
             edits[0],
-            SemanticTokensEdit {
-                start: 10,
-                delete_count: 0,
-                data: Some(vec![from((11, 12, 13, 14, 15))])
-            }
+            SemanticTokensEdit { start: 10, delete_count: 0, data: Some(vec![11, 12, 13, 14, 15]) }
         );
     }
 
@@ -394,11 +404,7 @@ mod tests {
         let edits = diff_tokens(&before, &after);
         assert_eq!(
             edits[0],
-            SemanticTokensEdit {
-                start: 0,
-                delete_count: 0,
-                data: Some(vec![from((11, 12, 13, 14, 15))])
-            }
+            SemanticTokensEdit { start: 0, delete_count: 0, data: Some(vec![11, 12, 13, 14, 15]) }
         );
     }
 
@@ -418,7 +424,7 @@ mod tests {
             SemanticTokensEdit {
                 start: 5,
                 delete_count: 0,
-                data: Some(vec![from((10, 20, 30, 40, 50)), from((60, 70, 80, 90, 100))])
+                data: Some(vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
             }
         );
     }
