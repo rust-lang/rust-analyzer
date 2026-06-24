@@ -82,7 +82,8 @@ pub fn layout_of_adt_query(
             |min, max| repr_discr(dl, &repr, min, max).unwrap_or((Integer::I8, false)),
             variants.iter_enumerated().filter_map(|(id, _)| {
                 let AdtId::EnumId(e) = def else { return None };
-                let d = db.const_eval_discriminant(e.enum_variants(db).variants[id.0].0).ok()?;
+                let d =
+                    db.const_eval_discriminant(e.enum_variants(db).variants[id.0].0).ok()? as i128;
                 Some((id, d))
             }),
             !matches!(def, AdtId::EnumId(..))
