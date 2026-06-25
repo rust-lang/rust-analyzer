@@ -305,6 +305,7 @@ fn f() { foo }
                 "parse_macro_expansion",
                 "expand_proc_macro",
                 "macro_arg",
+                "create_data_ExpandDatabase",
                 "proc_macro_span_shim",
             ]
         "#]],
@@ -441,6 +442,7 @@ pub struct S {}
                 "parse_macro_expansion",
                 "expand_proc_macro",
                 "macro_arg",
+                "create_data_ExpandDatabase",
                 "proc_macro_span_shim",
             ]
         "#]],
