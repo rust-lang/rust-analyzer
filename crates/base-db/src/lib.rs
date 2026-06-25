@@ -128,9 +128,10 @@ impl Files {
         durability: Durability,
     ) {
         match self.files.entry(file_id) {
-            Entry::Occupied(mut occupied) => {
+            Entry::Occupied(mut occupied) if durability != Durability::NEVER_CHANGE => {
                 occupied.get_mut().set_text(db).with_durability(durability).to(Arc::from(text));
             }
+            Entry::Occupied(_) => {}
             Entry::Vacant(vacant) => {
                 let text =
                     FileText::builder(Arc::from(text), file_id).durability(durability).new(db);
@@ -236,19 +237,19 @@ pub struct LocalRoots {
     pub roots: FxHashSet<SourceRootId>,
 }
 
-#[salsa_macros::input(debug)]
+#[salsa::input(debug)]
 pub struct FileText {
     #[returns(ref)]
     pub text: Arc<str>,
     pub file_id: vfs::FileId,
 }
 
-#[salsa_macros::input(debug)]
+#[salsa::input(debug)]
 pub struct FileSourceRootInput {
     pub source_root_id: SourceRootId,
 }
 
-#[salsa_macros::input(debug)]
+#[salsa::input(debug)]
 pub struct SourceRootInput {
     pub source_root: Arc<SourceRoot>,
 }
