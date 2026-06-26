@@ -124,6 +124,27 @@ impl SourceRoot {
     }
 }
 
+/// Whether a file or source root belongs to immutable library sources (sysroot,
+/// crates.io) or to the mutable local workspace.
+///
+/// Library sources are assumed to never change over the lifetime of the program,
+/// which lets us store their file text with [`salsa::Durability::NEVER_CHANGE`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum SourceRootKind {
+    Local,
+    Library,
+}
+
+impl SourceRootKind {
+    /// Durability to use for the text of files belonging to a source root of this kind.
+    pub fn file_text_durability(self) -> Durability {
+        match self {
+            SourceRootKind::Local => Durability::LOW,
+            SourceRootKind::Library => Durability::NEVER_CHANGE,
+        }
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct CrateGraphBuilder {
     arena: Arena<CrateBuilder>,

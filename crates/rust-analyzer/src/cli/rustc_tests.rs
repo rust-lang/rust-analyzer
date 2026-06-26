@@ -7,7 +7,7 @@ use std::{cell::RefCell, fs::read_to_string, panic::AssertUnwindSafe, path::Path
 
 use hir::{ChangeWithProcMacros, Crate};
 use ide::{AnalysisHost, DiagnosticCode, DiagnosticsConfig};
-use ide_db::base_db;
+use ide_db::base_db::{self, SourceRootKind};
 use itertools::Either;
 use profile::StopWatch;
 use project_model::toolchain_info::{QueryConfig, target_data};
@@ -154,7 +154,7 @@ impl Tester {
         let should_have_no_error = text.contains("// check-pass")
             || text.contains("// build-pass")
             || text.contains("// run-pass");
-        change.change_file(self.root_file, Some(text));
+        change.change_file(self.root_file, Some(text), SourceRootKind::Local);
         self.host.apply_change(change);
         let diagnostic_config = DiagnosticsConfig::test_sample();
 

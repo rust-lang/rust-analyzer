@@ -128,6 +128,13 @@ impl FileSetConfig {
         self.map.stream().into_byte_vec()
     }
 
+    /// Returns the index of the file set that `path` belongs to.
+    ///
+    /// This matches the indices used by [`FileSetConfig::partition`].
+    pub fn classify_path(&self, path: &VfsPath) -> usize {
+        self.classify(path, &mut Vec::new())
+    }
+
     /// Returns the set index for the given `path`.
     ///
     /// `scratch_space` is used as a buffer and will be entirely replaced.

@@ -20,7 +20,9 @@ use hir_expand::{
 };
 use ide_db::{
     ChangeWithProcMacros, FxHashMap, RootDatabase,
-    base_db::{CrateGraphBuilder, Env, ProcMacroLoadingError, SourceRoot, SourceRootId},
+    base_db::{
+        CrateGraphBuilder, Env, ProcMacroLoadingError, SourceRoot, SourceRootId, SourceRootKind,
+    },
     prime_caches,
 };
 use itertools::Itertools;
@@ -393,6 +395,19 @@ pub struct SourceRootConfig {
 }
 
 impl SourceRootConfig {
+    /// Classifies `path` as belonging to either a local or a library source root.
+    ///
+    /// This is consistent with the source roots produced by [`SourceRootConfig::partition`],
+    /// and lets callers decide a file's durability without having to consult the database.
+    pub fn source_root_kind(&self, path: &VfsPath) -> SourceRootKind {
+        let idx = self.fsc.classify_path(path);
+        if self.local_filesets.contains(&(idx as u64)) {
+            SourceRootKind::Local
+        } else {
+            SourceRootKind::Library
+        }
+    }
+
     pub fn partition(&self, vfs: &vfs::Vfs) -> Vec<SourceRoot> {
         self.fsc
             .partition(vfs)
@@ -532,7 +547,8 @@ fn load_crate_graph_into_db(
         if let vfs::Change::Create(v, _) | vfs::Change::Modify(v, _) = file.change
             && let Ok(text) = String::from_utf8(v)
         {
-            analysis_change.change_file(file.file_id, Some(text))
+            let kind = source_root_config.source_root_kind(&vfs.file_path(file.file_id));
+            analysis_change.change_file(file.file_id, Some(text), kind)
         }
     }
     let source_roots = source_root_config.partition(vfs);

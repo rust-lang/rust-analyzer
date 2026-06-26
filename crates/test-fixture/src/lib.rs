@@ -11,7 +11,7 @@ use base_db::target::TargetData;
 use base_db::{
     Crate, CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CrateWorkspaceData,
     DependencyBuilder, Env, FileChange, FileSet, FxIndexMap, LangCrateOrigin, SourceDatabase,
-    SourceRoot, Version, VfsPath, all_crates,
+    SourceRoot, SourceRootKind, Version, VfsPath, all_crates,
 };
 use cfg::CfgOptions;
 use hir_expand::{
@@ -371,7 +371,7 @@ impl ChangeFixture {
                 default_env.extend_from_other(&meta.env);
             }
 
-            source_change.change_file(file_id, Some(text));
+            source_change.change_file(file_id, Some(text), current_source_root_kind);
             let path = VfsPath::new_virtual_path(meta.path);
             file_set.insert(file_id, path);
             files.push(span::EditionedFileId::new(file_id, meta.edition));
@@ -388,7 +388,11 @@ impl ChangeFixture {
 
             sysroot_files.push(core_file);
 
-            source_change.change_file(core_file, Some(mini_core.source_code(minicore_raw)));
+            source_change.change_file(
+                core_file,
+                Some(mini_core.source_code(minicore_raw)),
+                SourceRootKind::Library,
+            );
 
             let core_crate = crate_graph.add_crate_root(
                 core_file,
@@ -481,7 +485,7 @@ impl ChangeFixture {
 
             sysroot_files.push(proc_lib_file);
 
-            source_change.change_file(proc_lib_file, Some(source));
+            source_change.change_file(proc_lib_file, Some(source), SourceRootKind::Library);
 
             let all_crates = crate_graph.iter().collect::<Vec<_>>();
 
@@ -731,12 +735,6 @@ fn filter_test_proc_macros(
     }
 
     (proc_macros, source)
-}
-
-#[derive(Debug, Clone, Copy)]
-enum SourceRootKind {
-    Local,
-    Library,
 }
 
 #[derive(Debug)]

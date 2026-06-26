@@ -29,7 +29,7 @@ pub use crate::{
         BuiltCrateData, BuiltDependency, Crate, CrateBuilder, CrateBuilderId, CrateDataBuilder,
         CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CratesIdMap, CratesMap,
         DependencyBuilder, Env, ExtraCrateData, LangCrateOrigin, ProcMacroLoadingError,
-        ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId, UniqueCrateData,
+        ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId, SourceRootKind, UniqueCrateData,
     },
 };
 use dashmap::{DashMap, mapref::entry::Entry};
@@ -128,10 +128,9 @@ impl Files {
         durability: Durability,
     ) {
         match self.files.entry(file_id) {
-            Entry::Occupied(mut occupied) if durability != Durability::NEVER_CHANGE => {
+            Entry::Occupied(mut occupied) => {
                 occupied.get_mut().set_text(db).with_durability(durability).to(Arc::from(text));
             }
-            Entry::Occupied(_) => {}
             Entry::Vacant(vacant) => {
                 let text =
                     FileText::builder(Arc::from(text), file_id).durability(durability).new(db);

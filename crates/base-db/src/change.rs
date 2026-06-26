@@ -10,14 +10,14 @@ use vfs::FileId;
 
 use crate::{
     CrateGraphBuilder, CratesIdMap, LibraryRoots, LocalRoots, SourceDatabase, SourceRoot,
-    SourceRootId,
+    SourceRootId, SourceRootKind,
 };
 
 /// Encapsulate a bunch of raw `.set` calls on the database.
 #[derive(Default)]
 pub struct FileChange {
     pub roots: Option<Vec<SourceRoot>>,
-    pub files_changed: Vec<(FileId, Option<String>)>,
+    pub files_changed: Vec<(FileId, Option<String>, SourceRootKind)>,
     pub crate_graph: Option<CrateGraphBuilder>,
 }
 
@@ -42,8 +42,8 @@ impl FileChange {
         self.roots = Some(roots);
     }
 
-    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>) {
-        self.files_changed.push((file_id, new_text))
+    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>, kind: SourceRootKind) {
+        self.files_changed.push((file_id, new_text, kind))
     }
 
     pub fn set_crate_graph(&mut self, graph: CrateGraphBuilder) {
@@ -73,11 +73,8 @@ impl FileChange {
             LibraryRoots::get(db).set_roots(db).to(library_roots);
         }
 
-        for (file_id, text) in self.files_changed {
-            let source_root_id = db.file_source_root(file_id);
-            let source_root = db.source_root(source_root_id.source_root_id(db));
-
-            let durability = file_text_durability(&source_root.source_root(db));
+        for (file_id, text, kind) in self.files_changed {
+            let durability = kind.file_text_durability();
             // XXX: can't actually remove the file, just reset the text
             let text = text.unwrap_or_default();
             db.set_file_text_with_durability(file_id, &text, durability)
@@ -92,8 +89,4 @@ impl FileChange {
 
 fn source_root_durability(source_root: &SourceRoot) -> Durability {
     if source_root.is_library { Durability::MEDIUM } else { Durability::LOW }
-}
-
-fn file_text_durability(source_root: &SourceRoot) -> Durability {
-    if source_root.is_library { Durability::NEVER_CHANGE } else { Durability::LOW }
 }

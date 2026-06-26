@@ -136,7 +136,7 @@ pub use ide_completion::{
 pub use ide_db::{
     FileId, FilePosition, FileRange, RootDatabase, Severity, SymbolKind,
     assists::ExprFillDefaultMode,
-    base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId},
+    base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId, SourceRootKind},
     documentation::Documentation,
     label::Label,
     line_index::{LineCol, LineIndex},
@@ -288,7 +288,7 @@ impl Analysis {
                 toolchain: None,
             }),
         );
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         change.set_crate_graph(crate_graph);
 
         host.apply_change(change);
