@@ -11,7 +11,7 @@ use base_db::target::TargetData;
 use base_db::{
     Crate, CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CrateWorkspaceData,
     DependencyBuilder, Env, FileChange, FileSet, FxIndexMap, LangCrateOrigin, SourceDatabase,
-    SourceRoot, SourceRootKind, Version, VfsPath, all_crates,
+    SourceRoot, SourceRootId, SourceRootKind, Version, VfsPath, all_crates,
 };
 use cfg::CfgOptions;
 use hir_expand::{
@@ -531,6 +531,11 @@ impl ChangeFixture {
 
         let mut change = ChangeWithProcMacros { source_change, proc_macros: Some(proc_macros) };
 
+        let roots = roots
+            .into_iter()
+            .enumerate()
+            .map(|(idx, root)| (SourceRootId(idx as u32), root))
+            .collect();
         change.source_change.set_roots(roots);
         change.source_change.set_crate_graph(crate_graph);
 

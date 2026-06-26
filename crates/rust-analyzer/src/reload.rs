@@ -727,6 +727,7 @@ impl GlobalState {
             version: self.vfs_config_version,
         });
         self.source_root_config = project_folders.source_root_config;
+        self.source_root_config.remap_source_root_ids(&mut self.source_root_id_allocator);
         self.local_roots_parent_map = Arc::new(self.source_root_config.source_root_parent_map());
 
         info!(?cause, "recreating the crate graph");

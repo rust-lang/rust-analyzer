@@ -263,7 +263,7 @@ impl Analysis {
         let source_root = SourceRoot::new_local(file_set);
 
         let mut change = ChangeWithProcMacros::default();
-        change.set_roots(vec![source_root]);
+        change.set_roots(vec![(SourceRootId(0), source_root)]);
         let mut crate_graph = CrateGraphBuilder::default();
         // FIXME: cfg options
         // Default to enable test for single file.

@@ -16,7 +16,7 @@ use crate::{
 /// Encapsulate a bunch of raw `.set` calls on the database.
 #[derive(Default)]
 pub struct FileChange {
-    pub roots: Option<Vec<SourceRoot>>,
+    pub roots: Option<Vec<(SourceRootId, SourceRoot)>>,
     pub files_changed: Vec<(FileId, Option<String>, SourceRootKind)>,
     pub crate_graph: Option<CrateGraphBuilder>,
 }
@@ -38,7 +38,7 @@ impl fmt::Debug for FileChange {
 }
 
 impl FileChange {
-    pub fn set_roots(&mut self, roots: Vec<SourceRoot>) {
+    pub fn set_roots(&mut self, roots: Vec<(SourceRootId, SourceRoot)>) {
         self.roots = Some(roots);
     }
 
@@ -55,12 +55,17 @@ impl FileChange {
         if let Some(roots) = self.roots {
             let mut local_roots = FxHashSet::default();
             let mut library_roots = FxHashSet::default();
-            for (idx, root) in roots.into_iter().enumerate() {
-                let root_id = SourceRootId(idx as u32);
+            for (root_id, root) in roots {
                 if root.is_library {
                     library_roots.insert(root_id);
                 } else {
                     local_roots.insert(root_id);
+                }
+                // Library source roots (and their file mappings) are stored with `NEVER_CHANGE`
+                // durability and are assumed immutable, so we emit them only once. Repartitioning
+                // re-produces them on every structural change; re-setting them would panic.
+                if root.is_library && db.is_source_root_initialized(root_id) {
+                    continue;
                 }
                 let durability = source_root_durability(&root);
                 for file_id in root.iter() {
@@ -88,5 +93,5 @@ impl FileChange {
 }
 
 fn source_root_durability(source_root: &SourceRoot) -> Durability {
-    if source_root.is_library { Durability::MEDIUM } else { Durability::LOW }
+    if source_root.is_library { Durability::NEVER_CHANGE } else { Durability::MEDIUM }
 }

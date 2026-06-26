@@ -17,7 +17,7 @@ use ide_db::{
     base_db::{Crate, ProcMacroPaths, SourceDatabase, salsa::Revision},
 };
 use itertools::Itertools;
-use load_cargo::SourceRootConfig;
+use load_cargo::{SourceRootConfig, SourceRootIdAllocator};
 use lsp_types::{Notification, SemanticTokens, Uri};
 use parking_lot::{
     MappedRwLockReadGuard, Mutex, RwLock, RwLockReadGuard, RwLockUpgradableReadGuard,
@@ -95,6 +95,9 @@ pub(crate) struct GlobalState {
     pub(crate) diagnostics: DiagnosticCollection,
     pub(crate) mem_docs: MemDocs,
     pub(crate) source_root_config: SourceRootConfig,
+    /// Allocates `SourceRootId`s that stay stable across workspace reloads, so that library
+    /// source roots (stored with `NEVER_CHANGE` durability) keep their immutable id.
+    pub(crate) source_root_id_allocator: SourceRootIdAllocator,
     /// A mapping that maps a local source root's `SourceRootId` to it parent's `SourceRootId`, if it has one.
     pub(crate) local_roots_parent_map: Arc<FxHashMap<SourceRootId, SourceRootId>>,
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Uri, SemanticTokens>>>,
@@ -278,6 +281,7 @@ impl GlobalState {
                 message: None,
             },
             source_root_config: SourceRootConfig::default(),
+            source_root_id_allocator: SourceRootIdAllocator::default(),
             local_roots_parent_map: Arc::new(FxHashMap::default()),
             config_errors: Default::default(),
 

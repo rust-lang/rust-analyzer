@@ -123,6 +123,13 @@ impl FileSetConfig {
         self.n_file_sets
     }
 
+    /// Number of file sets this config partitions a [`Vfs`] into.
+    ///
+    /// This is the number of sets produced by [`FileSetConfig::partition`].
+    pub fn n_file_sets(&self) -> usize {
+        self.n_file_sets
+    }
+
     /// Get the lexicographically ordered vector of the underlying map.
     pub fn roots(&self) -> Vec<(Vec<u8>, u64)> {
         self.map.stream().into_byte_vec()
