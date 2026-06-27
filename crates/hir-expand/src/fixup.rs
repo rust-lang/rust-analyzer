@@ -40,6 +40,11 @@ pub struct SyntaxFixupUndoInfo {
 
 impl SyntaxFixupUndoInfo {
     pub(crate) const NONE: Self = SyntaxFixupUndoInfo { original: None };
+
+    /// Returns a copy with each stored subtree replaced by `f(subtree)`.
+    pub(crate) fn with_normalized_trees(&self, f: impl Fn(&TopSubtree) -> TopSubtree) -> Self {
+        SyntaxFixupUndoInfo { original: self.original.as_ref().map(|v| v.iter().map(f).collect()) }
+    }
 }
 
 // We mark spans with `FIXUP_DUMMY_AST_ID` to indicate that they are fake.

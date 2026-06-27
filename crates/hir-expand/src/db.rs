@@ -2,7 +2,8 @@
 
 use base_db::{Crate, SourceDatabase};
 use mbe::MatchedArmIndex;
-use span::{AstIdMap, Edition, Span, SyntaxContext};
+use rustc_hash::FxHashMap;
+use span::{AstIdMap, Edition, FIXUP_ERASED_FILE_AST_ID_MARKER, Span, SyntaxContext, TextRange};
 use std::borrow::Cow;
 use syntax::{AstNode, Parse, SyntaxError, SyntaxNode, SyntaxToken, T, ast};
 use syntax_bridge::{DocCommentDesugarMode, syntax_node_to_token_tree};
@@ -23,6 +24,47 @@ use crate::{
 };
 /// This is just to ensure the types of smart_macro_arg and macro_arg are the same
 type MacroArgResult = (tt::TopSubtree, SyntaxFixupUndoInfo, Span);
+
+/// [`MacroArgResult`] with span byte-ranges excluded from equality.
+///
+/// `macro_arg` changes whenever the source file changes because token spans embed byte offsets
+/// that shift even when only whitespace or comments ("trivia") are added. Since trivia is stripped
+/// from the token tree before it reaches the proc-macro, the expansion output is structurally
+/// identical before and after a trivia-only edit. This type's [`PartialEq`] ignores span ranges so
+/// salsa can backdate [`macro_arg_key`] — and therefore [`proc_macro_raw_output`] — on trivia-only
+/// edits, skipping the expensive subprocess call.
+#[derive(Clone, Debug)]
+pub struct MacroArgKey(MacroArgResult);
+
+impl PartialEq for MacroArgKey {
+    fn eq(&self, other: &Self) -> bool {
+        let (tt1, undo1, span1) = &self.0;
+        let (tt2, undo2, span2) = &other.0;
+        zero_ranges(tt1) == zero_ranges(tt2)
+            && undo1.with_normalized_trees(zero_ranges) == undo2.with_normalized_trees(zero_ranges)
+            && span1.anchor == span2.anchor
+            && span1.ctx == span2.ctx
+    }
+}
+impl Eq for MacroArgKey {}
+
+/// The raw output of a proc-macro subprocess call together with the input spans used for that run.
+///
+/// Stored by [`proc_macro_raw_output`] so that [`expand_proc_macro`] can remap stale span
+/// byte-ranges in the cached output when [`proc_macro_raw_output`] is backdated on a trivia-only
+/// edit. See [`remap_tt_spans`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProcMacroRawOutput {
+    /// Raw token tree from the subprocess (before [`fixup::reverse_fixups`]).
+    pub tt: ExpandResult<tt::TopSubtree>,
+    /// Flat DFS-ordered byte-ranges from the macro input fed to this subprocess call.
+    /// Each entry is the `range` field of the corresponding span in `macro_arg`, in the same
+    /// DFS order as [`collect_ranges`]. Only the range is stored (not the full span) because
+    /// anchor and ctx are stable across trivia-only edits and are recovered from the fresh
+    /// `macro_arg` at remap time. This is 8 bytes per token vs 20 bytes for a full [`Span`].
+    pub input_ranges: Box<[TextRange]>,
+}
+
 /// Total limit on the number of tokens produced by any macro invocation.
 ///
 /// If an invocation produces more tokens than this limit, it will not be stored in the database and
@@ -115,13 +157,24 @@ pub trait ExpandDatabase: SourceDatabase {
         id: AstId<ast::Macro>,
     ) -> &DeclarativeMacroExpander;
 
-    /// Special case of the previous query for procedural macros. We can't LRU
-    /// proc macros, since they are not deterministic in general, and
-    /// non-determinism breaks salsa in a very, very, very bad way.
-    /// @edwin0cheng heroically debugged this once! See #4315 for details
-    #[salsa::invoke(expand_proc_macro)]
+    /// [`macro_arg`] wrapped in [`MacroArgKey`]. Salsa backdates this query on trivia-only edits
+    /// because [`MacroArgKey::eq`] ignores span byte-ranges. [`proc_macro_raw_output`] depends on
+    /// this query so the subprocess call is also backdated on trivia-only edits.
+    #[salsa::invoke(macro_arg_key)]
     #[salsa::transparent]
-    fn expand_proc_macro(&self, call: MacroCallId) -> &ExpandResult<tt::TopSubtree>;
+    fn macro_arg_key(&self, id: MacroCallId) -> &MacroArgKey;
+
+    /// Raw proc-macro subprocess output plus the input byte-ranges used for that run.
+    ///
+    /// Backdated on trivia-only edits because it depends on [`macro_arg_key`] whose equality
+    /// ignores span byte-ranges. On trivia edits [`parse_macro_expansion`] re-runs (because
+    /// `macro_arg` changed), calls [`expand_proc_macro`] which reads this backdated query and
+    /// remaps its stale spans to current positions — producing a fresh [`ExpansionSpanMap`]
+    /// without re-invoking the subprocess.
+    #[salsa::invoke(proc_macro_raw_output)]
+    #[salsa::transparent]
+    fn proc_macro_raw_output(&self, id: MacroCallId) -> &ProcMacroRawOutput;
+
     /// Retrieves the span to be used for a proc-macro expansions spans.
     /// This is a firewall query as it requires parsing the file, which we don't want proc-macros to
     /// directly depend on as that would cause to frequent invalidations, mainly because of the
@@ -556,10 +609,9 @@ fn macro_expand<'db>(
 
     let (ExpandResult { value: (tt, matched_arm), err }, span) = match loc.def.kind {
         MacroDefKind::ProcMacro(..) => {
-            return db
-                .expand_proc_macro(macro_call_id)
-                .as_ref()
-                .map(|it| (Cow::Borrowed(it), None));
+            // expand_proc_macro is not a salsa query — called directly to avoid
+            // caching a second copy of the TT (proc_macro_raw_output already caches it).
+            return expand_proc_macro(db, macro_call_id).map(|it| (Cow::Owned(it), None));
         }
         _ => {
             let (macro_arg, undo_info, span) =
@@ -638,10 +690,24 @@ fn proc_macro_span(db: &dyn ExpandDatabase, ast: AstId<ast::Fn>) -> Span {
     span_map.span_for_range(range)
 }
 
+/// Implements [`ExpandDatabase::macro_arg_key`].
 #[salsa_macros::tracked(returns(ref))]
-fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<tt::TopSubtree> {
+fn macro_arg_key(db: &dyn ExpandDatabase, id: MacroCallId) -> MacroArgKey {
+    MacroArgKey(db.macro_arg(id).clone())
+}
+
+#[salsa_macros::tracked(returns(ref))]
+fn proc_macro_raw_output(db: &dyn ExpandDatabase, id: MacroCallId) -> ProcMacroRawOutput {
     let loc = id.loc(db);
-    let (macro_arg, undo_info, span) = db.macro_arg_considering_derives(id, &loc.kind);
+
+    // Calling macro_arg_key here creates a salsa dependency that uses MacroArgKey's
+    // position-ignoring PartialEq, so this query is backdated on trivia-only edits.
+    let MacroArgKey((macro_arg, _undo_info, _call_span)) = match &loc.kind {
+        MacroCallKind::Derive { derive_macro_id, .. } => db.macro_arg_key(*derive_macro_id),
+        _ => db.macro_arg_key(id),
+    };
+
+    let input_ranges = collect_ranges(macro_arg);
 
     let (ast, expander) = match loc.def.kind {
         MacroDefKind::ProcMacro(ast, expander, _) => (ast, expander),
@@ -653,7 +719,7 @@ fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<t
         _ => None,
     };
 
-    let ExpandResult { value: mut tt, err } = {
+    let tt = {
         let span = db.proc_macro_span(ast);
         expander.expand(
             db,
@@ -667,12 +733,58 @@ fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<t
         )
     };
 
+    ProcMacroRawOutput { tt, input_ranges }
+}
+
+fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<tt::TopSubtree> {
+    let loc = id.loc(db);
+
+    // Fresh macro_arg: this direct dependency on macro_arg_considering_derives (which is NOT
+    // backdated on trivia edits) ensures that expand_proc_macro re-runs on trivia edits even
+    // when proc_macro_raw_output is backdated. The re-run remaps the stale output spans to fresh
+    // positions, keeping ExpansionSpanMap current without re-invoking the subprocess.
+    let (fresh_macro_arg, fresh_undo_info, span) = db.macro_arg_considering_derives(id, &loc.kind);
+
+    // Raw output from the subprocess — may be a backdated cached result on trivia-only edits.
+    let raw = db.proc_macro_raw_output(id);
+
+    // Remap stale span byte-ranges in the cached TT to the current source positions.
+    // On structural edits proc_macro_raw_output re-ran with fresh input, so raw.input_ranges
+    // and the fresh macro_arg ranges are identical and remap_tt_spans is a structural no-op.
+    //
+    // We reconstruct each old span as `Span { range: old_range, anchor: fresh.anchor, ctx:
+    // fresh.ctx }` because anchor and ctx are stable across trivia-only edits (only byte-range
+    // positions shift), and on structural edits the raw output was recomputed so old == fresh.
+    let fresh_input_spans = collect_spans(fresh_macro_arg);
+    // Build a map from old span → new span for every input token whose byte-range shifted.
+    // Entries where old_range == fresh.range are skipped (no-ops): tokens before the trivia
+    // insertion point and all tokens on structural edits (where input_ranges == fresh ranges).
+    // This keeps the map small and lets remap_tt_spans early-exit via `map.is_empty()` on
+    // structural edits, avoiding a pointless TT clone.
+    let span_remap: FxHashMap<Span, Span> = raw
+        .input_ranges
+        .iter()
+        .zip(fresh_input_spans.iter())
+        .filter(|(_, fresh)| fresh.anchor.ast_id != FIXUP_ERASED_FILE_AST_ID_MARKER)
+        .filter(|(old_range, fresh)| **old_range != fresh.range)
+        .map(|(&old_range, &fresh)| {
+            // Reconstruct the old span using old range + fresh anchor/ctx.
+            // anchor and ctx are stable across trivia-only edits; on structural edits
+            // old_range == fresh.range so this branch is never reached.
+            let old = Span { range: old_range, anchor: fresh.anchor, ctx: fresh.ctx };
+            (old, fresh)
+        })
+        .collect();
+
     // Set a hard limit for the expanded tt
-    if let Err(value) = check_tt_count(&tt) {
-        return value.map(|()| tt::TopSubtree::empty(tt::DelimSpan::from_single(*span)));
+    if let Err(err_val) = check_tt_count(&raw.tt.value) {
+        return err_val.map(|()| tt::TopSubtree::empty(tt::DelimSpan::from_single(*span)));
     }
 
-    fixup::reverse_fixups(&mut tt, undo_info);
+    let err = raw.tt.err.clone();
+    let mut tt = remap_tt_spans(raw.tt.value.clone(), &span_remap);
+
+    fixup::reverse_fixups(&mut tt, fresh_undo_info);
 
     ExpandResult { value: tt, err }
 }
@@ -690,6 +802,148 @@ pub(crate) fn token_tree_to_syntax_node(
         ExpandTo::Expr => syntax_bridge::TopEntryPoint::Expr,
     };
     syntax_bridge::token_tree_to_syntax_node(tt, entry_point, &mut |ctx| ctx.edition(db))
+}
+
+/// Collects the byte-range from every span in a token tree, in depth-first order
+/// (open delimiter, children, close delimiter). Stores only the [`TextRange`] field of each
+/// [`Span`] — anchor and ctx are stable across trivia-only edits and are recovered from a
+/// same-structure fresh token tree at remap time. 8 bytes per token instead of 20.
+fn collect_ranges(tt: &tt::TopSubtree) -> Box<[TextRange]> {
+    fn recurse(iter: tt::TtIter<'_>, out: &mut Vec<TextRange>) {
+        for el in iter {
+            match el {
+                tt::TtElement::Leaf(l) => out.push(l.span().range),
+                tt::TtElement::Subtree(sub, children) => {
+                    out.push(sub.delimiter.open.range);
+                    recurse(children, out);
+                    out.push(sub.delimiter.close.range);
+                }
+            }
+        }
+    }
+    let top = tt.top_subtree();
+    let mut out = Vec::new();
+    out.push(top.delimiter.open.range);
+    recurse(tt.iter(), &mut out);
+    out.push(top.delimiter.close.range);
+    out.into_boxed_slice()
+}
+
+/// Collects all spans in a token tree in depth-first order (open delimiter, children, close
+/// delimiter). The resulting slice is aligned index-for-index with the spans of a structurally
+/// identical token tree, enabling O(n) span remapping without re-running the macro.
+fn collect_spans(tt: &tt::TopSubtree) -> Box<[Span]> {
+    fn recurse(iter: tt::TtIter<'_>, out: &mut Vec<Span>) {
+        for el in iter {
+            match el {
+                tt::TtElement::Leaf(l) => out.push(*l.span()),
+                tt::TtElement::Subtree(sub, children) => {
+                    out.push(sub.delimiter.open);
+                    recurse(children, out);
+                    out.push(sub.delimiter.close);
+                }
+            }
+        }
+    }
+    let top = tt.top_subtree();
+    let mut out = Vec::new();
+    out.push(top.delimiter.open);
+    recurse(tt.iter(), &mut out);
+    out.push(top.delimiter.close);
+    out.into_boxed_slice()
+}
+
+/// Rebuilds `tree` replacing each span that appears in `map` with its mapped value.
+/// Spans not present in the map (def-site, call-site, or macro-generated spans that don't
+/// originate from the call-site input) are left unchanged.
+fn remap_tt_spans(tree: tt::TopSubtree, map: &FxHashMap<Span, Span>) -> tt::TopSubtree {
+    fn remap(span: Span, map: &FxHashMap<Span, Span>) -> Span {
+        // Fixup spans encode an index in range.start(); never remap them.
+        if span.anchor.ast_id == FIXUP_ERASED_FILE_AST_ID_MARKER {
+            return span;
+        }
+        map.get(&span).copied().unwrap_or(span)
+    }
+
+    fn leaf(mut l: tt::Leaf, map: &FxHashMap<Span, Span>) -> tt::Leaf {
+        match &mut l {
+            tt::Leaf::Literal(it) => it.span = remap(it.span, map),
+            tt::Leaf::Punct(it) => it.span = remap(it.span, map),
+            tt::Leaf::Ident(it) => it.span = remap(it.span, map),
+        }
+        l
+    }
+
+    fn build(
+        builder: &mut tt::TopSubtreeBuilder,
+        iter: tt::TtIter<'_>,
+        map: &FxHashMap<Span, Span>,
+    ) {
+        for el in iter {
+            match el {
+                tt::TtElement::Leaf(l) => builder.push(leaf(l, map)),
+                tt::TtElement::Subtree(sub, children) => {
+                    builder.open(sub.delimiter.kind, remap(sub.delimiter.open, map));
+                    build(builder, children, map);
+                    builder.close(remap(sub.delimiter.close, map));
+                }
+            }
+        }
+    }
+
+    if map.is_empty() {
+        return tree;
+    }
+
+    let top = tree.top_subtree();
+    let mut b = tt::TopSubtreeBuilder::new(tt::Delimiter {
+        open: remap(top.delimiter.open, map),
+        close: remap(top.delimiter.close, map),
+        kind: top.delimiter.kind,
+    });
+    build(&mut b, tree.iter(), map);
+    b.build()
+}
+
+/// Rebuilds `tree` with all span byte-ranges set to zero, preserving fixup spans whose
+/// `range.start()` encodes an index into [`SyntaxFixupUndoInfo::original`].
+/// Used by [`MacroArgKey::eq`] to compare token trees ignoring position information.
+fn zero_ranges(tree: &tt::TopSubtree) -> tt::TopSubtree {
+    fn zero(span: Span) -> Span {
+        if span.anchor.ast_id == FIXUP_ERASED_FILE_AST_ID_MARKER {
+            return span;
+        }
+        use syntax::TextSize;
+        Span { range: TextRange::empty(TextSize::new(0)), ..span }
+    }
+    fn leaf(mut l: tt::Leaf) -> tt::Leaf {
+        match &mut l {
+            tt::Leaf::Literal(it) => it.span = zero(it.span),
+            tt::Leaf::Punct(it) => it.span = zero(it.span),
+            tt::Leaf::Ident(it) => it.span = zero(it.span),
+        }
+        l
+    }
+    fn build(builder: &mut tt::TopSubtreeBuilder, iter: tt::TtIter<'_>) {
+        for el in iter {
+            match el {
+                tt::TtElement::Leaf(l) => builder.push(leaf(l)),
+                tt::TtElement::Subtree(sub, children) => {
+                    builder.open(sub.delimiter.kind, zero(sub.delimiter.open));
+                    build(builder, children);
+                    builder.close(zero(sub.delimiter.close));
+                }
+            }
+        }
+    }
+    let top = tree.top_subtree();
+    let mut b = tt::TopSubtreeBuilder::new(tt::Delimiter {
+        open: zero(top.delimiter.open),
+        close: zero(top.delimiter.close),
+        kind: top.delimiter.kind,
+    });
+    build(&mut b, tree.iter());
+    b.build()
 }
 
 fn check_tt_count(tt: &tt::TopSubtree) -> Result<(), ExpandResult<()>> {
