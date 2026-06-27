@@ -353,7 +353,10 @@ fn expand_doc_expr_via_macro_pipeline<'db>(
             let macro_call = macro_expr.macro_call()?;
             let (expr, new_source_ctx) = expand_doc_macro_call(expander, source_ctx, macro_call)?;
             // After expansion, the expr lives in the expansion file; use its source context.
-            expand_doc_expr_via_macro_pipeline(expander, &new_source_ctx, expr)
+            expander.recursion_depth += 1;
+            let expansion = expand_doc_expr_via_macro_pipeline(expander, &new_source_ctx, expr);
+            expander.recursion_depth -= 1;
+            expansion
         }
         _ => None,
     }
@@ -389,10 +392,8 @@ fn expand_doc_macro_call<'db>(
     .ok()?
     .value?;
 
-    expander.recursion_depth += 1;
     let parse = expander.db.parse_macro_expansion(call_id).value.0.clone();
     let expr = parse.cast::<ast::Expr>().map(|parse| parse.tree())?;
-    expander.recursion_depth -= 1;
 
     // Build a new source context for the expansion file so that any further
     // recursive expansion (e.g. a user macro expanding to `concat!(...)`)
