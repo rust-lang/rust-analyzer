@@ -383,20 +383,26 @@ fn find_imported_defs(ctx: &AssistContext<'_, '_>, use_item: Use) -> Vec<Definit
             use_item.syntax().siblings(dir.to_owned()).filter(|n| ast::Use::can_cast(n.kind()))
         })
         .flat_map(|n| n.descendants().filter_map(ast::NameRef::cast))
-        .filter_map(|r| match NameRefClass::classify(&ctx.sema, &r)? {
-            NameRefClass::Definition(
-                def @ (Definition::Macro(_)
-                | Definition::Module(_)
-                | Definition::Function(_)
-                | Definition::Adt(_)
-                | Definition::EnumVariant(_)
-                | Definition::Const(_)
-                | Definition::Static(_)
-                | Definition::Trait(_)
-                | Definition::TypeAlias(_)),
-                _,
-            ) => Some(def),
-            _ => None,
+        .flat_map(|r| match NameRefClass::classify(&ctx.sema, &r) {
+            Some(NameRefClass::Definition(def, _)) => vec![def],
+            Some(NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns }) => {
+                [type_ns, value_ns, macro_ns].into_iter().flatten().collect()
+            }
+            _ => vec![],
+        })
+        .filter(|def| {
+            matches!(
+                def,
+                Definition::Macro(_)
+                    | Definition::Module(_)
+                    | Definition::Function(_)
+                    | Definition::Adt(_)
+                    | Definition::EnumVariant(_)
+                    | Definition::Const(_)
+                    | Definition::Static(_)
+                    | Definition::Trait(_)
+                    | Definition::TypeAlias(_)
+            )
         })
         .collect()
 }

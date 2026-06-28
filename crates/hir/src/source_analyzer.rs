@@ -1484,7 +1484,7 @@ impl<'db> SourceAnalyzer<'db> {
         let hir_path =
             collector.lower_path(path.clone(), &mut ExprCollector::impl_trait_error_allocator)?;
         let (store, _) = collector.store.finish();
-        Some(resolve_hir_path_(
+        let PathResolutionPerNs { type_ns, value_ns, macro_ns } = resolve_hir_path_(
             db,
             &self.resolver,
             self.infer_body,
@@ -1493,7 +1493,11 @@ impl<'db> SourceAnalyzer<'db> {
             name_hygiene(db, InFile::new(self.file_id, path.syntax())),
             Some(&store),
             true,
-        ))
+        );
+        if type_ns.is_none() && value_ns.is_none() && macro_ns.is_none() {
+            return None;
+        }
+        Some(PathResolutionPerNs { type_ns, value_ns, macro_ns })
     }
 
     pub(crate) fn record_literal_missing_fields(
@@ -1956,11 +1960,13 @@ fn resolve_hir_path_(
     };
 
     if resolve_per_ns {
-        PathResolutionPerNs {
-            type_ns: types().or_else(items),
-            value_ns: values(),
-            macro_ns: macros(),
+        let type_ns = types().or_else(items);
+        if let Some(PathResolution::Def(ModuleDef::Module(module))) = type_ns
+            && module.is_crate_root(db)
+        {
+            return PathResolutionPerNs { type_ns, value_ns: None, macro_ns: None };
         }
+        PathResolutionPerNs { type_ns, value_ns: values(), macro_ns: macros() }
     } else {
         let res = if prefer_value_ns {
             values()

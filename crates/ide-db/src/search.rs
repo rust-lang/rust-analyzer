@@ -1256,6 +1256,21 @@ impl<'a, 'db> FindUsages<'a, 'db> {
         }
 
         match NameRefClass::classify(self.sema, name_ref) {
+            Some(NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns })
+                if [type_ns, value_ns, macro_ns].contains(&Some(self.def))
+                    && !matches!(
+                        self.def,
+                        Definition::Local(_) | Definition::GenericParam(_) | Definition::Label(_)
+                    ) =>
+            {
+                let FileRange { file_id, range } = self.sema.original_range(name_ref.syntax());
+                let reference = FileReference {
+                    range,
+                    name: FileReferenceNode::NameRef(name_ref.clone()),
+                    category: ReferenceCategory::IMPORT,
+                };
+                sink(file_id, reference)
+            }
             Some(NameRefClass::Definition(def, _))
                 if self.def == def
                     // is our def a trait assoc item? then we want to find all assoc items from trait impls of our trait

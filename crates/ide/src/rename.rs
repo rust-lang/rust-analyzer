@@ -333,6 +333,9 @@ fn find_definitions(
                     NameRefClass::classify(sema, name_ref)
                         .map(|class| match class {
                             NameRefClass::Definition(def, _) => def,
+                            NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns } => {
+                                type_ns.or(value_ns).or(macro_ns).unwrap()
+                            }
                             NameRefClass::FieldShorthand { local_ref, field_ref: _, adt_subst: _ } => {
                                 Definition::Local(local_ref)
                             }

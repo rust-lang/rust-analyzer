@@ -267,6 +267,9 @@ pub(crate) fn find_defs(
                     ast::NameLike::NameRef(name_ref) => {
                         match NameRefClass::classify(sema, &name_ref)? {
                             NameRefClass::Definition(def, _) => def,
+                            NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns } => {
+                                type_ns.or(value_ns).or(macro_ns)?
+                            }
                             NameRefClass::FieldShorthand {
                                 local_ref,
                                 field_ref: _,

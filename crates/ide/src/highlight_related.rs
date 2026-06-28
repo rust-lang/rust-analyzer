@@ -2549,4 +2549,30 @@ fn main() {
         "#,
         );
     }
+
+    #[test]
+    fn mod_and_fn_in_use() {
+        check(
+            r#"
+mod bar {
+    use super::foo$0;
+            // ^^^ import
+
+    pub fn test() {
+        foo();
+     // ^^^
+        foo::buz();
+     // ^^^
+    }
+}
+
+pub mod foo {
+     // ^^^
+    pub fn buz() {}
+}
+fn foo() {}
+// ^^^
+            "#,
+        )
+    }
 }

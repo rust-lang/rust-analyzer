@@ -11793,3 +11793,71 @@ pub struct Bar;
         "#]],
     );
 }
+
+#[test]
+fn hover_mod_and_fn_in_use() {
+    check(
+        r#"
+mod bar {
+    pub fn foo() {}
+    pub mod foo {
+        pub fn bar() {}
+    }
+}
+
+fn main() {
+    use bar::$0foo;
+}
+"#,
+        expect![[r#"
+            *foo*
+
+            ```rust
+            ra_test_fixture::bar
+            ```
+
+            ```rust
+            pub mod foo
+            ```
+
+            ---
+
+            ```rust
+            ra_test_fixture::bar
+            ```
+
+            ```rust
+            pub fn foo()
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_mod_and_fn_in_use_as_qualifier() {
+    check(
+        r#"
+mod bar {
+    pub fn foo() {}
+    pub mod foo {
+        pub fn bar() {}
+    }
+}
+
+fn main() {
+    use bar::$0foo::bar;
+}
+"#,
+        expect![[r#"
+            *foo*
+
+            ```rust
+            ra_test_fixture::bar
+            ```
+
+            ```rust
+            pub mod foo
+            ```
+        "#]],
+    );
+}
