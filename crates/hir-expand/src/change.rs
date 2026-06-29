@@ -1,6 +1,8 @@
 //! Defines a unit of change that can applied to the database to get the next
 //! state. Changes are transactional.
-use base_db::{CrateGraphBuilder, FileChange, SourceRoot, salsa::Durability};
+use base_db::{
+    CrateGraphBuilder, FileChange, SourceRoot, SourceRootId, SourceRootKind, salsa::Durability,
+};
 use span::FileId;
 use triomphe::Arc;
 
@@ -25,8 +27,8 @@ impl ChangeWithProcMacros {
         }
     }
 
-    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>) {
-        self.source_change.change_file(file_id, new_text)
+    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>, kind: SourceRootKind) {
+        self.source_change.change_file(file_id, new_text, kind)
     }
 
     pub fn set_crate_graph(&mut self, graph: CrateGraphBuilder) {
@@ -37,7 +39,7 @@ impl ChangeWithProcMacros {
         self.proc_macros = Some(proc_macros);
     }
 
-    pub fn set_roots(&mut self, roots: Vec<SourceRoot>) {
+    pub fn set_roots(&mut self, roots: Vec<(SourceRootId, SourceRoot)>) {
         self.source_change.set_roots(roots)
     }
 }

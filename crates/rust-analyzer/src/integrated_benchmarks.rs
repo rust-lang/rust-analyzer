@@ -17,6 +17,7 @@ use ide::{
 };
 use ide_db::{
     SnippetCap,
+    base_db::SourceRootKind,
     imports::insert_use::{ImportGranularity, InsertUseConfig},
 };
 use project_model::CargoConfig;
@@ -89,7 +90,7 @@ fn integrated_highlighting_benchmark() {
             "self. data. cargo_buildScripts_rebuildOnSave",
         );
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         host.apply_change(change);
     }
 
@@ -154,7 +155,7 @@ fn integrated_completion_benchmark() {
             patch(&mut text, "db.struct_signature(self.id)", "sel;\ndb.struct_signature(self.id)")
                 + "sel".len();
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         host.apply_change(change);
         completion_offset
     };
@@ -179,7 +180,7 @@ fn integrated_completion_benchmark() {
             ";sel;\ndb.struct_signature(self.id)",
         ) + ";sel".len();
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         host.apply_change(change);
         completion_offset
     };
@@ -203,7 +204,7 @@ fn integrated_completion_benchmark() {
             "self.;\ndb.struct_signature(self.id)",
         ) + "self.".len();
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         host.apply_change(change);
         completion_offset
     };
@@ -295,7 +296,7 @@ fn integrated_diagnostics_benchmark() {
         let mut text = host.analysis().file_text(file_id).unwrap().to_string();
         patch(&mut text, "db.struct_signature(self.id)", "();\ndb.struct_signature(self.id)");
         let mut change = ChangeWithProcMacros::default();
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         host.apply_change(change);
     };
 

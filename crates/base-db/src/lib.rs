@@ -29,7 +29,7 @@ pub use crate::{
         BuiltCrateData, BuiltDependency, Crate, CrateBuilder, CrateBuilderId, CrateDataBuilder,
         CrateDisplayName, CrateGraphBuilder, CrateName, CrateOrigin, CratesIdMap, CratesMap,
         DependencyBuilder, Env, ExtraCrateData, LangCrateOrigin, ProcMacroLoadingError,
-        ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId, UniqueCrateData,
+        ProcMacroPaths, ReleaseChannel, SourceRoot, SourceRootId, SourceRootKind, UniqueCrateData,
     },
 };
 use dashmap::{DashMap, mapref::entry::Entry};
@@ -151,6 +151,11 @@ impl Files {
         *source_root
     }
 
+    /// Whether a source root with the given id has already been set.
+    pub fn is_source_root_initialized(&self, source_root_id: SourceRootId) -> bool {
+        self.source_roots.contains_key(&source_root_id)
+    }
+
     pub fn set_source_root_with_durability(
         &self,
         db: &mut dyn SourceDatabase,
@@ -236,19 +241,19 @@ pub struct LocalRoots {
     pub roots: FxHashSet<SourceRootId>,
 }
 
-#[salsa_macros::input(debug)]
+#[salsa::input(debug)]
 pub struct FileText {
     #[returns(ref)]
     pub text: Arc<str>,
     pub file_id: vfs::FileId,
 }
 
-#[salsa_macros::input(debug)]
+#[salsa::input(debug)]
 pub struct FileSourceRootInput {
     pub source_root_id: SourceRootId,
 }
 
-#[salsa_macros::input(debug)]
+#[salsa::input(debug)]
 pub struct SourceRootInput {
     pub source_root: Arc<SourceRoot>,
 }
@@ -269,6 +274,11 @@ pub trait SourceDatabase: salsa::Database {
 
     /// Contents of the source root.
     fn source_root(&self, id: SourceRootId) -> SourceRootInput;
+
+    /// Whether a source root with the given id has already been set.
+    ///
+    /// Unlike [`SourceDatabase::source_root`], this does not panic for unknown ids.
+    fn is_source_root_initialized(&self, id: SourceRootId) -> bool;
 
     fn file_source_root(&self, id: vfs::FileId) -> FileSourceRootInput;
 

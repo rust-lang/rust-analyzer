@@ -11,13 +11,13 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use hir::ChangeWithProcMacros;
-use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId};
+use ide::{Analysis, AnalysisHost, Cancellable, FileId, SourceRootId, SourceRootKind};
 use ide_db::{
     MiniCore,
     base_db::{Crate, ProcMacroPaths, SourceDatabase, salsa::Revision},
 };
 use itertools::Itertools;
-use load_cargo::SourceRootConfig;
+use load_cargo::{SourceRootConfig, SourceRootIdAllocator};
 use lsp_types::{Notification, SemanticTokens, Uri};
 use parking_lot::{
     MappedRwLockReadGuard, Mutex, RwLock, RwLockReadGuard, RwLockUpgradableReadGuard,
@@ -95,6 +95,9 @@ pub(crate) struct GlobalState {
     pub(crate) diagnostics: DiagnosticCollection,
     pub(crate) mem_docs: MemDocs,
     pub(crate) source_root_config: SourceRootConfig,
+    /// Allocates `SourceRootId`s that stay stable across workspace reloads, so that library
+    /// source roots (stored with `NEVER_CHANGE` durability) keep their immutable id.
+    pub(crate) source_root_id_allocator: SourceRootIdAllocator,
     /// A mapping that maps a local source root's `SourceRootId` to it parent's `SourceRootId`, if it has one.
     pub(crate) local_roots_parent_map: Arc<FxHashMap<SourceRootId, SourceRootId>>,
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Uri, SemanticTokens>>>,
@@ -278,6 +281,7 @@ impl GlobalState {
                 message: None,
             },
             source_root_config: SourceRootConfig::default(),
+            source_root_id_allocator: SourceRootIdAllocator::default(),
             local_roots_parent_map: Arc::new(FxHashMap::default()),
             config_errors: Default::default(),
 
@@ -405,6 +409,18 @@ impl GlobalState {
                         self.diagnostics.clear_native_for(file.file_id);
                     }
 
+                    let kind = self.source_root_config.source_root_kind(&vfs_path);
+                    // Library sources are assumed immutable: we set their text once, with
+                    // `NEVER_CHANGE` durability, when the file is first created. Modifications and
+                    // deletions are ignored, as re-setting a `NEVER_CHANGE` input would panic.
+                    let record_text_change = match kind {
+                        SourceRootKind::Local => true,
+                        SourceRootKind::Library => matches!(file.change, vfs::Change::Create(..)),
+                    };
+                    if !record_text_change {
+                        continue;
+                    }
+
                     let text = if let vfs::Change::Create(v, _) | vfs::Change::Modify(v, _) =
                         file.change
                     {
@@ -419,10 +435,10 @@ impl GlobalState {
                     };
                     // delay `line_endings_map` changes until we are done normalizing the text
                     // this allows delaying the re-acquisition of the write lock
-                    bytes.push((file.file_id, text));
+                    bytes.push((file.file_id, text, kind));
                 }
                 let (vfs, line_endings_map) = &mut *RwLockUpgradableReadGuard::upgrade(guard);
-                bytes.into_iter().for_each(|(file_id, text)| {
+                bytes.into_iter().for_each(|(file_id, text, kind)| {
                     let text = match text {
                         None => None,
                         Some((text, line_endings)) => {
@@ -430,7 +446,7 @@ impl GlobalState {
                             Some(text)
                         }
                     };
-                    change.change_file(file_id, text);
+                    change.change_file(file_id, text, kind);
                 });
                 if has_structure_changes {
                     let roots = self.source_root_config.partition(vfs);

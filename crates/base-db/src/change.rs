@@ -10,14 +10,14 @@ use vfs::FileId;
 
 use crate::{
     CrateGraphBuilder, CratesIdMap, LibraryRoots, LocalRoots, SourceDatabase, SourceRoot,
-    SourceRootId,
+    SourceRootId, SourceRootKind,
 };
 
 /// Encapsulate a bunch of raw `.set` calls on the database.
 #[derive(Default)]
 pub struct FileChange {
-    pub roots: Option<Vec<SourceRoot>>,
-    pub files_changed: Vec<(FileId, Option<String>)>,
+    pub roots: Option<Vec<(SourceRootId, SourceRoot)>>,
+    pub files_changed: Vec<(FileId, Option<String>, SourceRootKind)>,
     pub crate_graph: Option<CrateGraphBuilder>,
 }
 
@@ -38,12 +38,12 @@ impl fmt::Debug for FileChange {
 }
 
 impl FileChange {
-    pub fn set_roots(&mut self, roots: Vec<SourceRoot>) {
+    pub fn set_roots(&mut self, roots: Vec<(SourceRootId, SourceRoot)>) {
         self.roots = Some(roots);
     }
 
-    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>) {
-        self.files_changed.push((file_id, new_text))
+    pub fn change_file(&mut self, file_id: FileId, new_text: Option<String>, kind: SourceRootKind) {
+        self.files_changed.push((file_id, new_text, kind))
     }
 
     pub fn set_crate_graph(&mut self, graph: CrateGraphBuilder) {
@@ -55,12 +55,17 @@ impl FileChange {
         if let Some(roots) = self.roots {
             let mut local_roots = FxHashSet::default();
             let mut library_roots = FxHashSet::default();
-            for (idx, root) in roots.into_iter().enumerate() {
-                let root_id = SourceRootId(idx as u32);
+            for (root_id, root) in roots {
                 if root.is_library {
                     library_roots.insert(root_id);
                 } else {
                     local_roots.insert(root_id);
+                }
+                // Library source roots (and their file mappings) are stored with `NEVER_CHANGE`
+                // durability and are assumed immutable, so we emit them only once. Repartitioning
+                // re-produces them on every structural change; re-setting them would panic.
+                if root.is_library && db.is_source_root_initialized(root_id) {
+                    continue;
                 }
                 let durability = source_root_durability(&root);
                 for file_id in root.iter() {
@@ -73,11 +78,8 @@ impl FileChange {
             LibraryRoots::get(db).set_roots(db).to(library_roots);
         }
 
-        for (file_id, text) in self.files_changed {
-            let source_root_id = db.file_source_root(file_id);
-            let source_root = db.source_root(source_root_id.source_root_id(db));
-
-            let durability = file_text_durability(&source_root.source_root(db));
+        for (file_id, text, kind) in self.files_changed {
+            let durability = kind.file_text_durability();
             // XXX: can't actually remove the file, just reset the text
             let text = text.unwrap_or_default();
             db.set_file_text_with_durability(file_id, &text, durability)
@@ -91,9 +93,5 @@ impl FileChange {
 }
 
 fn source_root_durability(source_root: &SourceRoot) -> Durability {
-    if source_root.is_library { Durability::MEDIUM } else { Durability::LOW }
-}
-
-fn file_text_durability(source_root: &SourceRoot) -> Durability {
-    if source_root.is_library { Durability::HIGH } else { Durability::LOW }
+    if source_root.is_library { Durability::NEVER_CHANGE } else { Durability::MEDIUM }
 }

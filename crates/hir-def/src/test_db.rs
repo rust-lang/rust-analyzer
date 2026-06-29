@@ -111,6 +111,10 @@ impl SourceDatabase for TestDB {
         self.files.source_root(source_root_id)
     }
 
+    fn is_source_root_initialized(&self, source_root_id: SourceRootId) -> bool {
+        self.files.is_source_root_initialized(source_root_id)
+    }
+
     fn set_source_root_with_durability(
         &mut self,
         source_root_id: SourceRootId,

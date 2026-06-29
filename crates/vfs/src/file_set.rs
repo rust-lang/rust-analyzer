@@ -123,9 +123,23 @@ impl FileSetConfig {
         self.n_file_sets
     }
 
+    /// Number of file sets this config partitions a [`Vfs`] into.
+    ///
+    /// This is the number of sets produced by [`FileSetConfig::partition`].
+    pub fn n_file_sets(&self) -> usize {
+        self.n_file_sets
+    }
+
     /// Get the lexicographically ordered vector of the underlying map.
     pub fn roots(&self) -> Vec<(Vec<u8>, u64)> {
         self.map.stream().into_byte_vec()
+    }
+
+    /// Returns the index of the file set that `path` belongs to.
+    ///
+    /// This matches the indices used by [`FileSetConfig::partition`].
+    pub fn classify_path(&self, path: &VfsPath) -> usize {
+        self.classify(path, &mut Vec::new())
     }
 
     /// Returns the set index for the given `path`.

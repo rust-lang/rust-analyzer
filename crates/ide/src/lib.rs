@@ -136,7 +136,7 @@ pub use ide_completion::{
 pub use ide_db::{
     FileId, FilePosition, FileRange, RootDatabase, Severity, SymbolKind,
     assists::ExprFillDefaultMode,
-    base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId},
+    base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId, SourceRootKind},
     documentation::Documentation,
     label::Label,
     line_index::{LineCol, LineIndex},
@@ -263,7 +263,7 @@ impl Analysis {
         let source_root = SourceRoot::new_local(file_set);
 
         let mut change = ChangeWithProcMacros::default();
-        change.set_roots(vec![source_root]);
+        change.set_roots(vec![(SourceRootId(0), source_root)]);
         let mut crate_graph = CrateGraphBuilder::default();
         // FIXME: cfg options
         // Default to enable test for single file.
@@ -288,7 +288,7 @@ impl Analysis {
                 toolchain: None,
             }),
         );
-        change.change_file(file_id, Some(text));
+        change.change_file(file_id, Some(text), SourceRootKind::Local);
         change.set_crate_graph(crate_graph);
 
         host.apply_change(change);
