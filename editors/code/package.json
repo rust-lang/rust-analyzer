@@ -3344,7 +3344,8 @@
                 }
             },
             "explorer.fileNesting.patterns": {
-                "Cargo.toml": "Cargo.lock"
+                "Cargo.toml": "Cargo.lock",
+                "mod.rs": "*.rs"
             }
         },
         "problemPatterns": [
