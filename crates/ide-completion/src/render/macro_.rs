@@ -81,7 +81,7 @@ fn render(
     match ctx.snippet_cap() {
         Some(cap) if needs_bang && !has_call_parens => {
             let semi = match ket {
-                ")" | "]" if is_item => ";",
+                ")" | "]" if is_item && completion.config.add_semicolon_to_unit => ";",
                 _ => "",
             };
             let snippet = format!("{escaped_name}!{bra}$0{ket}{semi}");
