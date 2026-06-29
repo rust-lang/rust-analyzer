@@ -11,14 +11,13 @@ SOURCE_FILE
     BLOCK_EXPR
       STMT_LIST
         L_CURLY "{"
-        WHITESPACE "\n    "
-        EXPR_STMT
-          TUPLE_EXPR
-            L_PAREN "("
-            COMMA ","
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
+        WHITESPACE " "
+        INCLUDE_BYTES_EXPR
+          BUILTIN_KW "builtin"
+          WHITESPACE " "
+          POUND "#"
+          WHITESPACE " "
+          INCLUDE_BYTES_KW "include_bytes"
+        WHITESPACE " "
         R_CURLY "}"
   WHITESPACE "\n"
-error 17: expected expression
