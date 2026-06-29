@@ -672,15 +672,15 @@ impl FetchMetadata {
 
         let mut other_options = vec![];
         // cargo metadata only supports a subset of flags of what cargo usually accepts, and usually
-        // the only relevant flags for metadata here are unstable ones, so we pass those along
-        // but nothing else
+        // the only relevant flags for metadata here are unstable ones and --config, so we pass
+        // those along but nothing else
         let mut extra_args = config.extra_args.iter();
         while let Some(arg) = extra_args.next() {
-            if arg == "-Z"
-                && let Some(arg) = extra_args.next()
+            if (arg == "-Z" || arg == "--config")
+                && let Some(next) = extra_args.next()
             {
-                other_options.push("-Z".to_owned());
                 other_options.push(arg.to_owned());
+                other_options.push(next.to_owned());
             }
         }
         other_options.extend(config.metadata_extra_args.iter().cloned());

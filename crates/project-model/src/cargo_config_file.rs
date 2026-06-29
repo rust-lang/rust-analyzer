@@ -16,12 +16,14 @@ impl CargoConfigFile {
     pub(crate) fn load(
         manifest: &ManifestPath,
         extra_env: &FxHashMap<String, Option<String>>,
+        extra_args: &[String],
         sysroot: &Sysroot,
     ) -> Option<Self> {
         let mut cargo_config = sysroot.tool(Tool::Cargo, manifest.parent(), extra_env);
         cargo_config
             .args(["-Z", "unstable-options", "config", "get", "--format", "toml", "--show-origin"])
             .env("RUSTC_BOOTSTRAP", "1");
+        cargo_config.args(extra_args);
         if manifest.is_rust_manifest() {
             cargo_config.arg("-Zscript");
         }

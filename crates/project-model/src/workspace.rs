@@ -245,6 +245,7 @@ impl ProjectWorkspace {
         // Resolve the Cargo.toml to the workspace root as we base the `target` dir off of it.
         let mut cmd = sysroot.tool(Tool::Cargo, workspace_dir, extra_env);
         cmd.args(["locate-project", "--workspace", "--manifest-path", cargo_toml.as_str()]);
+        cmd.args(extra_args);
         let cargo_toml = &match utf8_stdout(&mut cmd) {
             Ok(output) => {
                 #[derive(serde_derive::Deserialize)]
@@ -269,7 +270,7 @@ impl ProjectWorkspace {
 
         tracing::info!(workspace = %cargo_toml, src_root = ?sysroot.rust_lib_src_root(), root = ?sysroot.root(), "Using sysroot");
         progress("querying project metadata".to_owned());
-        let config_file = CargoConfigFile::load(cargo_toml, extra_env, &sysroot);
+        let config_file = CargoConfigFile::load(cargo_toml, extra_env, extra_args, &sysroot);
         let config_file_ = config_file.clone();
         let toolchain_config = QueryConfig::Cargo(&sysroot, cargo_toml, &config_file_);
         let targets =
@@ -549,7 +550,8 @@ impl ProjectWorkspace {
             None => Sysroot::empty(),
         };
 
-        let config_file = CargoConfigFile::load(detached_file, &config.extra_env, &sysroot);
+        let config_file =
+            CargoConfigFile::load(detached_file, &config.extra_env, &config.extra_args, &sysroot);
         let query_config = QueryConfig::Cargo(&sysroot, detached_file, &config_file);
         let toolchain = version::get(query_config, &config.extra_env).ok().flatten();
         let targets = target_tuple::get(query_config, config.target.as_deref(), &config.extra_env)
