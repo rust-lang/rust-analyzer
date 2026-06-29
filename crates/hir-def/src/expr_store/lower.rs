@@ -35,8 +35,9 @@ use thin_vec::ThinVec;
 use tt::TextRange;
 
 use crate::{
-    AdtId, BlockId, BlockLoc, ConstId, DefWithBodyId, FunctionId, GenericDefId, ImplId,
-    ItemContainerId, MacroId, ModuleDefId, ModuleId, TraitId, TypeAliasId, UnresolvedMacro,
+    AdtId, BlockId, BlockIdLt, ConstId, DefWithBodyId, FunctionId, GenericDefId, ImplId,
+    ItemContainerId, LoweringMode, MacroId, ModuleDefId, ModuleId, TraitId, TypeAliasId,
+    UnresolvedMacro,
     attrs::AttrFlags,
     db::DefDatabase,
     expr_store::{
@@ -85,7 +86,7 @@ pub(super) fn lower_body(
     let mut self_params = ArrayVec::new();
     let mut source_map_self_param = None;
     let mut params = vec![];
-    let mut collector = ExprCollector::new(db, module, current_file_id);
+    let mut collector = ExprCollector::new(db, module, current_file_id, LoweringMode::Analysis);
 
     let skip_body = AttrFlags::query(
         db,
@@ -197,7 +198,8 @@ pub(crate) fn lower_type_ref(
     module: ModuleId,
     type_ref: InFile<Option<ast::Type>>,
 ) -> (ExpressionStore, ExpressionStoreSourceMap, TypeRefId) {
-    let mut expr_collector = ExprCollector::new(db, module, type_ref.file_id);
+    let mut expr_collector =
+        ExprCollector::new(db, module, type_ref.file_id, LoweringMode::Analysis);
     let type_ref =
         expr_collector.lower_type_ref_opt(type_ref.value, &mut ExprCollector::impl_trait_allocator);
     let (store, source_map) = expr_collector.store.finish();
@@ -211,8 +213,9 @@ pub fn lower_generic_params(
     file_id: HirFileId,
     param_list: Option<ast::GenericParamList>,
     where_clause: Option<ast::WhereClause>,
+    mode: LoweringMode,
 ) -> (ExpressionStore, GenericParams, ExpressionStoreSourceMap) {
-    let mut expr_collector = ExprCollector::new(db, module, file_id);
+    let mut expr_collector = ExprCollector::new(db, module, file_id, mode);
     let mut collector = generics::GenericParamsCollector::new(def);
     collector.lower(&mut expr_collector, param_list, where_clause);
     let params = collector.finish();
@@ -226,7 +229,8 @@ pub(crate) fn lower_impl(
     impl_syntax: InFile<ast::Impl>,
     impl_id: ImplId,
 ) -> (ExpressionStore, ExpressionStoreSourceMap, TypeRefId, Option<TraitRef>, GenericParams) {
-    let mut expr_collector = ExprCollector::new(db, module, impl_syntax.file_id);
+    let mut expr_collector =
+        ExprCollector::new(db, module, impl_syntax.file_id, LoweringMode::Analysis);
     let self_ty =
         expr_collector.lower_type_ref_opt_disallow_impl_trait(impl_syntax.value.self_ty());
     let trait_ = impl_syntax.value.trait_().and_then(|it| match &it {
@@ -254,7 +258,8 @@ pub(crate) fn lower_trait(
     trait_syntax: InFile<ast::Trait>,
     trait_id: TraitId,
 ) -> (ExpressionStore, ExpressionStoreSourceMap, GenericParams) {
-    let mut expr_collector = ExprCollector::new(db, module, trait_syntax.file_id);
+    let mut expr_collector =
+        ExprCollector::new(db, module, trait_syntax.file_id, LoweringMode::Analysis);
     let mut collector = generics::GenericParamsCollector::with_self_param(
         &mut expr_collector,
         trait_id.into(),
@@ -277,7 +282,7 @@ pub(crate) fn lower_type_alias(
     type_alias_id: TypeAliasId,
 ) -> (ExpressionStore, ExpressionStoreSourceMap, GenericParams, Box<[TypeBound]>, Option<TypeRefId>)
 {
-    let mut expr_collector = ExprCollector::new(db, module, alias.file_id);
+    let mut expr_collector = ExprCollector::new(db, module, alias.file_id, LoweringMode::Analysis);
     let bounds = alias
         .value
         .type_bound_list()
@@ -319,7 +324,7 @@ pub(crate) fn lower_function(
     bool,
     bool,
 ) {
-    let mut expr_collector = ExprCollector::new(db, module, fn_.file_id);
+    let mut expr_collector = ExprCollector::new(db, module, fn_.file_id, LoweringMode::Analysis);
     let mut collector = generics::GenericParamsCollector::new(function_id.into());
     collector.lower(&mut expr_collector, fn_.value.generic_param_list(), fn_.value.where_clause());
     let mut params = vec![];
@@ -437,6 +442,7 @@ pub struct ExprCollector<'db> {
     def_map: &'db DefMap,
     local_def_map: &'db LocalDefMap,
     module: ModuleId,
+    lowering_mode: LoweringMode,
     lang_items: OnceCell<&'db LangItems>,
     pub store: ExpressionStoreBuilder,
 
@@ -550,6 +556,7 @@ impl<'db> ExprCollector<'db> {
         db: &dyn DefDatabase,
         module: ModuleId,
         current_file_id: HirFileId,
+        lowering_mode: LoweringMode,
     ) -> ExprCollector<'_> {
         let (def_map, local_def_map) = module.local_def_map(db);
         let expander = Expander::new(db, current_file_id, def_map);
@@ -558,6 +565,7 @@ impl<'db> ExprCollector<'db> {
             db,
             cfg_options: krate.cfg_options(db),
             module,
+            lowering_mode,
             def_map,
             local_def_map,
             lang_items: OnceCell::new(),
@@ -2523,10 +2531,12 @@ impl<'db> ExprCollector<'db> {
         block: ast::BlockExpr,
         mk_block: impl FnOnce(&mut Self, Option<BlockId>, Box<[Statement]>, Option<ExprId>) -> Expr,
     ) -> ExprId {
-        let block_id = self.expander.ast_id_map().ast_id_for_block(&block).map(|file_local_id| {
+        let block_id = (|| {
+            let token = self.lowering_mode.allow_tracked_structs()?;
+            let file_local_id = self.expander.ast_id_map().ast_id_for_block(&block)?;
             let ast_id = self.expander.in_file(file_local_id);
-            BlockId::new(self.db, BlockLoc { ast_id, module: self.module })
-        });
+            Some(unsafe { BlockIdLt::new(self.db, ast_id, self.module, token).to_static() })
+        })();
 
         let (module, def_map) =
             match block_id.map(|block_id| (block_def_map(self.db, block_id), block_id)) {
