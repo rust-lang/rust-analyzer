@@ -133,6 +133,8 @@ pub struct CargoConfig {
     pub extra_args: Vec<String>,
     /// Extra args passed only to `cargo metadata`, not other cargo commands.
     pub metadata_extra_args: Vec<String>,
+    /// Extra args passed only to `cargo config get` when reading `.cargo/config.toml`.
+    pub config_extra_args: Vec<String>,
     /// Extra env vars to set when invoking the cargo command
     pub extra_env: FxHashMap<String, Option<String>>,
     pub invocation_strategy: InvocationStrategy,

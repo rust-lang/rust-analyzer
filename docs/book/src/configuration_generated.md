@@ -142,6 +142,13 @@ To enable a name with a value, use `"key=value"`.
 To disable, prefix the entry with a `!`.
 
 
+## rust-analyzer.cargo.configExtraArgs {#cargo.configExtraArgs}
+
+Default: `[]`
+
+Extra arguments passed only to `cargo config` not to other cargo invocations.
+
+
 ## rust-analyzer.cargo.extraArgs {#cargo.extraArgs}
 
 Default: `[]`

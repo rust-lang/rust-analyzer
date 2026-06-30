@@ -974,6 +974,19 @@
             {
                 "title": "Cargo",
                 "properties": {
+                    "rust-analyzer.cargo.configExtraArgs": {
+                        "markdownDescription": "Extra arguments passed only to `cargo config` not to other cargo invocations.",
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "title": "Cargo",
+                "properties": {
                     "rust-analyzer.cargo.extraArgs": {
                         "markdownDescription": "Extra arguments that are passed to every cargo invocation.",
                         "default": [],

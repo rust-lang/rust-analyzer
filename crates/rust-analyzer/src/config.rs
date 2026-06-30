@@ -833,6 +833,8 @@ config_data! {
         cargo_cfgs: Vec<String> = {
             vec!["debug_assertions".into(), "miri".into()]
         },
+        /// Extra arguments passed only to `cargo config` not to other cargo invocations.
+        cargo_configExtraArgs: Vec<String> = vec![],
         /// Extra arguments that are passed to every cargo invocation.
         cargo_extraArgs: Vec<String> = vec![],
         /// Extra environment variables that will be set when running cargo, rustc
@@ -2484,6 +2486,7 @@ impl Config {
             set_test: *self.cfg_setTest(source_root),
             no_deps: *self.cargo_noDeps(source_root),
             metadata_extra_args: self.cargo_metadataExtraArgs(source_root).clone(),
+            config_extra_args: self.cargo_configExtraArgs(source_root).clone(),
         }
     }
 

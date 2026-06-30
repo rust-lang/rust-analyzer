@@ -217,6 +217,7 @@ impl ProjectWorkspace {
             rustc_source,
             extra_args,
             metadata_extra_args,
+            config_extra_args,
             extra_env,
             set_test,
             cfg_overrides,
@@ -269,7 +270,7 @@ impl ProjectWorkspace {
 
         tracing::info!(workspace = %cargo_toml, src_root = ?sysroot.rust_lib_src_root(), root = ?sysroot.root(), "Using sysroot");
         progress("querying project metadata".to_owned());
-        let config_file = CargoConfigFile::load(cargo_toml, extra_env, &sysroot);
+        let config_file = CargoConfigFile::load(cargo_toml, extra_env, &sysroot, config_extra_args);
         let config_file_ = config_file.clone();
         let toolchain_config = QueryConfig::Cargo(&sysroot, cargo_toml, &config_file_);
         let targets =
@@ -549,7 +550,12 @@ impl ProjectWorkspace {
             None => Sysroot::empty(),
         };
 
-        let config_file = CargoConfigFile::load(detached_file, &config.extra_env, &sysroot);
+        let config_file = CargoConfigFile::load(
+            detached_file,
+            &config.extra_env,
+            &sysroot,
+            &config.config_extra_args,
+        );
         let query_config = QueryConfig::Cargo(&sysroot, detached_file, &config_file);
         let toolchain = version::get(query_config, &config.extra_env).ok().flatten();
         let targets = target_tuple::get(query_config, config.target.as_deref(), &config.extra_env)
