@@ -99,6 +99,7 @@ mod handlers {
     pub(crate) mod unresolved_macro_call;
     pub(crate) mod unresolved_method;
     pub(crate) mod unresolved_module;
+    pub(crate) mod unresolved_variant;
     pub(crate) mod unused_must_use;
     pub(crate) mod unused_variables;
 
@@ -518,6 +519,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::UnresolvedMacroCall(d) => handlers::unresolved_macro_call::unresolved_macro_call(&ctx, &d),
             AnyDiagnostic::UnresolvedMethodCall(d) => handlers::unresolved_method::unresolved_method(&ctx, &d),
             AnyDiagnostic::UnresolvedModule(d) => handlers::unresolved_module::unresolved_module(&ctx, &d),
+            AnyDiagnostic::UnresolvedVariant(d)  => handlers::unresolved_variant::unresolved_variant(&ctx, &d),
             AnyDiagnostic::UnusedMustUse(d) => handlers::unused_must_use::unused_must_use(&ctx, &d),
             AnyDiagnostic::UnusedMut(d) => match handlers::mutability_errors::unused_mut(&ctx, &d) {
                 Some(it) => it,

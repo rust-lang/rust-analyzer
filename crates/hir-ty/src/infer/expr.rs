@@ -981,7 +981,6 @@ impl<'db> InferenceContext<'_, 'db> {
     ) -> Ty<'db> {
         // Find the relevant variant
         let (adt_ty, Some(variant)) = self.resolve_variant(expr.into(), path, false) else {
-            // FIXME: Emit an error.
             for field in fields {
                 self.infer_expr_no_expect(field.expr, ExprIsRead::Yes);
             }
