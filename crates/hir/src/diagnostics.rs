@@ -114,6 +114,7 @@ diagnostics![AnyDiagnostic<'db> ->
     FruInDestructuringAssignment,
     FunctionalRecordUpdateOnNonStruct,
     GenericDefaultRefersToSelf,
+    ImplIncorrectSafety,
     InactiveCode,
     IncoherentImpl,
     IncorrectCase,
@@ -151,7 +152,6 @@ diagnostics![AnyDiagnostic<'db> ->
     RemoveUnnecessaryElse,
     UnusedMustUse<'db>,
     ReplaceFilterMapNextWithFindMap,
-    TraitImplIncorrectSafety,
     TraitImplMissingAssocItems,
     TraitImplOrphan,
     TraitImplRedundantAssocItems,
@@ -503,14 +503,6 @@ pub struct TraitImplOrphan {
     pub impl_: AstPtr<ast::Impl>,
 }
 
-// FIXME: Split this off into the corresponding 4 rustc errors
-#[derive(Debug, PartialEq, Eq)]
-pub struct TraitImplIncorrectSafety {
-    pub file_id: HirFileId,
-    pub impl_: AstPtr<ast::Impl>,
-    pub should_be_safe: bool,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct TraitImplMissingAssocItems {
     pub file_id: HirFileId,
@@ -534,6 +526,22 @@ pub struct RemoveTrailingReturn {
 #[derive(Debug)]
 pub struct RemoveUnnecessaryElse {
     pub if_expr: InFile<AstPtr<ast::IfExpr>>,
+}
+
+#[derive(Debug)]
+pub struct ImplIncorrectSafety {
+    pub file_id: HirFileId,
+    pub impl_: AstPtr<ast::Impl>,
+    pub kind: ImplIncorrectSafetyKind,
+}
+
+#[derive(Debug)]
+pub enum ImplIncorrectSafetyKind {
+    UnsafeInherentImpl,
+    UnsafeNegativeImpl,
+    UnsafeImplOfSafeTrait(Trait),
+    SafeImplOfUnsafeTrait(Trait),
+    SafeImplOfDanglingDrop,
 }
 
 #[derive(Debug)]
