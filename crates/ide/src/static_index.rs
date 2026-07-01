@@ -4,7 +4,7 @@
 use arrayvec::ArrayVec;
 use hir::{Crate, Module, Semantics, db::HirDatabase};
 use ide_db::{
-    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
+    FileId, FileRange, FxHashMap, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
     defs::{Definition, IdentClass},
     documentation::Documentation,
@@ -26,12 +26,17 @@ use crate::{
 ///
 /// The intended use-case is powering read-only code browsers and emitting LSIF/SCIP.
 #[derive(Debug)]
-pub struct StaticIndex<'a> {
+pub struct StaticIndex {
     pub files: Vec<StaticIndexedFile>,
-    pub tokens: TokenStore,
+    pub tokens: FxHashMap<Definition, TokenStaticData>,
+}
+
+#[derive(Debug)]
+struct StaticIndexBuilder<'a> {
+    files: Vec<StaticIndexedFile>,
+    tokens: FxHashMap<Definition, TokenStaticData>,
     analysis: &'a Analysis,
     db: &'a RootDatabase,
-    def_map: FxHashMap<Definition, TokenId>,
 }
 
 #[derive(Debug)]
@@ -61,44 +66,12 @@ pub struct TokenStaticData {
     pub kind: SymbolInformationKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TokenId(usize);
-
-impl TokenId {
-    pub fn raw(self) -> usize {
-        self.0
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct TokenStore(Vec<TokenStaticData>);
-
-impl TokenStore {
-    pub fn insert(&mut self, data: TokenStaticData) -> TokenId {
-        let id = TokenId(self.0.len());
-        self.0.push(data);
-        id
-    }
-
-    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData> {
-        self.0.get_mut(id.0)
-    }
-
-    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData> {
-        self.0.get(id.0)
-    }
-
-    pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData)> {
-        self.0.into_iter().enumerate().map(|(id, data)| (TokenId(id), data))
-    }
-}
-
 #[derive(Debug)]
 pub struct StaticIndexedFile {
     pub file_id: FileId,
     pub folds: Vec<Fold>,
     pub inlay_hints: Vec<InlayHint>,
-    pub tokens: Vec<(TextRange, TokenId)>,
+    pub tokens: Vec<(TextRange, Definition)>,
 }
 
 fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
@@ -149,7 +122,7 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
-impl StaticIndex<'_> {
+impl StaticIndexBuilder<'_> {
     fn add_file(&mut self, file_id: FileId) {
         let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
         let folds = self.analysis.folding_ranges(file_id, true).unwrap();
@@ -224,42 +197,36 @@ impl StaticIndex<'_> {
         let mut result = StaticIndexedFile { file_id, inlay_hints, folds, tokens: vec![] };
 
         let mut add_token = |def: Definition, range: TextRange, scope_node: &SyntaxNode| {
-            let id = if let Some(it) = self.def_map.get(&def) {
-                *it
-            } else {
-                let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
-                        &sema,
-                        file_id,
-                        def,
-                        None,
-                        scope_node,
-                        None,
-                        false,
-                        &hover_config,
-                        edition,
-                        display_target,
-                    )),
-                    definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
-                        FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
-                    }),
-                    definition_body: def
-                        .try_to_nav(&sema)
-                        .map(UpmappingResult::call_site)
-                        .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
-                    references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
-                    kind: def_to_kind(self.db, def),
-                });
-                self.def_map.insert(def, it);
-                it
-            };
-            let token = self.tokens.get_mut(id).unwrap();
+            let token = self.tokens.entry(def).or_insert_with(|| TokenStaticData {
+                documentation: documentation_for_definition(&sema, def, scope_node),
+                hover: Some(hover_for_definition(
+                    &sema,
+                    file_id,
+                    def,
+                    None,
+                    scope_node,
+                    None,
+                    false,
+                    &hover_config,
+                    edition,
+                    display_target,
+                )),
+                definition: def
+                    .try_to_nav(&sema)
+                    .map(UpmappingResult::call_site)
+                    .map(|it| FileRange { file_id: it.file_id, range: it.focus_or_full_range() }),
+                definition_body: def
+                    .try_to_nav(&sema)
+                    .map(UpmappingResult::call_site)
+                    .map(|it| FileRange { file_id: it.file_id, range: it.full_range }),
+                references: vec![],
+                moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
+                display_name: def
+                    .name(self.db)
+                    .map(|name| name.display(self.db, edition).to_string()),
+                signature: Some(def.label(self.db, display_target)),
+                kind: def_to_kind(self.db, def),
+            });
             token.references.push(ReferenceData {
                 range: FileRange { range, file_id },
                 is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
@@ -267,7 +234,7 @@ impl StaticIndex<'_> {
                     None => false,
                 },
             });
-            result.tokens.push((range, id));
+            result.tokens.push((range, def));
         };
 
         if let Some(module) = sema.file_to_module_def(file_id) {
@@ -291,45 +258,95 @@ impl StaticIndex<'_> {
         self.files.push(result);
     }
 
-    pub fn compute<'a>(
-        analysis: &'a Analysis,
-        vendored_libs_config: VendoredLibrariesConfig<'_>,
-    ) -> StaticIndex<'a> {
-        let db = &analysis.db;
-        hir::attach_db(db, || {
-            let work = all_modules(db).into_iter().filter(|module| {
-                let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
-                let source_root = db.source_root(source_root).source_root(db);
-                let is_vendored = match vendored_libs_config {
-                    VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
-                        .is_some_and(|module_path| module_path.starts_with(workspace_root)),
-                    VendoredLibrariesConfig::Excluded => false,
-                };
+    fn build(self) -> StaticIndex {
+        StaticIndex { files: self.files, tokens: self.tokens }
+    }
+}
 
-                !source_root.is_library || is_vendored
+impl StaticIndex {
+    pub fn compute(
+        analysis: &Analysis,
+        vendored_libs_config: VendoredLibrariesConfig<'_>,
+        num_threads: usize,
+    ) -> Self {
+        let db = &analysis.db;
+
+        let files_to_index = {
+            let mut files_to_index: Vec<_> = hir::attach_db(db, || {
+                let modules = all_modules(db).into_iter();
+
+                let modules_to_index = modules.filter(|module| {
+                    let file_id = module.definition_source_file_id(db).original_file(db);
+                    let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+                    let source_root = db.source_root(source_root).source_root(db);
+                    let is_vendored = match vendored_libs_config {
+                        VendoredLibrariesConfig::Included { workspace_root } => source_root
+                            .path_for_file(&file_id.file_id(db))
+                            .is_some_and(|module_path| module_path.starts_with(workspace_root)),
+                        VendoredLibrariesConfig::Excluded => false,
+                    };
+
+                    !source_root.is_library || is_vendored
+                });
+
+                let files_to_index = modules_to_index.map(|module| {
+                    module.definition_source_file_id(db).original_file(db).file_id(db)
+                });
+
+                files_to_index.collect()
             });
-            let mut this = StaticIndex {
-                files: vec![],
-                tokens: Default::default(),
-                analysis,
-                db,
-                def_map: Default::default(),
-            };
-            let mut visited_files = FxHashSet::default();
-            for module in work {
-                let file_id =
-                    module.definition_source_file_id(db).original_file(db).file_id(&analysis.db);
-                if visited_files.contains(&file_id) {
-                    continue;
-                }
-                this.add_file(file_id);
-                visited_files.insert(file_id);
-            }
-            this
+            files_to_index.sort();
+            files_to_index.dedup();
+            files_to_index
+        };
+
+        std::thread::scope(|s| {
+            let threads: Vec<_> = (0..num_threads)
+                .map(|thread_index| {
+                    let files_to_index = files_to_index
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter(move |(index, _)| index % num_threads == thread_index)
+                        .map(|(_, file_id)| file_id);
+
+                    let analysis = analysis.clone();
+                    s.spawn(move || {
+                        let analysis = &analysis;
+                        let db = &analysis.db;
+                        hir::attach_db(db, || {
+                            let mut builder = StaticIndexBuilder {
+                                files: vec![],
+                                tokens: Default::default(),
+                                analysis,
+                                db,
+                            };
+                            for file_id in files_to_index {
+                                builder.add_file(file_id);
+                            }
+                            builder.build()
+                        })
+                    })
+                })
+                .collect();
+            threads
+                .into_iter()
+                .map(std::thread::ScopedJoinHandle::join)
+                .map(Result::unwrap)
+                .collect()
         })
+    }
+}
+
+impl FromIterator<StaticIndex> for StaticIndex {
+    fn from_iter<T: IntoIterator<Item = StaticIndex>>(iter: T) -> Self {
+        iter.into_iter()
+            .reduce(|mut acc, part| {
+                acc.files.extend(part.files);
+                acc.tokens.extend(part.tokens);
+                acc
+            })
+            .unwrap_or(StaticIndex { files: Default::default(), tokens: Default::default() })
     }
 }
 
@@ -346,7 +363,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -372,7 +389,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -397,7 +414,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
