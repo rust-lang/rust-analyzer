@@ -339,6 +339,37 @@ impl Definition {
             };
         }
 
+        if let Definition::Label(label) = self {
+            let def = match label.parent(db) {
+                ExpressionStoreOwner::Body(def) => match def {
+                    DefWithBody::Function(f) => f.source(db).map(|src| src.syntax().cloned()),
+                    DefWithBody::Const(c) => c.source(db).map(|src| src.syntax().cloned()),
+                    DefWithBody::Static(s) => s.source(db).map(|src| src.syntax().cloned()),
+                    DefWithBody::EnumVariant(v) => v.source(db).map(|src| src.syntax().cloned()),
+                },
+                ExpressionStoreOwner::Signature(def) => match def {
+                    hir::GenericDef::Function(it) => it.source(db).map(|src| src.syntax().cloned()),
+                    hir::GenericDef::Adt(it) => it.source(db).map(|src| src.syntax().cloned()),
+                    hir::GenericDef::Trait(it) => it.source(db).map(|src| src.syntax().cloned()),
+                    hir::GenericDef::TypeAlias(it) => {
+                        it.source(db).map(|src| src.syntax().cloned())
+                    }
+                    hir::GenericDef::Impl(it) => it.source(db).map(|src| src.syntax().cloned()),
+                    hir::GenericDef::Const(it) => it.source(db).map(|src| src.syntax().cloned()),
+                    hir::GenericDef::Static(it) => it.source(db).map(|src| src.syntax().cloned()),
+                },
+                ExpressionStoreOwner::VariantFields(it) => {
+                    it.source(db).map(|src| src.syntax().cloned())
+                }
+            };
+            return match def {
+                Some(def) => SearchScope::file_range(
+                    def.as_ref().original_file_range_with_macro_call_input(db),
+                ),
+                None => SearchScope::single_file(file_id),
+            };
+        }
+
         if let Definition::InlineAsmOperand(op) = self {
             let def = match op.parent(db) {
                 ExpressionStoreOwner::Body(def) => match def {

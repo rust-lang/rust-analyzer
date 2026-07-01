@@ -2893,6 +2893,66 @@ fn main() {
     }
 
     #[test]
+    fn test_rename_label_from_definition() {
+        check(
+            "new_label",
+            r#"
+//- minicore: iterators
+fn main() {
+    let xes = [1, 2, 3];
+    'testlabel$0: for x in xes.iter() {
+        if x == 5 {
+            continue 'testlabel;
+        }
+        println!("{x");
+    }
+}
+            "#,
+            r#"
+fn main() {
+    let xes = [1, 2, 3];
+    'new_label: for x in xes.iter() {
+        if x == 5 {
+            continue 'new_label;
+        }
+        println!("{x");
+    }
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_rename_label_from_reference() {
+        check(
+            "new_label",
+            r#"
+//- minicore: iterators
+fn main() {
+    let xes = [1, 2, 3];
+    'testlabel: for x in xes.iter() {
+        if x == 5 {
+            continue 'testlabel$0;
+        }
+        println!("{x");
+    }
+}
+            "#,
+            r#"
+fn main() {
+    let xes = [1, 2, 3];
+    'new_label: for x in xes.iter() {
+        if x == 5 {
+            continue 'new_label;
+        }
+        println!("{x");
+    }
+}
+            "#,
+        );
+    }
+
+    #[test]
     fn test_self_to_self() {
         cov_mark::check!(rename_self_to_self);
         check(
