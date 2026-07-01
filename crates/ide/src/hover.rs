@@ -289,6 +289,13 @@ fn hover_offset(
                             vec![((Definition::ExternCrateDecl(decl), None), None, false, node)]
                         }
 
+                        IdentClass::NameRefClass(NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns }) => {
+                            [type_ns, value_ns, macro_ns]
+                                .into_iter()
+                                .filter_map(|def| def.map(|def| ((def, None), None, false, node.clone())))
+                                .collect::<Vec<_>>()
+                        }
+
                         class => {
                             let render_extras = matches!(class, IdentClass::NameClass(_))
                                 // Render extra information for `Self` keyword as well

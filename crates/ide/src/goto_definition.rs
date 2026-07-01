@@ -4212,4 +4212,26 @@ struct Struct {
         "#,
         );
     }
+
+    #[test]
+    fn goto_def_mod_and_fn_in_use() {
+        check(
+            r#"
+mod bar {
+    use super::$0foo;
+
+    pub fn test() {
+        foo();
+    }
+}
+
+pub mod foo {
+     // ^^^
+    pub fn buz() {}
+}
+fn foo() {}
+// ^^^
+            "#,
+        )
+    }
 }

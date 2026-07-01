@@ -70,7 +70,9 @@ pub(crate) fn add_turbo_fish(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> 
 
     let def = match NameRefClass::classify(&ctx.sema, &name_ref)? {
         NameRefClass::Definition(def, _) => def,
-        NameRefClass::FieldShorthand { .. } | NameRefClass::ExternCrateShorthand { .. } => {
+        NameRefClass::DefinitionPerNs { .. }
+        | NameRefClass::FieldShorthand { .. }
+        | NameRefClass::ExternCrateShorthand { .. } => {
             return None;
         }
     };

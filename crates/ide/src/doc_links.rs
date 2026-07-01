@@ -164,6 +164,9 @@ pub(crate) fn external_docs(
         match node {
             ast::NameRef(name_ref) => match NameRefClass::classify(sema, &name_ref)? {
                 NameRefClass::Definition(def, _) => def,
+                NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns } => {
+                    type_ns.or(value_ns).or(macro_ns)?
+                }
                 NameRefClass::FieldShorthand { local_ref: _, field_ref, adt_subst: _ } => {
                     Definition::Field(field_ref)
                 }

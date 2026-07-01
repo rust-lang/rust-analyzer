@@ -295,6 +295,9 @@ fn highlight_name_ref(
         None => return HlTag::UnresolvedReference.into(),
     };
     let mut h = match name_class {
+        NameRefClass::DefinitionPerNs { type_ns, value_ns, macro_ns } => {
+            highlight_def(sema, krate, type_ns.or(value_ns).or(macro_ns).unwrap(), edition, true)
+        }
         NameRefClass::Definition(def, _) => {
             if let Definition::Local(local) = &def {
                 *binding_hash = Some(local.as_id() as u64);

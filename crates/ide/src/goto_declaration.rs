@@ -38,6 +38,7 @@ pub(crate) fn goto_declaration(
                 match parent {
                     ast::NameRef(name_ref) => match NameRefClass::classify(&sema, &name_ref)? {
                         NameRefClass::Definition(it, _) => Some(it),
+                        NameRefClass::DefinitionPerNs { .. } => None,
                         NameRefClass::FieldShorthand { field_ref, .. } =>
                             return field_ref.try_to_nav(&sema),
                         NameRefClass::ExternCrateShorthand { decl, .. } =>

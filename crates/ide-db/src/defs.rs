@@ -18,8 +18,8 @@ use hir::{
     ExpressionStoreOwner, ExternAssocItem, ExternCrateDecl, Field, Function, GenericDef,
     GenericParam, GenericSubstitution, HasContainer, HasVisibility, HirDisplay, Impl,
     InlineAsmOperand, ItemContainer, Label, Local, Macro, Module, ModuleDef, Name, PathResolution,
-    Semantics, Static, StaticLifetime, Struct, ToolModule, Trait, TupleField, TypeAlias, Variant,
-    Visibility,
+    PathResolutionPerNs, Semantics, Static, StaticLifetime, Struct, ToolModule, Trait, TupleField,
+    TypeAlias, Variant, Visibility,
 };
 use span::Edition;
 use stdx::{format_to, impl_from};
@@ -447,6 +447,17 @@ impl<'db> IdentClass<'db> {
                 res.push((Definition::Field(field_ref), Some(adt_subst)));
             }
             IdentClass::NameRefClass(NameRefClass::Definition(it, subst)) => res.push((it, subst)),
+            IdentClass::NameRefClass(NameRefClass::DefinitionPerNs {
+                type_ns,
+                value_ns,
+                macro_ns,
+            }) => {
+                res.extend(
+                    [type_ns, value_ns, macro_ns]
+                        .into_iter()
+                        .filter_map(|def| def.map(|def| (def, None))),
+                );
+            }
             IdentClass::NameRefClass(NameRefClass::FieldShorthand {
                 local_ref,
                 field_ref,
@@ -488,6 +499,13 @@ impl<'db> IdentClass<'db> {
                 res.push(Definition::Field(field_ref));
             }
             IdentClass::NameRefClass(NameRefClass::Definition(it, _)) => res.push(it),
+            IdentClass::NameRefClass(NameRefClass::DefinitionPerNs {
+                type_ns,
+                value_ns,
+                macro_ns,
+            }) => {
+                res.extend([type_ns, value_ns, macro_ns].into_iter().flatten());
+            }
             IdentClass::NameRefClass(NameRefClass::FieldShorthand {
                 local_ref,
                 field_ref,
@@ -723,6 +741,11 @@ impl OperatorClass {
 #[derive(Debug)]
 pub enum NameRefClass<'db> {
     Definition(Definition, Option<GenericSubstitution<'db>>),
+    DefinitionPerNs {
+        type_ns: Option<Definition>,
+        value_ns: Option<Definition>,
+        macro_ns: Option<Definition>,
+    },
     FieldShorthand {
         local_ref: Local,
         field_ref: Field,
@@ -773,6 +796,19 @@ impl<'db> NameRefClass<'db> {
                     return Some(NameRefClass::Definition(Definition::Macro(macro_def), None));
                 }
             }
+
+            if name_ref.ident_token().is_some()
+                && path.syntax().parent().and_then(ast::UseTree::cast).is_some()
+                && let Some(PathResolutionPerNs { type_ns, value_ns, macro_ns }) =
+                    sema.resolve_path_per_ns(&path)
+            {
+                return Some(NameRefClass::DefinitionPerNs {
+                    type_ns: type_ns.map(Definition::from),
+                    value_ns: value_ns.map(Definition::from),
+                    macro_ns: macro_ns.map(Definition::from),
+                });
+            }
+
             return sema
                 .resolve_path_with_subst(&path)
                 .map(|(res, subst)| NameRefClass::Definition(res.into(), subst));
