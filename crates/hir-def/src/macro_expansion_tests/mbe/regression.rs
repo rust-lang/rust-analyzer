@@ -99,8 +99,8 @@ fn main() {
     (<[_]>::into_vec(#[rustc_box] crate ::boxed::Box::new([1u32, 2])));
     /* error: expected Expr *//* parse error: expected field name or number */
 /* parse error: expected expression */
-/* parse error: expected R_PAREN */
-/* parse error: expected COMMA */
+/* parse error: expected `)` */
+/* parse error: expected `,` */
 /* parse error: expected expression, item or let statement */
 (crate ::vec::from_elem((a.), $n));
 }
@@ -921,12 +921,12 @@ macro_rules! rgb_color {
     };
 }
 /* parse error: expected type */
-/* parse error: expected R_PAREN */
-/* parse error: expected R_ANGLE */
+/* parse error: expected `)` */
+/* parse error: expected `>` */
 /* parse error: expected `::` */
 /* parse error: expected COMMA */
-/* parse error: expected R_ANGLE */
-/* parse error: expected SEMICOLON */
+/* parse error: expected `>` */
+/* parse error: expected `;` */
 /* parse error: expected expression, item or let statement */
 pub fn new() {
     let _ = 0 as u32<<(8+8);
@@ -1053,12 +1053,12 @@ fn main() {
 macro_rules! format_args {}
 
 fn main() {
-    /* parse error: expected COMMA */
-/* parse error: expected R_BRACK */
-/* parse error: expected COMMA */
-/* parse error: expected COMMA */
+    /* parse error: expected `,` */
+/* parse error: expected `]` */
+/* parse error: expected `,` */
+/* parse error: expected `,` */
 /* parse error: expected expression */
-/* parse error: expected R_PAREN */
+/* parse error: expected `)` */
 /* parse error: expected expression, item or let statement */
 /* parse error: expected expression, item or let statement */
 builtin #format_args ("{}", &[0 2]);

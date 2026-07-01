@@ -41,4 +41,4 @@ SOURCE_FILE
         WHITESPACE "\n"
         R_CURLY "}"
   WHITESPACE "\n"
-error 38: expected SEMICOLON
+error 38: expected `;`

@@ -72,10 +72,10 @@ SOURCE_FILE
         WHITESPACE "\n"
         R_CURLY "}"
   WHITESPACE "\n"
-error 19: expected DOT2
-error 43: expected DOT2
-error 45: expected COMMA
+error 19: expected `..`
+error 43: expected `..`
+error 45: expected `,`
 error 45: expected identifier
-error 46: expected COMMA
+error 46: expected `,`
 error 46: expected identifier
-error 47: expected COMMA
+error 47: expected `,`

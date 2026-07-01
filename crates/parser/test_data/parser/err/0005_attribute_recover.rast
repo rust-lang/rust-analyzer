@@ -57,6 +57,6 @@ SOURCE_FILE
           WHITESPACE "\n"
           R_CURLY "}"
   WHITESPACE "\n"
-error 53: expected R_PAREN
-error 53: expected R_BRACK
+error 53: expected `)`
+error 53: expected `]`
 error 53: expected an item

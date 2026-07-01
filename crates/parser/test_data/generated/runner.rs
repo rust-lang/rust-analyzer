@@ -882,6 +882,10 @@ mod err {
         run_and_expect_errors("test_data/parser/inline/err/macro_rules_as_macro_name.rs");
     }
     #[test]
+    fn match_arm_guard_recovery() {
+        run_and_expect_errors("test_data/parser/inline/err/match_arm_guard_recovery.rs");
+    }
+    #[test]
     fn match_arms_recovery() {
         run_and_expect_errors("test_data/parser/inline/err/match_arms_recovery.rs");
     }
