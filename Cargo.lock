@@ -1163,6 +1163,7 @@ dependencies = [
  "itertools 0.15.0",
  "paths",
  "serde_json",
+ "smallvec",
  "stdx",
  "syntax",
  "test-fixture",
