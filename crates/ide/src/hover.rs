@@ -479,13 +479,14 @@ pub(crate) fn hover_for_definition(
         Definition::BuiltinType(it) => Some(it.ty(db)),
         _ => None,
     };
-    let notable_traits = def_ty.map(|ty| notable_traits(db, &ty)).unwrap_or_default();
+    let notable_traits = def_ty.as_ref().map(|ty| notable_traits(db, ty)).unwrap_or_default();
     let subst_types = subst.map(|subst| subst.types(db));
 
     let (markup, range_map) = render::definition(
         sema.db,
         def,
         famous_defs.as_ref(),
+        def_ty,
         &notable_traits,
         macro_arm,
         render_extras,
