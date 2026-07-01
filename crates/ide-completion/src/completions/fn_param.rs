@@ -64,7 +64,7 @@ pub(crate) fn complete_fn_param(
         ParamKind::Closure(closure) => {
             if is_simple_param(param) {
                 let stmt_list = closure.syntax().ancestors().find_map(ast::StmtList::cast)?;
-                params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
+                locals_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
                     add_new_item_to_acc(&format_smolstr!(
                         "{}: {ty}",
                         name.display(ctx.db, ctx.edition)
@@ -123,7 +123,7 @@ fn fill_fn_params(
     if let Some(stmt_list) = function.syntax().parent().and_then(ast::StmtList::cast)
         && is_simple_param(current_param)
     {
-        params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
+        locals_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
             file_params
                 .entry(format_smolstr!("{}: {ty}", name.display(ctx.db, ctx.edition)))
                 .or_insert(name.display(ctx.db, ctx.edition).to_smolstr());
@@ -138,7 +138,7 @@ fn fill_fn_params(
     file_params.keys().for_each(|whole_param| add_new_item_to_acc(whole_param));
 }
 
-fn params_from_stmt_list_scope(
+pub(crate) fn locals_from_stmt_list_scope(
     ctx: &CompletionContext<'_, '_>,
     stmt_list: ast::StmtList,
     mut cb: impl FnMut(hir::Name, String),
