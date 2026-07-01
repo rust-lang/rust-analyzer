@@ -8,7 +8,7 @@ use super::SolverDefId;
 
 use super::DbInterner;
 
-pub(crate) fn generics(interner: DbInterner<'_>, def: SolverDefId) -> Generics<'_> {
+pub(crate) fn generics<'db>(interner: DbInterner<'db>, def: SolverDefId<'db>) -> Generics<'db> {
     let db = interner.db;
     let def = match (def.try_into(), def) {
         (Ok(def), _) => def,
