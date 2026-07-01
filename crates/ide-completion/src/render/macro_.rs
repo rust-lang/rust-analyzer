@@ -18,7 +18,15 @@ pub(crate) fn render_macro(
     macro_: hir::Macro,
 ) -> Builder {
     let _p = tracing::info_span!("render_macro").entered();
-    render(ctx, *kind == PathKind::Use, *has_macro_bang, *has_call_parens, name, macro_)
+    render(
+        ctx,
+        *kind == PathKind::Use,
+        matches!(kind, PathKind::Item { .. }),
+        *has_macro_bang,
+        *has_call_parens,
+        name,
+        macro_,
+    )
 }
 
 pub(crate) fn render_macro_pat(
@@ -28,12 +36,13 @@ pub(crate) fn render_macro_pat(
     macro_: hir::Macro,
 ) -> Builder {
     let _p = tracing::info_span!("render_macro_pat").entered();
-    render(ctx, false, false, false, name, macro_)
+    render(ctx, false, false, false, false, name, macro_)
 }
 
 fn render(
     ctx @ RenderContext { completion, .. }: RenderContext<'_, '_>,
     is_use_path: bool,
+    is_item: bool,
     has_macro_bang: bool,
     has_call_parens: bool,
     name: hir::Name,
@@ -71,7 +80,11 @@ fn render(
 
     match ctx.snippet_cap() {
         Some(cap) if needs_bang && !has_call_parens => {
-            let snippet = format!("{escaped_name}!{bra}$0{ket}");
+            let semi = match ket {
+                ")" | "]" if is_item && completion.config.add_semicolon_to_unit => ";",
+                _ => "",
+            };
+            let snippet = format!("{escaped_name}!{bra}$0{ket}{semi}");
             let lookup = banged_name(name);
             item.insert_snippet(cap, snippet).lookup_by(lookup);
         }
@@ -256,6 +269,81 @@ fn main() { $0 }
 macro_rules! foo { () => {} }
 pub use crate::foo as bar;
 fn main() { bar![$0] }
+"#,
+        );
+    }
+
+    #[test]
+    fn macro_semicolons() {
+        check_edit(
+            "foo!",
+            r#"
+macro_rules! foo { () => {} }
+f$0
+"#,
+            r#"
+macro_rules! foo { () => {} }
+foo!($0);
+"#,
+        );
+
+        check_edit(
+            "foo!",
+            r#"
+#[rust_analyzer::macro_style(brackets)]
+macro_rules! foo { () => {} }
+f$0
+"#,
+            r#"
+#[rust_analyzer::macro_style(brackets)]
+macro_rules! foo { () => {} }
+foo![$0];
+"#,
+        );
+
+        check_edit(
+            "foo!",
+            r#"
+#[rust_analyzer::macro_style(braces)]
+macro_rules! foo { () => {} }
+f$0
+"#,
+            r#"
+#[rust_analyzer::macro_style(braces)]
+macro_rules! foo { () => {} }
+foo! {$0}
+"#,
+        );
+
+        check_edit(
+            "foo!",
+            r#"
+macro_rules! foo { () => {} }
+impl () {
+    f$0
+}
+"#,
+            r#"
+macro_rules! foo { () => {} }
+impl () {
+    foo!($0);
+}
+"#,
+        );
+
+        check_edit(
+            "foo!",
+            r#"
+macro_rules! foo { () => {} }
+mod bar {
+    f$0
+}
+"#,
+            r#"
+macro_rules! foo { () => {} }
+mod bar {
+    foo!($0);
+}
 "#,
         );
     }
