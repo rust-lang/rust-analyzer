@@ -7,6 +7,8 @@ use std::ops::{Deref, DerefMut};
 
 use either::Either;
 use hir_def::expr_store::path::Path;
+use hir_def::hir::TypeRefIdOrConstRef;
+use hir_def::type_ref::ConstRef;
 use hir_def::{ExpressionStoreOwnerId, GenericDefId};
 use hir_def::{expr_store::ExpressionStore, type_ref::TypeRefId};
 use hir_def::{hir::ExprOrPatId, resolver::Resolver};
@@ -14,6 +16,7 @@ use la_arena::{Idx, RawIdx};
 use rustc_hash::FxHashMap;
 use thin_vec::ThinVec;
 
+use crate::next_solver::StoredConst;
 use crate::{
     InferenceDiagnostic, InferenceTyDiagnosticSource, Span, TyLoweringDiagnostic,
     db::{AnonConstId, HirDatabase},
@@ -61,6 +64,7 @@ pub(crate) struct PathDiagnosticCallbackData<'a> {
 pub(super) struct InferenceTyLoweringVarsCtx<'a, 'db> {
     pub(super) table: &'a mut InferenceTable<'db>,
     pub(super) type_of_type_placeholder: &'a mut FxHashMap<TypeRefId, StoredTy>,
+    pub(super) const_of_const_placeholder: &'a mut FxHashMap<TypeRefIdOrConstRef, StoredConst>,
 }
 
 impl<'db> TyLoweringInferVarsCtx<'db> for InferenceTyLoweringVarsCtx<'_, 'db> {
@@ -74,7 +78,18 @@ impl<'db> TyLoweringInferVarsCtx<'db> for InferenceTyLoweringVarsCtx<'_, 'db> {
         ty
     }
     fn next_const_var(&mut self, span: Span) -> Const<'db> {
-        self.table.infer_ctxt.next_const_var(span)
+        let const_ = self.table.infer_ctxt.next_const_var(span);
+
+        let type_ref_id_or_const_ref = match span {
+            Span::ExprId(expr) => Some(TypeRefIdOrConstRef::ConstRef(ConstRef { expr })),
+            Span::TypeRefId(type_ref) => Some(type_ref.into()),
+            _ => None,
+        };
+        if let Some(key) = type_ref_id_or_const_ref {
+            self.const_of_const_placeholder.insert(key, const_.store());
+        }
+
+        const_
     }
     fn next_region_var(&mut self, span: Span) -> Region<'db> {
         self.table.infer_ctxt.next_region_var(span)

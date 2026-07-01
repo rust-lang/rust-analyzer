@@ -152,6 +152,7 @@ impl<'db> InferenceContext<'_, 'db> {
         let mut vars_ctx = InferenceTyLoweringVarsCtx {
             table: &mut self.table,
             type_of_type_placeholder: &mut self.result.type_of_type_placeholder,
+            const_of_const_placeholder: &mut self.result.const_of_const_placeholder,
         };
         let mut ctx = TyLoweringContext::new(
             self.db,
