@@ -20,7 +20,7 @@ pub enum Tool {
 
 impl Tool {
     pub fn proxy(self) -> Option<Utf8PathBuf> {
-        cargo_proxy(self.name())
+        cargo_proxy(self)
     }
 
     /// Return a `PathBuf` to use for the given executable.
@@ -37,7 +37,7 @@ impl Tool {
     ///    first that exists
     /// 4) If all else fails, we just try to use the executable name directly
     pub fn prefer_proxy(self) -> Utf8PathBuf {
-        invoke(&[cargo_proxy, lookup_as_env_var, lookup_in_path], self.name())
+        invoke(&[cargo_proxy, lookup_as_env_var, lookup_in_path], self)
     }
 
     /// Return a `PathBuf` to use for the given executable.
@@ -54,7 +54,7 @@ impl Tool {
     ///    It seems that this is a reasonable place to try for cargo, rustc, and rustup
     /// 4) If all else fails, we just try to use the executable name directly
     pub fn path(self) -> Utf8PathBuf {
-        invoke(&[lookup_as_env_var, lookup_in_path, cargo_proxy], self.name())
+        invoke(&[lookup_as_env_var, lookup_in_path, cargo_proxy], self)
     }
 
     pub fn path_in(self, path: &Utf8Path) -> Option<Utf8PathBuf> {
@@ -67,6 +67,15 @@ impl Tool {
             Tool::Rustc => "rustc",
             Tool::Rustup => "rustup",
             Tool::Rustfmt => "rustfmt",
+        }
+    }
+
+    fn env_var(self) -> &'static str {
+        match self {
+            Tool::Cargo => "CARGO",
+            Tool::Rustc => "RUSTC",
+            Tool::Rustup => "RUSTUP",
+            Tool::Rustfmt => "RUSTFMT",
         }
     }
 }
@@ -94,23 +103,20 @@ pub fn command<H>(
     cmd
 }
 
-fn invoke(list: &[fn(&str) -> Option<Utf8PathBuf>], executable: &str) -> Utf8PathBuf {
-    list.iter().find_map(|it| it(executable)).unwrap_or_else(|| executable.into())
+fn invoke(list: &[fn(Tool) -> Option<Utf8PathBuf>], tool: Tool) -> Utf8PathBuf {
+    list.iter().find_map(|it| it(tool)).unwrap_or_else(|| tool.name().into())
 }
 
 /// Looks up the binary as its SCREAMING upper case in the env variables.
-fn lookup_as_env_var(executable_name: &str) -> Option<Utf8PathBuf> {
-    env::var_os(executable_name.to_ascii_uppercase())
-        .map(PathBuf::from)
-        .map(Utf8PathBuf::try_from)
-        .and_then(Result::ok)
+fn lookup_as_env_var(tool: Tool) -> Option<Utf8PathBuf> {
+    env::var_os(tool.env_var()).map(PathBuf::from).map(Utf8PathBuf::try_from).and_then(Result::ok)
 }
 
 /// Looks up the binary in the cargo home directory if it exists.
-fn cargo_proxy(executable_name: &str) -> Option<Utf8PathBuf> {
+fn cargo_proxy(tool: Tool) -> Option<Utf8PathBuf> {
     let mut path = get_cargo_home()?;
     path.push("bin");
-    path.push(executable_name);
+    path.push(tool.name());
     probe_for_binary(path)
 }
 
@@ -127,7 +133,8 @@ fn get_cargo_home() -> Option<Utf8PathBuf> {
     None
 }
 
-fn lookup_in_path(exec: &str) -> Option<Utf8PathBuf> {
+fn lookup_in_path(tool: Tool) -> Option<Utf8PathBuf> {
+    let exec = tool.name();
     let paths = env::var_os("PATH").unwrap_or_default();
     env::split_paths(&paths)
         .map(|path| path.join(exec))
@@ -142,4 +149,17 @@ pub fn probe_for_binary(path: Utf8PathBuf) -> Option<Utf8PathBuf> {
         it => Some(path.with_extension(it)),
     };
     iter::once(path).chain(with_extension).find(|it| it.is_file())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Tool;
+
+    #[test]
+    fn tool_env_var_names_match_rust_tool_conventions() {
+        assert_eq!(Tool::Cargo.env_var(), "CARGO");
+        assert_eq!(Tool::Rustc.env_var(), "RUSTC");
+        assert_eq!(Tool::Rustup.env_var(), "RUSTUP");
+        assert_eq!(Tool::Rustfmt.env_var(), "RUSTFMT");
+    }
 }
