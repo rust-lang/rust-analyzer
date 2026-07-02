@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["set_expand_proc_attr_macros"],"trait":["DefDatabase","ExpandDatabase","HirDatabase"]};

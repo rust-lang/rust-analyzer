@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LAST_STANDARD_MOD","STANDARD_MOD"],"enum":["SupportedModifiers","SupportedType"],"fn":["diff_tokens","standard_fallback_type","type_index"],"macro":["declare_enum"],"struct":["ModifierSet","SemanticTokensBuilder"]};

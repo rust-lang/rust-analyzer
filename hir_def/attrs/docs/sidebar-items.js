@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["IsInnerDoc"],"fn":["expand_doc_expr_via_macro_pipeline","expand_doc_macro_call","extend_with_attrs","extract_docs"],"struct":["DocExprSourceCtx","DocMacroExpander","Docs","DocsSourceMapLine"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["UndoLog"],"macro":["impl_from"],"struct":["InferCtxtUndoLogs","Snapshot"]};
