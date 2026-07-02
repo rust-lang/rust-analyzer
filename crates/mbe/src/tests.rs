@@ -213,6 +213,45 @@ fn main() {
 }
 
 #[test]
+fn path_fragment_followed_by_generic_args() {
+    check(
+        Edition::CURRENT,
+        Edition::CURRENT,
+        r#"
+($path:path) => {
+    fn f() { let _ = $path; }
+};
+"#,
+        r#"
+Vec<u8>::new
+"#,
+        expect![[r#"
+            SUBTREE $$ 1:Root[0000, 0]@0..14#ROOT2024 1:Root[0000, 0]@0..14#ROOT2024
+              IDENT   fn 0:Root[0000, 0]@23..25#ROOT2024
+              IDENT   f 0:Root[0000, 0]@26..27#ROOT2024
+              SUBTREE () 0:Root[0000, 0]@27..28#ROOT2024 0:Root[0000, 0]@28..29#ROOT2024
+              SUBTREE {} 0:Root[0000, 0]@30..31#ROOT2024 0:Root[0000, 0]@47..48#ROOT2024
+                IDENT   let 0:Root[0000, 0]@32..35#ROOT2024
+                IDENT   _ 0:Root[0000, 0]@36..37#ROOT2024
+                PUNCH   = [alone] 0:Root[0000, 0]@38..39#ROOT2024
+                IDENT   Vec 1:Root[0000, 0]@1..4#ROOT2024
+                PUNCH   : [joint] 1:Root[0000, 0]@0..14#ROOT2024
+                PUNCH   : [alone] 1:Root[0000, 0]@0..14#ROOT2024
+                PUNCH   < [alone] 1:Root[0000, 0]@4..5#ROOT2024
+                IDENT   u8 1:Root[0000, 0]@5..7#ROOT2024
+                PUNCH   > [joint] 1:Root[0000, 0]@7..8#ROOT2024
+                PUNCH   : [joint] 1:Root[0000, 0]@8..9#ROOT2024
+                PUNCH   : [alone] 1:Root[0000, 0]@9..10#ROOT2024
+                IDENT   new 1:Root[0000, 0]@10..13#ROOT2024
+                PUNCH   ; [alone] 0:Root[0000, 0]@45..46#ROOT2024
+
+            fn f(){
+                let _ = Vec:: <u8>::new;
+            }"#]],
+    );
+}
+
+#[test]
 fn expr_2021() {
     check(
         Edition::Edition2024,
