@@ -1415,6 +1415,180 @@ use crate::old_folder::nested::foo as bar;
 }
 
 #[test]
+fn test_will_rename_files_cross_parent() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let tmp_dir_str = tmp_dir.path().as_str().to_owned();
+    let base_path = PathBuf::from(format!("file://{tmp_dir_str}"));
+
+    let code = r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+mod a;
+mod b;
+use crate::a::m::S;
+
+//- /src/a.rs
+pub mod m;
+
+//- /src/a/m.rs
+pub struct S;
+
+//- /src/b.rs
+
+"#;
+    let server =
+        Project::with_fixture(code).tmp_dir(tmp_dir).server().wait_until_workspace_is_loaded();
+
+    // Move `src/a/m.rs` -> `src/b/m.rs`: module `m` is dragged under a new parent `b`.
+    // This exercises the cross-parent arm of `handle_will_rename_files`, which routes
+    // to `will_move_module`. Expect the mod-tree to be fixed (drop `pub mod m;` from
+    // `a.rs`, add it under `b.rs`) and the reference `crate::a::m::S` rewritten to
+    // `crate::b::m::S`. (The per-file edit content is asserted exhaustively by the
+    // `will_move_module_*` unit tests in `ide`; here we pin the LSP wiring.)
+    server.request::<WillRenameFilesRequest>(
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: base_path.join("src/a/m.rs").to_str().unwrap().to_owned(),
+                new_uri: base_path.join("src/b/m.rs").to_str().unwrap().to_owned(),
+            }],
+        },
+        json!({
+          "documentChanges": [
+            {
+              "textDocument": { "uri": "file://[..]/src/lib.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 2, "character": 4 },
+                    "end": { "line": 2, "character": 15 }
+                  },
+                  "newText": "crate::b::m"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/b.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": "pub mod m;\n"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/a.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": ""
+                }
+              ]
+            }
+          ]
+        }),
+    );
+}
+
+#[test]
+fn test_will_rename_files_cross_parent_folder() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let tmp_dir_str = tmp_dir.path().as_str().to_owned();
+    let base_path = PathBuf::from(format!("file://{tmp_dir_str}"));
+
+    let code = r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+mod a;
+mod b;
+use crate::a::child::S;
+
+//- /src/a/mod.rs
+pub mod child;
+
+//- /src/a/child.rs
+pub struct S;
+
+//- /src/b.rs
+
+"#;
+    let server =
+        Project::with_fixture(code).tmp_dir(tmp_dir).server().wait_until_workspace_is_loaded();
+
+    // Drag the whole `src/a` folder under `b`: `src/a` -> `src/b/a`. This is a
+    // `mod.rs`-style directory module dragged to a new parent. The cross-parent arm
+    // resolves the folder's `mod.rs` and routes to `will_move_module`. Expect the
+    // mod-tree fixed (drop `mod a;` from `lib.rs`, add it under `b.rs`) and the
+    // reference *through* the module, `crate::a::child::S`, rewritten to
+    // `crate::b::a::child::S`. The editor moves the directory physically; RA emits
+    // only text edits.
+    server.request::<WillRenameFilesRequest>(
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: base_path.join("src/a").to_str().unwrap().to_owned(),
+                new_uri: base_path.join("src/b/a").to_str().unwrap().to_owned(),
+            }],
+        },
+        json!({
+          "documentChanges": [
+            {
+              "textDocument": { "uri": "file://[..]/src/lib.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": ""
+                },
+                {
+                  "range": {
+                    "start": { "line": 2, "character": 4 },
+                    "end": { "line": 2, "character": 12 }
+                  },
+                  "newText": "crate::b::a"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/b.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": "mod a;\n"
+                }
+              ]
+            }
+          ]
+        }),
+    );
+}
+
+#[test]
 fn test_exclude_config_works() {
     if skip_slow_tests() {
         return;

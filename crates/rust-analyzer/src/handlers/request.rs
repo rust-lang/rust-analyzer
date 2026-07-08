@@ -771,6 +771,31 @@ pub(crate) fn handle_workspace_symbol(
     }
 }
 
+/// Crate-relative module segments of a moved file's new parent, e.g.
+/// `…/src/state/foo.rs` → `["state"]`. Since the module tree mirrors the directory
+/// tree below the crate root file's directory, those are just the destination's
+/// directory components. `None` if the destination escapes that root.
+fn new_parent_module_segments(
+    snap: &GlobalStateSnapshot,
+    file_id: FileId,
+    to_path: &std::path::Path,
+) -> Option<Vec<String>> {
+    let krate = snap.analysis.crates_for(file_id).ok()?.into_iter().next()?;
+    let root_file = snap.analysis.crate_root(krate).ok()?;
+    let root_vfs_path = snap.file_id_to_file_path(root_file);
+    let root_dir: &AbsPath = root_vfs_path.as_path()?.parent()?;
+    let new_parent_dir = to_path.parent()?;
+    // A non-plain component (`..`, `.`, non-UTF-8) means this is not a normal
+    // in-tree module directory, so bail rather than emit a bogus module path.
+    let rel = new_parent_dir.strip_prefix(root_dir).ok()?;
+    rel.components()
+        .map(|c| match c {
+            std::path::Component::Normal(s) => s.to_str().map(str::to_owned),
+            _ => None,
+        })
+        .collect()
+}
+
 pub(crate) fn handle_will_rename_files(
     snap: GlobalStateSnapshot,
     params: lsp_types::RenameFilesParams,
@@ -787,10 +812,10 @@ pub(crate) fn handle_will_rename_files(
             let from_path = from.to_file_path().ok()?;
             let to_path = to.to_file_path().ok()?;
 
-            // Limit to single-level moves for now.
-            match (from_path.parent(), to_path.parent()) {
+            Some(match (from_path.parent(), to_path.parent()) {
+                // Same-directory rename: only the module's leaf name changes.
                 (Some(p1), Some(p2)) if p1 == p2 => {
-                    if from_path.is_dir() {
+                    let (file_id, new_name): (Option<FileId>, String) = if from_path.is_dir() {
                         // add '/' to end of url -- from `file://path/to/folder` to `file://path/to/folder/`
                         let mut old_folder_name = from_path.file_stem()?.to_str()?.to_owned();
                         old_folder_name.push('/');
@@ -798,33 +823,51 @@ pub(crate) fn handle_will_rename_files(
 
                         let imitate_from_url = from_with_trailing_slash.join("mod.rs").ok()?;
                         let new_file_name = to_path.file_name()?.to_str()?;
-                        Some((
-                            snap.url_to_file_id(&imitate_from_url).ok()?,
-                            new_file_name.to_owned(),
-                        ))
+                        (snap.url_to_file_id(&imitate_from_url).ok()?, new_file_name.to_owned())
                     } else {
                         let old_name = from_path.file_stem()?.to_str()?;
                         let new_name = to_path.file_stem()?.to_str()?;
                         match (old_name, new_name) {
-                            ("mod", _) => None,
-                            (_, "mod") => None,
-                            _ => Some((snap.url_to_file_id(&from).ok()?, new_name.to_owned())),
+                            ("mod", _) | (_, "mod") => return None,
+                            _ => (snap.url_to_file_id(&from).ok()?, new_name.to_owned()),
                         }
-                    }
+                    };
+                    let file_id = file_id?;
+                    let source_root = snap.analysis.source_root_id(file_id).ok();
+                    snap.analysis
+                        .will_rename_file(file_id, &new_name, &snap.config.rename(source_root))
+                        .ok()??
                 }
-                _ => None,
-            }
-        })
-        .filter_map(|(file_id, new_name)| {
-            let file_id = file_id?;
-            let source_root = snap.analysis.source_root_id(file_id).ok();
-            snap.analysis
-                .will_rename_file(file_id, &new_name, &snap.config.rename(source_root))
-                .ok()?
+                // Cross-parent move: fix the mod tree and rewrite all references.
+                (Some(_), Some(_)) => {
+                    let (file_id, new_leaf): (Option<FileId>, String) = if from_path.is_dir() {
+                        // A dragged folder is a `mod.rs`-style module; imitate the
+                        // URL of its `mod.rs` as the branch above does.
+                        let mut old_folder_name = from_path.file_stem()?.to_str()?.to_owned();
+                        old_folder_name.push('/');
+                        let from_with_trailing_slash = from.join(&old_folder_name).ok()?;
+                        let imitate_from_url = from_with_trailing_slash.join("mod.rs").ok()?;
+                        let new_leaf = to_path.file_stem()?.to_str()?.to_owned();
+                        (snap.url_to_file_id(&imitate_from_url).ok()?, new_leaf)
+                    } else {
+                        let old_leaf = from_path.file_stem()?.to_str()?;
+                        let new_leaf = to_path.file_stem()?.to_str()?;
+                        if old_leaf == "mod" || new_leaf == "mod" {
+                            return None;
+                        }
+                        (snap.url_to_file_id(&from).ok()?, new_leaf.to_owned())
+                    };
+                    let file_id = file_id?;
+                    let segments = new_parent_module_segments(&snap, file_id, &to_path)?;
+                    snap.analysis.will_move_module(file_id, &segments, &new_leaf).ok()??
+                }
+                _ => return None,
+            })
         })
         .collect();
 
-    // Drop file system edits since we're just renaming things on the same level
+    // Drop file system edits: the editor performs the move itself, we only
+    // contribute text edits.
     let mut source_changes = source_changes.into_iter();
     let mut source_change = source_changes.next().unwrap_or_default();
     source_change.file_system_edits.clear();
