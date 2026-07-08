@@ -217,6 +217,21 @@ impl GlobalState {
         Err(anyhow::anyhow!("A receiver has been dropped, something panicked!"))
     }
 
+    fn shutdown(&mut self) {
+        self.shutdown_requested = true;
+        // Cancel all tasks and database operations, in parallel to make it faster.
+        std::thread::scope(|s| {
+            s.spawn(|| self.analysis_host.trigger_cancellation());
+            s.spawn(|| self.task_pool.handle.cancel_and_taint());
+            s.spawn(|| self.fmt_pool.handle.cancel_and_taint());
+            s.spawn(|| self.cancellation_pool.cancel_and_taint());
+            self.proc_macro_clients =
+                std::iter::repeat_with(|| None).take(self.proc_macro_clients.len()).collect();
+            self.flycheck.iter().for_each(|handle| handle.cancel());
+            self.discover_handles.clear();
+        });
+    }
+
     fn register_did_save_capability(&mut self, additional_patterns: impl Iterator<Item = String>) {
         let additional_filters = additional_patterns.map(|pattern| {
             lsp_types::DocumentFilter::TextDocumentFilter(lsp_types::TextDocumentFilter::Pattern(
@@ -1316,11 +1331,7 @@ impl GlobalState {
     fn on_request(&mut self, req: Request) {
         let mut dispatcher = RequestDispatcher { req: Some(req), global_state: self };
         dispatcher.on_sync_mut::<lsp_types::ShutdownRequest>(|s, ()| {
-            s.shutdown_requested = true;
-            s.proc_macro_clients =
-                std::iter::repeat_with(|| None).take(s.proc_macro_clients.len()).collect();
-            s.flycheck.iter().for_each(|handle| handle.cancel());
-            s.discover_handles.clear();
+            s.shutdown();
             Ok(())
         });
 

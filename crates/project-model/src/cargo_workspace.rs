@@ -11,7 +11,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use serde_derive::Deserialize;
 use serde_json::from_value;
 use span::Edition;
-use stdx::process::spawn_with_streaming_output;
+use stdx::process::JodCommand;
 use toolchain::{NO_RUSTUP_AUTO_INSTALL_ENV, Tool};
 use triomphe::Arc;
 
@@ -795,7 +795,7 @@ impl FetchMetadata {
             let mut errored = false;
             tracing::debug!("Running `{:?}`", command.cargo_command());
             let output =
-                spawn_with_streaming_output(command.cargo_command(), &mut |_| (), &mut |line| {
+                JodCommand::from(command.cargo_command()).spawn_with_streaming_output(&mut |_| (), &mut |line| {
                     errored = errored || line.starts_with("error") || line.starts_with("warning");
                     if errored {
                         progress("cargo metadata: ?".to_owned());

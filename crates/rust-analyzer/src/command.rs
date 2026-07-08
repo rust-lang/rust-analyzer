@@ -7,14 +7,14 @@ use std::{
     io::{self, BufWriter, Write},
     marker::PhantomData,
     path::PathBuf,
-    process::{ChildStderr, ChildStdout, Command, Stdio},
+    process::{ChildStderr, ChildStdout, Stdio},
 };
 
 use anyhow::Context;
 use crossbeam_channel::Sender;
 use paths::Utf8PathBuf;
 use process_wrap::std::{ChildWrapper, CommandWrap};
-use stdx::process::streaming_output;
+use stdx::process::{JodCommand, streaming_output};
 
 /// This trait abstracts parsing one line of JSON output into a Rust
 /// data type.
@@ -153,7 +153,7 @@ impl<T> fmt::Debug for CommandHandle<T> {
 
 impl<T: Sized + Send + 'static> CommandHandle<T> {
     pub(crate) fn spawn(
-        mut command: Command,
+        mut command: JodCommand,
         parser: impl JsonLinesParser<T>,
         sender: Sender<T>,
         out_file: Option<Utf8PathBuf>,
@@ -164,7 +164,7 @@ impl<T: Sized + Send + 'static> CommandHandle<T> {
         let arguments = command.get_args().map(|arg| arg.into()).collect::<Vec<OsString>>();
         let current_dir = command.get_current_dir().map(|arg| arg.to_path_buf());
 
-        let mut child = CommandWrap::from(command);
+        let mut child = CommandWrap::from(command.into_inner());
         #[cfg(unix)]
         child.wrap(process_wrap::std::ProcessSession);
         #[cfg(windows)]

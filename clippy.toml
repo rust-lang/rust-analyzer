@@ -1,9 +1,12 @@
 disallowed-types = [
     { path = "std::collections::HashMap", reason = "use FxHashMap" },
     { path = "std::collections::HashSet", reason = "use FxHashSet" },
-    { path = "std::collections::hash_map::RandomState", reason = "use BuildHasherDefault<FxHasher>"}
+    { path = "std::collections::hash_map::RandomState", reason = "use BuildHasherDefault<FxHasher>" },
+    { path = "std::process::Command", replacement = "stdx::process::JodCommand" },
+    { path = "std::process::Child", replacement = "stdx::process::JodChild" },
 ]
 
 disallowed-methods = [
     { path = "std::process::Command::new", reason = "use `toolchain::command` instead as it forces the choice of a working directory" },
+    { path = "stdx::process::JodCommand::new", reason = "use `toolchain::command` instead as it forces the choice of a working directory" },
 ]
