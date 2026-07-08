@@ -43,6 +43,15 @@ pub(super) fn type_no_bounds(p: &mut Parser<'_>) {
 }
 
 fn type_with_bounds_cond(p: &mut Parser<'_>, allow_bounds: bool) {
+    if p.enter_recursion() {
+        p.bail_recursion();
+    } else {
+        type_with_bounds_cond_inner(p, allow_bounds);
+    }
+    p.leave_recursion();
+}
+
+fn type_with_bounds_cond_inner(p: &mut Parser<'_>, allow_bounds: bool) {
     match p.current() {
         T!['('] => paren_or_tuple_type(p),
         T![!] => never_type(p),

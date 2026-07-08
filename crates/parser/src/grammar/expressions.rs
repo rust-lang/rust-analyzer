@@ -247,6 +247,24 @@ fn expr_bp(
     r: Restrictions,
     bp: u8,
 ) -> Option<(CompletedMarker, BlockLike)> {
+    let res = if p.enter_recursion() {
+        if let Some(m) = m {
+            m.abandon(p);
+        }
+        Some((p.bail_recursion(), BlockLike::NotBlock))
+    } else {
+        expr_bp_inner(p, m, r, bp)
+    };
+    p.leave_recursion();
+    res
+}
+
+fn expr_bp_inner(
+    p: &mut Parser<'_>,
+    m: Option<Marker>,
+    r: Restrictions,
+    bp: u8,
+) -> Option<(CompletedMarker, BlockLike)> {
     let m = m.unwrap_or_else(|| {
         let m = p.start();
         attributes::outer_attrs(p);

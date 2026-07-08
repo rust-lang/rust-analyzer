@@ -37,9 +37,18 @@ pub(crate) struct Parser<'t> {
     /// into this vec, keeping `Event` itself a flat 8-byte enum.
     errors: Vec<String>,
     steps: Cell<u32>,
+    depth: Cell<u32>,
 }
 
 const PARSER_STEP_LIMIT: usize = if cfg!(debug_assertions) { 150_000 } else { 15_000_000 };
+
+// Pathologically nested input must not overflow the stack (#9824). The limit
+// also bounds the depth of the produced syntax tree, which everything
+// downstream recurses over, so bailing out here shields the rest of the
+// pipeline as well. A counter is preferred over unwinding (floated in the
+// issue) because unwinding past an armed `Marker` trips its `DropBomb`, and
+// over growing the stack because a deterministic limit is directly testable.
+const PARSER_RECURSION_LIMIT: u32 = 128;
 
 impl<'t> Parser<'t> {
     pub(super) fn new(inp: &'t Input) -> Parser<'t> {
@@ -49,7 +58,39 @@ impl<'t> Parser<'t> {
             events: Vec::with_capacity(2 * inp.len()),
             errors: Vec::new(),
             steps: Cell::new(0),
+            depth: Cell::new(0),
         }
+    }
+
+    /// Enters one level of grammar recursion, returning `true` if the depth
+    /// budget is exhausted — the caller must then emit an `ERROR` node
+    /// (typically via [`Parser::bail_recursion`]) instead of recursing.
+    ///
+    /// Guard only the deepest function of each mutually recursive grammar
+    /// family — guarding every production would count one level of input
+    /// nesting several times, shrinking the effective budget. Guard from a
+    /// thin wrapper delegating to an `_inner` function, so that no return
+    /// path can skip the paired [`Parser::leave_recursion`].
+    pub(crate) fn enter_recursion(&mut self) -> bool {
+        let depth = self.depth.get() + 1;
+        self.depth.set(depth);
+        let over = depth > PARSER_RECURSION_LIMIT;
+        if over {
+            self.error("parser recursion limit reached");
+        }
+        over
+    }
+
+    pub(crate) fn leave_recursion(&self) {
+        self.depth.set(self.depth.get() - 1);
+    }
+
+    /// Consume one token under an `ERROR` node so the caller makes progress;
+    /// [`Parser::enter_recursion`] has already emitted the error message.
+    pub(crate) fn bail_recursion(&mut self) -> CompletedMarker {
+        let m = self.start();
+        self.bump_any();
+        m.complete(self, ERROR)
     }
 
     pub(crate) fn finish(self) -> (Vec<Event>, Vec<String>) {

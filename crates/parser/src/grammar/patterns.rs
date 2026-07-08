@@ -64,6 +64,15 @@ fn pattern_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
 }
 
 fn pattern_single_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
+    if p.enter_recursion() {
+        p.bail_recursion();
+    } else {
+        pattern_single_r_inner(p, recovery_set);
+    }
+    p.leave_recursion();
+}
+
+fn pattern_single_r_inner(p: &mut Parser<'_>, recovery_set: TokenSet) {
     // test range_pat
     // fn main() {
     //     match 92 {

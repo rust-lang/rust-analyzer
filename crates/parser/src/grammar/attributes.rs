@@ -60,6 +60,15 @@ fn cfg_attr_meta(p: &mut Parser<'_>, m: Marker) {
 const CFG_PREDICATE_FIRST_SET: TokenSet = TokenSet::new(&[T![true], T![false], T![ident]]);
 
 fn cfg_predicate(p: &mut Parser<'_>) {
+    if p.enter_recursion() {
+        p.bail_recursion();
+    } else {
+        cfg_predicate_inner(p);
+    }
+    p.leave_recursion();
+}
+
+fn cfg_predicate_inner(p: &mut Parser<'_>) {
     let m = p.start();
     if p.eat(T![true]) || p.eat(T![false]) {
         // test cfg_true_false_pred
@@ -142,6 +151,15 @@ fn cfg_meta(p: &mut Parser<'_>, m: Marker) {
 // #![unsafe(simple::path::tt[a b c])]
 // #![unsafe(simple::path::tt{a b c})]
 pub(super) fn meta(p: &mut Parser<'_>) {
+    if p.enter_recursion() {
+        p.bail_recursion();
+    } else {
+        meta_inner(p);
+    }
+    p.leave_recursion();
+}
+
+fn meta_inner(p: &mut Parser<'_>) {
     let m = p.start();
     if p.eat(T![unsafe]) {
         p.expect(T!['(']);
