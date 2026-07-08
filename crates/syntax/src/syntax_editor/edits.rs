@@ -448,48 +448,73 @@ impl Removable for ast::TypeBoundList {
     }
 }
 
+/// The whitespace token adjoining `node` in `dir`, if the neighbour is whitespace at all.
+fn adjoining_ws(node: &SyntaxNode, dir: Direction) -> Option<ast::Whitespace> {
+    let element = match dir {
+        Direction::Next => node.next_sibling_or_token(),
+        Direction::Prev => node.prev_sibling_or_token(),
+    };
+    element.and_then(|it| it.into_token()).and_then(ast::Whitespace::cast)
+}
+
+/// Deletes `node` and the line it sits on, indentation included — otherwise a
+/// declaration nested in an inline module strands its indent on a blank line.
+///
+/// `collapse_next` gets a say on the whitespace *after* `node`: returning true deletes
+/// it outright instead of trimming it back to the next line's indent. Callers removing
+/// a run of adjacent items use this to keep blank lines from opening up between them.
+fn remove_taking_line(
+    node: &SyntaxNode,
+    editor: &SyntaxEditor,
+    collapse_next: impl FnOnce(&ast::Whitespace) -> bool,
+) {
+    let make = editor.make();
+    if let Some(next_ws) = adjoining_ws(node, Direction::Next) {
+        let ws_text = next_ws.syntax().text();
+        // Only the newline belongs to our line; what follows is the *next* line's indent.
+        if let Some(rest) = ws_text.strip_prefix('\n') {
+            if rest.is_empty() || collapse_next(&next_ws) {
+                editor.delete(next_ws.syntax());
+            } else {
+                editor.replace(next_ws.syntax(), make.whitespace(rest));
+            }
+        }
+    }
+    if let Some(prev_ws) = adjoining_ws(node, Direction::Prev) {
+        let ws_text = prev_ws.syntax().text();
+        // Keep everything through the last newline and drop the rest: that is exactly
+        // our own indentation, and the preceding line stays untouched.
+        let prev_newline = ws_text.rfind('\n').map(|x| x + 1).unwrap_or(0);
+        let rest = &ws_text[0..prev_newline];
+        if rest.is_empty() {
+            editor.delete(prev_ws.syntax());
+        } else {
+            editor.replace(prev_ws.syntax(), make.whitespace(rest));
+        }
+    }
+
+    editor.delete(node);
+}
+
+impl Removable for ast::Module {
+    fn remove(&self, editor: &SyntaxEditor) {
+        remove_taking_line(self.syntax(), editor, |_| false);
+    }
+}
+
 impl Removable for ast::Use {
     fn remove(&self, editor: &SyntaxEditor) {
-        let make = editor.make();
-        let next_ws = self
-            .syntax()
-            .next_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .and_then(ast::Whitespace::cast);
-        if let Some(next_ws) = next_ws {
-            let ws_text = next_ws.syntax().text();
-            if let Some(rest) = ws_text.strip_prefix('\n') {
-                let next_use_removed = next_ws
-                    .syntax()
-                    .next_sibling_or_token()
-                    .and_then(|it| it.into_node())
-                    .and_then(ast::Use::cast)
-                    .and_then(|use_| use_.use_tree())
-                    .is_some_and(|use_tree| editor.deleted(use_tree.syntax()));
-                if rest.is_empty() || next_use_removed {
-                    editor.delete(next_ws.syntax());
-                } else {
-                    editor.replace(next_ws.syntax(), make.whitespace(rest));
-                }
-            }
-        }
-        let prev_ws = self
-            .syntax()
-            .prev_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .and_then(ast::Whitespace::cast);
-        if let Some(prev_ws) = prev_ws {
-            let ws_text = prev_ws.syntax().text();
-            let prev_newline = ws_text.rfind('\n').map(|x| x + 1).unwrap_or(0);
-            let rest = &ws_text[0..prev_newline];
-            if rest.is_empty() {
-                editor.delete(prev_ws.syntax());
-            } else {
-                editor.replace(prev_ws.syntax(), make.whitespace(rest));
-            }
-        }
-
-        editor.delete(self.syntax());
+        remove_taking_line(self.syntax(), editor, |next_ws| {
+            // The `use` following ours is going away too, so the newline between us
+            // would otherwise be left behind as a blank line.
+            next_ws
+                .syntax()
+                .next_sibling_or_token()
+                .and_then(|it| it.into_node())
+                .and_then(ast::Use::cast)
+                .and_then(|use_| use_.use_tree())
+                .is_some_and(|use_tree| editor.deleted(use_tree.syntax()))
+        });
     }
 }
 
