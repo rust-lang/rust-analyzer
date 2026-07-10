@@ -1274,6 +1274,9 @@ impl<'db> PlaceTy<'db> {
                     .get(f.0 as usize)
                     .cloned()
                     .unwrap_or_else(|| panic!("field {f:?} out of range: {self_ty:?}")),
+                TyKind::Array(..) | TyKind::Slice(..) => {
+                    Ty::new_error(infcx.interner, ErrorGuaranteed)
+                }
                 _ => panic!("can't project out of {self_ty:?}"),
             }
         }

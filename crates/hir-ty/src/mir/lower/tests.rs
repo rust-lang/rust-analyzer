@@ -1,7 +1,14 @@
 use hir_def::DefWithBodyId;
+use rustc_type_ir::inherent::Ty as _;
 use test_fixture::WithFixture;
 
-use crate::{db::HirDatabase, setup_tracing, test_db::TestDB};
+use crate::{
+    db::HirDatabase,
+    mir::{FieldIndex, PlaceElem, PlaceTy, ProjectionElem},
+    next_solver::{DbInterner, ParamEnv, Ty, TypingMode, infer::DbInternerInferExt},
+    setup_tracing,
+    test_db::TestDB,
+};
 
 fn lower_mir(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
     let _tracing = setup_tracing();
@@ -133,4 +140,21 @@ fn alias<T: Tr>(x: T::A) {
 }
     "#,
     );
+}
+
+#[test]
+fn field_projection_on_slice_recovers_with_error_type() {
+    let (db, file_id) = TestDB::with_single_file("");
+    crate::attach_db(&db, || {
+        let module = db.module_for_file(file_id.file_id(&db));
+        let interner = DbInterner::new_with(&db, module.krate(&db));
+        let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
+        let slice = Ty::new_slice(interner, Ty::new_bool(interner));
+        let field: PlaceElem = ProjectionElem::Field(FieldIndex(0));
+
+        let result =
+            PlaceTy::from_ty(slice).projection_ty(&infcx, &field, ParamEnv::empty(interner));
+
+        assert!(result.ty.is_ty_error());
+    });
 }
