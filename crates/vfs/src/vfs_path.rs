@@ -349,12 +349,9 @@ impl VirtualPath {
             .map(RelPath::new_unchecked)
     }
 
-    /// Remove the last component of `self`.
+    /// Truncates self to `self.parent`.
     ///
-    /// This will find the last `'/'` in `self`, and remove everything after it,
-    /// including the `'/'`.
-    ///
-    /// If `self` contains no `'/'`, returns `false`; else returns `true`.
+    /// Returns false and does nothing if self.parent is None. Otherwise, returns true.
     ///
     /// # Example
     ///
@@ -363,12 +360,12 @@ impl VirtualPath {
     /// path.pop();
     /// assert_eq!(path.0, "/foo");
     /// path.pop();
-    /// assert_eq!(path.0, "");
+    /// assert_eq!(path.0, "/");
     /// ```
     fn pop(&mut self) -> bool {
         let pos = match self.0.rfind('/') {
-            Some(pos) => pos,
-            None => return false,
+            Some(pos) if pos + 1 != self.0.len() => pos,
+            None | Some(_) => return false,
         };
         self.0 = self.0[..pos].to_string();
         true

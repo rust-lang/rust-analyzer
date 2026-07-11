@@ -10,3 +10,5 @@ edition = "2024"
 [dependencies]
 write-json = "0.1.1"
 ungrammar = { path = "../", version = "1.1.0" }
+
+[lints]
