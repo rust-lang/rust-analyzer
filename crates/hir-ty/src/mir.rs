@@ -1331,9 +1331,9 @@ impl<'db> PlaceTy<'db> {
                 });
                 PlaceTy::from_ty(ty)
             }
-            ProjectionElem::Index(_) | ProjectionElem::ConstantIndex { .. } => {
-                PlaceTy::from_ty(structurally_normalize(self.ty).builtin_index().unwrap())
-            }
+            ProjectionElem::Index(_) | ProjectionElem::ConstantIndex { .. } => PlaceTy::from_ty(
+                structurally_normalize(self.ty).strip_reference().builtin_index().unwrap(),
+            ),
             ProjectionElem::Subslice { from, to /*, from_end*/ } => {
                 PlaceTy::from_ty(match structurally_normalize(self.ty).kind() {
                     TyKind::Slice(..) => self.ty,

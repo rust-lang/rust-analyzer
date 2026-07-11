@@ -134,3 +134,76 @@ fn alias<T: Tr>(x: T::A) {
     "#,
     );
 }
+
+#[test]
+fn index_assignment_through_reference() {
+    check_borrowck(
+        r#"
+//- minicore: sized
+pub fn f(xs: &mut [i32]) {
+    xs[0usize] = 1;
+}
+    "#,
+    );
+}
+
+#[test]
+fn immutable_slice_index() {
+    check_borrowck(
+        r#"
+//- minicore: sized
+pub fn f(xs: &[i32]) -> i32 {
+    let y = xs[0];
+    y
+}
+    "#,
+    );
+}
+
+#[test]
+fn nested_ref_slice_index() {
+    check_borrowck(
+        r#"
+//- minicore: sized
+pub fn f(xs: &&mut [i32]) {
+    xs[0] = 1;
+}
+    "#,
+    );
+}
+
+#[test]
+fn box_slice_index_regression() {
+    check_borrowck(
+        r#"
+//- minicore: sized
+pub fn f(xs: Box<[i32]>) {
+    xs[0] = 1;
+}
+    "#,
+    );
+}
+
+#[test]
+fn direct_array_index_regression() {
+    check_borrowck(
+        r#"
+//- minicore: sized
+pub fn f(mut arr: [i32; 3]) {
+    arr[0] = 1;
+}
+    "#,
+    );
+}
+
+#[test]
+fn constant_index_on_slice_ref() {
+    check_borrowck(
+        r#"
+//- minicore: sized
+pub fn f(xs: &[i32]) -> i32 {
+    xs[0]
+}
+    "#,
+    );
+}
