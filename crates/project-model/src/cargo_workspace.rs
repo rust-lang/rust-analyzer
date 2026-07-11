@@ -841,8 +841,7 @@ fn exec_cargo_metadata(mut cmd: Command) -> anyhow::Result<cargo_metadata::Metad
     let output = stdx::process::output(&mut cmd)?;
     if !output.status.success() {
         return Err(cargo_metadata::Error::CargoMetadata {
-            stderr: String::from_utf8(output.stderr)
-                .unwrap_or_else(|_| String::from("Couldn't read `stderr` output")),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         }
         .into());
     }
