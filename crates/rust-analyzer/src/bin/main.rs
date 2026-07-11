@@ -51,6 +51,10 @@ fn actual_main() -> anyhow::Result<ExitCode> {
         eprintln!("Failed to setup logging: {e:#}");
     }
 
+    // After logging so that failures to set this up are visible, but before
+    // anything that may spawn child processes.
+    stdx::process::kill_descendants_on_exit();
+
     let verbosity = flags.verbosity();
 
     match flags.subcommand {

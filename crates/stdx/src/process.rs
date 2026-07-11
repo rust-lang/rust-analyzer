@@ -35,6 +35,7 @@ impl Drop for JodChild {
 impl JodChild {
     /// Spawns `command` as a direct child process.
     pub fn spawn(command: &mut Command) -> io::Result<JodChild> {
+        die_with_parent(command);
         #[allow(
             clippy::disallowed_methods,
             reason = "we are inside the module that implements the replacement"
@@ -47,7 +48,8 @@ impl JodChild {
     /// Spawns `command` as the leader of a new process group (a new session on
     /// unix, a job object on windows), so that killing the child also kills
     /// the processes the child spawned itself.
-    pub fn spawn_grouped(command: Command) -> io::Result<JodChild> {
+    pub fn spawn_grouped(mut command: Command) -> io::Result<JodChild> {
+        die_with_parent(&mut command);
         let mut command = process_wrap::std::CommandWrap::from(command);
         #[cfg(unix)]
         command.wrap(process_wrap::std::ProcessSession);
@@ -108,6 +110,115 @@ impl JodChild {
 pub fn output(command: &mut Command) -> io::Result<Output> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
     JodChild::spawn(command)?.wait_with_output()
+}
+
+/// Makes the OS kill all descendant processes when this process exits, no
+/// matter how it exits (including crashes and being killed), so that no
+/// spawned cargo or proc-macro server can be leaked.
+///
+/// On windows, this assigns the current process to a new job object with
+/// `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Every process spawned from here on
+/// (transitively, so including e.g. rustc spawned by cargo) inherits
+/// membership in the job, and when this process dies the kernel closes the
+/// deliberately leaked job handle, killing all remaining members. Failure to
+/// set the job up is logged and otherwise ignored.
+///
+/// On linux, the equivalent is arranged per child via `PR_SET_PDEATHSIG` at
+/// spawn time (see `die_with_parent`), so this function is a no-op.
+///
+/// On other platforms (macos), no kernel primitive for this exists, this
+/// function is a no-op, and children are only cleaned up on graceful exit.
+pub fn kill_descendants_on_exit() {
+    #[cfg(windows)]
+    windows_job::put_self_in_kill_on_close_job();
+}
+
+/// Requests that the kernel deliver `SIGKILL` to `command`'s child when this
+/// process dies, covering exits that never run cleanup code (crashes,
+/// `SIGKILL`). Only direct children are covered; grandchildren like rustc are
+/// killed on the graceful exit path only, via the process group of
+/// [`JodChild::spawn_grouped`].
+///
+/// `PR_SET_PDEATHSIG` fires when the spawning *thread* exits, not the
+/// process. That is sound for rust-analyzer: children are spawned either from
+/// threads that block on the child (so the thread outlives it), or from
+/// thread pool workers and the main loop thread, which live for the lifetime
+/// of the process.
+fn die_with_parent(_command: &mut Command) {
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::process::CommandExt;
+
+        let parent = std::process::id();
+        // SAFETY: `prctl`, `getppid` and `_exit` are async-signal-safe.
+        unsafe {
+            _command.pre_exec(move || {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                // If the parent died before the prctl above, the signal will
+                // never be delivered; detect that (we were reparented) and bail.
+                if libc::getppid() != parent as libc::pid_t {
+                    libc::_exit(1);
+                }
+                Ok(())
+            });
+        }
+    }
+}
+
+#[cfg(windows)]
+mod windows_job {
+    use std::{ffi::c_void, io, mem, ptr};
+
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::{
+            JobObjects::{
+                AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+                SetInformationJobObject,
+            },
+            Threading::GetCurrentProcess,
+        },
+    };
+
+    pub(super) fn put_self_in_kill_on_close_job() {
+        // SAFETY: plain winapi calls with valid arguments. The job handle is
+        // deliberately leaked on success so that it is only closed (killing
+        // the job's members) when this process dies.
+        unsafe {
+            let job = CreateJobObjectW(ptr::null(), ptr::null());
+            if job.is_null() {
+                tracing::warn!(
+                    "failed to create job object: {}, spawned processes may be leaked on abnormal exit",
+                    io::Error::last_os_error()
+                );
+                return;
+            }
+            let mut info = mem::zeroed::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &raw const info as *const c_void,
+                mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            ) == 0
+            {
+                tracing::warn!(
+                    "failed to configure job object: {}, spawned processes may be leaked on abnormal exit",
+                    io::Error::last_os_error()
+                );
+                CloseHandle(job);
+                return;
+            }
+            if AssignProcessToJobObject(job, GetCurrentProcess()) == 0 {
+                tracing::warn!(
+                    "failed to assign self to job object: {}, spawned processes may be leaked on abnormal exit",
+                    io::Error::last_os_error()
+                );
+                CloseHandle(job);
+            }
+        }
+    }
 }
 
 pub fn streaming_output(
