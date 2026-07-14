@@ -275,15 +275,15 @@ fn import_on_the_fly<'db>(
                 && ctx.check_stability(original_item.attrs(ctx.db).as_ref())
         })
         .filter(|import| filter_excluded_flyimport(ctx, import))
-        .sorted_by(|a, b| {
-            let key = |import_path| {
-                (
-                    compute_fuzzy_completion_order_key(import_path, &user_input_lowercased),
-                    import_path,
-                )
-            };
-            key(&a.import_path).cmp(&key(&b.import_path))
+        .map(|import| {
+            let key =
+                compute_fuzzy_completion_order_key(&import.import_path, &user_input_lowercased);
+            (key, import)
         })
+        .sorted_by(|(lhs_key, lhs), (rhs_key, rhs)| {
+            lhs_key.cmp(rhs_key).then_with(|| lhs.import_path.cmp(&rhs.import_path))
+        })
+        .map(|(_, import)| import)
         .filter_map(|import| {
             render_resolution_with_import(RenderContext::new(ctx), path_ctx, import)
         })
@@ -321,15 +321,15 @@ fn import_on_the_fly_pat_<'db>(
                 && !ctx.is_item_hidden(original_item)
                 && ctx.check_stability(original_item.attrs(ctx.db).as_ref())
         })
-        .sorted_by(|a, b| {
-            let key = |import_path| {
-                (
-                    compute_fuzzy_completion_order_key(import_path, &user_input_lowercased),
-                    import_path,
-                )
-            };
-            key(&a.import_path).cmp(&key(&b.import_path))
+        .map(|import| {
+            let key =
+                compute_fuzzy_completion_order_key(&import.import_path, &user_input_lowercased);
+            (key, import)
         })
+        .sorted_by(|(lhs_key, lhs), (rhs_key, rhs)| {
+            lhs_key.cmp(rhs_key).then_with(|| lhs.import_path.cmp(&rhs.import_path))
+        })
+        .map(|(_, import)| import)
         .filter_map(|import| {
             render_resolution_with_import_pat(RenderContext::new(ctx), pattern_ctx, import)
         })
@@ -361,15 +361,15 @@ fn import_on_the_fly_method<'db>(
                 && !ctx.is_item_hidden(&import.original_item)
         })
         .filter(|import| filter_excluded_flyimport(ctx, import))
-        .sorted_by(|a, b| {
-            let key = |import_path| {
-                (
-                    compute_fuzzy_completion_order_key(import_path, &user_input_lowercased),
-                    import_path,
-                )
-            };
-            key(&a.import_path).cmp(&key(&b.import_path))
+        .map(|import| {
+            let key =
+                compute_fuzzy_completion_order_key(&import.import_path, &user_input_lowercased);
+            (key, import)
         })
+        .sorted_by(|(lhs_key, lhs), (rhs_key, rhs)| {
+            lhs_key.cmp(rhs_key).then_with(|| lhs.import_path.cmp(&rhs.import_path))
+        })
+        .map(|(_, import)| import)
         .for_each(|import| {
             if let ItemInNs::Values(hir::ModuleDef::Function(f)) = import.original_item {
                 acc.add_method_with_import(ctx, dot_access, f, import);
@@ -439,13 +439,17 @@ fn compute_fuzzy_completion_order_key(
     user_input_lowercased: &str,
 ) -> usize {
     cov_mark::hit!(certain_fuzzy_order_test);
-    let import_name = match proposed_mod_path.segments().last() {
-        // FIXME: nasty alloc, this is a hot path!
-        Some(name) => name.as_str().to_ascii_lowercase(),
-        None => return usize::MAX,
+    let Some(import_name) = proposed_mod_path.segments().last() else {
+        return usize::MAX;
     };
-    match import_name.match_indices(user_input_lowercased).next() {
-        Some((first_matching_index, _)) => first_matching_index,
-        None => usize::MAX,
+    let import_name = import_name.as_str().as_bytes();
+    let user_input_lowercased = user_input_lowercased.as_bytes();
+    if user_input_lowercased.is_empty() {
+        return 0;
     }
+
+    import_name
+        .windows(user_input_lowercased.len())
+        .position(|window| window.eq_ignore_ascii_case(user_input_lowercased))
+        .unwrap_or(usize::MAX)
 }
