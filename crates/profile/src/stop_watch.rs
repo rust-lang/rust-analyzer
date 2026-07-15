@@ -43,7 +43,7 @@ impl StopWatch {
             if *PERF_ENABLED.get_or_init(|| std::env::var_os("RA_DISABLE_PERF").is_none()) {
                 let mut counter = perf_event::Builder::new()
                     .build()
-                    .map_err(|err| eprintln!("Failed to create perf counter: {err}"))
+                    .map_err(|err| eprintln!("Failed to create perf counter , you can suppress this warning by setting RA_DISABLE_PERF=1 {err}"))
                     .ok();
                 if let Some(counter) = &mut counter
                     && let Err(err) = counter.enable()
