@@ -948,7 +948,7 @@ struct FixedPoint<T, U, V>(&'static FixedPoint<(), T, U>, V);
                     res,
                     "{name}[{}]\n",
                     generics(&db, def)
-                        .iter(false)
+                        .iter(true)
                         .map(|(_, param)| match param {
                             GenericParamDataRef::TypeParamData(type_param_data) => {
                                 type_param_data.name.as_ref().unwrap()
