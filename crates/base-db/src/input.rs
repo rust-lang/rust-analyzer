@@ -300,7 +300,7 @@ impl CrateDisplayName {
         CrateDisplayName { crate_name, canonical_name: Symbol::intern(canonical_name) }
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetKind {
     Bin,
     /// Any kind of Cargo lib crate-type (dylib, rlib, proc-macro, ...).
@@ -403,7 +403,7 @@ pub struct CrateData<Id> {
     pub origin: CrateOrigin,
     /// Extra crate-level attributes, including the surrounding `#![]`.
     pub crate_attrs: Box<[Box<str>]>,
-    pub is_proc_macro: bool,
+    pub target_kind: TargetKind,
     /// The working directory to run proc-macros in invoked in the context of this crate.
     /// This is the workspace root of the cargo workspace for workspace members, the crate manifest
     /// dir otherwise.
@@ -583,7 +583,7 @@ impl CrateGraphBuilder {
         mut env: Env,
         origin: CrateOrigin,
         crate_attrs: Vec<String>,
-        is_proc_macro: bool,
+        target_kind: TargetKind,
         proc_macro_cwd: Arc<AbsPathBuf>,
         ws_data: Arc<CrateWorkspaceData>,
     ) -> CrateBuilderId {
@@ -603,7 +603,7 @@ impl CrateGraphBuilder {
                 dependencies: Vec::new(),
                 origin,
                 crate_attrs: crate_attrs.into_boxed_slice(),
-                is_proc_macro,
+                target_kind,
                 proc_macro_cwd,
             },
             extra: ExtraCrateData { version, display_name, potential_cfg_options },
@@ -701,7 +701,7 @@ impl CrateGraphBuilder {
             let crate_data = BuiltCrateData {
                 dependencies,
                 edition: krate.basic.edition,
-                is_proc_macro: krate.basic.is_proc_macro,
+                target_kind: krate.basic.target_kind,
                 origin: krate.basic.origin.clone(),
                 crate_attrs: krate.basic.crate_attrs.clone(),
                 root_file_id: krate.basic.root_file_id,
@@ -1032,7 +1032,7 @@ mod tests {
     use triomphe::Arc;
     use vfs::AbsPathBuf;
 
-    use crate::{CrateWorkspaceData, DependencyBuilder};
+    use crate::{CrateWorkspaceData, DependencyBuilder, TargetKind};
 
     use super::{CrateGraphBuilder, CrateName, CrateOrigin, Edition::Edition2018, Env, FileId};
 
@@ -1053,7 +1053,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1067,7 +1067,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1081,7 +1081,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1115,7 +1115,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1129,7 +1129,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1158,7 +1158,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1172,7 +1172,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1186,7 +1186,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1215,7 +1215,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
@@ -1229,7 +1229,7 @@ mod tests {
             Env::default(),
             CrateOrigin::Local { repo: None, name: None },
             Vec::new(),
-            false,
+            TargetKind::Lib { is_proc_macro: false },
             Arc::new(AbsPathBuf::assert_utf8(std::env::current_dir().unwrap())),
             empty_ws_data(),
         );
