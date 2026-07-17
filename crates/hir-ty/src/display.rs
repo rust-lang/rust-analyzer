@@ -2429,6 +2429,7 @@ impl<'db> HirDisplayWithExpressionStore<'db> for LifetimeRefId {
             LifetimeRef::Static => write!(f, "'static"),
             LifetimeRef::Placeholder => write!(f, "'_"),
             LifetimeRef::Error => write!(f, "'{{error}}"),
+            LifetimeRef::HrtbParam(_) => write!(f, "'_"), // FIXME: find a way to display HRTB param as well
             &LifetimeRef::Param(lifetime_param_id) => {
                 let generic_params = GenericParams::of(f.db, lifetime_param_id.parent);
                 write!(
@@ -2521,7 +2522,9 @@ impl<'db> HirDisplayWithExpressionStore<'db> for TypeRefId {
                 write!(f, "]")?;
             }
             TypeRef::Fn(fn_) => {
-                if let Some(binder) = &fn_.binder {
+                if let Some(binder) = &fn_.binder
+                    && !binder.is_empty()
+                {
                     let edition = f.edition();
                     write!(
                         f,
