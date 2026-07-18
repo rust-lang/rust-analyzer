@@ -1337,101 +1337,7 @@ impl<'db> ExprCollector<'db> {
                 let expr = self.collect_expr_opt(e.expr());
                 self.alloc_expr(Expr::Let { pat, expr }, syntax_ptr)
             }
-            ast::Expr::BlockExpr(e) => match e.modifier() {
-                Some(ast::BlockModifier::Try { try_token: _, bikeshed_token: _, result_type }) => {
-                    self.desugar_try_block(e, result_type)
-                }
-                Some(ast::BlockModifier::Unsafe(_)) => {
-                    self.collect_block_(e, |_, id, statements, tail| Expr::Unsafe {
-                        id,
-                        statements,
-                        tail,
-                    })
-                }
-                Some(ast::BlockModifier::Label(label)) => {
-                    let label_hygiene = self.hygiene_id_for(label.syntax().text_range());
-                    let label_id = self.collect_label(label);
-                    self.with_labeled_rib(label_id, label_hygiene, |this| {
-                        this.collect_block_(e, |_, id, statements, tail| Expr::Block {
-                            id,
-                            statements,
-                            tail,
-                            label: Some(label_id),
-                        })
-                    })
-                }
-                Some(ast::BlockModifier::Async(_)) => {
-                    let capture_by =
-                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
-                    self.with_label_rib(RibKind::Closure, |this| {
-                        this.with_binding_owner(|this| {
-                            this.with_awaitable_block(Awaitable::Yes, |this| {
-                                this.collect_block_(e, |this, id, statements, tail| {
-                                    this.desugared_coroutine_expr(
-                                        CoroutineKind::Async,
-                                        CoroutineSource::Block,
-                                        capture_by,
-                                        id,
-                                        statements,
-                                        tail,
-                                    )
-                                })
-                            })
-                        })
-                    })
-                }
-                Some(ast::BlockModifier::Gen(_)) => {
-                    let capture_by =
-                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
-                    self.with_label_rib(RibKind::Closure, |this| {
-                        this.with_binding_owner(|this| {
-                            this.with_awaitable_block(Awaitable::No("non-async gen block"), |this| {
-                                this.collect_block_(e, |this, id, statements, tail| {
-                                    this.desugared_coroutine_expr(
-                                        CoroutineKind::Gen,
-                                        CoroutineSource::Block,
-                                        capture_by,
-                                        id,
-                                        statements,
-                                        tail,
-                                    )
-                                })
-                            })
-                        })
-                    })
-                }
-                Some(ast::BlockModifier::AsyncGen(_)) => {
-                    let capture_by =
-                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
-                    self.with_label_rib(RibKind::Closure, |this| {
-                        this.with_binding_owner(|this| {
-                            this.with_awaitable_block(Awaitable::Yes, |this| {
-                                this.collect_block_(e, |this, id, statements, tail| {
-                                    this.desugared_coroutine_expr(
-                                        CoroutineKind::AsyncGen,
-                                        CoroutineSource::Block,
-                                        capture_by,
-                                        id,
-                                        statements,
-                                        tail,
-                                    )
-                                })
-                            })
-                        })
-                    })
-                }
-                Some(ast::BlockModifier::Const(_)) => {
-                    self.with_label_rib(RibKind::Constant, |this| {
-                        this.with_awaitable_block(Awaitable::No("constant block"), |this| {
-                            this.with_binding_owner(|this| {
-                                let inner_expr = this.collect_block(e);
-                                this.alloc_expr(Expr::Const(inner_expr), syntax_ptr)
-                            })
-                        })
-                    })
-                }
-                None => self.collect_block(e),
-            },
+            ast::Expr::BlockExpr(e) => self.collect_block_expr(e, syntax_ptr),
             ast::Expr::LoopExpr(e) => {
                 let label = e.label().map(|label| {
                     (self.hygiene_id_for(label.syntax().text_range()), self.collect_label(label))
@@ -1441,68 +1347,9 @@ impl<'db> ExprCollector<'db> {
             }
             ast::Expr::WhileExpr(e) => self.collect_while_loop(syntax_ptr, e),
             ast::Expr::ForExpr(e) => self.collect_for_loop(syntax_ptr, e),
-            ast::Expr::CallExpr(e) => {
-                // FIXME(MINIMUM_SUPPORTED_TOOLCHAIN_VERSION): Remove this once we drop support for <1.86, https://github.com/rust-lang/rust/commit/ac9cb908ac4301dfc25e7a2edee574320022ae2c
-                let is_rustc_box = {
-                    let attrs = e.attrs();
-                    attrs.filter_map(|it| it.as_simple_atom()).any(|it| it == "rustc_box")
-                };
-                if is_rustc_box {
-                    let expr = self.collect_expr_opt(e.arg_list().and_then(|it| it.args().next()));
-                    self.alloc_expr(Expr::Box { expr }, syntax_ptr)
-                } else {
-                    let callee = self.collect_expr_opt(e.expr());
-                    let args = if let Some(arg_list) = e.arg_list() {
-                        arg_list.args().filter_map(|e| self.maybe_collect_expr(e)).collect()
-                    } else {
-                        Box::default()
-                    };
-                    self.alloc_expr(Expr::Call { callee, args }, syntax_ptr)
-                }
-            }
-            ast::Expr::MethodCallExpr(e) => {
-                let receiver = self.collect_expr_opt(e.receiver());
-                let args = if let Some(arg_list) = e.arg_list() {
-                    arg_list.args().filter_map(|e| self.maybe_collect_expr(e)).collect()
-                } else {
-                    Box::default()
-                };
-                let method_name = e.name_ref().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
-                let generic_args = e
-                    .generic_arg_list()
-                    .and_then(|it| {
-                        self.lower_generic_args(it, &mut Self::impl_trait_error_allocator)
-                    })
-                    .map(Box::new);
-                self.alloc_expr(
-                    Expr::MethodCall { receiver, method_name, args, generic_args },
-                    syntax_ptr,
-                )
-            }
-            ast::Expr::MatchExpr(e) => {
-                let expr = self.collect_expr_opt(e.expr());
-                let arms = if let Some(match_arm_list) = e.match_arm_list() {
-                    match_arm_list
-                        .arms()
-                        .filter_map(|arm| {
-                            if self.check_cfg(&arm) {
-                                Some(MatchArm {
-                                    pat: self.collect_pat_top(arm.pat()),
-                                    expr: self.collect_expr_opt(arm.expr()),
-                                    guard: arm
-                                        .guard()
-                                        .map(|guard| self.collect_expr_opt(guard.condition())),
-                                })
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                } else {
-                    Box::default()
-                };
-                self.alloc_expr(Expr::Match { expr, arms }, syntax_ptr)
-            }
+            ast::Expr::CallExpr(e) => self.collect_call_expr(e, syntax_ptr),
+            ast::Expr::MethodCallExpr(e) => self.collect_method_call_expr(e, syntax_ptr),
+            ast::Expr::MatchExpr(e) => self.collect_match_expr(e, syntax_ptr),
             ast::Expr::PathExpr(e) => {
                 let (path, hygiene) = self
                     .collect_expr_path(e)
@@ -1554,46 +1401,7 @@ impl<'db> ExprCollector<'db> {
                 let expr = e.expr().map(|e| self.collect_expr(e));
                 self.alloc_expr(Expr::Yeet { expr }, syntax_ptr)
             }
-            ast::Expr::RecordExpr(e) => {
-                let path = e
-                    .path()
-                    .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
-                let Some(path) = path else {
-                    return Some(self.missing_expr());
-                };
-                let record_lit = if let Some(nfl) = e.record_expr_field_list() {
-                    let fields = nfl
-                        .fields()
-                        .filter_map(|field| {
-                            if !self.check_cfg(&field) {
-                                return None;
-                            }
-
-                            let name = field.field_name()?.as_name();
-
-                            let expr = match field.expr() {
-                                Some(e) => self.collect_expr(e),
-                                None => self.missing_expr(),
-                            };
-                            let src = self.expander.in_file(AstPtr::new(&field));
-                            self.store.field_map_back.insert(expr, src);
-                            Some(RecordLitField { name, expr })
-                        })
-                        .collect();
-                    let spread_expr = nfl.spread().map(|s| self.collect_expr(s));
-                    let has_spread_syntax = nfl.dotdot_token().is_some();
-                    let spread = match (spread_expr, has_spread_syntax) {
-                        (None, false) => RecordSpread::None,
-                        (None, true) => RecordSpread::FieldDefaults,
-                        (Some(expr), _) => RecordSpread::Expr(expr),
-                    };
-                    Expr::RecordLit { path, fields, spread }
-                } else {
-                    Expr::RecordLit { path, fields: Box::default(), spread: RecordSpread::None }
-                };
-
-                self.alloc_expr(record_lit, syntax_ptr)
-            }
+            ast::Expr::RecordExpr(e) => self.collect_record_expr(e, syntax_ptr)?,
             ast::Expr::FieldExpr(e) => {
                 let expr = self.collect_expr_opt(e.expr());
                 let name = match e.field_access() {
@@ -1636,163 +1444,10 @@ impl<'db> ExprCollector<'db> {
                     None => self.alloc_expr(Expr::Missing, syntax_ptr),
                 }
             }
-            ast::Expr::ClosureExpr(e) => self.with_label_rib(RibKind::Closure, |this| {
-                let mut is_coroutine_closure = false;
-                let closure = this.with_binding_owner_and_return(|this| {
-                    let mut args = Vec::new();
-                    let mut arg_types = Vec::new();
-                    // For coroutine closures, the body, aka. the coroutine is the bindings owner, and not the closure.
-                    if let Some(pl) = e.param_list() {
-                        let num_params = pl.params().count();
-                        args.reserve_exact(num_params);
-                        arg_types.reserve_exact(num_params);
-                        for param in pl.params() {
-                            if !this.check_cfg(&param) {
-                                continue;
-                            }
-
-                            let pat = this.collect_pat_top(param.pat());
-                            let type_ref =
-                                param.ty().map(|it| this.lower_type_ref_disallow_impl_trait(it));
-                            args.push(pat);
-                            arg_types.push(type_ref);
-                        }
-                    }
-                    let ret_type = e
-                        .ret_type()
-                        .and_then(|r| r.ty())
-                        .map(|it| this.lower_type_ref_disallow_impl_trait(it));
-
-                    let prev_is_lowering_coroutine = mem::take(&mut this.is_lowering_coroutine);
-                    let prev_try_block = this.current_try_block.take();
-
-                    let awaitable = if e.async_token().is_some() {
-                        Awaitable::Yes
-                    } else {
-                        Awaitable::No("non-async closure")
-                    };
-                    let mut body = this
-                        .with_awaitable_block(awaitable, |this| this.collect_expr_opt(e.body()));
-                    let kind = {
-                        if e.async_token().is_some() && e.gen_token().is_some() {
-                            Some(CoroutineKind::AsyncGen)
-                        } else if e.async_token().is_some() {
-                            Some(CoroutineKind::Async)
-                        } else if e.gen_token().is_some() {
-                            Some(CoroutineKind::Gen)
-                        } else {
-                            None
-                        }
-                    };
-
-                    let closure_kind = if let Some(kind) = kind {
-                        // It's important that this expr is allocated immediately before the closure.
-                        // We rely on it for `coroutine_for_closure()`.
-                        let mut args_with_user_written = args.iter().copied().map(Param::new).collect::<Vec<_>>();
-                        body = this.lower_coroutine_body_with_moved_arguments(
-                            &mut None,
-                            &mut args_with_user_written,
-                            body,
-                            kind,
-                            CoroutineSource::Closure,
-                        );
-                        args.iter_mut().set_from(args_with_user_written.iter().map(|arg| arg.formal));
-                        is_coroutine_closure = true;
-
-                        ClosureKind::CoroutineClosure(kind)
-                    } else if this.is_lowering_coroutine {
-                        let movability = if e.static_token().is_some() {
-                            Movability::Static
-                        } else {
-                            Movability::Movable
-                        };
-                        ClosureKind::OldCoroutine(movability)
-                    } else {
-                        ClosureKind::Closure
-                    };
-                    let capture_by =
-                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
-                    this.is_lowering_coroutine = prev_is_lowering_coroutine;
-                    this.current_try_block = prev_try_block;
-                    let closure = this.alloc_expr(
-                        Expr::Closure {
-                            args: args.into(),
-                            arg_types: arg_types.into(),
-                            ret_type,
-                            body,
-                            closure_kind,
-                            capture_by,
-                        },
-                        syntax_ptr,
-                    );
-
-                    (if is_coroutine_closure { body } else { closure }, closure)
-                });
-
-                if is_coroutine_closure {
-                    let Expr::Closure { args, .. } = &this.store.exprs[closure] else {
-                        unreachable!()
-                    };
-                    for &arg in args {
-                        let Pat::Bind { id, .. } = this.store.pats[arg] else {
-                            never!("`lower_coroutine_body_with_moved_arguments()` should make sure the coroutine closure only have simple bind args");
-                            continue;
-                        };
-                        this.store.binding_owners.insert(id, closure);
-                    }
-                }
-
-                closure
-            }),
-            ast::Expr::BinExpr(e) => {
-                let op = e.op_kind();
-                if let Some(ast::BinaryOp::Assignment { op: None }) = op {
-                    let target = self.collect_expr_as_pat_opt(e.lhs());
-                    let value = self.collect_expr_opt(e.rhs());
-                    self.alloc_expr(Expr::Assignment { target, value }, syntax_ptr)
-                } else {
-                    let lhs = self.collect_expr_opt(e.lhs());
-                    let rhs = self.collect_expr_opt(e.rhs());
-                    self.alloc_expr(Expr::BinaryOp { lhs, rhs, op }, syntax_ptr)
-                }
-            }
-            ast::Expr::TupleExpr(e) => {
-                let mut exprs: Vec<_> = e.fields().filter_map(|expr| self.maybe_collect_expr(expr)).collect();
-                // if there is a leading comma, the user is most likely to type out a leading expression
-                // so we insert a missing expression at the beginning for IDE features
-                if comma_follows_token(e.l_paren_token()) {
-                    exprs.insert(0, self.missing_expr());
-                }
-
-                self.alloc_expr(Expr::Tuple { exprs: exprs.into_boxed_slice() }, syntax_ptr)
-            }
-            ast::Expr::ArrayExpr(e) => {
-                let kind = e.kind();
-
-                match kind {
-                    ArrayExprKind::ElementList(e) => {
-                        let elements = e
-                            .filter_map(|expr| self.maybe_collect_expr(expr))
-                            .collect();
-                        self.alloc_expr(Expr::Array(Array::ElementList { elements }), syntax_ptr)
-                    }
-                    ArrayExprKind::Repeat { initializer, repeat } => {
-                        let initializer = self.collect_expr_opt(initializer);
-                        let repeat = self.with_label_rib(RibKind::Constant, |this| {
-                            if let Some(repeat) = repeat {
-                                this.with_binding_owner(|this| this.collect_expr(repeat))
-                            } else {
-                                this.missing_expr()
-                            }
-                        });
-                        self.alloc_expr(
-                            Expr::Array(Array::Repeat { initializer, repeat }),
-                            syntax_ptr,
-                        )
-                    }
-                }
-            }
-
+            ast::Expr::ClosureExpr(e) => self.collect_closure_expr(e, syntax_ptr),
+            ast::Expr::BinExpr(e) => self.collect_bin_expr(e, syntax_ptr),
+            ast::Expr::TupleExpr(e) => self.collect_tuple_expr(e, syntax_ptr),
+            ast::Expr::ArrayExpr(e) => self.collect_array_expr(e, syntax_ptr),
             ast::Expr::Literal(e) => self.alloc_expr(Expr::Literal(e.kind().into()), syntax_ptr),
             ast::Expr::IndexExpr(e) => {
                 let base = self.collect_expr_opt(e.base());
@@ -1809,25 +1464,7 @@ impl<'db> ExprCollector<'db> {
                     None => self.alloc_expr(Expr::Missing, syntax_ptr),
                 }
             }
-            ast::Expr::MacroExpr(e) => {
-                let e = e.macro_call()?;
-                let macro_ptr = AstPtr::new(&e);
-                let id = self.collect_macro_call(e, macro_ptr, true, |this, expansion| {
-                    expansion.map(|it| this.maybe_collect_expr(it))
-                });
-                match id {
-                    Some(Some(id)) => {
-                        // Make the macro-call point to its expanded expression so we can query
-                        // semantics on syntax pointers to the macro
-                        let src = self.expander.in_file(syntax_ptr);
-                        self.store.expr_map.insert(src, id.into());
-                        id
-                    }
-                    // Macro expanded into a disabled cfg (yes, there is such thing, see the weird_cfgs test).
-                    Some(None) => return None,
-                    None => self.alloc_expr(Expr::Missing, syntax_ptr),
-                }
-            }
+            ast::Expr::MacroExpr(e) => self.collect_macro_expr(e, syntax_ptr)?,
             ast::Expr::UnderscoreExpr(_) => self.alloc_expr(Expr::Underscore, syntax_ptr),
             ast::Expr::AsmExpr(e) => self.lower_inline_asm(e, syntax_ptr),
             ast::Expr::OffsetOfExpr(e) => {
@@ -1838,6 +1475,393 @@ impl<'db> ExprCollector<'db> {
             ast::Expr::FormatArgsExpr(f) => self.collect_format_args(f, syntax_ptr),
             ast::Expr::IncludeBytesExpr(_) => self.alloc_expr(Expr::IncludeBytes, syntax_ptr)
         })
+    }
+
+    fn collect_block_expr(&mut self, e: ast::BlockExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        match e.modifier() {
+                        Some(ast::BlockModifier::Try { try_token: _, bikeshed_token: _, result_type }) => {
+                            self.desugar_try_block(e, result_type)
+                        }
+                        Some(ast::BlockModifier::Unsafe(_)) => {
+                            self.collect_block_(e, |_, id, statements, tail| Expr::Unsafe {
+                                id,
+                                statements,
+                                tail,
+                            })
+                        }
+                        Some(ast::BlockModifier::Label(label)) => {
+                            let label_hygiene = self.hygiene_id_for(label.syntax().text_range());
+                            let label_id = self.collect_label(label);
+                            self.with_labeled_rib(label_id, label_hygiene, |this| {
+                                this.collect_block_(e, |_, id, statements, tail| Expr::Block {
+                                    id,
+                                    statements,
+                                    tail,
+                                    label: Some(label_id),
+                                })
+                            })
+                        }
+                        Some(ast::BlockModifier::Async(_)) => {
+                            let capture_by =
+                                if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+                            self.with_label_rib(RibKind::Closure, |this| {
+                                this.with_awaitable_block(Awaitable::Yes, |this| {
+                                    this.collect_block_(e, |this, id, statements, tail| {
+                                        this.desugared_coroutine_expr(
+                                            CoroutineKind::Async,
+                                            CoroutineSource::Block,
+                                            capture_by,
+                                            id,
+                                            statements,
+                                            tail,
+                                        )
+                                    })
+                                })
+                            })
+                        }
+                        Some(ast::BlockModifier::Gen(_)) => {
+                            let capture_by =
+                                if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+                            self.with_label_rib(RibKind::Closure, |this| {
+                                this.with_awaitable_block(Awaitable::No("non-async gen block"), |this| {
+                                    this.collect_block_(e, |this, id, statements, tail| {
+                                        this.desugared_coroutine_expr(
+                                            CoroutineKind::Gen,
+                                            CoroutineSource::Block,
+                                            capture_by,
+                                            id,
+                                            statements,
+                                            tail,
+                                        )
+                                    })
+                                })
+                            })
+                        }
+                        Some(ast::BlockModifier::AsyncGen(_)) => {
+                            let capture_by =
+                                if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+                            self.with_label_rib(RibKind::Closure, |this| {
+                                this.with_awaitable_block(Awaitable::Yes, |this| {
+                                    this.collect_block_(e, |this, id, statements, tail| {
+                                        this.desugared_coroutine_expr(
+                                            CoroutineKind::AsyncGen,
+                                            CoroutineSource::Block,
+                                            capture_by,
+                                            id,
+                                            statements,
+                                            tail,
+                                        )
+                                    })
+                                })
+                            })
+                        }
+                        Some(ast::BlockModifier::Const(_)) => {
+                            self.with_label_rib(RibKind::Constant, |this| {
+                                this.with_awaitable_block(Awaitable::No("constant block"), |this| {
+                                    this.with_binding_owner(|this| {
+                                        let inner_expr = this.collect_block(e);
+                                        this.alloc_expr(Expr::Const(inner_expr), syntax_ptr)
+                                    })
+                                })
+                            })
+                        }
+                        None => self.collect_block(e),
+                    }
+    }
+    fn collect_call_expr(&mut self, e: ast::CallExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        {
+                        // FIXME(MINIMUM_SUPPORTED_TOOLCHAIN_VERSION): Remove this once we drop support for <1.86, https://github.com/rust-lang/rust/commit/ac9cb908ac4301dfc25e7a2edee574320022ae2c
+                        let is_rustc_box = {
+                            let attrs = e.attrs();
+                            attrs.filter_map(|it| it.as_simple_atom()).any(|it| it == "rustc_box")
+                        };
+                        if is_rustc_box {
+                            let expr = self.collect_expr_opt(e.arg_list().and_then(|it| it.args().next()));
+                            self.alloc_expr(Expr::Box { expr }, syntax_ptr)
+                        } else {
+                            let callee = self.collect_expr_opt(e.expr());
+                            let args = if let Some(arg_list) = e.arg_list() {
+                                arg_list.args().filter_map(|e| self.maybe_collect_expr(e)).collect()
+                            } else {
+                                Box::default()
+                            };
+                            self.alloc_expr(Expr::Call { callee, args }, syntax_ptr)
+                        }
+                    }
+    }
+    fn collect_method_call_expr(&mut self, e: ast::MethodCallExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        {
+                        let receiver = self.collect_expr_opt(e.receiver());
+                        let args = if let Some(arg_list) = e.arg_list() {
+                            arg_list.args().filter_map(|e| self.maybe_collect_expr(e)).collect()
+                        } else {
+                            Box::default()
+                        };
+                        let method_name = e.name_ref().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
+                        let generic_args = e
+                            .generic_arg_list()
+                            .and_then(|it| {
+                                self.lower_generic_args(it, &mut Self::impl_trait_error_allocator)
+                            })
+                            .map(Box::new);
+                        self.alloc_expr(
+                            Expr::MethodCall { receiver, method_name, args, generic_args },
+                            syntax_ptr,
+                        )
+                    }
+    }
+    fn collect_match_expr(&mut self, e: ast::MatchExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        {
+                        let expr = self.collect_expr_opt(e.expr());
+                        let arms = if let Some(match_arm_list) = e.match_arm_list() {
+                            match_arm_list
+                                .arms()
+                                .filter_map(|arm| {
+                                    if self.check_cfg(&arm) {
+                                        Some(MatchArm {
+                                            pat: self.collect_pat_top(arm.pat()),
+                                            expr: self.collect_expr_opt(arm.expr()),
+                                            guard: arm
+                                                .guard()
+                                                .map(|guard| self.collect_expr_opt(guard.condition())),
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect()
+                        } else {
+                            Box::default()
+                        };
+                        self.alloc_expr(Expr::Match { expr, arms }, syntax_ptr)
+                    }
+    }
+    fn collect_closure_expr(&mut self, e: ast::ClosureExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        self.with_label_rib(RibKind::Closure, |this| {
+                        let mut is_coroutine_closure = false;
+                        let closure = this.with_binding_owner_and_return(|this| {
+                            let mut args = Vec::new();
+                            let mut arg_types = Vec::new();
+                            // For coroutine closures, the body, aka. the coroutine is the bindings owner, and not the closure.
+                            if let Some(pl) = e.param_list() {
+                                let num_params = pl.params().count();
+                                args.reserve_exact(num_params);
+                                arg_types.reserve_exact(num_params);
+                                for param in pl.params() {
+                                    if !this.check_cfg(&param) {
+                                        continue;
+                                    }
+
+                                    let pat = this.collect_pat_top(param.pat());
+                                    let type_ref =
+                                        param.ty().map(|it| this.lower_type_ref_disallow_impl_trait(it));
+                                    args.push(pat);
+                                    arg_types.push(type_ref);
+                                }
+                            }
+                            let ret_type = e
+                                .ret_type()
+                                .and_then(|r| r.ty())
+                                .map(|it| this.lower_type_ref_disallow_impl_trait(it));
+
+                            let prev_is_lowering_coroutine = mem::take(&mut this.is_lowering_coroutine);
+                            let prev_try_block = this.current_try_block.take();
+
+                            let awaitable = if e.async_token().is_some() {
+                                Awaitable::Yes
+                            } else {
+                                Awaitable::No("non-async closure")
+                            };
+                            let mut body = this
+                                .with_awaitable_block(awaitable, |this| this.collect_expr_opt(e.body()));
+                            let kind = {
+                                if e.async_token().is_some() && e.gen_token().is_some() {
+                                    Some(CoroutineKind::AsyncGen)
+                                } else if e.async_token().is_some() {
+                                    Some(CoroutineKind::Async)
+                                } else if e.gen_token().is_some() {
+                                    Some(CoroutineKind::Gen)
+                                } else {
+                                    None
+                                }
+                            };
+
+                            let closure_kind = if let Some(kind) = kind {
+                                // It's important that this expr is allocated immediately before the closure.
+                                // We rely on it for `coroutine_for_closure()`.
+                                let mut args_with_user_written = args.iter().copied().map(Param::new).collect::<Vec<_>>();
+                                body = this.lower_coroutine_body_with_moved_arguments(
+                                    &mut None,
+                                    &mut args_with_user_written,
+                                    body,
+                                    kind,
+                                    CoroutineSource::Closure,
+                                );
+                                args.iter_mut().set_from(args_with_user_written.iter().map(|arg| arg.formal));
+                                is_coroutine_closure = true;
+
+                                ClosureKind::CoroutineClosure(kind)
+                            } else if this.is_lowering_coroutine {
+                                let movability = if e.static_token().is_some() {
+                                    Movability::Static
+                                } else {
+                                    Movability::Movable
+                                };
+                                ClosureKind::OldCoroutine(movability)
+                            } else {
+                                ClosureKind::Closure
+                            };
+                            let capture_by =
+                                if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+                            this.is_lowering_coroutine = prev_is_lowering_coroutine;
+                            this.current_try_block = prev_try_block;
+                            let closure = this.alloc_expr(
+                                Expr::Closure {
+                                    args: args.into(),
+                                    arg_types: arg_types.into(),
+                                    ret_type,
+                                    body,
+                                    closure_kind,
+                                    capture_by,
+                                },
+                                syntax_ptr,
+                            );
+
+                            (if is_coroutine_closure { body } else { closure }, closure)
+                        });
+
+                        if is_coroutine_closure {
+                            let Expr::Closure { args, .. } = &this.store.exprs[closure] else {
+                                unreachable!()
+                            };
+                            for &arg in args {
+                                let Pat::Bind { id, .. } = this.store.pats[arg] else {
+                                    never!("`lower_coroutine_body_with_moved_arguments()` should make sure the coroutine closure only have simple bind args");
+                                    continue;
+                                };
+                                this.store.binding_owners.insert(id, closure);
+                            }
+                        }
+
+                        closure
+                    })
+    }
+    fn collect_record_expr(&mut self, e: ast::RecordExpr, syntax_ptr: AstPtr<ast::Expr>) -> Option<ExprId> {
+        {
+                        let path = e
+                            .path()
+                            .and_then(|path| self.lower_path(path, &mut Self::impl_trait_error_allocator));
+                        let Some(path) = path else {
+                            return Some(self.missing_expr());
+                        };
+                        let record_lit = if let Some(nfl) = e.record_expr_field_list() {
+                            let fields = nfl
+                                .fields()
+                                .filter_map(|field| {
+                                    if !self.check_cfg(&field) {
+                                        return None;
+                                    }
+
+                                    let name = field.field_name()?.as_name();
+
+                                    let expr = match field.expr() {
+                                        Some(e) => self.collect_expr(e),
+                                        None => self.missing_expr(),
+                                    };
+                                    let src = self.expander.in_file(AstPtr::new(&field));
+                                    self.store.field_map_back.insert(expr, src);
+                                    Some(RecordLitField { name, expr })
+                                })
+                                .collect();
+                            let spread_expr = nfl.spread().map(|s| self.collect_expr(s));
+                            let has_spread_syntax = nfl.dotdot_token().is_some();
+                            let spread = match (spread_expr, has_spread_syntax) {
+                                (None, false) => RecordSpread::None,
+                                (None, true) => RecordSpread::FieldDefaults,
+                                (Some(expr), _) => RecordSpread::Expr(expr),
+                            };
+                            Expr::RecordLit { path, fields, spread }
+                        } else {
+                            Expr::RecordLit { path, fields: Box::default(), spread: RecordSpread::None }
+                        };
+
+                        Some(self.alloc_expr(record_lit, syntax_ptr))
+                    }
+    }
+    fn collect_bin_expr(&mut self, e: ast::BinExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        {
+                        let op = e.op_kind();
+                        if let Some(ast::BinaryOp::Assignment { op: None }) = op {
+                            let target = self.collect_expr_as_pat_opt(e.lhs());
+                            let value = self.collect_expr_opt(e.rhs());
+                            self.alloc_expr(Expr::Assignment { target, value }, syntax_ptr)
+                        } else {
+                            let lhs = self.collect_expr_opt(e.lhs());
+                            let rhs = self.collect_expr_opt(e.rhs());
+                            self.alloc_expr(Expr::BinaryOp { lhs, rhs, op }, syntax_ptr)
+                        }
+                    }
+    }
+    fn collect_tuple_expr(&mut self, e: ast::TupleExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        {
+                        let mut exprs: Vec<_> = e.fields().filter_map(|expr| self.maybe_collect_expr(expr)).collect();
+                        // if there is a leading comma, the user is most likely to type out a leading expression
+                        // so we insert a missing expression at the beginning for IDE features
+                        if comma_follows_token(e.l_paren_token()) {
+                            exprs.insert(0, self.missing_expr());
+                        }
+
+                        self.alloc_expr(Expr::Tuple { exprs: exprs.into_boxed_slice() }, syntax_ptr)
+                    }
+    }
+    fn collect_array_expr(&mut self, e: ast::ArrayExpr, syntax_ptr: AstPtr<ast::Expr>) -> ExprId {
+        {
+                        let kind = e.kind();
+
+                        match kind {
+                            ArrayExprKind::ElementList(e) => {
+                                let elements = e
+                                    .filter_map(|expr| self.maybe_collect_expr(expr))
+                                    .collect();
+                                self.alloc_expr(Expr::Array(Array::ElementList { elements }), syntax_ptr)
+                            }
+                            ArrayExprKind::Repeat { initializer, repeat } => {
+                                let initializer = self.collect_expr_opt(initializer);
+                                let repeat = self.with_label_rib(RibKind::Constant, |this| {
+                                    if let Some(repeat) = repeat {
+                                        this.with_binding_owner(|this| this.collect_expr(repeat))
+                                    } else {
+                                        this.missing_expr()
+                                    }
+                                });
+                                self.alloc_expr(
+                                    Expr::Array(Array::Repeat { initializer, repeat }),
+                                    syntax_ptr,
+                                )
+                            }
+                        }
+                    }
+    }
+    fn collect_macro_expr(&mut self, e: ast::MacroExpr, syntax_ptr: AstPtr<ast::Expr>) -> Option<ExprId> {
+        {
+                        let e = e.macro_call()?;
+                        let macro_ptr = AstPtr::new(&e);
+                        let id = self.collect_macro_call(e, macro_ptr, true, |this, expansion| {
+                            expansion.map(|it| this.maybe_collect_expr(it))
+                        });
+                        match id {
+                            Some(Some(id)) => {
+                                // Make the macro-call point to its expanded expression so we can query
+                                // semantics on syntax pointers to the macro
+                                let src = self.expander.in_file(syntax_ptr);
+                                self.store.expr_map.insert(src, id.into());
+                                Some(id)
+                            }
+                            // Macro expanded into a disabled cfg (yes, there is such thing, see the weird_cfgs test).
+                            Some(None) => return None,
+                            None => Some(self.alloc_expr(Expr::Missing, syntax_ptr)),
+                        }
+                    }
     }
 
     fn collect_expr_path(&mut self, e: ast::PathExpr) -> Option<(Path, HygieneId)> {
