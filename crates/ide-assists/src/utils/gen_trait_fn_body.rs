@@ -221,8 +221,6 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                             gen_debug_enum_record_variant_body(make, &name, &list)?
                         };
 
-                        arms_cfgs
-                            .push(VariantCfg { variant_cfg, record_field_cfgs: Some(field_cfgs) });
                         make.match_arm(pat.into(), None, body)
                     }
                     Some(ast::FieldList::TupleFieldList(list)) => {
@@ -255,7 +253,6 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
 
                         // => MyStruct (a, b) => f.debug_tuple("MyStruct") ... .finish(),
                         let pat = make.tuple_struct_pat(variant_name.clone(), pats);
-                        arms_cfgs.push(VariantCfg { variant_cfg, record_field_cfgs: None });
                         make.match_arm(pat.into(), None, expr)
                     }
                     None => {
@@ -266,7 +263,6 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                         let macro_call = make.expr_macro(macro_name, args);
 
                         let variant_name = make.path_pat(variant_name);
-                        arms_cfgs.push(VariantCfg { variant_cfg, record_field_cfgs: None });
                         make.match_arm(variant_name, None, macro_call.into())
                     }
                 };
@@ -293,13 +289,18 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                     })
                     .map(|l| l.arms().collect::<Vec<_>>())
                     .unwrap_or_default();
-                for (arm, cfg) in match_arms.iter().zip(&arms_cfgs) {
+                let variants = list.variants().collect::<Vec<_>>();
+
+                stdx::always!(match_arms.len() == variants.len());
+                for (arm, variant) in match_arms.iter().zip(&variants) {
                     // => #[cfg(...)]
-                    if !cfg.variant_cfg.is_empty() {
-                        insert_attributes(arm.syntax(), &editor, cfg.variant_cfg.iter().cloned());
+                    let variant_cfg = get_cfg_attrs(variant).into_iter().collect::<Vec<_>>();
+                    if !variant_cfg.is_empty() {
+                        insert_attributes(arm.syntax(), &editor, variant_cfg.iter().cloned());
                     }
-                    // => `Self::V { a, #[cfg] b }`
-                    if let Some(record_field_cfgs) = &cfg.record_field_cfgs {
+                    // => #[cfg(...)]
+                    //    (`Self::V { a, #[cfg] b }`)
+                    if let Some(ast::FieldList::RecordFieldList(rfl)) = variant.field_list() {
                         let fields = arm
                             .pat()
                             .and_then(|p| match p {
@@ -308,11 +309,13 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                             })
                             .map(|l| l.fields().collect::<Vec<_>>())
                             .unwrap_or_default();
-                        for (rpf, field_cfg) in fields.iter().zip(record_field_cfgs) {
+                        for (rpf, field) in fields.iter().zip(rfl.fields()) {
+                            let field_cfg: Vec<ast::Attr> =
+                                get_cfg_attrs(&field).into_iter().collect();
                             if !field_cfg.is_empty() {
                                 editor.insert_all(
                                     Position::before(rpf.syntax()),
-                                    intersperse_attrs(make, field_cfg, " "),
+                                    intersperse_attrs(make, &field_cfg, " "),
                                 );
                             }
                         }
@@ -601,11 +604,6 @@ fn gen_debug_enum_record_variant_body_with_cfg(
     }
 
     build_let_stmts_tail_block(make, let_stmt, field_stmts, tail.into())
-}
-
-struct VariantCfg {
-    variant_cfg: Vec<ast::Attr>,
-    record_field_cfgs: Option<Vec<Vec<ast::Attr>>>,
 }
 
 /// Generate a `Default` impl based on the fields and members of the target type.
