@@ -1870,7 +1870,7 @@ impl<'db> ExprCollector<'db> {
                     Some(id)
                 }
                 // Macro expanded into a disabled cfg (yes, there is such thing, see the weird_cfgs test).
-                Some(None) => return None,
+                Some(None) => None,
                 None => Some(self.alloc_expr(Expr::Missing, syntax_ptr)),
             }
         }
