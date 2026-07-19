@@ -962,10 +962,46 @@ impl<'db> InferenceContext<'_, 'db> {
             return self.types.types.error;
         };
         self.table.register_bound(awaitee_ty, into_future, ObligationCause::new(expr));
-        self.table.try_structurally_resolve_type(
+        let mut resolved = self.table.try_structurally_resolve_type(
             expr.into(),
             Ty::new_projection(self.interner(), into_future_output.into(), [awaitee_ty]),
-        )
+        );
+
+        if resolved.is_ty_var() {
+            let awaitee_resolved = self.table.resolve_vars_if_possible(awaitee_ty);
+            if let rustc_type_ir::TyKind::Alias(rustc_type_ir::AliasTy {
+                kind: rustc_type_ir::AliasTyKind::Opaque { def_id },
+                args,
+                ..
+            }) = awaitee_resolved.kind()
+            {
+                let item_bounds = def_id.0.predicates(self.db);
+                for predicate in
+                    item_bounds.iter_instantiated_copied(self.interner(), args.as_slice())
+                {
+                    if let rustc_type_ir::ClauseKind::Projection(proj) =
+                        predicate.skip_norm_wip().kind().skip_binder()
+                    {
+                        let is_into_future =
+                            proj.projection_term.def_id() == into_future_output.into();
+                        let is_future = self
+                            .lang_items
+                            .FutureOutput
+                            .map(|fo| proj.projection_term.def_id() == fo.into())
+                            .unwrap_or(false);
+                        if is_into_future || is_future {
+                            use rustc_type_ir::inherent::Term as _;
+                            if let Some(ty) = proj.term.as_type() {
+                                resolved = ty;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        resolved
     }
 
     fn infer_record_expr(

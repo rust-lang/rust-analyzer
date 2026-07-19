@@ -917,3 +917,15 @@ pub async fn test1() -> ! {
     "#,
     );
 }
+
+#[test]
+fn issue_22853() {
+    check_no_mismatches(
+        r#"
+//- minicore: future
+async fn test() -> ! {
+    test().await;
+}
+"#,
+    );
+}
