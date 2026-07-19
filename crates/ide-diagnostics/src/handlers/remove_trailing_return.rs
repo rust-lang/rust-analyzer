@@ -158,6 +158,7 @@ fn foo(x: usize) -> u8 {
     fn remove_trailing_return_in_match() {
         check_diagnostics(
             r#"
+//- minicore: result
 fn foo<T, E>(x: Result<T, E>) -> u8 {
     match x {
         Ok(_) => return 1,
