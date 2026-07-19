@@ -386,6 +386,11 @@ pub(crate) fn insert_attributes(
     editor.insert_all(syntax::syntax_editor::Position::before(elem), elements);
 }
 
+/// Returns all `#[cfg(...)]` attributes of `node` in the order they appear.
+pub(crate) fn cfg_attrs(node: &impl HasAttrs) -> impl Iterator<Item = ast::Attr> {
+    node.attrs().filter(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))))
+}
+
 pub(crate) fn next_prev() -> impl Iterator<Item = Direction> {
     [Direction::Next, Direction::Prev].into_iter()
 }

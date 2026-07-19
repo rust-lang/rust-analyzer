@@ -2,12 +2,12 @@
 
 use hir::TraitRef;
 use syntax::ast::{
-    self, AstNode, BinaryOp, CmpOp, HasAttrs, HasName, LogicOp, edit::AstNodeEdit,
+    self, AstNode, BinaryOp, CmpOp, HasName, LogicOp, edit::AstNodeEdit,
     syntax_factory::SyntaxFactory,
 };
 use syntax::syntax_editor::{Position, SyntaxEditor};
 
-use crate::utils::insert_attributes;
+use crate::utils::{cfg_attrs, insert_attributes};
 
 /// Generate custom trait bodies without default implementation where possible.
 ///
@@ -179,7 +179,7 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                 let variant_name = make.path_from_idents(["Self", &format!("{name}")])?;
                 let target = make.expr_path(make.ident_path("f"));
 
-                let variant_cfg = get_cfg_attrs(&variant).into_iter().collect::<Vec<_>>();
+                let variant_cfg = cfg_attrs(&variant).collect::<Vec<_>>();
                 if !variant_cfg.is_empty() {
                     has_cfg = true;
                 }
@@ -188,7 +188,7 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                     Some(ast::FieldList::RecordFieldList(list)) => {
                         let field_cfgs = list
                             .fields()
-                            .map(|f| get_cfg_attrs(&f).into_iter().collect::<Vec<_>>())
+                            .map(|f| cfg_attrs(&f).collect::<Vec<_>>())
                             .collect::<Vec<_>>();
                         let field_has_cfg = field_cfgs.iter().any(|c| !c.is_empty());
                         if field_has_cfg {
@@ -294,7 +294,7 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                 stdx::always!(match_arms.len() == variants.len());
                 for (arm, variant) in match_arms.iter().zip(&variants) {
                     // => #[cfg(...)]
-                    let variant_cfg = get_cfg_attrs(variant).into_iter().collect::<Vec<_>>();
+                    let variant_cfg = cfg_attrs(variant).collect::<Vec<_>>();
                     if !variant_cfg.is_empty() {
                         insert_attributes(arm.syntax(), &editor, variant_cfg.iter().cloned());
                     }
@@ -310,8 +310,7 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
                             .map(|l| l.fields().collect::<Vec<_>>())
                             .unwrap_or_default();
                         for (rpf, field) in fields.iter().zip(rfl.fields()) {
-                            let field_cfg: Vec<ast::Attr> =
-                                get_cfg_attrs(&field).into_iter().collect();
+                            let field_cfg = cfg_attrs(&field).collect::<Vec<_>>();
                             if !field_cfg.is_empty() {
                                 editor.insert_all(
                                     Position::before(rpf.syntax()),
@@ -395,21 +394,14 @@ fn gen_debug_struct(
 
 /// Whether a struct has at least one field carrying a `#[cfg(...)]` attribute.
 fn has_struct_fields_with_cfg(strukt: &ast::Struct) -> bool {
-    fn has_cfg_attr(node: &impl HasAttrs) -> bool {
-        node.attrs().any(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))))
-    }
-
     strukt.field_list().is_some_and(|field_list| match field_list {
-        ast::FieldList::RecordFieldList(list) => list.fields().any(|field| has_cfg_attr(&field)),
-        ast::FieldList::TupleFieldList(list) => list.fields().any(|field| has_cfg_attr(&field)),
+        ast::FieldList::RecordFieldList(list) => {
+            list.fields().any(|field| cfg_attrs(&field).next().is_some())
+        }
+        ast::FieldList::TupleFieldList(list) => {
+            list.fields().any(|field| cfg_attrs(&field).next().is_some())
+        }
     })
-}
-
-/// The `#[cfg(...)]` (outer) attributes of a node, in order.
-fn get_cfg_attrs(node: &impl HasAttrs) -> impl IntoIterator<Item = ast::Attr> {
-    node.attrs()
-        .filter(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))))
-        .collect::<Vec<_>>()
 }
 
 /// Intersperse `sep` between the given `attrs`. A trailing `sep` will be added.
@@ -503,7 +495,7 @@ fn gen_debug_struct_with_fields_with_cfg(
                 );
 
                 let stmt: ast::Stmt = make.expr_stmt(call.into()).into();
-                field_stmts.push((stmt, get_cfg_attrs(&field).into_iter().collect()));
+                field_stmts.push((stmt, cfg_attrs(&field).collect()));
             }
         }
         // => s.field(&self.0);
@@ -519,7 +511,7 @@ fn gen_debug_struct_with_fields_with_cfg(
                 );
 
                 let stmt: ast::Stmt = make.expr_stmt(call.into()).into();
-                field_stmts.push((stmt, get_cfg_attrs(&field).into_iter().collect()));
+                field_stmts.push((stmt, cfg_attrs(&field).collect()));
             }
         }
     }
