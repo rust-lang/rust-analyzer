@@ -5477,7 +5477,10 @@ impl<'db> Type<'db> {
         db: &'db dyn HirDatabase,
         rebase_into: &Type<'db>,
     ) -> Type<'db> {
-        self.try_rebase_into(db, rebase_into).unwrap_or_else(|| self.instantiate_with_errors())
+        self.try_rebase_into(db, rebase_into).unwrap_or_else(|| Type {
+            owner: rebase_into.owner,
+            ty: self.instantiate_with_errors().ty,
+        })
     }
 
     pub fn try_rebase_into_owner(
@@ -6607,8 +6610,11 @@ impl<'db> Type<'db> {
     /// Note that we consider placeholder types to unify with everything.
     /// For example `Option<T>` and `Option<U>` unify although there is unresolved goal `T = U`.
     pub fn could_unify_with(&self, db: &'db dyn HirDatabase, other: &Type<'db>) -> bool {
-        self.owner.must_unify(other.owner);
-        let env = self.param_env(db);
+        let Some(owner) = self.owner.unify(other.owner) else {
+            never!("callers should not mix owners");
+            return false;
+        };
+        let env = Type { owner, ty: self.ty }.param_env(db);
         let interner = DbInterner::new_no_crate(db);
         let tys = hir_ty::replace_errors_with_variables(
             interner,
@@ -6622,8 +6628,11 @@ impl<'db> Type<'db> {
     /// This means that placeholder types are not considered to unify if there are any bounds set on
     /// them. For example `Option<T>` and `Option<U>` do not unify as we cannot show that `T = U`
     pub fn could_unify_with_deeply(&self, db: &'db dyn HirDatabase, other: &Type<'db>) -> bool {
-        self.owner.must_unify(other.owner);
-        let env = self.param_env(db);
+        let Some(owner) = self.owner.unify(other.owner) else {
+            never!("callers should not mix owners");
+            return false;
+        };
+        let env = Type { owner, ty: self.ty }.param_env(db);
         let interner = DbInterner::new_no_crate(db);
         let tys = hir_ty::replace_errors_with_variables(
             interner,
@@ -6633,8 +6642,11 @@ impl<'db> Type<'db> {
     }
 
     pub fn could_coerce_to(&self, db: &'db dyn HirDatabase, to: &Type<'db>) -> bool {
-        self.owner.must_unify(to.owner);
-        let env = self.param_env(db);
+        let Some(owner) = self.owner.unify(to.owner) else {
+            never!("callers should not mix owners");
+            return false;
+        };
+        let env = Type { owner, ty: self.ty }.param_env(db);
         let interner = DbInterner::new_no_crate(db);
         let tys = hir_ty::replace_errors_with_variables(
             interner,

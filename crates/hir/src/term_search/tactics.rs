@@ -158,7 +158,6 @@ pub(super) fn data_constructor<'a, 'lt, 'db, DB: HirDatabase>(
     let module = ctx.scope.module();
     lookup
         .types_wishlist()
-        .clone()
         .into_iter()
         .chain(iter::once(ctx.goal.clone()))
         .filter_map(|ty| ty.as_adt().map(|adt| (adt, ty)))
@@ -197,9 +196,7 @@ pub(super) fn data_constructor<'a, 'lt, 'db, DB: HirDatabase>(
                 // Early exit if some param cannot be filled from lookup
                 let param_exprs: Vec<Vec<Expr<'_>>> = fields
                     .into_iter()
-                    .map(|field| {
-                        lookup.find(db, &field.ty(db).instantiate(generics.iter().cloned()))
-                    })
+                    .map(|field| lookup.find(&field.ty(db).instantiate(generics.iter().cloned())))
                     .collect::<Option<_>>()?;
 
                 // Note that we need special case for 0 param constructors because of multi cartesian
@@ -249,7 +246,7 @@ pub(super) fn data_constructor<'a, 'lt, 'db, DB: HirDatabase>(
                             .fields(db)
                             .into_iter()
                             .map(|field| {
-                                lookup.find(db, &field.ty(db).instantiate(generics.iter().cloned()))
+                                lookup.find(&field.ty(db).instantiate(generics.iter().cloned()))
                             })
                             .collect::<Option<_>>()?;
 
@@ -386,7 +383,7 @@ pub(super) fn free_function<'a, 'lt, 'db, DB: HirDatabase>(
                                 let ty = &field.ty().instantiate(&generics);
                                 match ty.is_mutable_reference() {
                                     true => None,
-                                    false => lookup.find_autoref(db, ty),
+                                    false => lookup.find_autoref(ty),
                                 }
                             })
                             .collect::<Option<_>>()?;
@@ -514,13 +511,13 @@ pub(super) fn impl_method<'a, 'lt, 'db, DB: HirDatabase>(
                 return None;
             }
 
-            let target_type_exprs = lookup.find(db, &ty).expect("Type not in lookup");
+            let target_type_exprs = lookup.find(&ty).expect("Type not in lookup");
 
             // Early exit if some param cannot be filled from lookup
             let param_exprs: Vec<Vec<Expr<'_>>> = it
                 .params_without_self(db)
                 .into_iter()
-                .map(|field| lookup.find_autoref(db, &field.ty().instantiate(ty.type_arguments())))
+                .map(|field| lookup.find_autoref(&field.ty().instantiate(ty.type_arguments())))
                 .collect::<Option<_>>()?;
 
             let generics: Vec<_> = ty.type_arguments().collect();
@@ -570,7 +567,7 @@ pub(super) fn struct_projection<'a, 'lt, 'db, DB: HirDatabase>(
     lookup
         .new_types(NewTypesKey::StructProjection)
         .into_iter()
-        .map(|ty| (ty.clone(), lookup.find(db, &ty).expect("Expr not in lookup")))
+        .map(|ty| (ty.clone(), lookup.find(&ty).expect("Expr not in lookup")))
         .filter(|_| should_continue())
         .flat_map(move |(ty, targets)| {
             ty.fields(db).into_iter().filter_map(move |(field, filed_ty)| {
@@ -645,7 +642,6 @@ pub(super) fn impl_static_method<'a, 'lt, 'db, DB: HirDatabase>(
     let module = ctx.scope.module();
     lookup
         .types_wishlist()
-        .clone()
         .into_iter()
         .chain(iter::once(ctx.goal.clone()))
         .filter(|ty| !ty.type_arguments().any(|it| it.contains_unknown()))
@@ -705,7 +701,7 @@ pub(super) fn impl_static_method<'a, 'lt, 'db, DB: HirDatabase>(
             let param_exprs: Vec<Vec<Expr<'_>>> = it
                 .params_without_self(db)
                 .into_iter()
-                .map(|field| lookup.find_autoref(db, &field.ty().instantiate(ty.type_arguments())))
+                .map(|field| lookup.find_autoref(&field.ty().instantiate(ty.type_arguments())))
                 .collect::<Option<_>>()?;
 
             // Note that we need special case for 0 param constructors because of multi cartesian
@@ -753,7 +749,6 @@ pub(super) fn make_tuple<'a, 'lt, 'db, DB: HirDatabase>(
 
     lookup
         .types_wishlist()
-        .clone()
         .into_iter()
         .filter(|_| should_continue())
         .filter(|ty| ty.is_tuple())
@@ -770,7 +765,7 @@ pub(super) fn make_tuple<'a, 'lt, 'db, DB: HirDatabase>(
 
             // Early exit if some param cannot be filled from lookup
             let param_exprs: Vec<Vec<Expr<'db>>> =
-                ty.type_arguments().map(|field| lookup.find(db, &field)).collect::<Option<_>>()?;
+                ty.type_arguments().map(|field| lookup.find(&field)).collect::<Option<_>>()?;
 
             let exprs: Vec<Expr<'db>> = param_exprs
                 .into_iter()
