@@ -429,6 +429,75 @@ impl core::fmt::Debug for Foo {
 "#,
         )
     }
+
+    // Enums with `#[cfg(...)]` on its variants or fields must have the same attribute
+    // in the manual implementation.
+    #[test]
+    fn add_custom_impl_debug_enum_cfg() {
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: fmt, derive
+#[derive(Debu$0g)]
+enum Foo {
+    #[cfg(feature = "x")]
+    Bar,
+    Baz,
+}
+"#,
+            r#"
+enum Foo {
+    #[cfg(feature = "x")]
+    Bar,
+    Baz,
+}
+
+impl core::fmt::Debug for Foo {
+    $0fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            #[cfg(feature = "x")]
+            Self::Bar => write!(f, "Bar"),
+            Self::Baz => write!(f, "Baz"),
+        }
+    }
+}
+"#,
+        );
+
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: fmt, derive
+#[derive(Debu$0g)]
+enum Foo {
+    Baz { a: u32, #[cfg(feature = "x")] b: u32 },
+    Quux,
+}
+"#,
+            r#"
+enum Foo {
+    Baz { a: u32, #[cfg(feature = "x")] b: u32 },
+    Quux,
+}
+
+impl core::fmt::Debug for Foo {
+    $0fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Baz { a, #[cfg(feature = "x")] b } => {
+                let mut s = f.debug_struct("Baz");
+                s.field("a", a);
+                #[cfg(feature = "x")]
+                s.field("b", b);
+                s.finish()
+            }
+            Self::Quux => write!(f, "Quux"),
+        }
+    }
+}
+"#,
+        )
+    }
+
     #[test]
     fn add_custom_impl_debug_tuple_struct() {
         check_assist(
