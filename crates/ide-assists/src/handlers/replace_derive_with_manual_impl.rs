@@ -340,6 +340,71 @@ impl core::fmt::Debug for Foo {
 "#,
         )
     }
+
+    // Struct fields with `#[cfg(...)]` must have the same attribute
+    // in the manual implementation.
+    #[test]
+    fn add_custom_impl_debug_struct_cfg_field() {
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: fmt, derive
+#[derive(Debu$0g)]
+struct Foo {
+    bar: String,
+    #[cfg(feature = "baz")]
+    baz: u32,
+    #[cfg(feature = "qux")]
+    qux: u64,
+}
+"#,
+            r#"
+struct Foo {
+    bar: String,
+    #[cfg(feature = "baz")]
+    baz: u32,
+    #[cfg(feature = "qux")]
+    qux: u64,
+}
+
+impl core::fmt::Debug for Foo {
+    $0fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut s = f.debug_struct("Foo");
+        s.field("bar", &self.bar);
+        #[cfg(feature = "baz")]
+        s.field("baz", &self.baz);
+        #[cfg(feature = "qux")]
+        s.field("qux", &self.qux);
+        s.finish()
+    }
+}
+"#,
+        );
+
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: fmt, derive
+#[derive(Debu$0g)]
+struct Foo(String, #[cfg(feature = "baz")] u32, #[cfg(feature = "qux")] u64);
+"#,
+            r#"struct Foo(String, #[cfg(feature = "baz")] u32, #[cfg(feature = "qux")] u64);
+
+impl core::fmt::Debug for Foo {
+    $0fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut s = f.debug_tuple("Foo");
+        s.field(&self.0);
+        #[cfg(feature = "baz")]
+        s.field(&self.1);
+        #[cfg(feature = "qux")]
+        s.field(&self.2);
+        s.finish()
+    }
+}
+"#,
+        )
+    }
+
     #[test]
     fn add_custom_impl_without_snippet() {
         check_assist_no_snippet_cap(

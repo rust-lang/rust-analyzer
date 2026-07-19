@@ -2,9 +2,10 @@
 
 use hir::TraitRef;
 use syntax::ast::{
-    self, AstNode, BinaryOp, CmpOp, HasName, LogicOp, edit::AstNodeEdit,
+    self, AstNode, BinaryOp, CmpOp, HasAttrs, HasName, LogicOp, edit::AstNodeEdit,
     syntax_factory::SyntaxFactory,
 };
+use syntax::syntax_editor::{Position, SyntaxEditor};
 
 /// Generate custom trait bodies without default implementation where possible.
 ///
@@ -262,52 +263,187 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
         }
 
         ast::Adt::Struct(strukt) => {
-            let name = format!("\"{annotated_name}\"");
-            let args = make.arg_list([make.expr_literal(&name).into()]);
-            let target = make.expr_path(make.ident_path("f"));
-
-            let expr = match strukt.field_list() {
-                // => f.debug_struct("Name").finish()
-                None => make.expr_method_call(target, make.name_ref("debug_struct"), args).into(),
-
-                // => f.debug_struct("Name").field("foo", &self.foo).finish()
-                Some(ast::FieldList::RecordFieldList(field_list)) => {
-                    let method = make.name_ref("debug_struct");
-                    let mut expr = make.expr_method_call(target, method, args).into();
-                    for field in field_list.fields() {
-                        let name = field.name()?;
-                        let f_name = make.expr_literal(&(format!("\"{name}\""))).into();
-                        let f_path = make.expr_path(make.ident_path("self"));
-                        let f_path = make.expr_field(f_path, &format!("{name}")).into();
-                        let f_path = make.expr_ref(f_path, false);
-                        let args = make.arg_list([f_name, f_path]);
-                        expr = make.expr_method_call(expr, make.name_ref("field"), args).into();
-                    }
-                    expr
-                }
-
-                // => f.debug_tuple("Name").field(&self.0).finish()
-                Some(ast::FieldList::TupleFieldList(field_list)) => {
-                    let method = make.name_ref("debug_tuple");
-                    let mut expr = make.expr_method_call(target, method, args).into();
-                    for (i, _) in field_list.fields().enumerate() {
-                        let f_path = make.expr_path(make.ident_path("self"));
-                        let f_path = make.expr_field(f_path, &format!("{i}")).into();
-                        let f_path = make.expr_ref(f_path, false);
-                        let method = make.name_ref("field");
-                        expr = make.expr_method_call(expr, method, make.arg_list([f_path])).into();
-                    }
-                    expr
-                }
-            };
-
-            let method = make.name_ref("finish");
-            let expr = make.expr_method_call(expr, method, make.arg_list([])).into();
-            let body =
-                make.block_expr(None::<ast::Stmt>, Some(expr)).indent(ast::edit::IndentLevel(1));
-            Some(body)
+            if struct_has_fields_with_cfg(strukt) {
+                gen_debug_struct_with_fields_with_cfg(make, strukt, &annotated_name)
+            } else {
+                gen_debug_struct(make, strukt, &annotated_name)
+            }
         }
     }
+}
+
+/// Will generate something like:
+///
+/// ```ignore
+/// f.debug_struct("Foo").field("bar", &self.bar).field("baz", &self.baz).finish()
+/// ```
+fn gen_debug_struct(
+    make: &SyntaxFactory,
+    strukt: &ast::Struct,
+    annotated_name: &ast::Name,
+) -> Option<ast::BlockExpr> {
+    let name = format!("\"{annotated_name}\"");
+    let args = make.arg_list([make.expr_literal(&name).into()]);
+    let target = make.expr_path(make.ident_path("f"));
+
+    let expr = match strukt.field_list() {
+        // => f.debug_struct("Name").finish()
+        None => make.expr_method_call(target, make.name_ref("debug_struct"), args).into(),
+
+        // => f.debug_struct("Name").field("foo", &self.foo).finish()
+        Some(ast::FieldList::RecordFieldList(field_list)) => {
+            let method = make.name_ref("debug_struct");
+            let mut expr = make.expr_method_call(target, method, args).into();
+            for field in field_list.fields() {
+                let name = field.name()?;
+                let f_name = make.expr_literal(&(format!("\"{name}\""))).into();
+                let f_path = make.expr_path(make.ident_path("self"));
+                let f_path = make.expr_field(f_path, &format!("{name}")).into();
+                let f_path = make.expr_ref(f_path, false);
+                let args = make.arg_list([f_name, f_path]);
+                expr = make.expr_method_call(expr, make.name_ref("field"), args).into();
+            }
+            expr
+        }
+
+        // => f.debug_tuple("Name").field(&self.0).finish()
+        Some(ast::FieldList::TupleFieldList(field_list)) => {
+            let method = make.name_ref("debug_tuple");
+            let mut expr = make.expr_method_call(target, method, args).into();
+            for (i, _) in field_list.fields().enumerate() {
+                let f_path = make.expr_path(make.ident_path("self"));
+                let f_path = make.expr_field(f_path, &format!("{i}")).into();
+                let f_path = make.expr_ref(f_path, false);
+                let method = make.name_ref("field");
+                expr = make.expr_method_call(expr, method, make.arg_list([f_path])).into();
+            }
+            expr
+        }
+    };
+
+    let method = make.name_ref("finish");
+    let expr = make.expr_method_call(expr, method, make.arg_list([])).into();
+    let body = make.block_expr(None::<ast::Stmt>, Some(expr)).indent(ast::edit::IndentLevel(1));
+    Some(body)
+}
+
+/// Whether a struct has at least one field carrying a `#[cfg(...)]` attribute.
+fn struct_has_fields_with_cfg(strukt: &ast::Struct) -> bool {
+    strukt.field_list().is_some_and(|field_list| match field_list {
+        ast::FieldList::RecordFieldList(list) => list.fields().any(|field| has_cfg_attr(&field)),
+        ast::FieldList::TupleFieldList(list) => list.fields().any(|field| has_cfg_attr(&field)),
+    })
+}
+
+/// Whether the node carries a `#[cfg(...)]` (outer) attribute.
+fn has_cfg_attr(node: &impl HasAttrs) -> bool {
+    node.attrs().any(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))))
+}
+
+/// The `#[cfg(...)]` (outer) attributes of a node, in order.
+fn get_cfg_attrs(node: &impl HasAttrs) -> impl IntoIterator<Item = ast::Attr> {
+    node.attrs()
+        .filter(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))))
+        .collect::<Vec<_>>()
+}
+
+fn push_attrs(
+    make: &SyntaxFactory,
+    elements: &mut Vec<syntax::SyntaxElement>,
+    stmt: ast::Stmt,
+    cfg_attrs: impl IntoIterator<Item = ast::Attr>,
+) {
+    let stmt_sep = format!("\n{}", ast::edit::IndentLevel(1));
+    for attr in cfg_attrs {
+        elements.push(attr.syntax().clone().into());
+        elements.push(make.whitespace(&stmt_sep).into());
+    }
+    elements.push(stmt.syntax().clone().into());
+    elements.push(make.whitespace(&stmt_sep).into());
+}
+
+/// Will generate something like:
+///
+/// ```ignore
+/// let mut s = f.debug_struct("Foo");
+/// s.field("bar", &self.bar);
+/// #[cfg(feature = "baz")]
+/// s.field("baz", &self.baz);
+/// s.finish()
+/// ```
+fn gen_debug_struct_with_fields_with_cfg(
+    make: &SyntaxFactory,
+    strukt: &ast::Struct,
+    annotated_name: &ast::Name,
+) -> Option<ast::BlockExpr> {
+    let field_list = strukt.field_list()?;
+    let builder_method = match field_list {
+        ast::FieldList::RecordFieldList(_) => "debug_struct",
+        ast::FieldList::TupleFieldList(_) => "debug_tuple",
+    };
+
+    // => let mut s = f.debug_struct("Name");
+    let struct_name = format!("\"{annotated_name}\"");
+    let name_arg = make.arg_list([make.expr_literal(&struct_name).into()]);
+    let init = make.expr_method_call(
+        make.expr_path(make.ident_path("f")),
+        make.name_ref(builder_method),
+        name_arg,
+    );
+    let builder_pat = make.ident_pat(false, true, make.name("s"));
+    let let_stmt: ast::Stmt = make.let_stmt(builder_pat.into(), None, Some(init.into())).into();
+
+    // => s.finish()
+    let s_path = || make.expr_path(make.ident_path("s"));
+    let tail = make.expr_method_call(s_path(), make.name_ref("finish"), make.arg_list([]));
+
+    // Block creation
+    let block = make.block_expr(vec![let_stmt], Some(tail.into()));
+    let (editor, block_clone) = SyntaxEditor::with_ast_node(&block);
+    let tail_expr = block_clone.stmt_list()?.tail_expr()?;
+
+    let mut fields_stmts: Vec<syntax::SyntaxElement> = Vec::new();
+    match field_list {
+        // => s.field("name", &self.name);
+        ast::FieldList::RecordFieldList(field_list) => {
+            for field in field_list.fields() {
+                let name = field.name()?;
+
+                let f_name = make.expr_literal(&(format!("\"{name}\""))).into();
+                let f_path = make.expr_path(make.ident_path("self"));
+                let f_path = make.expr_field(f_path, &format!("{name}")).into();
+                let f_path = make.expr_ref(f_path, false);
+                let call = make.expr_method_call(
+                    s_path(),
+                    make.name_ref("field"),
+                    make.arg_list([f_name, f_path]),
+                );
+
+                let stmt: ast::Stmt = make.expr_stmt(call.into()).into();
+                push_attrs(make, &mut fields_stmts, stmt, get_cfg_attrs(&field));
+            }
+        }
+        // => s.field(&self.0);
+        ast::FieldList::TupleFieldList(field_list) => {
+            for (i, field) in field_list.fields().enumerate() {
+                let f_path = make.expr_path(make.ident_path("self"));
+                let f_path = make.expr_field(f_path, &format!("{i}")).into();
+                let f_path = make.expr_ref(f_path, false);
+                let call = make.expr_method_call(
+                    s_path(),
+                    make.name_ref("field"),
+                    make.arg_list([f_path]),
+                );
+
+                let stmt: ast::Stmt = make.expr_stmt(call.into()).into();
+                push_attrs(make, &mut fields_stmts, stmt, get_cfg_attrs(&field));
+            }
+        }
+    }
+
+    editor.insert_all(Position::before(tail_expr.syntax()), fields_stmts);
+    let block = ast::BlockExpr::cast(editor.finish().new_root().clone())?;
+    Some(block.indent(ast::edit::IndentLevel(1)))
 }
 
 /// Generate a `Default` impl based on the fields and members of the target type.
