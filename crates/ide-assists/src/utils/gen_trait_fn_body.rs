@@ -170,7 +170,6 @@ fn gen_debug_impl(make: &SyntaxFactory, adt: &ast::Adt) -> Option<ast::BlockExpr
             let list = enum_.variant_list()?;
             let mut arms = vec![];
 
-            let mut arms_cfgs = vec![];
             let mut has_cfg = false;
 
             // build the arms used below
