@@ -256,7 +256,12 @@ pub(crate) fn complete_postfix(
                         format!("if let Ok({placeholder}) = {receiver_text} {if_then_snip}"),
                     )
                     .add_to(acc, ctx.db);
-
+                    postfix_snippet(
+                        "ifle",
+                        "if let Err {}",
+                        format!("if let Err({placeholder}) = {receiver_text} {if_then_snip}"),
+                    )
+                    .add_to(acc, ctx.db);
                     postfix_snippet(
                         "lete",
                         "let Ok else {}",
@@ -875,6 +880,27 @@ fn main() {
 fn main() {
     let bar = Some(true);
     if let Some(${1:bar}) = bar {
+    $0
+}
+}
+"#,
+        );
+    }
+    #[test]
+    fn result_ifle_err() {
+        check_edit(
+            "ifle",
+            r#"
+//- minicore: result
+fn main() {
+    let bar = Err(true);
+    bar.$0
+}
+"#,
+            r#"
+fn main() {
+    let bar = Err(true);
+    if let Err(${1:bar}) = bar {
     $0
 }
 }
