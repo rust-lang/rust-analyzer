@@ -212,7 +212,7 @@ pub struct TyLoweringContext<'db, 'a> {
     types: &'db crate::next_solver::DefaultAny<'db>,
     lang_items: &'db LangItems,
     resolver: &'a Resolver<'db>,
-    store: &'db ExpressionStore,
+    store: &'a ExpressionStore,
     def: ExpressionStoreOwnerId,
     generic_def: GenericDefId,
     generics: &'a OnceCell<Generics<'db>>,
@@ -236,7 +236,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
     pub fn new(
         db: &'db dyn HirDatabase,
         resolver: &'a Resolver<'db>,
-        store: &'db ExpressionStore,
+        store: &'a ExpressionStore,
         def: ExpressionStoreOwnerId,
         generic_def: GenericDefId,
         generics: &'a OnceCell<Generics<'db>>,
