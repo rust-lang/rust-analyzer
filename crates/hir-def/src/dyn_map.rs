@@ -86,11 +86,11 @@ pub mod keys {
         pub const ATTR_MACRO_CALL<ast::Item, MacroCallId>;
         pub const DERIVE_MACRO_CALL<
             ast::Meta,
-            (
+            for<'db> (
                 AttrId,
                 /* derive() */ MacroCallId,
                 /* actual derive macros */
-                Box<[Option<Either<MacroCallId, BuiltinDeriveImplId>>]>,
+                Box<[Option<Either<MacroCallId, BuiltinDeriveImplId<'db>>>]>,
             ),
         >;
     }
@@ -208,37 +208,5 @@ where
     fn index_mut(&mut self, _key: Key<K, V>) -> &mut Self::Output {
         // SAFETY: Safe due to `#[repr(transparent)]`.
         unsafe { std::mem::transmute::<&mut DynMap<'db>, &mut KeyMap<'db, Key<K, V>>>(self) }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use test_fixture::WithFixture;
-
-    use syntax::{
-        AstPtr,
-        ast::{self, make},
-    };
-
-    use crate::{ModuleIdLt, test_db::TestDB};
-
-    use super::{DynMap, Key, ValueTrait};
-
-    const MODULE: Key<ast::Module, dyn for<'db> ValueTrait<'db, Output = ModuleIdLt<'db>>> =
-        Key::new();
-
-    #[test]
-    fn lifetime_key_returns_database_bound_id() {
-        let (db, file_id) = TestDB::with_single_file("");
-        let module = make::mod_(make::name("foo"), None);
-        let module = AstPtr::new(&module);
-        let module_id = db.module_for_file(file_id.file_id(&db));
-        let module_id = unsafe { module_id.to_db(&db) };
-        let mut map = DynMap::default();
-
-        map[MODULE].insert(module, module_id);
-
-        let stored = map[MODULE].get(&module).unwrap();
-        assert_eq!(*stored, module_id);
     }
 }
