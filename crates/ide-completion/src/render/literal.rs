@@ -19,13 +19,13 @@ use crate::{
     },
 };
 
-pub(crate) fn render_variant_lit(
-    ctx: RenderContext<'_, '_>,
+pub(crate) fn render_variant_lit<'db>(
+    ctx: RenderContext<'_, 'db>,
     path_ctx: &PathCompletionCtx<'_>,
     local_name: Option<hir::Name>,
     variant: hir::EnumVariant,
     path: Option<hir::ModPath>,
-) -> Option<Builder> {
+) -> Option<Builder<'db>> {
     let _p = tracing::info_span!("render_variant_lit").entered();
     let db = ctx.db();
 
@@ -33,13 +33,13 @@ pub(crate) fn render_variant_lit(
     render(ctx, path_ctx, Variant::EnumVariant(variant), name, path)
 }
 
-pub(crate) fn render_struct_literal(
-    ctx: RenderContext<'_, '_>,
+pub(crate) fn render_struct_literal<'db>(
+    ctx: RenderContext<'_, 'db>,
     path_ctx: &PathCompletionCtx<'_>,
     strukt: hir::Struct,
     path: Option<hir::ModPath>,
     local_name: Option<hir::Name>,
-) -> Option<Builder> {
+) -> Option<Builder<'db>> {
     let _p = tracing::info_span!("render_struct_literal").entered();
     let db = ctx.db();
 
@@ -47,13 +47,13 @@ pub(crate) fn render_struct_literal(
     render(ctx, path_ctx, Variant::Struct(strukt), name, path)
 }
 
-fn render(
-    ctx @ RenderContext { completion, .. }: RenderContext<'_, '_>,
+fn render<'db>(
+    ctx @ RenderContext { completion, .. }: RenderContext<'_, 'db>,
     path_ctx: &PathCompletionCtx<'_>,
     thing: Variant,
     name: hir::Name,
     path: Option<hir::ModPath>,
-) -> Option<Builder> {
+) -> Option<Builder<'db>> {
     let db = completion.db;
     let mut kind = thing.kind(db);
     let should_add_parens = !matches!(
