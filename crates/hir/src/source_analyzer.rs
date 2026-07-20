@@ -78,7 +78,7 @@ pub(crate) struct SourceAnalyzer<'db> {
     pub(crate) file_id: HirFileId,
     pub(crate) resolver: Resolver<'db>,
     pub(crate) body_or_sig: Option<BodyOrSig<'db>>,
-    pub(crate) type_owner: TypeOwnerId,
+    pub(crate) type_owner: TypeOwnerId<'db>,
     pub(crate) infer_body: Option<InferBodyId<'db>>,
 }
 
@@ -656,7 +656,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         call: &ast::MethodCallExpr,
-    ) -> Option<Function> {
+    ) -> Option<Function<'db>> {
         let expr_id = self.expr_id(call.clone().into())?.as_expr()?;
         let (f_in_trait, substs) = self.infer()?.method_resolution(expr_id)?;
 
@@ -667,7 +667,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         call: &ast::MethodCallExpr,
-    ) -> Option<(Either<Function, Field>, Option<GenericSubstitution<'db>>)> {
+    ) -> Option<(Either<Function<'db>, Field>, Option<GenericSubstitution<'db>>)> {
         let expr_id = self.expr_id(call.clone().into())?.as_expr()?;
         let inference_result = self.infer()?;
         match inference_result.method_resolution(expr_id) {
@@ -725,8 +725,10 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         field: &ast::FieldExpr,
-    ) -> Option<(Either<Either<Field, TupleField<'db>>, Function>, Option<GenericSubstitution<'db>>)>
-    {
+    ) -> Option<(
+        Either<Either<Field, TupleField<'db>>, Function<'db>>,
+        Option<GenericSubstitution<'db>>,
+    )> {
         let def = self.infer_body?;
         let expr_id = self.expr_id(field.clone().into())?.as_expr()?;
         let inference_result = self.infer()?;
@@ -828,7 +830,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         await_expr: &ast::AwaitExpr,
-    ) -> Option<Function> {
+    ) -> Option<Function<'db>> {
         let mut ty = self.ty_of_expr(await_expr.expr()?)?;
 
         let into_future_trait = self
@@ -864,7 +866,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         prefix_expr: &ast::PrefixExpr,
-    ) -> Option<Function> {
+    ) -> Option<Function<'db>> {
         let lang_items = self.lang_items(db);
         let (_op_trait, op_fn) = match prefix_expr.op_kind()? {
             ast::UnaryOp::Deref => {
@@ -899,7 +901,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         index_expr: &ast::IndexExpr,
-    ) -> Option<Function> {
+    ) -> Option<Function<'db>> {
         let base_ty = self.ty_of_expr(index_expr.base()?)?;
         let index_ty = self.ty_of_expr(index_expr.index()?)?;
         let lang_items = self.lang_items(db);
@@ -925,7 +927,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         binop_expr: &ast::BinExpr,
-    ) -> Option<Function> {
+    ) -> Option<Function<'db>> {
         let op = binop_expr.op_kind()?;
         let lhs = self.ty_of_expr(binop_expr.lhs()?)?;
         let rhs = self.ty_of_expr(binop_expr.rhs()?)?;
@@ -943,7 +945,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         try_expr: &ast::TryExpr,
-    ) -> Option<Function> {
+    ) -> Option<Function<'db>> {
         let ty = self.ty_of_expr(try_expr.expr()?)?;
 
         let op_fn = self.lang_items(db).TryTraitBranch?;
@@ -1053,7 +1055,7 @@ impl<'db> SourceAnalyzer<'db> {
         &self,
         db: &'db dyn HirDatabase,
         pat: &ast::IdentPat,
-    ) -> Option<ModuleDef> {
+    ) -> Option<ModuleDef<'db>> {
         let expr_or_pat_id = self.pat_id(&pat.clone().into())?;
         let store = self.store()?;
 
@@ -1712,7 +1714,7 @@ impl<'db> SourceAnalyzer<'db> {
         db: &'db dyn HirDatabase,
         func: FunctionId,
         substs: GenericArgs<'db>,
-    ) -> Function {
+    ) -> Function<'db> {
         self.resolve_impl_method_or_trait_def_with_subst(db, func, substs).0
     }
 
@@ -1721,7 +1723,7 @@ impl<'db> SourceAnalyzer<'db> {
         db: &'db dyn HirDatabase,
         func: FunctionId,
         substs: GenericArgs<'db>,
-    ) -> (Function, GenericArgs<'db>) {
+    ) -> (Function<'db>, GenericArgs<'db>) {
         let owner = match self.resolver.generic_def() {
             Some(it) => it,
             None => return (func.into(), substs),
@@ -1869,9 +1871,9 @@ pub(crate) fn resolve_hir_path<'db>(
 }
 
 #[inline]
-pub(crate) fn resolve_hir_path_as_attr_macro(
-    db: &dyn HirDatabase,
-    resolver: &Resolver<'_>,
+pub(crate) fn resolve_hir_path_as_attr_macro<'db>(
+    db: &'db dyn HirDatabase,
+    resolver: &Resolver<'db>,
     path: &Path,
 ) -> Option<Macro> {
     resolver
