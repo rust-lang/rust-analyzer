@@ -366,6 +366,68 @@ fn overflowing_add() {
 }
 
 #[test]
+fn overflowing_intrinsics_signed() {
+    // The `*_with_overflow` shims used to zero-extend their operands and compute
+    // the overflow flag with unsigned `u128` arithmetic, reporting bogus overflow
+    // whenever the true (signed) result was negative, and missing real signed
+    // overflow like `127i8 + 1`.
+    check_number(
+        r#"
+        #[rustc_intrinsic]
+        pub fn sub_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+        const GOAL: i8 = sub_with_overflow(0i8, 1).0;
+        "#,
+        -1,
+    );
+    check_number(
+        r#"
+        #[rustc_intrinsic]
+        pub fn sub_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+        const GOAL: u8 = sub_with_overflow(0i8, 1).1 as u8;
+        "#,
+        0,
+    );
+    check_number(
+        r#"
+        #[rustc_intrinsic]
+        pub fn add_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+        const GOAL: u8 = add_with_overflow(-1i8, 1).1 as u8;
+        "#,
+        0,
+    );
+    check_number(
+        r#"
+        #[rustc_intrinsic]
+        pub fn add_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+        const GOAL: u8 = add_with_overflow(127i8, 1).1 as u8;
+        "#,
+        1,
+    );
+    check_number(
+        r#"
+        #[rustc_intrinsic]
+        pub fn mul_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+        const GOAL: u8 = mul_with_overflow(-1i8, -1i8).1 as u8;
+        "#,
+        0,
+    );
+    check_number(
+        r#"
+        #[rustc_intrinsic]
+        pub fn sub_with_overflow<T>(x: T, y: T) -> (T, bool);
+
+        const GOAL: i128 = sub_with_overflow(0i128, 1).0;
+        "#,
+        -1,
+    );
+}
+
+#[test]
 fn needs_drop() {
     check_number(
         r#"

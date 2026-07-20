@@ -973,17 +973,35 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                     self.interner(),
                     [lhs.ty, Ty::new_bool(self.interner())].into_iter(),
                 );
+                let is_signed = matches!(lhs.ty.kind(), TyKind::Int(_));
                 let op_size = self.size_of_sized(lhs.ty, locals, "operand of add_with_overflow")?;
-                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, false));
-                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, false));
-                let (ans, u128overflow) = match name {
-                    "add_with_overflow" => lhs.overflowing_add(rhs),
-                    "sub_with_overflow" => lhs.overflowing_sub(rhs),
-                    "mul_with_overflow" => lhs.overflowing_mul(rhs),
-                    _ => unreachable!(),
+                let lhs = u128::from_le_bytes(pad16(lhs.get(self)?, is_signed));
+                let rhs = u128::from_le_bytes(pad16(rhs.get(self)?, is_signed));
+                let (ans, is_overflow) = if is_signed {
+                    let (ans, overflow) = match name {
+                        "add_with_overflow" => (lhs as i128).overflowing_add(rhs as i128),
+                        "sub_with_overflow" => (lhs as i128).overflowing_sub(rhs as i128),
+                        "mul_with_overflow" => (lhs as i128).overflowing_mul(rhs as i128),
+                        _ => unreachable!(),
+                    };
+                    // Below 16 bytes the `i128` arithmetic itself cannot overflow, but the
+                    // result may not fit the operand type: check with a sign-extension
+                    // round-trip.
+                    let out_of_range = op_size < 16 && {
+                        let shift = 128 - 8 * op_size as u32;
+                        (ans << shift) >> shift != ans
+                    };
+                    (ans as u128, overflow || out_of_range)
+                } else {
+                    let (ans, overflow) = match name {
+                        "add_with_overflow" => lhs.overflowing_add(rhs),
+                        "sub_with_overflow" => lhs.overflowing_sub(rhs),
+                        "mul_with_overflow" => lhs.overflowing_mul(rhs),
+                        _ => unreachable!(),
+                    };
+                    let out_of_range = ans.to_le_bytes()[op_size..].iter().any(|&it| it != 0);
+                    (ans, overflow || out_of_range)
                 };
-                let is_overflow = u128overflow
-                    || ans.to_le_bytes()[op_size..].iter().any(|&it| it != 0 && it != 255);
                 let is_overflow = vec![u8::from(is_overflow)];
                 let layout = self.layout(result_ty)?;
                 let result = self.construct_with_layout(
