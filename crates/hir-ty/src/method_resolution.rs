@@ -107,7 +107,7 @@ pub enum MethodError<'db> {
     NoMatch,
 
     /// Multiple methods might apply.
-    Ambiguity(Vec<CandidateSource>),
+    Ambiguity(Vec<CandidateSource<'db>>),
 
     /// Found an applicable method, but it is not visible.
     PrivateMatch(Pick<'db>),
@@ -122,8 +122,8 @@ pub enum MethodError<'db> {
 // A pared down enum describing just the places from which a method
 // candidate can arise. Used for error reporting only.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum CandidateSource {
-    Impl(AnyImplId),
+pub enum CandidateSource<'db> {
+    Impl(AnyImplId<'db>),
     Trait(TraitId),
 }
 
@@ -417,7 +417,7 @@ pub(crate) fn lookup_impl_method_query<'db>(
     env: ParamEnvAndCrate<'db>,
     func: FunctionId,
     fn_subst: GenericArgs<'db>,
-) -> (Either<FunctionId, (BuiltinDeriveImplId, BuiltinDeriveImplMethod)>, GenericArgs<'db>) {
+) -> (Either<FunctionId, (BuiltinDeriveImplId<'db>, BuiltinDeriveImplMethod)>, GenericArgs<'db>) {
     let interner = DbInterner::new_with(db, env.krate);
     let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
 
@@ -461,8 +461,10 @@ fn lookup_impl_assoc_item_for_trait_ref<'db>(
     trait_ref: TraitRef<'db>,
     env: ParamEnv<'db>,
     name: &Name,
-) -> Option<(Either<AssocItemId, (BuiltinDeriveImplId, BuiltinDeriveImplMethod)>, GenericArgs<'db>)>
-{
+) -> Option<(
+    Either<AssocItemId, (BuiltinDeriveImplId<'db>, BuiltinDeriveImplMethod)>,
+    GenericArgs<'db>,
+)> {
     let (impl_id, impl_subst) = find_matching_impl(infcx, env, trait_ref)?;
     let impl_id = match impl_id {
         AnyImplId::ImplId(it) => it,
@@ -487,7 +489,7 @@ pub(crate) fn find_matching_impl<'db>(
     infcx: &InferCtxt<'db>,
     env: ParamEnv<'db>,
     trait_ref: TraitRef<'db>,
-) -> Option<(AnyImplId, GenericArgs<'db>)> {
+) -> Option<(AnyImplId<'db>, GenericArgs<'db>)> {
     let trait_ref = infcx.at(&ObligationCause::dummy(), env).deeply_normalize(trait_ref).ok()?;
 
     let obligation = Obligation::new(infcx.interner, ObligationCause::dummy(), env, trait_ref);
@@ -592,7 +594,7 @@ impl<'db> InherentImpls<'db> {
 }
 
 impl<'db> InherentImpls<'db> {
-    fn collect_def_map(db: &'db dyn HirDatabase, def_map: &'db DefMap) -> Self {
+    fn collect_def_map(db: &'db dyn HirDatabase, def_map: &'db DefMap<'_>) -> Self {
         let mut map = FxHashMap::default();
         collect(db, def_map, &mut map);
         let mut map = map
@@ -604,7 +606,7 @@ impl<'db> InherentImpls<'db> {
 
         fn collect<'db>(
             db: &'db dyn HirDatabase,
-            def_map: &DefMap,
+            def_map: &DefMap<'_>,
             map: &mut FxHashMap<SimplifiedType<'db>, Vec<ImplId>>,
         ) {
             for (_module_id, module_data) in def_map.modules() {
@@ -653,13 +655,14 @@ struct OneTraitImpls<'db> {
     // It's safe to retain, as it only contains `SolverDefId<'db>` (which is `SalsaValue`),
     // and no `&'db` references.
     #[salsa_value(unsafe(prove(SolverDefId<'db>: SalsaValue)))]
-    non_blanket_impls: FxHashMap<SimplifiedType<'db>, (Box<[ImplId]>, Box<[BuiltinDeriveImplId]>)>,
+    non_blanket_impls:
+        FxHashMap<SimplifiedType<'db>, (Box<[ImplId]>, Box<[BuiltinDeriveImplId<'db>]>)>,
     blanket_impls: Box<[ImplId]>,
 }
 
 #[derive(Default)]
 struct OneTraitImplsBuilder<'db> {
-    non_blanket_impls: FxHashMap<SimplifiedType<'db>, (Vec<ImplId>, Vec<BuiltinDeriveImplId>)>,
+    non_blanket_impls: FxHashMap<SimplifiedType<'db>, (Vec<ImplId>, Vec<BuiltinDeriveImplId<'db>>)>,
     blanket_impls: Vec<ImplId>,
 }
 
@@ -713,7 +716,7 @@ impl<'db> TraitImpls<'db> {
 }
 
 impl<'db> TraitImpls<'db> {
-    fn collect_def_map(db: &'db dyn HirDatabase, def_map: &DefMap) -> Self {
+    fn collect_def_map(db: &'db dyn HirDatabase, def_map: &DefMap<'db>) -> Self {
         let lang_items = hir_def::lang_item::lang_items(db, def_map.krate());
         let mut map = FxHashMap::default();
         collect(db, def_map, lang_items, &mut map);
@@ -726,7 +729,7 @@ impl<'db> TraitImpls<'db> {
 
         fn collect<'db>(
             db: &'db dyn HirDatabase,
-            def_map: &DefMap,
+            def_map: &DefMap<'db>,
             lang_items: &LangItems,
             map: &mut FxHashMap<TraitId, OneTraitImplsBuilder<'db>>,
         ) {
@@ -807,7 +810,7 @@ impl<'db> TraitImpls<'db> {
         &'a self,
         trait_: TraitId,
         self_ty: &SimplifiedType<'db>,
-    ) -> (&'a [ImplId], &'a [BuiltinDeriveImplId]) {
+    ) -> (&'a [ImplId], &'a [BuiltinDeriveImplId<'db>]) {
         self.map
             .get(&trait_)
             .and_then(|map| map.non_blanket_impls.get(self_ty))
@@ -818,7 +821,7 @@ impl<'db> TraitImpls<'db> {
     pub fn for_trait(
         &self,
         trait_: TraitId,
-        mut callback: impl FnMut(Either<&[ImplId], &[BuiltinDeriveImplId]>),
+        mut callback: impl FnMut(Either<&[ImplId], &[BuiltinDeriveImplId<'db>]>),
     ) {
         if let Some(impls) = self.map.get(&trait_) {
             callback(Either::Left(&impls.blanket_impls));
@@ -832,7 +835,7 @@ impl<'db> TraitImpls<'db> {
     pub fn for_self_ty(
         &self,
         self_ty: &SimplifiedType<'db>,
-        mut callback: impl FnMut(Either<&[ImplId], &[BuiltinDeriveImplId]>),
+        mut callback: impl FnMut(Either<&[ImplId], &[BuiltinDeriveImplId<'db>]>),
     ) {
         for for_trait in self.map.values() {
             if let Some(for_ty) = for_trait.non_blanket_impls.get(self_ty) {

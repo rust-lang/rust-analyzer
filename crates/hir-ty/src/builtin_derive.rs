@@ -55,7 +55,7 @@ fn trait_args(trait_: BuiltinDeriveImplTrait, self_ty: Ty<'_>) -> GenericArgs<'_
 
 pub(crate) fn generics_of<'db>(
     interner: DbInterner<'db>,
-    id: BuiltinDeriveImplId,
+    id: BuiltinDeriveImplId<'_>,
 ) -> Generics<'db> {
     let db = interner.db;
     let loc = id.loc(db);
@@ -82,7 +82,7 @@ pub(crate) fn generics_of<'db>(
     }
 }
 
-pub fn generic_params_count(db: &dyn HirDatabase, id: BuiltinDeriveImplId) -> usize {
+pub fn generic_params_count(db: &dyn HirDatabase, id: BuiltinDeriveImplId<'_>) -> usize {
     let loc = id.loc(db);
     let adt_params = GenericParams::of(db, loc.adt.into());
     let extra_params_count = match loc.trait_ {
@@ -102,7 +102,7 @@ pub fn generic_params_count(db: &dyn HirDatabase, id: BuiltinDeriveImplId) -> us
 
 pub fn impl_trait<'db>(
     interner: DbInterner<'db>,
-    id: BuiltinDeriveImplId,
+    id: BuiltinDeriveImplId<'_>,
 ) -> EarlyBinder<'db, TraitRef<'db>> {
     let db = interner.db;
     let loc = id.loc(db);
@@ -154,7 +154,7 @@ pub fn impl_trait<'db>(
 }
 
 #[salsa::tracked(returns(ref))]
-pub fn predicates(db: &dyn HirDatabase, impl_: BuiltinDeriveImplId) -> GenericPredicates {
+pub fn predicates(db: &dyn HirDatabase, impl_: BuiltinDeriveImplId<'_>) -> GenericPredicates {
     let loc = impl_.loc(db);
     let generic_params = GenericParams::of(db, loc.adt.into());
     let interner = DbInterner::new_with(db, loc.module(db).krate(db));
@@ -232,7 +232,7 @@ pub fn predicates(db: &dyn HirDatabase, impl_: BuiltinDeriveImplId) -> GenericPr
 }
 
 /// Not cached in a query, currently used in `hir` only. If you need this in `hir-ty` consider introducing a query.
-pub fn param_env<'db>(interner: DbInterner<'db>, id: BuiltinDeriveImplId) -> ParamEnv<'db> {
+pub fn param_env<'db>(interner: DbInterner<'db>, id: BuiltinDeriveImplId<'_>) -> ParamEnv<'db> {
     let predicates = predicates(interner.db, id);
     crate::lower::param_env_from_predicates(interner, predicates)
 }
