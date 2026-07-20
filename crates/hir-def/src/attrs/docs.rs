@@ -7,6 +7,7 @@
 //! and highlight injection).
 
 use std::{
+    cell::LazyCell,
     convert::Infallible,
     ops::{ControlFlow, Range},
 };
@@ -420,7 +421,21 @@ fn extend_with_attrs<'a, 'db>(
     make_resolver: &dyn Fn() -> Resolver<'db>,
 ) {
     // Lazily initialised when we first encounter a `#[doc = macro!()]`.
-    let mut expander: Option<DocMacroExpander<'db>> = None;
+    let mut expander = LazyCell::new(|| {
+        let resolver = make_resolver();
+        let def_map = resolver.top_level_def_map();
+        let recursion_limit = def_map.recursion_limit();
+        DocMacroExpander {
+            db,
+            krate,
+            macro_depth: file_id.macro_expansion_depth(db),
+            recursion_limit,
+            resolver,
+            file_id,
+            ast_id_map: file_id.ast_id_map(db),
+            span_map: file_id.span_map(db),
+        }
+    });
 
     expand_cfg_attr_with_doc_comments::<_, Infallible>(
         AttrDocCommentIter::from_syntax_node(node).filter(|attr| match attr {
@@ -441,27 +456,10 @@ fn extend_with_attrs<'a, 'db>(
                                 && let ast::LiteralKind::String(value) = value.kind()
                             {
                                 result.extend_with_doc_attr(value, indent);
-                            } else {
-                                let exp = expander.get_or_insert_with(|| {
-                                    let resolver = make_resolver();
-                                    let def_map = resolver.top_level_def_map();
-                                    let recursion_limit = def_map.recursion_limit();
-                                    DocMacroExpander {
-                                        db,
-                                        krate,
-                                        macro_depth: file_id.macro_expansion_depth(db),
-                                        recursion_limit,
-                                        resolver,
-                                        file_id,
-                                        ast_id_map: file_id.ast_id_map(db),
-                                        span_map: file_id.span_map(db),
-                                    }
-                                });
-                                if let Some(expanded) =
-                                    expand_doc_expr_via_macro_pipeline(exp, value)
-                                {
-                                    result.extend_with_unmapped_doc_str(&expanded, indent);
-                                }
+                            } else if let Some(expanded) =
+                                expand_doc_expr_via_macro_pipeline(&mut expander, value)
+                            {
+                                result.extend_with_unmapped_doc_str(&expanded, indent);
                             }
                         }
                     }
