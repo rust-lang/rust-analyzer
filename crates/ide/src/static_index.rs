@@ -1,11 +1,17 @@
 //! This module provides `StaticIndex` which is used for powering
 //! read-only code browsers and emitting LSIF
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use arrayvec::ArrayVec;
+use dashmap::{
+    DashMap,
+    mapref::one::{Ref, RefMut},
+};
 use either::Either;
 use hir::{Crate, Module, Semantics, db::HirDatabase};
 use ide_db::{
-    FileId, FileRange, FxHashMap, RootDatabase,
+    FileId, FileRange, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
     defs::{Definition, IdentClass},
     documentation::Documentation,
@@ -84,25 +90,28 @@ impl TokenId {
 }
 
 #[derive(Default, Debug)]
-pub struct TokenStore(Vec<TokenStaticData>);
+pub struct TokenStore {
+    data: DashMap<TokenId, TokenStaticData>,
+    last_index: AtomicUsize,
+}
 
 impl TokenStore {
-    pub fn insert(&mut self, data: TokenStaticData) -> TokenId {
-        let id = TokenId(self.0.len());
-        self.0.push(data);
+    pub fn insert(&self, data: TokenStaticData) -> TokenId {
+        let id = TokenId(self.last_index.fetch_add(1, Ordering::Relaxed));
+        self.data.insert(id, data);
         id
     }
 
-    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData> {
-        self.0.get_mut(id.0)
+    pub fn get_mut(&self, id: TokenId) -> Option<RefMut<'_, TokenId, TokenStaticData>> {
+        self.data.get_mut(&id)
     }
 
-    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData> {
-        self.0.get(id.0)
+    pub fn get(&self, id: TokenId) -> Option<Ref<'_, TokenId, TokenStaticData>> {
+        self.data.get(&id)
     }
 
     pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData)> {
-        self.0.into_iter().enumerate().map(|(id, data)| (TokenId(id), data))
+        self.data.into_iter()
     }
 }
 
@@ -163,8 +172,8 @@ pub enum VendoredLibrariesConfig<'a> {
 
 fn index_file<'a>(
     analysis: &'a Analysis,
-    token_store: &mut TokenStore,
-    def_map: &mut FxHashMap<Definition<'a>, TokenId>,
+    token_store: &TokenStore,
+    def_map: &DashMap<Definition<'a>, TokenId>,
     file_id: FileId,
 ) -> Option<StaticIndexedFile> {
     let db = &analysis.db;
@@ -226,7 +235,7 @@ fn index_file<'a>(
                 kind: def_to_kind(db, def),
             })
         });
-        let token = token_store.get_mut(id).unwrap();
+        let mut token = token_store.get_mut(id).unwrap();
         token.references.push(ReferenceData {
             range: FileRange { range, file_id },
             is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
@@ -260,7 +269,11 @@ fn index_file<'a>(
 }
 
 impl StaticIndex {
-    pub fn compute(analysis: &Analysis, vendored_libs_config: VendoredLibrariesConfig<'_>) -> Self {
+    pub fn compute(
+        analysis: &Analysis,
+        vendored_libs_config: VendoredLibrariesConfig<'_>,
+        num_threads: usize,
+    ) -> Self {
         let db = &analysis.db;
 
         let files_to_index = {
@@ -292,15 +305,42 @@ impl StaticIndex {
             files_to_index
         };
 
-        let mut tokens = Default::default();
-        let mut def_map = Default::default();
-        hir::attach_db(db, || {
-            let files = files_to_index
-                .into_iter()
-                .flat_map(|file_id| index_file(analysis, &mut tokens, &mut def_map, file_id))
+        // Because Analysis is not Sync, each thread needs to get exclusive access to its own Analysis clone.
+        // The Definitions which are used as keys in def_map inherit the lifetime of these Analysis clones, so analyses should live longer than def_map.
+        // NOTE this assumes that Definitions yielded from multiple untouched Analysis clones still compare equal.
+        let mut analyses: Vec<_> = (0..num_threads).map(|_| analysis.clone()).collect();
+
+        let def_map = Default::default();
+        let tokens = Default::default();
+        let files = std::thread::scope(|s| {
+            let threads: Vec<_> = analyses
+                .iter_mut()
+                .enumerate()
+                .map(|(thread_index, analysis)| {
+                    let files_to_index = files_to_index
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter(move |(index, _)| index % num_threads == thread_index)
+                        .map(|(_, file_id)| file_id);
+
+                    s.spawn(|| {
+                        let analysis = analysis;
+                        hir::attach_db(&analysis.db, || {
+                            files_to_index
+                                .into_iter()
+                                .flat_map(|file_id| {
+                                    index_file(analysis, &tokens, &def_map, file_id)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                })
                 .collect();
-            StaticIndex { files, tokens }
-        })
+            threads.into_iter().flat_map(|join_handle| join_handle.join().unwrap()).collect()
+        });
+
+        StaticIndex { files, tokens }
     }
 }
 
@@ -370,7 +410,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -396,7 +436,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -421,7 +461,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1);
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
