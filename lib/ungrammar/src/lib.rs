@@ -10,12 +10,15 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 #![deny(rust_2018_idioms)]
+#![no_std]
+extern crate alloc;
 
 mod error;
 mod lexer;
 mod parser;
 
-use std::{ops, str::FromStr};
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{ops, str::FromStr};
 
 pub use error::{Error, Result};
 

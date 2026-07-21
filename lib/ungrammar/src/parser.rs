@@ -1,6 +1,5 @@
 //! Simple hand-written ungrammar parser.
-#![allow(clippy::disallowed_types)]
-use std::collections::HashMap;
+use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
 use crate::{
     Grammar, Node, NodeData, Rule, Token, TokenData,
@@ -28,8 +27,8 @@ pub(crate) fn parse(tokens: Vec<lexer::Token>) -> Result<Grammar> {
 struct Parser {
     grammar: Grammar,
     tokens: Vec<lexer::Token>,
-    node_table: HashMap<String, Node>,
-    token_table: HashMap<String, Token>,
+    node_table: BTreeMap<String, Node>,
+    token_table: BTreeMap<String, Token>,
 }
 
 const DUMMY_RULE: Rule = Rule::Node(Node(!0));

@@ -1,4 +1,6 @@
 //! Simple hand-written ungrammar lexer
+use alloc::{string::String, vec::Vec};
+
 use crate::error::{Result, bail};
 
 #[derive(Debug, Eq, PartialEq)]

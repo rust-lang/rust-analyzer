@@ -1,10 +1,11 @@
 //! Boilerplate error definitions.
-use std::fmt;
+use alloc::string::String;
+use core::fmt;
 
 use crate::lexer::Location;
 
-/// A type alias for std's Result with the Error as our error type.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+/// A type alias for core's Result with the Error as our error type.
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// An error encountered when parsing a Grammar.
 #[derive(Debug)]
@@ -23,7 +24,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl core::error::Error for Error {}
 
 impl Error {
     pub(crate) fn with_location(self, location: Location) -> Error {
@@ -34,7 +35,7 @@ impl Error {
 macro_rules! _format_err {
     ($($tt:tt)*) => {
         $crate::error::Error {
-            message: format!($($tt)*),
+            message: alloc::format!($($tt)*),
             location: None,
         }
     };
