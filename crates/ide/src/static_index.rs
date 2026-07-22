@@ -196,11 +196,9 @@ fn index_file<'a>(
     let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };
 
     let mut add_token = |def: Definition<'a>, range: TextRange, scope_node: &SyntaxNode| {
-        let id = if let Some(it) = def_map.get(&def) {
-            *it
-        } else {
+        let id = *def_map.entry(def).or_insert_with(|| {
             let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
-            let it = token_store.insert(TokenStaticData {
+            token_store.insert(TokenStaticData {
                 documentation: documentation_for_definition(&sema, def, scope_node),
                 hover: Some(hover_for_definition(
                     &sema,
@@ -226,10 +224,8 @@ fn index_file<'a>(
                 display_name: def.name(db).map(|name| name.display(db, edition).to_string()),
                 signature: Some(def.label(db, display_target)),
                 kind: def_to_kind(db, def),
-            });
-            def_map.insert(def, it);
-            it
-        };
+            })
+        });
         let token = token_store.get_mut(id).unwrap();
         token.references.push(ReferenceData {
             range: FileRange { range, file_id },
