@@ -45,8 +45,8 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
     // - ensure that parent edits are ordered before child edits
     // - ensure that inserts will be guaranteed to be inserted at the right range
     // - easily check for disjoint replace ranges
-    let mut indexed_changes = changes.into_iter().enumerate().collect::<Vec<_>>();
-    indexed_changes.sort_by(|(_, a), (_, b)| {
+    let mut changes = changes.into_iter().enumerate().collect::<Vec<_>>();
+    changes.sort_by(|(_, a), (_, b)| {
         a.target_range()
             .start()
             .cmp(&b.target_range().start())
@@ -62,13 +62,11 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             })
             .then(a.change_kind().cmp(&b.change_kind()))
     });
-    let original_change_indices = indexed_changes.iter().map(|(idx, _)| *idx).collect::<Vec<_>>();
-    let mut changes = indexed_changes.into_iter().map(|(_, change)| change).collect::<Vec<_>>();
 
     let disjoint_replaces_ranges = changes
         .iter()
         .zip(changes.iter().skip(1))
-        .filter(|(l, r)| {
+        .filter(|((_, l), (_, r))| {
             // We only care about checking for disjoint replace ranges
             matches!(
                 (l.change_kind(), r.change_kind()),
@@ -78,7 +76,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
                 )
             )
         })
-        .all(|(l, r)| {
+        .all(|((_, l), (_, r))| {
             get_node_depth(l.target_parent()) != get_node_depth(r.target_parent())
                 || (l.target_range().end() <= r.target_range().start())
         });
@@ -100,7 +98,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
     let mut independent_changes = vec![];
     let mut outdated_changes = vec![];
 
-    for (change_index, change) in changes.iter().enumerate() {
+    for (change_index, (_, change)) in changes.iter().enumerate() {
         // Check if this change is dependent on another change (i.e. it's contained within another range)
         if let Some(index) = changed_ancestors
             .iter()
@@ -112,7 +110,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             // FIXME: Resolve changes that depend on a range of elements
             let (_, ancestor_change_index) = changed_ancestors[index];
 
-            if let Change::Replace(_, None) = changes[ancestor_change_index] {
+            if let Change::Replace(_, None) = changes[ancestor_change_index].1 {
                 outdated_changes.push(change_index);
             } else {
                 dependent_changes.push((ancestor_change_index, change_index));
@@ -144,18 +142,18 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
     let mut changed_element_sources = vec![];
 
     for index in independent_changes {
-        let change_index = original_change_indices[index];
-        let target_start = changes[index].target_range().start();
-        let tree = changes[index].target_parent().tree_top();
+        let (change_index, change) = &changes[index];
+        let target_start = change.target_range().start();
+        let tree = change.target_parent().tree_top();
         let mut push_changed = |element: &SyntaxElement| {
             changed_element_sources.push((
-                change_index,
+                *change_index,
                 tree.clone(),
                 element.clone(),
                 target_start,
             ));
         };
-        match &changes[index] {
+        match change {
             Change::Insert(_, element) | Change::Replace(_, Some(element)) => {
                 push_changed(element);
             }
@@ -174,7 +172,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             SyntaxElement::Token(token) => token.parent().unwrap(),
         };
 
-        let (input_ancestor, output_ancestor) = match &changes[parent] {
+        let (input_ancestor, output_ancestor) = match &changes[parent].1 {
             // No change will depend on an insert since changes can only depend on nodes in the root tree
             Change::Insert(_, _) | Change::InsertAll(_, _) => unreachable!(),
             Change::Replace(target, Some(new_target)) => {
@@ -210,7 +208,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             ),
         };
 
-        match &mut changes[child] {
+        match &mut changes[child].1 {
             Change::Insert(target, _) | Change::InsertAll(target, _) => match &mut target.repr {
                 PositionRepr::FirstChild(parent) => {
                     *parent = upmap_target_node(parent);
@@ -265,19 +263,19 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
 
     let mut group_end = changes.len();
     while group_end > 0 {
-        let start = changes[group_end - 1].target_range().start();
+        let start = changes[group_end - 1].1.target_range().start();
         let group_start = changes[..group_end]
             .iter()
-            .rposition(|change| change.target_range().start() != start)
+            .rposition(|(_, change)| change.target_range().start() != start)
             .map_or(0, |idx| idx + 1);
 
-        changes[group_start..group_end].sort_by(|a, b| {
+        changes[group_start..group_end].sort_by(|(_, a), (_, b)| {
             get_node_depth(b.target_parent())
                 .cmp(&get_node_depth(a.target_parent()))
                 .then(b.change_kind().cmp(&a.change_kind()))
         });
 
-        for change in &changes[group_start..group_end] {
+        for (_, change) in &changes[group_start..group_end] {
             let tree = change.target_parent().tree_top();
             let current = edited_roots.get(&tree).unwrap_or(&tree).clone();
             let map_to_edited_root = |element: &SyntaxElement| {
@@ -554,14 +552,14 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
 }
 
 fn report_intersecting_changes(
-    changes: &[Change],
+    changes: &[(usize, Change)],
     mut get_node_depth: impl FnMut(rowan::SyntaxNode<crate::RustLanguage>) -> usize,
     root: &rowan::SyntaxNode<crate::RustLanguage>,
 ) {
     let intersecting_changes = changes
         .iter()
         .zip(changes.iter().skip(1))
-        .filter(|(l, r)| {
+        .filter(|((_, l), (_, r))| {
             // We only care about checking for disjoint replace ranges.
             matches!(
                 (l.change_kind(), r.change_kind()),
@@ -571,7 +569,7 @@ fn report_intersecting_changes(
                 )
             )
         })
-        .filter(|(l, r)| {
+        .filter(|((_, l), (_, r))| {
             get_node_depth(l.target_parent()) == get_node_depth(r.target_parent())
                 && (l.target_range().end() > r.target_range().start())
         });
@@ -580,7 +578,7 @@ fn report_intersecting_changes(
 
     let parent_str = root.to_string();
 
-    for (l, r) in intersecting_changes {
+    for ((_, l), (_, r)) in intersecting_changes {
         let mut highlighted_str = parent_str.clone();
         let l_range = l.target_range();
         let r_range = r.target_range();
