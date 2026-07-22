@@ -271,14 +271,13 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             .rposition(|change| change.target_range().start() != start)
             .map_or(0, |idx| idx + 1);
 
-        let mut group = changes[group_start..group_end].iter().collect::<Vec<_>>();
-        group.sort_by(|a, b| {
+        changes[group_start..group_end].sort_by(|a, b| {
             get_node_depth(b.target_parent())
                 .cmp(&get_node_depth(a.target_parent()))
                 .then(b.change_kind().cmp(&a.change_kind()))
         });
 
-        for change in group {
+        for change in &changes[group_start..group_end] {
             let tree = change.target_parent().tree_top();
             let current = edited_roots.get(&tree).unwrap_or(&tree).clone();
             let map_to_edited_root = |element: &SyntaxElement| {
