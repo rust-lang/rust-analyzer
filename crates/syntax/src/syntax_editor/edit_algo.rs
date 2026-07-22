@@ -397,6 +397,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             .remove(&original_root)
             .expect("a non-empty edit should update the original root")
     };
+    let root_elements = root.descendants_with_tokens().collect::<Vec<_>>();
 
     let mut used_changed_elements = FxHashSet::default();
     let changed_element_mappings = changed_element_sources
@@ -418,13 +419,14 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
                 .sum::<i64>();
             let target_start = u32::try_from(i64::from(u32::from(target_start)) + shift)
                 .map_or(TextSize::new(0), TextSize::new);
-            let mapped = root
-                .descendants_with_tokens()
+            let mapped = root_elements
+                .iter()
                 .filter(|candidate| is_match(candidate))
                 .min_by_key(|candidate| {
                     u32::from(candidate.text_range().start()).abs_diff(u32::from(target_start))
                 })
-                .or_else(|| root.descendants_with_tokens().find(is_match))?;
+                .cloned()
+                .or_else(|| root_elements.iter().find(|candidate| is_match(candidate)).cloned())?;
             used_changed_elements.insert(mapped.clone());
             Some((change, source, mapped))
         })
@@ -453,10 +455,11 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
                     && candidate.text_range().len() == element.text_range().len()
                     && candidate.to_string() == element.to_string()
             };
-            let element = root
-                .descendants_with_tokens()
+            let element = root_elements
+                .iter()
                 .find(|candidate| is_match(candidate) && is_inside(candidate, &changed_elements))
-                .or_else(|| root.descendants_with_tokens().find(is_match))?;
+                .cloned()
+                .or_else(|| root_elements.iter().find(|candidate| is_match(candidate)).cloned())?;
             used.insert(element.clone());
             Some(element)
         };
