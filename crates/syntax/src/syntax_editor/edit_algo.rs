@@ -138,34 +138,6 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
         }
     }
 
-    // Collect changed elements
-    let mut changed_element_sources = vec![];
-
-    for index in independent_changes {
-        let (change_index, change) = &changes[index];
-        let target_start = change.target_range().start();
-        let tree = change.target_parent().tree_top();
-        let mut push_changed = |element: &SyntaxElement| {
-            changed_element_sources.push((
-                *change_index,
-                tree.clone(),
-                element.clone(),
-                target_start,
-            ));
-        };
-        match change {
-            Change::Insert(_, element) | Change::Replace(_, Some(element)) => {
-                push_changed(element);
-            }
-            Change::InsertAll(_, elements)
-            | Change::ReplaceWithMany(_, elements)
-            | Change::ReplaceAll(_, elements) => {
-                elements.iter().for_each(push_changed);
-            }
-            Change::Replace(_, None) => {}
-        }
-    }
-
     for (parent, child) in dependent_changes.into_iter().rev() {
         let owning_node = |element: &SyntaxElement| match element {
             SyntaxElement::Node(node) => node.clone(),
@@ -226,6 +198,41 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
         }
     }
 
+    let mut changes = changes
+        .into_iter()
+        .map(|(change_index, change)| {
+            let tree = change.target_parent().tree_top();
+            (change_index, tree, change)
+        })
+        .collect::<Vec<_>>();
+
+    // Collect changed elements
+    let mut changed_element_sources = vec![];
+
+    for index in independent_changes {
+        let (change_index, tree, change) = &changes[index];
+        let target_start = change.target_range().start();
+        let mut push_changed = |element: &SyntaxElement| {
+            changed_element_sources.push((
+                *change_index,
+                tree.clone(),
+                element.clone(),
+                target_start,
+            ));
+        };
+        match change {
+            Change::Insert(_, element) | Change::Replace(_, Some(element)) => {
+                push_changed(element);
+            }
+            Change::InsertAll(_, elements)
+            | Change::ReplaceWithMany(_, elements)
+            | Change::ReplaceAll(_, elements) => {
+                elements.iter().for_each(push_changed);
+            }
+            Change::Replace(_, None) => {}
+        }
+    }
+
     // We reverse here since we pushed to this in ascending order,
     // and we want to remove elements in descending order
     for idx in outdated_changes.into_iter().rev() {
@@ -263,24 +270,23 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
 
     let mut group_end = changes.len();
     while group_end > 0 {
-        let start = changes[group_end - 1].1.target_range().start();
+        let start = changes[group_end - 1].2.target_range().start();
         let group_start = changes[..group_end]
             .iter()
-            .rposition(|(_, change)| change.target_range().start() != start)
+            .rposition(|(_, _, change)| change.target_range().start() != start)
             .map_or(0, |idx| idx + 1);
 
-        changes[group_start..group_end].sort_by(|(_, a), (_, b)| {
+        changes[group_start..group_end].sort_by(|(_, _, a), (_, _, b)| {
             get_node_depth(b.target_parent())
                 .cmp(&get_node_depth(a.target_parent()))
                 .then(b.change_kind().cmp(&a.change_kind()))
         });
 
-        for (_, change) in &changes[group_start..group_end] {
-            let tree = change.target_parent().tree_top();
-            let current = edited_roots.get(&tree).unwrap_or(&tree).clone();
+        for (_, tree, change) in &changes[group_start..group_end] {
+            let current = edited_roots.get(tree).unwrap_or(tree).clone();
             let map_to_edited_root = |element: &SyntaxElement| {
                 let element_tree = element.tree_top();
-                if element_tree == tree {
+                if &element_tree == tree {
                     return element.clone();
                 }
                 let Some(current_root) = edited_roots.get(&element_tree) else {
@@ -381,7 +387,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
             };
             edited_roots.insert(tree.clone(), new_root);
             if delta.1 != 0 {
-                shifts.entry(tree).or_default().push(delta);
+                shifts.entry(tree.clone()).or_default().push(delta);
             }
         }
 
