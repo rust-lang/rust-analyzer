@@ -1,6 +1,6 @@
 //! Implementation of applying changes to a syntax tree.
 
-use std::{cmp::Ordering, collections::VecDeque, ops::Range};
+use std::{cmp::Ordering, ops::Range};
 
 use rowan::{TextRange, TextSize};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -95,7 +95,7 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
     }
 
     // Build change tree
-    let mut changed_ancestors = VecDeque::<(TextRange, usize)>::new();
+    let mut changed_ancestors = Vec::<(TextRange, usize)>::new();
     let mut dependent_changes = vec![];
     let mut independent_changes = vec![];
     let mut outdated_changes = vec![];
@@ -130,9 +130,9 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
         match change {
             Change::Replace(SyntaxElement::Node(target), _)
             | Change::ReplaceWithMany(SyntaxElement::Node(target), _) => {
-                changed_ancestors.push_back((target.text_range(), change_index))
+                changed_ancestors.push((target.text_range(), change_index))
             }
-            Change::ReplaceAll(range, _) => changed_ancestors.push_back((
+            Change::ReplaceAll(range, _) => changed_ancestors.push((
                 TextRange::new(range.start().text_range().start(), range.end().text_range().end()),
                 change_index,
             )),
