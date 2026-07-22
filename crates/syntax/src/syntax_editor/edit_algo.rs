@@ -273,10 +273,8 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
 
         let mut group = changes[group_start..group_end].iter().collect::<Vec<_>>();
         group.sort_by(|a, b| {
-            b.target_parent()
-                .ancestors()
-                .count()
-                .cmp(&a.target_parent().ancestors().count())
+            get_node_depth(b.target_parent())
+                .cmp(&get_node_depth(a.target_parent()))
                 .then(b.change_kind().cmp(&a.change_kind()))
         });
 
