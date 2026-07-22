@@ -390,7 +390,13 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
         group_end = group_start;
     }
 
-    let root = edited_roots.remove(&original_root).unwrap_or_else(|| original_root.clone());
+    let root = if changes.is_empty() {
+        original_root.clone()
+    } else {
+        edited_roots
+            .remove(&original_root)
+            .expect("a non-empty edit should update the original root")
+    };
 
     let mut used_changed_elements = FxHashSet::default();
     let changed_element_mappings = changed_element_sources
