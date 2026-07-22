@@ -705,11 +705,10 @@ impl ItemScope {
                     changed = true;
                 }
                 Entry::Occupied(mut entry)
-                    if !matches!(import, Some(ImportOrExternCrate::Glob(..))) =>
-                {
-                    if glob_imports.macros.remove(&lookup)
-                        || entry.get().is_reresolved_by(&fld.def, import)
-                    {
+                    if !matches!(import, Some(ImportOrExternCrate::Glob(..)))
+                    && (glob_imports.macros.remove(&lookup)
+                        || entry.get().is_reresolved_by(&fld.def, import))
+                    => {
                         cov_mark::hit!(import_shadowed);
                         let prev = std::mem::replace(&mut fld.import, import);
                         if let Some(import) = import {
@@ -721,7 +720,6 @@ impl ItemScope {
                         entry.insert(fld);
                         changed = true;
                     }
-                }
                 _ => {}
             }
         }
