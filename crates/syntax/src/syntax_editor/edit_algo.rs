@@ -312,22 +312,27 @@ pub(super) fn apply_edits(editor: SyntaxEditor) -> SyntaxEdit {
                 change.target_range().start(),
                 i64::from(u32::from(new_len)) - i64::from(u32::from(old_len)),
             );
-            let position_place = |position: &super::Position| match &position.repr {
-                PositionRepr::FirstChild(parent) => (map_node_to_root(parent, &current), 0),
-                PositionRepr::After(child) => {
-                    let child = map_element_to_root(child, &current);
-                    (child.parent().unwrap(), child.index() + 1)
-                }
-            };
             let new_root = match change {
                 Change::Insert(position, element) => {
-                    let (parent, index) = position_place(position);
+                    let (parent, index) = match &position.repr {
+                        PositionRepr::FirstChild(parent) => (map_node_to_root(parent, &current), 0),
+                        PositionRepr::After(child) => {
+                            let child = map_element_to_root(child, &current);
+                            (child.parent().unwrap(), child.index() + 1)
+                        }
+                    };
                     let new_parent =
                         parent.green().splice_children(index..index, [element_to_green(element)]);
                     SyntaxNode::new_root(parent.replace_with(new_parent))
                 }
                 Change::InsertAll(position, elements) => {
-                    let (parent, index) = position_place(position);
+                    let (parent, index) = match &position.repr {
+                        PositionRepr::FirstChild(parent) => (map_node_to_root(parent, &current), 0),
+                        PositionRepr::After(child) => {
+                            let child = map_element_to_root(child, &current);
+                            (child.parent().unwrap(), child.index() + 1)
+                        }
+                    };
                     let elements = elements.iter().map(element_to_green);
                     let new_parent = parent.green().splice_children(index..index, elements);
                     SyntaxNode::new_root(parent.replace_with(new_parent))
