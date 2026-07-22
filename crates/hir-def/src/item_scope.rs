@@ -621,7 +621,11 @@ impl ItemScope {
                             // for that.
                         }
                         _ => {
-                            if glob_imports.types.remove(&lookup) {
+                            // A non-glob import either shadows a glob import of the same
+                            // name, or re-resolves a stale binding it recorded earlier.
+                            if glob_imports.types.remove(&lookup)
+                                || entry.get().is_reresolved_by(&fld.def, import)
+                            {
                                 let prev = std::mem::replace(&mut fld.import, import);
                                 if let Some(import) = import {
                                     self.use_imports_types.insert(
@@ -659,19 +663,22 @@ impl ItemScope {
                     changed = true;
                 }
                 Entry::Occupied(mut entry)
-                    if !matches!(import, Some(ImportOrExternCrate::Glob(..)))
-                        && glob_imports.values.remove(&lookup) =>
+                    if !matches!(import, Some(ImportOrExternCrate::Glob(..))) =>
                 {
-                    cov_mark::hit!(import_shadowed);
-
                     let import = import.and_then(ImportOrExternCrate::import_or_glob);
-                    let prev = std::mem::replace(&mut fld.import, import);
-                    if let Some(import) = import {
-                        self.use_imports_values
-                            .insert(import, prev.map_or(ImportOrDef::Def(fld.def), Into::into));
+                    if glob_imports.values.remove(&lookup)
+                        || entry.get().is_reresolved_by(&fld.def, import)
+                    {
+                        cov_mark::hit!(import_shadowed);
+
+                        let prev = std::mem::replace(&mut fld.import, import);
+                        if let Some(import) = import {
+                            self.use_imports_values
+                                .insert(import, prev.map_or(ImportOrDef::Def(fld.def), Into::into));
+                        }
+                        entry.insert(fld);
+                        changed = true;
                     }
-                    entry.insert(fld);
-                    changed = true;
                 }
                 _ => {}
             }
@@ -698,19 +705,22 @@ impl ItemScope {
                     changed = true;
                 }
                 Entry::Occupied(mut entry)
-                    if !matches!(import, Some(ImportOrExternCrate::Glob(..)))
-                        && glob_imports.macros.remove(&lookup) =>
+                    if !matches!(import, Some(ImportOrExternCrate::Glob(..))) =>
                 {
-                    cov_mark::hit!(import_shadowed);
-                    let prev = std::mem::replace(&mut fld.import, import);
-                    if let Some(import) = import {
-                        self.use_imports_macros.insert(
-                            import,
-                            prev.map_or_else(|| ImportOrDef::Def(fld.def.into()), Into::into),
-                        );
+                    if glob_imports.macros.remove(&lookup)
+                        || entry.get().is_reresolved_by(&fld.def, import)
+                    {
+                        cov_mark::hit!(import_shadowed);
+                        let prev = std::mem::replace(&mut fld.import, import);
+                        if let Some(import) = import {
+                            self.use_imports_macros.insert(
+                                import,
+                                prev.map_or_else(|| ImportOrDef::Def(fld.def.into()), Into::into),
+                            );
+                        }
+                        entry.insert(fld);
+                        changed = true;
                     }
-                    entry.insert(fld);
-                    changed = true;
                 }
                 _ => {}
             }
