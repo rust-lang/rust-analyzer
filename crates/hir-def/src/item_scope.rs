@@ -706,20 +706,20 @@ impl ItemScope {
                 }
                 Entry::Occupied(mut entry)
                     if !matches!(import, Some(ImportOrExternCrate::Glob(..)))
-                    && (glob_imports.macros.remove(&lookup)
-                        || entry.get().is_reresolved_by(&fld.def, import))
-                    => {
-                        cov_mark::hit!(import_shadowed);
-                        let prev = std::mem::replace(&mut fld.import, import);
-                        if let Some(import) = import {
-                            self.use_imports_macros.insert(
-                                import,
-                                prev.map_or_else(|| ImportOrDef::Def(fld.def.into()), Into::into),
-                            );
-                        }
-                        entry.insert(fld);
-                        changed = true;
+                        && (glob_imports.macros.remove(&lookup)
+                            || entry.get().is_reresolved_by(&fld.def, import)) =>
+                {
+                    cov_mark::hit!(import_shadowed);
+                    let prev = std::mem::replace(&mut fld.import, import);
+                    if let Some(import) = import {
+                        self.use_imports_macros.insert(
+                            import,
+                            prev.map_or_else(|| ImportOrDef::Def(fld.def.into()), Into::into),
+                        );
                     }
+                    entry.insert(fld);
+                    changed = true;
+                }
                 _ => {}
             }
         }
