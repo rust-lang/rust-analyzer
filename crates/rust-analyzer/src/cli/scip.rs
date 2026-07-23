@@ -898,6 +898,67 @@ pub mod example_mod {
     }
 
     #[test]
+    fn include_macro() {
+        check_symbols(
+            r#"
+                //- minicore: include
+                //- /workspace/lib.rs crate:main
+                use core::include;
+
+                include!("included.rs");
+
+                //- /workspace/included.rs
+                struct Included$0;
+            "#,
+            &["rust-analyzer cargo main . Included#"],
+        );
+    }
+
+    #[test]
+    fn include_macro_indirect() {
+        check_symbols(
+            r#"
+                //- minicore: include
+                //- /workspace/lib.rs crate:main
+                macro_rules! includer {
+                    () => {
+                        include!("include_intermediate.rs");
+                    };
+                }
+
+                includer!();
+
+                //- /workspace/include_intermediate.rs
+                include!("included.rs");
+
+                //- /workspace/included.rs
+                struct Included$0;
+            "#,
+            &["rust-analyzer cargo main . Included#"],
+        );
+    }
+
+    #[test]
+    fn include_macro_multiple() {
+        check_symbols(
+            r#"
+                //- minicore: include
+                //- /workspace/lib.rs crate:main
+                mod a {
+                    include!("included.rs");
+                }
+                mod b {
+                    include!("included.rs");
+                }
+
+                //- /workspace/included.rs
+                struct Included$0;
+            "#,
+            &["rust-analyzer cargo main . a/Included#", "rust-analyzer cargo main . b/Included#"],
+        );
+    }
+
+    #[test]
     fn documentation_matches_doc_comment() {
         let s = "/// foo\nfn bar() {}";
 
