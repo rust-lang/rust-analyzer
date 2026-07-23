@@ -1,7 +1,10 @@
 //! This module provides `StaticIndex` which is used for powering
 //! read-only code browsers and emitting LSIF
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    collections::VecDeque,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use arrayvec::ArrayVec;
 use dashmap::{
@@ -9,9 +12,9 @@ use dashmap::{
     mapref::one::{Ref, RefMut},
 };
 use either::Either;
-use hir::{Crate, Module, Semantics, db::HirDatabase};
+use hir::{Crate, InFile, Module, Semantics, db::HirDatabase};
 use ide_db::{
-    FileId, FileRange, RootDatabase,
+    FileId, FileRange, FxHashMap, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
     defs::{Definition, IdentClass},
     documentation::Documentation,
@@ -170,6 +173,8 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
+/// Computes the index for a single file identified by file_id.
+/// Note this doesn't return a single StaticIndexedFile but multiple because this also indexes include! expansions.
 fn index_file<'a>(
     analysis: &'a Analysis,
     token_store: &TokenStore,
@@ -177,7 +182,7 @@ fn index_file<'a>(
     file_id: FileId,
     with_folds: bool,
     with_hover: bool,
-) -> Option<StaticIndexedFile> {
+) -> FxHashMap<FileId, StaticIndexedFile> {
     let db = &analysis.db;
 
     let current_crate = crates_for(db, file_id).pop().map(Into::into);
@@ -186,11 +191,10 @@ fn index_file<'a>(
     let sema = hir::Semantics::new(db);
     let root = sema.parse_guess_edition(file_id).syntax().clone();
     let edition = sema.attach_first_edition(file_id).edition(sema.db);
-    let display_target = sema.first_crate(file_id)?.to_display_target(sema.db);
-    let tokens = root.descendants_with_tokens().filter_map(|it| match it {
-        syntax::NodeOrToken::Node(_) => None,
-        syntax::NodeOrToken::Token(it) => Some(it),
-    });
+    let Some(krate) = sema.first_crate(file_id) else {
+        return Default::default();
+    };
+    let display_target = krate.to_display_target(sema.db);
     let hover_config = HoverConfig {
         links_in_hover: true,
         memory_layout: None,
@@ -204,75 +208,123 @@ fn index_file<'a>(
         show_drop_glue: true,
         ra_fixture: RaFixtureConfig::default(),
     };
-    let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };
+    let mut result: FxHashMap<FileId, StaticIndexedFile> = Default::default();
+    result.insert(file_id, StaticIndexedFile { file_id, folds, tokens: vec![] });
 
-    let mut add_token = |def: Definition<'a>, range: TextRange, scope_node: &SyntaxNode| {
-        let id = *def_map.entry(def).or_insert_with(|| {
-            let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
-            let hover = if with_hover {
-                Some(hover_for_definition(
-                    &sema,
-                    file_id,
-                    def,
-                    None,
-                    scope_node,
-                    None,
-                    false,
-                    &hover_config,
-                    edition,
-                    display_target,
-                ))
-            } else {
-                None
-            };
-            token_store.insert(TokenStaticData {
-                documentation: documentation_for_definition(&sema, def, scope_node),
-                hover,
-                definition: nav
-                    .as_ref()
-                    .map(|it| FileRange { file_id: it.file_id, range: it.focus_or_full_range() }),
-                definition_body: nav.as_ref().map(|it| FileRange {
-                    file_id: it.file_id,
-                    range: definition_range_excluding_trivia(&sema, it.file_id, it.full_range),
-                }),
-                references: vec![],
-                moniker: current_crate.and_then(|cc| def_to_moniker(db, def, cc)),
-                display_name: def.name(db).map(|name| name.display(db, edition).to_string()),
-                signature: Some(def.label(db, display_target)),
-                kind: def_to_kind(db, def),
-            })
-        });
-        let mut token = token_store.get_mut(id).unwrap();
-        token.references.push(ReferenceData {
-            range: FileRange { range, file_id },
-            is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
-                Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
-                None => false,
-            },
-        });
-        result.tokens.push((range, id));
-    };
+    let mut add_token =
+        |def: Definition<'a>, file_id: FileId, range: TextRange, scope_node: &SyntaxNode| {
+            let id = *def_map.entry(def).or_insert_with(|| {
+                let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
+                let hover = if with_hover {
+                    Some(hover_for_definition(
+                        &sema,
+                        file_id,
+                        def,
+                        None,
+                        scope_node,
+                        None,
+                        false,
+                        &hover_config,
+                        edition,
+                        display_target,
+                    ))
+                } else {
+                    None
+                };
+                token_store.insert(TokenStaticData {
+                    documentation: documentation_for_definition(&sema, def, scope_node),
+                    hover,
+                    definition: nav.as_ref().map(|it| FileRange {
+                        file_id: it.file_id,
+                        range: it.focus_or_full_range(),
+                    }),
+                    definition_body: nav.as_ref().map(|it| FileRange {
+                        file_id: it.file_id,
+                        range: definition_range_excluding_trivia(&sema, it.file_id, it.full_range),
+                    }),
+                    references: vec![],
+                    moniker: current_crate.and_then(|cc| def_to_moniker(db, def, cc)),
+                    display_name: def.name(db).map(|name| name.display(db, edition).to_string()),
+                    signature: Some(def.label(db, display_target)),
+                    kind: def_to_kind(db, def),
+                })
+            });
+            let mut token = token_store.get_mut(id).unwrap();
+            token.references.push(ReferenceData {
+                range: FileRange { range, file_id },
+                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
+                    Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
+                    None => false,
+                },
+            });
+            result
+                .entry(file_id)
+                .or_insert_with(|| StaticIndexedFile { file_id, folds: vec![], tokens: vec![] })
+                .tokens
+                .push((range, id));
+        };
 
     if let Some(module) = sema.file_to_module_def(file_id) {
         let def = Definition::Module(module);
         let range = root.text_range();
-        add_token(def, range, &root);
+        add_token(def, file_id, range, &root);
     }
 
-    for token in tokens {
-        let range = token.text_range();
-        let node = token.parent().unwrap();
-        match hir::attach_db(db, || get_definitions(&sema, token.clone())) {
-            Some(defs) => {
-                for (def, _) in defs {
-                    add_token(def, range, &node);
+    // The loop below will traverse all macro expansions, but only record tokens from the current file and include! calls.
+    #[derive(PartialEq, Eq, Clone, Copy)]
+    enum RootKind {
+        OnlyTraverse,
+        RecordTokens,
+    }
+
+    let mut roots = VecDeque::from([(root, RootKind::RecordTokens)]);
+    while let Some((root, root_kind)) = roots.pop_front() {
+        for node_or_token in root.descendants_with_tokens() {
+            match node_or_token {
+                NodeOrToken::Token(token) => {
+                    if root_kind != RootKind::RecordTokens {
+                        continue;
+                    }
+
+                    let Some(node) = token.parent() else {
+                        continue;
+                    };
+                    let Some(defs) = hir::attach_db(db, || get_definitions(&sema, token.clone()))
+                    else {
+                        continue;
+                    };
+
+                    let file_range = InFile::new(sema.hir_file_for(&node), token.text_range())
+                        .original_node_file_range_rooted(db);
+
+                    for (def, _) in defs {
+                        let range = file_range.range;
+                        let file_id = file_range.file_id.file_id(db);
+                        add_token(def, file_id, range, &node);
+                    }
+                }
+
+                NodeOrToken::Node(node) => {
+                    let Some(macro_call) = ast::MacroCall::cast(node) else {
+                        continue;
+                    };
+                    let Some(macro_call) = sema.to_def(&macro_call) else {
+                        continue;
+                    };
+
+                    let expansion = sema.parse_or_expand(macro_call.into());
+                    let root_kind = if macro_call.is_include_macro(db) {
+                        RootKind::RecordTokens
+                    } else {
+                        RootKind::OnlyTraverse
+                    };
+                    roots.push_front((expansion, root_kind));
                 }
             }
-            None => continue,
-        };
+        }
     }
 
-    Some(result)
+    result
 }
 
 impl StaticIndex {
@@ -349,7 +401,21 @@ impl StaticIndex {
                     })
                 })
                 .collect();
-            threads.into_iter().flat_map(|join_handle| join_handle.join().unwrap()).collect()
+
+            let files_with_duplicates =
+                threads.into_iter().flat_map(|join_handle| join_handle.join().unwrap());
+
+            let mut result = FxHashMap::default();
+            for (file_id, mut file) in files_with_duplicates {
+                result
+                    .entry(file_id)
+                    .and_modify(|existing_file: &mut StaticIndexedFile| {
+                        existing_file.tokens.extend(std::mem::take(&mut file.tokens))
+                    })
+                    .or_insert(file);
+            }
+
+            result.into_values().collect()
         });
 
         StaticIndex { files, tokens }
