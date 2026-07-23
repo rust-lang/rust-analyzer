@@ -537,7 +537,7 @@ mod test {
 
     /// If expected == "", then assert that there are no symbols (this is basically local symbol)
     #[track_caller]
-    fn check_symbol(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &str) {
+    fn check_symbols(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &[&str]) {
         let (host, position) = position(ra_fixture);
 
         let analysis = host.analysis();
@@ -553,48 +553,39 @@ mod test {
 
         let FilePosition { file_id, offset } = position;
 
-        let mut found_symbol = None;
-        for file in &si.files {
-            if file.file_id != file_id {
-                continue;
-            }
-            for &(range, id) in &file.tokens {
-                // check if cursor is within token, ignoring token for the module defined by the file (whose range is the whole file)
-                if range.start() != TextSize::from(0) && range.contains(offset - TextSize::from(1))
-                {
-                    let token = si.tokens.get(id).unwrap();
-                    found_symbol = match token.moniker.as_ref() {
-                        None => None,
-                        Some(MonikerResult::Moniker(moniker)) => {
-                            Some(scip::symbol::format_symbol(moniker_to_symbol(moniker)))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: Some(moniker) }) => {
-                            Some(format!(
-                                "local enclosed by {}",
-                                scip::symbol::format_symbol(moniker_to_symbol(moniker))
-                            ))
-                        }
-                        Some(MonikerResult::Local { enclosing_moniker: None }) => {
-                            Some("unenclosed local".to_owned())
-                        }
-                    };
-                    break;
+        let tokens_at_position = si
+            .files
+            .into_iter()
+            .filter(|file| file.file_id == file_id)
+            .flat_map(|file| file.tokens)
+            .filter(|(range, _token_id)| {
+                range.start() != TextSize::from(0) && range.contains(offset - TextSize::from(1))
+            })
+            .map(|(_range, token_id)| si.tokens.get(token_id).unwrap());
+
+        let mut symbols_at_position: Vec<_> = tokens_at_position
+            .filter_map(|token| match token.moniker.as_ref() {
+                None => None,
+                Some(MonikerResult::Moniker(moniker)) => {
+                    Some(scip::symbol::format_symbol(moniker_to_symbol(moniker)))
                 }
-            }
-        }
+                Some(MonikerResult::Local { enclosing_moniker: Some(moniker) }) => Some(format!(
+                    "local enclosed by {}",
+                    scip::symbol::format_symbol(moniker_to_symbol(moniker))
+                )),
+                Some(MonikerResult::Local { enclosing_moniker: None }) => {
+                    Some("unenclosed local".to_owned())
+                }
+            })
+            .collect();
 
-        if expected.is_empty() {
-            assert!(found_symbol.is_none(), "must have no symbols {found_symbol:?}");
-            return;
-        }
-
-        assert!(found_symbol.is_some(), "must have one symbol {found_symbol:?}");
-        assert_eq!(found_symbol.unwrap(), expected);
+        symbols_at_position.sort_unstable();
+        assert_eq!(symbols_at_position, expected);
     }
 
     #[test]
     fn basic() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -606,13 +597,13 @@ pub mod example_mod {
     pub fn func() {}
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 lib/example_mod/func().",
+            &["rust-analyzer cargo foo 0.1.0 lib/example_mod/func()."],
         );
     }
 
     #[test]
     fn operator_overload() {
-        check_symbol(
+        check_symbols(
             r#"
 //- minicore: add
 //- /workspace/lib.rs crate:main
@@ -629,13 +620,13 @@ fn main() {
     s +=$0 S;
 }
 "#,
-            "rust-analyzer cargo main . lib/impl#[S][`AddAssign<Self>`]add_assign().",
+            &["rust-analyzer cargo main . lib/impl#[S][`AddAssign<Self>`]add_assign()."],
         );
     }
 
     #[test]
     fn symbol_for_trait() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
 pub mod module {
@@ -644,13 +635,13 @@ pub mod module {
     }
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#func().",
+            &["rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#func()."],
         );
     }
 
     #[test]
     fn symbol_for_trait_alias() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
 #![feature(trait_alias)]
@@ -659,13 +650,13 @@ pub mod module {
     pub trait MyTraitAlias$0 = MyTrait;
 }
 "#,
-            "rust-analyzer cargo foo 0.1.0 lib/module/MyTraitAlias#",
+            &["rust-analyzer cargo foo 0.1.0 lib/module/MyTraitAlias#"],
         );
     }
 
     #[test]
     fn symbol_for_trait_constant() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -674,13 +665,13 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#MY_CONST.",
+            &["rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#MY_CONST."],
         );
     }
 
     #[test]
     fn symbol_for_trait_type() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -689,13 +680,13 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#MyType#",
+            &["rust-analyzer cargo foo 0.1.0 lib/module/MyTrait#MyType#"],
         );
     }
 
     #[test]
     fn symbol_for_trait_impl_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /foo/lib.rs crate:foo@0.1.0,https://a.b/foo.git library
     pub mod module {
@@ -710,13 +701,13 @@ pub mod module {
         }
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 lib/module/impl#[MyStruct][MyTrait]func().",
+            &["rust-analyzer cargo foo 0.1.0 lib/module/impl#[MyStruct][MyTrait]func()."],
         );
     }
 
     #[test]
     fn symbol_for_field() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main deps:foo
     use foo::St;
@@ -728,13 +719,13 @@ pub mod module {
         pub a: i32,
     }
     "#,
-            "rust-analyzer cargo foo 0.1.0 lib/St#a.",
+            &["rust-analyzer cargo foo 0.1.0 lib/St#a."],
         );
     }
 
     #[test]
     fn symbol_for_param() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -746,13 +737,13 @@ pub mod example_mod {
     pub fn func(x$0: usize) {}
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 lib/example_mod/func().",
+            &["local enclosed by rust-analyzer cargo foo 0.1.0 lib/example_mod/func()."],
         );
     }
 
     #[test]
     fn symbol_for_closure_param() {
-        check_symbol(
+        check_symbols(
             r#"
 //- /workspace/lib.rs crate:main deps:foo
 use foo::example_mod::func;
@@ -766,13 +757,13 @@ pub mod example_mod {
     }
 }
 "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 lib/example_mod/func().",
+            &["local enclosed by rust-analyzer cargo foo 0.1.0 lib/example_mod/func()."],
         );
     }
 
     #[test]
     fn local_symbol_for_local() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main deps:foo
     use foo::module::func;
@@ -786,13 +777,13 @@ pub mod example_mod {
         }
     }
     "#,
-            "local enclosed by rust-analyzer cargo foo 0.1.0 lib/module/func().",
+            &["local enclosed by rust-analyzer cargo foo 0.1.0 lib/module/func()."],
         );
     }
 
     #[test]
     fn global_symbol_for_pub_struct() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     mod foo;
@@ -805,13 +796,13 @@ pub mod example_mod {
         pub i: i32,
     }
     "#,
-            "rust-analyzer cargo main . lib/foo/Bar#",
+            &["rust-analyzer cargo main . lib/foo/Bar#"],
         );
     }
 
     #[test]
     fn global_symbol_for_pub_struct_reference() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     mod foo;
@@ -824,109 +815,109 @@ pub mod example_mod {
         pub i: i32,
     }
     "#,
-            "rust-analyzer cargo main . lib/foo/Bar#",
+            &["rust-analyzer cargo main . lib/foo/Bar#"],
         );
     }
 
     #[test]
     fn symbol_for_type_alias() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub type MyTypeAlias$0 = u8;
     "#,
-            "rust-analyzer cargo main . lib/MyTypeAlias#",
+            &["rust-analyzer cargo main . lib/MyTypeAlias#"],
         );
     }
 
     #[test]
     fn proc_macro_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/proc-macro.rs crate:proc-macro:name
     struct S$0;
     "#,
-            "rust-analyzer cargo name . proc-macro/S#",
+            &["rust-analyzer cargo name . proc-macro/S#"],
         );
     }
 
     #[test]
     fn bin_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/main.rs crate:bin:main
     struct S$0;
     "#,
-            "rust-analyzer cargo main . bin/main/S#",
+            &["rust-analyzer cargo main . bin/main/S#"],
         );
     }
 
     #[test]
     fn example_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/example.rs crate:example:name
     struct S$0;
     "#,
-            "rust-analyzer cargo name . example/name/S#",
+            &["rust-analyzer cargo name . example/name/S#"],
         );
     }
 
     #[test]
     fn test_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/test.rs crate:test:name
     struct S$0;
     "#,
-            "rust-analyzer cargo name . test/name/S#",
+            &["rust-analyzer cargo name . test/name/S#"],
         );
     }
 
     #[test]
     fn bench_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/bench.rs crate:bench:name
     struct S$0;
     "#,
-            "rust-analyzer cargo name . bench/name/S#",
+            &["rust-analyzer cargo name . bench/name/S#"],
         );
     }
 
     #[test]
     fn custom_build_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/build.rs crate:custom-build:build
     struct S$0;
     "#,
-            "rust-analyzer cargo build . custom-build/S#",
+            &["rust-analyzer cargo build . custom-build/S#"],
         );
     }
 
     #[test]
     fn other_target() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/other.rs crate:other:other
     struct S$0;
     "#,
-            "rust-analyzer cargo other . other/S#",
+            &["rust-analyzer cargo other . other/S#"],
         );
     }
 
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_nested_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        pub fn inner_func$0() {}
     }
     "#,
-            "rust-analyzer cargo main . lib/inner_func().",
+            &["rust-analyzer cargo main . lib/inner_func()."],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -935,14 +926,14 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_struct_in_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        struct SomeStruct$0 {}
     }
     "#,
-            "rust-analyzer cargo main . lib/SomeStruct#",
+            &["rust-analyzer cargo main . lib/SomeStruct#"],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -951,14 +942,14 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_const_in_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        const SOME_CONST$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . lib/SOME_CONST.",
+            &["rust-analyzer cargo main . lib/SOME_CONST."],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
@@ -967,14 +958,14 @@ pub mod example_mod {
     // FIXME: This test represents current misbehavior.
     #[test]
     fn symbol_for_static_in_function() {
-        check_symbol(
+        check_symbols(
             r#"
     //- /workspace/lib.rs crate:main
     pub fn func() {
        static SOME_STATIC$0: u32 = 1;
     }
     "#,
-            "rust-analyzer cargo main . lib/SOME_STATIC.",
+            &["rust-analyzer cargo main . lib/SOME_STATIC."],
             // FIXME: This should be a local:
             // "local enclosed by rust-analyzer cargo main . func().",
         );
