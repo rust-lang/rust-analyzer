@@ -317,7 +317,7 @@ impl flags::Lsif {
             VendoredLibrariesConfig::Included { workspace_root: &path.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config, true, 1);
+        let si = StaticIndex::compute(&analysis, vendored_libs_config, true, true, 1);
 
         let mut lsif = LsifManager::new(&analysis, db, &vfs, out);
         lsif.add_vertex(lsif::Vertex::MetaData(lsif::MetaData {

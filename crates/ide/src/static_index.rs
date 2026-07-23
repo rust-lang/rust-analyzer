@@ -175,12 +175,14 @@ fn index_file<'a>(
     token_store: &TokenStore,
     def_map: &DashMap<Definition<'a>, TokenId>,
     include_hovers: bool,
+    include_folds: bool,
     file_id: FileId,
 ) -> Option<StaticIndexedFile> {
     let db = &analysis.db;
 
     let current_crate = crates_for(db, file_id).pop().map(Into::into);
-    let folds = analysis.folding_ranges(file_id, true).unwrap();
+    let folds =
+        if include_folds { analysis.folding_ranges(file_id, true).unwrap() } else { vec![] };
     // hovers
     let sema = hir::Semantics::new(db);
     let root = sema.parse_guess_edition(file_id).syntax().clone();
@@ -280,6 +282,7 @@ impl StaticIndex {
         analysis: &Analysis,
         vendored_libs_config: VendoredLibrariesConfig<'_>,
         include_hovers: bool,
+        include_folds: bool,
         num_threads: usize,
     ) -> Self {
         let db = &analysis.db;
@@ -338,7 +341,14 @@ impl StaticIndex {
                             files_to_index
                                 .into_iter()
                                 .flat_map(|file_id| {
-                                    index_file(analysis, &tokens, &def_map, include_hovers, file_id)
+                                    index_file(
+                                        analysis,
+                                        &tokens,
+                                        &def_map,
+                                        include_hovers,
+                                        include_folds,
+                                        file_id,
+                                    )
                                 })
                                 .collect::<Vec<_>>()
                         })
@@ -423,7 +433,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config, true, 1);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, true, true, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -449,7 +459,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config, true, 1);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, true, true, 1);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -474,7 +484,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config, true, 1);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, true, true, 1);
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
