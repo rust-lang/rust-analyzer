@@ -73,7 +73,7 @@ impl flags::Scip {
             VendoredLibrariesConfig::Included { workspace_root: &root.clone().into() }
         };
 
-        let si = StaticIndex::compute(&analysis, vendored_libs_config, false, num_threads);
+        let si = StaticIndex::compute(&analysis, vendored_libs_config, false, false, num_threads);
 
         let metadata = scip_types::Metadata {
             version: scip_types::ProtocolVersion::UnspecifiedProtocolVersion.into(),
@@ -547,6 +547,7 @@ mod test {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
             false,
+            false,
             1,
         );
 
@@ -994,6 +995,7 @@ pub mod example_mod {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
             false,
+            false,
             1,
         );
 
@@ -1018,6 +1020,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            false,
             false,
             1,
         );
@@ -1048,6 +1051,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            false,
             false,
             1,
         );
@@ -1082,6 +1086,7 @@ pub mod example_mod {
             VendoredLibrariesConfig::Included {
                 workspace_root: &VfsPath::new_virtual_path("/workspace".to_owned()),
             },
+            false,
             false,
             1,
         );
