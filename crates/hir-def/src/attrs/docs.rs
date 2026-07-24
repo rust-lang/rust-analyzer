@@ -178,8 +178,14 @@ impl Docs {
     }
 
     fn extend_with_doc_comment(&mut self, comment: ast::Comment, indent: &mut usize) {
+        let is_block = comment.kind().shape == ast::CommentShape::Block;
         let Some((doc, offset)) = comment.doc_comment() else { return };
-        self.extend_with_doc_str(doc, comment.syntax().text_range().start() + offset, indent);
+        self.extend_with_doc_str(
+            doc,
+            comment.syntax().text_range().start() + offset,
+            indent,
+            is_block,
+        );
     }
 
     fn extend_with_doc_attr(&mut self, value: ast::String, indent: &mut usize) {
@@ -187,7 +193,7 @@ impl Docs {
         let value_offset = value_offset.start();
         let Ok(value) = value.value() else { return };
         // FIXME: Handle source maps for escaped text.
-        self.extend_with_doc_str(&value, value_offset, indent);
+        self.extend_with_doc_str(&value, value_offset, indent, false);
     }
 
     pub(crate) fn extend_with_doc_str(
@@ -195,20 +201,45 @@ impl Docs {
         doc: &str,
         offset_in_ast: TextSize,
         indent: &mut usize,
+        is_block: bool,
     ) {
-        self.push_doc_lines(doc, Some(offset_in_ast), indent);
+        self.push_doc_lines(doc, Some(offset_in_ast), indent, is_block);
     }
 
     fn extend_with_unmapped_doc_str(&mut self, doc: &str, indent: &mut usize) {
-        self.push_doc_lines(doc, None, indent);
+        self.push_doc_lines(doc, None, indent, false);
     }
 
-    fn push_doc_lines(&mut self, doc: &str, mut ast_offset: Option<TextSize>, indent: &mut usize) {
-        for line in doc.split('\n') {
-            self.docs_source_map
-                .push(DocsSourceMapLine { string_offset: TextSize::of(&self.docs), ast_offset });
+    fn push_doc_lines(
+        &mut self,
+        doc: &str,
+        mut ast_offset: Option<TextSize>,
+        indent: &mut usize,
+        is_block: bool,
+    ) {
+        let lines = doc.split('\n').collect::<Vec<_>>();
+        // For block doc comments (`/** ... */`), strip the common leading `*` decoration, mirroring
+        // rustdoc's `beautify_doc_string`. This is `None` when the block has no consistent star column
+        // (or for line comments and `#[doc = "..."]` attributes), leaving the text untouched.
+        let star_trim = if is_block { block_star_horizontal_trim(&lines) } else { None };
+
+        for &raw_line in &lines {
+            // Offsets are tracked against the original line. A trailing `\r` (CRLF) is ASCII at the end,
+            // so ignoring it here does not affect the leading-byte accounting below.
+            let orig_len = TextSize::of(raw_line);
+            let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+            let (line, stripped_len) = match star_trim {
+                Some(prefix) => strip_block_star_prefix(line, prefix),
+                None => (line, TextSize::new(0)),
+            };
+
+            self.docs_source_map.push(DocsSourceMapLine {
+                string_offset: TextSize::of(&self.docs),
+                // The removed prefix is ASCII, so the AST offset advances by exactly the stripped bytes.
+                ast_offset: ast_offset.map(|it| it + stripped_len),
+            });
             if let Some(ref mut offset) = ast_offset {
-                *offset += TextSize::of(line) + TextSize::of("\n");
+                *offset += orig_len + TextSize::of("\n");
             }
 
             let line = line.trim_end();
@@ -320,6 +351,70 @@ impl Docs {
         docs.shrink_to_fit();
         docs_source_map.shrink_to_fit();
     }
+}
+
+/// Computes the common leading whitespace before the `*` decoration of a block doc comment,
+/// mirroring the block branch of rustdoc's `get_horizontal_trim`. Returns the whitespace prefix
+/// (not including the `*`) that every decorated line shares, or `None` when the block has no
+/// consistent star column and should be left untouched.
+fn block_star_horizontal_trim<'a>(lines: &[&'a str]) -> Option<&'a str> {
+    let mut star_col = usize::MAX;
+    let mut first = true;
+
+    // Skip the first line (it follows the `/**` prefix) unless it already starts with a star, then
+    // ignore leading/trailing blank lines so they don't interfere with detecting the star column.
+    let considered = {
+        let mut start =
+            lines.first().map(|l| if l.trim_start().starts_with('*') { 0 } else { 1 }).unwrap_or(0);
+        let mut end = lines.len();
+        while start < end && lines[start].trim().is_empty() {
+            start += 1;
+        }
+        while end > start && lines[end - 1].trim().is_empty() {
+            end -= 1;
+        }
+        &lines[start..end]
+    };
+
+    for line in considered {
+        for (col, ch) in line.chars().enumerate() {
+            if col > star_col || !"* \t".contains(ch) {
+                return None;
+            }
+            if ch == '*' {
+                if first {
+                    star_col = col;
+                    first = false;
+                } else if star_col != col {
+                    return None;
+                }
+                break;
+            }
+        }
+        if star_col >= line.len() {
+            return None;
+        }
+    }
+    // Everything before the star is ASCII whitespace, so `star_col` is a valid byte index.
+    let first = *considered.first()?;
+    Some(&first[..star_col])
+}
+
+/// Strips the leading `*` decoration from a single block-doc line given the shared whitespace
+/// `prefix` computed by [`block_star_horizontal_trim`]. Returns the remaining text and the number of
+/// bytes removed from the front (all ASCII). Mirrors the per-line stripping in rustdoc's
+/// `beautify_doc_string`: after the whitespace prefix, one `*` is removed for the `*`, `* `, and `**`
+/// forms, while `*foo` is preserved.
+fn strip_block_star_prefix<'a>(line: &'a str, prefix: &str) -> (&'a str, TextSize) {
+    let Some(rest) = line.strip_prefix(prefix) else {
+        return (line, TextSize::new(0));
+    };
+    let rest = if rest == "*" || rest.starts_with("* ") || rest.starts_with("**") {
+        &rest[1..]
+    } else {
+        rest
+    };
+    (rest, TextSize::of(line) - TextSize::of(rest))
 }
 
 struct DocMacroExpander<'db> {
@@ -579,7 +674,7 @@ mod tests {
         let outer = " foo\n\tbar  baz";
         let mut ast_offset = TextSize::new(123);
         for line in outer.split('\n') {
-            docs.extend_with_doc_str(line, ast_offset, &mut indent);
+            docs.extend_with_doc_str(line, ast_offset, &mut indent, false);
             ast_offset += TextSize::of(line) + TextSize::of("\n");
         }
 
@@ -587,7 +682,7 @@ mod tests {
         ast_offset += TextSize::new(123);
         let inner = " bar \n baz";
         for line in inner.split('\n') {
-            docs.extend_with_doc_str(line, ast_offset, &mut indent);
+            docs.extend_with_doc_str(line, ast_offset, &mut indent, false);
             ast_offset += TextSize::of(line) + TextSize::of("\n");
         }
 
@@ -726,6 +821,141 @@ mod tests {
         assert_eq!(
             docs.find_ast_range(range(23, 25)),
             Some((in_file(range(263, 265)), IsInnerDoc::Yes))
+        );
+    }
+
+    /// Builds a [`Docs`] from a single block doc comment body (the text between `/**` and `*/`),
+    /// running the same normalization as [`super::extract_docs`] for inline docs.
+    fn block_doc(doc: &str, ast_offset: u32) -> Docs {
+        let (_db, file_id) = TestDB::with_single_file("");
+        let mut docs = Docs {
+            docs: String::new(),
+            docs_source_map: Vec::new(),
+            outline_mod: None,
+            inline_file: file_id.into(),
+            prefix_len: TextSize::new(0),
+            inline_inner_docs_start: None,
+            outline_inner_docs_start: None,
+        };
+        let mut indent = usize::MAX;
+        docs.extend_with_doc_str(doc, TextSize::new(ast_offset), &mut indent, true);
+        docs.remove_indent(indent, 0);
+        docs.remove_last_newline();
+        docs
+    }
+
+    #[test]
+    fn block_doc_comment_strips_leading_stars() {
+        #[track_caller]
+        fn check(doc: &str, expect: expect_test::Expect) {
+            expect.assert_eq(&block_doc(doc, 0).docs);
+        }
+
+        // Ordinary `* foo` lines have the star and one following space removed.
+        check(
+            "\n * foo\n * bar\n ",
+            expect![[r#"
+
+            foo
+            bar
+        "#]],
+        );
+        // A blank `*` line becomes empty.
+        check(
+            "\n * foo\n *\n * bar\n ",
+            expect![[r#"
+
+            foo
+
+            bar
+        "#]],
+        );
+        // Markdown bullets after the decoration star are preserved.
+        check(
+            "\n * a list:\n *   * one\n *   * two\n ",
+            expect![[r#"
+
+            a list:
+              * one
+              * two
+        "#]],
+        );
+        // `*foo` (no space after the star) is preserved.
+        check(
+            "\n *foo\n *bar\n ",
+            expect![[r#"
+
+            *foo
+            *bar
+        "#]],
+        );
+        // `**` has a single star removed.
+        check(
+            "\n ** foo\n ** bar\n ",
+            expect![[r#"
+
+            * foo
+            * bar
+        "#]],
+        );
+        // Inconsistent star columns leave the block untouched.
+        check(
+            "\n * foo\n   * bar\n ",
+            expect![[r#"
+
+            * foo
+              * bar
+        "#]],
+        );
+        // A block without stars is untouched.
+        check(
+            "\n foo\n bar\n ",
+            expect![[r#"
+
+            foo
+            bar
+        "#]],
+        );
+        // Unicode content past the stripped ASCII prefix is preserved.
+        check(
+            "\n * café ☕\n * über\n ",
+            expect![[r#"
+
+            café ☕
+            über
+        "#]],
+        );
+        // CRLF line endings are handled like LF.
+        check(
+            "\r\n * foo\r\n * bar\r\n ",
+            expect![[r#"
+
+            foo
+            bar
+        "#]],
+        );
+    }
+
+    #[test]
+    fn block_doc_comment_source_map_offsets() {
+        // `/**` sits at offset 97, so the body (starting with the newline) is at offset 100.
+        let docs = block_doc("\n * foo\n * bar\n ", 100);
+        assert_eq!(docs.docs, "\nfoo\nbar\n");
+
+        let (_db, file_id) = TestDB::with_single_file("");
+        let range = |start, end| TextRange::new(TextSize::new(start), TextSize::new(end));
+        let in_file = |range| InFile::new(file_id.into(), range);
+
+        // `foo` in the normalized string maps back to the `foo` in the original source, past the
+        // stripped ` * ` decoration.
+        assert_eq!(
+            docs.find_ast_range(range(1, 4)),
+            Some((in_file(range(104, 107)), IsInnerDoc::No))
+        );
+        // `bar` on the second decorated line maps back correctly as well.
+        assert_eq!(
+            docs.find_ast_range(range(5, 8)),
+            Some((in_file(range(111, 114)), IsInnerDoc::No))
         );
     }
 }
