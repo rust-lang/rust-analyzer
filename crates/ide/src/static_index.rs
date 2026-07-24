@@ -1,11 +1,20 @@
 //! This module provides `StaticIndex` which is used for powering
 //! read-only code browsers and emitting LSIF
 
+use std::{
+    collections::VecDeque,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
 use arrayvec::ArrayVec;
+use dashmap::{
+    DashMap,
+    mapref::one::{Ref, RefMut},
+};
 use either::Either;
-use hir::{Crate, Module, Semantics, db::HirDatabase};
+use hir::{Crate, InFile, Module, Semantics, db::HirDatabase};
 use ide_db::{
-    FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
+    FileId, FileRange, FxHashMap, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
     defs::{Definition, IdentClass},
     documentation::Documentation,
@@ -26,12 +35,9 @@ use crate::{
 ///
 /// The intended use-case is powering read-only code browsers and emitting LSIF/SCIP.
 #[derive(Debug)]
-pub struct StaticIndex<'a> {
+pub struct StaticIndex {
     pub files: Vec<StaticIndexedFile>,
     pub tokens: TokenStore,
-    analysis: &'a Analysis,
-    db: &'a RootDatabase,
-    def_map: FxHashMap<Definition<'a>, TokenId>,
 }
 
 #[derive(Debug)]
@@ -87,25 +93,28 @@ impl TokenId {
 }
 
 #[derive(Default, Debug)]
-pub struct TokenStore(Vec<TokenStaticData>);
+pub struct TokenStore {
+    data: DashMap<TokenId, TokenStaticData>,
+    last_index: AtomicUsize,
+}
 
 impl TokenStore {
-    pub fn insert(&mut self, data: TokenStaticData) -> TokenId {
-        let id = TokenId(self.0.len());
-        self.0.push(data);
+    pub fn insert(&self, data: TokenStaticData) -> TokenId {
+        let id = TokenId(self.last_index.fetch_add(1, Ordering::Relaxed));
+        self.data.insert(id, data);
         id
     }
 
-    pub fn get_mut(&mut self, id: TokenId) -> Option<&mut TokenStaticData> {
-        self.0.get_mut(id.0)
+    pub fn get_mut(&self, id: TokenId) -> Option<RefMut<'_, TokenId, TokenStaticData>> {
+        self.data.get_mut(&id)
     }
 
-    pub fn get(&self, id: TokenId) -> Option<&TokenStaticData> {
-        self.0.get(id.0)
+    pub fn get(&self, id: TokenId) -> Option<Ref<'_, TokenId, TokenStaticData>> {
+        self.data.get(&id)
     }
 
     pub fn iter(self) -> impl Iterator<Item = (TokenId, TokenStaticData)> {
-        self.0.into_iter().enumerate().map(|(id, data)| (TokenId(id), data))
+        self.data.into_iter()
     }
 }
 
@@ -164,45 +173,50 @@ pub enum VendoredLibrariesConfig<'a> {
     Excluded,
 }
 
-impl<'a> StaticIndex<'a> {
-    fn add_file(&mut self, file_id: FileId) {
-        let current_crate = crates_for(self.db, file_id).pop().map(Into::into);
-        let folds = self.analysis.folding_ranges(file_id, true).unwrap();
-        // hovers
-        let sema = hir::Semantics::new(self.db);
-        let root = sema.parse_guess_edition(file_id).syntax().clone();
-        let edition = sema.attach_first_edition(file_id).edition(sema.db);
-        let display_target = match sema.first_crate(file_id) {
-            Some(krate) => krate.to_display_target(sema.db),
-            None => return,
-        };
-        let tokens = root.descendants_with_tokens().filter_map(|it| match it {
-            syntax::NodeOrToken::Node(_) => None,
-            syntax::NodeOrToken::Token(it) => Some(it),
-        });
-        let hover_config = HoverConfig {
-            links_in_hover: true,
-            memory_layout: None,
-            documentation: true,
-            keywords: true,
-            format: crate::HoverDocFormat::Markdown,
-            max_trait_assoc_items_count: None,
-            max_fields_count: Some(5),
-            max_enum_variants_count: Some(5),
-            max_subst_ty_len: SubstTyLen::Unlimited,
-            show_drop_glue: true,
-            ra_fixture: RaFixtureConfig::default(),
-        };
-        let mut result = StaticIndexedFile { file_id, folds, tokens: vec![] };
+/// Computes the index for a single file identified by file_id.
+/// Note this doesn't return a single StaticIndexedFile but multiple because this also indexes include! expansions.
+fn index_file<'a>(
+    analysis: &'a Analysis,
+    token_store: &TokenStore,
+    def_map: &DashMap<Definition<'a>, TokenId>,
+    file_id: FileId,
+    with_folds: bool,
+    with_hover: bool,
+) -> FxHashMap<FileId, StaticIndexedFile> {
+    let db = &analysis.db;
 
-        let mut add_token = |def: Definition<'a>, range: TextRange, scope_node: &SyntaxNode| {
-            let id = if let Some(it) = self.def_map.get(&def) {
-                *it
-            } else {
+    let current_crate = crates_for(db, file_id).pop().map(Into::into);
+    let folds = if with_folds { analysis.folding_ranges(file_id, true).unwrap() } else { vec![] };
+    // hovers
+    let sema = hir::Semantics::new(db);
+    let root = sema.parse_guess_edition(file_id).syntax().clone();
+    let edition = sema.attach_first_edition(file_id).edition(sema.db);
+    let Some(krate) = sema.first_crate(file_id) else {
+        return Default::default();
+    };
+    let display_target = krate.to_display_target(sema.db);
+    let hover_config = HoverConfig {
+        links_in_hover: true,
+        memory_layout: None,
+        documentation: true,
+        keywords: true,
+        format: crate::HoverDocFormat::Markdown,
+        max_trait_assoc_items_count: None,
+        max_fields_count: Some(5),
+        max_enum_variants_count: Some(5),
+        max_subst_ty_len: SubstTyLen::Unlimited,
+        show_drop_glue: true,
+        ra_fixture: RaFixtureConfig::default(),
+    };
+    let mut result: FxHashMap<FileId, StaticIndexedFile> = Default::default();
+    result.insert(file_id, StaticIndexedFile { file_id, folds, tokens: vec![] });
+
+    let mut add_token =
+        |def: Definition<'a>, file_id: FileId, range: TextRange, scope_node: &SyntaxNode| {
+            let id = *def_map.entry(def).or_insert_with(|| {
                 let nav = def.try_to_nav(&sema).map(UpmappingResult::call_site);
-                let it = self.tokens.insert(TokenStaticData {
-                    documentation: documentation_for_definition(&sema, def, scope_node),
-                    hover: Some(hover_for_definition(
+                let hover = if with_hover {
+                    Some(hover_for_definition(
                         &sema,
                         file_id,
                         def,
@@ -213,7 +227,13 @@ impl<'a> StaticIndex<'a> {
                         &hover_config,
                         edition,
                         display_target,
-                    )),
+                    ))
+                } else {
+                    None
+                };
+                token_store.insert(TokenStaticData {
+                    documentation: documentation_for_definition(&sema, def, scope_node),
+                    hover,
                     definition: nav.as_ref().map(|it| FileRange {
                         file_id: it.file_id,
                         range: it.focus_or_full_range(),
@@ -223,17 +243,13 @@ impl<'a> StaticIndex<'a> {
                         range: definition_range_excluding_trivia(&sema, it.file_id, it.full_range),
                     }),
                     references: vec![],
-                    moniker: current_crate.and_then(|cc| def_to_moniker(self.db, def, cc)),
-                    display_name: def
-                        .name(self.db)
-                        .map(|name| name.display(self.db, edition).to_string()),
-                    signature: Some(def.label(self.db, display_target)),
-                    kind: def_to_kind(self.db, def),
-                });
-                self.def_map.insert(def, it);
-                it
-            };
-            let token = self.tokens.get_mut(id).unwrap();
+                    moniker: current_crate.and_then(|cc| def_to_moniker(db, def, cc)),
+                    display_name: def.name(db).map(|name| name.display(db, edition).to_string()),
+                    signature: Some(def.label(db, display_target)),
+                    kind: def_to_kind(db, def),
+                })
+            });
+            let mut token = token_store.get_mut(id).unwrap();
             token.references.push(ReferenceData {
                 range: FileRange { range, file_id },
                 is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
@@ -241,69 +257,168 @@ impl<'a> StaticIndex<'a> {
                     None => false,
                 },
             });
-            result.tokens.push((range, id));
+            result
+                .entry(file_id)
+                .or_insert_with(|| StaticIndexedFile { file_id, folds: vec![], tokens: vec![] })
+                .tokens
+                .push((range, id));
         };
 
-        if let Some(module) = sema.file_to_module_def(file_id) {
-            let def = Definition::Module(module);
-            let range = root.text_range();
-            add_token(def, range, &root);
-        }
-
-        for token in tokens {
-            let range = token.text_range();
-            let node = token.parent().unwrap();
-            match hir::attach_db(self.db, || get_definitions(&sema, token.clone())) {
-                Some(defs) => {
-                    for (def, _) in defs {
-                        add_token(def, range, &node);
-                    }
-                }
-                None => continue,
-            };
-        }
-        self.files.push(result);
+    if let Some(module) = sema.file_to_module_def(file_id) {
+        let def = Definition::Module(module);
+        let range = root.text_range();
+        add_token(def, file_id, range, &root);
     }
 
-    pub fn compute(
-        analysis: &'a Analysis,
-        vendored_libs_config: VendoredLibrariesConfig<'_>,
-    ) -> StaticIndex<'a> {
-        let db = &analysis.db;
-        hir::attach_db(db, || {
-            let work = all_modules(db).into_iter().filter(|module| {
-                let file_id = module.definition_source_file_id(db).original_file(db);
-                let source_root =
-                    db.file_source_root(file_id.file_id(&analysis.db)).source_root_id(db);
-                let source_root = db.source_root(source_root).source_root(db);
-                let is_vendored = match vendored_libs_config {
-                    VendoredLibrariesConfig::Included { workspace_root } => source_root
-                        .path_for_file(&file_id.file_id(&analysis.db))
-                        .is_some_and(|module_path| module_path.starts_with(workspace_root)),
-                    VendoredLibrariesConfig::Excluded => false,
-                };
+    // The loop below will traverse all macro expansions, but only record tokens from the current file and include! calls.
+    #[derive(PartialEq, Eq, Clone, Copy)]
+    enum RootKind {
+        OnlyTraverse,
+        RecordTokens,
+    }
 
-                !source_root.is_library || is_vendored
-            });
-            let mut this = StaticIndex {
-                files: vec![],
-                tokens: Default::default(),
-                analysis,
-                db,
-                def_map: Default::default(),
-            };
-            let mut visited_files = FxHashSet::default();
-            for module in work {
-                let file_id =
-                    module.definition_source_file_id(db).original_file(db).file_id(&analysis.db);
-                if visited_files.contains(&file_id) {
-                    continue;
+    let mut roots = VecDeque::from([(root, RootKind::RecordTokens)]);
+    while let Some((root, root_kind)) = roots.pop_front() {
+        for node_or_token in root.descendants_with_tokens() {
+            match node_or_token {
+                NodeOrToken::Token(token) => {
+                    if root_kind != RootKind::RecordTokens {
+                        continue;
+                    }
+
+                    let Some(node) = token.parent() else {
+                        continue;
+                    };
+                    let Some(defs) = hir::attach_db(db, || get_definitions(&sema, token.clone()))
+                    else {
+                        continue;
+                    };
+
+                    let file_range = InFile::new(sema.hir_file_for(&node), token.text_range())
+                        .original_node_file_range_rooted(db);
+
+                    for (def, _) in defs {
+                        let range = file_range.range;
+                        let file_id = file_range.file_id.file_id(db);
+                        add_token(def, file_id, range, &node);
+                    }
                 }
-                this.add_file(file_id);
-                visited_files.insert(file_id);
+
+                NodeOrToken::Node(node) => {
+                    let Some(macro_call) = ast::MacroCall::cast(node) else {
+                        continue;
+                    };
+                    let Some(macro_call) = sema.to_def(&macro_call) else {
+                        continue;
+                    };
+
+                    let expansion = sema.parse_or_expand(macro_call.into());
+                    let root_kind = if macro_call.is_include_macro(db) {
+                        RootKind::RecordTokens
+                    } else {
+                        RootKind::OnlyTraverse
+                    };
+                    roots.push_front((expansion, root_kind));
+                }
             }
-            this
-        })
+        }
+    }
+
+    result
+}
+
+impl StaticIndex {
+    pub fn compute(
+        analysis: &Analysis,
+        vendored_libs_config: VendoredLibrariesConfig<'_>,
+        num_threads: usize,
+        with_folds: bool,
+        with_hover: bool,
+    ) -> Self {
+        let db = &analysis.db;
+
+        let files_to_index = {
+            let mut files_to_index: Vec<_> = hir::attach_db(db, || {
+                let modules = all_modules(db).into_iter();
+
+                let modules_to_index = modules.filter(|module| {
+                    let file_id = module.definition_source_file_id(db).original_file(db);
+                    let source_root = db.file_source_root(file_id.file_id(db)).source_root_id(db);
+                    let source_root = db.source_root(source_root).source_root(db);
+                    let is_vendored = match vendored_libs_config {
+                        VendoredLibrariesConfig::Included { workspace_root } => source_root
+                            .path_for_file(&file_id.file_id(db))
+                            .is_some_and(|module_path| module_path.starts_with(workspace_root)),
+                        VendoredLibrariesConfig::Excluded => false,
+                    };
+
+                    !source_root.is_library || is_vendored
+                });
+
+                let files_to_index = modules_to_index.map(|module| {
+                    module.definition_source_file_id(db).original_file(db).file_id(db)
+                });
+
+                files_to_index.collect()
+            });
+            files_to_index.sort();
+            files_to_index.dedup();
+            files_to_index
+        };
+
+        // Because Analysis is not Sync, each thread needs to get exclusive access to its own Analysis clone.
+        // The Definitions which are used as keys in def_map inherit the lifetime of these Analysis clones, so analyses should live longer than def_map.
+        // NOTE this assumes that Definitions yielded from multiple untouched Analysis clones still compare equal.
+        let mut analyses: Vec<_> = (0..num_threads).map(|_| analysis.clone()).collect();
+
+        let def_map = Default::default();
+        let tokens = Default::default();
+        let files = std::thread::scope(|s| {
+            let threads: Vec<_> = analyses
+                .iter_mut()
+                .enumerate()
+                .map(|(thread_index, analysis)| {
+                    let files_to_index = files_to_index
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter(move |(index, _)| index % num_threads == thread_index)
+                        .map(|(_, file_id)| file_id);
+
+                    s.spawn(|| {
+                        let analysis = analysis;
+                        hir::attach_db(&analysis.db, || {
+                            files_to_index
+                                .into_iter()
+                                .flat_map(|file_id| {
+                                    index_file(
+                                        analysis, &tokens, &def_map, file_id, with_folds,
+                                        with_hover,
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                })
+                .collect();
+
+            let files_with_duplicates =
+                threads.into_iter().flat_map(|join_handle| join_handle.join().unwrap());
+
+            let mut result = FxHashMap::default();
+            for (file_id, mut file) in files_with_duplicates {
+                result
+                    .entry(file_id)
+                    .and_modify(|existing_file: &mut StaticIndexedFile| {
+                        existing_file.tokens.extend(std::mem::take(&mut file.tokens))
+                    })
+                    .or_insert(file);
+            }
+
+            result.into_values().collect()
+        });
+
+        StaticIndex { files, tokens }
     }
 }
 
@@ -373,7 +488,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1, false, false);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for f in s.files {
             for (range, _) in f.tokens {
@@ -399,7 +514,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1, false, false);
         let mut range_set: FxHashSet<_> = ranges.iter().map(|it| it.0).collect();
         for (_, t) in s.tokens.iter() {
             if let Some(t) = t.definition {
@@ -424,7 +539,7 @@ mod tests {
         vendored_libs_config: VendoredLibrariesConfig<'_>,
     ) {
         let (analysis, ranges) = fixture::annotations_without_marker(ra_fixture);
-        let s = StaticIndex::compute(&analysis, vendored_libs_config);
+        let s = StaticIndex::compute(&analysis, vendored_libs_config, 1, false, false);
         let mut range_set: FxHashMap<_, i32> = ranges.iter().map(|it| (it.0, 0)).collect();
 
         // Make sure that all references have at least one range. We use a HashMap instead of a
