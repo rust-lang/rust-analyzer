@@ -28,21 +28,26 @@ use crate::{
 };
 use base_db::AnchoredPathBuf;
 use either::Either;
-use hir::{FieldSource, FileRange, HasCrate, InFile, ModuleSource, Name, Semantics, sym};
+use hir::{
+    FieldSource, FileRange, HasCrate, InFile, ModPath, ModuleSource, Name, PathKind, Semantics,
+    sym,
+};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use span::{Edition, FileId, SyntaxContext};
 use stdx::{TupleExt, never};
 use syntax::{
-    AstNode, SyntaxKind, T, TextRange,
-    ast::{self, HasName},
+    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, T, TextRange, TextSize,
+    ast::{self, HasAttrs, HasName, HasVisibility},
+    syntax_editor::{Position, Removable, SyntaxEditor},
 };
 
 use crate::{
     RootDatabase,
     defs::Definition,
+    helpers::mod_path_to_ast_with_factory,
     search::{FileReference, FileReferenceNode},
-    source_change::{FileSystemEdit, SourceChange},
+    source_change::{FileSystemEdit, SourceChange, SourceChangeBuilder},
     syntax_helpers::node_ext::expr_as_name_ref,
     traits::convert_to_def_in_trait,
 };
@@ -343,6 +348,341 @@ fn rename_mod(
     source_change.extend(ref_edits);
 
     Ok(source_change)
+}
+
+/// Emits text edits only; the caller moves the file.
+///
+/// Unlike [`rename_mod`], which flips a single name token, a move changes the
+/// module's whole path, so references are spliced against freshly computed
+/// segments — HIR still describes the pre-move tree.
+pub fn move_mod(
+    sema: &Semantics<'_, RootDatabase>,
+    module: hir::Module,
+    new_parent: hir::Module,
+    new_leaf: &str,
+) -> Result<SourceChange> {
+    let db = sema.db;
+
+    if module.is_crate_root(db) {
+        bail!("Cannot move the crate root");
+    }
+
+    let InFile { file_id: def_file, .. } = module.definition_source(db);
+    let edition = def_file.edition(db);
+    let (new_leaf_name, kind) = IdentifierKind::classify(edition, new_leaf)?;
+    if kind != IdentifierKind::Ident {
+        bail!("Invalid name `{new_leaf}`: cannot name a module this way");
+    }
+
+    let old_segs: Vec<Name> = module.path_segments(db).collect();
+    let mut new_segs: Vec<Name> = new_parent.path_segments(db).collect();
+    new_segs.push(new_leaf_name.clone());
+
+    let decl = module
+        .declaration_source(db)
+        .ok_or_else(|| format_err!("module has no `mod …;` declaration"))?;
+    let decl_file = decl.file_id.original_file(db).file_id(db);
+    let new_parent_def = new_parent.definition_source(db);
+    let new_parent_file = new_parent_def.file_id.original_file(db).file_id(db);
+    if matches!(new_parent_def.value, ModuleSource::BlockExpr(_)) {
+        bail!("Cannot move a module into a block");
+    }
+
+    let mut builder = SourceChangeBuilder::new(decl_file);
+
+    let relocated = relocated_declaration(&decl.value, &new_leaf_name, db, edition);
+
+    let decl_editor = builder.make_editor(decl.value.syntax());
+    decl.value.remove(&decl_editor);
+    builder.add_file_edits(decl_file, decl_editor);
+
+    let parent_node = match &new_parent_def.value {
+        ModuleSource::SourceFile(sf) => sf.syntax().clone(),
+        ModuleSource::Module(m) => m
+            .item_list()
+            .ok_or_else(|| format_err!("new parent module has no item list"))?
+            .syntax()
+            .clone(),
+        ModuleSource::BlockExpr(_) => unreachable!("rejected above"),
+    };
+    let parent_editor = builder.make_editor(&parent_node);
+    parent_editor.insert_all(
+        Position::last_child_of(&parent_node),
+        vec![relocated.syntax().clone().into(), parent_editor.make().whitespace("\n").into()],
+    );
+    builder.add_file_edits(new_parent_file, parent_editor);
+
+    let def = Definition::Module(module);
+    let moved_crate = module.krate(db);
+    let usages = def.usages(sema).all();
+    for (file_id, references) in usages.iter() {
+        let edition = file_id.edition(db);
+        let prefix = crate_root_prefix_for(sema, file_id.file_id(db), moved_crate, db);
+        let source_file = sema.parse(file_id);
+        let editor = builder.make_editor(source_file.syntax());
+        rewrite_references_for_move(references, &new_segs, prefix.as_ref(), &editor, db, edition);
+        builder.add_file_edits(file_id.file_id(db), editor);
+    }
+
+    // Disjoint from the rewrites above, which target references *to* the moved
+    // module — something a `super::` written inside it can never be.
+    let def_src = module.definition_source(db);
+    let moved_file_id = def_src.file_id.original_file(db).file_id(db);
+    let moved_node = def_src.value.node();
+    let super_editor = builder.make_editor(&moved_node);
+    reanchor_super_in_moved_file(&moved_node, &old_segs, &super_editor, edition);
+    builder.add_file_edits(moved_file_id, super_editor);
+
+    Ok(builder.finish())
+}
+
+/// Cloning the node, rather than re-printing `mod <leaf>;`, keeps visibility,
+/// attributes and doc comments.
+fn relocated_declaration(
+    decl: &ast::Module,
+    new_leaf: &Name,
+    db: &RootDatabase,
+    edition: Edition,
+) -> ast::Module {
+    let (editor, decl) = SyntaxEditor::with_ast_node(decl);
+    if let Some(name) = decl.name() {
+        let renamed = editor.make().name(&new_leaf.display(db, edition).to_string());
+        editor.replace(name.syntax(), renamed.syntax());
+    }
+    ast::Module::cast(editor.finish().new_root().clone()).unwrap()
+}
+
+/// `None` for a same-crate reference, else the extern crate name `ref_file`'s
+/// crate depends on it under (which honours `package = "…"` renames).
+fn crate_root_prefix_for(
+    sema: &Semantics<'_, RootDatabase>,
+    ref_file: FileId,
+    moved_crate: hir::Crate,
+    db: &RootDatabase,
+) -> Option<Name> {
+    let ref_crate = sema.file_to_module_def(ref_file)?.krate(db);
+    if ref_crate == moved_crate {
+        return None;
+    }
+    ref_crate.dependencies(db).into_iter().find(|dep| dep.krate == moved_crate).map(|dep| dep.name)
+}
+
+/// As spelled from a referencing file: `crate::…` inside the same crate, else
+/// `<extern crate>::…`.
+fn abs_mod_path(new_segs: &[Name], extern_prefix: Option<&Name>) -> ModPath {
+    match extern_prefix {
+        None => ModPath::from_segments(PathKind::Crate, new_segs.iter().cloned()),
+        Some(krate) => ModPath::from_segments(
+            PathKind::Plain,
+            std::iter::once(krate.clone()).chain(new_segs.iter().cloned()),
+        ),
+    }
+}
+
+/// By path prefix rather than name token: a qualified reference has its leading
+/// path replaced wholesale, a bare one only its leaf, and only if it changed.
+fn rewrite_references_for_move(
+    references: &[FileReference],
+    new_segs: &[Name],
+    extern_prefix: Option<&Name>,
+    editor: &SyntaxEditor,
+    db: &RootDatabase,
+    edition: Edition,
+) {
+    let make = editor.make();
+    // A `ModPath`, not a node: a node cannot be inserted into the tree twice, so
+    // every splice site renders its own.
+    let new_abs = abs_mod_path(new_segs, extern_prefix);
+    // `new_segs` is a path to the moved module, so it always ends in that module's own
+    // name. Defaulting to "" here would silently splice in a malformed path instead.
+    let new_leaf = new_segs
+        .last()
+        .expect("path to the moved module cannot be empty")
+        .display(db, edition)
+        .to_string();
+
+    let mut edited_ranges: Vec<TextSize> = Vec::new();
+    // Bucketed by enclosing `use`: rewriting `use a::{m::X, m::Y}` member-by-member
+    // would split out the first and leave the second pointing at a vanished `a::m`.
+    let mut use_groups: Vec<(ast::Use, Vec<(ast::UseTree, ast::Path)>)> = Vec::new();
+    for FileReference { range, name, .. } in references {
+        if edited_ranges.contains(&range.start()) {
+            continue;
+        }
+        let Some(name_ref) = name.as_name_ref() else { continue };
+        // A macro-expanded reference has a differing node/range — can't splice safely.
+        if name_ref.syntax().text_range() != *range {
+            continue;
+        }
+        let Some(segment) = name_ref.syntax().parent().and_then(ast::PathSegment::cast) else {
+            continue;
+        };
+        // Keyword-anchored references are relative and only reachable from inside
+        // the moved subtree, which travels along — rewriting them would corrupt.
+        if matches!(
+            segment.kind(),
+            Some(
+                ast::PathSegmentKind::SuperKw
+                    | ast::PathSegmentKind::SelfKw
+                    | ast::PathSegmentKind::CrateKw
+                    | ast::PathSegmentKind::SelfTypeKw
+            )
+        ) {
+            continue;
+        }
+        let Some(path) = segment.syntax().parent().and_then(ast::Path::cast) else { continue };
+        // In `use a::{m, n}` the member's real prefix lives on an outer `UseTree`,
+        // so it can't be rewritten in place — defer to the whole-group pass below.
+        let in_use_group =
+            name_ref.syntax().ancestors().any(|it| ast::UseTreeList::can_cast(it.kind()));
+        if in_use_group {
+            if let Some(member) = name_ref.syntax().ancestors().find_map(ast::UseTree::cast)
+                && let Some(use_item) = member.syntax().ancestors().find_map(ast::Use::cast)
+            {
+                let ur = use_item.syntax().text_range();
+                match use_groups.iter_mut().find(|(u, _)| u.syntax().text_range() == ur) {
+                    Some((_, members)) => members.push((member, path)),
+                    None => use_groups.push((use_item, vec![(member, path)])),
+                }
+                edited_ranges.push(range.start());
+            }
+            continue;
+        }
+        if path.qualifier().is_some() {
+            let new_path = mod_path_to_ast_with_factory(make, &new_abs, edition);
+            editor.replace(path.syntax(), new_path.syntax());
+            edited_ranges.push(range.start());
+        } else if name_ref.text().as_str() != new_leaf {
+            editor.replace(name_ref.syntax(), make.name_ref(&new_leaf).syntax());
+            edited_ranges.push(range.start());
+        }
+    }
+    for (use_item, members) in &use_groups {
+        rewrite_use_group_for_move(use_item, members, &new_abs, editor, edition);
+    }
+}
+
+/// Each member importing through the moved module becomes its own
+/// `use <new_abs><tail>;`, with the tail copied verbatim.
+fn rewrite_use_group_for_move(
+    use_item: &ast::Use,
+    members: &[(ast::UseTree, ast::Path)],
+    new_abs: &ModPath,
+    editor: &SyntaxEditor,
+    edition: Edition,
+) {
+    let make = editor.make();
+
+    let mut extracted: Vec<(TextSize, ast::Use)> = members
+        .iter()
+        .map(|(member, path_to_module)| {
+            let mut path = mod_path_to_ast_with_factory(make, new_abs, edition);
+            for segment in segments_after(member.path().as_ref(), path_to_module) {
+                path = make.path_qualified(path, segment);
+            }
+            let tree = make.use_tree(
+                path,
+                member.use_tree_list(),
+                member.rename(),
+                member.star_token().is_some(),
+            );
+            let new_use = make.use_(use_item.attrs(), use_item.visibility(), tree);
+            (member.syntax().text_range().start(), new_use)
+        })
+        .collect();
+    extracted.sort_by_key(|(pos, _)| *pos);
+
+    let mut elements: Vec<SyntaxElement> = Vec::new();
+    for (i, (_, new_use)) in extracted.iter().enumerate() {
+        if i > 0 {
+            elements.push(make.whitespace("\n").into());
+        }
+        elements.push(new_use.syntax().clone().into());
+    }
+
+    // An all-moved list would be left as an empty `{}`, so swap the whole `use` out.
+    let emptied = use_item.use_tree().and_then(|it| it.use_tree_list()).is_some_and(|top| {
+        let moved_from_top = members
+            .iter()
+            .filter(|(member, _)| {
+                member.syntax().parent().and_then(ast::UseTreeList::cast).as_ref() == Some(&top)
+            })
+            .count();
+        moved_from_top == top.use_trees().count()
+    });
+    if emptied {
+        editor.replace_with_many(use_item.syntax(), elements);
+        return;
+    }
+
+    for (member, _) in members {
+        member.remove(editor);
+    }
+    editor.insert_all_with_whitespace(Position::before(use_item.syntax()), elements);
+}
+
+/// Segments of `path` that follow `prefix`, in source order.
+fn segments_after(path: Option<&ast::Path>, prefix: &ast::Path) -> Vec<ast::PathSegment> {
+    let mut segments = Vec::new();
+    let mut current = path.cloned();
+    while let Some(path) = current {
+        if path.syntax().text_range() == prefix.syntax().text_range() {
+            break;
+        }
+        if let Some(segment) = path.segment() {
+            segments.push(segment);
+        }
+        current = path.qualifier();
+    }
+    segments.reverse();
+    segments
+}
+
+/// A run of `k` supers denotes `old_segs` minus its last `k` segments. Only the
+/// leading run is rewritten, so the splice stops before the `{` of a grouped
+/// `use super::{a, b}` and cannot corrupt it.
+fn reanchor_super_in_moved_file(
+    moved_node: &SyntaxNode,
+    old_segs: &[Name],
+    editor: &SyntaxEditor,
+    edition: Edition,
+) {
+    for path in moved_node.descendants().filter_map(ast::Path::cast) {
+        if path.segment().and_then(|s| s.kind()) != Some(ast::PathSegmentKind::SuperKw) {
+            continue;
+        }
+        // Handle each run once, at its top: a `super` parent means a longer run.
+        if let Some(parent) = path.syntax().parent().and_then(ast::Path::cast)
+            && parent.segment().and_then(|s| s.kind()) == Some(ast::PathSegmentKind::SuperKw)
+        {
+            continue;
+        }
+        // Inside an inline module `super` is relative to it, not to the file.
+        if path.syntax().ancestors().any(|n| ast::Module::can_cast(n.kind())) {
+            continue;
+        }
+        // `pub(super)` has no `in`, so it cannot take a `crate::…` path.
+        if path.syntax().ancestors().any(|n| ast::Visibility::can_cast(n.kind())) {
+            continue;
+        }
+        let mut k = 0usize;
+        let mut cur = Some(path.clone());
+        while let Some(p) = cur {
+            if p.segment().and_then(|s| s.kind()) == Some(ast::PathSegmentKind::SuperKw) {
+                k += 1;
+                cur = p.qualifier();
+            } else {
+                cur = None;
+            }
+        }
+        if k == 0 || k > old_segs.len() {
+            continue;
+        }
+        let modprefix = &old_segs[..old_segs.len() - k];
+        let replacement =
+            mod_path_to_ast_with_factory(editor.make(), &abs_mod_path(modprefix, None), edition);
+        editor.replace(path.syntax(), replacement.syntax());
+    }
 }
 
 fn rename_reference<'db>(

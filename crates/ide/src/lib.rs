@@ -881,6 +881,18 @@ impl Analysis {
         self.with_db(|db| rename::will_rename_file(db, file_id, new_name_stem, config))
     }
 
+    /// Move a module under a new parent, given by its crate-relative segments
+    /// (`[]` = crate root). Unlike [`Self::will_rename_file`], this handles moves
+    /// across module parents.
+    pub fn will_move_module(
+        &self,
+        file_id: FileId,
+        new_parent_segments: &[String],
+        new_leaf: &str,
+    ) -> Cancellable<Option<SourceChange>> {
+        self.with_db(|db| rename::will_move_module(db, file_id, new_parent_segments, new_leaf))
+    }
+
     pub fn structural_search_replace(
         &self,
         query: &str,
