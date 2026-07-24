@@ -88,8 +88,30 @@ pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_, 
                 editor.replace(element, make.whitespace(" "));
             }
 
+            // Like `pat if cond => true` -> `pat => cond`
+            let bool_like = match arm_expr.to_string().as_str() {
+                "true" => Some(false),
+                "false" => Some(true),
+                _ => None,
+            };
+            if let Some(invert) = bool_like
+                && let Some(mut condition) = guard.condition()
+                && !ide_db::syntax_helpers::node_ext::is_pattern_cond(condition.clone())
+                && rest_arms.len() <= 1
+                && rest_arms.first().is_none_or(|it| {
+                    it.guard().is_none()
+                        && it.expr().is_some_and(|it| it.to_string() == invert.to_string())
+                })
+            {
+                if invert {
+                    condition = crate::utils::invert_boolean_expression(&make, condition);
+                }
+                editor.replace(arm_expr.syntax(), condition.syntax());
+            } else {
+                editor.replace(arm_expr.syntax(), if_expr.syntax());
+            }
+
             editor.delete(guard.syntax());
-            editor.replace(arm_expr.syntax(), if_expr.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
@@ -362,6 +384,31 @@ fn main() {
             r#"
 fn main() {
     match 92 {
+        x $0if x > 10 => 1,
+        _ => 2
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 92 {
+        x => if x > 10 {
+            1
+        },
+        _ => 2
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn move_guard_to_bool_arm_body_works() {
+        check_assist(
+            move_guard_to_arm_body,
+            r#"
+fn main() {
+    match 92 {
         x $0if x > 10 => false,
         _ => true
     }
@@ -370,9 +417,7 @@ fn main() {
             r#"
 fn main() {
     match 92 {
-        x => if x > 10 {
-            false
-        },
+        x => x <= 10,
         _ => true
     }
 }
@@ -451,9 +496,7 @@ fn main() {
 fn main() {
     match 92 {
         x @ 0..30 if x % 3 == 0 => false,
-        x @ 0..30 => if x % 2 == 0 {
-            true
-        },
+        x @ 0..30 => x % 2 == 0,
         x @ 0..30 => false,
         _ => true
     }
@@ -595,9 +638,7 @@ fn main() {
             r#"
 fn main() {
     match 92 {
-        x @ 4 | x @ 5 => if x > 5 {
-            true
-        },
+        x @ 4 | x @ 5 => x > 5,
         _ => false
     }
 }
