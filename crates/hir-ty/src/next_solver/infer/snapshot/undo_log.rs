@@ -3,8 +3,10 @@
 use ena::snapshot_vec as sv;
 use ena::undo_log::{Rollback, UndoLogs};
 use ena::unify as ut;
+use rustc_type_ir::ConstVid;
 use rustc_type_ir::FloatVid;
 use rustc_type_ir::IntVid;
+use rustc_type_ir::TyVid;
 use tracing::debug;
 
 use crate::next_solver::OpaqueTypeKey;
@@ -12,6 +14,60 @@ use crate::next_solver::infer::opaque_types::OpaqueHiddenType;
 use crate::next_solver::infer::unify_key::ConstVidKey;
 use crate::next_solver::infer::unify_key::RegionVidKey;
 use crate::next_solver::infer::{InferCtxtInner, region_constraints, type_variable};
+
+/// Identifies something a `FulfillmentCtxt` obligation can be stalled on: a specific inference
+/// variable, or the opaque type storage as a whole (mirroring `GoalStalledOn::num_opaques`,
+/// which isn't tied to any single variable).
+///
+/// Used both to index a parked obligation under the variables it is blocked on and, via
+/// [`InferCtxtUndoLogs::changed_vars`], to report which of those have potentially changed, so
+/// the obligation can be woken without re-scanning everything that's still genuinely stalled.
+///
+/// Variable keys always refer to the *unification root* at the time the key was created: `ena`
+/// applies value changes to root slots, and a union touches both involved roots, so an event
+/// stream keyed by root indices is complete as long as watchers re-normalize their keys
+/// whenever they are woken (a union wakes the old root's watchers, which then re-register
+/// under the new root).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum StalledVarKey {
+    /// The `eq_relations` slot of this type variable changed (unified or instantiated).
+    Ty(TyVid),
+    /// The `sub_unification_table` slot of this type variable changed.
+    TySubRoot(TyVid),
+    Int(IntVid),
+    Float(FloatVid),
+    Const(ConstVid),
+    /// The opaque type storage changed (an opaque type was registered, replaced, or drained).
+    Opaques,
+}
+
+/// Best-effort extraction of the variable a given undo entry pertains to. Only entries that
+/// represent a *value* changing (`SetElem`) carry a meaningful variable identity: `NewElem`
+/// (a fresh, still-unconstrained variable was created) cannot wake anything, because no
+/// obligation can have been registered as stalled on a variable that didn't exist yet.
+fn changed_var_key(undo: &UndoLog<'_>) -> Option<StalledVarKey> {
+    match undo {
+        UndoLog::TypeVariables(type_variable::UndoLog::EqRelation(sv::UndoLog::SetElem(
+            idx,
+            _,
+        ))) => Some(StalledVarKey::Ty(TyVid::from_u32(*idx as u32))),
+        UndoLog::TypeVariables(type_variable::UndoLog::SubRelation(sv::UndoLog::SetElem(
+            idx,
+            _,
+        ))) => Some(StalledVarKey::TySubRoot(TyVid::from_u32(*idx as u32))),
+        UndoLog::IntUnificationTable(sv::UndoLog::SetElem(idx, _)) => {
+            Some(StalledVarKey::Int(IntVid::from_u32(*idx as u32)))
+        }
+        UndoLog::FloatUnificationTable(sv::UndoLog::SetElem(idx, _)) => {
+            Some(StalledVarKey::Float(FloatVid::from_u32(*idx as u32)))
+        }
+        UndoLog::ConstUnificationTable(sv::UndoLog::SetElem(idx, _)) => {
+            Some(StalledVarKey::Const(ConstVid::from_u32(*idx as u32)))
+        }
+        UndoLog::OpaqueTypes(..) | UndoLog::DuplicateOpaqueType => Some(StalledVarKey::Opaques),
+        _ => None,
+    }
+}
 
 pub struct Snapshot {
     pub(crate) undo_len: usize,
@@ -93,6 +149,16 @@ impl<'db> Rollback<UndoLog<'db>> for InferCtxtInner<'db> {
 pub(crate) struct InferCtxtUndoLogs<'db> {
     logs: Vec<UndoLog<'db>>,
     num_open_snapshots: usize,
+    /// Variables observed to have (potentially) changed, for waking `FulfillmentCtxt`
+    /// obligations that were parked on them.
+    ///
+    /// Unlike `logs`, this is appended to unconditionally, not just while a snapshot is open,
+    /// and it is never truncated by rollback: over-reporting a variable as changed (e.g. one
+    /// whose change was later rolled back, or a mere path-compression write) only causes an
+    /// obligation to be needlessly re-checked, never a missed wake-up. Consumers each keep a
+    /// cursor into this log (see `FulfillmentCtxt`) rather than draining it, so several
+    /// consumers can share one infer context without stealing each other's wake signals.
+    changed_vars: Vec<StalledVarKey>,
 }
 
 /// The UndoLogs trait defines how we undo a particular kind of action (of type T). We can undo any
@@ -106,27 +172,37 @@ where
         self.num_open_snapshots
     }
 
+    /// Deliberately claims a snapshot is always open. `ena`'s mutation methods
+    /// (`SnapshotVec::{set, update}` and everything in `unify` built on them) consult this
+    /// *before* calling [`Self::push`] and skip the call entirely when it returns false, which
+    /// would make `changed_vars` silently miss every mutation performed while no snapshot is
+    /// open. Answering `true` routes all mutations through `push`/`extend`, which record the
+    /// changed variable unconditionally and store the actual undo entry only when a snapshot
+    /// is really open (`num_open_snapshots > 0`), preserving the original rollback behavior.
+    #[inline]
+    fn in_snapshot(&self) -> bool {
+        true
+    }
+
     #[inline]
     fn push(&mut self, undo: T) {
-        if self.in_snapshot() {
-            self.logs.push(undo.into())
+        let undo = undo.into();
+        if let Some(key) = changed_var_key(&undo) {
+            self.changed_vars.push(key);
+        }
+        if self.num_open_snapshots > 0 {
+            self.logs.push(undo)
         }
     }
 
     fn clear(&mut self) {
+        // Note that `changed_vars` is intentionally left alone: it is append-only for the
+        // lifetime of the infer context so that consumer cursors stay valid.
         self.logs.clear();
         self.num_open_snapshots = 0;
     }
 
-    fn extend<J>(&mut self, undos: J)
-    where
-        Self: Sized,
-        J: IntoIterator<Item = T>,
-    {
-        if self.in_snapshot() {
-            self.logs.extend(undos.into_iter().map(UndoLog::from))
-        }
-    }
+    // `extend` is left at its provided default, which forwards to `push` element-wise.
 }
 
 impl<'db> InferCtxtInner<'db> {
@@ -166,6 +242,13 @@ impl<'db> InferCtxtInner<'db> {
 }
 
 impl<'db> InferCtxtUndoLogs<'db> {
+    /// Whether a snapshot is really open. This inherent method shadows the
+    /// [`UndoLogs::in_snapshot`] trait method, which deliberately always answers `true` (see
+    /// the trait impl above for why); anything wanting the real state must call this one.
+    pub(crate) fn in_snapshot(&self) -> bool {
+        self.num_open_snapshots > 0
+    }
+
     pub(crate) fn start_snapshot(&mut self) -> Snapshot {
         self.num_open_snapshots += 1;
         Snapshot { undo_len: self.logs.len() }
@@ -189,6 +272,27 @@ impl<'db> InferCtxtUndoLogs<'db> {
         // Failures here may indicate a failure to follow a stack discipline.
         assert!(self.logs.len() >= snapshot.undo_len);
         assert!(self.num_open_snapshots > 0);
+    }
+
+    /// The current length of the changed-variables log. Positions before this are in the past;
+    /// a consumer that has processed everything up to `len` can later ask for
+    /// [`Self::changed_vars_since`] that position to see only what changed in between.
+    pub(crate) fn changed_vars_len(&self) -> usize {
+        self.changed_vars.len()
+    }
+
+    /// The variables that (potentially) changed since `cursor`, a position previously obtained
+    /// from [`Self::changed_vars_len`]. The log is append-only, so this is stable across
+    /// snapshots, rollbacks, and other consumers reading their own cursors.
+    pub(crate) fn changed_vars_since(&self, cursor: usize) -> &[StalledVarKey] {
+        &self.changed_vars[cursor.min(self.changed_vars.len())..]
+    }
+
+    /// Records an opaque-type-storage change that doesn't go through the undo machinery
+    /// (draining the storage via `take_opaque_types` shrinks the entry count without pushing
+    /// any undo entry).
+    pub(crate) fn mark_opaques_changed(&mut self) {
+        self.changed_vars.push(StalledVarKey::Opaques);
     }
 }
 

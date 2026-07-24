@@ -168,4 +168,15 @@ impl<'a, 'db> OpaqueTypeTable<'a, 'db> {
         self.storage.duplicate_entries.push((key, hidden_type));
         self.undo_log.push(UndoLog::DuplicateOpaqueType);
     }
+
+    pub(crate) fn take_opaque_types(
+        &mut self,
+    ) -> impl IntoIterator<Item = (OpaqueTypeKey<'db>, OpaqueHiddenType<'db>)> + use<'db> {
+        if !self.storage.is_empty() {
+            // Draining the storage shrinks the entry count without going through the undo
+            // machinery; record it so obligations stalled on the opaque count get rechecked.
+            self.undo_log.mark_opaques_changed();
+        }
+        self.storage.take_opaque_types()
+    }
 }
