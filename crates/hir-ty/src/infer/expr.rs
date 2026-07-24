@@ -1105,7 +1105,11 @@ impl<'db> InferenceContext<'db> {
                     }
                 }
                 if !missing_mandatory_fields.is_empty() {
-                    // FIXME: Emit an error: missing fields.
+                    self.push_diagnostic(InferenceDiagnostic::MissingFields {
+                        expr,
+                        fields: missing_mandatory_fields,
+                        variant,
+                    });
                 }
             }
             RecordSpread::Expr(base_expr) => {
@@ -1197,7 +1201,13 @@ impl<'db> InferenceContext<'db> {
                 {
                     debug!(?remaining_fields);
 
-                    // FIXME: Emit an error: missing fields.
+                    let missing_fields = remaining_fields.values().copied().collect();
+
+                    self.push_diagnostic(InferenceDiagnostic::MissingFields {
+                        expr,
+                        fields: missing_fields,
+                        variant,
+                    });
                 }
             }
         }
