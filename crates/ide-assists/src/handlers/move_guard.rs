@@ -384,6 +384,31 @@ fn main() {
             r#"
 fn main() {
     match 92 {
+        x $0if x > 10 => 1,
+        _ => 2
+    }
+}
+"#,
+            r#"
+fn main() {
+    match 92 {
+        x => if x > 10 {
+            1
+        },
+        _ => 2
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn move_guard_to_bool_arm_body_works() {
+        check_assist(
+            move_guard_to_arm_body,
+            r#"
+fn main() {
+    match 92 {
         x $0if x > 10 => false,
         _ => true
     }
@@ -392,9 +417,7 @@ fn main() {
             r#"
 fn main() {
     match 92 {
-        x => if x > 10 {
-            false
-        },
+        x => x <= 10,
         _ => true
     }
 }
@@ -473,9 +496,7 @@ fn main() {
 fn main() {
     match 92 {
         x @ 0..30 if x % 3 == 0 => false,
-        x @ 0..30 => if x % 2 == 0 {
-            true
-        },
+        x @ 0..30 => x % 2 == 0,
         x @ 0..30 => false,
         _ => true
     }
@@ -617,9 +638,7 @@ fn main() {
             r#"
 fn main() {
     match 92 {
-        x @ 4 | x @ 5 => if x > 5 {
-            true
-        },
+        x @ 4 | x @ 5 => x > 5,
         _ => false
     }
 }
