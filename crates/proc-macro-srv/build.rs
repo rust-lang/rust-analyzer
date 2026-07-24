@@ -1,6 +1,8 @@
 //! Determine rustc version `proc-macro-srv` (and thus the sysroot ABI) is
 //! build with and make it accessible at runtime for ABI selection.
 
+#![allow(clippy::disallowed_types, reason = "this is a build script")]
+
 use std::{env, process::Command};
 
 fn main() {

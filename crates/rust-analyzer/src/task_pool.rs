@@ -43,6 +43,10 @@ impl<T> TaskPool<T> {
     pub(crate) fn is_empty(&self) -> bool {
         self.pool.is_empty()
     }
+
+    pub(crate) fn cancel_and_taint(&mut self) {
+        self.pool.cancel_and_taint();
+    }
 }
 
 /// `DeferredTaskQueue` holds deferred tasks.

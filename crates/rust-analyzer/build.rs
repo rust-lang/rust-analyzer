@@ -1,5 +1,7 @@
 //! Construct version in the `commit-hash date channel` format
 
+#![allow(clippy::disallowed_types, reason = "this is a build script")]
+
 use std::{env, path::PathBuf, process::Command};
 
 fn main() {

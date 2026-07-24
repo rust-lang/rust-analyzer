@@ -2533,7 +2533,7 @@ fn run_rustfmt(
             .spawn()
             .context(format!("Failed to spawn {command:?}"))?;
 
-        rustfmt.stdin.as_mut().unwrap().write_all(file.as_bytes())?;
+        rustfmt.stdin().unwrap().write_all(file.as_bytes())?;
 
         rustfmt.wait_with_output()?
     };
