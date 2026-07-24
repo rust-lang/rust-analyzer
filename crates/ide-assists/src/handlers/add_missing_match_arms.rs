@@ -140,11 +140,11 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
             .iter()
             .any(|enum_def| enum_def.is_non_exhaustive(ctx.db(), module.krate(ctx.db())));
 
-        let mut n_arms = 1;
+        let mut n_arms = Some(1usize);
         let variants_of_enums: Vec<Vec<ExtendedVariant>> = enum_defs
             .into_iter()
             .map(|enum_def| enum_def.variants(ctx.db()))
-            .inspect(|variants| n_arms *= variants.len())
+            .inspect(|variants| n_arms = n_arms.and_then(|n| n.checked_mul(variants.len())))
             .collect();
 
         // When calculating the match arms for a tuple of enums, we want
@@ -155,7 +155,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
 
         // A number of arms grows very fast on even a small tuple of large enums.
         // We skip the assist beyond an arbitrary threshold.
-        if n_arms > 256 {
+        if n_arms.is_none_or(|n_arms| n_arms > 256) {
             return None;
         }
 
@@ -187,7 +187,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, 
         let is_non_exhaustive = enum_def.is_non_exhaustive(ctx.db(), module.krate(ctx.db()));
         let variants = enum_def.variants(ctx.db());
 
-        if len.pow(variants.len() as u32) > 256 {
+        if len > 256 || variants.len().checked_pow(len as u32).is_none_or(|n_arms| n_arms > 256) {
             return None;
         }
 
@@ -1855,6 +1855,79 @@ fn foo(t: Test) {
 enum A { One, Two, }
 fn foo(tuple: (A, A)) {
     match $0tuple {};
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn array_of_enum_too_many_arms() {
+        // 2^9 = 512 missing arms exceed the limit of 256.
+        check_assist_not_applicable(
+            add_missing_match_arms,
+            r#"
+fn foo(x: [bool; 9]) {
+    match x$0 {}
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn array_of_enum_arm_count_within_limit() {
+        // 9^2 = 81 missing arms are within the limit of 256.
+        check_assist_target(
+            add_missing_match_arms,
+            r#"
+enum E { V0, V1, V2, V3, V4, V5, V6, V7, V8 }
+fn foo(x: [E; 2]) {
+    match x$0 {}
+}
+"#,
+            "match x {}",
+        );
+    }
+
+    #[test]
+    fn array_of_single_variant_enum_with_large_len() {
+        // Only 1^257 = 1 missing arm, but its pattern would have 257 elements,
+        // one more than the limit.
+        check_assist_not_applicable(
+            add_missing_match_arms,
+            r#"
+enum U { A }
+fn foo(x: [U; 257]) {
+    match x$0 {}
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn array_of_single_variant_enum_at_len_limit() {
+        // 256 is the last length the assist accepts.
+        check_assist_target(
+            add_missing_match_arms,
+            r#"
+enum U { A }
+fn foo(x: [U; 256]) {
+    match x$0 {}
+}
+"#,
+            "match x {}",
+        );
+    }
+
+    #[test]
+    fn tuple_of_enum_arm_count_overflow() {
+        // The number of missing arms (16^16 = 2^64) overflows `usize`; the assist
+        // must skip instead of overflowing while counting the arms.
+        check_assist_not_applicable(
+            add_missing_match_arms,
+            r#"
+enum E { V00, V01, V02, V03, V04, V05, V06, V07, V08, V09, V10, V11, V12, V13, V14, V15 }
+fn foo(x: (E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E)) {
+    match x$0 {}
 }
 "#,
         );
