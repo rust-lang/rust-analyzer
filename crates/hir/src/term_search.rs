@@ -87,35 +87,76 @@ impl<'db> AlternativeExprs<'db> {
 /// iteration as well as keeping track of which `ScopeDef` items have been used.
 /// Both of them are to speed up the term search by leaving out types / ScopeDefs that likely do
 /// not produce any new results.
-#[derive(Default, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct SearchType<'db>(Type<'db>);
+
+impl<'db> SearchType<'db> {
+    fn new(db: &'db dyn HirDatabase, goal: &Type<'db>, ty: &Type<'db>) -> Self {
+        let ty = ty.rebase_into_or_error(db, goal);
+        debug_assert_eq!(ty.owner, goal.owner);
+        Self(ty)
+    }
+
+    fn as_type(&self) -> &Type<'db> {
+        &self.0
+    }
+
+    fn into_type(self) -> Type<'db> {
+        self.0
+    }
+
+    fn add_reference(&self, db: &'db dyn HirDatabase, mutability: Mutability) -> Self {
+        Self(self.0.add_reference(db, mutability))
+    }
+}
+
+#[derive(Debug)]
 struct LookupTable<'db> {
+    db: &'db dyn HirDatabase,
+    goal: Type<'db>,
     /// All the `Expr`s in "value" produce the type of "key"
-    data: FxHashMap<Type<'db>, AlternativeExprs<'db>>,
+    data: FxHashMap<SearchType<'db>, AlternativeExprs<'db>>,
     /// New types reached since last query by the `NewTypesKey`
-    new_types: FxHashMap<NewTypesKey, Vec<Type<'db>>>,
+    new_types: FxHashMap<NewTypesKey, Vec<SearchType<'db>>>,
     /// Types queried but not present
-    types_wishlist: FxHashSet<Type<'db>>,
+    types_wishlist: FxHashSet<SearchType<'db>>,
     /// Threshold to squash trees to `Many`
     many_threshold: usize,
 }
 
 impl<'db> LookupTable<'db> {
     /// Initialize lookup table
-    fn new(many_threshold: usize, goal: Type<'db>) -> Self {
-        let mut res = Self { many_threshold, ..Default::default() };
-        res.new_types.insert(NewTypesKey::ImplMethod, Vec::new());
-        res.new_types.insert(NewTypesKey::StructProjection, Vec::new());
-        res.types_wishlist.insert(goal);
-        res
+    fn new(db: &'db dyn HirDatabase, many_threshold: usize, goal: Type<'db>) -> Self {
+        let goal_ty = SearchType::new(db, &goal, &goal);
+        let mut new_types = FxHashMap::default();
+        new_types.insert(NewTypesKey::ImplMethod, Vec::new());
+        new_types.insert(NewTypesKey::StructProjection, Vec::new());
+        Self {
+            db,
+            goal,
+            data: FxHashMap::default(),
+            new_types,
+            types_wishlist: FxHashSet::from_iter([goal_ty]),
+            many_threshold,
+        }
+    }
+
+    fn search_type(&self, ty: &Type<'db>) -> SearchType<'db> {
+        SearchType::new(self.db, &self.goal, ty)
+    }
+
+    fn could_unify(&self, candidate: &SearchType<'db>, ty: &SearchType<'db>) -> bool {
+        candidate.as_type().could_unify_with_deeply(self.db, ty.as_type())
     }
 
     /// Find all `Expr`s that unify with the `ty`
-    fn find(&mut self, db: &'db dyn HirDatabase, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
+    fn find(&mut self, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
+        let ty = self.search_type(ty);
         let res = self
             .data
             .iter()
-            .find(|(t, _)| t.could_unify_with_deeply(db, ty))
-            .map(|(t, tts)| tts.exprs(t));
+            .find(|(candidate, _)| self.could_unify(candidate, &ty))
+            .map(|(ty, exprs)| exprs.exprs(ty.as_type()));
 
         if res.is_none() {
             self.types_wishlist.insert(ty.clone());
@@ -125,7 +166,7 @@ impl<'db> LookupTable<'db> {
         if let Some(res) = &res
             && res.len() > self.many_threshold
         {
-            return Some(vec![Expr::Many(ty.clone())]);
+            return Some(vec![Expr::Many(ty.into_type())]);
         }
 
         res
@@ -135,20 +176,23 @@ impl<'db> LookupTable<'db> {
     ///
     /// For example if we have type `i32` in data and we query for `&i32` it map all the type
     /// trees we have for `i32` with `Expr::Reference` and returns them.
-    fn find_autoref(&mut self, db: &'db dyn HirDatabase, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
+    fn find_autoref(&mut self, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
+        let ty = self.search_type(ty);
         let res = self
             .data
             .iter()
-            .find(|(t, _)| t.could_unify_with_deeply(db, ty))
-            .map(|(t, it)| it.exprs(t))
+            .find(|(candidate, _)| self.could_unify(candidate, &ty))
+            .map(|(ty, exprs)| exprs.exprs(ty.as_type()))
             .or_else(|| {
                 self.data
                     .iter()
-                    .find(|(t, _)| {
-                        t.add_reference(db, Mutability::Shared).could_unify_with_deeply(db, ty)
+                    .find(|(candidate, _)| {
+                        let candidate = candidate.add_reference(self.db, Mutability::Shared);
+                        self.could_unify(&candidate, &ty)
                     })
-                    .map(|(t, it)| {
-                        it.exprs(t)
+                    .map(|(ty, exprs)| {
+                        exprs
+                            .exprs(ty.as_type())
                             .into_iter()
                             .map(|expr| Expr::Reference(Box::new(expr)))
                             .collect()
@@ -163,7 +207,7 @@ impl<'db> LookupTable<'db> {
         if let Some(res) = &res
             && res.len() > self.many_threshold
         {
-            return Some(vec![Expr::Many(ty.clone())]);
+            return Some(vec![Expr::Many(ty.into_type())]);
         }
 
         res
@@ -175,6 +219,7 @@ impl<'db> LookupTable<'db> {
     /// transitive. For example `Vec<i32>` and `FxHashSet<i32>` both unify with `Iterator<Item = i32>`,
     /// but they clearly do not unify themselves.
     fn insert(&mut self, ty: Type<'db>, exprs: impl Iterator<Item = Expr<'db>>) {
+        let ty = self.search_type(&ty);
         match self.data.get_mut(&ty) {
             Some(it) => {
                 it.extend_with_threshold(self.many_threshold, exprs);
@@ -193,7 +238,7 @@ impl<'db> LookupTable<'db> {
 
     /// Iterate all the reachable types
     fn iter_types(&self) -> impl Iterator<Item = Type<'db>> + '_ {
-        self.data.keys().cloned()
+        self.data.keys().map(|ty| ty.as_type().clone())
     }
 
     /// Query new types reached since last query by key
@@ -201,14 +246,14 @@ impl<'db> LookupTable<'db> {
     /// Create new key if you wish to query it to avoid conflicting with existing queries.
     fn new_types(&mut self, key: NewTypesKey) -> Vec<Type<'db>> {
         match self.new_types.get_mut(&key) {
-            Some(it) => std::mem::take(it),
+            Some(types) => std::mem::take(types).into_iter().map(SearchType::into_type).collect(),
             None => Vec::new(),
         }
     }
 
     /// Types queried but not found
-    fn types_wishlist(&mut self) -> &FxHashSet<Type<'db>> {
-        &self.types_wishlist
+    fn types_wishlist(&self) -> Vec<Type<'db>> {
+        self.types_wishlist.iter().map(|ty| ty.as_type().clone()).collect()
     }
 }
 
@@ -272,7 +317,8 @@ pub fn term_search<'db, DB: HirDatabase>(ctx: &TermSearchCtx<'_, 'db, DB>) -> Ve
         defs.insert(def);
     });
 
-    let mut lookup = LookupTable::new(ctx.config.many_alternatives_threshold, ctx.goal.clone());
+    let mut lookup =
+        LookupTable::new(ctx.sema.db, ctx.config.many_alternatives_threshold, ctx.goal.clone());
     let fuel = std::cell::Cell::new(ctx.config.fuel);
 
     let should_continue = &|| {

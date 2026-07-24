@@ -135,6 +135,60 @@ fn main() {
     }
 
     #[test]
+    fn incomplete_match_arm_after_const() {
+        check_has_fix(
+            r#"
+const OP_HANDSHAKE: u32 = 0;
+
+enum Event {
+    Ready,
+    Disconnect,
+}
+
+struct Holder<T>(T);
+
+impl<T> Holder<T> {
+    const VALUE: T = loop {};
+}
+
+fn test<T>(value: T) {
+    let evt = Event::Ready;
+    let holder = Holder(value);
+    match evt {
+        Event::Ready => {}
+        _
+        _$0 => {}
+    }
+}
+"#,
+            r#"
+const OP_HANDSHAKE: u32 = 0;
+
+enum Event {
+    Ready,
+    Disconnect,
+}
+
+struct Holder<T>(T);
+
+impl<T> Holder<T> {
+    const VALUE: T = loop {};
+}
+
+fn test<T>(value: T) {
+    let evt = Event::Ready;
+    let holder = Holder(value);
+    match evt {
+        Event::Ready => {}
+        _
+        todo!() => {}
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn integer_ty_var() {
         check_diagnostics(
             r#"
