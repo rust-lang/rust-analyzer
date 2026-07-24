@@ -180,6 +180,11 @@ fn add_assist(
             (generate_trait_impl(make, impl_is_unsafe, adt, trait_path), None)
         };
 
+        editor.insert_all(
+            insert_after,
+            vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
+        );
+
         if let Some(cap) = ctx.config.snippet_cap {
             if let Some(first_assoc_item) = first_assoc_item {
                 if let ast::AssocItem::Fn(ref func) = first_assoc_item
@@ -187,22 +192,21 @@ fn add_assist(
                     && m.syntax().text() == "todo!()"
                 {
                     // Make the `todo!()` a placeholder
-                    builder.add_placeholder_snippet(cap, m);
+                    editor.add_annotation(m.syntax(), builder.make_placeholder_snippet(cap));
                 } else {
                     // If we haven't already added a snippet, add a tabstop before the generated function
-                    builder.add_tabstop_before(cap, first_assoc_item);
+                    editor.add_annotation(
+                        first_assoc_item.syntax(),
+                        builder.make_tabstop_before(cap),
+                    );
                 }
             } else if let Some(l_curly) =
                 impl_def.assoc_item_list().and_then(|it| it.l_curly_token())
             {
-                builder.add_tabstop_after_token(cap, l_curly);
+                editor.add_annotation(l_curly, builder.make_tabstop_after(cap));
             }
         }
 
-        editor.insert_all(
-            insert_after,
-            vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
-        );
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
 }

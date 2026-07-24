@@ -1,12 +1,12 @@
 //! Syntax Tree editor
 //!
-//! Inspired by Roslyn's [`SyntaxEditor`], but is temporarily built upon mutable syntax tree editing.
+//! Inspired by Roslyn's [`SyntaxEditor`].
 //!
 //! [`SyntaxEditor`]: https://github.com/dotnet/roslyn/blob/43b0b05cc4f492fd5de00f6f6717409091df8daa/src/Workspaces/Core/Portable/Editing/SyntaxEditor.cs
 
 use std::{
     cell::RefCell,
-    fmt, iter,
+    fmt,
     num::NonZeroU32,
     ops::RangeInclusive,
     sync::atomic::{AtomicU32, Ordering},
@@ -31,21 +31,27 @@ pub use mapping::{SyntaxMapping, SyntaxMappingBuilder};
 pub struct SyntaxEditor {
     root: SyntaxNode,
     changes: RefCell<Vec<Change>>,
-    annotations: RefCell<Vec<(SyntaxElement, SyntaxAnnotation)>>,
+    annotations: RefCell<Vec<Annotation>>,
     make: SyntaxFactory,
+}
+
+#[derive(Debug)]
+pub(super) struct Annotation {
+    pub(super) element: SyntaxElement,
+    pub(super) annotation: SyntaxAnnotation,
+    pub(super) change: Option<usize>,
 }
 
 impl SyntaxEditor {
     /// Creates a syntax editor from `root`.
     ///
     /// The returned `root` is guaranteed to be a detached, immutable node.
-    /// If the provided node is not a root (i.e., has a parent) or is already
-    /// mutable, it is cloned into a fresh subtree to satisfy syntax editor
-    /// invariants.
+    /// If the provided node is not a root (i.e., has a parent), it is cloned
+    /// into a fresh subtree to satisfy syntax editor invariants.
     pub fn new(root: SyntaxNode) -> (Self, SyntaxNode) {
         let mut root = root;
 
-        if root.parent().is_some() || root.is_mutable() {
+        if root.parent().is_some() {
             root = root.clone_subtree()
         };
 
@@ -74,13 +80,37 @@ impl SyntaxEditor {
     }
 
     pub fn add_annotation(&self, element: impl Element, annotation: SyntaxAnnotation) {
-        self.annotations.borrow_mut().push((element.syntax_element(), annotation))
+        let element = element.syntax_element();
+        let change = self.changes.borrow().iter().enumerate().rev().find_map(|(idx, change)| {
+            let contains_element = |inserted: &SyntaxElement| {
+                inserted == &element
+                    || match inserted {
+                        SyntaxElement::Node(inserted) => {
+                            element.ancestors().any(|node| &node == inserted)
+                        }
+                        SyntaxElement::Token(_) => false,
+                    }
+            };
+
+            let introduced = match change {
+                Change::Insert(_, inserted) | Change::Replace(_, Some(inserted)) => {
+                    contains_element(inserted)
+                }
+                Change::InsertAll(_, inserted)
+                | Change::ReplaceWithMany(_, inserted)
+                | Change::ReplaceAll(_, inserted) => inserted.iter().any(contains_element),
+                Change::Replace(_, None) => false,
+            };
+
+            introduced.then_some(idx)
+        });
+        self.annotations.borrow_mut().push(Annotation { element, annotation, change })
     }
 
     pub fn add_annotation_all(&self, elements: Vec<impl Element>, annotation: SyntaxAnnotation) {
-        self.annotations
-            .borrow_mut()
-            .extend(elements.into_iter().map(|e| e.syntax_element()).zip(iter::repeat(annotation)));
+        for element in elements {
+            self.add_annotation(element, annotation);
+        }
     }
 
     pub fn merge(&self, other: SyntaxEditor) {
@@ -91,11 +121,16 @@ impl SyntaxEditor {
             self.root
         );
 
+        let change_offset = self.changes.borrow().len();
         self.changes.borrow_mut().append(&mut other.changes.into_inner());
         if let Some(mut m) = self.make.mappings() {
             m.merge(other.make.take());
         }
-        self.annotations.borrow_mut().append(&mut other.annotations.into_inner());
+        let mut other_annotations = other.annotations.into_inner();
+        for annotation in &mut other_annotations {
+            annotation.change = annotation.change.map(|change| change + change_offset);
+        }
+        self.annotations.borrow_mut().append(&mut other_annotations);
     }
 
     pub fn insert(&self, position: Position, element: impl Element) {
@@ -353,7 +388,9 @@ impl Change {
         match self {
             Change::Insert(target, _) | Change::InsertAll(target, _) => match &target.repr {
                 PositionRepr::FirstChild(parent) => TextRange::at(
-                    parent.first_child_or_token().unwrap().text_range().start(),
+                    parent.first_child_or_token().map_or(parent.text_range().start(), |element| {
+                        element.text_range().start()
+                    }),
                     0.into(),
                 ),
                 PositionRepr::After(child) => TextRange::at(child.text_range().end(), 0.into()),
@@ -603,7 +640,7 @@ mod tests {
         let to_replace = root.syntax().descendants().find_map(ast::BinExpr::cast).unwrap();
 
         let name = make::name("var_name");
-        let name_ref = make::name_ref("var_name").clone_for_update();
+        let name_ref = make::name_ref("var_name");
 
         let placeholder_snippet = SyntaxAnnotation::default();
         editor.add_annotation(name.syntax(), placeholder_snippet);
@@ -884,7 +921,7 @@ mod tests {
     }
 
     #[test]
-    fn test_more_times_replace_node_to_mutable_token() {
+    fn test_more_times_replace_node_to_same_token() {
         let arg_list =
             make::arg_list([make::expr_literal("1").into(), make::expr_literal("2").into()]);
 
@@ -903,13 +940,13 @@ mod tests {
     }
 
     #[test]
-    fn test_more_times_replace_node_to_mutable() {
+    fn test_more_times_replace_node_to_same_node() {
         let arg_list =
             make::arg_list([make::expr_literal("1").into(), make::expr_literal("2").into()]);
 
         let (editor, arg_list) = SyntaxEditor::with_ast_node(&arg_list);
 
-        let target_expr = make::expr_literal("3").clone_for_update();
+        let target_expr = make::expr_literal("3");
 
         for arg in arg_list.args() {
             editor.replace(arg.syntax(), target_expr.syntax());
@@ -922,13 +959,13 @@ mod tests {
     }
 
     #[test]
-    fn test_more_times_insert_node_to_mutable() {
+    fn test_more_times_insert_node_to_same_node() {
         let arg_list =
             make::arg_list([make::expr_literal("1").into(), make::expr_literal("2").into()]);
 
         let (editor, arg_list) = SyntaxEditor::with_ast_node(&arg_list);
 
-        let target_expr = make::ext::expr_unit().clone_for_update();
+        let target_expr = make::ext::expr_unit();
 
         for arg in arg_list.args() {
             editor.insert(Position::before(arg.syntax()), target_expr.syntax());
