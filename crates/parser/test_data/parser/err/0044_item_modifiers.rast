@@ -43,7 +43,7 @@ SOURCE_FILE
 error 6: expected fn, trait or impl
 error 38: expected a name
 error 40: missing type for `const`
-error 40: expected SEMICOLON
+error 40: expected `;`
 error 44: expected an item
 error 44: expected an item
 error 45: expected an item

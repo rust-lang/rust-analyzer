@@ -61,5 +61,5 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 80: expected pattern
-error 80: expected FAT_ARROW
+error 80: expected `=>`
 error 80: expected expression

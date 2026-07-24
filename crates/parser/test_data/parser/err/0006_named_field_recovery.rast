@@ -65,10 +65,10 @@ SOURCE_FILE
       R_CURLY "}"
   WHITESPACE "\n"
 error 31: expected field declaration
-error 33: expected COMMA
+error 33: expected `,`
 error 38: expected field declaration
-error 39: expected COMMA
+error 39: expected `,`
 error 40: expected field declaration
-error 41: expected COMMA
+error 41: expected `,`
 error 42: expected field declaration
-error 43: expected COMMA
+error 43: expected `,`

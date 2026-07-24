@@ -37,4 +37,4 @@ SOURCE_FILE
             IDENT "io"
     SEMICOLON ";"
   WHITESPACE "\n"
-error 22: expected R_CURLY
+error 22: expected `}`

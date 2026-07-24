@@ -39,6 +39,6 @@ SOURCE_FILE
     SEMICOLON ";"
   WHITESPACE "\n"
 error 9: expected a type
-error 9: expected R_PAREN
-error 9: expected SEMICOLON
+error 9: expected `)`
+error 9: expected `;`
 error 30: expected tuple field
