@@ -153,9 +153,14 @@ pub(crate) mod entry {
 
         pub(crate) fn expr(p: &mut Parser<'_>) {
             let m = p.start();
-            expressions::expr(p);
+            let starts_with_attr = p.at(T![#]);
+            let expr = expressions::expr(p);
             if p.at(EOF) {
-                m.abandon(p);
+                if expr.is_some() || !starts_with_attr {
+                    m.abandon(p);
+                } else {
+                    m.complete(p, ERROR);
+                }
                 return;
             }
             while !p.at(EOF) {
