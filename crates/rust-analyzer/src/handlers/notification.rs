@@ -6,6 +6,7 @@ use std::{
     panic::UnwindSafe,
 };
 
+use indexmap::IndexSet;
 use itertools::Itertools;
 use lsp_types::{
     CancelParams, DidChangeConfigurationParams, DidChangeTextDocumentParams,
@@ -17,7 +18,7 @@ use triomphe::Arc;
 use vfs::{AbsPathBuf, ChangeKind, VfsPath};
 
 use crate::{
-    config::{Config, ConfigChange},
+    config::{Config, ConfigChange, FilesWatcher},
     flycheck::{InvocationStrategy, PackageSpecifier, Target},
     global_state::{FetchWorkspaceRequest, GlobalState},
     lsp::{from_proto, utils::apply_document_changes},
@@ -211,7 +212,10 @@ pub(crate) fn handle_did_save_text_document(
             }
         }
 
-        if !state.config.check_on_save(Some(sr)) || run_flycheck(state, vfs_path) {
+        if !state.config.check_on_save(Some(sr))
+            || matches!(state.config.files().watcher, FilesWatcher::Client)
+            || run_flycheck(state, vfs_path)
+        {
             return Ok(());
         }
     } else if state.config.check_on_save(None) && state.config.flycheck_workspace(None) {
@@ -307,6 +311,7 @@ pub(crate) fn handle_did_change_watched_files(
     // we want to trigger flycheck if a file outside of our workspaces has changed,
     // as to reduce stale diagnostics when outside changes happen
     let mut trigger_flycheck = false;
+    let mut vfs_paths_to_rescan = IndexSet::new();
     for change in params.changes.iter().unique_by(|&it| &it.uri) {
         if let Ok(path) = from_proto::abs_path(&change.uri) {
             if !trigger_flycheck {
@@ -316,13 +321,23 @@ pub(crate) fn handle_did_change_watched_files(
             }
             state.loader.handle.invalidate(path);
         }
-    }
-
-    if trigger_flycheck && state.config.check_on_save(None) {
-        for flycheck in state.flycheck.iter() {
-            flycheck.restart_workspace(None);
+        if let Ok(path) = from_proto::vfs_path(&change.uri) {
+            vfs_paths_to_rescan.insert(path);
         }
     }
+
+    if state.config.check_on_save(None) {
+        if trigger_flycheck {
+            for flycheck in state.flycheck.iter() {
+                flycheck.restart_workspace(None);
+            }
+        } else {
+            for path in vfs_paths_to_rescan {
+                run_flycheck(state, path);
+            }
+        }
+    }
+
     Ok(())
 }
 
