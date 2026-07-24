@@ -1046,6 +1046,7 @@ dependencies = [
  "arrayvec",
  "cfg",
  "cov-mark",
+ "dashmap",
  "dot",
  "either",
  "expect-test",
