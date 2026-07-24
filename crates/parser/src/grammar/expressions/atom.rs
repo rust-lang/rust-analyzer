@@ -643,6 +643,14 @@ fn closure_expr(p: &mut Parser<'_>) -> CompletedMarker {
 //     if { true } { } else { };
 // }
 fn if_expr(p: &mut Parser<'_>) -> CompletedMarker {
+    // Guarded separately because an `else if` chain recurses through
+    // `if_expr` alone, bypassing the guard on `expr_bp`.
+    let cm = if p.enter_recursion() { p.bail_recursion() } else { if_expr_inner(p) };
+    p.leave_recursion();
+    cm
+}
+
+fn if_expr_inner(p: &mut Parser<'_>) -> CompletedMarker {
     assert!(p.at(T![if]));
     let m = p.start();
     p.bump(T![if]);

@@ -194,3 +194,44 @@ fn run_and_expect_errors_with_edition(path: &str, edition: Edition) {
     p.set_extension("rast");
     expect_file![p].assert_eq(&actual)
 }
+
+/// Pathological nesting must produce a "recursion limit" error instead of
+/// overflowing the stack, one case per guarded grammar family (#9824).
+/// Inputs are generated rather than committed as fixtures because of their
+/// size; the small explicit stack makes an unguarded recursion overflow
+/// reliably instead of depending on the host's stack size.
+#[test]
+fn parser_recursion_limit() {
+    fn nested(prefix: &str, open: &str, depth: usize, inner: &str, close: &str) -> String {
+        format!("{prefix}{}{inner}{}", open.repeat(depth), close.repeat(depth))
+    }
+
+    let cases = [
+        // The original reproducer from #9358.
+        ("paren_expr", nested("fn f(){", "(", 100_000, "0", ")") + "}"),
+        ("else_if_chain", nested("fn f(){", "if true{}else ", 1024, "", "") + "{}}"),
+        ("tuple_pat", nested("fn f(){let ", "(", 1024, "_", ")") + " = x;}"),
+        ("ref_type", nested("type T=", "&", 1024, "u8", "") + ";"),
+        ("generic_args", nested("type T=", "Vec<", 1024, "u8", ">") + ";"),
+        ("use_tree", nested("use a", "::{a", 1024, "", "}") + ";"),
+        ("unsafe_meta", nested("#[", "unsafe(", 1024, "foo", ")") + "]fn f(){}"),
+        ("cfg_predicate", nested("#[cfg(", "any(", 1024, "foo", ")") + ")]fn f(){}"),
+        ("token_tree", nested("m!", "{", 1024, "", "}")),
+        ("nested_items", nested("", "fn f(){", 1024, "", "}")),
+    ];
+
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            for (name, src) in cases {
+                let (actual, _) = parse(TopEntryPoint::SourceFile, &src, Edition::CURRENT);
+                assert!(
+                    actual.contains("parser recursion limit reached"),
+                    "{name}: expected a recursion limit error"
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

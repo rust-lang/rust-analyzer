@@ -107,6 +107,20 @@ pub(super) fn item_or_macro(p: &mut Parser<'_>, stop_on_r_curly: bool, is_in_ext
 
 /// Try to parse an item, completing `m` in case of success.
 pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker, is_in_extern: bool) -> Result<(), Marker> {
+    let res = if p.enter_recursion() {
+        // The caller already started `m`, so complete it as the `ERROR`
+        // node instead of letting `bail_recursion` start its own.
+        p.bump_any();
+        m.complete(p, ERROR);
+        Ok(())
+    } else {
+        opt_item_inner(p, m, is_in_extern)
+    };
+    p.leave_recursion();
+    res
+}
+
+fn opt_item_inner(p: &mut Parser<'_>, m: Marker, is_in_extern: bool) -> Result<(), Marker> {
     // test_err pub_expr
     // fn foo() { pub 92; }
     let has_visibility = opt_visibility(p, false);
@@ -503,6 +517,29 @@ pub(super) fn macro_call_after_excl(p: &mut Parser<'_>) -> BlockLike {
 }
 
 pub(crate) fn token_tree(p: &mut Parser<'_>) {
+    if p.enter_recursion() {
+        // Skip to the matching close bracket iteratively: bailing one token
+        // at a time would leave one `ERROR` node per excess bracket, and
+        // unlike other productions a token tree has an unambiguous end.
+        let m = p.start();
+        let mut depth = 1u32;
+        p.bump_any();
+        while !p.at(EOF) && depth > 0 {
+            match p.current() {
+                T!['{'] | T!['('] | T!['['] => depth += 1,
+                T!['}'] | T![')'] | T![']'] => depth -= 1,
+                _ => {}
+            }
+            p.bump_any();
+        }
+        m.complete(p, ERROR);
+    } else {
+        token_tree_inner(p);
+    }
+    p.leave_recursion();
+}
+
+fn token_tree_inner(p: &mut Parser<'_>) {
     let closing_paren_kind = match p.current() {
         T!['{'] => T!['}'],
         T!['('] => T![')'],

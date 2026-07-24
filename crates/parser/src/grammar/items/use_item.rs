@@ -12,6 +12,17 @@ pub(super) fn use_(p: &mut Parser<'_>, m: Marker) {
 // test use_tree
 // use outer::tree::{inner::tree};
 fn use_tree(p: &mut Parser<'_>, top_level: bool) -> bool {
+    let res = if p.enter_recursion() {
+        p.bail_recursion();
+        true
+    } else {
+        use_tree_inner(p, top_level)
+    };
+    p.leave_recursion();
+    res
+}
+
+fn use_tree_inner(p: &mut Parser<'_>, top_level: bool) -> bool {
     let m = p.start();
     match p.current() {
         // test use_tree_star
