@@ -134,7 +134,12 @@ pub(crate) enum DiscoverProjectParam {
 pub(crate) enum PrimeCachesProgress {
     Begin,
     Report(ide::ParallelPrimeCachesProgress),
-    End { cancelled: bool },
+    End {
+        cancelled: bool,
+        /// Whether this pass should fire the deferred initial workspace flycheck
+        /// when it completes. Preserved across "restart after cancellation".
+        defer_workspace_flycheck: bool,
+    },
 }
 
 impl fmt::Debug for Event {
@@ -391,14 +396,17 @@ impl GlobalState {
                                 report.work_type,
                             ));
                         }
-                        PrimeCachesProgress::End { cancelled } => {
+                        PrimeCachesProgress::End { cancelled, defer_workspace_flycheck } => {
                             self.analysis_host.trigger_garbage_collection();
                             self.prime_caches_queue.op_completed(());
                             if cancelled {
-                                self.prime_caches_queue
-                                    .request_op("restart after cancellation".to_owned(), ());
+                                self.prime_caches_queue.request_op(
+                                    "restart after cancellation".to_owned(),
+                                    defer_workspace_flycheck,
+                                );
                             } else {
-                                if self.config.check_on_save(None)
+                                if defer_workspace_flycheck
+                                    && self.config.check_on_save(None)
                                     && self.config.flycheck_workspace(None)
                                     && !self.fetch_build_data_queue.op_requested()
                                 {
@@ -519,13 +527,13 @@ impl GlobalState {
         let mut gc_elapsed = None;
         if self.is_quiescent() {
             let became_quiescent = !was_quiescent;
+            // delay initial cache priming until proc macros are loaded, or we will load up a bunch of garbage into salsa
+            let proc_macros_loaded = self.config.prefill_caches()
+                && (!self.config.expand_proc_macros()
+                    || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false));
             if became_quiescent {
-                // delay initial cache priming until proc macros are loaded, or we will load up a bunch of garbage into salsa
-                let proc_macros_loaded = self.config.prefill_caches()
-                    && (!self.config.expand_proc_macros()
-                        || self.fetch_proc_macros_queue.last_op_result().copied().unwrap_or(false));
                 if proc_macros_loaded {
-                    self.prime_caches_queue.request_op("became quiescent".to_owned(), ());
+                    self.prime_caches_queue.request_op("became quiescent".to_owned(), true);
                 }
                 if self.config.check_on_save(None)
                     && self.config.flycheck_workspace(None)
@@ -623,8 +631,8 @@ impl GlobalState {
             }
         }
 
-        if let Some((cause, ())) = self.prime_caches_queue.should_start_op() {
-            self.prime_caches(cause);
+        if let Some((cause, request)) = self.prime_caches_queue.should_start_op() {
+            self.prime_caches(cause, request);
         }
 
         self.update_status_or_notify();
@@ -646,20 +654,24 @@ impl GlobalState {
         }
     }
 
-    fn prime_caches(&mut self, cause: String) {
-        tracing::debug!(%cause, "will prime caches");
+    fn prime_caches(&mut self, cause: String, defer_workspace_flycheck: bool) {
+        let scope = self.compute_priming_scope();
+        tracing::debug!(%cause, scope_size = scope.len(), "will prime caches");
         let num_worker_threads = self.config.prime_caches_num_threads();
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, {
             let analysis = AssertUnwindSafe(self.snapshot().analysis);
             move |sender| {
                 sender.send(Task::PrimeCaches(PrimeCachesProgress::Begin)).unwrap();
-                let res = analysis.parallel_prime_caches(num_worker_threads, |progress| {
+                let res = analysis.parallel_prime_caches(scope, num_worker_threads, |progress| {
                     let report = PrimeCachesProgress::Report(progress);
                     sender.send(Task::PrimeCaches(report)).unwrap();
                 });
                 sender
-                    .send(Task::PrimeCaches(PrimeCachesProgress::End { cancelled: res.is_err() }))
+                    .send(Task::PrimeCaches(PrimeCachesProgress::End {
+                        cancelled: res.is_err(),
+                        defer_workspace_flycheck,
+                    }))
                     .unwrap();
             }
         });
