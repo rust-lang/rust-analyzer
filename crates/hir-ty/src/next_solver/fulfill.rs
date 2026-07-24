@@ -8,15 +8,17 @@ use rustc_next_trait_solver::{
     solve::{GoalEvaluation, GoalStalledOn, HasChanged, SolverDelegateEvalExt},
 };
 use rustc_type_ir::{
-    Interner, TypeSuperVisitable, TypeVisitable, TypeVisitableExt, TypeVisitor,
-    inherent::IntoKind,
-    solve::{Certainty, NoSolution},
+    InferConst, InferCtxtLike, InferTy, Interner, TyVid, TypeSuperVisitable, TypeVisitable,
+    TypeVisitableExt, TypeVisitor,
+    inherent::{IntoKind, OpaqueTypeStorageEntries as _},
+    solve::{Certainty, Goal, NoSolution},
 };
 
 use crate::{
     Span,
     next_solver::{
-        DbInterner, SolverContext, SolverDefId, Ty, TyKind, TypingMode,
+        Const, ConstKind, DbInterner, GenericArg, Predicate, SolverContext, SolverDefId, Ty,
+        TyKind, TypingMode,
         infer::{
             InferCtxt,
             traits::{PredicateObligation, PredicateObligations},
@@ -164,6 +166,19 @@ impl<'db> FulfillmentCtxt<'db> {
             let mut any_changed = false;
             self.try_evaluate_obligations_scratch.extend(self.obligations.drain_pending(|_| true));
             for (mut obligation, stalled_on) in self.try_evaluate_obligations_scratch.drain(..) {
+                // If we've evaluated this goal before and it stalled on a specific set of
+                // inference variables, and none of those variables have been touched since,
+                // evaluating it again is guaranteed to produce the same `Maybe` result (goal
+                // evaluation is pure). Skip it entirely rather than re-running the solver, so
+                // that re-processing pending obligations is proportional to how much changed
+                // since the last call, not to the total number of pending obligations.
+                if let Some(stalled_on) = &stalled_on
+                    && is_still_stalled(infcx, stalled_on)
+                {
+                    self.obligations.register(obligation, Some(stalled_on.clone()));
+                    continue;
+                }
+
                 if obligation.recursion_depth >= infcx.interner.recursion_limit() {
                     self.obligations.on_fulfillment_overflow(infcx);
                     // Only return true errors that we have accumulated while processing.
@@ -178,7 +193,8 @@ impl<'db> FulfillmentCtxt<'db> {
                     match certainty {
                         Certainty::Yes => {}
                         Certainty::Maybe { .. } => {
-                            self.obligations.register(obligation, None);
+                            self.obligations
+                                .register(obligation, fast_path_stalled_on(infcx, goal));
                         }
                     }
                     continue;
@@ -276,6 +292,82 @@ impl<'db> FulfillmentCtxt<'db> {
             .map(|(o, _)| o)
             .collect()
     }
+}
+
+/// Mirrors the stalled-goal fast path that `evaluate_goal_raw` runs internally on every
+/// evaluation: if none of the tracked variables changed (and the opaque type storage didn't
+/// grow) since `stalled_on` was recorded, the goal is guaranteed to still evaluate to the same
+/// `Maybe` result. Running this cheap check *before* touching the solver at all is what makes
+/// `try_evaluate_obligations` proportional to the obligations actually woken since the last
+/// call rather than to the total pending set.
+fn is_still_stalled<'db>(
+    infcx: &InferCtxt<'db>,
+    stalled_on: &GoalStalledOn<DbInterner<'db>>,
+) -> bool {
+    !infcx.disable_trait_solver_fast_paths()
+        && !stalled_on.stalled_vars.iter().any(|&value| infcx.is_changed_arg(value))
+        && !stalled_on.sub_roots.iter().any(|&vid| infcx.sub_unification_table_root_var(vid) != vid)
+        && !infcx.opaque_types_storage_num_entries().needs_reevaluation(stalled_on.num_opaques)
+}
+
+/// Best-effort reconstruction of a [`GoalStalledOn`] for goals resolved by
+/// [`crate::next_solver::solver::SolverContext::compute_goal_fast_path`]'s `Certainty::Maybe`
+/// result.
+///
+/// That fast path (unlike the real solver) does not build a `GoalStalledOn`, so without this
+/// we would lose all stall-tracking for the obligations it intercepts, forcing them through the
+/// fast path again on every single call to `try_evaluate_obligations` for the rest of the body.
+/// We over-approximate by collecting every inference variable mentioned in the goal's
+/// predicate: extra entries only make `is_still_stalled` wake the goal on unrelated changes,
+/// which is wasteful but never unsound, whereas missing one could permanently mask real
+/// progress.
+fn fast_path_stalled_on<'db>(
+    infcx: &InferCtxt<'db>,
+    goal: Goal<DbInterner<'db>, Predicate<'db>>,
+) -> Option<GoalStalledOn<DbInterner<'db>>> {
+    struct CollectInferVars<'a, 'db> {
+        infcx: &'a InferCtxt<'db>,
+        stalled_vars: Vec<GenericArg<'db>>,
+        sub_roots: Vec<TyVid>,
+    }
+
+    impl<'db> TypeVisitor<DbInterner<'db>> for CollectInferVars<'_, 'db> {
+        type Result = ();
+
+        fn visit_ty(&mut self, ty: Ty<'db>) {
+            match ty.kind() {
+                TyKind::Infer(InferTy::TyVar(vid)) => {
+                    self.stalled_vars.push(ty.into());
+                    self.sub_roots.push(self.infcx.sub_unification_table_root_var(vid));
+                }
+                TyKind::Infer(_) => self.stalled_vars.push(ty.into()),
+                _ if ty.has_infer() => ty.super_visit_with(self),
+                _ => {}
+            }
+        }
+
+        fn visit_const(&mut self, ct: Const<'db>) {
+            match ct.kind() {
+                ConstKind::Infer(InferConst::Var(_)) => self.stalled_vars.push(ct.into()),
+                _ if ct.has_infer() => ct.super_visit_with(self),
+                _ => {}
+            }
+        }
+    }
+
+    let mut collector = CollectInferVars { infcx, stalled_vars: Vec::new(), sub_roots: Vec::new() };
+    goal.predicate.visit_with(&mut collector);
+    if collector.stalled_vars.is_empty() {
+        // We couldn't pin down what this goal is blocked on (e.g. the ambiguity came from the
+        // param-env rather than the predicate); fall back to always rechecking it.
+        return None;
+    }
+    Some(GoalStalledOn {
+        num_opaques: infcx.opaque_types_storage_num_entries().opaque_type_count(),
+        stalled_vars: collector.stalled_vars,
+        sub_roots: collector.sub_roots,
+        stalled_certainty: Certainty::AMBIGUOUS,
+    })
 }
 
 /// Detect if a goal is stalled on a coroutine that is owned by the current typeck root.

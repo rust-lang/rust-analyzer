@@ -27,6 +27,15 @@ pub struct OpaqueTypeStorageEntries {
     duplicate_entries: usize,
 }
 
+impl OpaqueTypeStorageEntries {
+    /// The raw entry count, for constructing a [`rustc_next_trait_solver::solve::GoalStalledOn`]
+    /// outside of the solver's own canonicalization (which is where `num_opaques` is normally
+    /// computed from).
+    pub(crate) fn opaque_type_count(self) -> usize {
+        self.opaque_types
+    }
+}
+
 impl rustc_type_ir::inherent::OpaqueTypeStorageEntries for OpaqueTypeStorageEntries {
     fn needs_reevaluation(self, canonicalized: usize) -> bool {
         self.opaque_types != canonicalized
