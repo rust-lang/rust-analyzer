@@ -6,6 +6,10 @@ on:
     # Run at 04:00 UTC every Monday and Thursday
     - cron: '0 4 * * 1,4'
 
+permissions:
+  contents: read
+  pull-requests: write  # workflow opens/updates a tracking PR
+
 jobs:
   pull:
     if: github.repository == 'rust-lang/rust-analyzer'
