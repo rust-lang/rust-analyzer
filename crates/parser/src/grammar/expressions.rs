@@ -247,15 +247,21 @@ fn expr_bp(
     r: Restrictions,
     bp: u8,
 ) -> Option<(CompletedMarker, BlockLike)> {
+    let mut starts_with_attr = false;
     let m = m.unwrap_or_else(|| {
         let m = p.start();
+        starts_with_attr = p.at(T![#]);
         attributes::outer_attrs(p);
         m
     });
 
     if !p.at_ts(EXPR_FIRST) {
         p.err_recover("expected expression", atom::EXPR_RECOVERY_SET);
-        m.abandon(p);
+        if starts_with_attr {
+            m.complete(p, ERROR);
+        } else {
+            m.abandon(p);
+        }
         return None;
     }
     let mut lhs = match lhs(p, r) {
