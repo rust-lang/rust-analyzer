@@ -194,7 +194,7 @@ fn run_server(startup_notice: Option<String>) -> anyhow::Result<()> {
 
     rust_analyzer::session::run_session(
         connection,
-        rust_analyzer::session::IoThreads::Stdio(io_threads),
+        Some(rust_analyzer::session::IoThreads::Stdio(io_threads)),
         startup_notice,
     )
 }

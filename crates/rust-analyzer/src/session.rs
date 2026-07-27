@@ -36,7 +36,7 @@ impl IoThreads {
 /// Returns an error if the connection breaks down or the main loop exits abnormally.
 pub fn run_session(
     connection: Connection,
-    io_threads: IoThreads,
+    io_threads: Option<IoThreads>,
     startup_notice: Option<String>,
 ) -> anyhow::Result<()> {
     tracing::info!("server version {} will start", crate::version());
@@ -44,7 +44,9 @@ pub fn run_session(
     let (initialize_id, initialize_params) = match connection.initialize_start() {
         Ok(it) => it,
         Err(e) => {
-            if e.channel_is_disconnected() {
+            if e.channel_is_disconnected()
+                && let Some(io_threads) = io_threads
+            {
                 io_threads.join()?;
             }
             return Err(e.into());
@@ -135,7 +137,9 @@ pub fn run_session(
     let initialize_result = serde_json::to_value(initialize_result).unwrap();
 
     if let Err(e) = connection.initialize_finish(initialize_id, initialize_result) {
-        if e.channel_is_disconnected() {
+        if e.channel_is_disconnected()
+            && let Some(io_threads) = io_threads
+        {
             io_threads.join()?;
         }
         return Err(e.into());
@@ -161,11 +165,11 @@ pub fn run_session(
 
     // If the io_threads have an error, there's usually an error on the main
     // loop too because the channels are closed. Ensure we report both errors.
-    match (crate::main_loop(config, connection), io_threads.join()) {
-        (Err(loop_e), Err(join_e)) => anyhow::bail!("{loop_e}\n{join_e}"),
-        (Ok(_), Err(join_e)) => anyhow::bail!("{join_e}"),
-        (Err(loop_e), Ok(_)) => anyhow::bail!("{loop_e}"),
-        (Ok(_), Ok(_)) => {}
+    match (crate::main_loop(config, connection), io_threads.map(|x| x.join())) {
+        (Err(loop_e), Some(Err(join_e))) => anyhow::bail!("{loop_e}\n{join_e}"),
+        (Ok(_), Some(Err(join_e))) => anyhow::bail!("{join_e}"),
+        (Err(loop_e), Some(Ok(_)) | None) => anyhow::bail!("{loop_e}"),
+        (Ok(_), Some(Ok(_)) | None) => {}
     }
 
     tracing::info!("server did shut down");
