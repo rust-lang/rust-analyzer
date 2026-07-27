@@ -108,12 +108,7 @@ use crate::{
     utils::TargetFeatureIsSafeInTarget,
 };
 
-// This lint has a false positive here. See the link below for details.
-//
-// https://github.com/rust-lang/rust/issues/57411
-#[allow(unreachable_pub)]
 pub use coerce::could_coerce;
-#[allow(unreachable_pub)]
 pub use unify::{could_unify, could_unify_deeply};
 
 use cast::{CastCheck, CastError};
@@ -701,7 +696,6 @@ pub enum PointerCast {
     /// Go from a mut raw pointer to a const raw pointer.
     MutToConstPointer,
 
-    #[allow(dead_code)]
     /// Go from `*const [T; N]` to `*const T`
     ArrayToPointer,
 

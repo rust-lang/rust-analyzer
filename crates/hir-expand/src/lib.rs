@@ -531,6 +531,12 @@ impl MacroCallId {
     /// Lowers syntactic macro call to a token tree representation. That's a firewall
     /// query, only typing in the macro call itself changes the returned
     /// subtree.
+    ///
+    /// Calling this is incorrect, call [`Self::macro_arg_considering_derives`] instead.
+    /// This used to be enforced by `#[deprecated]`, which is no longer expressible here:
+    /// `#[salsa::tracked]` expands the method into a trait impl, and rustc rejects
+    /// `#[deprecated]` on trait methods in impl blocks. The `#[allow(deprecated)]` at the
+    /// call sites is kept for the same reason, so please leave it in place.
     #[salsa::tracked(returns(ref))]
     fn macro_arg(self, db: &dyn SourceDatabase) -> MacroArgResult {
         let loc = self.loc(db);

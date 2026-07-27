@@ -100,7 +100,6 @@ fn wait_for_debugger() {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        #[allow(unused_mut)]
         let mut d = 4;
         while d == 4 {
             d = 4;
