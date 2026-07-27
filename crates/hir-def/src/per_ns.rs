@@ -3,8 +3,6 @@
 //!
 //! `PerNs` (per namespace) captures this.
 
-use bitflags::bitflags;
-
 use crate::{
     MacroId, ModuleDefId,
     item_scope::{ImportId, ImportOrExternCrate, ImportOrGlob, ItemInNs},
@@ -16,16 +14,6 @@ pub enum Namespace {
     Types,
     Values,
     Macros,
-}
-
-bitflags! {
-    /// Describes only the presence/absence of each namespace, without its value.
-    #[derive(Debug, PartialEq, Eq)]
-    pub(crate) struct NsAvailability : u32 {
-        const TYPES = 1 << 0;
-        const VALUES = 1 << 1;
-        const MACROS = 1 << 2;
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -48,14 +36,6 @@ pub struct PerNs {
 }
 
 impl PerNs {
-    pub(crate) fn availability(&self) -> NsAvailability {
-        let mut result = NsAvailability::empty();
-        result.set(NsAvailability::TYPES, self.types.is_some());
-        result.set(NsAvailability::VALUES, self.values.is_some());
-        result.set(NsAvailability::MACROS, self.macros.is_some());
-        result
-    }
-
     pub fn none() -> PerNs {
         PerNs { types: None, values: None, macros: None }
     }

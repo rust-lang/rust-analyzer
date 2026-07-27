@@ -1770,3 +1770,45 @@ fn foo() {}
         |_| (),
     )
 }
+
+#[test]
+fn import_resolves_to_macro_generated_def_not_glob() {
+    compute_crate_def_map(
+        r#"
+//- /lib.rs
+mod other;
+use other::*;
+
+#[macro_export]
+macro_rules! define_foo {
+    () => { pub fn foo(a: u8, b: u8) -> u8 { a + b } };
+}
+
+crate::define_foo!();
+
+mod sub {
+    use super::foo;
+}
+
+//- /other.rs
+pub fn foo(z: u8) -> u8 { z }
+"#,
+        |map| {
+            use hir_expand::name::Name;
+            use intern::Symbol;
+
+            let sym_sub = Name::new_symbol_root(Symbol::intern("sub"));
+            let sym_foo = Name::new_symbol_root(Symbol::intern("foo"));
+
+            let root = map.root_module_id();
+            let sub = map[root].children[&sym_sub];
+            let root_foo = map[root].scope.get(&sym_foo);
+            let sub_foo = map[sub].scope.get(&sym_foo);
+
+            // `use super::foo` in `sub` must resolve to the same def as
+            // macro-generated `foo` in the crate root, not the `foo` brought
+            // in by `other`
+            assert_eq!(sub_foo.values.map(|i| i.def), root_foo.values.map(|i| i.def),);
+        },
+    );
+}

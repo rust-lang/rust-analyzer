@@ -814,12 +814,10 @@ impl<'db> DefCollector<'db> {
         // correctly
         let mut indeterminate_imports = std::mem::take(&mut self.indeterminate_imports);
         indeterminate_imports.retain_mut(|(directive, partially_resolved)| {
-            let partially_resolved = partially_resolved.availability();
+            let prev_resolved = *partially_resolved;
             directive.status = self.resolve_import(directive.module_id, &directive.import);
             match directive.status {
-                PartialResolvedImport::Indeterminate(import)
-                    if partially_resolved != import.availability() =>
-                {
+                PartialResolvedImport::Indeterminate(import) if import != prev_resolved => {
                     self.record_resolved_import(directive);
                     res = ReachedFixedPoint::No;
                     false
