@@ -289,7 +289,8 @@ pub struct ValTree<'db> {
     interned: InternedRef<'db, ValTreeInterned>,
 }
 
-impl<'db, V: WorldExposer> GenericTypeVisitable<V> for ValTree<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: WorldExposer> GenericTypeVisitable<V> for ValTree<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.inner().generic_visit_with(visitor);

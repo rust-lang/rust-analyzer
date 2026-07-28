@@ -183,7 +183,8 @@ macro_rules! interned_slice {
         }
 
 
-        impl<'db, V: $crate::next_solver::interner::WorldExposer>
+        // SAFETY: manual impl is required in order to handle interned type
+        unsafe impl<'db, V: $crate::next_solver::interner::WorldExposer>
             rustc_type_ir::GenericTypeVisitable<V> for $name<'db>
         {
             #[inline]
@@ -434,6 +435,15 @@ interned_slice!(
 );
 
 pub type BoundVariableKind<'db> = rustc_type_ir::BoundVariableKind<DbInterner<'db>>;
+
+impl<'db> rustc_type_ir::inherent::BoundVarKinds<DbInterner<'db>> for BoundVarKinds<'db> {
+    fn from_vars(
+        _cx: DbInterner<'db>,
+        iter: impl IntoIterator<Item = BoundVariableKind<'db>>,
+    ) -> Self {
+        Self::new_from_iter(iter)
+    }
+}
 
 interned_slice!(
     CanonicalVarsStorage,
@@ -815,7 +825,8 @@ impl<'db> rustc_type_ir::TypeVisitable<DbInterner<'db>> for Pattern<'db> {
     }
 }
 
-impl<'db, V: WorldExposer> rustc_type_ir::GenericTypeVisitable<V> for Pattern<'db> {
+// SAFETY: manual impl is required in order to handle interned type
+unsafe impl<'db, V: WorldExposer> rustc_type_ir::GenericTypeVisitable<V> for Pattern<'db> {
     fn generic_visit_with(&self, visitor: &mut V) {
         if visitor.on_interned(self.interned).is_continue() {
             self.kind().generic_visit_with(visitor);
@@ -1221,6 +1232,11 @@ impl<'db> Interner for DbInterner<'db> {
 
     fn features(self) -> Features {
         Features
+    }
+
+    fn assumptions_on_binders(self) -> bool {
+        // FIXME(-Zassumptions-on-binders)
+        false
     }
 
     fn fn_sig(
@@ -2165,7 +2181,9 @@ macro_rules! TrivialTypeTraversalImpls {
                 }
             }
 
-            impl<V> rustc_type_ir::GenericTypeVisitable<V> for $ty {
+            // SAFETY: the type doesn't contain interned data, and so the impl
+            // can be a no-op
+            unsafe impl<V> rustc_type_ir::GenericTypeVisitable<V> for $ty {
                 #[inline]
                 fn generic_visit_with(&self, _visitor: &mut V) {}
             }
