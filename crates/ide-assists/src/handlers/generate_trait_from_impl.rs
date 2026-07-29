@@ -211,11 +211,11 @@ fn trait_name(items: &ast::AssocItemList, make: &SyntaxFactory) -> ast::Name {
 
 /// `E0449` Trait items always share the visibility of their trait
 fn remove_items_visibility(editor: &SyntaxEditor, item: &ast::AssocItem) {
-    if let Some(has_vis) = ast::AnyHasVisibility::cast(item.syntax().clone()) {
-        if let Some(vis) = has_vis.visibility() {
-            editor.delete_whitespace(vis.syntax().next_sibling_or_token());
-            editor.delete(vis.syntax());
-        }
+    if let Some(has_vis) = ast::AnyHasVisibility::cast(item.syntax().clone())
+        && let Some(vis) = has_vis.visibility()
+    {
+        editor.delete_whitespace(vis.syntax().next_sibling_or_token());
+        editor.delete(vis.syntax());
     }
 }
 
