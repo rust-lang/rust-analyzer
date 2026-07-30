@@ -342,15 +342,16 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         all_vars.extend(new_vars.iter());
         last_binder.1 = BoundVarKinds::new_from_iter(self.interner, all_vars);
         self.bound_vars.push(last_binder);
-        
+
         let res = f(self);
-        
+
         let mut last_binder = self.bound_vars.pop().unwrap();
         last_binder.0.truncate(old_len);
         let all_vars = last_binder.1.to_vec();
-        last_binder.1 = BoundVarKinds::new_from_iter(self.interner, all_vars.into_iter().take(old_len));
+        last_binder.1 =
+            BoundVarKinds::new_from_iter(self.interner, all_vars.into_iter().take(old_len));
         self.bound_vars.push(last_binder);
-        
+
         (res, new_vars)
     }
 
@@ -942,10 +943,15 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             WherePredicate::TypeBound { lifetimes, target, bound } => match lifetimes {
                 Some(lifetimes) => {
                     self.with_shifted_in(lifetimes, |ctx| {
-                        ctx.with_predicate_binder_state(true, |ctx| lower_type_outlives(ctx, target, bound))
-                    }).0
+                        ctx.with_predicate_binder_state(true, |ctx| {
+                            lower_type_outlives(ctx, target, bound)
+                        })
+                    })
+                    .0
                 }
-                None => self.with_predicate_binder_state(true, |ctx| lower_type_outlives(ctx, target, bound)),
+                None => self.with_predicate_binder_state(true, |ctx| {
+                    lower_type_outlives(ctx, target, bound)
+                }),
             },
             &WherePredicate::Lifetime { bound, target } => Either::Right(iter::once((
                 Clause(Predicate::new(
@@ -1016,7 +1022,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                 } else {
                     self.with_shifted_in(binder, |ctx| {
                         ctx.with_predicate_binder_state(true, |ctx| lower_path_bound(ctx, path))
-                    }).0
+                    })
+                    .0
                 }
             }
             &TypeBound::Path(path, TraitBoundModifier::None) => lower_path_bound(self, path),
