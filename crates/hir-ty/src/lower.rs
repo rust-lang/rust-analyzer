@@ -650,10 +650,22 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                         // other, but separately. So if the `T` refers to a type
                         // parameter of the outer function, it's just one binder
                         // away instead of two.
+                        //
+                        // Similarly, HRTB lifetimes (from outer `for<'a>` binders)
+                        // must not escape into the nested impl trait's predicates.
+                        // `impl for<'a> Foo<'a, Assoc = impl for<'b> Qux<'a>>` is
+                        // illegal (rustc E0657), and allowing `'a` to resolve inside
+                        // the inner opaque's bounds would produce an escaping bound
+                        // variable that later causes a panic in canonicalization.
+                        // Clear HRTB lifetimes from `bound_vars` so outer HRTB lifetimes are invisible
+                        // during the inner impl trait's bound lowering, but keep the base generic parameters
+                        // (at index 0) to avoid panicking in `peek_bound_vars`.
+                        let saved_bound_vars = self.bound_vars.split_off(1);
                         let actual_opaque_type_data = self
                             .with_debruijn(DebruijnIndex::ZERO, |ctx| {
                                 ctx.lower_impl_trait(opaque_ty_id, bounds)
                             });
+                        self.bound_vars.extend(saved_bound_vars);
                         self.impl_trait_mode.opaque_type_data[idx] = actual_opaque_type_data;
 
                         let mut late_bound_index = 0;
