@@ -101,7 +101,7 @@ pub(crate) fn detect_variant_from_bytes<'a>(
     e: EnumId,
 ) -> Option<(EnumVariantId, &'a Layout)> {
     let (var_id, var_layout) = match &layout.variants {
-        hir_def::layout::Variants::Empty => unreachable!(),
+        hir_def::layout::Variants::Empty => return None,
         hir_def::layout::Variants::Single { index } => {
             (e.enum_variants(db).variants[index.0].0, layout)
         }
