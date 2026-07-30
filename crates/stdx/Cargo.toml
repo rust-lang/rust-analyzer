@@ -24,9 +24,17 @@ crossbeam-utils = "0.8.21"
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+process-wrap.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 miow = "0.6.0"
-windows-sys = { version = "0.61", features = ["Win32_Foundation"] }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
 
 [features]
 # Uncomment to enable for the whole crate graph
