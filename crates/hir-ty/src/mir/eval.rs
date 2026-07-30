@@ -1400,6 +1400,16 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         }
                     }
                 } else {
+                    // If the two operands have different byte sizes (e.g. from ill-typed code
+                    // like `enum_variant + int_literal`), `IntValue::from_bytes` would produce
+                    // different variants and subsequent arithmetic would panic. Gracefully fail
+                    // instead so analysis-stats doesn't crash on semantically invalid code.
+                    // Note: Bit shifts (Shl, Shr) can legitimately have different sizes.
+                    if lc.len() != rc.len() && !matches!(op, BinOp::Shl | BinOp::Shr) {
+                        not_supported!(
+                            "binary op between operands of incompatible integer sizes (ill-typed)"
+                        );
+                    }
                     let is_signed = matches!(ty.kind(), TyKind::Int(_));
                     let l128 = IntValue::from_bytes(lc, is_signed);
                     let r128 = IntValue::from_bytes(rc, is_signed);
@@ -3318,7 +3328,9 @@ macro_rules! checked_int_op {
         fn $op(self, other: Self) -> Option<Self> {
             match (self, other) {
                 $( (Self::$int_ty(a), Self::$int_ty(b)) => a.$op(b).map(Self::$int_ty), )+
-                _ => panic!("incompatible integer types"),
+                // Operands have incompatible types (e.g. from ill-typed code like `enum + int`).
+                // Return `None` so the evaluator propagates a graceful error instead of crashing.
+                _ => None,
             }
         }
     };
