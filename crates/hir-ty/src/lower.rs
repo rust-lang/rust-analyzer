@@ -230,6 +230,7 @@ pub struct TyLoweringContext<'db, 'a> {
     is_lowering_impl_trait_bounds: bool,
     bound_vars: Vec<(Vec<Name>, BoundVarKinds<'db>)>,
     lifetime_lowering_mode: LifetimeLoweringMode,
+    in_predicate_binder: bool,
 }
 
 impl<'db, 'a> TyLoweringContext<'db, 'a> {
@@ -272,6 +273,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             is_lowering_impl_trait_bounds: false,
             bound_vars,
             lifetime_lowering_mode,
+            in_predicate_binder: false,
         }
     }
 
@@ -309,6 +311,47 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         let res = self.with_debruijn(self.in_binders.shifted_in(1), f);
         let bound_vars = self.pop_bound_vars();
         (res, bound_vars)
+    }
+
+    pub(crate) fn with_predicate_binder_state<T>(
+        &mut self,
+        in_predicate_binder: bool,
+        f: impl FnOnce(&mut TyLoweringContext<'db, '_>) -> T,
+    ) -> T {
+        let old = mem::replace(&mut self.in_predicate_binder, in_predicate_binder);
+        let res = f(self);
+        self.in_predicate_binder = old;
+        res
+    }
+
+    pub(crate) fn with_merged_binder<T>(
+        &mut self,
+        binder: &[Name],
+        f: impl FnOnce(&mut TyLoweringContext<'db, '_>) -> T,
+    ) -> (T, BoundVarKinds<'db>) {
+        let mut last_binder = self.bound_vars.pop().unwrap();
+        let old_len = last_binder.0.len();
+        last_binder.0.extend_from_slice(binder);
+        let new_vars = BoundVarKinds::new_from_iter(
+            self.interner,
+            binder.iter().map(|_| {
+                BoundVariableKind::Region(BoundRegionKind::Named(self.generic_def.into()))
+            }),
+        );
+        let mut all_vars = last_binder.1.to_vec();
+        all_vars.extend(new_vars.iter());
+        last_binder.1 = BoundVarKinds::new_from_iter(self.interner, all_vars);
+        self.bound_vars.push(last_binder);
+        
+        let res = f(self);
+        
+        let mut last_binder = self.bound_vars.pop().unwrap();
+        last_binder.0.truncate(old_len);
+        let all_vars = last_binder.1.to_vec();
+        last_binder.1 = BoundVarKinds::new_from_iter(self.interner, all_vars.into_iter().take(old_len));
+        self.bound_vars.push(last_binder);
+        
+        (res, new_vars)
     }
 
     pub(crate) fn with_impl_trait_mode(self, impl_trait_mode: ImplTraitLoweringMode) -> Self {
@@ -898,9 +941,11 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         match where_predicate {
             WherePredicate::TypeBound { lifetimes, target, bound } => match lifetimes {
                 Some(lifetimes) => {
-                    self.with_shifted_in(lifetimes, |ctx| lower_type_outlives(ctx, target, bound)).0
+                    self.with_shifted_in(lifetimes, |ctx| {
+                        ctx.with_predicate_binder_state(true, |ctx| lower_type_outlives(ctx, target, bound))
+                    }).0
                 }
-                None => lower_type_outlives(self, target, bound),
+                None => self.with_predicate_binder_state(true, |ctx| lower_type_outlives(ctx, target, bound)),
             },
             &WherePredicate::Lifetime { bound, target } => Either::Right(iter::once((
                 Clause(Predicate::new(
@@ -966,7 +1011,13 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
         match bound {
             &TypeBound::ForLifetime(ref binder, path) => {
-                self.with_shifted_in(binder, |ctx| lower_path_bound(ctx, path)).0
+                if self.in_predicate_binder {
+                    self.with_merged_binder(binder, |ctx| lower_path_bound(ctx, path)).0
+                } else {
+                    self.with_shifted_in(binder, |ctx| {
+                        ctx.with_predicate_binder_state(true, |ctx| lower_path_bound(ctx, path))
+                    }).0
+                }
             }
             &TypeBound::Path(path, TraitBoundModifier::None) => lower_path_bound(self, path),
             &TypeBound::Path(path, TraitBoundModifier::Maybe) => {
@@ -1021,7 +1072,10 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
             for b in bounds {
                 let db = self.db;
-                self.lower_type_bound(b, dummy_self_ty, false).for_each(|(b, _)| {
+                let preds = self.with_predicate_binder_state(false, |ctx| {
+                    ctx.lower_type_bound(b, dummy_self_ty, false).collect::<Vec<_>>()
+                });
+                preds.into_iter().for_each(|(b, _)| {
                     match b.kind().skip_binder() {
                         rustc_type_ir::ClauseKind::Trait(t) => {
                             let id = t.def_id();

@@ -978,20 +978,22 @@ impl<'a, 'b, 'db> PathLoweringContext<'a, 'b, 'db> {
                 }
                 for bound in binding.bounds.iter() {
                     predicates.extend(
-                        self.ctx
-                            .lower_type_bound(
+                        self.ctx.with_predicate_binder_state(true, |ctx| {
+                            ctx.lower_type_bound(
                                 bound,
                                 Ty::new_alias(
-                                    self.ctx.interner,
+                                    ctx.interner,
                                     AliasTy::new_from_args(
-                                        self.ctx.interner,
+                                        ctx.interner,
                                         AliasTyKind::Projection { def_id: associated_ty.into() },
                                         args,
                                     ),
                                 ),
                                 false,
                             )
-                            .map(|(pred, _)| (pred, GenericPredicateSource::AssocTyBound)),
+                            .map(|(pred, _)| (pred, GenericPredicateSource::AssocTyBound))
+                            .collect::<Vec<_>>()
+                        })
                     );
                 }
                 predicates
