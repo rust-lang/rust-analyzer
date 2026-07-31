@@ -1,14 +1,12 @@
 //! Target dependent parameters needed for layouts
 
-use base_db::{Crate, target::TargetLoadError};
+use base_db::{Crate, SourceDatabase, target::TargetLoadError};
 use hir_def::layout::TargetDataLayout;
 use rustc_abi::{AddressSpace, AlignFromBytesError, TargetDataLayoutError};
 
-use crate::db::HirDatabase;
-
 #[salsa::tracked(returns(as_ref))]
 pub fn target_data_layout_query(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     krate: Crate,
 ) -> Result<TargetDataLayout, TargetLoadError> {
     match &krate.workspace_data(db).target {

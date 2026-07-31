@@ -1,5 +1,6 @@
 use std::{fmt, hash::Hash, num::NonZero};
 
+use base_db::SourceDatabase;
 use intern::{Interned, InternedRef, impl_internable};
 use macros::{GenericTypeVisitable, TypeFoldable, TypeVisitable};
 use rustc_abi::{Size, TargetDataLayout};
@@ -49,7 +50,7 @@ impl<'db> ValueConst<'db> {
     #[inline]
     pub fn try_to_bits(
         self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         param_env: ParamEnvAndCrate<'db>,
     ) -> Option<u128> {
         let (TyKind::Bool | TyKind::Char | TyKind::Uint(_) | TyKind::Int(_) | TyKind::Float(_)) =

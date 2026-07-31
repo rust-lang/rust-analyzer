@@ -14,6 +14,7 @@ use rustc_type_ir::{
 use crate::{
     Adjust, Adjustment, AutoBorrow,
     autoderef::{GeneralAutoderef, InferenceContextAutoderef},
+    db::HirDatabase,
     infer::{
         AllowTwoPhase, AutoBorrowMutability, Expectation, InferenceContext, InferenceDiagnostic,
         expr::{ExprIsRead, TupleArgumentsFlag},

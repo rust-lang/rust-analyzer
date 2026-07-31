@@ -1,6 +1,7 @@
 //! Renderer for patterns.
 
-use hir::{Name, StructKind, db::HirDatabase};
+use base_db::SourceDatabase;
+use hir::{Name, StructKind};
 use ide_db::{SnippetCap, documentation::HasDocs};
 use itertools::Itertools;
 use syntax::{Edition, SmolStr, ToSmolStr};
@@ -181,7 +182,7 @@ fn render_pat(
 }
 
 fn render_record_as_pat(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     snippet_cap: Option<SnippetCap>,
     fields: &[hir::Field],
     name: &str,

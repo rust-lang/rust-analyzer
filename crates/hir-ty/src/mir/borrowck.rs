@@ -5,6 +5,7 @@
 
 use std::iter;
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::HasModule;
 use la_arena::ArenaMap;
@@ -67,7 +68,7 @@ pub struct BorrowckResult<'db> {
 }
 
 impl<'db> BorrowckResult<'db> {
-    pub fn mir_body(&self, db: &'db dyn HirDatabase) -> &'db MirBody<'db> {
+    pub fn mir_body(&self, db: &'db dyn SourceDatabase) -> &'db MirBody<'db> {
         match self.owner {
             Either::Left(it) => db.mir_body(it).unwrap(),
             Either::Right(it) => db.mir_body_for_closure(it).unwrap(),
@@ -76,7 +77,7 @@ impl<'db> BorrowckResult<'db> {
 }
 
 fn all_mir_bodies<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: InferBodyId<'db>,
     mut cb: impl FnMut(
         &'db MirBody<'db>,
@@ -88,7 +89,7 @@ fn all_mir_bodies<'db>(
     ),
 ) -> Result<Box<[BorrowckResult<'db>]>, MirLowerError<'db>> {
     fn for_closure<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         c: InternedClosureId<'db>,
         results: &mut Vec<(BorrowckResult<'db>, &'db MirBody<'db>)>,
         cb: &mut impl FnMut(
@@ -146,13 +147,13 @@ fn all_mir_bodies<'db>(
 impl<'db> InferBodyId<'db> {
     pub fn borrowck(
         self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
     ) -> Result<&'db [BorrowckResult<'db>], MirLowerError<'db>> {
         return borrowck_query(db, self).map_err(|e| e.clone());
 
         #[salsa::tracked(returns(as_deref), lru = 2024)]
         fn borrowck_query<'db>(
-            db: &'db dyn HirDatabase,
+            db: &'db dyn SourceDatabase,
             def: InferBodyId<'db>,
         ) -> Result<Box<[BorrowckResult<'db>]>, MirLowerError<'db>> {
             let _p = tracing::info_span!("InferBodyId::borrowck").entered();
@@ -384,7 +385,7 @@ fn partially_moved<'db>(
     result
 }
 
-fn borrow_regions<'db>(db: &'db dyn HirDatabase, body: &MirBody<'db>) -> Vec<BorrowRegion> {
+fn borrow_regions<'db>(db: &'db dyn SourceDatabase, body: &MirBody<'db>) -> Vec<BorrowRegion> {
     let mut borrows = FxHashMap::default();
     for (_, block) in body.basic_blocks.iter() {
         db.unwind_if_revision_cancelled();
@@ -463,13 +464,13 @@ fn place_case<'db>(
 /// the start of the block. Only `StorageDead` can remove something from this map, and we ignore
 /// `Uninit` and `drop` and similar after initialization.
 fn ever_initialized_map(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     body: &MirBody<'_>,
 ) -> ArenaMap<BasicBlockId, ArenaMap<LocalId, bool>> {
     let mut result: ArenaMap<BasicBlockId, ArenaMap<LocalId, bool>> =
         body.basic_blocks.iter().map(|it| (it.0, ArenaMap::default())).collect();
     fn dfs(
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         body: &MirBody<'_>,
         l: LocalId,
         stack: &mut Vec<BasicBlockId>,

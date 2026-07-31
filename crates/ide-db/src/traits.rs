@@ -1,7 +1,8 @@
 //! Functionality for obtaining data related to traits from the DB.
 
 use crate::{RootDatabase, defs::Definition};
-use hir::{AsAssocItem, HasCrate, Semantics, db::HirDatabase, sym};
+use base_db::SourceDatabase;
+use hir::{AsAssocItem, HasCrate, Semantics, sym};
 use rustc_hash::FxHashSet;
 use syntax::{AstNode, ast};
 
@@ -87,7 +88,7 @@ pub fn get_missing_assoc_items(
 
 /// Converts associated trait impl items to their trait definition counterpart
 pub(crate) fn convert_to_def_in_trait<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: Definition<'db>,
 ) -> Definition<'db> {
     (|| {
@@ -100,7 +101,7 @@ pub(crate) fn convert_to_def_in_trait<'db>(
 
 /// If this is an trait (impl) assoc item, returns the assoc item of the corresponding trait definition.
 pub(crate) fn as_trait_assoc_def<'db>(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     def: Definition<'db>,
 ) -> Option<Definition<'db>> {
     let assoc = def.as_assoc_item(db)?;
@@ -112,7 +113,7 @@ pub(crate) fn as_trait_assoc_def<'db>(
 }
 
 fn assoc_item_of_trait<'db>(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     assoc: hir::AssocItem,
     trait_: hir::Trait,
 ) -> Option<Definition<'db>> {

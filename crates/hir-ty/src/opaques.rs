@@ -1,5 +1,6 @@
 //! Handling of opaque types, detection of defining scope and hidden type.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AssocItemId, AssocItemLoc, DefWithBodyId, FunctionId, HasModule, ItemContainerId, TypeAliasId,
     signatures::ImplSignature,
@@ -21,7 +22,7 @@ use crate::{
 };
 
 pub(crate) fn opaque_types_defined_by<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def_id: InferBodyId<'_>,
     result: &mut Vec<SolverDefId<'db>>,
 ) {
@@ -80,7 +81,7 @@ pub(crate) fn opaque_types_defined_by<'db>(
     // FIXME: Collect opaques from `#[define_opaque]`.
 
     fn extend_with_opaques<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         opaques: &Option<Box<StoredEarlyBinder<ImplTraits>>>,
         mut make_impl_trait: impl FnMut(ImplTraitIdx) -> ImplTraitId,
         result: &mut Vec<SolverDefId<'db>>,
@@ -98,7 +99,7 @@ pub(crate) fn opaque_types_defined_by<'db>(
 
 #[salsa::tracked(returns(ref))]
 pub(crate) fn rpit_hidden_types(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     function: FunctionId,
 ) -> ArenaMap<ImplTraitIdx, StoredEarlyBinder<StoredTy>> {
     let infer = InferenceResult::of(db, DefWithBodyId::from(function));
@@ -112,7 +113,7 @@ pub(crate) fn rpit_hidden_types(
 
 #[salsa::tracked(returns(ref))]
 pub(crate) fn tait_hidden_types(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     type_alias: TypeAliasId,
 ) -> ArenaMap<ImplTraitIdx, StoredEarlyBinder<StoredTy>> {
     // Call this first, to not perform redundant work if there are no TAITs.
@@ -186,7 +187,7 @@ pub(crate) fn tait_hidden_types(
 }
 
 fn tait_defining_bodies(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     loc: &AssocItemLoc<ast::TypeAlias>,
 ) -> Vec<DefWithBodyId> {
     let from_assoc_items = |assoc_items: &[(Name, AssocItemId)]| {

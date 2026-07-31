@@ -1,5 +1,6 @@
 //! Detecting whether a type is infinitely-sized.
 
+use base_db::SourceDatabase;
 use hir_def::{AdtId, VariantId, hir::generics::GenericParams};
 use rustc_type_ir::inherent::IntoKind;
 
@@ -24,7 +25,7 @@ macro_rules! rtry {
 }
 
 #[salsa::tracked(cycle_result = representability_cycle)]
-pub(crate) fn representability(db: &dyn HirDatabase, id: AdtId) -> Representability {
+pub(crate) fn representability(db: &dyn SourceDatabase, id: AdtId) -> Representability {
     match id {
         AdtId::StructId(id) => variant_representability(db, id.into()),
         AdtId::UnionId(id) => variant_representability(db, id.into()),
@@ -38,21 +39,21 @@ pub(crate) fn representability(db: &dyn HirDatabase, id: AdtId) -> Representabil
 }
 
 pub(crate) fn representability_cycle(
-    _db: &dyn HirDatabase,
+    _db: &dyn SourceDatabase,
     _: salsa::Id,
     _id: AdtId,
 ) -> Representability {
     Representability::Infinite
 }
 
-fn variant_representability(db: &dyn HirDatabase, id: VariantId) -> Representability {
+fn variant_representability(db: &dyn SourceDatabase, id: VariantId) -> Representability {
     for ty in db.field_types(id).values() {
         rtry!(representability_ty(db, ty.ty().instantiate_identity().skip_norm_wip()));
     }
     Representability::Representable
 }
 
-fn representability_ty<'db>(db: &'db dyn HirDatabase, ty: Ty<'db>) -> Representability {
+fn representability_ty<'db>(db: &'db dyn SourceDatabase, ty: Ty<'db>) -> Representability {
     match ty.kind() {
         TyKind::Adt(adt_id, args) => representability_adt_ty(db, adt_id.def_id(), args),
         // FIXME(#11924) allow zero-length arrays?
@@ -68,7 +69,7 @@ fn representability_ty<'db>(db: &'db dyn HirDatabase, ty: Ty<'db>) -> Representa
 }
 
 fn representability_adt_ty<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def_id: AdtId,
     args: GenericArgs<'db>,
 ) -> Representability {
@@ -87,7 +88,7 @@ fn representability_adt_ty<'db>(
     Representability::Representable
 }
 
-fn params_in_repr(db: &dyn HirDatabase, def_id: AdtId) -> Box<[bool]> {
+fn params_in_repr(db: &dyn SourceDatabase, def_id: AdtId) -> Box<[bool]> {
     let generics = GenericParams::of(db, def_id.into());
     let mut params_in_repr = (0..generics.len_lifetimes() + generics.len_type_or_consts())
         .map(|_| false)
@@ -113,7 +114,7 @@ fn params_in_repr(db: &dyn HirDatabase, def_id: AdtId) -> Box<[bool]> {
     params_in_repr
 }
 
-fn params_in_repr_ty<'db>(db: &'db dyn HirDatabase, ty: Ty<'db>, params_in_repr: &mut [bool]) {
+fn params_in_repr_ty<'db>(db: &'db dyn SourceDatabase, ty: Ty<'db>, params_in_repr: &mut [bool]) {
     match ty.kind() {
         TyKind::Adt(adt, args) => {
             let inner_params_in_repr = self::params_in_repr(db, adt.def_id());

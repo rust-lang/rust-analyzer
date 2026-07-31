@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, cell::RefCell, fmt::Write, iter, mem, ops::Range};
 
-use base_db::{Crate, salsa::update_fallback_db, target::TargetLoadError};
+use base_db::{Crate, SourceDatabase, salsa::update_fallback_db, target::TargetLoadError};
 use either::Either;
 use hir_def::{
     AdtId, DefWithBodyId, EnumVariantId, FunctionId, HasModule, ItemContainerId, Lookup, StaticId,
@@ -170,7 +170,7 @@ enum MirOrDynIndex<'db> {
 }
 
 pub struct Evaluator<'a, 'db> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     param_env: ParamEnvAndCrate<'db>,
     target_data_layout: &'db TargetDataLayout,
     stack: Vec<u8>,
@@ -383,7 +383,7 @@ impl MirEvalError<'_> {
     pub fn pretty_print(
         &self,
         f: &mut String,
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         span_formatter: impl Fn(FileId, TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
@@ -612,7 +612,7 @@ impl MirOutput {
 }
 
 pub fn interpret_mir<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     body: &'db MirBody<'db>,
     // FIXME: This is workaround. Ideally, const generics should have a separate body (issue #7434), but now
     // they share their body with their parent, so in MIR lowering we have locals of the parent body, which
@@ -655,7 +655,7 @@ const EXECUTION_LIMIT: usize = 10_000_000;
 
 impl<'a, 'db> Evaluator<'a, 'db> {
     pub fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         owner: InferBodyId<'db>,
         assert_placeholder_ty_is_unused: bool,
         trait_env: Option<ParamEnvAndCrate<'db>>,
@@ -3198,7 +3198,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
 }
 
 pub fn render_const_using_debug_impl<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     owner: InferBodyId<'db>,
     c: Allocation<'db>,
     ty: Ty<'db>,

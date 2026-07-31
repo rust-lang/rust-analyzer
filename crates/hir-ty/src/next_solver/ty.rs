@@ -2,6 +2,7 @@
 
 use std::ops::ControlFlow;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, HasModule, TypeParamId,
     hir::generics::{GenericParams, TypeOrConstParamData, TypeParamProvenance},
@@ -26,7 +27,7 @@ use rustc_type_ir::{
 };
 
 use crate::{
-    db::{HirDatabase, InternedOpaqueTyId},
+    db::InternedOpaqueTyId,
     lower::GenericPredicates,
     next_solver::{
         AdtDef, AliasTy, Binder, CallableIdWrapper, Clause, ClauseKind, ClosureIdWrapper, Const,
@@ -737,7 +738,7 @@ impl<'db> Ty<'db> {
     }
 
     // FIXME: Should this be here?
-    pub fn impl_trait_bounds(self, db: &'db dyn HirDatabase) -> Option<Vec<Clause<'db>>> {
+    pub fn impl_trait_bounds(self, db: &'db dyn SourceDatabase) -> Option<Vec<Clause<'db>>> {
         let interner = DbInterner::new_no_crate(db);
 
         match self.kind() {

@@ -1,6 +1,7 @@
 //! Renderer for macro invocations.
 
-use hir::{HirDisplay, db::HirDatabase};
+use base_db::SourceDatabase;
+use hir::HirDisplay;
 use ide_db::{SymbolKind, documentation::Documentation};
 use syntax::{SmolStr, ToSmolStr, format_smolstr};
 
@@ -113,7 +114,7 @@ fn banged_name(name: &str) -> SmolStr {
 }
 
 fn guess_macro_braces(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     macro_: hir::Macro,
     macro_name: &str,
     docs: Option<&Documentation<'_>>,

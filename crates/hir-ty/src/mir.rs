@@ -2,6 +2,7 @@
 
 use std::{fmt::Display, iter};
 
+use base_db::SourceDatabase;
 use hir_def::{
     FieldId, LocalFieldId, StaticId, UnionId, VariantId,
     hir::{BindingId, Expr, ExprId, Ordering, PatId},
@@ -136,7 +137,7 @@ impl<'db> Operand {
     }
 
     fn from_fn(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         func_id: hir_def::FunctionId,
         generic_args: GenericArgs<'db>,
     ) -> Operand {

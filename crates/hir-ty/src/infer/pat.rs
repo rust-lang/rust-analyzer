@@ -27,6 +27,7 @@ use tracing::{debug, instrument, trace};
 
 use crate::{
     BindingMode, InferenceDiagnostic, Span,
+    db::HirDatabase,
     infer::{
         AllowTwoPhase, ByRef, Expectation, InferenceContext, PatAdjust, PatAdjustment,
         expr::ExprIsRead,

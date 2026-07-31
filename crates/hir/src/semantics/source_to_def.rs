@@ -85,7 +85,7 @@
 //! active crate for a given position, and then provide an API to resolve all
 //! syntax nodes against this specific crate.
 
-use base_db::relevant_crates;
+use base_db::{SourceDatabase, relevant_crates};
 use either::Either;
 use hir_def::{
     AdtId, BlockId, BuiltinDeriveImplId, ConstId, ConstParamId, DefWithBodyId, EnumId,
@@ -114,10 +114,7 @@ use syntax::{
 };
 use tt::TextRange;
 
-use crate::{
-    InFile, InlineAsmOperand, SemanticsImpl, db::HirDatabase,
-    semantics::child_by_source::ChildBySource,
-};
+use crate::{InFile, InlineAsmOperand, SemanticsImpl, semantics::child_by_source::ChildBySource};
 
 #[derive(Default)]
 pub(super) struct SourceToDefCache<'db> {
@@ -142,7 +139,7 @@ impl<'db> SourceToDefCache<'db> {
 
     pub(super) fn get_or_insert_include_for(
         &mut self,
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         file: EditionedFileId,
     ) -> Option<MacroCallId> {
         if let Some(&m) = self.included_file_cache.get(&file) {
@@ -159,7 +156,7 @@ impl<'db> SourceToDefCache<'db> {
 
     pub(super) fn get_or_insert_expansion(
         &mut self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         macro_file: MacroCallId,
     ) -> &ExpansionInfo<'db> {
         self.expansion_info_cache.entry(macro_file).or_insert_with(|| {
@@ -186,7 +183,7 @@ impl<'db> SourceToDefCache<'db> {
 }
 
 pub(super) struct SourceToDefCtx<'db, 'cache> {
-    pub(super) db: &'db dyn HirDatabase,
+    pub(super) db: &'db dyn SourceDatabase,
     pub(super) cache: &'cache mut SourceToDefCache<'db>,
 }
 
@@ -745,7 +742,7 @@ impl_from! {
 }
 
 impl ChildContainer {
-    fn child_by_source(self, db: &dyn HirDatabase, file_id: HirFileId) -> DynMap {
+    fn child_by_source(self, db: &dyn SourceDatabase, file_id: HirFileId) -> DynMap {
         let _p = tracing::info_span!("ChildContainer::child_by_source").entered();
         match self {
             ChildContainer::DefWithBodyId(it) => it.child_by_source(db, file_id),

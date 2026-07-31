@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, DefWithBodyId, HasModule, ItemContainerId, Lookup,
@@ -76,7 +76,7 @@ pub enum BodyValidationDiagnostic<'db> {
 
 impl<'db> BodyValidationDiagnostic<'db> {
     pub fn collect(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         owner: DefWithBodyId,
         validate_lints: bool,
     ) -> Vec<BodyValidationDiagnostic<'db>> {
@@ -113,7 +113,7 @@ struct ExprValidator<'db> {
 
 impl<'db> ExprValidator<'db> {
     #[inline]
-    fn db(&self) -> &'db dyn HirDatabase {
+    fn db(&self) -> &'db dyn SourceDatabase {
         self.infcx.interner.db
     }
 
@@ -566,7 +566,7 @@ struct FilterMapNextChecker<'db> {
 }
 
 impl<'db> FilterMapNextChecker<'db> {
-    fn new(lang_items: &'db LangItems, db: &'db dyn HirDatabase) -> Self {
+    fn new(lang_items: &'db LangItems, db: &'db dyn SourceDatabase) -> Self {
         // Find and store the FunctionIds for Iterator::filter_map and Iterator::next
         let (next_function_id, filter_map_function_id) = match lang_items.IteratorNext {
             Some(next_function_id) => (
@@ -622,7 +622,7 @@ impl<'db> FilterMapNextChecker<'db> {
 }
 
 pub fn record_literal_missing_fields<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     infer: &InferenceResult<'db>,
     id: ExprId,
     expr: &Expr,
@@ -665,7 +665,7 @@ pub fn record_literal_missing_fields<'db>(
 }
 
 pub fn record_pattern_missing_fields<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     infer: &InferenceResult<'db>,
     id: PatId,
     pat: &Pat,

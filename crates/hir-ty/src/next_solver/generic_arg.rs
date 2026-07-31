@@ -20,9 +20,12 @@ use rustc_type_ir::{
     walk::TypeWalker,
 };
 
-use crate::next_solver::{
-    ConstInterned, RegionInterned, TyInterned, impl_foldable_for_interned_slice,
-    impl_foldable_for_stored_type, interned_slice,
+use crate::{
+    db::HirDatabase,
+    next_solver::{
+        ConstInterned, RegionInterned, TyInterned, impl_foldable_for_interned_slice,
+        impl_foldable_for_stored_type, interned_slice,
+    },
 };
 
 use super::{

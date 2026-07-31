@@ -1,5 +1,6 @@
 //! Utilities for computing drop info about types.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, ImplId,
     signatures::{StructFlags, StructSignature},
@@ -19,7 +20,7 @@ use crate::{
 };
 
 #[salsa::tracked]
-pub fn destructor(db: &dyn HirDatabase, adt: AdtId) -> Option<ImplId> {
+pub fn destructor(db: &dyn SourceDatabase, adt: AdtId) -> Option<ImplId> {
     let module = match adt {
         AdtId::EnumId(id) => id.loc(db).container,
         AdtId::StructId(id) => id.loc(db).container,

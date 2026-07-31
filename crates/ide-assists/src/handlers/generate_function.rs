@@ -4,6 +4,7 @@ use hir::{
 };
 use ide_db::{
     FileId, FxHashMap, FxHashSet, RootDatabase, SnippetCap,
+    base_db::SourceDatabase,
     defs::{Definition, NameRefClass},
     famous_defs::FamousDefs,
     helpers::is_editable_crate,
@@ -1308,7 +1309,7 @@ fn next_space_for_fn_after_call_site(expr: ast::CallableExpr) -> Option<Generate
 }
 
 fn next_space_for_fn_in_module(
-    db: &dyn hir::db::HirDatabase,
+    db: &dyn SourceDatabase,
     target_module: hir::Module,
 ) -> Option<(FileId, GeneratedFunctionTarget)> {
     let module_source = target_module.definition_source(db);

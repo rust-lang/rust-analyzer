@@ -31,6 +31,7 @@ pub mod util;
 use std::{mem::ManuallyDrop, sync::OnceLock};
 
 pub use allocation::*;
+use base_db::SourceDatabase;
 pub use binder::*;
 pub use consts::*;
 pub use def_id::*;
@@ -43,7 +44,6 @@ use rustc_type_ir::MayBeErased;
 pub use solver::*;
 pub use ty::*;
 
-use crate::db::HirDatabase;
 pub use crate::lower::ImplTraitIdx;
 pub use rustc_ast_ir::Mutability;
 
@@ -143,7 +143,7 @@ impl std::fmt::Debug for DefaultAny<'_> {
 }
 
 #[inline]
-pub fn default_types<'db>(db: &'db dyn HirDatabase) -> &'db DefaultAny<'db> {
+pub fn default_types<'db>(db: &'db dyn SourceDatabase) -> &'db DefaultAny<'db> {
     static TYPES: OnceLock<DefaultAny<'static>> = OnceLock::new();
 
     let interner = DbInterner::new_no_crate(db);

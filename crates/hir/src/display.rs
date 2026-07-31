@@ -1,5 +1,6 @@
 //! HirDisplay implementations for various hir types.
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::{
     AdtId, BuiltinDeriveImplId, DefWithBodyId, ExpressionStoreOwnerId, FunctionId, GenericDefId,
@@ -19,7 +20,6 @@ use hir_def::{
 use hir_expand::name::Name;
 use hir_ty::{
     GenericPredicates,
-    db::HirDatabase,
     display::{
         HirDisplay, HirDisplayWithExpressionStore, HirFormatter, Result, SizedByDefault,
         hir_display_with_store, write_bounds_like_dyn_trait_with_prefix, write_params_bounds,
@@ -773,7 +773,7 @@ fn write_where_clause<'db>(def: GenericDefId, f: &mut HirFormatter<'_, 'db>) -> 
 }
 
 fn has_disaplayable_predicates(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     params: &GenericParams,
     store: &ExpressionStore,
 ) -> bool {

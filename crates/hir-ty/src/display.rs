@@ -7,7 +7,7 @@ use std::{
     mem,
 };
 
-use base_db::{Crate, FxIndexMap};
+use base_db::{Crate, FxIndexMap, SourceDatabase};
 use either::Either;
 use hir_def::{
     ExpressionStoreOwnerId, FindPathConfig, GenericDefId, GenericParamId, HasModule,
@@ -115,7 +115,7 @@ impl HirWrite for fmt::Formatter<'_> {}
 
 pub struct HirFormatter<'a, 'db> {
     /// The database handle
-    pub db: &'db dyn HirDatabase,
+    pub db: &'db dyn SourceDatabase,
     pub interner: DbInterner<'db>,
     /// The sink to write into
     fmt: &'a mut dyn HirWrite,
@@ -238,7 +238,7 @@ pub trait HirDisplay<'db> {
     /// Returns a `Display`able type that is human-readable.
     fn into_displayable<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         max_size: Option<usize>,
         limited_size: Option<usize>,
         omit_verbose_types: bool,
@@ -273,7 +273,7 @@ pub trait HirDisplay<'db> {
     /// Use this for showing types to the user (e.g. diagnostics)
     fn display<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         display_target: DisplayTarget,
     ) -> HirDisplayWrapper<'a, 'db, Self>
     where
@@ -298,7 +298,7 @@ pub trait HirDisplay<'db> {
     /// Use this for showing types to the user where space is constrained (e.g. doc popups)
     fn display_truncated<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         max_size: Option<usize>,
         display_target: DisplayTarget,
     ) -> HirDisplayWrapper<'a, 'db, Self>
@@ -324,7 +324,7 @@ pub trait HirDisplay<'db> {
     /// Use this for showing definitions which may contain too many items, like `trait`, `struct`, `enum`
     fn display_limited<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         limited_size: Option<usize>,
         display_target: DisplayTarget,
     ) -> HirDisplayWrapper<'a, 'db, Self>
@@ -350,7 +350,7 @@ pub trait HirDisplay<'db> {
     /// Use this when generating code (e.g. assists)
     fn display_source_code<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         module_id: ModuleId,
         allow_opaque: bool,
     ) -> Result<String, DisplaySourceCodeError> {
@@ -384,7 +384,7 @@ pub trait HirDisplay<'db> {
     /// Returns a String representation of `self` for test purposes
     fn display_test<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         display_target: DisplayTarget,
     ) -> HirDisplayWrapper<'a, 'db, Self>
     where
@@ -409,7 +409,7 @@ pub trait HirDisplay<'db> {
     /// the container for functions
     fn display_with_container_bounds<'a>(
         &'a self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         show_container_bounds: bool,
         display_target: DisplayTarget,
     ) -> HirDisplayWrapper<'a, 'db, Self>
@@ -516,7 +516,7 @@ pub struct DisplayTarget {
 }
 
 impl DisplayTarget {
-    pub fn from_crate(db: &dyn HirDatabase, krate: Crate) -> Self {
+    pub fn from_crate(db: &dyn SourceDatabase, krate: Crate) -> Self {
         let edition = krate.data(db).edition;
         Self { krate, edition }
     }
@@ -569,7 +569,7 @@ impl From<fmt::Error> for HirDisplayError {
 }
 
 pub struct HirDisplayWrapper<'a, 'db, T> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     t: &'a T,
     max_size: Option<usize>,
     limited_size: Option<usize>,

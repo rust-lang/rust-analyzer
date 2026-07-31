@@ -1,5 +1,5 @@
-use hir::{AsAssocItem, AssocItem, AssocItemContainer, ItemInNs, ModuleDef, db::HirDatabase};
-use ide_db::assists::AssistId;
+use hir::{AsAssocItem, AssocItem, AssocItemContainer, ItemInNs, ModuleDef};
+use ide_db::{assists::AssistId, base_db::SourceDatabase};
 use syntax::{AstNode, ast};
 
 use crate::{
@@ -67,7 +67,7 @@ pub(crate) fn qualify_method_call(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     Some(())
 }
 
-fn item_for_path_search(db: &dyn HirDatabase, item: ItemInNs) -> Option<ItemInNs> {
+fn item_for_path_search(db: &dyn SourceDatabase, item: ItemInNs) -> Option<ItemInNs> {
     Some(match item {
         ItemInNs::Types(_) | ItemInNs::Values(_) => match item_as_assoc(db, item) {
             Some(assoc_item) => match assoc_item.container(db) {
@@ -83,7 +83,7 @@ fn item_for_path_search(db: &dyn HirDatabase, item: ItemInNs) -> Option<ItemInNs
     })
 }
 
-fn item_as_assoc(db: &dyn HirDatabase, item: ItemInNs) -> Option<AssocItem> {
+fn item_as_assoc(db: &dyn SourceDatabase, item: ItemInNs) -> Option<AssocItem> {
     item.into_module_def().as_assoc_item(db)
 }
 

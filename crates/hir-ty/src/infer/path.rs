@@ -13,6 +13,7 @@ use stdx::never;
 
 use crate::{
     ExplicitDropMethodUseKind, InferenceDiagnostic, Span, ValueTyDefId,
+    db::HirDatabase,
     infer::{
         InferenceTyLoweringVarsCtx, diagnostics::InferenceTyLoweringContext as TyLoweringContext,
     },

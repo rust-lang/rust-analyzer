@@ -10,7 +10,7 @@ use rustc_ast_ir::{FloatTy, IntTy, UintTy};
 pub use tls_cache::clear_tls_solver_cache;
 pub use tls_db::{attach_db, attach_db_allow_change, with_attached_db};
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use hir_def::{
     AdtId, CallableDefId, EnumId, HasModule, ItemContainerId, StructId, TraitId, TypeAliasId,
     UnionId, VariantId,
@@ -351,7 +351,7 @@ pub trait WorldExposer {
 
 #[derive(Debug, Copy, Clone)]
 pub struct DbInterner<'db> {
-    pub(crate) db: &'db dyn HirDatabase,
+    pub(crate) db: &'db dyn SourceDatabase,
     krate: Option<Crate>,
     lang_items: Option<&'db LangItems>,
 }
@@ -366,7 +366,7 @@ impl<'db> DbInterner<'db> {
     pub fn conjure() -> DbInterner<'db> {
         // Here we can not reinit the cache since we do that when we attach the db.
         crate::with_attached_db(|db| DbInterner {
-            db: unsafe { std::mem::transmute::<&dyn HirDatabase, &'db dyn HirDatabase>(db) },
+            db: unsafe { std::mem::transmute::<&dyn SourceDatabase, &'db dyn SourceDatabase>(db) },
             krate: None,
             lang_items: None,
         })
@@ -376,13 +376,13 @@ impl<'db> DbInterner<'db> {
     /// As a rule of thumb, when you create an `InferCtxt`, you need to provide the crate (and the block).
     ///
     /// Elaboration is a special kind: it needs lang items (for `Sized`), therefore it needs `new_with()`.
-    pub fn new_no_crate(db: &'db dyn HirDatabase) -> Self {
+    pub fn new_no_crate(db: &'db dyn SourceDatabase) -> Self {
         // We do not reinit the cache here, since anything accessing the cache needs an InferCtxt,
         // and we panic when trying to construct an InferCtxt for an Interner without a crate.
         DbInterner { db, krate: None, lang_items: None }
     }
 
-    pub fn new_with(db: &'db dyn HirDatabase, krate: Crate) -> DbInterner<'db> {
+    pub fn new_with(db: &'db dyn SourceDatabase, krate: Crate) -> DbInterner<'db> {
         tls_cache::reinit_cache(db);
         DbInterner {
             db,
@@ -394,7 +394,7 @@ impl<'db> DbInterner<'db> {
     }
 
     #[inline]
-    pub fn db(&self) -> &'db dyn HirDatabase {
+    pub fn db(&self) -> &'db dyn SourceDatabase {
         self.db
     }
 
@@ -577,7 +577,7 @@ impl AdtDef {
     }
 
     #[inline]
-    pub fn repr(self, db: &dyn HirDatabase) -> ReprOptions {
+    pub fn repr(self, db: &dyn SourceDatabase) -> ReprOptions {
         if self.flags().contains(AdtFlags::HAS_REPR) {
             AttrFlags::repr_assume_has(db, self.def_id()).unwrap_or_default()
         } else {
@@ -2013,7 +2013,7 @@ impl<'db> Interner for DbInterner<'db> {
         return SolverDefIds::new_from_slice(&result);
 
         struct CoroutinesVisitor<'a, 'db> {
-            db: &'db dyn HirDatabase,
+            db: &'db dyn SourceDatabase,
             owner: InferBodyId<'db>,
             store: &'db ExpressionStore,
             coroutines: &'a mut Vec<SolverDefId<'db>>,
@@ -2306,7 +2306,7 @@ impl<'db> DbInterner<'db> {
 }
 
 fn predicates_of<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def_id: SolverDefId<'db>,
 ) -> &'db GenericPredicates {
     match def_id {
@@ -2398,22 +2398,22 @@ TrivialTypeTraversalImpls! {
 mod tls_db {
     use std::{cell::Cell, ptr::NonNull};
 
-    use crate::db::HirDatabase;
+    use base_db::SourceDatabase;
 
     struct Attached {
-        database: Cell<Option<NonNull<dyn HirDatabase>>>,
+        database: Cell<Option<NonNull<dyn SourceDatabase>>>,
     }
 
     impl Attached {
         #[inline]
-        fn attach<R>(&self, db: &dyn HirDatabase, op: impl FnOnce() -> R) -> R {
+        fn attach<R>(&self, db: &dyn SourceDatabase, op: impl FnOnce() -> R) -> R {
             struct DbGuard<'s> {
                 state: Option<&'s Attached>,
             }
 
             impl<'s> DbGuard<'s> {
                 #[inline]
-                fn new(attached: &'s Attached, db: &dyn HirDatabase) -> Self {
+                fn new(attached: &'s Attached, db: &dyn SourceDatabase) -> Self {
                     match attached.database.get() {
                         Some(current_db) => {
                             let new_db = NonNull::from(db);
@@ -2450,15 +2450,15 @@ mod tls_db {
         }
 
         #[inline]
-        fn attach_allow_change<R>(&self, db: &dyn HirDatabase, op: impl FnOnce() -> R) -> R {
+        fn attach_allow_change<R>(&self, db: &dyn SourceDatabase, op: impl FnOnce() -> R) -> R {
             struct DbGuard<'s> {
                 state: &'s Attached,
-                prev: Option<NonNull<dyn HirDatabase>>,
+                prev: Option<NonNull<dyn SourceDatabase>>,
             }
 
             impl<'s> DbGuard<'s> {
                 #[inline]
-                fn new(attached: &'s Attached, db: &dyn HirDatabase) -> Self {
+                fn new(attached: &'s Attached, db: &dyn SourceDatabase) -> Self {
                     let prev = attached.database.replace(Some(NonNull::from(db)));
                     Self { state: attached, prev }
                 }
@@ -2480,7 +2480,7 @@ mod tls_db {
         }
 
         #[inline]
-        fn with<R>(&self, op: impl FnOnce(&dyn HirDatabase) -> R) -> R {
+        fn with<R>(&self, op: impl FnOnce(&dyn SourceDatabase) -> R) -> R {
             let db = self.database.get().expect("Try to use attached db, but not db is attached");
 
             // SAFETY: The db is attached, so it must be valid.
@@ -2493,17 +2493,17 @@ mod tls_db {
     }
 
     #[inline]
-    pub fn attach_db<R>(db: &dyn HirDatabase, op: impl FnOnce() -> R) -> R {
+    pub fn attach_db<R>(db: &dyn SourceDatabase, op: impl FnOnce() -> R) -> R {
         GLOBAL_DB.with(|global_db| global_db.attach(db, op))
     }
 
     #[inline]
-    pub fn attach_db_allow_change<R>(db: &dyn HirDatabase, op: impl FnOnce() -> R) -> R {
+    pub fn attach_db_allow_change<R>(db: &dyn SourceDatabase, op: impl FnOnce() -> R) -> R {
         GLOBAL_DB.with(|global_db| global_db.attach_allow_change(db, op))
     }
 
     #[inline]
-    pub fn with_attached_db<R>(op: impl FnOnce(&dyn HirDatabase) -> R) -> R {
+    pub fn with_attached_db<R>(op: impl FnOnce(&dyn SourceDatabase) -> R) -> R {
         GLOBAL_DB.with(
             #[inline]
             |a| a.with(op),
@@ -2512,10 +2512,9 @@ mod tls_db {
 }
 
 mod tls_cache {
-    use crate::db::HirDatabase;
 
     use super::DbInterner;
-    use base_db::Nonce;
+    use base_db::{Nonce, SourceDatabase};
     use rustc_type_ir::search_graph::GlobalCache;
     use salsa::Revision;
     use std::cell::RefCell;
@@ -2540,7 +2539,7 @@ mod tls_cache {
         static GLOBAL_CACHE: RefCell<Cache> = const { RefCell::new(Cache::default()) };
     }
 
-    pub(super) fn reinit_cache(db: &dyn HirDatabase) {
+    pub(super) fn reinit_cache(db: &dyn SourceDatabase) {
         GLOBAL_CACHE.with_borrow_mut(|handle| {
             let (db_nonce, revision) = db.nonce_and_revision();
             if handle.revision != revision || db_nonce != handle.db_nonce {
@@ -2551,7 +2550,7 @@ mod tls_cache {
 
     #[inline]
     pub(super) fn borrow_assume_valid<'db, T>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         f: impl FnOnce(&mut GlobalCache<DbInterner<'db>>) -> T,
     ) -> T {
         if cfg!(debug_assertions) {

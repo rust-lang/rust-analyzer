@@ -1,6 +1,7 @@
 //! Renderer for function calls.
 
-use hir::{AsAssocItem, HirDisplay, db::HirDatabase};
+use base_db::SourceDatabase;
+use hir::{AsAssocItem, HirDisplay};
 use ide_db::{SnippetCap, SymbolKind};
 use itertools::Itertools;
 use stdx::{format_to, to_lower_snake_case};
@@ -183,7 +184,7 @@ fn render(
 }
 
 fn compute_return_type_match(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     ctx: &RenderContext<'_, '_>,
     self_type: hir::Type<'_>,
     ret_type: &hir::Type<'_>,

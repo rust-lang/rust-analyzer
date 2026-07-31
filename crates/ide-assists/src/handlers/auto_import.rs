@@ -1,9 +1,10 @@
 use std::cmp::Reverse;
 
 use either::Either;
-use hir::{Module, Type, db::HirDatabase};
+use hir::{Module, Type};
 use ide_db::{
     active_parameter::ActiveParameter,
+    base_db::SourceDatabase,
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},
@@ -314,7 +315,7 @@ pub(crate) fn relevance_score(
 }
 
 /// A heuristic that gives a higher score to modules that are more separated.
-fn module_distance_heuristic(db: &dyn HirDatabase, current: &Module, item: &Module) -> usize {
+fn module_distance_heuristic(db: &dyn SourceDatabase, current: &Module, item: &Module) -> usize {
     // get the path starting from the item to the respective crate roots
     let mut current_path = current.path_to_root(db);
     let mut item_path = item.path_to_root(db);

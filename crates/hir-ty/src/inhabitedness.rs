@@ -1,6 +1,7 @@
 //! Type inhabitedness logic.
 use std::ops::ControlFlow::{self, Break, Continue};
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, EnumVariantId, ModuleId, VariantId, signatures::VariantFields, visibility::Visibility,
 };
@@ -108,7 +109,7 @@ impl<'a, 'db> UninhabitedFrom<'a, 'db> {
     }
 
     #[inline]
-    fn db(&self) -> &'db dyn HirDatabase {
+    fn db(&self) -> &'db dyn SourceDatabase {
         self.interner().db
     }
 

@@ -12,7 +12,7 @@ use tracing::{instrument, trace};
 
 use crate::{
     Span,
-    db::GeneralConstId,
+    db::{GeneralConstId, HirDatabase},
     next_solver::{
         AliasTerm, AnyImplId, Binder, ClauseKind, Const, ConstKind, DbInterner,
         HostEffectPredicate, PolyTraitPredicate, Predicate, PredicateKind, SolverContext, Term,

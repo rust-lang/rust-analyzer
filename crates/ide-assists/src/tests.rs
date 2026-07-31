@@ -1,7 +1,7 @@
 mod generated;
 
 use expect_test::expect;
-use hir::{Semantics, db::HirDatabase, setup_tracing};
+use hir::{Semantics, setup_tracing};
 use ide_db::{
     EditionedFileId, FileRange, RootDatabase, SnippetCap,
     assists::ExprFillDefaultMode,
@@ -114,7 +114,7 @@ fn assists(
     range: ide_db::FileRange,
 ) -> Vec<Assist> {
     hir::attach_db(db, || {
-        HirDatabase::zalsa_register_downcaster(db);
+        SourceDatabase::zalsa_register_downcaster(db);
         crate::assists(db, config, resolve, range)
     })
 }
@@ -350,7 +350,7 @@ fn check_with_config(
     };
     let mut acc = Assists::new(&ctx, resolve);
     hir::attach_db(&db, || {
-        HirDatabase::zalsa_register_downcaster(&db);
+        SourceDatabase::zalsa_register_downcaster(&db);
         handler(&mut acc, &ctx);
     });
     let mut res = acc.finish();

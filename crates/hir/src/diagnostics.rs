@@ -3,6 +3,7 @@
 //!
 //! This probably isn't the best way to do this -- ideally, diagnostics should
 //! be expressed in terms of hir types themselves.
+use base_db::SourceDatabase;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_def::{
@@ -18,7 +19,6 @@ use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
 use hir_ty::{
     CastError, ExplicitDropMethodUseKind, InferenceDiagnostic, InferenceTyDiagnosticSource,
     PathGenericsSource, PathLoweringDiagnostic, TyLoweringDiagnostic,
-    db::HirDatabase,
     diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
     display::{DisplayTarget, HirDisplay},
     next_solver::{DbInterner, EarlyBinder},
@@ -701,7 +701,7 @@ pub struct ReturnOutsideFunction {
 
 impl<'db> AnyDiagnostic<'db> {
     pub(crate) fn body_validation_diagnostic(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         diagnostic: BodyValidationDiagnostic<'db>,
         source_map: &hir_def::expr_store::BodySourceMap,
     ) -> Option<AnyDiagnostic<'db>> {
@@ -833,7 +833,7 @@ impl<'db> AnyDiagnostic<'db> {
     }
 
     pub(crate) fn inference_diagnostic(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: DefWithBodyId,
         d: &'db InferenceDiagnostic,
         source_map: &hir_def::expr_store::BodySourceMap,
@@ -1203,7 +1203,7 @@ impl<'db> AnyDiagnostic<'db> {
     }
 
     fn solver_diagnostic(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         d: &'db SolverDiagnosticKind,
         span: SpanSyntax,
         type_owner: TypeOwnerId<'db>,
@@ -1382,7 +1382,7 @@ impl<'db> AnyDiagnostic<'db> {
     pub(crate) fn ty_diagnostic(
         diag: &TyLoweringDiagnostic,
         source_map: &ExpressionStoreSourceMap,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
     ) -> Option<AnyDiagnostic<'db>> {
         Some(match diag {
             TyLoweringDiagnostic::PathDiagnostic { source, diag } => {

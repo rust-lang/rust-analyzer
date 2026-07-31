@@ -1,5 +1,6 @@
 //! Impl specialization related things
 
+use base_db::SourceDatabase;
 use hir_def::{HasModule, ImplId, signatures::ImplSignature, unstable_features::UnstableFeatures};
 use tracing::debug;
 
@@ -20,7 +21,7 @@ use crate::{
 // create a cycle if there is an error in the impl's where clauses. I believe well formed code
 // cannot create a cycle, but a cycle handler is required nevertheless.
 fn specializes_query_cycle(
-    _db: &dyn HirDatabase,
+    _db: &dyn SourceDatabase,
     _: salsa::Id,
     _specializing_impl_def_id: ImplId,
     _parent_impl_def_id: ImplId,
@@ -41,7 +42,7 @@ fn specializes_query_cycle(
 /// set of types.
 #[salsa::tracked(cycle_result = specializes_query_cycle)]
 fn specializes_query(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     specializing_impl_def_id: ImplId,
     parent_impl_def_id: ImplId,
 ) -> bool {
@@ -135,7 +136,7 @@ fn specializes_query(
 // This function is used to avoid creating the query for crates that does not define `#![feature(specialization)]`,
 // as the solver is calling this a lot, and creating the query consumes a lot of memory.
 pub(crate) fn specializes(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     specializing_impl_def_id: ImplId,
     parent_impl_def_id: ImplId,
 ) -> bool {

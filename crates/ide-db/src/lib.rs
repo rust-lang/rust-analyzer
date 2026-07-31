@@ -63,7 +63,7 @@ use base_db::{
     CrateGraphBuilder, CratesMap, FileSourceRootInput, FileText, Files, Nonce, SourceDatabase,
     SourceRoot, SourceRootId, SourceRootInput, set_all_crates_with_durability,
 };
-use hir::{FilePositionWrapper, FileRangeWrapper, db::HirDatabase};
+use hir::{FilePositionWrapper, FileRangeWrapper};
 use triomphe::Arc;
 
 use crate::line_index::LineIndex;
@@ -180,6 +180,10 @@ impl SourceDatabase for RootDatabase {
 
     fn line_column(&self, file: FileId, offset: syntax::TextSize) -> Result<(u32, u32), ()> {
         line_index(self, file).try_line_col(offset).map(|lc| (lc.line, lc.col)).ok_or(())
+    }
+
+    fn as_dyn(&self) -> &dyn SourceDatabase {
+        self
     }
 }
 
@@ -315,7 +319,7 @@ impl From<hir::MacroKind> for SymbolKind {
 }
 
 impl SymbolKind {
-    pub fn from_module_def(db: &dyn HirDatabase, it: hir::ModuleDef) -> Self {
+    pub fn from_module_def(db: &dyn SourceDatabase, it: hir::ModuleDef) -> Self {
         match it {
             hir::ModuleDef::Const(..) => SymbolKind::Const,
             hir::ModuleDef::EnumVariant(..) => SymbolKind::Variant,

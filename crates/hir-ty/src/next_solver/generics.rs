@@ -1,11 +1,10 @@
 //! Things related to generics in the next-trait-solver.
 
+use base_db::SourceDatabase;
 use hir_def::{
     GenericDefId, GenericParamId, TypeParamId,
     hir::generics::{GenericParamDataRef, LifetimeParamData},
 };
-
-use crate::db::HirDatabase;
 
 use super::{Ctor, DbInterner, SolverDefId};
 
@@ -60,7 +59,7 @@ pub struct Generics<'db> {
 
 impl<'db> Generics<'db> {
     pub(crate) fn from_generic_def(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: GenericDefId,
         consider_late_bound: bool,
     ) -> Generics<'db> {
@@ -72,7 +71,7 @@ impl<'db> Generics<'db> {
     }
 
     pub(crate) fn from_generic_def_plus_one(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: GenericDefId,
         additional_param: TypeParamId,
         consider_late_bound: bool,

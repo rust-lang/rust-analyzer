@@ -5,10 +5,11 @@ use crate::{
     utils::convert_param_list_to_arg_list,
 };
 use either::Either;
-use hir::{HasVisibility, db::HirDatabase};
+use hir::HasVisibility;
 use ide_db::{
     FxHashMap, FxHashSet,
     assists::{AssistId, GroupLabel},
+    base_db::SourceDatabase,
     path_transform::PathTransform,
     syntax_helpers::suggest_name,
 };
@@ -178,7 +179,7 @@ impl Delegee {
         }
     }
 
-    fn signature(&self, db: &dyn HirDatabase, edition: Edition) -> String {
+    fn signature(&self, db: &dyn SourceDatabase, edition: Edition) -> String {
         let mut s = String::new();
         let it = self.trait_();
 

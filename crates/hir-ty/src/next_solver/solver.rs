@@ -16,7 +16,7 @@ use tracing::debug;
 
 use crate::{
     ParamEnvAndCrate, Span,
-    db::GeneralConstId,
+    db::{GeneralConstId, HirDatabase},
     next_solver::{
         AliasTy, AnyImplId, CanonicalVarKind, Clause, ClauseKind, CoercePredicate, ErrorGuaranteed,
         GenericArgs, ImplOrTraitAssocTermId, OpaqueTyIdWrapper, ParamEnv, Predicate, PredicateKind,

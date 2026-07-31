@@ -4,7 +4,7 @@
 use project_model::{CargoConfig, RustLibSource};
 use rustc_hash::FxHashSet;
 
-use hir::{Crate, Module, db::HirDatabase, sym};
+use hir::{Crate, Module, sym};
 use ide::{AnalysisHost, AssistResolveStrategy, Diagnostic, DiagnosticsConfig, Severity};
 use ide_db::{base_db::SourceDatabase, line_index};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
@@ -126,7 +126,7 @@ impl flags::Diagnostics {
     }
 }
 
-fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
+fn all_modules(db: &dyn SourceDatabase) -> Vec<Module> {
     let mut worklist: Vec<_> =
         Crate::all(db).into_iter().map(|krate| krate.root_module(db)).collect();
     let mut modules = Vec::new();

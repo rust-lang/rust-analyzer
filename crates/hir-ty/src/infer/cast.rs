@@ -1,5 +1,6 @@
 //! Type cast logic. Basically coercion + additional casts.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId,
     hir::ExprId,
@@ -44,7 +45,7 @@ pub(crate) enum CastTy<'db> {
 }
 
 impl<'db> CastTy<'db> {
-    pub(crate) fn from_ty(db: &dyn HirDatabase, t: Ty<'db>) -> Option<Self> {
+    pub(crate) fn from_ty(db: &dyn SourceDatabase, t: Ty<'db>) -> Option<Self> {
         match t.kind() {
             TyKind::Bool => Some(Self::Int(Int::Bool)),
             TyKind::Char => Some(Self::Int(Int::Char)),

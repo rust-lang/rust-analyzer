@@ -5,6 +5,7 @@
 use std::cell::{OnceCell, RefCell};
 use std::ops::{Deref, DerefMut};
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::expr_store::path::Path;
 use hir_def::{ExpressionStoreOwnerId, GenericDefId};
@@ -20,7 +21,7 @@ use thin_vec::ThinVec;
 use crate::lower::LifetimeLoweringMode;
 use crate::{
     InferenceDiagnostic, InferenceTyDiagnosticSource, Span, TyLoweringDiagnostic,
-    db::{AnonConstId, HirDatabase},
+    db::AnonConstId,
     generics::Generics,
     infer::unify::InferenceTable,
     lower::{
@@ -99,7 +100,7 @@ pub(super) struct InferenceTyLoweringContext<'db, 'a> {
 impl<'db, 'a> InferenceTyLoweringContext<'db, 'a> {
     #[inline]
     pub(super) fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         resolver: &'a Resolver<'db>,
         store: &'db ExpressionStore,
         diagnostics: &'a Diagnostics,

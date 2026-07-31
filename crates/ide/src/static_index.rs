@@ -3,7 +3,7 @@
 
 use arrayvec::ArrayVec;
 use either::Either;
-use hir::{Crate, Module, Semantics, db::HirDatabase};
+use hir::{Crate, Module, Semantics};
 use ide_db::{
     FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
     base_db::{SourceDatabase, VfsPath},
@@ -116,7 +116,7 @@ pub struct StaticIndexedFile {
     pub tokens: Vec<(TextRange, TokenId)>,
 }
 
-fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
+fn all_modules(db: &dyn SourceDatabase) -> Vec<Module> {
     let mut worklist: Vec<_> =
         Crate::all(db).into_iter().map(|krate| krate.root_module(db)).collect();
     let mut modules = Vec::new();

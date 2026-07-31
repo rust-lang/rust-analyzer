@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use either::Either;
-use hir::{FileRange, PathResolution, Semantics, TypeInfo, db::HirDatabase, sym};
+use hir::{FileRange, PathResolution, Semantics, TypeInfo, sym};
 use ide_db::{
     EditionedFileId, FxHashMap, RootDatabase,
-    base_db::Crate,
+    base_db::{Crate, SourceDatabase},
     defs::Definition,
     imports::insert_use::remove_use_tree_if_simple,
     path_transform::PathTransform,
@@ -307,7 +307,7 @@ impl CallInfo {
 }
 
 fn get_fn_params<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     function: hir::Function,
     param_list: &ast::ParamList,
     make: &SyntaxFactory,

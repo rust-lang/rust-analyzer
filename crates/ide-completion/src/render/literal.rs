@@ -1,6 +1,7 @@
 //! Renderer for `enum` variants.
 
-use hir::{StructKind, db::HirDatabase};
+use base_db::SourceDatabase;
+use hir::StructKind;
 use ide_db::{
     SymbolKind,
     documentation::{Documentation, HasDocs},
@@ -166,7 +167,7 @@ impl Variant {
         if !fields_omitted { Some(visible_fields) } else { None }
     }
 
-    fn kind(self, db: &dyn HirDatabase) -> StructKind {
+    fn kind(self, db: &dyn SourceDatabase) -> StructKind {
         match self {
             Variant::Struct(it) => it.kind(db),
             Variant::EnumVariant(it) => it.kind(db),
@@ -180,7 +181,7 @@ impl Variant {
         }
     }
 
-    fn docs(self, db: &dyn HirDatabase) -> Option<Documentation<'_>> {
+    fn docs(self, db: &dyn SourceDatabase) -> Option<Documentation<'_>> {
         match self {
             Variant::Struct(it) => it.docs(db),
             Variant::EnumVariant(it) => it.docs(db),
@@ -196,7 +197,7 @@ impl Variant {
         }
     }
 
-    fn ty(self, db: &dyn HirDatabase) -> hir::Type<'_> {
+    fn ty(self, db: &dyn SourceDatabase) -> hir::Type<'_> {
         match self {
             Variant::Struct(it) => it.ty(db),
             Variant::EnumVariant(it) => it.parent_enum(db).ty(db),

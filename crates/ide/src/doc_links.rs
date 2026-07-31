@@ -12,12 +12,10 @@ use pulldown_cmark_to_cmark::{Options as CMarkOptions, cmark_with_options};
 use stdx::format_to;
 use url::Url;
 
-use hir::{
-    Adt, AsAssocItem, AssocItem, AssocItemContainer, AttrsWithOwner, HasAttrs, db::HirDatabase,
-};
+use hir::{Adt, AsAssocItem, AssocItem, AssocItemContainer, AttrsWithOwner, HasAttrs};
 use ide_db::{
     RootDatabase,
-    base_db::{CrateOrigin, LangCrateOrigin, ReleaseChannel, toolchain_channel},
+    base_db::{CrateOrigin, LangCrateOrigin, ReleaseChannel, SourceDatabase, toolchain_channel},
     defs::{Definition, NameClass, NameRefClass},
     documentation::{Documentation, HasDocs},
     helpers::pick_best_token,
@@ -208,7 +206,7 @@ pub(crate) fn extract_definitions_from_docs(
 }
 
 pub(crate) fn resolve_doc_path_for_def<'db>(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     def: Definition<'db>,
     link: &str,
     ns: Option<hir::Namespace>,
@@ -633,7 +631,7 @@ fn get_doc_base_urls(
 ///                                    ^^^^^^^^^^^^^^^^^^^
 /// ```
 fn filename_and_frag_for_def<'db>(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     def: Definition<'db>,
 ) -> Option<(Definition<'db>, String, Option<String>)> {
     if let Some(assoc_item) = def.as_assoc_item(db) {
@@ -740,7 +738,7 @@ fn filename_and_frag_for_def<'db>(
 /// https://doc.rust-lang.org/std/iter/trait.Iterator.html#tymethod.next
 ///                                                       ^^^^^^^^^^^^^^
 /// ```
-fn get_assoc_item_fragment(db: &dyn HirDatabase, assoc_item: hir::AssocItem) -> Option<String> {
+fn get_assoc_item_fragment(db: &dyn SourceDatabase, assoc_item: hir::AssocItem) -> Option<String> {
     Some(match assoc_item {
         AssocItem::Function(function) => {
             let is_trait_method =

@@ -3,7 +3,7 @@
 
 use std::{cell::RefCell, convert::Infallible, ops::ControlFlow};
 
-use base_db::FxIndexMap;
+use base_db::{FxIndexMap, SourceDatabase};
 use hir_def::{
     AssocItemId, FunctionId, GenericParamId, ImplId, ItemContainerId, TraitId,
     hir::generics::GenericParams,
@@ -838,7 +838,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
     }
 
     #[inline]
-    fn db(&self) -> &'db dyn HirDatabase {
+    fn db(&self) -> &'db dyn SourceDatabase {
         self.ctx.infcx.interner.db
     }
 

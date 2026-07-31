@@ -3,13 +3,11 @@
 use std::slice;
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
-use hir::{
-    HasAttrs as HirHasAttrs, HirDisplay, InFile, ModuleDef, PathResolution, Semantics,
-    db::HirDatabase,
-};
+use hir::{HasAttrs as HirHasAttrs, HirDisplay, InFile, ModuleDef, PathResolution, Semantics};
 use ide_db::{
     RootDatabase,
     assists::ExprFillDefaultMode,
+    base_db::SourceDatabase,
     famous_defs::FamousDefs,
     path_transform::PathTransform,
     syntax_helpers::{node_ext::preorder_expr, prettify_macro_expansion},
@@ -756,7 +754,7 @@ enum ReferenceConversionType {
 }
 
 impl<'db> ReferenceConversion<'db> {
-    fn type_to_string(&self, db: &'db dyn HirDatabase, module: hir::Module) -> String {
+    fn type_to_string(&self, db: &'db dyn SourceDatabase, module: hir::Module) -> String {
         match self.conversion {
             ReferenceConversionType::Copy => self
                 .ty
@@ -810,7 +808,11 @@ impl<'db> ReferenceConversion<'db> {
         }
     }
 
-    pub(crate) fn convert_type(&self, db: &'db dyn HirDatabase, module: hir::Module) -> ast::Type {
+    pub(crate) fn convert_type(
+        &self,
+        db: &'db dyn SourceDatabase,
+        module: hir::Module,
+    ) -> ast::Type {
         let ty = self.type_to_string(db, module);
         make::ty(&ty)
     }
@@ -818,7 +820,7 @@ impl<'db> ReferenceConversion<'db> {
     pub(crate) fn convert_type_with_factory(
         &self,
         make: &SyntaxFactory,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         module: hir::Module,
     ) -> ast::Type {
         let ty = self.type_to_string(db, module);
@@ -863,7 +865,11 @@ pub(crate) fn convert_reference_type<'db>(
         .map(|(conversion, impls_deref)| ReferenceConversion { ty, conversion, impls_deref })
 }
 
-fn could_deref_to_target(ty: &hir::Type<'_>, target: &hir::Type<'_>, db: &dyn HirDatabase) -> bool {
+fn could_deref_to_target(
+    ty: &hir::Type<'_>,
+    target: &hir::Type<'_>,
+    db: &dyn SourceDatabase,
+) -> bool {
     let ty_ref = ty.add_reference(db, hir::Mutability::Shared);
     let target_ref = target.add_reference(db, hir::Mutability::Shared);
     ty_ref.could_coerce_to(db, &target_ref)
@@ -871,14 +877,14 @@ fn could_deref_to_target(ty: &hir::Type<'_>, target: &hir::Type<'_>, db: &dyn Hi
 
 fn handle_copy(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
 ) -> Option<(ReferenceConversionType, bool)> {
     ty.is_copy(db).then_some((ReferenceConversionType::Copy, true))
 }
 
 fn handle_as_ref_str(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     famous_defs: &FamousDefs<'_, '_>,
 ) -> Option<(ReferenceConversionType, bool)> {
     let str_type = hir::BuiltinType::str().ty(db);
@@ -889,7 +895,7 @@ fn handle_as_ref_str(
 
 fn handle_as_ref_slice(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     famous_defs: &FamousDefs<'_, '_>,
 ) -> Option<(ReferenceConversionType, bool)> {
     let type_argument = ty.type_arguments().next()?;
@@ -903,7 +909,7 @@ fn handle_as_ref_slice(
 
 fn handle_dereferenced(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     famous_defs: &FamousDefs<'_, '_>,
 ) -> Option<(ReferenceConversionType, bool)> {
     let type_argument = ty.type_arguments().next()?;
@@ -917,7 +923,7 @@ fn handle_dereferenced(
 
 fn handle_option_as_ref(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     famous_defs: &FamousDefs<'_, '_>,
 ) -> Option<(ReferenceConversionType, bool)> {
     if ty.as_adt() == famous_defs.core_option_Option()?.ty(db).as_adt() {
@@ -929,7 +935,7 @@ fn handle_option_as_ref(
 
 fn handle_result_as_ref(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     famous_defs: &FamousDefs<'_, '_>,
 ) -> Option<(ReferenceConversionType, bool)> {
     if ty.as_adt() == famous_defs.core_result_Result()?.ty(db).as_adt() {

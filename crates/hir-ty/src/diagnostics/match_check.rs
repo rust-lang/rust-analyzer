@@ -9,6 +9,7 @@ mod pat_util;
 
 pub(crate) mod pat_analysis;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, EnumVariantId, LocalFieldId, Lookup, VariantId,
     expr_store::{Body, path::Path},
@@ -23,7 +24,6 @@ use stdx::{always, never, variance::PhantomCovariantLifetime};
 
 use crate::{
     ByRef, InferenceResult,
-    db::HirDatabase,
     display::{HirDisplay, HirDisplayError, HirFormatter},
     infer::BindingMode,
     next_solver::{GenericArgs, Mutability, Ty, TyKind},
@@ -96,7 +96,7 @@ pub(crate) enum PatKind<'db> {
 }
 
 pub(crate) struct PatCtxt<'a, 'db> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     infer: &'db InferenceResult<'db>,
     body: &'a Body,
     pub(crate) errors: Vec<PatternError>,
@@ -104,7 +104,7 @@ pub(crate) struct PatCtxt<'a, 'db> {
 
 impl<'a, 'db> PatCtxt<'a, 'db> {
     pub(crate) fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         infer: &'db InferenceResult<'db>,
         body: &'a Body,
     ) -> Self {
