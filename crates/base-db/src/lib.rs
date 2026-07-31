@@ -310,6 +310,8 @@ pub trait SourceDatabase: salsa::Database + std::fmt::Debug {
     fn nonce_and_revision(&self) -> (Nonce, salsa::Revision);
 
     fn line_column(&self, file: FileId, offset: TextSize) -> Result<(u32, u32), ()>;
+
+    fn as_dyn(&self) -> &dyn SourceDatabase;
 }
 
 static NEXT_NONCE: AtomicUsize = AtomicUsize::new(0);

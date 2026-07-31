@@ -37,14 +37,7 @@ use crate::{
     traits::{ParamEnvAndCrate, StoredParamEnvAndCrate},
 };
 
-#[salsa::db]
 pub trait HirDatabase: SourceDatabase + 'static {
-    /// Manual implementation of upcasting from `dyn SourceDatabase` to `dyn HirDatabase`.
-    ///
-    /// This function is needed because Rust can't perform this upcasting automatically
-    /// in the general case, as `Self` could be unsized.
-    fn as_dyn(&self) -> &dyn HirDatabase;
-
     // region:mir
 
     // FIXME: Collapse `mir_body_for_closure` into `mir_body`
@@ -334,17 +327,7 @@ pub trait HirDatabase: SourceDatabase + 'static {
     }
 }
 
-#[salsa::db]
-impl<T: SourceDatabase> HirDatabase for T {
-    fn as_dyn(&self) -> &dyn HirDatabase {
-        self
-    }
-}
-
-#[test]
-fn hir_database_is_dyn_compatible() {
-    fn _assert_dyn_compatible(_: &dyn HirDatabase) {}
-}
+impl<T: SourceDatabase + ?Sized> HirDatabase for T {}
 
 #[salsa::interned(debug, revisions = usize::MAX)]
 #[derive(PartialOrd, Ord)]
