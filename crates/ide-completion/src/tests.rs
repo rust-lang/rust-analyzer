@@ -310,7 +310,7 @@ pub(crate) fn get_all_items(
 ) -> Vec<CompletionItem> {
     let (db, position) = position(code);
     let res = hir::attach_db(&db, || {
-        HirDatabase::zalsa_register_downcaster(&db);
+        SourceDatabase::zalsa_register_downcaster(&db);
         crate::completions(&db, &config, position, trigger_character)
     })
     .map_or_else(Vec::default, Into::into);

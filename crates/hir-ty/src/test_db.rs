@@ -136,6 +136,10 @@ impl SourceDatabase for TestDB {
     fn line_column(&self, _file: FileId, _offset: syntax::TextSize) -> Result<(u32, u32), ()> {
         Err(())
     }
+
+    fn as_dyn(&self) -> &dyn SourceDatabase {
+        self
+    }
 }
 
 #[salsa::db]

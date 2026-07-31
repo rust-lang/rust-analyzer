@@ -181,6 +181,10 @@ impl SourceDatabase for RootDatabase {
     fn line_column(&self, file: FileId, offset: syntax::TextSize) -> Result<(u32, u32), ()> {
         line_index(self, file).try_line_col(offset).map(|lc| (lc.line, lc.col)).ok_or(())
     }
+
+    fn as_dyn(&self) -> &dyn SourceDatabase {
+        self
+    }
 }
 
 impl Default for RootDatabase {
