@@ -15,7 +15,6 @@ use thin_vec::ThinVec;
 
 use crate::{
     InferenceDiagnostic, Span,
-    db::HirDatabase,
     next_solver::{
         Canonical, ClauseKind, Const, ConstKind, DbInterner, ErrorGuaranteed, GenericArg,
         GenericArgs, ParamEnv, Predicate, PredicateKind, Region, SolverDefId, Term, TraitRef, Ty,

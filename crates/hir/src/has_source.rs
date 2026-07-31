@@ -16,7 +16,7 @@ use tt::TextRange;
 use crate::{
     Adt, AnyFunctionId, Callee, Const, Enum, EnumVariant, ExternCrateDecl, Field, FieldSource,
     Function, Impl, InlineAsmOperand, Label, LifetimeParam, LocalSource, Macro, Module, Param,
-    SelfParam, Static, Struct, Trait, TypeAlias, TypeOrConstParam, Union, Variant, db::HirDatabase,
+    SelfParam, Static, Struct, Trait, TypeAlias, TypeOrConstParam, Union, Variant,
 };
 
 pub trait HasSource: Sized {

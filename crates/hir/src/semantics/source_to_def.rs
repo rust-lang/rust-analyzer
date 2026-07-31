@@ -114,10 +114,7 @@ use syntax::{
 };
 use tt::TextRange;
 
-use crate::{
-    InFile, InlineAsmOperand, SemanticsImpl, db::HirDatabase,
-    semantics::child_by_source::ChildBySource,
-};
+use crate::{InFile, InlineAsmOperand, SemanticsImpl, semantics::child_by_source::ChildBySource};
 
 #[derive(Default)]
 pub(super) struct SourceToDefCache<'db> {

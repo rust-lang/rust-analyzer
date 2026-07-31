@@ -1,7 +1,7 @@
 mod generated;
 
 use expect_test::expect;
-use hir::{Semantics, db::HirDatabase, setup_tracing};
+use hir::{Semantics, setup_tracing};
 use ide_db::{
     EditionedFileId, FileRange, RootDatabase, SnippetCap,
     assists::ExprFillDefaultMode,

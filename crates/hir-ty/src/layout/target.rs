@@ -4,8 +4,6 @@ use base_db::{Crate, SourceDatabase, target::TargetLoadError};
 use hir_def::layout::TargetDataLayout;
 use rustc_abi::{AddressSpace, AlignFromBytesError, TargetDataLayoutError};
 
-use crate::db::HirDatabase;
-
 #[salsa::tracked(returns(as_ref))]
 pub fn target_data_layout_query(
     db: &dyn SourceDatabase,

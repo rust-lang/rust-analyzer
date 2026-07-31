@@ -2400,8 +2400,6 @@ mod tls_db {
 
     use base_db::SourceDatabase;
 
-    use crate::db::HirDatabase;
-
     struct Attached {
         database: Cell<Option<NonNull<dyn SourceDatabase>>>,
     }
@@ -2514,7 +2512,6 @@ mod tls_db {
 }
 
 mod tls_cache {
-    use crate::db::HirDatabase;
 
     use super::DbInterner;
     use base_db::{Nonce, SourceDatabase};

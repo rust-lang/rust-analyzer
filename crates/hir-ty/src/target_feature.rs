@@ -9,8 +9,6 @@ use hir_def::attrs::AttrFlags;
 use intern::Symbol;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::db::HirDatabase;
-
 #[derive(Debug, Default, Clone)]
 pub struct TargetFeatures<'db> {
     pub(crate) enabled: Cow<'db, FxHashSet<Symbol>>,

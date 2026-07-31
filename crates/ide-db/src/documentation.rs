@@ -2,7 +2,7 @@
 use std::borrow::Cow;
 
 use base_db::SourceDatabase;
-use hir::{HasAttrs, db::HirDatabase, resolve_doc_path_on};
+use hir::{HasAttrs, resolve_doc_path_on};
 
 /// Holds documentation
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

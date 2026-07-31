@@ -14,7 +14,6 @@ use tracing::debug;
 
 use crate::{
     ParamEnvAndCrate, Span,
-    db::HirDatabase,
     infer::InferenceContext,
     next_solver::{
         Canonical, DbInterner, ParamEnv, TraitRef, Ty, TyKind, TypingMode,

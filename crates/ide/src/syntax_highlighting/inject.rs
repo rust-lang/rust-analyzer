@@ -1,6 +1,6 @@
 //! "Recursive" Syntax highlighting for code in doctests and fixtures.
 
-use hir::{EditionedFileId, HirFileId, InFile, Semantics, db::HirDatabase};
+use hir::{EditionedFileId, HirFileId, InFile, Semantics};
 use ide_db::{
     SymbolKind, base_db::SourceDatabase, defs::Definition, documentation::Documentation,
     range_mapper::RangeMapper, rust_doc::is_rust_fence,

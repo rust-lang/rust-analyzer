@@ -44,7 +44,6 @@ use rustc_type_ir::MayBeErased;
 pub use solver::*;
 pub use ty::*;
 
-use crate::db::HirDatabase;
 pub use crate::lower::ImplTraitIdx;
 pub use rustc_ast_ir::Mutability;
 

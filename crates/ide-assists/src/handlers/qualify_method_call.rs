@@ -1,4 +1,4 @@
-use hir::{AsAssocItem, AssocItem, AssocItemContainer, ItemInNs, ModuleDef, db::HirDatabase};
+use hir::{AsAssocItem, AssocItem, AssocItemContainer, ItemInNs, ModuleDef};
 use ide_db::{assists::AssistId, base_db::SourceDatabase};
 use syntax::{AstNode, ast};
 

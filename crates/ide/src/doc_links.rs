@@ -12,9 +12,7 @@ use pulldown_cmark_to_cmark::{Options as CMarkOptions, cmark_with_options};
 use stdx::format_to;
 use url::Url;
 
-use hir::{
-    Adt, AsAssocItem, AssocItem, AssocItemContainer, AttrsWithOwner, HasAttrs, db::HirDatabase,
-};
+use hir::{Adt, AsAssocItem, AssocItem, AssocItemContainer, AttrsWithOwner, HasAttrs};
 use ide_db::{
     RootDatabase,
     base_db::{CrateOrigin, LangCrateOrigin, ReleaseChannel, SourceDatabase, toolchain_channel},

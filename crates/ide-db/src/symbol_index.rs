@@ -34,7 +34,6 @@ use base_db::{
 use fst::{Automaton, Streamer, raw::IndexedValue};
 use hir::{
     Crate, Module,
-    db::HirDatabase,
     import_map::{AssocSearchMode, SearchMode},
     symbols::{FileSymbol, SymbolCollector},
 };

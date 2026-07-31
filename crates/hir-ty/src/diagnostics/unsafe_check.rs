@@ -19,7 +19,6 @@ use span::Edition;
 
 use crate::{
     InferenceResult, TargetFeatures,
-    db::HirDatabase,
     next_solver::{CallableIdWrapper, TyKind, abi::Safety},
     utils::{TargetFeatureIsSafeInTarget, is_fn_unsafe_to_call, target_feature_is_safe_in_target},
 };

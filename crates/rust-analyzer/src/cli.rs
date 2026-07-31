@@ -22,7 +22,6 @@ use std::io::Read;
 
 use anyhow::Result;
 use hir::{Module, Name};
-use hir_ty::db::HirDatabase;
 use ide::{AnalysisHost, Edition};
 use ide_db::base_db::SourceDatabase;
 use itertools::Itertools;

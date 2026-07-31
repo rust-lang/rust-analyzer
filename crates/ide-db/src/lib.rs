@@ -63,7 +63,7 @@ use base_db::{
     CrateGraphBuilder, CratesMap, FileSourceRootInput, FileText, Files, Nonce, SourceDatabase,
     SourceRoot, SourceRootId, SourceRootInput, set_all_crates_with_durability,
 };
-use hir::{FilePositionWrapper, FileRangeWrapper, db::HirDatabase};
+use hir::{FilePositionWrapper, FileRangeWrapper};
 use triomphe::Arc;
 
 use crate::line_index::LineIndex;

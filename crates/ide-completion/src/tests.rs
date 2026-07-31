@@ -26,7 +26,6 @@ mod visibility;
 
 use base_db::SourceDatabase;
 use expect_test::Expect;
-use hir::db::HirDatabase;
 use hir::{PrefixKind, setup_tracing};
 use ide_db::{
     FilePosition, RootDatabase, SnippetCap,

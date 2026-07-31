@@ -1,4 +1,4 @@
-use hir::{HasSource, HasVisibility, ModuleDef, PathResolution, ScopeDef, db::HirDatabase};
+use hir::{HasSource, HasVisibility, ModuleDef, PathResolution, ScopeDef};
 use ide_db::{FileId, base_db::SourceDatabase};
 use syntax::{
     AstNode, TextRange,

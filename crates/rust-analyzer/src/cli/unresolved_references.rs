@@ -1,5 +1,5 @@
 //! Reports references in code that the IDE layer cannot resolve.
-use hir::{AnyDiagnostic, Crate, Module, Semantics, db::HirDatabase, sym};
+use hir::{AnyDiagnostic, Crate, Module, Semantics, sym};
 use ide::{AnalysisHost, RootDatabase, TextRange};
 use ide_db::{FxHashSet, base_db::SourceDatabase, defs::NameRefClass, line_index};
 use load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};

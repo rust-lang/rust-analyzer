@@ -6,8 +6,6 @@ use hir_def::{
     hir::generics::{GenericParamDataRef, LifetimeParamData},
 };
 
-use crate::db::HirDatabase;
-
 use super::{Ctor, DbInterner, SolverDefId};
 
 pub(crate) fn generics<'db>(interner: DbInterner<'db>, def: SolverDefId<'db>) -> Generics<'db> {

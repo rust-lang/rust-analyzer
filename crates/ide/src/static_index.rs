@@ -3,7 +3,7 @@
 
 use arrayvec::ArrayVec;
 use either::Either;
-use hir::{Crate, Module, Semantics, db::HirDatabase};
+use hir::{Crate, Module, Semantics};
 use ide_db::{
     FileId, FileRange, FxHashMap, FxHashSet, RootDatabase,
     base_db::{SourceDatabase, VfsPath},

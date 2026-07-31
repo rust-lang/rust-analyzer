@@ -2,7 +2,7 @@
 
 use crate::{RootDatabase, defs::Definition};
 use base_db::SourceDatabase;
-use hir::{AsAssocItem, HasCrate, Semantics, db::HirDatabase, sym};
+use hir::{AsAssocItem, HasCrate, Semantics, sym};
 use rustc_hash::FxHashSet;
 use syntax::{AstNode, ast};
 

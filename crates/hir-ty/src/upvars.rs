@@ -10,8 +10,6 @@ use hir_def::{
 use hir_expand::mod_path::PathKind;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::db::HirDatabase;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 // Kept sorted.
 pub struct Upvars(Box<[BindingId]>);

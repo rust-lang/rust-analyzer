@@ -21,7 +21,7 @@ use thin_vec::ThinVec;
 use crate::lower::LifetimeLoweringMode;
 use crate::{
     InferenceDiagnostic, InferenceTyDiagnosticSource, Span, TyLoweringDiagnostic,
-    db::{AnonConstId, HirDatabase},
+    db::AnonConstId,
     generics::Generics,
     infer::unify::InferenceTable,
     lower::{
