@@ -1,5 +1,6 @@
 //! Type cast logic. Basically coercion + additional casts.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId,
     hir::ExprId,

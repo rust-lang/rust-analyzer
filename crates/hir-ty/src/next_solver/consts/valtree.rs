@@ -1,5 +1,6 @@
 use std::{fmt, hash::Hash, num::NonZero};
 
+use base_db::SourceDatabase;
 use intern::{Interned, InternedRef, impl_internable};
 use macros::{GenericTypeVisitable, TypeFoldable, TypeVisitable};
 use rustc_abi::{Size, TargetDataLayout};

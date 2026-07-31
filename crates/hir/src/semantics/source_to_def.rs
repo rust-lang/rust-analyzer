@@ -85,7 +85,7 @@
 //! active crate for a given position, and then provide an API to resolve all
 //! syntax nodes against this specific crate.
 
-use base_db::relevant_crates;
+use base_db::{SourceDatabase, relevant_crates};
 use either::Either;
 use hir_def::{
     AdtId, BlockId, BuiltinDeriveImplId, ConstId, ConstParamId, DefWithBodyId, EnumId,

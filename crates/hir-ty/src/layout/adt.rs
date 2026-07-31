@@ -2,6 +2,7 @@
 
 use std::cmp;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, VariantId,
     attrs::AttrFlags,

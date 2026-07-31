@@ -5,6 +5,7 @@
 
 use std::iter;
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::HasModule;
 use la_arena::ArenaMap;

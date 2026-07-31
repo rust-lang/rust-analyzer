@@ -15,6 +15,7 @@ mod case_conv;
 
 use std::fmt;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, ConstId, EnumId, EnumVariantId, FunctionId, HasModule, ItemContainerId, Lookup,
     ModuleDefId, ModuleId, StaticId, StructId, TraitId, TypeAliasId, UnionId,

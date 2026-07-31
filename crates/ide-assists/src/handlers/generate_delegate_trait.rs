@@ -9,6 +9,7 @@ use hir::{HasVisibility, db::HirDatabase};
 use ide_db::{
     FxHashMap, FxHashSet,
     assists::{AssistId, GroupLabel},
+    base_db::SourceDatabase,
     path_transform::PathTransform,
     syntax_helpers::suggest_name,
 };

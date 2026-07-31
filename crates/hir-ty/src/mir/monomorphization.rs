@@ -7,6 +7,7 @@
 //!
 //! So the monomorphization should be called even if the substitution is empty.
 
+use base_db::SourceDatabase;
 use rustc_type_ir::inherent::IntoKind;
 use rustc_type_ir::{
     FallibleTypeFolder, TypeFlags, TypeFoldable, TypeSuperFoldable, TypeVisitableExt,

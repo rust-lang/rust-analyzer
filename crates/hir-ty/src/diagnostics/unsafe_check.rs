@@ -3,6 +3,7 @@
 
 use std::mem;
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::{
     AdtId, CallableDefId, DefWithBodyId, ExpressionStoreOwnerId, FieldId, FunctionId, GenericDefId,

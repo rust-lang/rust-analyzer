@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, DefWithBodyId, HasModule, ItemContainerId, Lookup,

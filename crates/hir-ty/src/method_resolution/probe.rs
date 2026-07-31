@@ -3,7 +3,7 @@
 
 use std::{cell::RefCell, convert::Infallible, ops::ControlFlow};
 
-use base_db::FxIndexMap;
+use base_db::{FxIndexMap, SourceDatabase};
 use hir_def::{
     AssocItemId, FunctionId, GenericParamId, ImplId, ItemContainerId, TraitId,
     hir::generics::GenericParams,

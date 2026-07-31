@@ -1,6 +1,6 @@
 //! Target dependent parameters needed for layouts
 
-use base_db::{Crate, target::TargetLoadError};
+use base_db::{Crate, SourceDatabase, target::TargetLoadError};
 use hir_def::layout::TargetDataLayout;
 use rustc_abi::{AddressSpace, AlignFromBytesError, TargetDataLayoutError};
 

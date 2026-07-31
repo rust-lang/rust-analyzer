@@ -5,6 +5,7 @@ use hir::{
 use ide_db::{
     FxHashMap,
     assists::{Assist, ExprFillDefaultMode},
+    base_db::SourceDatabase,
     famous_defs::FamousDefs,
     imports::import_assets::item_for_path_search,
     source_change::SourceChange,

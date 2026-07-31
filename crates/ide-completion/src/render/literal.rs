@@ -1,5 +1,6 @@
 //! Renderer for `enum` variants.
 
+use base_db::SourceDatabase;
 use hir::{StructKind, db::HirDatabase};
 use ide_db::{
     SymbolKind,

@@ -1,6 +1,7 @@
 //! Confirmation step of method selection, meaning ensuring the selected candidate
 //! is valid and registering all obligations.
 
+use base_db::SourceDatabase;
 use hir_def::{
     FunctionId, GenericDefId, GenericParamId, TraitId,
     expr_store::path::{GenericArg as HirGenericArg, GenericArgs as HirGenericArgs},

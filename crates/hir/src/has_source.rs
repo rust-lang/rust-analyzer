@@ -1,5 +1,6 @@
 //! Provides set of implementation for hir's objects that allows get back location in file.
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::{
     CallableDefId, Lookup, MacroId, VariantId,

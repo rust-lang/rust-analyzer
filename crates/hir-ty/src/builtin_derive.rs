@@ -2,6 +2,7 @@
 
 use std::ops::ControlFlow;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, BuiltinDeriveImplId, BuiltinDeriveImplLoc, HasModule, LocalFieldId, TraitId,
     TypeOrConstParamId, TypeParamId,

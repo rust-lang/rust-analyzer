@@ -1,5 +1,6 @@
 //! Type tree for term search
 
+use base_db::SourceDatabase;
 use hir_def::FindPathConfig;
 use hir_expand::mod_path::ModPath;
 use hir_ty::{

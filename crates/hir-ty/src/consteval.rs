@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests;
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use hir_def::{
     ConstId, EnumVariantId, ExpressionStoreOwnerId, HasModule, StaticId,
     attrs::AttrFlags,

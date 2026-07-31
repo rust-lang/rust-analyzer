@@ -4,6 +4,7 @@ use either::Either;
 use hir::{Module, Type, db::HirDatabase};
 use ide_db::{
     active_parameter::ActiveParameter,
+    base_db::SourceDatabase,
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},

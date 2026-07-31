@@ -11,6 +11,7 @@ use crate::RootDatabase;
 use crate::documentation::{Documentation, HasDocs};
 use crate::famous_defs::FamousDefs;
 use arrayvec::ArrayVec;
+use base_db::SourceDatabase;
 use either::Either;
 use hir::{
     Adt, AsAssocItem, AsExternAssocItem, AssocItem, AttributeTemplate, BuiltinAttr, BuiltinType,

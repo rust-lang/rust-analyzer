@@ -1,5 +1,5 @@
 use hir::{HasSource, HasVisibility, ModuleDef, PathResolution, ScopeDef, db::HirDatabase};
-use ide_db::FileId;
+use ide_db::{FileId, base_db::SourceDatabase};
 use syntax::{
     AstNode, TextRange,
     ast::{self, HasVisibility as _, syntax_factory::SyntaxFactory},

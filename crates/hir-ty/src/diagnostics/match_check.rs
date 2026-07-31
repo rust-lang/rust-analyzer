@@ -9,6 +9,7 @@ mod pat_util;
 
 pub(crate) mod pat_analysis;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, EnumVariantId, LocalFieldId, Lookup, VariantId,
     expr_store::{Body, path::Path},

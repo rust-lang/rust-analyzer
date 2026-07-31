@@ -7,7 +7,7 @@ use std::{
     mem,
 };
 
-use base_db::{Crate, FxIndexMap};
+use base_db::{Crate, FxIndexMap, SourceDatabase};
 use either::Either;
 use hir_def::{
     ExpressionStoreOwnerId, FindPathConfig, GenericDefId, GenericParamId, HasModule,

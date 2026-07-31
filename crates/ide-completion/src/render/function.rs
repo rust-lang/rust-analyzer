@@ -1,5 +1,6 @@
 //! Renderer for function calls.
 
+use base_db::SourceDatabase;
 use hir::{AsAssocItem, HirDisplay, db::HirDatabase};
 use ide_db::{SnippetCap, SymbolKind};
 use itertools::Itertools;

@@ -1,5 +1,6 @@
 //! Term search
 
+use base_db::SourceDatabase;
 use hir_def::type_ref::Mutability;
 use hir_ty::db::HirDatabase;
 use itertools::Itertools;

@@ -39,7 +39,7 @@ use std::{
     ops::Deref,
 };
 
-use base_db::{Crate, FxIndexMap};
+use base_db::{Crate, FxIndexMap, SourceDatabase};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, AttrDefId, ConstId, DefWithBodyId, ExpressionStoreOwnerId, FieldId,

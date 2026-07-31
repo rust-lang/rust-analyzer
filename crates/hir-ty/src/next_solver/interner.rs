@@ -10,7 +10,7 @@ use rustc_ast_ir::{FloatTy, IntTy, UintTy};
 pub use tls_cache::clear_tls_solver_cache;
 pub use tls_db::{attach_db, attach_db_allow_change, with_attached_db};
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use hir_def::{
     AdtId, CallableDefId, EnumId, HasModule, ItemContainerId, StructId, TraitId, TypeAliasId,
     UnionId, VariantId,
@@ -2398,6 +2398,8 @@ TrivialTypeTraversalImpls! {
 mod tls_db {
     use std::{cell::Cell, ptr::NonNull};
 
+    use base_db::SourceDatabase;
+
     use crate::db::HirDatabase;
 
     struct Attached {
@@ -2515,7 +2517,7 @@ mod tls_cache {
     use crate::db::HirDatabase;
 
     use super::DbInterner;
-    use base_db::Nonce;
+    use base_db::{Nonce, SourceDatabase};
     use rustc_type_ir::search_graph::GlobalCache;
     use salsa::Revision;
     use std::cell::RefCell;

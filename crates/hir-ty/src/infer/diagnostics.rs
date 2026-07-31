@@ -5,6 +5,7 @@
 use std::cell::{OnceCell, RefCell};
 use std::ops::{Deref, DerefMut};
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::expr_store::path::Path;
 use hir_def::{ExpressionStoreOwnerId, GenericDefId};

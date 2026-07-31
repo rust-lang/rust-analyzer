@@ -1,5 +1,6 @@
 //! Impl specialization related things
 
+use base_db::SourceDatabase;
 use hir_def::{HasModule, ImplId, signatures::ImplSignature, unstable_features::UnstableFeatures};
 use tracing::debug;
 

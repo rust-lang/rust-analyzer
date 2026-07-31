@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+use base_db::SourceDatabase;
 use hir_def::{TraitId, TypeAliasId};
 use rustc_type_ir::inherent::{IntoKind, Ty as _};
 use tracing::debug;

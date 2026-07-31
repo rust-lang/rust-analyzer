@@ -1,5 +1,5 @@
 use hir::{AsAssocItem, AssocItem, AssocItemContainer, ItemInNs, ModuleDef, db::HirDatabase};
-use ide_db::assists::AssistId;
+use ide_db::{assists::AssistId, base_db::SourceDatabase};
 use syntax::{AstNode, ast};
 
 use crate::{

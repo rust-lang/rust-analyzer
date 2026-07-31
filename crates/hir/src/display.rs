@@ -1,5 +1,6 @@
 //! HirDisplay implementations for various hir types.
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::{
     AdtId, BuiltinDeriveImplId, DefWithBodyId, ExpressionStoreOwnerId, FunctionId, GenericDefId,

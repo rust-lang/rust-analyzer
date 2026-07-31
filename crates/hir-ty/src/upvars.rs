@@ -1,5 +1,6 @@
 //! A simple query to collect tall locals (upvars) a closure use.
 
+use base_db::SourceDatabase;
 use hir_def::{
     DefWithBodyId, ExpressionStoreOwnerId, GenericDefId, VariantId,
     expr_store::{ExpressionStore, path::Path},

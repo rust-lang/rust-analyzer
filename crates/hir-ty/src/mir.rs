@@ -2,6 +2,7 @@
 
 use std::{fmt::Display, iter};
 
+use base_db::SourceDatabase;
 use hir_def::{
     FieldId, LocalFieldId, StaticId, UnionId, VariantId,
     hir::{BindingId, Expr, ExprId, Ordering, PatId},

@@ -1,5 +1,6 @@
 //! Handling of opaque types, detection of defining scope and hidden type.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AssocItemId, AssocItemLoc, DefWithBodyId, FunctionId, HasModule, ItemContainerId, TypeAliasId,
     signatures::ImplSignature,

@@ -13,6 +13,7 @@
 //! by the next salsa version. If not, we will likely have to adapt and go with the rustc approach
 //! while installing firewall per item queries to prevent invalidation issues.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, GenericDefId, GenericParamId, VariantId,
     signatures::{StructFlags, StructSignature},

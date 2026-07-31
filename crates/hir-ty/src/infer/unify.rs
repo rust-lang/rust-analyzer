@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use hir_def::{ExpressionStoreOwnerId, GenericParamId, TraitId};
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{

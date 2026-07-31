@@ -28,8 +28,8 @@ use std::{
 };
 
 use base_db::{
-    CrateOrigin, InternedSourceRootId, LangCrateOrigin, LibraryRoots, LocalRoots, SourceRootId,
-    salsa::Update, source_root_crates,
+    CrateOrigin, InternedSourceRootId, LangCrateOrigin, LibraryRoots, LocalRoots, SourceDatabase,
+    SourceRootId, salsa::Update, source_root_crates,
 };
 use fst::{Automaton, Streamer, raw::IndexedValue};
 use hir::{

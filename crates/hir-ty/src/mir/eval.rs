@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, cell::RefCell, fmt::Write, iter, mem, ops::Range};
 
-use base_db::{Crate, salsa::update_fallback_db, target::TargetLoadError};
+use base_db::{Crate, SourceDatabase, salsa::update_fallback_db, target::TargetLoadError};
 use either::Either;
 use hir_def::{
     AdtId, DefWithBodyId, EnumVariantId, FunctionId, HasModule, ItemContainerId, Lookup, StaticId,

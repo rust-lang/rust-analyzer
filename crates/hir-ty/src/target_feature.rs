@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
+use base_db::SourceDatabase;
 use hir_def::FunctionId;
 use hir_def::attrs::AttrFlags;
 use intern::Symbol;

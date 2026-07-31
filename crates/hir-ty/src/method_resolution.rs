@@ -15,7 +15,7 @@ use salsa::Update;
 use span::Edition;
 use tracing::{debug, instrument};
 
-use base_db::{Crate, salsa::update_fallback_db};
+use base_db::{Crate, SourceDatabase, salsa::update_fallback_db};
 use hir_def::{
     AssocItemId, BlockIdLt, BuiltinDeriveImplId, ConstId, FunctionId, GenericParamId, HasModule,
     ImplId, ItemContainerId, ModuleId, TraitId,

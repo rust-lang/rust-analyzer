@@ -2,8 +2,8 @@
 
 use hir::{EditionedFileId, HirFileId, InFile, Semantics, db::HirDatabase};
 use ide_db::{
-    SymbolKind, defs::Definition, documentation::Documentation, range_mapper::RangeMapper,
-    rust_doc::is_rust_fence,
+    SymbolKind, base_db::SourceDatabase, defs::Definition, documentation::Documentation,
+    range_mapper::RangeMapper, rust_doc::is_rust_fence,
 };
 use syntax::{
     SyntaxNode, TextRange, TextSize,

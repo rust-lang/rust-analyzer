@@ -4,7 +4,7 @@ use either::Either;
 use hir::{FileRange, PathResolution, Semantics, TypeInfo, db::HirDatabase, sym};
 use ide_db::{
     EditionedFileId, FxHashMap, RootDatabase,
-    base_db::Crate,
+    base_db::{Crate, SourceDatabase},
     defs::Definition,
     imports::insert_use::remove_use_tree_if_simple,
     path_transform::PathTransform,

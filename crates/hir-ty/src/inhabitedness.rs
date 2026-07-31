@@ -1,6 +1,7 @@
 //! Type inhabitedness logic.
 use std::ops::ControlFlow::{self, Break, Continue};
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, EnumVariantId, ModuleId, VariantId, signatures::VariantFields, visibility::Visibility,
 };

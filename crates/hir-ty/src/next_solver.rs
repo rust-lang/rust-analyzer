@@ -31,6 +31,7 @@ pub mod util;
 use std::{mem::ManuallyDrop, sync::OnceLock};
 
 pub use allocation::*;
+use base_db::SourceDatabase;
 pub use binder::*;
 pub use consts::*;
 pub use def_id::*;

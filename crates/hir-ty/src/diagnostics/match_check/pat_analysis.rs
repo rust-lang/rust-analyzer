@@ -2,6 +2,7 @@
 
 use std::{cell::LazyCell, fmt};
 
+use base_db::SourceDatabase;
 use hir_def::{
     EnumId, EnumVariantId, HasModule, LocalFieldId, ModuleId, VariantId, attrs::AttrFlags,
     signatures::VariantFields, unstable_features::UnstableFeatures,

@@ -3,7 +3,10 @@
 
 use std::iter::Enumerate;
 
-use base_db::target::{self, TargetData};
+use base_db::{
+    SourceDatabase,
+    target::{self, TargetData},
+};
 use hir_def::{
     EnumId, EnumVariantId, FunctionId, Lookup, TraitId, lang_item::LangItems,
     signatures::FunctionSignature,

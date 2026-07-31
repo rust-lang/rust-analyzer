@@ -1,5 +1,6 @@
 //! Renderer for patterns.
 
+use base_db::SourceDatabase;
 use hir::{Name, StructKind, db::HirDatabase};
 use ide_db::{SnippetCap, documentation::HasDocs};
 use itertools::Itertools;

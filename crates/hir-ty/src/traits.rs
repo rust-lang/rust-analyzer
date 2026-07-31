@@ -2,7 +2,7 @@
 
 use std::{cell::OnceCell, hash::Hash};
 
-use base_db::Crate;
+use base_db::{Crate, SourceDatabase};
 use hir_def::{
     AdtId, AssocItemId, ExpressionStoreOwnerId, GenericDefId, HasModule, ImplId, Lookup, TraitId,
     expr_store::ExpressionStore,

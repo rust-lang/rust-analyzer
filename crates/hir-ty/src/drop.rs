@@ -1,5 +1,6 @@
 //! Utilities for computing drop info about types.
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, ImplId,
     signatures::{StructFlags, StructSignature},

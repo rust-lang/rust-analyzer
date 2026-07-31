@@ -1,5 +1,6 @@
 //! Attributes & documentation for hir types.
 
+use base_db::SourceDatabase;
 use cfg::CfgExpr;
 use either::Either;
 use hir_def::{

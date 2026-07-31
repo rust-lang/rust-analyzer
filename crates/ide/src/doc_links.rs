@@ -17,7 +17,7 @@ use hir::{
 };
 use ide_db::{
     RootDatabase,
-    base_db::{CrateOrigin, LangCrateOrigin, ReleaseChannel, toolchain_channel},
+    base_db::{CrateOrigin, LangCrateOrigin, ReleaseChannel, SourceDatabase, toolchain_channel},
     defs::{Definition, NameClass, NameRefClass},
     documentation::{Documentation, HasDocs},
     helpers::pick_best_token,

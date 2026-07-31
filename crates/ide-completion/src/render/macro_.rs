@@ -1,5 +1,6 @@
 //! Renderer for macro invocations.
 
+use base_db::SourceDatabase;
 use hir::{HirDisplay, db::HirDatabase};
 use ide_db::{SymbolKind, documentation::Documentation};
 use syntax::{SmolStr, ToSmolStr, format_smolstr};

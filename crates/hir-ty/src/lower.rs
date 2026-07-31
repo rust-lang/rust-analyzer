@@ -10,7 +10,7 @@ pub(crate) mod path;
 
 use std::{cell::OnceCell, iter, mem, sync::OnceLock};
 
-use base_db::salsa::update_fallback_db;
+use base_db::{SourceDatabase, salsa::update_fallback_db};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, ConstParamId, EnumId, EnumVariantId,

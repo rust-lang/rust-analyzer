@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use base_db::SourceDatabase;
 use hir_def::{
     AdtId, LocalFieldId, StructId,
     attrs::AttrFlags,

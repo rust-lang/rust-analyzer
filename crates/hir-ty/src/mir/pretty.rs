@@ -5,6 +5,7 @@ use std::{
     mem,
 };
 
+use base_db::SourceDatabase;
 use hir_def::{
     HasModule, VariantId,
     expr_store::ExpressionStore,

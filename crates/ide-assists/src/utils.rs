@@ -10,6 +10,7 @@ use hir::{
 use ide_db::{
     RootDatabase,
     assists::ExprFillDefaultMode,
+    base_db::SourceDatabase,
     famous_defs::FamousDefs,
     path_transform::PathTransform,
     syntax_helpers::{node_ext::preorder_expr, prettify_macro_expansion},

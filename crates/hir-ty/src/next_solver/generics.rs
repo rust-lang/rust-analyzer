@@ -1,5 +1,6 @@
 //! Things related to generics in the next-trait-solver.
 
+use base_db::SourceDatabase;
 use hir_def::{
     GenericDefId, GenericParamId, TypeParamId,
     hir::generics::{GenericParamDataRef, LifetimeParamData},

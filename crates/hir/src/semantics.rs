@@ -10,7 +10,7 @@ use std::{
     ops::{self, ControlFlow, Not},
 };
 
-use base_db::{FxIndexSet, all_crates, toolchain_channel};
+use base_db::{FxIndexSet, SourceDatabase, all_crates, toolchain_channel};
 use either::Either;
 use hir_def::{
     BuiltinDeriveImplId, DefWithBodyId, ExpressionStoreOwnerId, GenericDefId, HasModule, MacroId,

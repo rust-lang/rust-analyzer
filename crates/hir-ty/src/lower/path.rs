@@ -1,5 +1,6 @@
 //! A wrapper around [`TyLoweringContext`] specifically for lowering paths.
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::{
     GenericDefId, GenericParamId, Lookup, TraitId, TypeParamId,

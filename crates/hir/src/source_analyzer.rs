@@ -10,6 +10,7 @@ use std::{
     iter::{self, once},
 };
 
+use base_db::SourceDatabase;
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, CallableDefId, ConstId, DefWithBodyId, ExpressionStoreOwnerId, FieldId,
