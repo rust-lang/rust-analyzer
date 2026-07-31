@@ -31,7 +31,7 @@ pub struct MissingUnsafeResult {
     pub deprecated_safe_calls: Vec<ExprId>,
 }
 
-pub fn missing_unsafe(db: &dyn HirDatabase, def: DefWithBodyId) -> MissingUnsafeResult {
+pub fn missing_unsafe(db: &dyn SourceDatabase, def: DefWithBodyId) -> MissingUnsafeResult {
     let _p = tracing::info_span!("missing_unsafe").entered();
 
     let is_unsafe = match def {
@@ -99,7 +99,7 @@ enum UnsafeDiagnostic {
 }
 
 pub fn unsafe_operations_for_body(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     infer: &InferenceResult<'_>,
     def: DefWithBodyId,
     body: &Body,
@@ -118,7 +118,7 @@ pub fn unsafe_operations_for_body(
 }
 
 pub fn unsafe_operations(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     infer: &InferenceResult<'_>,
     def: ExpressionStoreOwnerId,
     body: &ExpressionStore,
@@ -136,7 +136,7 @@ pub fn unsafe_operations(
 }
 
 struct UnsafeVisitor<'db> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     infer: &'db InferenceResult<'db>,
     body: &'db ExpressionStore,
     resolver: Resolver<'db>,
@@ -155,7 +155,7 @@ struct UnsafeVisitor<'db> {
 
 impl<'db> UnsafeVisitor<'db> {
     fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         infer: &'db InferenceResult<'db>,
         body: &'db ExpressionStore,
         def: ExpressionStoreOwnerId,

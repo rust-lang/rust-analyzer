@@ -139,7 +139,7 @@ where
     }
 
     #[inline]
-    fn db(&self) -> &'db dyn HirDatabase {
+    fn db(&self) -> &'db dyn SourceDatabase {
         self.interner().db
     }
 
@@ -1416,7 +1416,7 @@ impl<'db, 'exprs> CoerceMany<'db, 'exprs> {
 }
 
 pub fn could_coerce<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     tys: &Canonical<'db, (Ty<'db>, Ty<'db>)>,
 ) -> bool {
@@ -1448,7 +1448,7 @@ impl<'db> CoerceDelegate<'db> for HirCoercionDelegate<'_, 'db> {
 }
 
 fn coerce<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     tys: &Canonical<'db, (Ty<'db>, Ty<'db>)>,
 ) -> Result<(Vec<Adjustment>, Ty<'db>), TypeError<DbInterner<'db>>> {
@@ -1597,7 +1597,7 @@ fn coerce<'db>(
     Ok((adjustments, ty))
 }
 
-fn is_capturing_closure(db: &dyn HirDatabase, closure: InternedClosureId<'_>) -> bool {
+fn is_capturing_closure(db: &dyn SourceDatabase, closure: InternedClosureId<'_>) -> bool {
     let InternedClosure { owner, expr, .. } = closure.loc(db);
     upvars_mentioned(db, owner.expression_store_owner(db))
         .is_some_and(|upvars| upvars.get(&expr).is_some_and(|upvars| !upvars.is_empty()))

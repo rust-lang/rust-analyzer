@@ -80,7 +80,7 @@ fn print_memory_usage(mut host: AnalysisHost, vfs: Vfs) {
     eprintln!("{remaining:>8}        Remaining");
 }
 
-fn full_name_of_item(db: &dyn HirDatabase, module: Module, name: Name) -> String {
+fn full_name_of_item(db: &dyn SourceDatabase, module: Module, name: Name) -> String {
     module
         .path_segments(db)
         .chain(Some(name))

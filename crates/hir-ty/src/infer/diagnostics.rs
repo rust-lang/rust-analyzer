@@ -99,7 +99,7 @@ pub(super) struct InferenceTyLoweringContext<'db, 'a> {
 impl<'db, 'a> InferenceTyLoweringContext<'db, 'a> {
     #[inline]
     pub(super) fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         resolver: &'a Resolver<'db>,
         store: &'db ExpressionStore,
         diagnostics: &'a Diagnostics,

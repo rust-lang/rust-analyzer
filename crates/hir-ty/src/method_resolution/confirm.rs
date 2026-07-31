@@ -80,7 +80,7 @@ impl<'a, 'db> ConfirmContext<'a, 'db> {
     }
 
     #[inline]
-    fn db(&self) -> &'db dyn HirDatabase {
+    fn db(&self) -> &'db dyn SourceDatabase {
         self.ctx.table.infer_ctxt.interner.db
     }
 

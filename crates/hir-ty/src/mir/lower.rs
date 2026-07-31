@@ -86,7 +86,7 @@ struct MirLowerCtx<'a, 'db> {
     current_loop_blocks: Option<LoopBlocks>,
     labeled_loop_blocks: FxHashMap<LabelId, LoopBlocks>,
     discr_temp: Option<Place>,
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     store: &'a ExpressionStore,
     infer: &'a InferenceResult<'db>,
     types: &'db crate::next_solver::DefaultAny<'db>,
@@ -172,7 +172,7 @@ impl MirLowerError<'_> {
     pub fn pretty_print(
         &self,
         f: &mut String,
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         span_formatter: impl Fn(FileId, TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
@@ -273,7 +273,7 @@ impl From<LayoutError> for MirLowerError<'_> {
 
 impl MirLowerError<'_> {
     fn unresolved_path(
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         p: &Path,
         display_target: DisplayTarget,
         owner: ExpressionStoreOwnerId,
@@ -289,7 +289,7 @@ type Result<'db, T> = std::result::Result<T, MirLowerError<'db>>;
 
 impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         owner: InferBodyId<'db>,
         store: &'a ExpressionStore,
         infer: &'a InferenceResult<'db>,
@@ -2065,7 +2065,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
 }
 
 fn convert_closure_capture_projections(
-    _db: &dyn HirDatabase,
+    _db: &dyn SourceDatabase,
     place: &HirPlace,
 ) -> impl Iterator<Item = PlaceElem> {
     place.projections.iter().enumerate().map(|(i, proj)| match proj.kind {
@@ -2086,7 +2086,7 @@ fn convert_closure_capture_projections(
 }
 
 fn cast_kind<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     source_ty: Ty<'db>,
     target_ty: Ty<'db>,
 ) -> Result<'db, CastKind> {
@@ -2109,7 +2109,7 @@ fn cast_kind<'db>(
 
 #[salsa::tracked(returns(as_ref), cycle_result = mir_body_for_closure_cycle_result)]
 pub fn mir_body_for_closure_query<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     closure: InternedClosureId<'db>,
 ) -> Result<'db, MirBody<'db>> {
     let InternedClosure { owner: body_owner, expr, .. } = closure.loc(db);
@@ -2267,7 +2267,7 @@ pub fn mir_body_for_closure_query<'db>(
 
 #[salsa::tracked(returns(as_ref), cycle_result = mir_body_cycle_result)]
 pub fn mir_body_query<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: InferBodyId<'db>,
 ) -> Result<'db, MirBody<'db>> {
     let krate = def.krate(db);
@@ -2310,7 +2310,7 @@ pub fn mir_body_query<'db>(
 }
 
 fn mir_body_cycle_result<'db>(
-    _db: &'db dyn HirDatabase,
+    _db: &'db dyn SourceDatabase,
     _: salsa::Id,
     _def: InferBodyId<'db>,
 ) -> Result<'db, MirBody<'db>> {
@@ -2318,7 +2318,7 @@ fn mir_body_cycle_result<'db>(
 }
 
 fn mir_body_for_closure_cycle_result<'db>(
-    _db: &'db dyn HirDatabase,
+    _db: &'db dyn SourceDatabase,
     _: salsa::Id,
     _def: InternedClosureId<'db>,
 ) -> Result<'db, MirBody<'db>> {
@@ -2328,7 +2328,7 @@ fn mir_body_for_closure_cycle_result<'db>(
 /// Extracts params from `body.params`/`body.self_param` and the callable signature,
 /// then delegates to [`lower_to_mir_with_store`].
 pub fn lower_body_to_mir<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     owner: InferBodyId<'db>,
     store: &ExpressionStore,
     infer: &InferenceResult<'db>,
@@ -2368,7 +2368,7 @@ pub fn lower_body_to_mir<'db>(
 ///   bindings with no owner); `false` when lowering an inline const or anonymous
 ///   const (picks bindings owned by `root_expr`).
 pub fn lower_to_mir_with_store<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     owner: InferBodyId<'db>,
     store: &ExpressionStore,
     infer: &InferenceResult<'db>,

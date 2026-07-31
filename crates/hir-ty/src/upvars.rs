@@ -71,7 +71,7 @@ impl UpvarsRef<'_> {
 
 /// Returns a map from `Expr::Closure` to its upvars.
 pub fn upvars_mentioned(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     owner: ExpressionStoreOwnerId,
 ) -> Option<&FxHashMap<ExprId, Upvars>> {
     return match owner {
@@ -82,7 +82,7 @@ pub fn upvars_mentioned(
 
     #[salsa::tracked(returns(as_deref))]
     pub fn signature_upvars_mentioned(
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         owner: GenericDefId,
     ) -> Option<Box<FxHashMap<ExprId, Upvars>>> {
         upvars_mentioned_impl(db, owner.into())
@@ -90,7 +90,7 @@ pub fn upvars_mentioned(
 
     #[salsa::tracked(returns(as_deref))]
     pub fn body_upvars_mentioned(
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         owner: DefWithBodyId,
     ) -> Option<Box<FxHashMap<ExprId, Upvars>>> {
         upvars_mentioned_impl(db, owner.into())
@@ -98,7 +98,7 @@ pub fn upvars_mentioned(
 
     #[salsa::tracked(returns(as_deref))]
     pub fn variant_fields_upvars_mentioned(
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         owner: VariantId,
     ) -> Option<Box<FxHashMap<ExprId, Upvars>>> {
         upvars_mentioned_impl(db, owner.into())
@@ -106,7 +106,7 @@ pub fn upvars_mentioned(
 }
 
 pub fn upvars_mentioned_impl(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     owner: ExpressionStoreOwnerId,
 ) -> Option<Box<FxHashMap<ExprId, Upvars>>> {
     let store = ExpressionStore::of(db, owner);
@@ -124,7 +124,7 @@ pub fn upvars_mentioned_impl(
     };
 
     fn handle_expr_outside_closure<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         resolver: &mut Resolver<'db>,
         owner: ExpressionStoreOwnerId,
         body: &ExpressionStore,
@@ -155,7 +155,7 @@ pub fn upvars_mentioned_impl(
     }
 
     fn handle_expr_inside_closure<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         resolver: &mut Resolver<'db>,
         owner: ExpressionStoreOwnerId,
         body: &ExpressionStore,
@@ -220,7 +220,7 @@ pub fn upvars_mentioned_impl(
 }
 
 fn resolve_maybe_upvar<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     resolver: &mut Resolver<'db>,
     owner: ExpressionStoreOwnerId,
     body: &ExpressionStore,

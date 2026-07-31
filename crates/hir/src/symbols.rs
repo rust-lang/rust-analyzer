@@ -93,7 +93,7 @@ struct SymbolCollectorWork {
 }
 
 pub struct SymbolCollector<'db> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     symbols: FxIndexSet<FileSymbol<'db>>,
     work: Vec<SymbolCollectorWork>,
     current_container_name: Option<Symbol>,
@@ -103,7 +103,7 @@ pub struct SymbolCollector<'db> {
 /// Given a [`ModuleId`] and a [`HirDatabase`], use the DefMap for the module's crate to collect
 /// all symbols that should be indexed for the given module.
 impl<'a> SymbolCollector<'a> {
-    pub fn new(db: &'a dyn HirDatabase, collect_pub_only: bool) -> Self {
+    pub fn new(db: &'a dyn SourceDatabase, collect_pub_only: bool) -> Self {
         SymbolCollector {
             db,
             symbols: Default::default(),
@@ -114,7 +114,7 @@ impl<'a> SymbolCollector<'a> {
     }
 
     pub fn new_module(
-        db: &'a dyn HirDatabase,
+        db: &'a dyn SourceDatabase,
         module: Module,
         collect_pub_only: bool,
     ) -> Box<[FileSymbol<'a>]> {

@@ -143,7 +143,7 @@ impl std::fmt::Debug for DefaultAny<'_> {
 }
 
 #[inline]
-pub fn default_types<'db>(db: &'db dyn HirDatabase) -> &'db DefaultAny<'db> {
+pub fn default_types<'db>(db: &'db dyn SourceDatabase) -> &'db DefaultAny<'db> {
     static TYPES: OnceLock<DefaultAny<'static>> = OnceLock::new();
 
     let interner = DbInterner::new_no_crate(db);

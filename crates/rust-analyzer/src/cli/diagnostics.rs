@@ -126,7 +126,7 @@ impl flags::Diagnostics {
     }
 }
 
-fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
+fn all_modules(db: &dyn SourceDatabase) -> Vec<Module> {
     let mut worklist: Vec<_> =
         Crate::all(db).into_iter().map(|krate| krate.root_module(db)).collect();
     let mut modules = Vec::new();

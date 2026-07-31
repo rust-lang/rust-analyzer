@@ -181,7 +181,7 @@ fn render_pat(
 }
 
 fn render_record_as_pat(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     snippet_cap: Option<SnippetCap>,
     fields: &[hir::Field],
     name: &str,

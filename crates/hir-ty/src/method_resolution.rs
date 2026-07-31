@@ -81,7 +81,7 @@ pub enum CandidateId {
 impl_from!(FunctionId, ConstId for CandidateId);
 
 impl CandidateId {
-    fn container(self, db: &dyn HirDatabase) -> ItemContainerId {
+    fn container(self, db: &dyn SourceDatabase) -> ItemContainerId {
         match self {
             CandidateId::FunctionId(id) => id.loc(db).container,
             CandidateId::ConstId(id) => id.loc(db).container,
@@ -413,7 +413,7 @@ pub fn is_dyn_method<'db>(
 ///
 /// Returns `func` if it's not a method defined in a trait or the lookup failed.
 pub(crate) fn lookup_impl_method_query<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     func: FunctionId,
     fn_subst: GenericArgs<'db>,
@@ -517,7 +517,10 @@ pub(crate) fn find_matching_impl<'db>(
 }
 
 #[salsa::tracked(returns(ref))]
-fn crates_containing_incoherent_inherent_impls(db: &dyn HirDatabase, krate: Crate) -> Box<[Crate]> {
+fn crates_containing_incoherent_inherent_impls(
+    db: &dyn SourceDatabase,
+    krate: Crate,
+) -> Box<[Crate]> {
     let _p = tracing::info_span!("crates_containing_incoherent_inherent_impls").entered();
     // We assume that only sysroot crates contain `#[rustc_has_incoherent_inherent_impls]`
     // impls, since this is an internal feature and only std uses it.
@@ -525,7 +528,7 @@ fn crates_containing_incoherent_inherent_impls(db: &dyn HirDatabase, krate: Crat
 }
 
 pub fn with_incoherent_inherent_impls<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     krate: Crate,
     self_ty: &SimplifiedType<'db>,
     mut callback: impl FnMut(&[ImplId]),
@@ -549,7 +552,10 @@ pub fn with_incoherent_inherent_impls<'db>(
     }
 }
 
-pub fn simplified_type_module(db: &dyn HirDatabase, ty: &SimplifiedType<'_>) -> Option<ModuleId> {
+pub fn simplified_type_module(
+    db: &dyn SourceDatabase,
+    ty: &SimplifiedType<'_>,
+) -> Option<ModuleId> {
     match ty.def()? {
         SolverDefId::AdtId(id) => Some(id.module(db)),
         SolverDefId::TypeAliasId(id) => Some(id.module(db)),
@@ -567,7 +573,7 @@ pub struct InherentImpls<'db> {
 #[salsa::tracked]
 impl<'db> InherentImpls<'db> {
     #[salsa::tracked(returns(ref))]
-    pub fn for_crate(db: &'db dyn HirDatabase, krate: Crate) -> InherentImpls<'db> {
+    pub fn for_crate(db: &'db dyn SourceDatabase, krate: Crate) -> InherentImpls<'db> {
         let _p = tracing::info_span!("inherent_impls_in_crate_query", ?krate).entered();
 
         let crate_def_map = crate_def_map(db, krate);
@@ -577,7 +583,7 @@ impl<'db> InherentImpls<'db> {
 
     #[salsa::tracked(returns(ref))]
     pub fn for_block(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         block: BlockIdLt<'db>,
     ) -> Option<Box<InherentImpls<'db>>> {
         let _p = tracing::info_span!("inherent_impls_in_block_query").entered();
@@ -589,7 +595,7 @@ impl<'db> InherentImpls<'db> {
 }
 
 impl<'db> InherentImpls<'db> {
-    fn collect_def_map(db: &'db dyn HirDatabase, def_map: &'db DefMap) -> Self {
+    fn collect_def_map(db: &'db dyn SourceDatabase, def_map: &'db DefMap) -> Self {
         let mut map = FxHashMap::default();
         collect(db, def_map, &mut map);
         let mut map = map
@@ -600,7 +606,7 @@ impl<'db> InherentImpls<'db> {
         return Self { map };
 
         fn collect<'db>(
-            db: &'db dyn HirDatabase,
+            db: &'db dyn SourceDatabase,
             def_map: &DefMap,
             map: &mut FxHashMap<SimplifiedType<'db>, Vec<ImplId>>,
         ) {
@@ -633,7 +639,7 @@ impl<'db> InherentImpls<'db> {
     }
 
     pub fn for_each_crate_and_block(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         krate: Crate,
         block: Option<BlockIdLt<'db>>,
         for_each: &mut dyn FnMut(&InherentImpls<'db>),
@@ -680,7 +686,7 @@ pub struct TraitImpls<'db> {
 #[salsa::tracked]
 impl<'db> TraitImpls<'db> {
     #[salsa::tracked(returns(ref))]
-    pub fn for_crate(db: &'db dyn HirDatabase, krate: Crate) -> Arc<TraitImpls<'db>> {
+    pub fn for_crate(db: &'db dyn SourceDatabase, krate: Crate) -> Arc<TraitImpls<'db>> {
         let _p = tracing::info_span!("inherent_impls_in_crate_query", ?krate).entered();
 
         let crate_def_map = crate_def_map(db, krate);
@@ -690,7 +696,7 @@ impl<'db> TraitImpls<'db> {
 
     #[salsa::tracked(returns(as_deref))]
     pub fn for_block(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         block: BlockIdLt<'db>,
     ) -> Option<Box<TraitImpls<'db>>> {
         let _p = tracing::info_span!("inherent_impls_in_block_query").entered();
@@ -701,13 +707,13 @@ impl<'db> TraitImpls<'db> {
     }
 
     #[salsa::tracked(returns(deref))]
-    pub fn for_crate_and_deps(db: &'db dyn HirDatabase, krate: Crate) -> Box<[Arc<Self>]> {
+    pub fn for_crate_and_deps(db: &'db dyn SourceDatabase, krate: Crate) -> Box<[Arc<Self>]> {
         krate.transitive_deps(db).iter().map(|&dep| Self::for_crate(db, dep).clone()).collect()
     }
 }
 
 impl<'db> TraitImpls<'db> {
-    fn collect_def_map(db: &'db dyn HirDatabase, def_map: &DefMap) -> Self {
+    fn collect_def_map(db: &'db dyn SourceDatabase, def_map: &DefMap) -> Self {
         let lang_items = hir_def::lang_item::lang_items(db, def_map.krate());
         let mut map = FxHashMap::default();
         collect(db, def_map, lang_items, &mut map);
@@ -719,7 +725,7 @@ impl<'db> TraitImpls<'db> {
         return Self { map };
 
         fn collect<'db>(
-            db: &'db dyn HirDatabase,
+            db: &'db dyn SourceDatabase,
             def_map: &DefMap,
             lang_items: &LangItems,
             map: &mut FxHashMap<TraitId, OneTraitImplsBuilder<'db>>,
@@ -837,7 +843,7 @@ impl<'db> TraitImpls<'db> {
     }
 
     pub fn for_each_crate_and_block<R: VisitorResult>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         krate: Crate,
         block: Option<BlockIdLt<'db>>,
         for_each: &mut dyn FnMut(&TraitImpls<'db>) -> R,
@@ -854,7 +860,7 @@ impl<'db> TraitImpls<'db> {
 
     /// Like [`Self::for_each_crate_and_block()`], but takes in account two blocks, one for a trait and one for a self type.
     pub fn for_each_crate_and_block_trait_and_type<R: VisitorResult>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         krate: Crate,
         type_block: Option<BlockIdLt<'db>>,
         trait_block: Option<BlockIdLt<'db>>,

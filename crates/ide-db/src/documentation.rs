@@ -30,19 +30,19 @@ impl<'db> Documentation<'db> {
 }
 
 pub trait HasDocs: HasAttrs + Copy {
-    fn docs(self, db: &dyn HirDatabase) -> Option<Documentation<'_>> {
+    fn docs(self, db: &dyn SourceDatabase) -> Option<Documentation<'_>> {
         let docs = match self.docs_with_rangemap(db)? {
             Cow::Borrowed(docs) => Documentation::new_borrowed(docs.docs()),
             Cow::Owned(docs) => Documentation::new_owned(docs.into_docs()),
         };
         Some(docs)
     }
-    fn docs_with_rangemap(self, db: &dyn HirDatabase) -> Option<Cow<'_, hir::Docs>> {
+    fn docs_with_rangemap(self, db: &dyn SourceDatabase) -> Option<Cow<'_, hir::Docs>> {
         self.hir_docs(db).map(Cow::Borrowed)
     }
     fn resolve_doc_path(
         self,
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         link: &str,
         ns: Option<hir::Namespace>,
         is_inner_doc: hir::IsInnerDoc,
@@ -77,7 +77,7 @@ impl_has_docs![
 ];
 
 impl HasDocs for hir::ExternCrateDecl {
-    fn docs(self, db: &dyn HirDatabase) -> Option<Documentation<'_>> {
+    fn docs(self, db: &dyn SourceDatabase) -> Option<Documentation<'_>> {
         let crate_docs = self.resolved_crate(db)?.hir_docs(db);
         let decl_docs = self.hir_docs(db);
         match (decl_docs, crate_docs) {
@@ -97,7 +97,7 @@ impl HasDocs for hir::ExternCrateDecl {
         }
     }
 
-    fn docs_with_rangemap(self, db: &dyn HirDatabase) -> Option<Cow<'_, hir::Docs>> {
+    fn docs_with_rangemap(self, db: &dyn SourceDatabase) -> Option<Cow<'_, hir::Docs>> {
         let crate_docs = self.resolved_crate(db)?.hir_docs(db);
         let decl_docs = self.hir_docs(db);
         match (decl_docs, crate_docs) {

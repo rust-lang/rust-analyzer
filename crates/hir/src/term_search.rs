@@ -110,7 +110,7 @@ impl<'db> LookupTable<'db> {
     }
 
     /// Find all `Expr`s that unify with the `ty`
-    fn find(&mut self, db: &'db dyn HirDatabase, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
+    fn find(&mut self, db: &'db dyn SourceDatabase, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
         let res = self
             .data
             .iter()
@@ -135,7 +135,11 @@ impl<'db> LookupTable<'db> {
     ///
     /// For example if we have type `i32` in data and we query for `&i32` it map all the type
     /// trees we have for `i32` with `Expr::Reference` and returns them.
-    fn find_autoref(&mut self, db: &'db dyn HirDatabase, ty: &Type<'db>) -> Option<Vec<Expr<'db>>> {
+    fn find_autoref(
+        &mut self,
+        db: &'db dyn SourceDatabase,
+        ty: &Type<'db>,
+    ) -> Option<Vec<Expr<'db>>> {
         let res = self
             .data
             .iter()

@@ -44,7 +44,7 @@ use crate::db::HirDatabase;
 
 use self::case_conv::{to_camel_case, to_lower_snake_case, to_upper_snake_case};
 
-pub fn incorrect_case(db: &dyn HirDatabase, owner: ModuleDefId) -> Vec<IncorrectCase> {
+pub fn incorrect_case(db: &dyn SourceDatabase, owner: ModuleDefId) -> Vec<IncorrectCase> {
     let _p = tracing::info_span!("incorrect_case").entered();
     let mut validator = DeclValidator::new(db);
     validator.validate_item(owner);
@@ -123,7 +123,7 @@ pub struct IncorrectCase {
 }
 
 pub(super) struct DeclValidator<'a> {
-    db: &'a dyn HirDatabase,
+    db: &'a dyn SourceDatabase,
     pub(super) sink: Vec<IncorrectCase>,
 }
 
@@ -135,7 +135,7 @@ struct Replacement {
 }
 
 impl<'a> DeclValidator<'a> {
-    pub(super) fn new(db: &'a dyn HirDatabase) -> DeclValidator<'a> {
+    pub(super) fn new(db: &'a dyn SourceDatabase) -> DeclValidator<'a> {
         DeclValidator { db, sink: Vec::new() }
     }
 

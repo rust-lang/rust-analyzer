@@ -217,11 +217,11 @@ impl<'db> MemoryMap<'db> {
 }
 
 /// Returns the index of a parameter in the generic type parameter list by its id.
-pub fn type_or_const_param_idx(db: &dyn HirDatabase, id: TypeOrConstParamId) -> u32 {
+pub fn type_or_const_param_idx(db: &dyn SourceDatabase, id: TypeOrConstParamId) -> u32 {
     generics::generics(db, id.parent).type_or_const_param_idx(id)
 }
 
-pub fn lifetime_param_idx(db: &dyn HirDatabase, id: LifetimeParamId) -> u32 {
+pub fn lifetime_param_idx(db: &dyn SourceDatabase, id: LifetimeParamId) -> u32 {
     generics::generics(db, id.parent).lifetime_param_idx(id, false).0
 }
 
@@ -367,7 +367,7 @@ where
 
 /// To be used from `hir` only.
 pub fn associated_type_shorthand_candidates(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     def: GenericDefId,
     res: TypeNs,
     mut cb: impl FnMut(&Name, TypeAliasId) -> bool,
@@ -415,7 +415,7 @@ pub fn associated_type_shorthand_candidates(
 pub fn callable_sig_from_fn_trait<'db>(
     self_ty: Ty<'db>,
     param_env: ParamEnvAndCrate<'db>,
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
 ) -> Option<(FnTrait, PolyFnSig<'db>)> {
     let ParamEnvAndCrate { param_env, krate } = param_env;
     let interner = DbInterner::new_with(db, krate);
@@ -508,7 +508,7 @@ where
 
 pub fn known_const_to_ast<'db>(
     konst: Const<'db>,
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     target_module: ModuleId,
 ) -> Option<ConstArg> {
     Some(make::expr_const_value(
@@ -590,14 +590,14 @@ impl HasResolver for InferBodyId<'_> {
 }
 
 impl InferBodyId<'_> {
-    pub fn expression_store_owner(self, db: &dyn HirDatabase) -> ExpressionStoreOwnerId {
+    pub fn expression_store_owner(self, db: &dyn SourceDatabase) -> ExpressionStoreOwnerId {
         match self {
             InferBodyId::DefWithBodyId(id) => id.into(),
             InferBodyId::AnonConstId(id) => id.loc(db).owner,
         }
     }
 
-    pub fn generic_def(self, db: &dyn HirDatabase) -> GenericDefId {
+    pub fn generic_def(self, db: &dyn SourceDatabase) -> GenericDefId {
         match self {
             InferBodyId::DefWithBodyId(id) => id.generic_def(db),
             InferBodyId::AnonConstId(id) => id.loc(db).owner.generic_def(db),
@@ -620,7 +620,7 @@ impl InferBodyId<'_> {
         }
     }
 
-    pub fn store_and_root_expr(self, db: &dyn HirDatabase) -> (&ExpressionStore, ExprId) {
+    pub fn store_and_root_expr(self, db: &dyn SourceDatabase) -> (&ExpressionStore, ExprId) {
         match self {
             InferBodyId::DefWithBodyId(id) => {
                 let body = Body::of(db, id);

@@ -201,7 +201,7 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::MissingFields) -> Option<Vec
 
 fn make_ty(
     ty: &hir::Type<'_>,
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     module: hir::Module,
     edition: Edition,
 ) -> ast::Type {

@@ -100,7 +100,11 @@ impl<'db> FallibleTypeFolder<DbInterner<'db>> for Filler<'db> {
 }
 
 impl<'db> Filler<'db> {
-    fn new(db: &'db dyn HirDatabase, env: ParamEnvAndCrate<'db>, subst: GenericArgs<'db>) -> Self {
+    fn new(
+        db: &'db dyn SourceDatabase,
+        env: ParamEnvAndCrate<'db>,
+        subst: GenericArgs<'db>,
+    ) -> Self {
         let interner = DbInterner::new_with(db, env.krate);
         let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
         Self { infcx, trait_env: env, subst }
@@ -237,7 +241,7 @@ impl<'db> Filler<'db> {
 
 #[salsa::tracked(returns(as_ref), cycle_result = monomorphized_mir_body_cycle_result)]
 pub fn monomorphized_mir_body_query<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     owner: InferBodyId<'db>,
     subst: StoredGenericArgs,
     trait_env: StoredParamEnvAndCrate,
@@ -250,7 +254,7 @@ pub fn monomorphized_mir_body_query<'db>(
 }
 
 fn monomorphized_mir_body_cycle_result<'db>(
-    _db: &'db dyn HirDatabase,
+    _db: &'db dyn SourceDatabase,
     _: salsa::Id,
     _: InferBodyId<'db>,
     _: StoredGenericArgs,
@@ -261,7 +265,7 @@ fn monomorphized_mir_body_cycle_result<'db>(
 
 #[salsa::tracked(returns(as_ref), cycle_result = monomorphized_mir_body_for_closure_cycle_result)]
 pub fn monomorphized_mir_body_for_closure_query<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     closure: InternedClosureId<'db>,
     subst: StoredGenericArgs,
     trait_env: StoredParamEnvAndCrate,
@@ -274,7 +278,7 @@ pub fn monomorphized_mir_body_for_closure_query<'db>(
 }
 
 fn monomorphized_mir_body_for_closure_cycle_result<'db>(
-    _db: &'db dyn HirDatabase,
+    _db: &'db dyn SourceDatabase,
     _: salsa::Id,
     _: InternedClosureId<'db>,
     _: StoredGenericArgs,

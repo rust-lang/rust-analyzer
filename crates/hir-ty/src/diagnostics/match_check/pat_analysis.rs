@@ -47,13 +47,13 @@ pub(crate) enum Void {}
 pub(crate) struct EnumVariantContiguousIndex(usize);
 
 impl EnumVariantContiguousIndex {
-    fn from_enum_variant_id(db: &dyn HirDatabase, target_evid: EnumVariantId) -> Self {
+    fn from_enum_variant_id(db: &dyn SourceDatabase, target_evid: EnumVariantId) -> Self {
         // Find the index of this variant in the list of variants.
         let i = target_evid.index(db);
         EnumVariantContiguousIndex(i)
     }
 
-    fn to_enum_variant_id(self, db: &dyn HirDatabase, eid: EnumId) -> EnumVariantId {
+    fn to_enum_variant_id(self, db: &dyn SourceDatabase, eid: EnumId) -> EnumVariantId {
         eid.enum_variants(db).variants[self.0].0
     }
 }
@@ -71,7 +71,7 @@ impl rustc_pattern_analysis::Idx for EnumVariantContiguousIndex {
 #[derive(Clone)]
 pub(crate) struct MatchCheckCtx<'a, 'db> {
     module: ModuleId,
-    pub(crate) db: &'db dyn HirDatabase,
+    pub(crate) db: &'db dyn SourceDatabase,
     exhaustive_patterns: bool,
     env: ParamEnv<'db>,
     infcx: &'a InferCtxt<'db>,
@@ -116,7 +116,7 @@ impl<'a, 'db> MatchCheckCtx<'a, 'db> {
     }
 
     fn variant_id_for_adt(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         ctor: &Constructor<Self>,
         adt: hir_def::AdtId,
     ) -> Option<VariantId> {

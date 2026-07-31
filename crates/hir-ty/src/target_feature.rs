@@ -16,7 +16,7 @@ pub struct TargetFeatures<'db> {
 }
 
 impl<'db> TargetFeatures<'db> {
-    pub fn from_fn(db: &'db dyn HirDatabase, owner: FunctionId) -> Self {
+    pub fn from_fn(db: &'db dyn SourceDatabase, owner: FunctionId) -> Self {
         let mut result = TargetFeatures::from_fn_no_implications(db, owner);
         result.expand_implications();
         result
@@ -38,7 +38,7 @@ impl<'db> TargetFeatures<'db> {
     }
 
     /// Retrieves the target features from the attributes, and does not expand the target features implied by them.
-    pub(crate) fn from_fn_no_implications(db: &'db dyn HirDatabase, owner: FunctionId) -> Self {
+    pub(crate) fn from_fn_no_implications(db: &'db dyn SourceDatabase, owner: FunctionId) -> Self {
         let enabled = AttrFlags::target_features(db, owner);
         Self { enabled: Cow::Borrowed(enabled) }
     }

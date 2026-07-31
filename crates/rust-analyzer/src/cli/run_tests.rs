@@ -76,7 +76,7 @@ impl flags::RunTests {
     }
 }
 
-fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
+fn all_modules(db: &dyn SourceDatabase) -> Vec<Module> {
     let mut worklist: Vec<_> = Crate::all(db)
         .into_iter()
         .filter(|x| x.origin(db).is_local())

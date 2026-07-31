@@ -49,7 +49,7 @@ impl<'db> ValueConst<'db> {
     #[inline]
     pub fn try_to_bits(
         self,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         param_env: ParamEnvAndCrate<'db>,
     ) -> Option<u128> {
         let (TyKind::Bool | TyKind::Char | TyKind::Uint(_) | TyKind::Int(_) | TyKind::Float(_)) =

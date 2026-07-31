@@ -307,7 +307,7 @@ impl CallInfo {
 }
 
 fn get_fn_params<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     function: hir::Function,
     param_list: &ast::ParamList,
     make: &SyntaxFactory,

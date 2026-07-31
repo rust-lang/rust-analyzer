@@ -35,7 +35,7 @@ const AUTODEREF_RECURSION_LIMIT: usize = 20;
 /// - a type won't be yielded more than once; in other words, the returned iterator will stop if it
 ///   detects a cycle in the deref chain.
 pub fn autoderef<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     ty: Canonical<'db, Ty<'db>>,
 ) -> impl Iterator<Item = Ty<'db>> + use<'db> {

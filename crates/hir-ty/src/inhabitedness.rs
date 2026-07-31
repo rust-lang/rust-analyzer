@@ -108,7 +108,7 @@ impl<'a, 'db> UninhabitedFrom<'a, 'db> {
     }
 
     #[inline]
-    fn db(&self) -> &'db dyn HirDatabase {
+    fn db(&self) -> &'db dyn SourceDatabase {
         self.interner().db
     }
 

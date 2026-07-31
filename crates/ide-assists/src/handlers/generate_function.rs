@@ -1308,7 +1308,7 @@ fn next_space_for_fn_after_call_site(expr: ast::CallableExpr) -> Option<Generate
 }
 
 fn next_space_for_fn_in_module(
-    db: &dyn hir::db::HirDatabase,
+    db: &dyn SourceDatabase,
     target_module: hir::Module,
 ) -> Option<(FileId, GeneratedFunctionTarget)> {
     let module_source = target_module.definition_source(db);

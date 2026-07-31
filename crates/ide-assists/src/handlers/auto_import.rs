@@ -314,7 +314,7 @@ pub(crate) fn relevance_score(
 }
 
 /// A heuristic that gives a higher score to modules that are more separated.
-fn module_distance_heuristic(db: &dyn HirDatabase, current: &Module, item: &Module) -> usize {
+fn module_distance_heuristic(db: &dyn SourceDatabase, current: &Module, item: &Module) -> usize {
     // get the path starting from the item to the respective crate roots
     let mut current_path = current.path_to_root(db);
     let mut item_path = item.path_to_root(db);

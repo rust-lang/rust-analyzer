@@ -178,7 +178,7 @@ impl Delegee {
         }
     }
 
-    fn signature(&self, db: &dyn HirDatabase, edition: Edition) -> String {
+    fn signature(&self, db: &dyn SourceDatabase, edition: Edition) -> String {
         let mut s = String::new();
         let it = self.trait_();
 

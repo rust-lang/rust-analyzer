@@ -136,7 +136,7 @@ impl<'db> Operand {
     }
 
     fn from_fn(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         func_id: hir_def::FunctionId,
         generic_args: GenericArgs<'db>,
     ) -> Operand {

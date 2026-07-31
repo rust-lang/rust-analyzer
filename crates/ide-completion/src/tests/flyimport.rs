@@ -1317,7 +1317,7 @@ mod baz {
 }
 
 mod bar {
-    fn test(db: &dyn crate::baz::HirDatabase) {
+    fn test(db: &dyn SourceDatabase) {
         db.metho$0
     }
 }

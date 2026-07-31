@@ -90,7 +90,7 @@ impl<'a, 'db> ProofTreeVisitor<'db> for NestedObligationsForSelfTy<'a, 'db> {
 /// type for the types to unify. For example `Option<T>` and `Option<U>` unify although there is
 /// unresolved goal `T = U`.
 pub fn could_unify<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     tys: &Canonical<'db, (Ty<'db>, Ty<'db>)>,
 ) -> bool {
@@ -102,7 +102,7 @@ pub fn could_unify<'db>(
 /// This means that placeholder types are not considered to unify if there are any bounds set on
 /// them. For example `Option<T>` and `Option<U>` do not unify as we cannot show that `T = U`
 pub fn could_unify_deeply<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     tys: &Canonical<'db, (Ty<'db>, Ty<'db>)>,
 ) -> bool {
@@ -110,7 +110,7 @@ pub fn could_unify_deeply<'db>(
 }
 
 fn could_unify_impl<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     tys: &Canonical<'db, (Ty<'db>, Ty<'db>)>,
     select: for<'a> fn(&mut ObligationCtxt<'a, 'db>) -> Vec<NextSolverError<'db>>,
@@ -129,7 +129,7 @@ fn could_unify_impl<'db>(
 }
 
 pub(crate) struct InferenceTable<'db> {
-    pub(crate) db: &'db dyn HirDatabase,
+    pub(crate) db: &'db dyn SourceDatabase,
     pub(crate) param_env: ParamEnv<'db>,
     pub(crate) infer_ctxt: InferCtxt<'db>,
     pub(super) fulfillment_cx: FulfillmentCtxt<'db>,
@@ -141,7 +141,7 @@ impl<'db> InferenceTable<'db> {
     /// Inside hir-ty you should use this for inference only, and always pass `owner`.
     /// Outside it, always pass `owner = None`.
     pub(crate) fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         trait_env: ParamEnv<'db>,
         krate: Crate,
         owner: ExpressionStoreOwnerId,

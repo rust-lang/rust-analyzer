@@ -303,7 +303,7 @@ impl<'db> Expr<'db> {
     /// Get type of the type tree.
     ///
     /// Same as getting the type of root node
-    pub fn ty(&self, db: &'db dyn HirDatabase) -> Type<'db> {
+    pub fn ty(&self, db: &'db dyn SourceDatabase) -> Type<'db> {
         match self {
             Expr::Const(it) => it.ty(db),
             Expr::Static(it) => it.ty(db),
@@ -328,7 +328,7 @@ impl<'db> Expr<'db> {
     }
 
     /// List the traits used in type tree
-    pub fn traits_used(&self, db: &dyn HirDatabase) -> Vec<Trait> {
+    pub fn traits_used(&self, db: &dyn SourceDatabase) -> Vec<Trait> {
         let mut res = Vec::new();
 
         if let Expr::Method { func, params, .. } = self {
@@ -352,7 +352,7 @@ impl<'db> Expr<'db> {
     /// macro!().bar()
     /// &macro!()
     /// ```
-    fn contains_many_in_illegal_pos(&self, db: &dyn HirDatabase) -> bool {
+    fn contains_many_in_illegal_pos(&self, db: &dyn SourceDatabase) -> bool {
         match self {
             Expr::Method { target, func, .. } => {
                 match func.as_assoc_item(db).and_then(|it| it.container_or_implemented_trait(db)) {

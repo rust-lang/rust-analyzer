@@ -46,7 +46,7 @@ impl ConstEvalError<'_> {
     pub fn pretty_print(
         &self,
         f: &mut String,
-        db: &dyn HirDatabase,
+        db: &dyn SourceDatabase,
         span_formatter: impl Fn(span::FileId, span::TextRange) -> String,
         display_target: DisplayTarget,
     ) -> std::result::Result<(), std::fmt::Error> {
@@ -214,7 +214,11 @@ pub(crate) fn literal_ty<'db>(
 }
 
 /// Interns a possibly-unknown target usize
-pub fn usize_const<'db>(db: &'db dyn HirDatabase, value: Option<u128>, krate: Crate) -> Const<'db> {
+pub fn usize_const<'db>(
+    db: &'db dyn SourceDatabase,
+    value: Option<u128>,
+    krate: Crate,
+) -> Const<'db> {
     let interner = DbInterner::new_no_crate(db);
     let value = match value {
         Some(value) => value,
@@ -236,7 +240,7 @@ pub fn allocation_as_usize(ec: Allocation<'_>) -> u128 {
     u128::from_le_bytes(pad16(&ec.memory, false))
 }
 
-pub fn try_const_usize<'db>(db: &'db dyn HirDatabase, c: Const<'db>) -> Option<u128> {
+pub fn try_const_usize<'db>(db: &'db dyn SourceDatabase, c: Const<'db>) -> Option<u128> {
     match c.kind() {
         ConstKind::Param(_) => None,
         ConstKind::Infer(_) => None,
@@ -274,7 +278,7 @@ pub fn allocation_as_isize(ec: Allocation<'_>) -> i128 {
     i128::from_le_bytes(pad16(&ec.memory, true))
 }
 
-pub fn try_const_isize<'db>(db: &'db dyn HirDatabase, c: Const<'db>) -> Option<i128> {
+pub fn try_const_isize<'db>(db: &'db dyn SourceDatabase, c: Const<'db>) -> Option<i128> {
     match c.kind() {
         ConstKind::Param(_) => None,
         ConstKind::Infer(_) => None,
@@ -323,7 +327,7 @@ pub(crate) enum CreateConstError<'db> {
 }
 
 pub(crate) fn path_to_const<'a, 'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     resolver: &Resolver<'db>,
     generics: &dyn Fn() -> &'a Generics<'db>,
     forbid_params_after: Option<u32>,
@@ -416,7 +420,7 @@ pub(crate) fn create_anon_const<'a, 'db>(
 
 #[salsa::tracked(cycle_result = const_eval_discriminant_cycle_result)]
 pub(crate) fn const_eval_discriminant_variant<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     variant_id: EnumVariantId,
 ) -> Result<i128, ConstEvalError<'db>> {
     let interner = DbInterner::new_no_crate(db);
@@ -452,7 +456,7 @@ pub(crate) fn const_eval_discriminant_variant<'db>(
 }
 
 fn const_eval_discriminant_cycle_result<'db>(
-    _: &'db dyn HirDatabase,
+    _: &'db dyn SourceDatabase,
     _: salsa::Id,
     _: EnumVariantId,
 ) -> Result<i128, ConstEvalError<'db>> {
@@ -460,7 +464,7 @@ fn const_eval_discriminant_cycle_result<'db>(
 }
 
 pub(crate) fn const_eval<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: ConstId,
     subst: GenericArgs<'db>,
     trait_env: Option<ParamEnvAndCrate<'db>>,
@@ -472,7 +476,7 @@ pub(crate) fn const_eval<'db>(
 
     #[salsa::tracked(returns(ref), cycle_result = const_eval_cycle_result)]
     pub(crate) fn const_eval_query<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: ConstId,
         subst: StoredGenericArgs,
         trait_env: Option<StoredParamEnvAndCrate>,
@@ -488,7 +492,7 @@ pub(crate) fn const_eval<'db>(
     }
 
     pub(crate) fn const_eval_cycle_result<'db>(
-        _: &'db dyn HirDatabase,
+        _: &'db dyn SourceDatabase,
         _: salsa::Id,
         _: ConstId,
         _: StoredGenericArgs,
@@ -499,7 +503,7 @@ pub(crate) fn const_eval<'db>(
 }
 
 pub(crate) fn anon_const_eval<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: AnonConstId<'db>,
     subst: GenericArgs<'db>,
     trait_env: Option<ParamEnvAndCrate<'db>>,
@@ -511,7 +515,7 @@ pub(crate) fn anon_const_eval<'db>(
 
     #[salsa::tracked(returns(ref), cycle_result = anon_const_eval_cycle_result)]
     pub(crate) fn anon_const_eval_query<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: AnonConstId<'db>,
         subst: StoredGenericArgs,
         trait_env: Option<StoredParamEnvAndCrate>,
@@ -530,7 +534,7 @@ pub(crate) fn anon_const_eval<'db>(
     }
 
     pub(crate) fn anon_const_eval_cycle_result<'db>(
-        _: &'db dyn HirDatabase,
+        _: &'db dyn SourceDatabase,
         _: salsa::Id,
         _: AnonConstId<'db>,
         _: StoredGenericArgs,
@@ -541,7 +545,7 @@ pub(crate) fn anon_const_eval<'db>(
 }
 
 pub(crate) fn const_eval_static<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: StaticId,
 ) -> Result<Allocation<'db>, ConstEvalError<'db>> {
     return match const_eval_static_query(db, def) {
@@ -551,7 +555,7 @@ pub(crate) fn const_eval_static<'db>(
 
     #[salsa::tracked(returns(ref), cycle_result = const_eval_static_cycle_result)]
     pub(crate) fn const_eval_static_query<'db>(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: StaticId,
     ) -> Result<StoredAllocation, ConstEvalError<'db>> {
         let interner = DbInterner::new_no_crate(db);
@@ -566,7 +570,7 @@ pub(crate) fn const_eval_static<'db>(
     }
 
     pub(crate) fn const_eval_static_cycle_result<'db>(
-        _: &'db dyn HirDatabase,
+        _: &'db dyn SourceDatabase,
         _: salsa::Id,
         _: StaticId,
     ) -> Result<StoredAllocation, ConstEvalError<'db>> {

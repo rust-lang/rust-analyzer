@@ -119,12 +119,12 @@ pub use unify::{could_unify, could_unify_deeply};
 use cast::{CastCheck, CastError};
 
 /// The entry point of type inference.
-fn infer_query<'db>(db: &'db dyn HirDatabase, def: DefWithBodyId) -> InferenceResult<'db> {
+fn infer_query<'db>(db: &'db dyn SourceDatabase, def: DefWithBodyId) -> InferenceResult<'db> {
     infer_query_with_inspect(db, def, None, LoweringMode::Analysis)
 }
 
 pub fn infer_query_with_inspect<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: DefWithBodyId,
     inspect: Option<ObligationInspector<'db>>,
     lowering_mode: LoweringMode,
@@ -187,7 +187,7 @@ pub fn infer_query_with_inspect<'db>(
 }
 
 fn infer_cycle_result<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     _: salsa::Id,
     _: DefWithBodyId,
 ) -> InferenceResult<'db> {
@@ -199,7 +199,7 @@ fn infer_cycle_result<'db>(
 
 /// Infer types for an anonymous const expression.
 fn infer_anon_const_query<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     def: AnonConstId<'db>,
 ) -> InferenceResult<'db> {
     let _p = tracing::info_span!("infer_anon_const_query").entered();
@@ -230,7 +230,7 @@ fn infer_anon_const_query<'db>(
 }
 
 fn infer_anon_const_cycle_result<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     _: salsa::Id,
     _: AnonConstId<'db>,
 ) -> InferenceResult<'db> {
@@ -935,7 +935,7 @@ impl CapturedPlace {
 
     /// The type of the capture stored in the closure, which is different from the type of the captured place
     /// if we capture by reference.
-    pub fn captured_ty<'db>(&self, db: &'db dyn HirDatabase) -> Ty<'db> {
+    pub fn captured_ty<'db>(&self, db: &'db dyn SourceDatabase) -> Ty<'db> {
         let place_ty = self.place.ty();
         let make_ref = |mutbl| {
             let interner = DbInterner::new_no_crate(db);
@@ -1082,7 +1082,7 @@ pub enum UpvarCapture {
 #[salsa::tracked]
 impl<'db> InferenceResult<'db> {
     #[salsa::tracked(returns(ref), cycle_result = infer_cycle_result)]
-    fn for_body(db: &dyn HirDatabase, def: DefWithBodyId) -> InferenceResult<'_> {
+    fn for_body(db: &dyn SourceDatabase, def: DefWithBodyId) -> InferenceResult<'_> {
         infer_query(db, def)
     }
 }
@@ -1095,7 +1095,7 @@ impl<'db> InferenceResult<'db> {
     /// const generic arguments, and other const expressions appearing in type
     /// positions within the item's signature.
     #[salsa::tracked(returns(ref), cycle_result = infer_anon_const_cycle_result)]
-    fn for_anon_const(db: &'db dyn HirDatabase, def: AnonConstId<'db>) -> InferenceResult<'db> {
+    fn for_anon_const(db: &'db dyn SourceDatabase, def: AnonConstId<'db>) -> InferenceResult<'db> {
         infer_anon_const_query(db, def)
     }
 }
@@ -1103,7 +1103,7 @@ impl<'db> InferenceResult<'db> {
 impl<'db> InferenceResult<'db> {
     #[inline]
     pub fn of(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: impl Into<InferBodyId<'db>>,
     ) -> &'db InferenceResult<'db> {
         match def.into() {
@@ -1273,7 +1273,7 @@ impl<'db> InferenceResult<'db> {
     // This method is consumed by external tools to run rust-analyzer as a library. Don't remove, please.
     pub fn return_position_impl_trait_types<'a>(
         &'a self,
-        db: &'a dyn HirDatabase,
+        db: &'a dyn SourceDatabase,
     ) -> impl Iterator<Item = (ImplTraitIdx, Ty<'a>)> {
         self.type_of_opaque.iter().filter_map(move |(&id, ty)| {
             let ImplTraitId::ReturnTypeImplTrait(_, rpit_idx) = id.loc(db) else {
@@ -1310,7 +1310,7 @@ impl<'db> InferenceResult<'db> {
     /// Like [`Self::closure_captures_tys()`], but using [`CapturedPlace::captured_ty()`].
     pub fn closure_captures_captured_tys<'a>(
         &self,
-        db: &'a dyn HirDatabase,
+        db: &'a dyn SourceDatabase,
         closure: ExprId,
     ) -> impl Iterator<Item = Ty<'a>> {
         self.closures_data[&closure]
@@ -1333,7 +1333,7 @@ enum DerefPatBorrowMode {
 /// The inference context contains all information needed during type inference.
 #[derive(Debug)]
 pub(crate) struct InferenceContext<'db> {
-    pub(crate) db: &'db dyn HirDatabase,
+    pub(crate) db: &'db dyn SourceDatabase,
     pub(crate) owner: InferBodyId<'db>,
     pub(crate) store_owner: ExpressionStoreOwnerId,
     pub(crate) generic_def: GenericDefId,
@@ -1431,7 +1431,7 @@ fn find_continuable<'a, 'db>(
 
 impl<'db> InferenceContext<'db> {
     fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         owner: InferBodyId<'db>,
         store_owner: ExpressionStoreOwnerId,
         generic_def: GenericDefId,

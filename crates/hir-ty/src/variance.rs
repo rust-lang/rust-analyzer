@@ -30,7 +30,7 @@ use crate::{
     },
 };
 
-pub(crate) fn variances_of(db: &dyn HirDatabase, def: GenericDefId) -> VariancesOf<'_> {
+pub(crate) fn variances_of(db: &dyn SourceDatabase, def: GenericDefId) -> VariancesOf<'_> {
     variances_of_query(db, def).as_ref()
 }
 
@@ -39,7 +39,7 @@ pub(crate) fn variances_of(db: &dyn HirDatabase, def: GenericDefId) -> Variances
     cycle_fn = crate::variance::variances_of_cycle_fn,
     cycle_initial = crate::variance::variances_of_cycle_initial,
 )]
-fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariancesOf {
+fn variances_of_query(db: &dyn SourceDatabase, def: GenericDefId) -> StoredVariancesOf {
     tracing::debug!("variances_of(def={:?})", def);
     match def {
         GenericDefId::FunctionId(_) => (),
@@ -70,7 +70,7 @@ fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariance
 }
 
 pub(crate) fn variances_of_cycle_fn(
-    _db: &dyn HirDatabase,
+    _db: &dyn SourceDatabase,
     _: &salsa::Cycle<'_>,
     _last_provisional_value: &StoredVariancesOf,
     value: StoredVariancesOf,
@@ -100,7 +100,7 @@ fn glb(v1: Variance, v2: Variance) -> Variance {
 }
 
 pub(crate) fn variances_of_cycle_initial(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     _: salsa::Id,
     def: GenericDefId,
 ) -> StoredVariancesOf {
@@ -112,7 +112,7 @@ pub(crate) fn variances_of_cycle_initial(
 }
 
 struct Context<'db> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     generics: Generics<'db>,
     variances: Box<[Variance]>,
 }

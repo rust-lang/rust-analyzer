@@ -737,7 +737,7 @@ impl<'db> Ty<'db> {
     }
 
     // FIXME: Should this be here?
-    pub fn impl_trait_bounds(self, db: &'db dyn HirDatabase) -> Option<Vec<Clause<'db>>> {
+    pub fn impl_trait_bounds(self, db: &'db dyn SourceDatabase) -> Option<Vec<Clause<'db>>> {
         let interner = DbInterner::new_no_crate(db);
 
         match self.kind() {

@@ -131,7 +131,7 @@ impl<'a> LayoutCx<'a> {
 
 // FIXME: move this to the `rustc_abi`.
 fn layout_of_simd_ty<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     id: StructId,
     repr_packed: bool,
     args: &GenericArgs<'db>,
@@ -162,7 +162,7 @@ fn layout_of_simd_ty<'db>(
 
 #[salsa::tracked(cycle_result = layout_of_ty_cycle_result)]
 pub fn layout_of_ty_query(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     ty: StoredTy,
     trait_env: StoredParamEnvAndCrate,
 ) -> Result<Arc<Layout>, LayoutError> {
@@ -504,7 +504,7 @@ pub fn layout_of_ty_query(
 }
 
 fn layout_of_ty_cycle_result(
-    _: &dyn HirDatabase,
+    _: &dyn SourceDatabase,
     _: salsa::Id,
     _: StoredTy,
     _: StoredParamEnvAndCrate,
@@ -531,7 +531,7 @@ fn extract_const_value<'db>(ct: Const<'db>) -> Result<ValueConst<'db>, LayoutErr
     }
 }
 
-fn struct_tail_erasing_lifetimes<'a>(db: &'a dyn HirDatabase, pointee: Ty<'a>) -> Ty<'a> {
+fn struct_tail_erasing_lifetimes<'a>(db: &'a dyn SourceDatabase, pointee: Ty<'a>) -> Ty<'a> {
     match pointee.kind() {
         TyKind::Adt(def, args) => {
             let struct_id = match def.def_id() {
@@ -560,7 +560,7 @@ fn struct_tail_erasing_lifetimes<'a>(db: &'a dyn HirDatabase, pointee: Ty<'a>) -
 }
 
 fn field_ty<'a>(
-    db: &'a dyn HirDatabase,
+    db: &'a dyn SourceDatabase,
     def: hir_def::VariantId,
     fd: LocalFieldId,
     args: GenericArgs<'a>,

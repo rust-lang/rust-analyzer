@@ -44,7 +44,7 @@ macro_rules! wln {
 }
 
 impl MirBody<'_> {
-    pub fn pretty_print(&self, db: &dyn HirDatabase, display_target: DisplayTarget) -> String {
+    pub fn pretty_print(&self, db: &dyn SourceDatabase, display_target: DisplayTarget) -> String {
         let hir_body = ExpressionStore::of(db, self.owner.expression_store_owner(db));
         let mut ctx = MirPrettyCtx::new(self, hir_body, db, display_target);
         ctx.for_body(|this| match ctx.body.owner {
@@ -88,7 +88,7 @@ impl MirBody<'_> {
 
     // String with lines is rendered poorly in `dbg` macros, which I use very much, so this
     // function exists to solve that.
-    pub fn dbg(&self, db: &dyn HirDatabase, display_target: DisplayTarget) -> impl Debug {
+    pub fn dbg(&self, db: &dyn SourceDatabase, display_target: DisplayTarget) -> impl Debug {
         struct StringDbg(String);
         impl Debug for StringDbg {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -102,7 +102,7 @@ impl MirBody<'_> {
 struct MirPrettyCtx<'a, 'db> {
     body: &'a MirBody<'db>,
     hir_body: &'a ExpressionStore,
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     result: String,
     indent: String,
     local_to_binding: ArenaMap<LocalId, BindingId>,
@@ -189,7 +189,7 @@ impl<'a, 'db> MirPrettyCtx<'a, 'db> {
     fn new(
         body: &'a MirBody<'db>,
         hir_body: &'a ExpressionStore,
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         display_target: DisplayTarget,
     ) -> Self {
         let local_to_binding = body.local_to_binding_map();

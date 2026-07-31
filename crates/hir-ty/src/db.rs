@@ -350,7 +350,7 @@ pub struct InternedClosureId<'db> {
 
 impl<'db> InternedClosureId<'db> {
     #[inline]
-    pub fn new(db: &'db dyn HirDatabase, loc: InternedClosure<'db>) -> Self {
+    pub fn new(db: &'db dyn SourceDatabase, loc: InternedClosure<'db>) -> Self {
         if cfg!(debug_assertions) {
             let store = ExpressionStore::of(db, loc.owner.expression_store_owner(db));
             let expr = &store[loc.expr];
@@ -378,7 +378,7 @@ pub struct InternedCoroutineId<'db> {
 
 impl<'db> InternedCoroutineId<'db> {
     #[inline]
-    pub fn new(db: &'db dyn HirDatabase, loc: InternedClosure<'db>) -> Self {
+    pub fn new(db: &'db dyn SourceDatabase, loc: InternedClosure<'db>) -> Self {
         if cfg!(debug_assertions) {
             let store = ExpressionStore::of(db, loc.owner.expression_store_owner(db));
             let expr = &store[loc.expr];
@@ -407,7 +407,7 @@ pub struct InternedCoroutineClosureId<'db> {
 
 impl<'db> InternedCoroutineClosureId<'db> {
     #[inline]
-    pub fn new(db: &'db dyn HirDatabase, loc: InternedClosure<'db>) -> Self {
+    pub fn new(db: &'db dyn SourceDatabase, loc: InternedClosure<'db>) -> Self {
         if cfg!(debug_assertions) {
             let store = ExpressionStore::of(db, loc.owner.expression_store_owner(db));
             let expr = &store[loc.expr];
@@ -475,7 +475,7 @@ impl HasResolver for AnonConstId<'_> {
 
 impl<'db> AnonConstId<'db> {
     pub fn all_from_signature(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         def: GenericDefId,
     ) -> ArrayVec<&'db [Self], 5> {
         let mut result = ArrayVec::new();
@@ -523,7 +523,7 @@ pub enum GeneralConstId<'db> {
 impl_from!(impl<'db> ConstId, StaticId, AnonConstId<'db> for GeneralConstId<'db>);
 
 impl<'db> GeneralConstId<'db> {
-    pub fn generic_def(self, db: &'db dyn HirDatabase) -> Option<GenericDefId> {
+    pub fn generic_def(self, db: &'db dyn SourceDatabase) -> Option<GenericDefId> {
         match self {
             GeneralConstId::ConstId(it) => Some(it.into()),
             GeneralConstId::StaticId(it) => Some(it.into()),

@@ -183,7 +183,7 @@ fn render(
 }
 
 fn compute_return_type_match(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     ctx: &RenderContext<'_, '_>,
     self_type: hir::Type<'_>,
     ret_type: &hir::Type<'_>,

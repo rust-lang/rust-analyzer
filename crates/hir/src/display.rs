@@ -773,7 +773,7 @@ fn write_where_clause<'db>(def: GenericDefId, f: &mut HirFormatter<'_, 'db>) -> 
 }
 
 fn has_disaplayable_predicates(
-    db: &dyn HirDatabase,
+    db: &dyn SourceDatabase,
     params: &GenericParams,
     store: &ExpressionStore,
 ) -> bool {

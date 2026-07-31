@@ -96,7 +96,7 @@ pub(crate) enum PatKind<'db> {
 }
 
 pub(crate) struct PatCtxt<'a, 'db> {
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     infer: &'db InferenceResult<'db>,
     body: &'a Body,
     pub(crate) errors: Vec<PatternError>,
@@ -104,7 +104,7 @@ pub(crate) struct PatCtxt<'a, 'db> {
 
 impl<'a, 'db> PatCtxt<'a, 'db> {
     pub(crate) fn new(
-        db: &'db dyn HirDatabase,
+        db: &'db dyn SourceDatabase,
         infer: &'db InferenceResult<'db>,
         body: &'a Body,
     ) -> Self {

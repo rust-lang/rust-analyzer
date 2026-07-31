@@ -169,7 +169,7 @@ type ExprToAnonConst<'db> = FxHashMap<ExprId, AnonConstId<'db>>;
 type DefAnonConstsMap<'db> = FxHashMap<DefWithoutBodyWithAnonConsts, ExprToAnonConst<'db>>;
 
 pub struct SemanticsImpl<'db> {
-    pub db: &'db dyn HirDatabase,
+    pub db: &'db dyn SourceDatabase,
     s2d_cache: RefCell<SourceToDefCache<'db>>,
     /// MacroCall to its expansion's MacroCallId cache
     macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, MacroCallId>>,
@@ -203,9 +203,9 @@ pub enum LintAttr {
 // Note: while this variant of `Semantics<'_, _>` might seem unused, as it does not
 // find actual use within the rust-analyzer project itself, it exists to enable the use
 // within e.g. tracked salsa functions in third-party crates that build upon `ra_ap_hir`.
-impl Semantics<'_, dyn HirDatabase> {
+impl Semantics<'_, dyn SourceDatabase> {
     /// Creates an instance that's weakly coupled to its underlying database type.
-    pub fn new_dyn(db: &'_ dyn HirDatabase) -> Semantics<'_, dyn HirDatabase> {
+    pub fn new_dyn(db: &'_ dyn SourceDatabase) -> Semantics<'_, dyn SourceDatabase> {
         let impl_ = SemanticsImpl::new(db);
         Semantics { db, imp: impl_ }
     }
@@ -220,7 +220,7 @@ impl<DB: HirDatabase> Semantics<'_, DB> {
 }
 
 // Note: We take `DB` as `?Sized` here in order to support type-erased
-// use of `Semantics` via `Semantics<'_, dyn HirDatabase>`:
+// use of `Semantics` via `Semantics<'_, dyn SourceDatabase>`:
 impl<DB: HirDatabase + ?Sized> Semantics<'_, DB> {
     pub fn hir_file_for(&self, syntax_node: &SyntaxNode) -> HirFileId {
         self.imp.find_file(syntax_node).file_id
@@ -459,7 +459,7 @@ impl<DB: HirDatabase + ?Sized> Semantics<'_, DB> {
 }
 
 impl<'db> SemanticsImpl<'db> {
-    fn new(db: &'db dyn HirDatabase) -> Self {
+    fn new(db: &'db dyn SourceDatabase) -> Self {
         SemanticsImpl {
             db,
             s2d_cache: Default::default(),
@@ -2715,7 +2715,7 @@ impl<'db> ToDef<'db> for ast::IdentPat {
 /// you'd better use the `resolve_` family of methods.
 #[derive(Debug)]
 pub struct SemanticsScope<'db> {
-    pub db: &'db dyn HirDatabase,
+    pub db: &'db dyn SourceDatabase,
     infer_body: Option<InferBodyId<'db>>,
     file_id: HirFileId,
     resolver: Resolver<'db>,
@@ -2884,7 +2884,7 @@ impl ops::Deref for VisibleTraits {
 }
 
 struct RenameConflictsVisitor<'a> {
-    db: &'a dyn HirDatabase,
+    db: &'a dyn SourceDatabase,
     owner: ExpressionStoreOwnerId,
     resolver: Resolver<'a>,
     body: &'a ExpressionStore,

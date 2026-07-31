@@ -61,12 +61,12 @@ pub struct StoredParamEnvAndCrate {
 
 impl StoredParamEnvAndCrate {
     #[inline]
-    pub fn param_env<'db>(&self, _db: &'db dyn HirDatabase) -> ParamEnv<'db> {
+    pub fn param_env<'db>(&self, _db: &'db dyn SourceDatabase) -> ParamEnv<'db> {
         ParamEnv { clauses: self.param_env.as_ref() }
     }
 
     #[inline]
-    pub fn as_ref<'db>(&self, db: &'db dyn HirDatabase) -> ParamEnvAndCrate<'db> {
+    pub fn as_ref<'db>(&self, db: &'db dyn SourceDatabase) -> ParamEnvAndCrate<'db> {
         ParamEnvAndCrate { param_env: self.param_env(db), krate: self.krate }
     }
 }
@@ -123,7 +123,7 @@ impl FnTrait {
 /// This should not be used in `hir-ty`, only in `hir`.
 pub fn implements_trait_unique<'db>(
     ty: Ty<'db>,
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     trait_: TraitId,
 ) -> bool {
@@ -134,7 +134,7 @@ pub fn implements_trait_unique<'db>(
 
 /// This should not be used in `hir-ty`, only in `hir`.
 pub fn implements_trait_unique_with_args<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     trait_: TraitId,
     args: GenericArgs<'db>,
@@ -143,7 +143,7 @@ pub fn implements_trait_unique_with_args<'db>(
 }
 
 pub fn implements_trait_unique_with_infcx<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     env: ParamEnvAndCrate<'db>,
     trait_: TraitId,
     create_args: &mut dyn FnMut(&InferCtxt<'db>) -> GenericArgs<'db>,
@@ -173,7 +173,7 @@ pub enum WherePredicateEvaluation {
 /// This should not be used in `hir-ty`, only in `hir`.
 /// This is exposed to allow the IDE to evaluate arbitrary predicates.
 pub fn where_predicate_must_hold<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     resolver: &Resolver<'db>,
     store: &'db ExpressionStore,
     def: ExpressionStoreOwnerId,
@@ -247,7 +247,11 @@ pub fn where_predicate_must_hold<'db>(
     }
 }
 
-pub fn is_inherent_impl_coherent(db: &dyn HirDatabase, def_map: &DefMap, impl_id: ImplId) -> bool {
+pub fn is_inherent_impl_coherent(
+    db: &dyn SourceDatabase,
+    def_map: &DefMap,
+    impl_id: ImplId,
+) -> bool {
     let self_ty = db.impl_self_ty(impl_id).instantiate_identity().skip_norm_wip();
     let self_ty = self_ty.kind();
     let impl_allowed = match self_ty {
@@ -331,7 +335,7 @@ pub fn is_inherent_impl_coherent(db: &dyn HirDatabase, def_map: &DefMap, impl_id
 /// - All of
 ///   - At least one of the types `T0..=Tn` must be a local type. Let `Ti` be the first such type.
 ///   - No uncovered type parameters `P1..=Pn` may appear in `T0..Ti` (excluding `Ti`)
-pub fn check_orphan_rules<'db>(db: &'db dyn HirDatabase, impl_: ImplId) -> bool {
+pub fn check_orphan_rules<'db>(db: &'db dyn SourceDatabase, impl_: ImplId) -> bool {
     let Some(impl_trait) = db.impl_trait(impl_) else {
         // not a trait impl
         return true;

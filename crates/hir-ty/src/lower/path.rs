@@ -1154,7 +1154,7 @@ fn check_generic_args_len<'db>(
 }
 
 pub(crate) fn substs_from_args_and_bindings<'db>(
-    db: &'db dyn HirDatabase,
+    db: &'db dyn SourceDatabase,
     store: &ExpressionStore,
     args_and_bindings: Option<&HirGenericArgs>,
     def: GenericDefId,

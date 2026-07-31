@@ -19,7 +19,7 @@ use crate::{
 };
 
 #[salsa::tracked]
-pub fn destructor(db: &dyn HirDatabase, adt: AdtId) -> Option<ImplId> {
+pub fn destructor(db: &dyn SourceDatabase, adt: AdtId) -> Option<ImplId> {
     let module = match adt {
         AdtId::EnumId(id) => id.loc(db).container,
         AdtId::StructId(id) => id.loc(db).container,
