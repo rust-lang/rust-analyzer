@@ -55,7 +55,7 @@ use tracing::{debug, instrument};
 use crate::{
     Adjust, Adjustment, AutoBorrow, ParamEnvAndCrate, PointerCast, Span, TargetFeatures,
     autoderef::Autoderef,
-    db::{HirDatabase, InternedClosure, InternedClosureId},
+    db::{InternedClosure, InternedClosureId},
     infer::{AllowTwoPhase, AutoBorrowMutability, InferenceContext, expr::ExprIsRead},
     next_solver::{
         Binder, BoundConst, BoundRegion, BoundRegionKind, BoundTy, BoundTyKind, CallableIdWrapper,

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use either::Either;
-use hir::{FileRange, PathResolution, Semantics, TypeInfo, db::HirDatabase, sym};
+use hir::{FileRange, PathResolution, Semantics, TypeInfo, sym};
 use ide_db::{
     EditionedFileId, FxHashMap, RootDatabase,
     base_db::{Crate, SourceDatabase},

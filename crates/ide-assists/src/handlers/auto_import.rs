@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 
 use either::Either;
-use hir::{Module, Type, db::HirDatabase};
+use hir::{Module, Type};
 use ide_db::{
     active_parameter::ActiveParameter,
     base_db::SourceDatabase,

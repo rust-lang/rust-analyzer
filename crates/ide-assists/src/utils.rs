@@ -3,10 +3,7 @@
 use std::slice;
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
-use hir::{
-    HasAttrs as HirHasAttrs, HirDisplay, InFile, ModuleDef, PathResolution, Semantics,
-    db::HirDatabase,
-};
+use hir::{HasAttrs as HirHasAttrs, HirDisplay, InFile, ModuleDef, PathResolution, Semantics};
 use ide_db::{
     RootDatabase,
     assists::ExprFillDefaultMode,

@@ -19,7 +19,6 @@ use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
 use hir_ty::{
     CastError, ExplicitDropMethodUseKind, InferenceDiagnostic, InferenceTyDiagnosticSource,
     PathGenericsSource, PathLoweringDiagnostic, TyLoweringDiagnostic,
-    db::HirDatabase,
     diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
     display::{DisplayTarget, HirDisplay},
     next_solver::{DbInterner, EarlyBinder},

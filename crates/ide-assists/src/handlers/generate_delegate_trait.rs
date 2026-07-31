@@ -5,7 +5,7 @@ use crate::{
     utils::convert_param_list_to_arg_list,
 };
 use either::Either;
-use hir::{HasVisibility, db::HirDatabase};
+use hir::HasVisibility;
 use ide_db::{
     FxHashMap, FxHashSet,
     assists::{AssistId, GroupLabel},

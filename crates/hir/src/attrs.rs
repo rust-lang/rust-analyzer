@@ -18,7 +18,6 @@ use hir_expand::{
     name::Name,
 };
 use hir_ty::{
-    db::HirDatabase,
     method_resolution::{self, CandidateId, MethodError, MethodResolutionContext},
     next_solver::{DbInterner, TypingMode, infer::DbInternerInferExt},
 };

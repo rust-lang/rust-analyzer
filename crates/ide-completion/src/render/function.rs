@@ -1,7 +1,7 @@
 //! Renderer for function calls.
 
 use base_db::SourceDatabase;
-use hir::{AsAssocItem, HirDisplay, db::HirDatabase};
+use hir::{AsAssocItem, HirDisplay};
 use ide_db::{SnippetCap, SymbolKind};
 use itertools::Itertools;
 use stdx::{format_to, to_lower_snake_case};

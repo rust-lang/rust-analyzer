@@ -1,7 +1,5 @@
 use either::Either;
-use hir::{
-    AssocItem, FindPathConfig, HasVisibility, HirDisplay, InFile, Type, db::HirDatabase, sym,
-};
+use hir::{AssocItem, FindPathConfig, HasVisibility, HirDisplay, InFile, Type, sym};
 use ide_db::{
     FxHashMap,
     assists::{Assist, ExprFillDefaultMode},

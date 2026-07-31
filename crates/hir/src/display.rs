@@ -20,7 +20,6 @@ use hir_def::{
 use hir_expand::name::Name;
 use hir_ty::{
     GenericPredicates,
-    db::HirDatabase,
     display::{
         HirDisplay, HirDisplayWithExpressionStore, HirFormatter, Result, SizedByDefault,
         hir_display_with_store, write_bounds_like_dyn_trait_with_prefix, write_params_bounds,
