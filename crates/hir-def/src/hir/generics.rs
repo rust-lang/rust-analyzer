@@ -51,6 +51,10 @@ pub enum LifetimeBoundType {
 }
 
 impl LifetimeParamData {
+    pub fn is_elided(&self) -> bool {
+        self.name.is_anon_lifetime()
+    }
+
     pub fn is_late_bound(&self) -> bool {
         self.bound_type == LifetimeBoundType::LateBound
     }
