@@ -722,7 +722,7 @@ pub struct LifetimeParamId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HrtbLifetimeParamId(pub usize);
+pub struct HrtbLifetimeParamId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Supertype)]
 pub enum ItemContainerId {
@@ -1433,7 +1433,10 @@ impl ModuleDefId {
             ModuleDefId::StaticId(id) => Some(id.into()),
             ModuleDefId::TraitId(id) => Some(id.into()),
             ModuleDefId::TypeAliasId(id) => Some(id.into()),
-            _ => None,
+            ModuleDefId::ModuleId(_) => None,
+            ModuleDefId::EnumVariantId(_) => None,
+            ModuleDefId::BuiltinType(_) => None,
+            ModuleDefId::MacroId(_) => None,
         }
     }
 }
