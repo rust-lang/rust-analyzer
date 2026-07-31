@@ -29,6 +29,7 @@ use tracing::debug;
 use crate::{
     Adjust, Adjustment, CallableDefId, Rawness, Span,
     consteval::literal_ty,
+    db::HirDatabase,
     infer::{AllowTwoPhase, BreakableKind, coerce::CoerceMany, find_continuable, pat::PatOrigin},
     lower::lower_mutability,
     method_resolution::{self, CandidateId, MethodCallee, MethodError},

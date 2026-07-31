@@ -9,6 +9,7 @@ use rustc_type_ir::inherent::{GenericArgs as _, IntoKind, SliceLike, Ty as _};
 use stdx::never;
 
 use crate::{
+    db::HirDatabase,
     display::DisplayTarget,
     drop::{DropGlue, has_drop_glue},
     mir::eval::{

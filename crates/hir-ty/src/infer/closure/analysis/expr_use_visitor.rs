@@ -23,6 +23,7 @@ use tracing::{debug, instrument, trace};
 
 use crate::{
     Adjust, Adjustment, AutoBorrow, Span,
+    db::HirDatabase,
     infer::{
         ByRef, CaptureSourceStack, DerefPatBorrowMode, InferenceContext, PatAdjust, PatAdjustment,
         UpvarCapture, closure::analysis::BorrowKind,
