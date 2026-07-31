@@ -154,7 +154,7 @@ fn expected_type_fn_param_deref() {
 fn foo() { bar(*$0); }
 fn bar(x: &u32) {}
 "#,
-        expect!["ty: &'_ &'<erased> u32, name: x"],
+        expect!["ty: &'_ &'_ u32, name: x"],
     );
 }
 

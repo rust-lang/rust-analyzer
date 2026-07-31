@@ -508,7 +508,7 @@ struct S;
 impl S {
     fn foo(&self) {}
 }
-fn main() { S::foo(${1:&'_ self});$0 }
+fn main() { S::foo(${1:&self});$0 }
 "#,
         );
     }

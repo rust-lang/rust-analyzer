@@ -678,7 +678,7 @@ fn main() { }
             ```
 
             ```rust
-            pub fn foo<'_>(_: &'_ Path)
+            pub fn foo(_: &Path)
             ```
 
             ---
@@ -711,7 +711,7 @@ fn main() { }
             ```
 
             ```rust
-            pub fn foo<'_>(_: &'_ Path)
+            pub fn foo(_: &Path)
             ```
 
             ---
@@ -3431,7 +3431,7 @@ fn foo() { let bar = Bar; bar.fo$0o(); }
             ```
 
             ```rust
-            fn foo<'_>(&'_ self)
+            fn foo(&self)
             ```
 
             ---
@@ -3469,7 +3469,7 @@ fn foo() { let bar = Bar; bar.fo$0o(); }
             ```
 
             ```rust
-            fn foo<'_>(&'_ self)
+            fn foo(&self)
             ```
 
             ---
@@ -6801,7 +6801,7 @@ fn main() {
             ```
 
             ```rust
-            fn bar<'t, '_, T>(s: &'_ mut S<'t, T>, t: u32) -> *mut u32
+            fn bar<'t, T>(s: &mut S<'t, T>, t: u32) -> *mut u32
             where
                 T: Clone + 't,
                 't: 't + 't,
@@ -8194,7 +8194,7 @@ fn f() {
 
             ```rust
             impl core::ops::Deref for Struct
-            fn deref<'_>(&'_ self) -> &'_ Self::Target
+            fn deref(&self) -> &Self::Target
             ```
         "#]],
     );
@@ -8920,7 +8920,7 @@ fn main() {
             ```
 
             ```rust
-            fn foo<'_, T>(&'_ self, t: T)
+            fn foo<T>(&self, t: T)
             ```
         "#]],
     );
@@ -9929,7 +9929,7 @@ fn test_hover_function_with_pat_param() {
             ```
 
             ```rust
-            fn test_3<'_>(&(a, b): &'_ (i32, i32))
+            fn test_3(&(a, b): &(i32, i32))
             ```
         "#]],
     );
@@ -10135,8 +10135,8 @@ fn fn_$0(
             ```
 
             ```rust
-            fn fn_<'_>(
-                &'_ self,
+            fn fn_(
+                &self,
                 attrs: impl IntoIterator<Item = ast::Attr>,
                 visibility: Option<ast::Visibility>,
                 fn_name: ast::Name,
@@ -10722,7 +10722,7 @@ fn bar() {
 
             ```rust
             trait Trait<T>
-            fn foo<'_, U>(&'_ self, v: U)
+            fn foo<U>(&self, v: U)
             ```
 
             ---
@@ -10755,7 +10755,7 @@ fn bar() {
 
             ```rust
             impl<'a, T, const N: usize> Foo<'a, N, T>
-            fn foo<'b, '_, const Z: u32, U>(&'_ self, v: U)
+            fn foo<'b, const Z: u32, U>(&self, v: U)
             ```
 
             ---
@@ -11501,7 +11501,7 @@ fn bar(v: &Foo<i32>) {
 
             ```rust
             impl<T> Foo<T>
-            fn foo<'_, U>(&'_ self, _u: U)
+            fn foo<U>(&self, _u: U)
             where
                 U: Copy,
                 // Bounds from impl:
@@ -11559,7 +11559,7 @@ fn main() {
 
             ```rust
             impl Clone for Foo
-            pub fn clone<'_>(&'_ self) -> Self
+            pub fn clone(&self) -> Self
             ```
         "#]],
     );
@@ -11743,7 +11743,7 @@ fn bar() {
 
             ```rust
             impl<T> Foo<()> for T
-            fn foo<'_>(&'_ self)
+            fn foo(&self)
             ```
         "#]],
     );
@@ -11768,7 +11768,7 @@ impl<T> Foo<i32, u64> for T {
 
             ```rust
             impl<T> Foo<i32, u64> for T
-            fn foo<'_>(&'_ self)
+            fn foo(&self)
             ```
         "#]],
     );
@@ -11816,7 +11816,7 @@ pub trait MyTrait {
 
             ```rust
             pub trait MyTrait
-            pub fn do_something<'_>(&'_ self)
+            pub fn do_something(&self)
             ```
         "#]],
     );
@@ -11836,7 +11836,7 @@ pub trait MyTrait {
 
             ```rust
             pub trait MyTrait
-            pub fn do_something<'_>(&'_ self)
+            pub fn do_something(&self)
             ```
 
             ---
@@ -11878,7 +11878,7 @@ fn foo() { let bar = Bar; bar.fo$0o(); }
             ```
 
             ```rust
-            fn foo<'_>(&'_ self)
+            fn foo(&self)
             ```
 
             ---
