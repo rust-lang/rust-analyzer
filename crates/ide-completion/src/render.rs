@@ -934,7 +934,7 @@ fn main() {
 }
 "#,
             expect![[r#"
-                me my_method(…) fn(&'_ self) []
+                me my_method(…) fn(&self) []
             "#]],
         );
     }
@@ -1210,7 +1210,7 @@ fn main() {
 
 "#,
             expect![[r#"
-                me Function(…) fn(&'_ self, i32) -> bool []
+                me Function(…) fn(&self, i32) -> bool []
             "#]],
         );
     }
@@ -1240,7 +1240,7 @@ fn func(input: Struct) { }
                 ex Struct  [type]
                 lc self &Struct [local]
                 fn func(…) fn(Struct) []
-                me self.test() fn(&'_ self) []
+                me self.test() fn(&self) []
             "#]],
         );
     }
@@ -2387,7 +2387,7 @@ fn foo(s: S) { s.$0 }
                         label: "the_method()",
                         detail_left: None,
                         detail_right: Some(
-                            "fn(&'_ self)",
+                            "fn(&self)",
                         ),
                         source_range: 81..81,
                         delete: 81..81,
@@ -2396,7 +2396,7 @@ fn foo(s: S) { s.$0 }
                             Method,
                         ),
                         lookup: "the_method",
-                        detail: "fn(&'_ self)",
+                        detail: "fn(&self)",
                         relevance: CompletionRelevance {
                             exact_name_match: false,
                             type_match: None,
@@ -2876,7 +2876,7 @@ fn main() {
                         label: "indent()",
                         detail_left: None,
                         detail_right: Some(
-                            "fn(&'_ self) -> i32",
+                            "fn(&self) -> i32",
                         ),
                         source_range: 144..145,
                         delete: 144..145,
@@ -2885,7 +2885,7 @@ fn main() {
                             Method,
                         ),
                         lookup: "indent",
-                        detail: "fn(&'_ self) -> i32",
+                        detail: "fn(&self) -> i32",
                         relevance: CompletionRelevance {
                             exact_name_match: false,
                             type_match: None,
@@ -2997,9 +2997,9 @@ fn f() {
 }
 "#,
             expect![[r#"
-                me aaa() fn(&'_ self) -> u32 [type+name]
-                me bbb() fn(&'_ self) -> u32 [type]
-                me ccc() fn(&'_ self) -> u64 []
+                me aaa() fn(&self) -> u32 [type+name]
+                me bbb() fn(&self) -> u32 [type]
+                me ccc() fn(&self) -> u64 []
             "#]],
         );
     }
@@ -3018,7 +3018,7 @@ fn f() {
 }
 "#,
             expect![[r#"
-                me aaa() fn(&'_ self) -> u64 [name]
+                me aaa() fn(&self) -> u64 [name]
             "#]],
         );
     }
@@ -3514,8 +3514,8 @@ fn main() {
 "#,
             expect![[r#"
                 fn new() fn() -> Foo []
-                me eq(…) fn(&'_ self, &Rhs) -> bool [op_method]
-                me ne(…) fn(&'_ self, &Rhs) -> bool [op_method]
+                me eq(…) fn(&self, &Rhs) -> bool [op_method]
+                me ne(…) fn(&self, &Rhs) -> bool [op_method]
             "#]],
         );
     }
@@ -3573,7 +3573,7 @@ fn test() {
             expect![[r#"
                 [
                     (
-                        "fn(&'_ self, u32) -> Bar",
+                        "fn(&self, u32) -> Bar",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3583,7 +3583,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self)",
+                        "fn(&self)",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3593,7 +3593,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self) -> Foo",
+                        "fn(&self) -> Foo",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3603,7 +3603,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self, u32) -> Foo",
+                        "fn(&self, u32) -> Foo",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3613,7 +3613,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self) -> Option<Foo>",
+                        "fn(&self) -> Option<Foo>",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3623,7 +3623,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self) -> Result<Foo, Bar>",
+                        "fn(&self) -> Result<Foo, Bar>",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3633,7 +3633,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self) -> Result<Bar, Foo>",
+                        "fn(&self) -> Result<Bar, Foo>",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3643,7 +3643,7 @@ fn test() {
                         ),
                     ),
                     (
-                        "fn(&'_ self, u32) -> Option<Foo>",
+                        "fn(&self, u32) -> Option<Foo>",
                         Some(
                             CompletionRelevanceFn {
                                 has_params: true,
@@ -3689,7 +3689,7 @@ fn test() {
                 fn fn_ctr_with_args(…) fn(u32) -> Foo [type_could_unify]
                 fn fn_builder() fn() -> FooBuilder [type_could_unify]
                 fn fn_ctr() fn() -> Result<Foo> [type_could_unify]
-                me fn_no_ret(…) fn(&'_ self) [type_could_unify]
+                me fn_no_ret(…) fn(&self) [type_could_unify]
                 fn fn_other() fn() -> Result<u32> [type_could_unify]
             "#]],
         );
@@ -3727,7 +3727,7 @@ fn test() {
                 fn fn_ctr_wrapped() fn() -> Option<Foo<T>> [type_could_unify]
                 fn fn_ctr_wrapped_2() fn() -> Result<Foo<T>, u32> [type_could_unify]
                 fn fn_other() fn() -> Option<u32> [type_could_unify]
-                me fn_returns_unit(…) fn(&'_ self) [type_could_unify]
+                me fn_returns_unit(…) fn(&self) [type_could_unify]
             "#]],
         );
     }
@@ -3762,7 +3762,7 @@ fn test() {
                 fn fn_builder() fn() -> FooBuilder [type_could_unify]
                 fn fn_ctr() fn() -> Option<Foo<T>> [type_could_unify]
                 fn fn_ctr2() fn() -> Result<Foo<T>, u32> [type_could_unify]
-                me fn_no_ret(…) fn(&'_ self) [type_could_unify]
+                me fn_no_ret(…) fn(&self) [type_could_unify]
                 fn fn_other() fn() -> Option<u32> [type_could_unify]
             "#]],
         );
@@ -3787,7 +3787,7 @@ fn foo(f: Foo) { let _: &u32 = f.b$0 }
                         label: "baz()",
                         detail_left: None,
                         detail_right: Some(
-                            "fn(&'_ self) -> u32",
+                            "fn(&self) -> u32",
                         ),
                         source_range: 109..110,
                         delete: 109..110,
@@ -3796,7 +3796,7 @@ fn foo(f: Foo) { let _: &u32 = f.b$0 }
                             Method,
                         ),
                         lookup: "baz",
-                        detail: "fn(&'_ self) -> u32",
+                        detail: "fn(&self) -> u32",
                         relevance: CompletionRelevance {
                             exact_name_match: false,
                             type_match: None,
@@ -4116,7 +4116,7 @@ fn main() {
     "#,
             &[CompletionItemKind::Snippet, CompletionItemKind::SymbolKind(SymbolKind::Method)],
             expect![[r#"
-                me f() fn(&'_ self) []
+                me f() fn(&self) []
                 sn box Box::new(expr) []
                 sn call function(expr) []
                 sn const const {} []
@@ -4431,7 +4431,7 @@ fn main() {
                             "(as Write)",
                         ),
                         detail_right: Some(
-                            "fn(&'_ self)",
+                            "fn(&self)",
                         ),
                         source_range: 193..193,
                         delete: 193..193,
@@ -4440,7 +4440,7 @@ fn main() {
                             Method,
                         ),
                         lookup: "flush",
-                        detail: "fn(&'_ self)",
+                        detail: "fn(&self)",
                         relevance: CompletionRelevance {
                             exact_name_match: false,
                             type_match: None,
@@ -4468,7 +4468,7 @@ fn main() {
                             "(as Write)",
                         ),
                         detail_right: Some(
-                            "fn(&'_ self)",
+                            "fn(&self)",
                         ),
                         source_range: 193..193,
                         delete: 193..193,
@@ -4477,7 +4477,7 @@ fn main() {
                             Method,
                         ),
                         lookup: "write",
-                        detail: "fn(&'_ self)",
+                        detail: "fn(&self)",
                         relevance: CompletionRelevance {
                             exact_name_match: false,
                             type_match: None,
