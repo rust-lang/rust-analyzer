@@ -393,6 +393,13 @@ Automatically add `::` when completing the module.
 Will not be completed in `use`.
 
 
+## rust-analyzer.completion.addSemicolonToMacro {#completion.addSemicolonToMacro}
+
+Default: `"item"`
+
+Automatically add a semicolon for macros.
+
+
 ## rust-analyzer.completion.addSemicolonToUnit {#completion.addSemicolonToUnit}
 
 Default: `true`
