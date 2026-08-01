@@ -1416,6 +1416,7 @@ impl flags::AnalysisStats {
                     closing_brace_hints_min_lines: Some(20),
                     fields_to_resolve: InlayFieldsToResolve::empty(),
                     range_exclusive_hints: true,
+                    try_expr_hints: true,
                     ra_fixture: RaFixtureConfig::default(),
                 },
                 analysis.editioned_file_id_to_vfs(file_id),

@@ -1150,6 +1150,13 @@ Default: `true`
 Whether to render leading colons for type hints, and trailing colons for parameter hints.
 
 
+## rust-analyzer.inlayHints.tryExpressionHints.enable {#inlayHints.tryExpressionHints.enable}
+
+Default: `false`
+
+Show try-expr inlay hints (e.g `foo()?;` -> `foo().try?;`).
+
+
 ## rust-analyzer.inlayHints.typeHints.enable {#inlayHints.typeHints.enable}
 
 Default: `true`
