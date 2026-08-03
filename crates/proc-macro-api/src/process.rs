@@ -4,7 +4,7 @@ use std::{
     fmt::Debug,
     io::{self, BufRead, BufReader, Read, Write},
     panic::AssertUnwindSafe,
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    process::{ChildStdin, ChildStdout, Stdio},
     sync::{
         Arc, Mutex, OnceLock,
         atomic::{AtomicU32, Ordering},
@@ -14,7 +14,7 @@ use std::{
 use paths::AbsPath;
 use semver::Version;
 use span::Span;
-use stdx::JodChild;
+use stdx::process::{JodChild, JodCommand};
 
 use crate::{
     ProcMacro, ProcMacroKind, ProtocolFormat, ServerError,
@@ -66,7 +66,8 @@ impl ProcessExit for Process {
             Ok(Some(status)) => {
                 let mut msg = String::new();
                 if !status.success()
-                    && let Some(stderr) = self.child.stderr.as_mut()
+                    // Can use `inner_unchecked()` since the process has already exited.
+                    && let Some(stderr) = self.child.inner_unchecked().stderr.as_mut()
                 {
                     _ = stderr.read_to_string(&mut msg);
                 }
@@ -112,7 +113,7 @@ impl ProcMacroServerProcess {
             version,
             || {
                 #[expect(clippy::disallowed_methods)]
-                Command::new(process_path)
+                JodCommand::new(process_path)
                     .arg("--version")
                     .output()
                     .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
@@ -390,14 +391,18 @@ impl Process {
         >,
         format: Option<&str>,
     ) -> io::Result<Process> {
-        let child = JodChild(mk_child(path, env, format)?);
+        let child = mk_child(path, env, format)?;
         Ok(Process { child })
     }
 
     /// Retrieves stdin and stdout handles for the process.
     fn stdio(&mut self) -> Option<(ChildStdin, BufReader<ChildStdout>)> {
-        let stdin = self.child.stdin.take()?;
-        let stdout = self.child.stdout.take()?;
+        // The process itself (the `JodChild`) lives on the `GlobalState` outside any thread pool
+        // and will be killed on exit, closing standard streams. So it's OK to use `inner_unchecked()`
+        // here.
+        let child = self.child.inner_unchecked();
+        let stdin = child.stdin.take()?;
+        let stdout = child.stdout.take()?;
         let read = BufReader::new(stdout);
 
         Some((stdin, read))
@@ -411,9 +416,9 @@ fn mk_child<'a>(
         Item = (impl AsRef<std::ffi::OsStr>, &'a Option<impl 'a + AsRef<std::ffi::OsStr>>),
     >,
     format: Option<&str>,
-) -> io::Result<Child> {
-    #[allow(clippy::disallowed_methods)]
-    let mut cmd = Command::new(path);
+) -> io::Result<JodChild> {
+    #[expect(clippy::disallowed_methods)]
+    let mut cmd = JodCommand::new(path);
     for env in extra_env {
         match env {
             (key, Some(val)) => cmd.env(key, val),

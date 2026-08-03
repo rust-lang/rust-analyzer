@@ -3,7 +3,6 @@
 
 use std::{
     fmt, io,
-    process::Command,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
@@ -22,6 +21,7 @@ use serde_derive::Deserialize;
 pub(crate) use cargo_metadata::diagnostic::{
     Applicability, Diagnostic, DiagnosticCode, DiagnosticLevel, DiagnosticSpan,
 };
+use stdx::process::JodCommand;
 use toolchain::Tool;
 use triomphe::Arc;
 
@@ -66,7 +66,7 @@ pub(crate) enum Target {
 impl CargoOptions {
     pub(crate) fn apply_on_command(
         &self,
-        cmd: &mut Command,
+        cmd: &mut JodCommand,
         ws_target_dir: Option<&Utf8Path>,
         package_repr: Option<&str>,
     ) {
@@ -490,7 +490,7 @@ impl<'a> Substitutions<'a> {
         self,
         template: &project_json::Runnable,
         extra_env: &std::collections::HashMap<String, Option<String>, H>,
-    ) -> Option<Command> {
+    ) -> Option<JodCommand> {
         let mut cmd = toolchain::command(&template.program, &template.cwd, extra_env);
         for arg in &template.args {
             if let Some(ix) = arg.find(LABEL_INLINE) {
@@ -850,7 +850,7 @@ impl FlycheckActor {
         &self,
         scope: &FlycheckScope,
         saved_file: Option<&AbsPath>,
-    ) -> Option<Command> {
+    ) -> Option<JodCommand> {
         let label = match scope {
             // We could add a runnable like "RunnableKind::FlycheckWorkspace". But generally
             // if you're not running cargo, it's because your workspace is too big to check
@@ -877,7 +877,7 @@ impl FlycheckActor {
         scope: &FlycheckScope,
         saved_file: Option<&AbsPath>,
         target: Option<Target>,
-    ) -> Option<(Command, FlycheckCommandOrigin)> {
+    ) -> Option<(JodCommand, FlycheckCommandOrigin)> {
         match &self.config {
             FlycheckConfig::Automatic { cargo_options, ansi_color_output } => {
                 // Only use the rust-project.json's flycheck config when no check_overrideCommand

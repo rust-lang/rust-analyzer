@@ -6,7 +6,7 @@
 //! but if enabled we will also use `RUSTC_WRAPPER` to only compile the build scripts and
 //! proc-macros and skip everything else.
 
-use std::{cell::RefCell, io, mem, process::Command};
+use std::{cell::RefCell, io, mem};
 
 use base_db::Env;
 use cargo_metadata::{Message, PackageId, camino::Utf8Path};
@@ -16,7 +16,7 @@ use la_arena::ArenaMap;
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::Deserialize as _;
-use stdx::never;
+use stdx::{never, process::JodCommand};
 use toolchain::Tool;
 use triomphe::Arc;
 
@@ -279,7 +279,7 @@ impl WorkspaceBuildScripts {
     }
 
     fn run_per_ws(
-        cmd: Command,
+        cmd: JodCommand,
         workspace: &CargoWorkspace,
         progress: &dyn Fn(String),
     ) -> io::Result<WorkspaceBuildScripts> {
@@ -323,7 +323,7 @@ impl WorkspaceBuildScripts {
     }
 
     fn run_command(
-        cmd: Command,
+        cmd: JodCommand,
         // ideally this would be something like:
         // with_output_for: impl FnMut(&str, dyn FnOnce(&mut BuildScriptOutput)),
         // but owned trait objects aren't a thing
@@ -338,8 +338,7 @@ impl WorkspaceBuildScripts {
         };
 
         tracing::info!("Running build scripts: {:?}", cmd);
-        let output = stdx::process::spawn_with_streaming_output(
-            cmd,
+        let output = cmd.spawn_with_streaming_output(
             &mut |line| {
                 // Copy-pasted from existing cargo_metadata. It seems like we
                 // should be using serde_stacker here?
@@ -437,7 +436,7 @@ impl WorkspaceBuildScripts {
         current_dir: &AbsPath,
         sysroot: &Sysroot,
         toolchain: Option<&semver::Version>,
-    ) -> io::Result<(Option<LockfileCopy>, Command)> {
+    ) -> io::Result<(Option<LockfileCopy>, JodCommand)> {
         match config.run_build_script_command.as_deref() {
             Some([program, args @ ..]) => {
                 let mut cmd = toolchain::command(program, current_dir, &config.extra_env);

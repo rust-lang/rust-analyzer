@@ -5,10 +5,10 @@ use std::{
     ffi::OsStr,
     iter,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
+use stdx::process::JodCommand;
 
 #[derive(Copy, Clone)]
 pub enum Tool {
@@ -79,10 +79,9 @@ pub fn command<H>(
     cmd: impl AsRef<OsStr>,
     working_directory: impl AsRef<Path>,
     extra_env: &std::collections::HashMap<String, Option<String>, H>,
-) -> Command {
-    // we are `toolchain::command``
-    #[allow(clippy::disallowed_methods)]
-    let mut cmd = Command::new(cmd);
+) -> JodCommand {
+    #[expect(clippy::disallowed_methods, reason = "we are `toolchain::command`")]
+    let mut cmd = JodCommand::new(cmd);
     cmd.current_dir(working_directory);
     cmd.env(NO_RUSTUP_AUTO_INSTALL_ENV.0, NO_RUSTUP_AUTO_INSTALL_ENV.1);
     for env in extra_env {

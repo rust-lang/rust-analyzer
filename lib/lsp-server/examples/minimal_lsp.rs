@@ -285,7 +285,7 @@ fn run_rustfmt(input: &str) -> Result<String> {
         .spawn()
         .context("failed to spawn rustfmt – is it installed?")?;
 
-    let Some(stdin) = child.stdin.as_mut() else {
+    let Some(stdin) = child.stdin() else {
         bail!("stdin unavailable");
     };
     stdin.write_all(input.as_bytes())?;

@@ -7,7 +7,7 @@
 //! a specific rustup toolchain: this allows testing against older ABIs (e.g.
 //! 1.58) and future ABIs (stage1, nightly)
 
-#![allow(clippy::disallowed_methods)]
+#![allow(clippy::disallowed_types, clippy::disallowed_methods, reason = "this is a build script")]
 
 use std::{
     env,

@@ -5,14 +5,14 @@
 //! is typically installed with `rustup component add rust-src` command.
 
 use core::fmt;
-use std::{env, fs, ops::Not, path::Path, process::Command};
+use std::{env, fs, ops::Not, path::Path};
 
 use anyhow::{Result, format_err};
 use base_db::Env;
 use itertools::Itertools;
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
-use stdx::format_to;
+use stdx::{format_to, process::JodCommand};
 use toolchain::{Tool, probe_for_binary};
 
 use crate::{
@@ -148,7 +148,7 @@ impl Sysroot {
         tool: Tool,
         current_dir: impl AsRef<Path>,
         envs: &FxHashMap<String, Option<String>>,
-    ) -> Command {
+    ) -> JodCommand {
         match self.root() {
             Some(root) => {
                 // special case rustc, we can look that up directly in the sysroot's bin folder

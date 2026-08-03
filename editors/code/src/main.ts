@@ -21,7 +21,10 @@ export interface RustAnalyzerExtensionApi {
     addConfiguration(extensionId: string, configuration: Record<string, unknown>): Promise<void>;
 }
 
+let ctx: Ctx | undefined;
+
 export async function deactivate() {
+    await ctx?.stopAndDispose();
     await setContextValue(RUST_PROJECT_CONTEXT_NAME, undefined);
 }
 
@@ -30,7 +33,7 @@ export async function activate(
 ): Promise<RustAnalyzerExtensionApi> {
     checkConflictingExtensions();
 
-    const ctx = new Ctx(context, createCommands(), fetchWorkspace());
+    ctx = new Ctx(context, createCommands(), fetchWorkspace());
     // VS Code doesn't show a notification when an extension fails to activate
     // so we do it ourselves.
     const api = await activateServer(ctx).catch((err) => {

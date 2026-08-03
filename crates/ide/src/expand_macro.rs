@@ -255,7 +255,7 @@ fn _format(
     let edition = crate_id.data(db).edition;
 
     #[allow(clippy::disallowed_methods)]
-    let mut cmd = std::process::Command::new(toolchain::Tool::Rustfmt.path());
+    let mut cmd = stdx::process::JodCommand::new(toolchain::Tool::Rustfmt.path());
     cmd.arg("--edition");
     cmd.arg(edition.to_string());
 
@@ -266,7 +266,7 @@ fn _format(
         .spawn()
         .ok()?;
 
-    std::io::Write::write_all(&mut rustfmt.stdin.as_mut()?, expansion.as_bytes()).ok()?;
+    std::io::Write::write_all(&mut rustfmt.stdin()?, expansion.as_bytes()).ok()?;
 
     let output = rustfmt.wait_with_output().ok()?;
     let captured_stdout = String::from_utf8(output.stdout).ok()?;

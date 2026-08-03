@@ -14,6 +14,7 @@ doctest = false
 
 [dependencies]
 camino.workspace = true
+stdx.workspace = true
 
 [lints]
 workspace = true

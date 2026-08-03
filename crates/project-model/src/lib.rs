@@ -58,12 +58,12 @@ use std::{
     fmt,
     fs::{self, ReadDir, read_dir},
     io,
-    process::Command,
 };
 
 use anyhow::{Context, bail, format_err};
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashSet;
+use stdx::process::JodCommand;
 
 pub use crate::{
     build_dependencies::{ProcMacroDylibPath, WorkspaceBuildScripts},
@@ -210,7 +210,7 @@ impl fmt::Display for ProjectManifest {
     }
 }
 
-fn utf8_stdout(cmd: &mut Command) -> anyhow::Result<String> {
+fn utf8_stdout(cmd: &mut JodCommand) -> anyhow::Result<String> {
     let output = cmd.output().with_context(|| format!("{cmd:?} failed"))?;
     if !output.status.success() {
         match String::from_utf8(output.stderr) {
