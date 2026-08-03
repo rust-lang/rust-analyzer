@@ -2141,7 +2141,7 @@ impl DefWithBody {
                         // We should report specific diagnostics for these problems, not `need-mut` and `unused-mut`.
                         continue;
                     }
-                    let Some(&local) = mir_body.binding_locals.get(binding_id) else {
+                    let Some(&mir_local) = mir_body.binding_locals.get(binding_id) else {
                         continue;
                     };
                     if source_map
@@ -2152,7 +2152,7 @@ impl DefWithBody {
                         // Skip synthetic bindings
                         continue;
                     }
-                    let mut need_mut = &mol[local];
+                    let mut need_mut = &mol[mir_local];
                     if body[binding_id].name == sym::self_
                         && need_mut == &mir::MutabilityReason::Unused
                     {
@@ -2164,7 +2164,8 @@ impl DefWithBody {
 
                     match (need_mut, is_mut) {
                         (mir::MutabilityReason::Unused, _) => {
-                            let should_ignore = body[binding_id].name.as_str().starts_with('_');
+                            let should_ignore = body[binding_id].name.as_str().starts_with('_')
+                                || mir_body.locals[mir_local].ty.as_ref().is_never();
                             if !should_ignore {
                                 acc.push(UnusedVariable { local }.into())
                             }

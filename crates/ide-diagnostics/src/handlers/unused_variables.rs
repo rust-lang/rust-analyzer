@@ -417,4 +417,18 @@ fn main() {
 "#,
         );
     }
+
+    #[test]
+    fn no_unused_variable_for_never_type() {
+        // Variables of type `!` are unreachable; their usages never appear in MIR.
+        // Emitting `unused_variable` for them is a false positive (issue #22975).
+        check_diagnostics(
+            r#"
+fn main() {
+    let foo = loop {};
+    _ = foo;
+}
+"#,
+        );
+    }
 }
