@@ -939,7 +939,7 @@ fn flush(&self) {
 "#,
         expect![[r#"
             129..133 'self': &'_ Mutex<T>
-            156..158 '{}': MutexGuard<'_, T>
+            156..158 '{}': MutexGuard<'?, T>
             242..246 'self': &'_ MutexGuard<'a, T>
             265..276 '{ loop {} }': &'_ T
             267..274 'loop {}': !
