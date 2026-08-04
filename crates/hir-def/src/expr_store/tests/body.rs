@@ -1,6 +1,6 @@
 mod block;
 
-use crate::{DefWithBodyId, ModuleDefId, hir::MatchArm, nameres::crate_def_map, test_db::TestDB};
+use crate::{DefWithBodyId, hir::MatchArm, test_db::TestDB};
 use expect_test::{Expect, expect};
 use la_arena::RawIdx;
 use test_fixture::WithFixture;
@@ -8,40 +8,16 @@ use test_fixture::WithFixture;
 use super::super::*;
 
 fn lower(#[rust_analyzer::rust_fixture] ra_fixture: &str) -> (TestDB, DefWithBodyId) {
-    let db = TestDB::with_files(ra_fixture);
-
-    let krate = db.fetch_test_crate();
-    let def_map = crate_def_map(&db, krate);
-    let mut fn_def = None;
-    'outer: for (_, module) in def_map.modules() {
-        for decl in module.scope.declarations() {
-            if let ModuleDefId::FunctionId(it) = decl {
-                fn_def = Some(it);
-                break 'outer;
-            }
-        }
-    }
-    let fn_def = fn_def.unwrap().into();
+    let (db, position) = TestDB::with_position(ra_fixture);
+    let fn_def = db.function_at_position(position).into();
 
     Body::of(&db, fn_def);
     (db, fn_def)
 }
 
 fn pretty_print(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
-    let db = TestDB::with_files(ra_fixture);
-
-    let krate = db.fetch_test_crate();
-    let def_map = crate_def_map(&db, krate);
-    let mut fn_def = None;
-    'outer: for (_, module) in def_map.modules() {
-        for decl in module.scope.declarations() {
-            if let ModuleDefId::FunctionId(it) = decl {
-                fn_def = Some(it);
-                break 'outer;
-            }
-        }
-    }
-    let fn_def = fn_def.unwrap().into();
+    let (db, position) = TestDB::with_position(ra_fixture);
+    let fn_def = db.function_at_position(position).into();
 
     expect.assert_eq(&Body::of(&db, fn_def).pretty_print(&db, fn_def, Edition::CURRENT));
 }
@@ -78,7 +54,10 @@ macro_rules! n_nuple {
         (n_nuple!($($rest)*)None,)
     }};
 }
-fn main() { n_nuple!(1,2,3); }
+fn main() {
+    $0
+    n_nuple!(1,2,3);
+}
 "#,
     );
 }
@@ -92,7 +71,10 @@ fn your_stack_belongs_to_me2() {
 macro_rules! foo {
     () => {{ foo!(); foo!(); }}
 }
-fn main() { foo!(); }
+fn main() {
+    $0
+    foo!();
+}
 "#,
     );
 }
@@ -108,7 +90,10 @@ macro_rules! n_nuple {
         n_nuple!($($rest)*)
     }};
 }
-fn main() { n_nuple!(1,2,3); }
+fn main() {
+    $0
+    n_nuple!(1,2,3);
+}
 "#,
     );
 }
@@ -131,6 +116,7 @@ macro_rules! match_ast {
 }
 
 fn main() {
+    $0
     let anchor = match_ast! {
         match parent {
             as => {},
@@ -153,6 +139,7 @@ macro_rules! vec {
 }
 mod m {
     fn outer() {
+        $0
         let _ = vec![FileSet::default(); self.len()];
     }
 }
@@ -166,6 +153,7 @@ fn desugar_for_loop() {
         r#"
 //- minicore: iterator
 fn main() {
+    $0
     for ident in 0..10 {
         foo();
         bar()
@@ -199,6 +187,7 @@ fn desugar_builtin_format_args() {
         r#"
 //- minicore: fmt
 fn main() {
+    $0
     let are = "are";
     let count = 10;
     builtin#format_args("\u{1b}hello {count:02} {} friends, we {are:?} {0}{last}", "fancy", orphan = (), last = "!");
@@ -255,6 +244,7 @@ mod error;
 use crate::error::error;
 
 fn main() {
+    $0
     // _ = forces body expansion instead of block def map expansion
     _ = error!("Failed to resolve path `{}`", node.text());
 }
@@ -314,6 +304,7 @@ macro_rules! m {
 }
 
 fn f(a: i32, b: u32) -> String {
+    $0
     m!();
 }
 "#,
@@ -345,6 +336,7 @@ macro_rules! m {
 }
 
 fn foo() {
+    $0
     m!()() = Bar();
 }
 "#,
@@ -363,6 +355,7 @@ enum A {
     B { field: i32 },
 }
 fn f() {
+    $0
     use A::*;
     match () {
         B => {}
@@ -383,7 +376,10 @@ fn f() {
 fn regression_pretty_print_bind_pat() {
     pretty_print(
         r#"
+fn unrelated() {}
+
 fn foo() {
+    $0
     let v @ u = 123;
 }
 "#,
@@ -400,6 +396,7 @@ fn skip_skips_body() {
         r#"
 #[rust_analyzer::skip]
 async fn foo(a: (), b: i32) -> u32 {
+    $0
     0 + 1 + b()
 }
 "#,
@@ -416,6 +413,7 @@ mod x {
     pub const R: i32 = 100;
 }
 const fn f(x: i32) -> i32 {
+    $0
     match x {
         -1..=5 => x * 10,
         L..=x::R => x * 100,
@@ -456,6 +454,7 @@ fn print_hir_precedences() {
     pretty_print(
         r#"
 fn main() {
+    $0
     _ = &(1 - (2 - 3) + 4 * 5 * (6 + 7));
     _ = 1 + 2 < 3 && true && 4 < 5 && (a || b || c) || d && e;
     if let _ = 2 && true && let _ = 3 {}
@@ -480,7 +479,9 @@ fn main() {
 fn async_fn_weird_param_patterns() {
     pretty_print(
         r#"
-async fn main(&self, param1: i32, ref mut param2: i32, _: i32, param4 @ _: i32, 123: i32) {}
+async fn main(&self, param1: i32, ref mut param2: i32, _: i32, param4 @ _: i32, 123: i32) {
+    $0
+}
 "#,
         expect![[r#"
             fn main(self, mut param1, mut param2, mut <ra@gennew>0, mut param4, mut <ra@gennew>1) async {
@@ -504,6 +505,7 @@ fn array_element_cfg() {
     pretty_print(
         r#"
 fn foo() {
+    $0
     [
         (),
         #[cfg(false)]
@@ -531,6 +533,7 @@ macro_rules! foo {
 }
 
 fn foo() -> i64 {
+    $0
     #[cfg(true)]
     {
         5
@@ -549,6 +552,7 @@ fn foo() -> i64 {
     pretty_print(
         r#"
 fn foo() -> i64 {
+    $0
     #[cfg(true)]
     {
         5
@@ -581,6 +585,7 @@ macro_rules! m {
 }
 
 fn foo() -> i64 {
+    $0
     m!()
 }
     "#,
@@ -604,6 +609,7 @@ macro_rules! falsify {
 struct Foo();
 
 fn foo() {
+    $0
     foo(falsify!(1));
     (falsify!(1),);
     [falsify!(1)];

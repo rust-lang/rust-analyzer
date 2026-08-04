@@ -402,30 +402,16 @@ impl StoreVisitor for ExprScopeVisitor<'_> {
 
 #[cfg(test)]
 mod tests {
-    use hir_expand::{InFile, name::AsName};
-    use span::FileId;
-    use syntax::{AstNode, algo::find_node_at_offset, ast};
+    use hir_expand::InFile;
+    use syntax::{algo::find_node_at_offset, ast};
     use test_fixture::WithFixture;
     use test_utils::{assert_eq_text, extract_offset};
 
     use crate::{
-        DefWithBodyId, FunctionId, ModuleDefId,
+        DefWithBodyId,
         expr_store::{Body, scope::ExprScopes},
-        nameres::crate_def_map,
         test_db::TestDB,
     };
-
-    fn find_function(db: &TestDB, file_id: FileId) -> FunctionId {
-        let krate = db.test_crate();
-        let crate_def_map = crate_def_map(db, krate);
-
-        let module = crate_def_map.modules_for_file(db, file_id).next().unwrap();
-        let (_, def) = crate_def_map[module].scope.entries().next().unwrap();
-        match def.take_values().unwrap() {
-            ModuleDefId::FunctionId(it) => it,
-            _ => panic!(),
-        }
-    }
 
     fn do_check(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected: &[&str]) {
         let (offset, code) = extract_offset(ra_fixture);
@@ -442,11 +428,9 @@ mod tests {
         let editioned_file_id = position.file_id;
         let offset = position.offset;
 
-        let (file_id, _) = editioned_file_id.unpack(&db);
-
         let file_syntax = editioned_file_id.parse(&db).syntax_node();
         let marker: Option<ast::PathExpr> = find_node_at_offset(&file_syntax, offset);
-        let function = find_function(&db, file_id);
+        let function = db.function_at_position(position);
 
         let scopes = ExprScopes::of(&db, DefWithBodyId::from(function));
         let (body, source_map) = Body::with_source_map(&db, function.into());
@@ -669,159 +653,6 @@ fn foo() {
         );
     }
 
-    fn do_check_local_name(#[rust_analyzer::rust_fixture] ra_fixture: &str, expected_offset: u32) {
-        let (db, position) = TestDB::with_position(ra_fixture);
-        let editioned_file_id = position.file_id;
-        let offset = position.offset;
-
-        let (file_id, _) = editioned_file_id.unpack(&db);
-
-        let file = editioned_file_id.parse(&db).ok().unwrap();
-        let expected_name = find_node_at_offset::<ast::Name>(file.syntax(), expected_offset.into())
-            .expect("failed to find a name at the target offset");
-        let name_ref: ast::NameRef = find_node_at_offset(file.syntax(), offset).unwrap();
-
-        let function = find_function(&db, file_id);
-
-        let scopes = ExprScopes::body_expr_scopes(&db, DefWithBodyId::from(function));
-        let (_, source_map) = Body::with_source_map(&db, function.into());
-
-        let expr_scope = {
-            let expr_ast = name_ref.syntax().ancestors().find_map(ast::Expr::cast).unwrap();
-            let expr_id = source_map
-                .node_expr(InFile { file_id: editioned_file_id.into(), value: &expr_ast })
-                .unwrap()
-                .as_expr()
-                .unwrap();
-            scopes.scope_for(expr_id).unwrap()
-        };
-
-        let resolved = scopes.resolve_name_in_scope(expr_scope, &name_ref.as_name()).unwrap();
-        let pat_src =
-            source_map.pat_syntax(source_map.patterns_for_binding(resolved.binding())[0]).unwrap();
-
-        let local_name = pat_src.value.syntax_node_ptr().to_node(file.syntax());
-        assert_eq!(local_name.text_range(), expected_name.syntax().text_range());
-    }
-
-    #[test]
-    fn test_resolve_local_name() {
-        do_check_local_name(
-            r#"
-fn foo(x: i32, y: u32) {
-    {
-        let z = x * 2;
-    }
-    {
-        let t = x$0 * 3;
-    }
-}
-"#,
-            7,
-        );
-    }
-
-    #[test]
-    fn test_resolve_local_name_declaration() {
-        do_check_local_name(
-            r#"
-fn foo(x: String) {
-    let x : &str = &x$0;
-}
-"#,
-            7,
-        );
-    }
-
-    #[test]
-    fn test_resolve_local_name_shadow() {
-        do_check_local_name(
-            r"
-fn foo(x: String) {
-    let x : &str = &x;
-    x$0
-}
-",
-            28,
-        );
-    }
-
-    #[test]
-    fn ref_patterns_contribute_bindings() {
-        do_check_local_name(
-            r"
-fn foo() {
-    if let Some(&from) = bar() {
-        from$0;
-    }
-}
-",
-            28,
-        );
-    }
-
-    #[test]
-    fn while_let_adds_binding() {
-        do_check_local_name(
-            r#"
-fn test() {
-    let foo: Option<f32> = None;
-    while let Option::Some(spam) = foo {
-        spam$0
-    }
-}
-"#,
-            75,
-        );
-        do_check_local_name(
-            r#"
-fn test() {
-    let foo: Option<f32> = None;
-    while (((let Option::Some(_) = foo))) && let Option::Some(spam) = foo {
-        spam$0
-    }
-}
-"#,
-            107,
-        );
-    }
-
-    #[test]
-    fn match_guard_if_let() {
-        do_check_local_name(
-            r#"
-fn test() {
-    let foo: Option<f32> = None;
-    match foo {
-        _ if let Option::Some(spam) = foo => spam$0,
-    }
-}
-"#,
-            93,
-        );
-    }
-
-    #[test]
-    fn let_chains_can_reference_previous_lets() {
-        do_check_local_name(
-            r#"
-fn test() {
-    let foo: Option<i32> = None;
-    if let Some(spam) = foo && spa$0m > 1 && let Some(spam) = foo && spam > 1 {}
-}
-"#,
-            61,
-        );
-        do_check_local_name(
-            r#"
-fn test() {
-    let foo: Option<i32> = None;
-    if let Some(spam) = foo && spam > 1 && let Some(spam) = foo && sp$0am > 1 {}
-}
-"#,
-            100,
-        );
-    }
     #[test]
     fn pattern_const_block_expressions_have_scopes() {
         do_check(
