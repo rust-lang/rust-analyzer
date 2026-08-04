@@ -3193,6 +3193,33 @@ impl Foo for Bar {
 }
 
 #[test]
+fn doctest_reorder_match_arms() {
+    check_doc_test(
+        "reorder_match_arms",
+        r#####"
+enum Action { Foo, Bar, Baz }
+
+fn handle(action: Action) {
+    $0match action {
+        Action::Bar => (),
+        Action::Baz | Action::Foo => (),
+    }
+}
+"#####,
+        r#####"
+enum Action { Foo, Bar, Baz }
+
+fn handle(action: Action) {
+    match action {
+        Action::Foo | Action::Baz => (),
+        Action::Bar => (),
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_replace_arith_with_checked() {
     check_doc_test(
         "replace_arith_with_checked",
