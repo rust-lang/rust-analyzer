@@ -2,11 +2,6 @@
 name = "text-size"
 version = "1.1.1"
 edition = "2024"
-
-authors = [
-    "Aleksey Kladov <aleksey.kladov@gmail.com>",
-    "Christopher Durham (CAD97) <cad97@cad97.com>"
-]
 description = "Newtypes for text offsets"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rust-analyzer/text-size"

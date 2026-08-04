@@ -4,7 +4,7 @@ description = "Convert ungrammar files to JSON"
 version = "1.0.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/matklad/ungrammar"
-authors = ["Aleksey Kladov <aleksey.kladov@gmail.com>"]
+
 edition = "2024"
 
 [dependencies]
