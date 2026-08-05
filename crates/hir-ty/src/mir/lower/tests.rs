@@ -110,6 +110,21 @@ pub struct AssocTy {
 }
 
 #[test]
+fn borrowck_non_usize_array_length_does_not_panic() {
+    check_borrowck(
+        r#"
+struct Struct<const N: i64>(pub [u8; N]);
+
+pub fn function(value: Struct<3>) -> u8 {
+    value.0[0]
+}
+
+fn main() {}
+    "#,
+    );
+}
+
+#[test]
 fn borrowck_tuple_field_projection_recovery_does_not_panic() {
     check_borrowck(
         r#"

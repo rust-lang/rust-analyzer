@@ -234,15 +234,24 @@ impl<'db> MirLowerCtx<'_, 'db> {
                         index_fn,
                     );
                 }
-                let adjusts = self
+                // For builtin indexing only the dereference adjustments are
+                // meaningful. `try_index_step` may have recorded adjustments from
+                // an unsuccessful attempt at resolving an overloaded `Index`
+                // impl (e.g. a borrow followed by an array-to-slice unsize when
+                // the array length isn't `usize`); applying those here would
+                // project `Index` onto a reference instead of the array/slice.
+                let adjusts: Vec<Adjustment> = self
                     .infer
                     .expr_adjustments
                     .get(base)
-                    .and_then(|it| it.split_last())
-                    .map(|it| it.1)
-                    .unwrap_or(&[]);
+                    .map(|it| &it[..])
+                    .unwrap_or(&[])
+                    .iter()
+                    .filter(|it| matches!(it.kind, Adjust::Deref(..)))
+                    .cloned()
+                    .collect();
                 let Some((mut p_base, current)) =
-                    self.lower_expr_as_place_with_adjust(current, *base, true, adjusts)?
+                    self.lower_expr_as_place_with_adjust(current, *base, true, &adjusts)?
                 else {
                     return Ok(None);
                 };
