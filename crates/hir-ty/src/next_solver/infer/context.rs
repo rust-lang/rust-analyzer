@@ -348,10 +348,28 @@ impl<'db> rustc_type_ir::InferCtxtLike for InferCtxt<'db> {
 
     fn opaques_with_sub_unified_hidden_type(
         &self,
-        _ty: TyVid,
+        ty: TyVid,
     ) -> Vec<rustc_type_ir::AliasTy<Self::Interner>> {
-        // FIXME: I guess we are okay without this for now since currently r-a lacks of
-        // detailed checks over opaque types. Might need to implement this in future.
-        vec![]
+        let ty_sub_vid = self.sub_unification_table_root_var(ty);
+        let inner = &mut *self.inner.borrow_mut();
+        let mut type_variables = inner.type_variable_storage.with_log(&mut inner.undo_log);
+        inner
+            .opaque_type_storage
+            .iter_opaque_types()
+            .filter_map(|(key, hidden_ty)| {
+                let TyKind::Infer(InferTy::TyVar(hidden_vid)) = hidden_ty.ty.kind() else {
+                    return None;
+                };
+                (type_variables.sub_unification_table_root_var(hidden_vid) == ty_sub_vid).then(
+                    || {
+                        rustc_type_ir::AliasTy::new_from_args(
+                            self.interner,
+                            rustc_type_ir::Opaque { def_id: key.def_id },
+                            key.args,
+                        )
+                    },
+                )
+            })
+            .collect()
     }
 }
