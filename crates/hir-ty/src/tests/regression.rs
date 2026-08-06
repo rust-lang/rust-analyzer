@@ -3122,3 +3122,36 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn regression_22953_mir_body() {
+    let _tracing = crate::setup_tracing();
+    use hir_def::DefWithBodyId;
+    use hir_def::ModuleDefId;
+    use test_fixture::WithFixture;
+
+    let (db, file_id) = crate::test_db::TestDB::with_single_file(
+        r#"
+struct Struct<const N: i64>(pub [u8; N]);
+
+pub fn function(value: Struct<3>) -> u8 {
+    value.0[0]
+}
+
+fn main() {}
+    "#,
+    );
+    crate::attach_db(&db, || {
+        let module = db.module_for_file_opt(file_id.file_id(&db)).unwrap();
+        let def_map = module.def_map(&db);
+        let mut defs = Vec::new();
+        super::visit_module(&db, def_map, module, &mut |it| {
+            if let ModuleDefId::FunctionId(it) = it {
+                defs.push(DefWithBodyId::FunctionId(it));
+            }
+        });
+        for def in defs {
+            let _ = crate::db::HirDatabase::mir_body(&db, def.into());
+        }
+    });
+}

@@ -108,6 +108,7 @@ diagnostics![AnyDiagnostic<'db> ->
     CannotImplicitlyDerefTraitObject<'db>,
     CannotIndexInto<'db>,
     CastToUnsized<'db>,
+    ConstArgHasWrongType<'db>,
     ExpectedArrayOrSlicePat<'db>,
     ExpectedFunction<'db>,
     ExplicitDropMethodUse,
@@ -658,6 +659,14 @@ pub struct UnimplementedTrait<'db> {
 }
 
 #[derive(Debug)]
+pub struct ConstArgHasWrongType<'db> {
+    pub span: SpanSyntax,
+    pub ct: hir_ty::next_solver::Const<'db>,
+    pub ct_ty: hir_ty::next_solver::Ty<'db>,
+    pub expected_ty: hir_ty::next_solver::Ty<'db>,
+}
+
+#[derive(Debug)]
 pub struct MutableRefBinding {
     pub pat: InFile<ExprOrPatPtr>,
 }
@@ -1200,6 +1209,15 @@ impl<'db> AnyDiagnostic<'db> {
                     })
                     .collect();
                 UnimplementedTrait { span, trait_predicate, parent_trait_predicates }.into()
+            }
+            SolverDiagnosticKind::ConstArgHasWrongType { ct, ct_ty, expected_ty } => {
+                ConstArgHasWrongType {
+                    span,
+                    ct: ct.as_ref(),
+                    ct_ty: ct_ty.as_ref(),
+                    expected_ty: expected_ty.as_ref(),
+                }
+                .into()
             }
         })
     }

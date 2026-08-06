@@ -908,13 +908,14 @@ fn main() {
         check_diagnostics(
             r#"
             pub struct Rate<const N: u32>;
-            fn f<const N: u64>() -> Rate<N> { // FIXME: add some error
+            fn f<const N: u64>() -> Rate<N> {
                 loop {}
             }
             fn run(_t: Rate<5>) {
             }
             fn main() {
                 run(f())
+                  //^ error: the constant `5` is not of type `u64`
             }
 "#,
         );
