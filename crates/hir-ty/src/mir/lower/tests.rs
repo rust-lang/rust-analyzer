@@ -15,7 +15,7 @@ fn lower_mir(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
             _ => None,
         });
         for func in funcs {
-            _ = db.mir_body(func.into());
+            db.mir_body(func.into()).unwrap();
         }
     })
 }
@@ -54,6 +54,7 @@ fn foo() {
 fn const_arg_of_wrong_type() {
     lower_mir(
         r#"
+//- minicore: index, slice
 struct Struct<const N: i64>(pub [u8; N]);
 
 pub fn function(value: Struct<3>) -> u8 {
