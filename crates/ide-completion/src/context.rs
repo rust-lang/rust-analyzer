@@ -76,7 +76,6 @@ pub(crate) struct PathCompletionCtx<'db> {
     pub(crate) qualified: Qualified<'db>,
     /// The parent of the path we are completing.
     pub(crate) parent: Option<ast::Path>,
-    #[allow(dead_code)]
     /// The path of which we are completing the segment
     pub(crate) path: ast::Path,
     /// The path of which we are completing the segment in the original file
@@ -338,14 +337,12 @@ pub(crate) enum LifetimeKind {
 /// The state of the name we are completing.
 #[derive(Debug)]
 pub(crate) struct NameContext {
-    #[allow(dead_code)]
     pub(crate) name: Option<ast::Name>,
     pub(crate) kind: NameKind,
 }
 
 /// The kind of the name we are completing.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) enum NameKind {
     Const,
     ConstParam,

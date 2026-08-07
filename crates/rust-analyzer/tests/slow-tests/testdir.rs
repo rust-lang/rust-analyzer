@@ -68,7 +68,6 @@ impl TestDir {
         panic!("Failed to create a temporary directory")
     }
 
-    #[allow(unused)]
     pub(crate) fn keep(mut self) -> TestDir {
         self.keep = true;
         self

@@ -714,7 +714,6 @@ impl Builder {
         }
         self
     }
-    #[allow(unused)]
     pub(crate) fn documentation(&mut self, docs: Documentation<'_>) -> &mut Builder {
         self.set_documentation(Some(docs))
     }
