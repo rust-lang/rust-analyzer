@@ -18,7 +18,7 @@ use crate::{
     ParamEnvAndCrate,
     next_solver::{
         AllocationData, ClauseKind, ParamEnv, impl_foldable_for_interned_slice,
-        impl_foldable_for_stored_type, impl_stored_interned, interned_slice,
+        impl_stored_interned, interned_slice,
     },
 };
 
@@ -40,7 +40,6 @@ pub(super) struct ConstInterned(pub(super) WithCachedTypeInfo<ConstKind<'static>
 
 impl_internable!(gc; ConstInterned);
 impl_stored_interned!(ConstInterned, Const, StoredConst);
-impl_foldable_for_stored_type!(StoredConst);
 
 const _: () = {
     const fn is_copy<T: Copy>() {}
