@@ -310,10 +310,7 @@ pub(crate) enum CreateConstError<'db> {
     ConstHasGenerics,
     UnderscoreExpr,
     AnonConstInterningDisabled,
-    TypeMismatch {
-        #[expect(unused, reason = "will need this for diagnostics")]
-        actual: Ty<'db>,
-    },
+    TypeMismatch { actual: Ty<'db> },
 }
 
 pub(crate) fn path_to_const<'a, 'db>(

@@ -10,7 +10,7 @@ pub(crate) fn const_arg_has_wrong_type<'db>(
     ctx: &DiagnosticsContext<'_, 'db>,
     d: &hir::ConstArgHasWrongType<'db>,
 ) -> Diagnostic {
-    let ct = d.ct.display(ctx.db(), ctx.display_target);
+    let ct = &d.ct;
     let expected_ty = d.expected_ty.display(ctx.db(), ctx.display_target);
     let message = format!("the constant `{ct}` is not of type `{expected_ty}`");
     Diagnostic::new_with_syntax_node_ptr(
@@ -31,10 +31,19 @@ mod tests {
             r#"
 //- minicore: index, slice
 struct Struct<const N: i64>(pub [u8; N]);
+//                                   ^ error: the constant `N` is not of type `usize`
+
+struct Literal([u8; true]);
+//                  ^^^^ error: the constant `true` is not of type `usize`
+
+const C: [u8; true] = loop {};
+//            ^^^^ error: the constant `true` is not of type `usize`
+
+static S: [u8; false] = loop {};
+//             ^^^^^ error: the constant `false` is not of type `usize`
 
 pub fn function(value: Struct<3>) -> u8 {
     value.0[0]
-  //^^^^^^^ error: the constant `3` is not of type `usize`
 }
 
 fn main() {}
@@ -47,6 +56,9 @@ fn main() {}
         check_diagnostics(
             r#"
 //- minicore: index, slice
+type Usize = usize;
+struct Struct<const N: Usize>([u8; N]);
+
 fn f(v: [u8; 3]) -> u8 {
     v[0usize]
 }

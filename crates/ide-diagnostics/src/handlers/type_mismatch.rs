@@ -909,13 +909,13 @@ fn main() {
             r#"
             pub struct Rate<const N: u32>;
             fn f<const N: u64>() -> Rate<N> {
+            //                           ^ error: the constant `N` is not of type `u32`
                 loop {}
             }
             fn run(_t: Rate<5>) {
             }
             fn main() {
                 run(f())
-                  //^ error: the constant `5` is not of type `u64`
             }
 "#,
         );

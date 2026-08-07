@@ -11,8 +11,7 @@ use rustc_type_ir::{PredicatePolarity, inherent::IntoKind};
 use crate::{
     Span,
     next_solver::{
-        ClauseKind, DbInterner, PredicateKind, StoredConst, StoredTraitRef, StoredTy,
-        TraitPredicate,
+        ClauseKind, DbInterner, PredicateKind, StoredTraitRef, TraitPredicate,
         infer::{
             errors::{FulfillmentError, FulfillmentErrorCode},
             select::SelectionError,
@@ -31,11 +30,6 @@ pub enum SolverDiagnosticKind {
     TraitUnimplemented {
         trait_predicate: StoredTraitPredicate,
         parent_trait_predicates: Vec<StoredTraitPredicate>,
-    },
-    ConstArgHasWrongType {
-        ct: StoredConst,
-        ct_ty: StoredTy,
-        expected_ty: StoredTy,
     },
 }
 
@@ -69,15 +63,6 @@ impl SolverDiagnostic {
                     _ => return None,
                 }
             }
-            FulfillmentErrorCode::Select(SelectionError::ConstArgHasWrongType {
-                ct,
-                ct_ty,
-                expected_ty,
-            }) => SolverDiagnosticKind::ConstArgHasWrongType {
-                ct: (*ct).store(),
-                ct_ty: (*ct_ty).store(),
-                expected_ty: (*expected_ty).store(),
-            },
             _ => return None,
         };
         Some(SolverDiagnostic { span, kind })
