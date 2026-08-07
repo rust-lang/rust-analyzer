@@ -24,6 +24,8 @@ use crate::{
         infer::{
             DbInternerInferExt, InferCtxt, InferOk,
             at::At,
+            errors::FulfillmentErrorCode,
+            select::SelectionError,
             snapshot::CombinedSnapshot,
             traits::{Obligation, ObligationCause, PredicateObligation},
         },
@@ -468,14 +470,20 @@ impl<'db> InferenceTable<'db> {
         self.try_structurally_resolve_type(Span::Dummy, ty)
     }
 
-    fn emit_trait_errors(&mut self, diagnostics: &mut ThinVec<InferenceDiagnostic>) {
+    fn emit_trait_errors(&mut self, diagnostics: &mut ThinVec<InferenceDiagnostic>) -> bool {
+        let mut has_type_mismatches = false;
         diagnostics.extend(std::mem::take(&mut self.trait_errors).into_iter().filter_map(
             |error| {
                 let error = error.into_fulfillment_error(&self.infer_ctxt);
+                has_type_mismatches |= matches!(
+                    &error.code,
+                    FulfillmentErrorCode::Select(SelectionError::ConstArgHasWrongType { .. })
+                );
                 SolverDiagnostic::from_fulfillment_error(&error)
                     .map(InferenceDiagnostic::SolverDiagnostic)
             },
         ));
+        has_type_mismatches
     }
 }
 
@@ -571,11 +579,10 @@ pub(super) mod resolve_completely {
             *value_ref = value.fold_with(&mut Resolver::new(self, true, &mut goals));
         }
 
-        pub(crate) fn resolve_diagnostics(mut self) -> (ThinVec<InferenceDiagnostic>, bool) {
+        pub(crate) fn resolve_diagnostics(mut self) -> (ThinVec<InferenceDiagnostic>, bool, bool) {
             let has_errors = self.has_errors;
 
-            self.table.emit_trait_errors(&mut self.diagnostics);
-
+            let has_type_mismatches = self.table.emit_trait_errors(&mut self.diagnostics);
             // Ignore diagnostics made from resolving diagnostics.
             let mut diagnostics = std::mem::take(&mut self.diagnostics);
             diagnostics.retain_mut(|diagnostic| {
@@ -597,7 +604,7 @@ pub(super) mod resolve_completely {
             });
             diagnostics.shrink_to_fit();
 
-            (diagnostics, has_errors)
+            (diagnostics, has_errors, has_type_mismatches)
         }
     }
 

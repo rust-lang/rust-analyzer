@@ -1,8 +1,14 @@
 use test_fixture::WithFixture;
 
-use crate::{db::HirDatabase, setup_tracing, test_db::TestDB};
+use crate::{db::HirDatabase, mir::MirLowerError, setup_tracing, test_db::TestDB};
 
-fn lower_mir(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
+#[derive(Clone, Copy)]
+enum MirLoweringExpectation {
+    Success,
+    HasErrors,
+}
+
+fn lower_mir(#[rust_analyzer::rust_fixture] ra_fixture: &str, expectation: MirLoweringExpectation) {
     let _tracing = setup_tracing();
     let (db, file_ids) = TestDB::with_many_files(ra_fixture);
     crate::attach_db(db.as_dyn(), || {
@@ -15,7 +21,16 @@ fn lower_mir(#[rust_analyzer::rust_fixture] ra_fixture: &str) {
             _ => None,
         });
         for func in funcs {
-            db.mir_body(func.into()).unwrap();
+            let result = db.mir_body(func.into());
+            match expectation {
+                MirLoweringExpectation::Success => {
+                    result.unwrap();
+                }
+                MirLoweringExpectation::HasErrors => assert!(
+                    matches!(&result, Err(MirLowerError::HasErrors)),
+                    "unexpected MIR lowering result: {result:?}"
+                ),
+            }
         }
     })
 }
@@ -47,6 +62,7 @@ fn foo() {
     (|deserializer| Box::new(())) as DeserializeFn<<dyn CustomValue as Strictest>::Object>;
 }
     "#,
+        MirLoweringExpectation::Success,
     );
 }
 
@@ -60,8 +76,7 @@ struct Struct<const N: i64>(pub [u8; N]);
 pub fn function(value: Struct<3>) -> u8 {
     value.0[0]
 }
-
-fn main() {}
         "#,
+        MirLoweringExpectation::HasErrors,
     );
 }

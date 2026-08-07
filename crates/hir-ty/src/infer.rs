@@ -1753,9 +1753,13 @@ impl<'db> InferenceContext<'db> {
             .collect();
         tuple_field_access_types.shrink_to_fit();
 
-        let (diagnostics, resolver_has_errors) = resolver.resolve_diagnostics();
+        let (diagnostics, resolver_has_errors, resolver_has_type_mismatches) =
+            resolver.resolve_diagnostics();
         *result_diagnostics = diagnostics;
-        *has_errors |= resolver_has_errors;
+        if resolver_has_type_mismatches && nodes_with_type_mismatches.is_none() {
+            *nodes_with_type_mismatches = Some(Box::default());
+        }
+        *has_errors |= resolver_has_errors || resolver_has_type_mismatches;
 
         result
     }
