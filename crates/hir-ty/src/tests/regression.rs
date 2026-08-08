@@ -2959,6 +2959,19 @@ fn caller() {
 }
 
 #[test]
+fn regression_deferred_closure_call_resolution_unsized_dyn_fn_param() {
+    check_no_mismatches(
+        r#"
+//- minicore: fn
+fn main() {
+    let f = |f: dyn Fn()| f;
+    f();
+}
+"#,
+    );
+}
+
+#[test]
 fn regression_22772() {
     check_no_mismatches(
         r#"
