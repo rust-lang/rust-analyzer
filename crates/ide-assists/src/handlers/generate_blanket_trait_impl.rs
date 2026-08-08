@@ -1,6 +1,7 @@
 use crate::{
     AssistConfig,
     assist_context::{AssistContext, Assists},
+    utils::cfg_attrs,
 };
 use hir::{HasCrate, Semantics};
 use ide_db::{
@@ -12,8 +13,8 @@ use ide_db::{
 use syntax::{
     AstNode,
     ast::{
-        self, AssocItem, GenericParam, HasAttrs, HasGenericParams, HasName, HasTypeBounds,
-        HasVisibility, edit::AstNodeEdit, syntax_factory::SyntaxFactory,
+        self, AssocItem, GenericParam, HasGenericParams, HasName, HasTypeBounds, HasVisibility,
+        edit::AstNodeEdit, syntax_factory::SyntaxFactory,
     },
     syntax_editor::{Position, Removable},
 };
@@ -297,10 +298,6 @@ fn remove_bounds(alias: ast::TypeAlias) -> ast::TypeAlias {
     }
 
     ast::TypeAlias::cast(editor.finish().new_root().clone()).unwrap()
-}
-
-fn cfg_attrs(node: &impl HasAttrs) -> impl Iterator<Item = ast::Attr> {
-    node.attrs().filter(|attr| matches!(attr.meta(), Some(ast::Meta::CfgMeta(_))))
 }
 
 #[cfg(test)]
