@@ -2524,6 +2524,16 @@
             {
                 "title": "Inlay Hints",
                 "properties": {
+                    "rust-analyzer.inlayHints.tryExpressionHints.enable": {
+                        "markdownDescription": "Show try-expr inlay hints (e.g `foo()?;` -> `foo().try?;`).",
+                        "default": false,
+                        "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "Inlay Hints",
+                "properties": {
                     "rust-analyzer.inlayHints.typeHints.enable": {
                         "markdownDescription": "Show inlay type hints for variables.",
                         "default": true,

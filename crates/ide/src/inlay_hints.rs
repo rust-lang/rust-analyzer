@@ -44,6 +44,7 @@ mod param_name;
 mod placeholders;
 mod ra_fixture;
 mod range_exclusive;
+mod try_expr;
 
 // Feature: Inlay Hints
 //
@@ -252,6 +253,7 @@ fn hints(
                         file_id.edition(sema.db),
                     ),
                     ast::Expr::RangeExpr(it) => range_exclusive::hints(hints, famous_defs, config, it),
+                    ast::Expr::TryExpr(it) => try_expr::hints(hints, famous_defs, config, it),
                     ast::Expr::Literal(it) => ra_fixture::hints(hints, famous_defs.0, file_id, config, it),
                     _ => Some(()),
                 }
@@ -339,6 +341,7 @@ pub struct InlayHintsConfig<'a> {
     pub hide_closure_initialization_hints: bool,
     pub hide_closure_parameter_hints: bool,
     pub range_exclusive_hints: bool,
+    pub try_expr_hints: bool,
     pub closure_style: ClosureStyle,
     pub max_length: Option<usize>,
     pub closing_brace_hints_min_lines: Option<usize>,
@@ -966,6 +969,7 @@ mod tests {
         implicit_drop_hints: false,
         implied_dyn_trait_hints: false,
         range_exclusive_hints: false,
+        try_expr_hints: false,
         ra_fixture: RaFixtureConfig::default(),
     };
     pub(super) const TEST_CONFIG: InlayHintsConfig<'_> = InlayHintsConfig {

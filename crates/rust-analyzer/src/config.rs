@@ -296,6 +296,9 @@ config_data! {
         /// Whether to render leading colons for type hints, and trailing colons for parameter hints.
         inlayHints_renderColons: bool = true,
 
+        /// Show try-expr inlay hints (e.g `foo()?;` -> `foo().try?;`).
+        inlayHints_tryExpressionHints_enable: bool = false,
+
         /// Show inlay type hints for variables.
         inlayHints_typeHints_enable: bool = true,
 
@@ -2167,6 +2170,7 @@ impl Config {
             implicit_drop_hints: self.inlayHints_implicitDrops_enable().to_owned(),
             implied_dyn_trait_hints: self.inlayHints_impliedDynTraitHints_enable().to_owned(),
             range_exclusive_hints: self.inlayHints_rangeExclusiveHints_enable().to_owned(),
+            try_expr_hints: self.inlayHints_tryExpressionHints_enable().to_owned(),
             ra_fixture: self.ra_fixture(minicore),
         }
     }
