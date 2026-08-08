@@ -2031,18 +2031,28 @@ impl DefWithBody {
         };
 
         let (body, source_map) = Body::with_source_map(db, id);
-        let sig_source_map = match self {
-            DefWithBody::Function(id) => match id.id {
-                AnyFunctionId::FunctionId(id) => &FunctionSignature::with_source_map(db, id).1,
-                AnyFunctionId::BuiltinDeriveImplMethod { .. } => return,
-            },
-            DefWithBody::Static(id) => &StaticSignature::with_source_map(db, id.into()).1,
-            DefWithBody::Const(id) => &ConstSignature::with_source_map(db, id.into()).1,
+        let (sig_source_map, sig_diagnostics) = match self {
+            DefWithBody::Function(function) => {
+                let AnyFunctionId::FunctionId(function) = function.id else { return };
+                (
+                    &FunctionSignature::with_source_map(db, function).1,
+                    db.fn_sig_for_fn_with_diagnostics(function).diagnostics(),
+                )
+            }
+            DefWithBody::Static(statik) => (
+                &StaticSignature::with_source_map(db, statik.id).1,
+                db.type_for_static_with_diagnostics(statik.id).diagnostics(),
+            ),
+            DefWithBody::Const(konst) => (
+                &ConstSignature::with_source_map(db, konst.id).1,
+                db.type_for_const_with_diagnostics(konst.id).diagnostics(),
+            ),
             DefWithBody::EnumVariant(variant) => {
                 let enum_id = variant.parent_enum(db).id;
-                &EnumSignature::with_source_map(db, enum_id).1
+                (&EnumSignature::with_source_map(db, enum_id).1, &[][..])
             }
         };
+        push_ty_diagnostics(db, acc, sig_diagnostics, sig_source_map);
 
         for (_, def_map) in body.blocks(db) {
             Module { id: def_map.root_module_id() }.diagnostics(db, acc, style_lints);

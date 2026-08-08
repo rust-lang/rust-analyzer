@@ -2,12 +2,23 @@
 
 use hir_def::{GenericDefId, GenericParamId, type_ref::TypeRefId};
 
-use crate::Span;
+use crate::{Span, next_solver::StoredTy};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TyLoweringDiagnostic {
-    PathDiagnostic { source: TypeRefId, diag: PathLoweringDiagnostic },
-    InferVarsNotAllowed { source: Span },
+    PathDiagnostic {
+        source: TypeRefId,
+        diag: PathLoweringDiagnostic,
+    },
+    InferVarsNotAllowed {
+        source: Span,
+    },
+    ConstArgHasWrongType {
+        source: Span,
+        type_owner: GenericDefId,
+        ct_ty: StoredTy,
+        expected_ty: StoredTy,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

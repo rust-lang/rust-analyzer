@@ -108,6 +108,7 @@ diagnostics![AnyDiagnostic<'db> ->
     CannotImplicitlyDerefTraitObject<'db>,
     CannotIndexInto<'db>,
     CastToUnsized<'db>,
+    ConstArgHasWrongType<'db>,
     ExpectedArrayOrSlicePat<'db>,
     ExpectedFunction<'db>,
     ExplicitDropMethodUse,
@@ -655,6 +656,14 @@ pub struct UnimplementedTrait<'db> {
     pub span: SpanSyntax,
     pub trait_predicate: crate::TraitPredicate<'db>,
     pub parent_trait_predicates: Vec<crate::TraitPredicate<'db>>,
+}
+
+#[derive(Debug)]
+pub struct ConstArgHasWrongType<'db> {
+    pub span: SpanSyntax,
+    pub ct: String,
+    pub ct_ty: Type<'db>,
+    pub expected_ty: Type<'db>,
 }
 
 #[derive(Debug)]
@@ -1364,6 +1373,27 @@ impl<'db> AnyDiagnostic<'db> {
                 let syntax = source.value.to_node(&source.file_id.parse_or_expand(db));
                 let ast::Type::PathType(syntax) = syntax else { return None };
                 Self::path_diagnostic(diag, source.with_value(syntax.path()?))?
+            }
+            TyLoweringDiagnostic::ConstArgHasWrongType {
+                source,
+                type_owner,
+                ct_ty,
+                expected_ty,
+            } => {
+                let span = Self::span_syntax(*source, source_map)?;
+                let root = span.file_id.parse_or_expand(db);
+                let ct = span.value.to_node(&root).syntax().text().to_string();
+                let type_owner = TypeOwnerId::GenericDefId(*type_owner);
+                ConstArgHasWrongType {
+                    span,
+                    ct,
+                    ct_ty: Type { owner: type_owner, ty: EarlyBinder::bind(ct_ty.as_ref()) },
+                    expected_ty: Type {
+                        owner: type_owner,
+                        ty: EarlyBinder::bind(expected_ty.as_ref()),
+                    },
+                }
+                .into()
             }
             TyLoweringDiagnostic::InferVarsNotAllowed { source } => {
                 let source = Self::span_syntax(*source, source_map)?;
