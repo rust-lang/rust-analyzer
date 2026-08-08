@@ -347,9 +347,22 @@ pub fn check_orphan_rules<'db>(db: &'db dyn HirDatabase, impl_: ImplId) -> bool 
         return true;
     }
 
+    let interner = DbInterner::new_with(db, local_crate);
+    let infcx = OnceCell::new();
+    let param_env = ParamEnv::empty(interner);
+    let cause = ObligationCause::dummy();
+    let normalize = |ty: Ty<'db>| {
+        let TyKind::Alias(..) = ty.kind() else { return ty };
+        let infcx =
+            infcx.get_or_init(|| interner.infer_ctxt().build(TypingMode::non_body_analysis()));
+        let mut ocx = ObligationCtxt::new(infcx);
+        ocx.structurally_normalize_ty(&cause, param_env, ty).unwrap_or(ty)
+    };
+
     let unwrap_fundamental = |mut ty: Ty<'db>| {
         // Unwrap all layers of fundamental types with a loop.
         loop {
+            ty = normalize(ty);
             match ty.kind() {
                 TyKind::Ref(_, referenced, _) => ty = referenced,
                 TyKind::Adt(adt_def, subs) => {
