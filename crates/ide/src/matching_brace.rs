@@ -14,7 +14,7 @@ use syntax::{
 // | VS Code | **rust-analyzer: Find matching brace** |
 //
 // ![Matching Brace](https://user-images.githubusercontent.com/48062697/113065573-04298180-91b1-11eb-8dec-d4e2a202f304.gif)
-pub(crate) fn matching_brace(file: &SourceFile, offset: TextSize) -> Option<TextSize> {
+pub(crate) fn matching_brace(file: &SourceFile, offset: TextSize) -> Option<(TextSize, TextSize)> {
     const BRACES: &[SyntaxKind] =
         &[T!['{'], T!['}'], T!['['], T![']'], T!['('], T![')'], T![<], T![>], T![|], T![|]];
     let current = file.syntax().token_at_offset(offset);
@@ -36,16 +36,17 @@ pub(crate) fn matching_brace(file: &SourceFile, offset: TextSize) -> Option<Text
             .children_with_tokens()
             .filter_map(|it| it.into_token())
             .find(|node| node.kind() == matching_kind && node != &brace_token)?;
-        Some(matching_node.text_range().start())
+        Some((offset, matching_node.text_range().start()))
     } else {
         // when the offset is not at a brace, find first parent
         current.last()?.parent_ancestors().find_map(|x| {
-            x.children_with_tokens()
+            let mut i = x
+                .children_with_tokens()
                 .filter_map(|it| it.into_token())
                 // with ending brace
                 .filter(|node| BRACES.contains(&node.kind()))
-                .last()
-                .map(|x| x.text_range().start())
+                .map(|x| x.text_range().start());
+            i.next().zip(i.last())
         })
     }
 }
@@ -63,7 +64,7 @@ mod tests {
             let parse = SourceFile::parse(&before, span::Edition::CURRENT);
             let new_pos = match matching_brace(&parse.tree(), pos) {
                 None => pos,
-                Some(pos) => pos,
+                Some(pos) => pos.1,
             };
             let actual = add_cursor(&before, new_pos);
             assert_eq_text!(after, &actual);
