@@ -53,6 +53,7 @@ pub(crate) struct CargoOptions {
     pub(crate) extra_env: FxHashMap<String, Option<String>>,
     pub(crate) config_path: Option<AbsPathBuf>,
     pub(crate) target_dir_config: TargetDirectoryConfig,
+    pub(crate) build_dir_config: TargetDirectoryConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -68,6 +69,7 @@ impl CargoOptions {
         &self,
         cmd: &mut Command,
         ws_target_dir: Option<&Utf8Path>,
+        ws_build_dir: Option<&Utf8Path>,
         package_repr: Option<&str>,
         toolchain_version: Option<&semver::Version>,
     ) {
@@ -113,6 +115,9 @@ impl CargoOptions {
         }
         if let Some(target_dir) = self.target_dir_config.target_dir(ws_target_dir) {
             cmd.arg("--target-dir").arg(target_dir.as_ref());
+        }
+        if let Some(build_dir) = self.build_dir_config.target_dir(ws_build_dir) {
+            cmd.env("CARGO_BUILD_BUILD_DIR", build_dir.as_ref());
         }
     }
 }
@@ -226,6 +231,7 @@ impl FlycheckHandle {
         workspace_root: AbsPathBuf,
         manifest_path: Option<AbsPathBuf>,
         ws_target_dir: Option<Utf8PathBuf>,
+        ws_build_dir: Option<Utf8PathBuf>,
         toolchain_version: Option<semver::Version>,
     ) -> FlycheckHandle {
         let actor = FlycheckActor::new(
@@ -238,6 +244,7 @@ impl FlycheckHandle {
             workspace_root,
             manifest_path,
             ws_target_dir,
+            ws_build_dir,
             toolchain_version,
         );
         let (sender, receiver) = unbounded::<StateChange>();
@@ -431,6 +438,7 @@ struct FlycheckActor {
 
     manifest_path: Option<AbsPathBuf>,
     ws_target_dir: Option<Utf8PathBuf>,
+    ws_build_dir: Option<Utf8PathBuf>,
     /// Either the workspace root of the workspace we are flychecking,
     /// or the project root of the project.
     root: Arc<AbsPathBuf>,
@@ -533,6 +541,7 @@ impl FlycheckActor {
         workspace_root: AbsPathBuf,
         manifest_path: Option<AbsPathBuf>,
         ws_target_dir: Option<Utf8PathBuf>,
+        ws_build_dir: Option<Utf8PathBuf>,
         toolchain_version: Option<semver::Version>,
     ) -> FlycheckActor {
         tracing::info!(%id, ?workspace_root, "Spawning flycheck");
@@ -547,6 +556,7 @@ impl FlycheckActor {
             scope: FlycheckScope::Workspace,
             manifest_path,
             ws_target_dir,
+            ws_build_dir,
             command_handle: None,
             command_receiver: None,
             diagnostics_cleared_for: Default::default(),
@@ -961,6 +971,7 @@ impl FlycheckActor {
                 cargo_options.apply_on_command(
                     &mut cmd,
                     self.ws_target_dir.as_ref().map(Utf8PathBuf::as_path),
+                    self.ws_build_dir.as_ref().map(Utf8PathBuf::as_path),
                     package_repr,
                     self.toolchain_version.as_ref(),
                 );
@@ -1181,6 +1192,7 @@ mod tests {
                 extra_env: FxHashMap::default(),
                 config_path: None,
                 target_dir_config: TargetDirectoryConfig::default(),
+                build_dir_config: TargetDirectoryConfig::default(),
             },
             ansi_color_output: true,
         };
