@@ -137,6 +137,7 @@ pub use ide_db::{
     assists::ExprFillDefaultMode,
     base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId},
     documentation::Documentation,
+    imports::insert_use::InsertUseConfig,
     label::Label,
     line_index::{LineCol, LineIndex},
     prime_caches::ParallelPrimeCachesProgress,
@@ -900,6 +901,19 @@ impl Analysis {
         new_leaf: &str,
     ) -> Cancellable<Option<SourceChange>> {
         self.with_db(|db| rename::will_move_module(db, file_id, new_parent_segments, new_leaf))
+    }
+
+    /// Move an item into another module, both named by absolute path
+    /// (`my_crate::a::foo` into `my_crate::b`). Addressed by name rather than by
+    /// a gesture, as [`Self::will_move_module`] is: there is none for dragging
+    /// an item.
+    pub fn move_item_to_module(
+        &self,
+        item_path: &str,
+        destination: &str,
+        insert_use_cfg: &InsertUseConfig,
+    ) -> Cancellable<Result<SourceChange, RenameError>> {
+        self.with_db(|db| rename::move_item(db, item_path, destination, insert_use_cfg))
     }
 
     pub fn structural_search_replace(

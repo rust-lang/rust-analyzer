@@ -821,6 +821,28 @@ pub enum MoveItemDirection {
     Down,
 }
 
+/// Relocate an item to another module. Both ends are named by absolute path, as
+/// they would be written in source: no editor gesture points at an item and a
+/// module the way dragging a file does at a module and its new parent.
+pub enum MoveItemToModuleRequest {}
+
+impl Request for MoveItemToModuleRequest {
+    type Params = MoveItemToModuleParams;
+    type Result = Option<lsp_types::WorkspaceEdit>;
+    const METHOD: LspRequestMethod<'_> = LspRequestMethod::new("experimental/moveItemToModule");
+    const MESSAGE_DIRECTION: MessageDirection = MessageDirection::ClientToServer;
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveItemToModuleParams {
+    /// The item to move, e.g. `my_crate::a::foo`.
+    pub item: String,
+    /// The module to move it into, e.g. `my_crate::b`; the crate name alone
+    /// names the crate root.
+    pub destination: String,
+}
+
 #[derive(Debug)]
 pub enum WorkspaceSymbolRequest {}
 
