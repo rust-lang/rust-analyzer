@@ -1418,6 +1418,84 @@ use crate::old_folder::nested::foo as bar;
 }
 
 #[test]
+fn test_move_item_to_module() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+
+    let code = r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+mod a;
+mod b;
+
+//- /src/a.rs
+fn helper() {}
+pub fn moved() { helper(); }
+
+//- /src/b.rs
+
+"#;
+    let server =
+        Project::with_fixture(code).tmp_dir(tmp_dir).server().wait_until_workspace_is_loaded();
+
+    // Move `foo::a::moved` into module `foo::b`, addressed by path — there is no
+    // editor gesture for this, so the request carries names rather than a
+    // position. The item's text leaves `a.rs` and lands in `b.rs`; the private
+    // neighbour it calls is widened to `pub(crate)` and the call spelled out,
+    // since the destination could not otherwise name it. (The edits are asserted
+    // exhaustively by the `move_item_*` unit tests in `ide`; here we pin the LSP
+    // wiring.)
+    server.request::<rust_analyzer::lsp::ext::MoveItemToModuleRequest>(
+        rust_analyzer::lsp::ext::MoveItemToModuleParams {
+            item: "foo::a::moved".to_owned(),
+            destination: "foo::b".to_owned(),
+        },
+        json!({
+          "documentChanges": [
+            {
+              "textDocument": { "uri": "file://[..]/src/b.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": "pub fn moved() { crate::a::helper(); }\n"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/a.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 0, "character": 0 }
+                  },
+                  "newText": "pub(crate) "
+                },
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 14 },
+                    "end": { "line": 3, "character": 0 }
+                  },
+                  "newText": "\n\n"
+                }
+              ]
+            }
+          ]
+        }),
+    );
+}
+
+#[test]
 fn test_will_rename_files_cross_parent() {
     if skip_slow_tests() {
         return;
@@ -1463,6 +1541,9 @@ pub struct S;
                 new_uri: Uri::parse(base_path.join("src/b/m.rs").to_str().unwrap()).unwrap(),
             }],
         },
+        // The reference edit is the one character that actually differs: the
+        // rewritten path is spliced as a tree, and the edit is the diff of the
+        // trees, not the whole path re-spelled.
         json!({
           "documentChanges": [
             {
@@ -1470,10 +1551,10 @@ pub struct S;
               "edits": [
                 {
                   "range": {
-                    "start": { "line": 2, "character": 4 },
-                    "end": { "line": 2, "character": 15 }
+                    "start": { "line": 2, "character": 11 },
+                    "end": { "line": 2, "character": 12 }
                   },
-                  "newText": "crate::b::m"
+                  "newText": "b"
                 }
               ]
             },
@@ -1495,9 +1576,9 @@ pub struct S;
                 {
                   "range": {
                     "start": { "line": 0, "character": 0 },
-                    "end": { "line": 1, "character": 0 }
+                    "end": { "line": 2, "character": 0 }
                   },
-                  "newText": ""
+                  "newText": "\n"
                 }
               ]
             }
@@ -1553,6 +1634,9 @@ pub struct S;
                 new_uri: Uri::parse(base_path.join("src/b/a").to_str().unwrap()).unwrap(),
             }],
         },
+        // Text-wise this leaves `mod b;` and `use crate::b::a::child::S;`. The
+        // edits express that as a diff of the trees — dropping `mod a;` shifts
+        // what the following lines are, rather than deleting a line outright.
         json!({
           "documentChanges": [
             {
@@ -1560,17 +1644,31 @@ pub struct S;
               "edits": [
                 {
                   "range": {
-                    "start": { "line": 0, "character": 0 },
-                    "end": { "line": 1, "character": 0 }
+                    "start": { "line": 0, "character": 4 },
+                    "end": { "line": 0, "character": 5 }
                   },
-                  "newText": ""
+                  "newText": "b"
                 },
                 {
                   "range": {
-                    "start": { "line": 2, "character": 4 },
-                    "end": { "line": 2, "character": 12 }
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 3 }
                   },
-                  "newText": "crate::b::a"
+                  "newText": "use"
+                },
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 4 },
+                    "end": { "line": 1, "character": 5 }
+                  },
+                  "newText": "crate::b::a::child::S"
+                },
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 6 },
+                    "end": { "line": 4, "character": 0 }
+                  },
+                  "newText": "\n\n"
                 }
               ]
             },

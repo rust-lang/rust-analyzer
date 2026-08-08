@@ -2221,6 +2221,23 @@ pub(crate) fn handle_move_item(
     }
 }
 
+pub(crate) fn handle_move_item_to_module(
+    snap: GlobalStateSnapshot,
+    params: lsp_ext::MoveItemToModuleParams,
+) -> anyhow::Result<Option<lsp_types::WorkspaceEdit>> {
+    let _p = tracing::info_span!("handle_move_item_to_module").entered();
+
+    // Both ends are named, not pointed at, so there is no file to take the
+    // per-source-root config from.
+    let insert_use = snap.config.assist(None).insert_use;
+    let source_change = snap
+        .analysis
+        .move_item_to_module(&params.item, &params.destination, &insert_use)?
+        .map_err(to_proto::rename_error)?;
+
+    Ok(Some(to_proto::workspace_edit(&snap, source_change)?))
+}
+
 pub(crate) fn handle_view_recursive_memory_layout(
     snap: GlobalStateSnapshot,
     params: lsp_types::TextDocumentPositionParams,

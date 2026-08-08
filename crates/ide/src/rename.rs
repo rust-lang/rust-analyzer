@@ -8,6 +8,7 @@ use hir::{AsAssocItem, FindPathConfig, HasContainer, HirDisplay, InFile, Name, S
 use ide_db::{
     FileId, FileRange, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
+    imports::insert_use::InsertUseConfig,
     rename::{IdentifierKind, RenameDefinition, bail, format_err, source_edit_from_references},
     source_change::SourceChangeBuilder,
 };
@@ -268,6 +269,116 @@ pub(crate) fn will_move_module(
     // The editor performs the physical file move; we only supply text edits.
     change.file_system_edits.clear();
     Some(change)
+}
+
+/// Move an item into another module, both named by absolute path exactly as
+/// they would be written in source: `my_crate::a::foo` into `my_crate::b`.
+///
+/// Paths, rather than the [`FilePosition`] the editor-facing entry points take:
+/// the caller here is as likely to be a script running a batch of moves as a
+/// cursor, and a path is what such a caller already knows. See
+/// [`ide_db::rename::move_item`].
+pub(crate) fn move_item(
+    db: &RootDatabase,
+    item_path: &str,
+    destination: &str,
+    insert_use_cfg: &InsertUseConfig,
+) -> RenameResult<SourceChange> {
+    let sema = Semantics::new(db);
+    let item = resolve_item_path(db, item_path)?;
+    let dst = resolve_module_path(db, destination)?;
+    ide_db::rename::move_item(&sema, item, dst, insert_use_cfg)
+}
+
+/// Crate-relative segments of `path`, paired with every crate its head names.
+/// Plural because a lib and a bin target share a name, and only trying to
+/// resolve tells them apart.
+fn split_crate_path(
+    db: &RootDatabase,
+    path: &str,
+) -> RenameResult<(Vec<hir::Crate>, Vec<Name>, String)> {
+    let mut segments = path.split("::").map(str::trim).filter(|it| !it.is_empty());
+    let crate_name =
+        segments.next().ok_or_else(|| format_err!("`{path}` names no crate"))?.to_owned();
+    let segments: Vec<Name> = segments.map(Name::new_root).collect();
+    let crates: Vec<hir::Crate> = hir::Crate::all(db)
+        .into_iter()
+        .filter(|krate| {
+            krate.display_name(db).is_some_and(|it| it.crate_name().to_string() == crate_name)
+        })
+        .collect();
+    if crates.is_empty() {
+        bail!("No crate named `{crate_name}` in this workspace");
+    }
+    Ok((crates, segments, crate_name))
+}
+
+/// Walks the module tree by name rather than resolving the path: a refactoring
+/// tool addresses code by where it *is*, and a private item — which is most of
+/// what one wants to move out of an overgrown file — resolves from nowhere but
+/// its own module.
+fn descend_modules(db: &RootDatabase, from: hir::Module, segments: &[Name]) -> Option<hir::Module> {
+    segments.iter().try_fold(from, |module, segment| {
+        module.children(db).find(|it| it.name(db).as_ref() == Some(segment))
+    })
+}
+
+fn resolve_module_path(db: &RootDatabase, path: &str) -> RenameResult<hir::Module> {
+    let (crates, segments, _) = split_crate_path(db, path)?;
+    let mut found: Vec<hir::Module> = crates
+        .into_iter()
+        .filter_map(|krate| descend_modules(db, krate.root_module(db), &segments))
+        .collect();
+    found.dedup();
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        0 => bail!("`{path}` does not name a module"),
+        _ => bail!("`{path}` names a module in more than one crate of that name"),
+    }
+}
+
+fn resolve_item_path(db: &RootDatabase, path: &str) -> RenameResult<hir::ModuleDef> {
+    let (crates, segments, crate_name) = split_crate_path(db, path)?;
+    let Some((item_name, module_segments)) = segments.split_last() else {
+        bail!("`{path}` names a crate, not an item");
+    };
+    let mut found: Vec<hir::ModuleDef> = crates
+        .into_iter()
+        .filter_map(|krate| {
+            let module = descend_modules(db, krate.root_module(db), module_segments)?;
+            module.declarations(db).into_iter().find(|it| it.name(db).as_ref() == Some(item_name))
+        })
+        .collect();
+    found.dedup();
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        // Naming what the module does hold turns "wrong path" apart from "wrong
+        // idea of where the item lives", which is otherwise a guessing game.
+        0 => bail!(
+            "`{path}` does not name an item{}",
+            neighbours_hint(db, &crate_name, module_segments)
+        ),
+        _ => bail!("`{path}` names an item in more than one crate of that name"),
+    }
+}
+
+/// ` (module `x` declares: a, b, c)`, or nothing when even the module is wrong.
+fn neighbours_hint(db: &RootDatabase, crate_name: &str, module_segments: &[Name]) -> String {
+    let Ok(module) = resolve_module_path(
+        db,
+        &std::iter::once(crate_name.to_owned())
+            .chain(module_segments.iter().map(|it| it.as_str().to_owned()))
+            .join("::"),
+    ) else {
+        return String::new();
+    };
+    let names = module
+        .declarations(db)
+        .into_iter()
+        .filter_map(|it| it.name(db))
+        .map(|it| it.as_str().to_owned())
+        .join(", ");
+    if names.is_empty() { String::new() } else { format!(" (that module declares: {names})") }
 }
 
 // FIXME: Should support `extern crate`.
@@ -875,10 +986,11 @@ fn rename_elided_lifetime(
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
+    use ide_db::imports::insert_use::{ImportGranularity, InsertUseConfig};
     use ide_db::source_change::SourceChange;
     use ide_db::text_edit::TextEdit;
     use itertools::Itertools;
-    use stdx::trim_indent;
+    use stdx::{format_to, trim_indent};
     use test_utils::assert_eq_text;
 
     use crate::fixture;
@@ -983,6 +1095,317 @@ mod tests {
             .unwrap()
             .expect("Expect returned a RenameError");
         expect.assert_eq(&filter_expect(source_change))
+    }
+
+    const TEST_INSERT_USE: InsertUseConfig = InsertUseConfig {
+        granularity: ImportGranularity::Crate,
+        prefix_kind: hir::PrefixKind::Plain,
+        enforce_granularity: true,
+        group: true,
+        skip_glob_imports: true,
+    };
+
+    /// Renders every touched file with the change applied, rather than the raw
+    /// indels: a move is judged by the code it leaves behind, and half of what
+    /// can go wrong here — a path spelled from the wrong module, an import that
+    /// lands in the wrong file — is invisible in offsets.
+    #[track_caller]
+    fn check_move_item(
+        item: &str,
+        destination: &str,
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        expect: Expect,
+    ) {
+        let (analysis, _) = fixture::file(ra_fixture);
+        let rendered =
+            match analysis.move_item_to_module(item, destination, &TEST_INSERT_USE).unwrap() {
+                Ok(source_change) => {
+                    let mut rendered = String::new();
+                    for (&file_id, (edit, _)) in
+                        source_change.source_file_edits.iter().sorted_by_key(|&(&id, _)| id)
+                    {
+                        let mut text = analysis.file_text(file_id).unwrap().to_string();
+                        edit.apply(&mut text);
+                        format_to!(rendered, "//- {file_id:?}\n{text}\n");
+                    }
+                    rendered
+                }
+                Err(err) => format!("error: {err}"),
+            };
+        expect.assert_eq(&rendered)
+    }
+
+    #[test]
+    fn move_item_rewrites_qualified_reference() {
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+fn f() { crate::a::foo(); }
+//- /a.rs
+pub fn foo() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(0)
+                mod a;
+                mod b;
+                fn f() { crate::b::foo(); }
+
+                //- FileId(1)
+
+                //- FileId(2)
+                pub fn foo() {}
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_imports_bare_reference_left_behind() {
+        // `foo` resolved for `g` by being its neighbour. It stops being one, so
+        // the source file has to import it — and a private item would no longer
+        // be reachable from there at all, hence `pub(crate)`.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+fn foo() {}
+pub fn g() { foo(); }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                use crate::b::foo;
+
+                pub fn g() { foo(); }
+
+                //- FileId(2)
+                pub(crate) fn foo() {}
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_respells_body_paths_from_destination() {
+        // The body's own paths were resolved against `a`: `helper` was a bare
+        // neighbour call and `S` came in through a `use` that stays behind.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+pub struct S;
+//- /a.rs
+use crate::S;
+pub(crate) fn helper() -> S { S }
+pub fn foo() -> S { helper() }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                use crate::S;
+                pub(crate) fn helper() -> S { S }
+
+                //- FileId(2)
+                pub fn foo() -> crate::S { crate::a::helper() }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_widens_a_private_neighbour_it_calls() {
+        // `helper` was reachable only from inside `a`, so the destination cannot
+        // even spell it. Leaving the call as written would emit code that does
+        // not compile, so the neighbour is widened and the call spelled out.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+fn helper() {}
+pub fn foo() { helper(); }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                pub(crate) fn helper() {}
+
+                //- FileId(2)
+                pub fn foo() { crate::a::helper(); }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_keeps_recursive_call_bare() {
+        // The self-call resolves to the item being moved, so spelling it out
+        // from the destination would name a place it is leaving.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub fn foo(n: u32) -> u32 { if n == 0 { 0 } else { foo(n - 1) } }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+
+                //- FileId(2)
+                pub fn foo(n: u32) -> u32 { if n == 0 { 0 } else { foo(n - 1) } }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_splits_use_group() {
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+mod c;
+//- /a.rs
+pub fn foo() {}
+pub fn bar() {}
+//- /b.rs
+//- /c.rs
+use crate::a::{bar, foo};
+fn f() { foo(); bar(); }
+"#,
+            expect![[r#"
+                //- FileId(1)
+                pub fn bar() {}
+
+                //- FileId(2)
+                pub fn foo() {}
+
+                //- FileId(3)
+                use crate::b::foo;
+                use crate::a::{bar};
+                fn f() { foo(); bar(); }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_moves_a_type_and_leaves_its_impl() {
+        // An impl block is not part of the type's item, and an inherent impl is
+        // valid from any module of the crate — so it stays, with its self-type
+        // reference re-spelled.
+        check_move_item(
+            "ra_test_fixture::a::S",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub struct S;
+impl S { pub fn new() -> S { S } }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                use crate::b::S;
+
+                impl S { pub fn new() -> S { S } }
+
+                //- FileId(2)
+                pub struct S;
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_carries_its_comments_and_attributes() {
+        // What is written *about* an item is part of it: a doc comment, a plain
+        // comment sitting on top of it, and its attributes all travel along.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+// why this exists
+/// What it does.
+#[inline]
+pub fn foo() {}
+
+pub fn after() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                pub fn after() {}
+
+                //- FileId(2)
+                // why this exists
+                /// What it does.
+                #[inline]
+                pub fn foo() {}
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_rejects_what_text_alone_does_not_carry() {
+        check_move_item(
+            "ra_test_fixture::a::m",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub mod m {}
+//- /b.rs
+"#,
+            expect!["error: Cannot move a module as an item"],
+        );
+    }
+
+    #[test]
+    fn move_item_reports_an_unknown_path() {
+        check_move_item(
+            "ra_test_fixture::a::nope",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+//- /b.rs
+"#,
+            expect!["error: `ra_test_fixture::a::nope` does not name an item"],
+        );
     }
 
     fn check_expect_will_move(
