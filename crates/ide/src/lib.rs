@@ -137,6 +137,7 @@ pub use ide_db::{
     assists::ExprFillDefaultMode,
     base_db::{Crate, CrateGraphBuilder, FileChange, SourceRoot, SourceRootId},
     documentation::Documentation,
+    imports::insert_use::InsertUseConfig,
     label::Label,
     line_index::{LineCol, LineIndex},
     prime_caches::ParallelPrimeCachesProgress,
@@ -888,6 +889,31 @@ impl Analysis {
         config: &RenameConfig,
     ) -> Cancellable<Option<SourceChange>> {
         self.with_db(|db| rename::will_rename_file(db, file_id, new_name_stem, config))
+    }
+
+    /// Move a module under a new parent, given by its crate-relative segments
+    /// (`[]` = crate root). Unlike [`Self::will_rename_file`], this handles moves
+    /// across module parents.
+    pub fn will_move_module(
+        &self,
+        file_id: FileId,
+        new_parent_segments: &[String],
+        new_leaf: &str,
+    ) -> Cancellable<Option<SourceChange>> {
+        self.with_db(|db| rename::will_move_module(db, file_id, new_parent_segments, new_leaf))
+    }
+
+    /// Move an item into another module, both named by absolute path
+    /// (`my_crate::a::foo` into `my_crate::b`). Unlike [`Self::will_move_module`],
+    /// which is driven by a file rename, this needs no editor gesture — there is
+    /// none for dragging an item — so it is addressed by name.
+    pub fn move_item_to_module(
+        &self,
+        item_path: &str,
+        destination: &str,
+        insert_use_cfg: &InsertUseConfig,
+    ) -> Cancellable<Result<SourceChange, RenameError>> {
+        self.with_db(|db| rename::move_item(db, item_path, destination, insert_use_cfg))
     }
 
     pub fn structural_search_replace(

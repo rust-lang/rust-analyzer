@@ -1432,6 +1432,7 @@ impl GlobalState {
             .on::<NO_RETRY, lsp_ext::ExternalDocsRequest>(handlers::handle_open_docs)
             .on::<NO_RETRY, lsp_ext::OpenCargoTomlRequest>(handlers::handle_open_cargo_toml)
             .on::<NO_RETRY, lsp_ext::MoveItemRequest>(handlers::handle_move_item)
+            .on::<RETRY, lsp_ext::MoveItemToModuleRequest>(handlers::handle_move_item_to_module)
             //
             .on::<NO_RETRY, lsp_ext::InternalTestingFetchConfigRequest>(handlers::internal_testing_fetch_config)
             .on::<RETRY, lsp_ext::EvaluatePredicateRequest>(handlers::handle_evaluate_predicate)

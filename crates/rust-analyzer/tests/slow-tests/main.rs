@@ -1418,6 +1418,278 @@ use crate::old_folder::nested::foo as bar;
 }
 
 #[test]
+fn test_move_item_to_module() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+
+    let code = r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+mod a;
+mod b;
+
+//- /src/a.rs
+fn helper() {}
+pub fn moved() { helper(); }
+
+//- /src/b.rs
+
+"#;
+    let server =
+        Project::with_fixture(code).tmp_dir(tmp_dir).server().wait_until_workspace_is_loaded();
+
+    // Move `foo::a::moved` into module `foo::b`, addressed by path — there is no
+    // editor gesture for this, so the request carries names rather than a
+    // position. The item's text leaves `a.rs` and lands in `b.rs`; the private
+    // neighbour it calls is widened to `pub(crate)` and the call spelled out,
+    // since the destination could not otherwise name it. (The edits are asserted
+    // exhaustively by the `move_item_*` unit tests in `ide`; here we pin the LSP
+    // wiring.)
+    server.request::<rust_analyzer::lsp::ext::MoveItemToModuleRequest>(
+        rust_analyzer::lsp::ext::MoveItemToModuleParams {
+            item: "foo::a::moved".to_owned(),
+            destination: "foo::b".to_owned(),
+        },
+        json!({
+          "documentChanges": [
+            {
+              "textDocument": { "uri": "file://[..]/src/b.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": "pub fn moved() { crate::a::helper(); }\n"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/a.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 0, "character": 0 }
+                  },
+                  "newText": "pub(crate) "
+                },
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 14 },
+                    "end": { "line": 3, "character": 0 }
+                  },
+                  "newText": "\n\n"
+                }
+              ]
+            }
+          ]
+        }),
+    );
+}
+
+#[test]
+fn test_will_rename_files_cross_parent() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let tmp_dir_str = tmp_dir.path().as_str().to_owned();
+    let base_path = PathBuf::from(format!("file://{tmp_dir_str}"));
+
+    let code = r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+mod a;
+mod b;
+use crate::a::m::S;
+
+//- /src/a.rs
+pub mod m;
+
+//- /src/a/m.rs
+pub struct S;
+
+//- /src/b.rs
+
+"#;
+    let server =
+        Project::with_fixture(code).tmp_dir(tmp_dir).server().wait_until_workspace_is_loaded();
+
+    // Move `src/a/m.rs` -> `src/b/m.rs`: module `m` is dragged under a new parent `b`.
+    // This exercises the cross-parent arm of `handle_will_rename_files`, which routes
+    // to `will_move_module`. Expect the mod-tree to be fixed (drop `pub mod m;` from
+    // `a.rs`, add it under `b.rs`) and the reference `crate::a::m::S` rewritten to
+    // `crate::b::m::S`. (The per-file edit content is asserted exhaustively by the
+    // `will_move_module_*` unit tests in `ide`; here we pin the LSP wiring.)
+    server.request::<WillRenameFilesRequest>(
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Uri::parse(base_path.join("src/a/m.rs").to_str().unwrap()).unwrap(),
+                new_uri: Uri::parse(base_path.join("src/b/m.rs").to_str().unwrap()).unwrap(),
+            }],
+        },
+        // The reference edit is the one character that actually differs: the
+        // rewritten path is spliced as a tree, and the edit is the diff of the
+        // trees, not the whole path re-spelled.
+        json!({
+          "documentChanges": [
+            {
+              "textDocument": { "uri": "file://[..]/src/lib.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 2, "character": 11 },
+                    "end": { "line": 2, "character": 12 }
+                  },
+                  "newText": "b"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/b.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": "pub mod m;\n"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/a.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 2, "character": 0 }
+                  },
+                  "newText": "\n"
+                }
+              ]
+            }
+          ]
+        }),
+    );
+}
+
+#[test]
+fn test_will_rename_files_cross_parent_folder() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let tmp_dir_str = tmp_dir.path().as_str().to_owned();
+    let base_path = PathBuf::from(format!("file://{tmp_dir_str}"));
+
+    let code = r#"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/lib.rs
+mod a;
+mod b;
+use crate::a::child::S;
+
+//- /src/a/mod.rs
+pub mod child;
+
+//- /src/a/child.rs
+pub struct S;
+
+//- /src/b.rs
+
+"#;
+    let server =
+        Project::with_fixture(code).tmp_dir(tmp_dir).server().wait_until_workspace_is_loaded();
+
+    // Drag the whole `src/a` folder under `b`: `src/a` -> `src/b/a`. This is a
+    // `mod.rs`-style directory module dragged to a new parent. The cross-parent arm
+    // resolves the folder's `mod.rs` and routes to `will_move_module`. Expect the
+    // mod-tree fixed (drop `mod a;` from `lib.rs`, add it under `b.rs`) and the
+    // reference *through* the module, `crate::a::child::S`, rewritten to
+    // `crate::b::a::child::S`. The editor moves the directory physically; RA emits
+    // only text edits.
+    server.request::<WillRenameFilesRequest>(
+        RenameFilesParams {
+            files: vec![FileRename {
+                old_uri: Uri::parse(base_path.join("src/a").to_str().unwrap()).unwrap(),
+                new_uri: Uri::parse(base_path.join("src/b/a").to_str().unwrap()).unwrap(),
+            }],
+        },
+        // Text-wise this leaves `mod b;` and `use crate::b::a::child::S;`. The
+        // edits express that as a diff of the trees — dropping `mod a;` shifts
+        // what the following lines are, rather than deleting a line outright.
+        json!({
+          "documentChanges": [
+            {
+              "textDocument": { "uri": "file://[..]/src/lib.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 0, "character": 4 },
+                    "end": { "line": 0, "character": 5 }
+                  },
+                  "newText": "b"
+                },
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 3 }
+                  },
+                  "newText": "use"
+                },
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 4 },
+                    "end": { "line": 1, "character": 5 }
+                  },
+                  "newText": "crate::b::a::child::S"
+                },
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 6 },
+                    "end": { "line": 4, "character": 0 }
+                  },
+                  "newText": "\n\n"
+                }
+              ]
+            },
+            {
+              "textDocument": { "uri": "file://[..]/src/b.rs", "version": null },
+              "edits": [
+                {
+                  "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                  },
+                  "newText": "mod a;\n"
+                }
+              ]
+            }
+          ]
+        }),
+    );
+}
+
+#[test]
 fn test_exclude_config_works() {
     if skip_slow_tests() {
         return;
