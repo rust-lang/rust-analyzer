@@ -190,7 +190,8 @@ fn signature_help_for_call(
                 .iter()
                 .filter(|param| match param {
                     GenericParam::TypeParam(type_param) => !type_param.is_implicit(db),
-                    GenericParam::ConstParam(_) | GenericParam::LifetimeParam(_) => true,
+                    GenericParam::LifetimeParam(lt_param) => !lt_param.is_elided(db),
+                    GenericParam::ConstParam(_) => true,
                 })
                 .map(|param| param.display(db, display_target))
                 .join(", ");
@@ -1809,8 +1810,8 @@ fn f() {
 }
         "#,
             expect![[r#"
-                fn f<T>
-                     ^
+                fn f<'_, T>
+                     ^^  -
             "#]],
         );
     }

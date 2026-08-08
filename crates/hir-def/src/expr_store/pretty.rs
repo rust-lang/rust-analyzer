@@ -374,6 +374,10 @@ fn print_generic_params(
         w!(p, "<");
         let mut first = true;
         for (_i, param) in generic_params.iter_lt() {
+            if param.is_elided() {
+                continue;
+            }
+
             if !first {
                 w!(p, ", ");
             }
@@ -1267,6 +1271,7 @@ impl Printer<'_> {
             }
             LifetimeRef::Placeholder => w!(self, "'_"),
             LifetimeRef::Error => w!(self, "'{{error}}"),
+            LifetimeRef::HrtbParam(_) => w!(self, "'_"), // FIXME: properly handle it, currently do not have enough data to handle
             &LifetimeRef::Param(p) => self.print_lifetime_param(p),
         }
     }
@@ -1302,7 +1307,9 @@ impl Printer<'_> {
                     Mutability::Mut => "mut ",
                 };
                 w!(self, "&");
-                if let Some(lt) = &ref_.lifetime {
+                if let Some(lt) = &ref_.lifetime
+                    && !self.store[*lt].is_elided(self.db)
+                {
                     self.print_lifetime_ref(*lt);
                     w!(self, " ");
                 }

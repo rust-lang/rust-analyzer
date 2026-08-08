@@ -1,15 +1,16 @@
 //! HIR for references to types. Paths in these are not yet resolved. They can
 //! be directly created from an ast::TypeRef, without further queries.
 
+use base_db::SourceDatabase;
 use hir_expand::name::Name;
 use la_arena::Idx;
 use rustc_abi::ExternAbi;
 use thin_vec::ThinVec;
 
 use crate::{
-    LifetimeParamId, TypeParamId,
+    HrtbLifetimeParamId, LifetimeParamId, TypeParamId,
     expr_store::{ExpressionStore, path::Path},
-    hir::{ExprId, PatId},
+    hir::{ExprId, PatId, generics::GenericParams},
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -157,6 +158,7 @@ pub enum LifetimeRef {
     Static,
     Placeholder,
     Param(LifetimeParamId),
+    HrtbParam(HrtbLifetimeParamId),
     Error,
 }
 
@@ -198,6 +200,22 @@ impl TypeBound {
             &TypeBound::Path(p, m) => Some((&map[p], m)),
             &TypeBound::ForLifetime(_, p) => Some((&map[p], TraitBoundModifier::None)),
             TypeBound::Lifetime(_) | TypeBound::Error | TypeBound::Use(_) => None,
+        }
+    }
+}
+
+impl LifetimeRef {
+    pub fn is_elided(&self, db: &dyn SourceDatabase) -> bool {
+        match self {
+            LifetimeRef::HrtbParam(_) | LifetimeRef::Placeholder => true,
+            LifetimeRef::Named(name) => name.is_anon_lifetime(), // Ideally, should not be true if it's Named variant
+            LifetimeRef::Param(lifetime_param_id) => {
+                let generics = GenericParams::of(db, lifetime_param_id.parent);
+                let lt_param = &generics.lifetimes[lifetime_param_id.local_id];
+                lt_param.name.is_anon_lifetime()
+            }
+
+            LifetimeRef::Static | LifetimeRef::Error => false,
         }
     }
 }

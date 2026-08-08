@@ -2337,7 +2337,7 @@ impl<'db> HirDisplay<'db> for Region<'db> {
                     write!(f, "'_")
                 }
             }
-            RegionKind::ReErased => write!(f, "'<erased>"),
+            RegionKind::ReErased => write!(f, "'_"),
             RegionKind::RePlaceholder(_) => write!(f, "'<placeholder>"),
             RegionKind::ReLateParam(_) => write!(f, "'_"),
         }
@@ -2429,6 +2429,7 @@ impl<'db> HirDisplayWithExpressionStore<'db> for LifetimeRefId {
             LifetimeRef::Static => write!(f, "'static"),
             LifetimeRef::Placeholder => write!(f, "'_"),
             LifetimeRef::Error => write!(f, "'{{error}}"),
+            LifetimeRef::HrtbParam(_) => write!(f, "'_"), // FIXME: find a way to display HRTB param as well
             &LifetimeRef::Param(lifetime_param_id) => {
                 let generic_params = GenericParams::of(f.db, lifetime_param_id.parent);
                 write!(
@@ -2501,7 +2502,9 @@ impl<'db> HirDisplayWithExpressionStore<'db> for TypeRefId {
                     hir_def::type_ref::Mutability::Mut => "mut ",
                 };
                 write!(f, "&")?;
-                if let Some(lifetime) = &ref_.lifetime {
+                if let Some(lifetime) = &ref_.lifetime
+                    && !store[*lifetime].is_elided(f.db)
+                {
                     lifetime.hir_fmt(f, owner, store)?;
                     write!(f, " ")?;
                 }
