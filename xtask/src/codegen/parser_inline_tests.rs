@@ -104,7 +104,7 @@ fn install_tests(tests: &HashMap<String, Test>, tests_dir: PathBuf, check: bool)
     }
     let existing = existing_tests(&tests_dir, TestKind::Ok)?;
     if let Some((t, (path, _))) = existing.iter().find(|&(t, _)| !tests.contains_key(t)) {
-        panic!("Test `{t}` is deleted: {}", path.display());
+        panic!("Test `{t}` is deleted: {}\nIf this is intended, delete the file", path.display());
     }
 
     let mut some_file_was_updated = false;

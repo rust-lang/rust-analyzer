@@ -114,13 +114,13 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 25: expected `:`
-error 25: expected COMMA
-error 42: expected SEMICOLON
+error 25: expected `,`
+error 42: expected `;`
 error 52: expected `:`
-error 52: expected COMMA
-error 69: expected SEMICOLON
+error 52: expected `,`
+error 69: expected `;`
 error 83: expected `:`
-error 83: expected COMMA
-error 88: expected SEMICOLON
+error 83: expected `,`
+error 88: expected `;`
 error 98: expected `:`
-error 98: expected COMMA
+error 98: expected `,`

@@ -96,12 +96,12 @@ SOURCE_FILE
         WHITESPACE "\n"
         R_CURLY "}"
   WHITESPACE "\n"
-error 27: expected SEMICOLON
+error 27: expected `;`
 error 52: expected pattern
-error 52: expected SEMICOLON
+error 52: expected `;`
 error 78: expected pattern
-error 78: expected SEMICOLON
+error 78: expected `;`
 error 101: expected pattern
-error 101: expected SEMICOLON
+error 101: expected `;`
 error 127: expected pattern
-error 127: expected SEMICOLON
+error 127: expected `;`

@@ -29,4 +29,4 @@ SOURCE_FILE
         WHITESPACE " "
         R_CURLY "}"
   WHITESPACE "\n"
-error 27: expected SEMICOLON
+error 27: expected `;`

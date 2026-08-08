@@ -21,6 +21,12 @@ const PAT_TOP_FIRST: TokenSet = PATTERN_FIRST.union(TokenSet::new(&[T![|]]));
 const RANGE_PAT_END_FIRST: TokenSet =
     expressions::LITERAL_FIRST.union(paths::PATH_FIRST).union(TokenSet::new(&[T![-], T![const]]));
 
+pub(crate) const PAT_RECOVERY_SET: TokenSet =
+    TokenSet::new(&[T![')'], T![']'], T!['}'], T![,], T![=], T![:], T![in]])
+        // Useful when people start out typing a new `let pat` in front of a statement
+        .union(items::ITEM_RECOVERY_SET)
+        .union(expressions::ATOM_EXPR_FIRST);
+
 /// Parses a pattern list separated by pipes `|`.
 pub(crate) fn pattern(p: &mut Parser<'_>) {
     pattern_r(p, PAT_RECOVERY_SET);
@@ -64,6 +70,11 @@ fn pattern_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
 }
 
 fn pattern_single_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
+    if !p.at_ts(PATTERN_FIRST) {
+        p.err_recover("expected pattern", recovery_set);
+        return;
+    }
+
     // test range_pat
     // fn main() {
     //     match 92 {
@@ -102,7 +113,7 @@ fn pattern_single_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
     if p.at(T![..=]) {
         let m = p.start();
         p.bump(T![..=]);
-        atom_pat(p, recovery_set);
+        atom_pat(p);
         m.complete(p, RANGE_PAT);
         return;
     }
@@ -145,7 +156,7 @@ fn pattern_single_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
         let m = p.start();
         p.bump(T![..]);
         if p.at_ts(RANGE_PAT_END_FIRST) {
-            atom_pat(p, recovery_set);
+            atom_pat(p);
             m.complete(p, RANGE_PAT);
         } else {
             m.complete(p, REST_PAT);
@@ -153,7 +164,7 @@ fn pattern_single_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
         return;
     }
 
-    if let Some(lhs) = atom_pat(p, recovery_set) {
+    if let Some(lhs) = atom_pat(p) {
         for range_op in [T![...], T![..=], T![..]] {
             if p.at(range_op) {
                 let m = lhs.precede(p);
@@ -191,7 +202,7 @@ fn pattern_single_r(p: &mut Parser<'_>, recovery_set: TokenSet) {
                     //     }
                     // }
                 } else {
-                    atom_pat(p, recovery_set);
+                    atom_pat(p);
                 }
                 m.complete(p, RANGE_PAT);
                 return;
@@ -217,21 +228,7 @@ fn builtin_pat(p: &mut Parser<'_>) -> Option<CompletedMarker> {
     }
 }
 
-const PAT_RECOVERY_SET: TokenSet = TokenSet::new(&[
-    T![let],
-    T![if],
-    T![while],
-    T![loop],
-    T![match],
-    T![')'],
-    T![']'],
-    T!['}'],
-    T![,],
-    T![=],
-    T![&],
-]);
-
-fn atom_pat(p: &mut Parser<'_>, recovery_set: TokenSet) -> Option<CompletedMarker> {
+fn atom_pat(p: &mut Parser<'_>) -> Option<CompletedMarker> {
     if p.at_contextual_kw(T![builtin]) && p.nth_at(1, T![#]) {
         return builtin_pat(p);
     }
@@ -260,7 +257,7 @@ fn atom_pat(p: &mut Parser<'_>, recovery_set: TokenSet) -> Option<CompletedMarke
         T![!] => not_null_pat(p),
 
         _ => {
-            p.err_recover("expected pattern", recovery_set);
+            p.err_and_bump("expected pattern");
             return None;
         }
     };

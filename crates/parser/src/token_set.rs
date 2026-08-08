@@ -4,7 +4,7 @@ use crate::SyntaxKind;
 
 /// A bit-set of `SyntaxKind`s
 #[derive(Clone, Copy)]
-pub(crate) struct TokenSet([u64; 3]);
+pub struct TokenSet([u64; 3]);
 
 /// `TokenSet`s should only include token `SyntaxKind`s, so the discriminant of any passed/included
 /// `SyntaxKind` must *not* be greater than that of the last token `SyntaxKind`.
@@ -12,9 +12,9 @@ pub(crate) struct TokenSet([u64; 3]);
 const LAST_TOKEN_KIND_DISCRIMINANT: usize = SyntaxKind::SHEBANG as usize;
 
 impl TokenSet {
-    pub(crate) const EMPTY: TokenSet = TokenSet([0; 3]);
+    pub const EMPTY: TokenSet = TokenSet([0; 3]);
 
-    pub(crate) const fn new(kinds: &[SyntaxKind]) -> TokenSet {
+    pub const fn new(kinds: &[SyntaxKind]) -> TokenSet {
         let mut res = [0; 3];
         let mut i = 0;
         while i < kinds.len() {
@@ -30,11 +30,19 @@ impl TokenSet {
         TokenSet(res)
     }
 
-    pub(crate) const fn union(self, other: TokenSet) -> TokenSet {
+    pub const fn union(self, other: TokenSet) -> TokenSet {
         TokenSet([self.0[0] | other.0[0], self.0[1] | other.0[1], self.0[2] | other.0[2]])
     }
 
-    pub(crate) const fn contains(&self, kind: SyntaxKind) -> bool {
+    pub const fn intersection(self, other: TokenSet) -> TokenSet {
+        TokenSet([self.0[0] & other.0[0], self.0[1] & other.0[1], self.0[2] & other.0[2]])
+    }
+
+    pub const fn difference(self, other: TokenSet) -> TokenSet {
+        TokenSet([self.0[0] & !other.0[0], self.0[1] & !other.0[1], self.0[2] & !other.0[2]])
+    }
+
+    pub const fn contains(&self, kind: SyntaxKind) -> bool {
         let discriminant = kind as usize;
         debug_assert!(
             discriminant <= LAST_TOKEN_KIND_DISCRIMINANT,

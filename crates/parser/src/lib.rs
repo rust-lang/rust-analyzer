@@ -44,7 +44,7 @@ pub use T_ as T;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use token_set::TokenSet;
+pub use token_set::TokenSet;
 
 pub use edition::Edition;
 
