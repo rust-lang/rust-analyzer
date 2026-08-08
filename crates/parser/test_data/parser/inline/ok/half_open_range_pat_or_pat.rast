@@ -1,0 +1,44 @@
+SOURCE_FILE
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "main"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE "\n    "
+        LET_STMT
+          LET_KW "let"
+          WHITESPACE " "
+          REF_PAT
+            AMP "&"
+            PAREN_PAT
+              L_PAREN "("
+              OR_PAT
+                RANGE_PAT
+                  LITERAL_PAT
+                    LITERAL
+                      INT_NUMBER "0"
+                  DOT2 ".."
+                WHITESPACE " "
+                PIPE "|"
+                WHITESPACE " "
+                WILDCARD_PAT
+                  UNDERSCORE "_"
+              R_PAREN ")"
+          WHITESPACE " "
+          EQ "="
+          WHITESPACE " "
+          REF_EXPR
+            AMP "&"
+            LITERAL
+              INT_NUMBER "0_i32"
+          SEMICOLON ";"
+        WHITESPACE "\n"
+        R_CURLY "}"
+  WHITESPACE "\n"

@@ -352,6 +352,10 @@ mod ok {
         run_and_expect_no_errors("test_data/parser/inline/ok/half_open_range_pat.rs");
     }
     #[test]
+    fn half_open_range_pat_or_pat() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/half_open_range_pat_or_pat.rs");
+    }
+    #[test]
     fn if_expr() { run_and_expect_no_errors("test_data/parser/inline/ok/if_expr.rs"); }
     #[test]
     fn impl_item() { run_and_expect_no_errors("test_data/parser/inline/ok/impl_item.rs"); }
