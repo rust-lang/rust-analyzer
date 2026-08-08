@@ -162,7 +162,7 @@ pub enum DefaultMethods {
 
 pub fn filter_assoc_items(
     sema: &Semantics<'_, RootDatabase>,
-    items: &[hir::AssocItem],
+    items: &[hir::AssocItem<'_>],
     default_methods: DefaultMethods,
     ignore_items: IgnoreAssocItems,
 ) -> Vec<InFile<ast::AssocItem>> {
@@ -226,14 +226,14 @@ pub fn filter_assoc_items(
 /// then inserts into `impl_`. Returns the modified `impl_` and the first associated item that got
 /// inserted.
 #[must_use]
-pub fn add_trait_assoc_items_to_impl(
+pub fn add_trait_assoc_items_to_impl<'db>(
     make: &SyntaxFactory,
-    sema: &Semantics<'_, RootDatabase>,
+    sema: &Semantics<'db, RootDatabase>,
     config: &AssistConfig,
     original_items: &[InFile<ast::AssocItem>],
     trait_: hir::Trait,
     impl_: &ast::Impl,
-    target_scope: &hir::SemanticsScope<'_>,
+    target_scope: &hir::SemanticsScope<'db>,
 ) -> Vec<ast::AssocItem> {
     let new_indent_level = IndentLevel::from_node(impl_.syntax()) + 1;
     original_items

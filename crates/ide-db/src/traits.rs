@@ -24,7 +24,7 @@ pub fn resolve_target_trait(
 pub fn get_missing_assoc_items(
     sema: &Semantics<'_, RootDatabase>,
     impl_def: &ast::Impl,
-) -> Vec<hir::AssocItem> {
+) -> Vec<hir::AssocItem<'static>> {
     let imp = match sema.to_def(impl_def) {
         Some(it) => it,
         None => return vec![],
@@ -113,7 +113,7 @@ pub(crate) fn as_trait_assoc_def<'db>(
 
 fn assoc_item_of_trait<'db>(
     db: &dyn HirDatabase,
-    assoc: hir::AssocItem,
+    assoc: hir::AssocItem<'_>,
     trait_: hir::Trait,
 ) -> Option<Definition<'db>> {
     use hir::AssocItem::*;
