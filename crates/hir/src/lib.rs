@@ -1162,6 +1162,14 @@ pub enum StructKind {
     Unit,
 }
 
+/// Fields are always listed in declaration order and are always complete, so a caller can pair
+/// them up with [`Variant::fields`] to render them.
+///
+/// `hir-ide`'s version of this type names variants by `VariantId`, which `hir` cannot expose in
+/// its public API; this alias instantiates it with [`Variant`] instead, via `map_variant`, rather
+/// than `hir` declaring the same tree shape a second time.
+pub type UncoveredPattern = hir_ide::diagnostics::UncoveredPattern<Variant>;
+
 /// Variants inherit visibility from the parent enum.
 impl HasVisibility for EnumVariant {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
