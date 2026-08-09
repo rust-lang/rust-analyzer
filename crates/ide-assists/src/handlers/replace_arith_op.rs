@@ -31,6 +31,28 @@ pub(crate) fn replace_arith_with_checked(
     replace_arith(acc, ctx, ArithKind::Checked)
 }
 
+// Assist: replace_arith_with_strict
+//
+// Replaces arithmetic on integers with the `strict_*` equivalent.
+//
+// ```
+// fn main() {
+//   let x = 1 $0+ 2;
+// }
+// ```
+// ->
+// ```
+// fn main() {
+//   let x = 1.strict_add(2);
+// }
+// ```
+pub(crate) fn replace_arith_with_strict(
+    acc: &mut Assists,
+    ctx: &AssistContext<'_, '_>,
+) -> Option<()> {
+    replace_arith(acc, ctx, ArithKind::Strict)
+}
+
 // Assist: replace_arith_with_saturating
 //
 // Replaces arithmetic on integers with the `saturating_*` equivalent.
@@ -139,6 +161,7 @@ pub(crate) enum ArithKind {
     Saturating,
     Wrapping,
     Checked,
+    Strict,
 }
 
 impl ArithKind {
@@ -147,6 +170,7 @@ impl ArithKind {
             ArithKind::Saturating => "replace_arith_with_saturating",
             ArithKind::Checked => "replace_arith_with_checked",
             ArithKind::Wrapping => "replace_arith_with_wrapping",
+            ArithKind::Strict => "replace_arith_with_strict",
         };
 
         AssistId::refactor_rewrite(s)
@@ -157,6 +181,7 @@ impl ArithKind {
             ArithKind::Saturating => "Replace arithmetic with call to saturating_*",
             ArithKind::Checked => "Replace arithmetic with call to checked_*",
             ArithKind::Wrapping => "Replace arithmetic with call to wrapping_*",
+            ArithKind::Strict => "Replace arithmetic with call to strict_*",
         }
     }
 
@@ -165,6 +190,7 @@ impl ArithKind {
             ArithKind::Checked => "checked_",
             ArithKind::Wrapping => "wrapping_",
             ArithKind::Saturating => "saturating_",
+            ArithKind::Strict => "strict_",
         };
 
         let suffix = match op {
@@ -202,6 +228,23 @@ fn main() {
             r#"
 fn main() {
     let x = 1.checked_add(2);
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn replace_arith_with_strict_add() {
+        check_assist(
+            replace_arith_with_strict,
+            r#"
+fn main() {
+    let x = 1 $0+ 2;
+}
+"#,
+            r#"
+fn main() {
+    let x = 1.strict_add(2);
 }
 "#,
         )
