@@ -37,17 +37,31 @@ impl<'a> LexedStr<'a> {
     pub fn new(edition: Edition, text: &'a str) -> LexedStr<'a> {
         let _p = tracing::info_span!("LexedStr::new").entered();
         let mut conv = Converter::new(edition, text);
-        if let Ok(script) = crate::frontmatter::ScriptSource::parse(text) {
-            if let Some(shebang) = script.shebang_span() {
-                conv.push(SHEBANG, shebang.end - shebang.start, Vec::new());
+        // Preserve a leading UTF-8 byte order mark as trivia while excluding it from source-file
+        // prefix detection, matching the compiler's behavior and retaining the original offsets.
+        let text = match text.strip_prefix('\u{feff}') {
+            Some(text) => {
+                conv.push(WHITESPACE, '\u{feff}'.len_utf8(), Vec::new());
+                text
             }
+            None => text,
+        };
+
+        if let Ok(script) = crate::frontmatter::ScriptSource::parse(text) {
+            let shebang_end = script.shebang_span().map_or(0, |shebang| {
+                conv.push(SHEBANG, shebang.end - shebang.start, Vec::new());
+                shebang.end
+            });
             if script.frontmatter().is_some() {
-                conv.push(FRONTMATTER, script.content_span().start - conv.offset, Vec::new());
+                conv.push(FRONTMATTER, script.content_span().start - shebang_end, Vec::new());
             }
         } else if let Some(shebang_len) = rustc_lexer::strip_shebang(text) {
             // Leave error reporting to `rustc_lexer`
             conv.push(SHEBANG, shebang_len, Vec::new());
         }
+
+        // Token offsets include the BOM, so continue lexing against the original text.
+        let text = conv.res.text;
 
         // Re-create the tokenizer from scratch every token because `GuardedStrPrefix` is one token in the lexer
         // but we want to split it to two in edition <2024.
