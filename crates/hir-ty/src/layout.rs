@@ -45,6 +45,7 @@ impl rustc_index::Idx for RustcFieldIdx {
 pub type Layout = LayoutData<RustcFieldIdx, RustcEnumVariantIdx>;
 pub type TagEncoding = hir_def::layout::TagEncoding<RustcEnumVariantIdx>;
 pub type Variants = hir_def::layout::Variants<RustcFieldIdx, RustcEnumVariantIdx>;
+pub type VariantLayout = hir_def::layout::VariantLayout<RustcFieldIdx>;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LayoutError {

@@ -14,7 +14,7 @@ use span::Edition;
 use crate::{
     TargetFeatures,
     db::HirDatabase,
-    layout::{Layout, RustcEnumVariantIdx, TagEncoding},
+    layout::{Layout, RustcEnumVariantIdx, TagEncoding, VariantLayout},
     lower::SupertraitsInfo,
     mir::{IsSigned, pad16},
 };
@@ -93,17 +93,19 @@ pub fn is_fn_unsafe_to_call(
     }
 }
 
-pub fn detect_variant_from_bytes<'a>(
-    layout: &'a Layout,
+// Even though we clone `layout` in basically all cases, we still take it by reference, because the
+// call sites usually have `Arc<Layout>`, which means they'd need to clone anyway.
+pub fn detect_variant_from_bytes(
+    layout: &Layout,
     db: &dyn HirDatabase,
     target_data_layout: &TargetDataLayout,
     b: &[u8],
     e: EnumId,
-) -> Option<(EnumVariantId, &'a Layout)> {
+) -> Option<(EnumVariantId, VariantLayout)> {
     let (var_id, var_layout) = match &layout.variants {
         hir_def::layout::Variants::Empty => unreachable!(),
         hir_def::layout::Variants::Single { index } => {
-            (e.enum_variants(db).variants[index.0].0, layout)
+            (e.enum_variants(db).variants[index.0].0, VariantLayout::from_layout(layout.clone()))
         }
         hir_def::layout::Variants::Multiple { tag, tag_encoding, variants, .. } => {
             let tag_size = tag.size(target_data_layout);
@@ -117,7 +119,7 @@ pub fn detect_variant_from_bytes<'a>(
                             let def = e.enum_variants(db).variants[var_idx.0].0;
                             (db.const_eval_discriminant(def) == Ok(tag)).then_some((def, v))
                         })?;
-                    (var_idx, layout)
+                    (var_idx, layout.clone())
                 }
                 TagEncoding::Niche { untagged_variant, niche_variants, niche_start } => {
                     // Compute the variant this niche value/"tag" corresponds to. With niche layout,
@@ -155,10 +157,10 @@ pub fn detect_variant_from_bytes<'a>(
                     // Reading the discriminant of an uninhabited variant is UB. This is the basis for the
                     // `uninhabited_enum_branching` MIR pass. It also ensures consistency with
                     // `write_discriminant`.
-                    if variants[variant].uninhabited {
+                    if variants[variant].is_uninhabited() {
                         return None;
                     }
-                    (e.enum_variants(db).variants[variant.0].0, &variants[variant])
+                    (e.enum_variants(db).variants[variant.0].0, variants[variant].clone())
                 }
             }
         }
