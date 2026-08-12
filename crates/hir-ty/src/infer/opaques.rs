@@ -1,13 +1,18 @@
 //! Defining opaque types via inference.
 
-use rustc_type_ir::{TypeVisitableExt, fold_regions};
+use std::ops::ControlFlow;
+
+use rustc_type_ir::{
+    TypeSuperVisitable, TypeVisitable, TypeVisitableExt, fold_regions, inherent::IntoKind,
+};
 use tracing::{debug, instrument};
 
 use crate::{
     Span,
     infer::InferenceContext,
     next_solver::{
-        EarlyBinder, OpaqueTypeKey, SolverDefId, TypingMode,
+        Const, ConstKind, DbInterner, EarlyBinder, GenericArgKind, GenericArgs, OpaqueTypeKey,
+        SolverDefId, Ty, TyKind, TypingMode,
         infer::{opaque_types::OpaqueHiddenType, traits::ObligationCause},
     },
 };
@@ -63,6 +68,39 @@ impl<'db> UsageKind<'db> {
     }
 }
 
+// rejects hidden types with foreign params
+struct ForeignParamChecker<'db> {
+    args: GenericArgs<'db>,
+}
+
+impl<'db> rustc_type_ir::TypeVisitor<DbInterner<'db>> for ForeignParamChecker<'db> {
+    type Result = ControlFlow<()>;
+
+    fn visit_ty(&mut self, ty: Ty<'db>) -> Self::Result {
+        if let TyKind::Param(param) = ty.kind()
+            && !matches!(
+                self.args.get(param.index as usize).map(|arg| arg.kind()),
+                Some(GenericArgKind::Type(_))
+            )
+        {
+            return ControlFlow::Break(());
+        }
+        ty.super_visit_with(self)
+    }
+
+    fn visit_const(&mut self, ct: Const<'db>) -> Self::Result {
+        if let ConstKind::Param(param) = ct.kind()
+            && !matches!(
+                self.args.get(param.index as usize).map(|arg| arg.kind()),
+                Some(GenericArgKind::Const(_))
+            )
+        {
+            return ControlFlow::Break(());
+        }
+        ct.super_visit_with(self)
+    }
+}
+
 impl<'db> InferenceContext<'db> {
     fn compute_definition_site_hidden_types(
         &mut self,
@@ -108,13 +146,9 @@ impl<'db> InferenceContext<'db> {
                         continue;
                     }
 
-                    let expected = if ty.ty.has_param() && opaque_type_key.args.is_empty() {
-                        self.types.types.error
-                    } else {
-                        EarlyBinder::bind(ty.ty)
-                            .instantiate(interner, opaque_type_key.args)
-                            .skip_norm_wip()
-                    };
+                    let expected = EarlyBinder::bind(ty.ty)
+                        .instantiate(interner, opaque_type_key.args)
+                        .skip_norm_wip();
                     _ = self.demand_eqtype_fixme_no_diag(expected, hidden_type.ty);
                 }
 
@@ -150,7 +184,12 @@ impl<'db> InferenceContext<'db> {
         let hidden_type =
             fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
 
-        if hidden_type.ty.has_param() && opaque_type_key.args.is_empty() {
+        // skip uses with foreign params
+        if hidden_type
+            .ty
+            .visit_with(&mut ForeignParamChecker { args: opaque_type_key.args })
+            .is_break()
+        {
             return UsageKind::NonDefiningUse(opaque_type_key, hidden_type);
         }
 

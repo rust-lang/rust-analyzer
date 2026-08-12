@@ -33,6 +33,87 @@ fn test() {
 }
 
 #[test]
+fn regression_23125_atpit_with_method_generics() {
+    check_no_mismatches(
+        r#"
+trait Foo {
+    type Item;
+}
+struct S<T>;
+struct S2;
+impl Foo for S2 {
+    type Item = impl Sized;
+    fn foo<T>(_: T) -> Self::Item {
+        S::<T>
+    }
+}
+"#,
+    );
+}
+
+// added multi-method non-defining test
+#[test]
+fn regression_23125_atpit_method_local_generic_non_defining_use() {
+    check_no_mismatches(
+        r#"
+trait Foo {
+    type Item;
+}
+struct S<T>;
+struct S2;
+impl Foo for S2 {
+    type Item = impl Sized;
+    fn foo<U>(_: U) -> Self::Item {
+        S::<U>
+    }
+    fn bar() -> Self::Item {
+        S::<()>
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn regression_23125_atpit_with_method_generics_impl_generics() {
+    check_no_mismatches(
+        r#"
+trait Foo {
+    type Item;
+}
+struct S<T>;
+struct S2<T>(T);
+impl<T> Foo for S2<T> {
+    type Item = impl Sized;
+    fn foo<U>(_: U) -> Self::Item {
+        S::<U>
+    }
+}
+"#,
+    );
+}
+
+// added impl-generic no-mismatch test
+#[test]
+fn regression_23125_atpit_impl_generics_are_defining_use() {
+    check_no_mismatches(
+        r#"
+trait Foo {
+    type Item;
+}
+struct S<T>;
+struct S2<T>(T);
+impl<T> Foo for S2<T> {
+    type Item = impl Sized;
+    fn foo() -> Self::Item {
+        S::<T>
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn associated_type_impl_traits_complex() {
     check_types(
         r#"
@@ -76,6 +157,29 @@ fn test() {
       //^ Unary<<impl Bar + ?Sized as Bar>::Item>
 }
         "#,
+    );
+}
+
+#[test]
+fn rpit_with_fn_generics_is_defining_use() {
+    check_infer(
+        r#"
+trait Foo {}
+struct S;
+impl Foo for S {}
+struct Wrap<T>(T);
+impl<T> Foo for Wrap<T> {}
+
+fn foo<T>() -> impl Foo {
+    Wrap(T)
+}
+"#,
+        expect![[r#"
+            112..127 '{     Wrap(T) }': Wrap<{unknown}>
+            118..122 'Wrap': fn Wrap<{unknown}>({unknown}) -> Wrap<{unknown}>
+            118..125 'Wrap(T)': Wrap<{unknown}>
+            123..124 'T': {unknown}
+        "#]],
     );
 }
 
