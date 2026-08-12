@@ -108,14 +108,17 @@ impl<'db> InferenceContext<'db> {
                         continue;
                     }
 
-                    let expected = EarlyBinder::bind(ty.ty)
-                        .instantiate(interner, opaque_type_key.args)
-                        .skip_norm_wip();
+                    let expected = if ty.ty.has_param() && opaque_type_key.args.is_empty() {
+                        self.types.types.error
+                    } else {
+                        EarlyBinder::bind(ty.ty)
+                            .instantiate(interner, opaque_type_key.args)
+                            .skip_norm_wip()
+                    };
                     _ = self.demand_eqtype_fixme_no_diag(expected, hidden_type.ty);
                 }
 
                 self.result.type_of_opaque.insert(def_id, ty.ty.store());
-
                 continue;
             }
 
@@ -146,6 +149,11 @@ impl<'db> InferenceContext<'db> {
         };
         let hidden_type =
             fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
+
+        if hidden_type.ty.has_param() && opaque_type_key.args.is_empty() {
+            return UsageKind::NonDefiningUse(opaque_type_key, hidden_type);
+        }
+
         UsageKind::HasDefiningUse(hidden_type)
     }
 }
