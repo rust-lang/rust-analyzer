@@ -373,6 +373,12 @@ pub enum InferenceDiagnostic {
         #[type_visitable(ignore)]
         id: ExprOrPatIdPacked,
     },
+    UnresolvedRecordExpr {
+        #[type_visitable(ignore)]
+        expr: ExprId,
+        #[type_visitable(ignore)]
+        name: Name,
+    },
     // FIXME: This should be emitted in body lowering
     BreakOutsideOfLoop {
         #[type_visitable(ignore)]

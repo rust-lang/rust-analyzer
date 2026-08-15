@@ -100,6 +100,7 @@ mod handlers {
     pub(crate) mod unresolved_macro_call;
     pub(crate) mod unresolved_method;
     pub(crate) mod unresolved_module;
+    pub(crate) mod unresolved_record_expr;
     pub(crate) mod unused_must_use;
     pub(crate) mod yield_outside_coroutine;
 
@@ -511,6 +512,7 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::UnresolvedMacroCall(d) => handlers::unresolved_macro_call::unresolved_macro_call(&ctx, &d),
             AnyDiagnostic::UnresolvedMethodCall(d) => handlers::unresolved_method::unresolved_method(&ctx, &d),
             AnyDiagnostic::UnresolvedModule(d) => handlers::unresolved_module::unresolved_module(&ctx, &d),
+            AnyDiagnostic::UnresolvedRecordExpr(d) => handlers::unresolved_record_expr::unresolved_record_expr(&ctx, &d),
             AnyDiagnostic::UnusedMustUse(d) => handlers::unused_must_use::unused_must_use(&ctx, &d),
             AnyDiagnostic::BreakOutsideOfLoop(d) => handlers::break_outside_of_loop::break_outside_of_loop(&ctx, &d),
             AnyDiagnostic::MismatchedTupleStructPatArgCount(d) => handlers::mismatched_arg_count::mismatched_tuple_struct_pat_arg_count(&ctx, &d),

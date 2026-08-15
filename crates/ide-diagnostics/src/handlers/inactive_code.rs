@@ -72,6 +72,8 @@ fn f() {
     fn abc() {}
     abc(#[cfg(a)] 0);
       //^^^^^^^^^^^ weak: code is inactive due to #[cfg] directives: a is disabled
+
+    struct Struct {}
     let x = Struct {
         #[cfg(a)] f: 0,
       //^^^^^^^^^^^^^^ weak: code is inactive due to #[cfg] directives: a is disabled
