@@ -158,58 +158,92 @@ export function execute(command: string, options: ExecOptionsWithStringEncoding)
     });
 }
 
-export class LazyOutputChannel implements vscode.OutputChannel {
-    constructor(name: string) {
-        this.name = name;
-    }
+export class LazyOutputChannel implements vscode.LogOutputChannel {
+	constructor(name: string) {
+		this.name = name;
+	}
+	name: string;
+	_channel: vscode.LogOutputChannel | undefined;
 
-    name: string;
-    _channel: vscode.OutputChannel | undefined;
+	get channel(): vscode.LogOutputChannel {
+		if (!this._channel) {
+			this._channel = vscode.window.createOutputChannel(this.name, { log: true });
+		}
+		return this._channel;
+	}
+	get logLevel(): vscode.LogLevel {
+		return this.channel.logLevel;
+	}
+	get onDidChangeLogLevel(): vscode.Event<vscode.LogLevel> {
+		return this.channel.onDidChangeLogLevel;
+	}
 
-    get channel(): vscode.OutputChannel {
-        if (!this._channel) {
-            this._channel = vscode.window.createOutputChannel(this.name);
-        }
-        return this._channel;
-    }
+	// biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+	trace(message: string, ...args: any[]): void {
+		this.channel.trace(message, ...args);
+	}
 
-    append(value: string): void {
-        this.channel.append(value);
-    }
+	// biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+	debug(message: string, ...args: any[]): void {
+		this.channel.debug(message, ...args);
+	}
 
-    appendLine(value: string): void {
-        this.channel.appendLine(value);
-    }
+	// biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+	info(message: string, ...args: any[]): void {
+		this.channel.info(message, ...args);
+	}
 
-    replace(value: string): void {
-        this.channel.replace(value);
-    }
+	// biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+	warn(message: string, ...args: any[]): void {
+		this.channel.warn(message, ...args);
+	}
 
-    clear(): void {
-        if (this._channel) {
-            this._channel.clear();
-        }
-    }
+	// biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+	error(error: string | Error, ...args: any[]): void {
+		this.channel.error(error, ...args);
+	}
 
-    show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-        if (typeof columnOrPreserveFocus === "boolean") {
-            this.channel.show(columnOrPreserveFocus);
-        } else {
-            this.channel.show(columnOrPreserveFocus, preserveFocus);
-        }
-    }
+	append(value: string): void {
+		this.channel.append(value);
+	}
 
-    hide(): void {
-        if (this._channel) {
-            this._channel.hide();
-        }
-    }
+	appendLine(value: string): void {
+		this.channel.appendLine(value);
+	}
 
-    dispose(): void {
-        if (this._channel) {
-            this._channel.dispose();
-        }
-    }
+	replace(value: string): void {
+		this.channel.replace(value);
+	}
+
+	clear(): void {
+		if (this._channel) {
+			this._channel.clear();
+		}
+	}
+
+	show(preserveFocus?: boolean): void;
+	show(column: vscode.ViewColumn, preserveFocus?: boolean): void;
+	show(arg1?: boolean | vscode.ViewColumn, arg2?: boolean): void {
+		let preserveFocus: boolean;
+		if (typeof arg1 === "boolean") {
+			preserveFocus = arg1;
+		} else {
+			preserveFocus = arg2 === true;
+		}
+		this.channel.show(preserveFocus);
+	}
+
+	hide(): void {
+		if (this._channel) {
+			this._channel.hide();
+		}
+	}
+
+	dispose(): void {
+		if (this._channel) {
+			this._channel.dispose();
+		}
+	}
 }
 
 export type NotNull<T> = T extends null ? never : T;
