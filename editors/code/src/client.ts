@@ -2,7 +2,7 @@ import anser from "anser";
 import * as lc from "vscode-languageclient/node";
 import * as vscode from "vscode";
 import * as ra from "../src/lsp_ext";
-import * as Is from "vscode-languageclient/lib/common/utils/is";
+import * as Is from "./is";
 import { assert } from "./util";
 import * as diagnostics from "./diagnostics";
 import { WorkspaceEdit } from "vscode";
