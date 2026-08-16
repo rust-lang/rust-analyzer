@@ -167,7 +167,9 @@ export class LazyOutputChannel implements vscode.LogOutputChannel {
     constructor(name: string) {
         this.name = name;
     }
+
     name: string;
+
     _channel: vscode.LogOutputChannel | undefined;
 
     get channel(): vscode.LogOutputChannel {
@@ -176,34 +178,36 @@ export class LazyOutputChannel implements vscode.LogOutputChannel {
         }
         return this._channel;
     }
+
     get logLevel(): vscode.LogLevel {
         return this.channel.logLevel;
     }
+
     get onDidChangeLogLevel(): vscode.Event<vscode.LogLevel> {
         return this.channel.onDidChangeLogLevel;
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     trace(message: string, ...args: any[]): void {
         this.channel.trace(message, ...args);
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     debug(message: string, ...args: any[]): void {
         this.channel.debug(message, ...args);
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     info(message: string, ...args: any[]): void {
         this.channel.info(message, ...args);
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     warn(message: string, ...args: any[]): void {
         this.channel.warn(message, ...args);
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: Signature comes from upstream
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     error(error: string | Error, ...args: any[]): void {
         this.channel.error(error, ...args);
     }
