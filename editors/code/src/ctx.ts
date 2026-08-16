@@ -81,8 +81,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
     private unlinkedFiles: vscode.Uri[];
     private _dependenciesProvider: RustDependenciesProvider | undefined;
     private _dependencyTreeView:
-        | vscode.TreeView<Dependency | DependencyFile | DependencyId>
-        | undefined;
+        vscode.TreeView<Dependency | DependencyFile | DependencyId> | undefined;
 
     private _syntaxTreeProvider: SyntaxTreeProvider | undefined;
     private _syntaxTreeView: vscode.TreeView<SyntaxElement> | undefined;
@@ -273,23 +272,26 @@ export class Ctx implements RustAnalyzerExtensionApi {
         return this._client;
     }
 
-	private getOutputChannel(): vscode.LogOutputChannel {
-		if (!this.outputChannel) {
-			this.outputChannel = vscode.window.createOutputChannel("rust-analyzer Language Server", {
-				log: true,
-			});
-			this.pushExtCleanup(this.outputChannel);
-		}
-		return this.outputChannel;
-	}
+    private getOutputChannel(): vscode.LogOutputChannel {
+        if (!this.outputChannel) {
+            this.outputChannel = vscode.window.createOutputChannel(
+                "rust-analyzer Language Server",
+                {
+                    log: true,
+                },
+            );
+            this.pushExtCleanup(this.outputChannel);
+        }
+        return this.outputChannel;
+    }
 
-	private getTraceOutputChannel(): vscode.LogOutputChannel {
-		if (!this.traceOutputChannel) {
-			this.traceOutputChannel = new LazyOutputChannel("rust-analyzer Language Server Trace");
-			this.pushExtCleanup(this.traceOutputChannel);
-		}
-		return this.traceOutputChannel;
-	}
+    private getTraceOutputChannel(): vscode.LogOutputChannel {
+        if (!this.traceOutputChannel) {
+            this.traceOutputChannel = new LazyOutputChannel("rust-analyzer Language Server Trace");
+            this.pushExtCleanup(this.traceOutputChannel);
+        }
+        return this.traceOutputChannel;
+    }
 
     private async bootstrap(): Promise<string> {
         return bootstrap(this.extCtx, this.config, this.state).catch((err) => {

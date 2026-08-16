@@ -11,7 +11,7 @@ import { sep as pathSeparator } from "path";
 import { RaLanguageClient } from "./lang_client";
 
 export async function createClient(
-	traceOutputChannel: vscode.LogOutputChannel,
+    traceOutputChannel: vscode.LogOutputChannel,
     outputChannel: vscode.LogOutputChannel,
     initializationOptions: lc.LanguageClientOptions["initializationOptions"],
     serverOptions: lc.ServerOptions,

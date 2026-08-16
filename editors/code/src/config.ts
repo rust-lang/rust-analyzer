@@ -14,13 +14,7 @@ export type RunnableEnvCfgItem = {
 
 export type ConfigurationTree = { [key: string]: ConfigurationValue };
 export type ConfigurationValue =
-    | undefined
-    | null
-    | boolean
-    | number
-    | string
-    | ConfigurationValue[]
-    | ConfigurationTree;
+    undefined | null | boolean | number | string | ConfigurationValue[] | ConfigurationTree;
 
 type ShowStatusBar = "always" | "never" | { documentSelector: vscode.DocumentSelector };
 

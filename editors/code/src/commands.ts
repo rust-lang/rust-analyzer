@@ -4,10 +4,7 @@ import * as ra from "./lsp_ext";
 import * as path from "path";
 
 import type { Ctx, Cmd, CtxInit } from "./ctx";
-import {
-    applySnippetWorkspaceEdit,
-    applySnippetTextEdits,
-} from "./snippets";
+import { applySnippetWorkspaceEdit, applySnippetTextEdits } from "./snippets";
 import {
     type RunnableQuickPick,
     selectRunnable,
@@ -1114,20 +1111,20 @@ export function runFlycheck(ctx: CtxInit): Cmd {
 }
 
 export function resolveCodeAction(ctx: CtxInit): Cmd {
-	return async (params: lc.CodeAction) => {
-		const client = ctx.client;
-		params.command = undefined;
-		const item = await client.sendRequest(lc.CodeActionResolveRequest.type, params);
-		if (!item?.edit) {
-			return;
-		}
-		const workspaceEdit = await client.protocol2CodeConverter.asWorkspaceEdit(item.edit);
-		await vscode.workspace.applyEdit(workspaceEdit);
+    return async (params: lc.CodeAction) => {
+        const client = ctx.client;
+        params.command = undefined;
+        const item = await client.sendRequest(lc.CodeActionResolveRequest.type, params);
+        if (!item?.edit) {
+            return;
+        }
+        const workspaceEdit = await client.protocol2CodeConverter.asWorkspaceEdit(item.edit);
+        await vscode.workspace.applyEdit(workspaceEdit);
 
-		if (item.command !== undefined) {
-			await vscode.commands.executeCommand(item.command.command, item.command.arguments);
-		}
-	};
+        if (item.command !== undefined) {
+            await vscode.commands.executeCommand(item.command.command, item.command.arguments);
+        }
+    };
 }
 
 export function applySnippetWorkspaceEditCommand(_ctx: CtxInit): Cmd {

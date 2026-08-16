@@ -11,7 +11,7 @@
         "newLine": "lf",
         // FIXME: https://github.com/rust-lang/rust-analyzer/issues/15253
         "exactOptionalPropertyTypes": false,
-		"types": ["@types/node"]
+        "types": ["@types/node"]
     },
     "exclude": ["node_modules", ".vscode-test", "out"],
     "include": ["src", "tests"]
