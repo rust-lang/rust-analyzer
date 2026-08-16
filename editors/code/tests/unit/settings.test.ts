@@ -1,6 +1,6 @@
 import * as assert from "assert";
-import type { Context } from ".";
 import { substituteVariablesInEnv } from "../../src/config";
+import type { Context } from ".";
 
 export async function getTests(ctx: Context) {
     await ctx.suite("Server Env Settings", (suite) => {

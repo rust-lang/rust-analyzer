@@ -1,10 +1,10 @@
-import * as Is from "vscode-languageclient/lib/common/utils/is";
+import { cloneDeep, get, pickBy, set } from "lodash";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
-import { expectNotUndefined, log, normalizeDriveLetter, unwrapUndefinable } from "./util";
+import * as Is from "vscode-languageclient/lib/common/utils/is";
 import type { Env } from "./util";
-import { cloneDeep, get, pickBy, set } from "lodash";
+import { expectNotUndefined, log, normalizeDriveLetter, unwrapUndefinable } from "./util";
 
 export type RunnableEnvCfgItem = {
     mask?: string;
