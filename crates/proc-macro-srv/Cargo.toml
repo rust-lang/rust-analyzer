@@ -15,8 +15,12 @@ doctest = false
 [dependencies]
 paths.workspace = true
 # span = {workspace = true, default-features = false} does not work
-span = { path = "../span", version = "0.0.0", default-features = false}
+span = { path = "../span", version = "0.0.0", default-features = false }
 intern.workspace = true
+tt = { path = "../tt", version = "0.0.0", default-features = false }
+proc-macro-api = { path = "../proc-macro-api", version = "0.0.0", default-features = false, features = [
+    "in-proc-macro-srv",
+] }
 stdx.workspace = true
 
 [dev-dependencies]
@@ -28,10 +32,10 @@ proc-macro-test.path = "./proc-macro-test"
 
 [features]
 default = []
-in-rust-tree = []
+in-rust-tree = ["tt/in-rust-tree", "proc-macro-api/in-rust-tree"]
 
 [lints]
 workspace = true
 
 [package.metadata.rust-analyzer]
-rustc_private=true
+rustc_private = true
