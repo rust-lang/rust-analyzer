@@ -2,6 +2,7 @@
 
 mod proc_macros;
 
+use proc_macro_api::token_stream::TokenStream;
 use rustc_codegen_ssa::back::metadata::DefaultMetadataLoader;
 use rustc_interface::util::rustc_version_str;
 use rustc_proc_macro::bridge;
@@ -12,7 +13,7 @@ use paths::{Utf8Path, Utf8PathBuf};
 
 use crate::{
     PanicMessage, ProcMacroClientHandle, ProcMacroKind, ProcMacroSrvSpan, TrackedEnv,
-    dylib::proc_macros::ProcMacros, token_stream::TokenStream,
+    dylib::proc_macros::ProcMacros,
 };
 
 pub(crate) struct Expander {
