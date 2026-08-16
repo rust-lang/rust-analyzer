@@ -22,7 +22,6 @@
         }
     },
     "linter": {
-        "includes": ["**", "!out/", "!.vscode-test/", "!node_modules/"],
         "rules": {
             "preset": "recommended",
             "complexity": {
