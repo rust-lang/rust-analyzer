@@ -10,7 +10,8 @@
         "rootDir": ".",
         "newLine": "lf",
         // FIXME: https://github.com/rust-lang/rust-analyzer/issues/15253
-        "exactOptionalPropertyTypes": false
+        "exactOptionalPropertyTypes": false,
+		"types": ["@types/node"]
     },
     "exclude": ["node_modules", ".vscode-test", "out"],
     "include": ["src", "tests"]
