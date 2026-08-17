@@ -4441,3 +4441,15 @@ where
 "#,
     );
 }
+
+#[test]
+fn anon_consts_generic_params() {
+    check_types(
+        r#"
+struct Foo<const N: usize> {
+    a: usize = { {}; N },
+                  // ^ usize
+}
+    "#,
+    );
+}
