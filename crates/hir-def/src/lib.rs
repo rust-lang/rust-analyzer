@@ -258,7 +258,41 @@ type FunctionLoc = AssocItemLoc<ast::Fn>;
 impl_intern!(FunctionId, FunctionLoc);
 
 type StructLoc = ItemLoc<ast::Struct>;
-impl_intern!(StructId, StructLoc);
+
+#[salsa::tracked(constructor = new_)]
+#[derive(PartialOrd, Ord)]
+pub struct StructIdLt<'db> {
+    #[returns(ref)]
+    pub loc: StructLoc,
+}
+pub type StructId = StructIdLt<'static>;
+
+impl fmt::Debug for StructIdLt<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("StructId").field(&format_args!("{:04x}", self.0.index())).finish()
+    }
+}
+
+impl<'db> StructIdLt<'db> {
+    pub(crate) fn new(db: &'db dyn SourceDatabase, loc: StructLoc) -> Self {
+        StructIdLt::new_(db, loc)
+    }
+
+    /// # Safety
+    ///
+    /// The caller must ensure that the `StructId` is not leaked outside of query computations.
+    pub(crate) unsafe fn to_static(self) -> StructId {
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl Lookup for StructId {
+    type Data = StructLoc;
+
+    fn lookup<'db>(&self, db: &'db dyn SourceDatabase) -> &'db Self::Data {
+        self.loc(db)
+    }
+}
 
 impl StructId {
     pub fn fields(self, db: &dyn SourceDatabase) -> &VariantFields {
