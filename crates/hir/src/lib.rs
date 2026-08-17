@@ -5167,13 +5167,15 @@ impl_from!(
 );
 
 impl TypeOwnerId<'_> {
-    fn unify(self, other: Self) -> Option<Self> {
-        match (self, other) {
+    fn unify(self, db: &dyn HirDatabase, other: Self) -> Option<Self> {
+        let self_lifted = self.lift_to_generic_base(db);
+        let other_lifted = other.lift_to_generic_base(db);
+        match (self_lifted, other_lifted) {
             (TypeOwnerId::NoParams(_), owner) => Some(owner),
             (owner, TypeOwnerId::NoParams(_)) => Some(owner),
             (_, _) => {
-                if self == other {
-                    Some(self)
+                if self_lifted == other_lifted {
+                    Some(self_lifted)
                 } else {
                     None
                 }
@@ -5181,9 +5183,49 @@ impl TypeOwnerId<'_> {
         }
     }
 
+    fn lift_to_generic_base(self, db: &dyn HirDatabase) -> Self {
+        // Within ConstId and StaticId definitions, which can't introduce additional generic
+        // parameters, their container's resolver is used directly (see
+        // crates/hir-def/src/resolver.rs) so resolving something from within a ConstId definitions
+        // RHS has the container as owner, but in other cases Types can be constructed with the
+        // ConstId itself as owner. An alternative to special casing this here would be to ensure
+        // consistent assignment of TypeOwnerId values for ConstId and StaticId definitions, but
+        // would require a less localized change.
+        let self_def = match self {
+            TypeOwnerId::GenericDefId(def) => def,
+            TypeOwnerId::BuiltinDeriveImplId(_) | TypeOwnerId::AnonConstId(_) => return self,
+            TypeOwnerId::NoParams(_) => return self,
+        };
+
+        let generic_base = match self_def {
+            GenericDefId::ConstId(def) => def.loc(db).container,
+            GenericDefId::StaticId(def) => def.loc(db).container,
+            GenericDefId::AdtId(_)
+            | GenericDefId::FunctionId(_)
+            | GenericDefId::ImplId(_)
+            | GenericDefId::TraitId(_)
+            | GenericDefId::TypeAliasId(_) => return self,
+        };
+
+        match generic_base {
+            ItemContainerId::ExternBlockId(extern_block_id) => {
+                TypeOwnerId::NoParams(hir_def::HasModule::krate(&extern_block_id, db))
+            }
+            ItemContainerId::ModuleId(module_id_lt) => {
+                TypeOwnerId::NoParams(hir_def::HasModule::krate(&module_id_lt, db))
+            }
+            ItemContainerId::ImplId(impl_id) => {
+                TypeOwnerId::GenericDefId(GenericDefId::ImplId(impl_id))
+            }
+            ItemContainerId::TraitId(trait_id) => {
+                TypeOwnerId::GenericDefId(GenericDefId::TraitId(trait_id))
+            }
+        }
+    }
+
     #[track_caller]
-    fn must_unify(self, other: Self) -> Self {
-        self.unify(other).expect("failed to unify type owners")
+    fn must_unify(self, db: &dyn HirDatabase, other: Self) -> Self {
+        self.unify(db, other).expect("failed to unify type owners")
     }
 
     fn can_rebase_into(
@@ -5192,10 +5234,13 @@ impl TypeOwnerId<'_> {
         rebase_into: Self,
         self_ty: EarlyBinder<'_, Ty<'_>>,
     ) -> bool {
-        if self == rebase_into || !self_ty.skip_binder().has_param() {
+        let self_lifted = self.lift_to_generic_base(db);
+        let rebase_into_lifted = rebase_into.lift_to_generic_base(db);
+
+        if self_lifted == rebase_into_lifted || !self_ty.skip_binder().has_param() {
             return true;
         }
-        let self_def = match self {
+        let self_def = match self_lifted {
             TypeOwnerId::GenericDefId(def) => def,
             TypeOwnerId::BuiltinDeriveImplId(_) | TypeOwnerId::AnonConstId(_) => return false,
             TypeOwnerId::NoParams(_) => return true,
@@ -5209,7 +5254,7 @@ impl TypeOwnerId<'_> {
             | GenericDefId::StaticId(_)
             | GenericDefId::TypeAliasId(_) => return false,
         };
-        let rebase_into_def = match rebase_into {
+        let rebase_into_def = match rebase_into_lifted {
             TypeOwnerId::GenericDefId(def) => def,
             TypeOwnerId::BuiltinDeriveImplId(_)
             | TypeOwnerId::AnonConstId(_)
@@ -5434,7 +5479,7 @@ impl<'db> Type<'db> {
                 let ty = ty.borrow();
 
                 match &mut owner {
-                    Some(owner) => *owner = owner.must_unify(ty.owner),
+                    Some(owner) => *owner = owner.must_unify(db, ty.owner),
                     None => owner = Some(ty.owner),
                 }
 
@@ -6518,7 +6563,7 @@ impl<'db> Type<'db> {
     /// Note that we consider placeholder types to unify with everything.
     /// For example `Option<T>` and `Option<U>` unify although there is unresolved goal `T = U`.
     pub fn could_unify_with(&self, db: &'db dyn HirDatabase, other: &Type<'db>) -> bool {
-        self.owner.must_unify(other.owner);
+        self.owner.must_unify(db, other.owner);
         let env = self.param_env(db);
         let interner = DbInterner::new_no_crate(db);
         let tys = hir_ty::replace_errors_with_variables(
@@ -6533,7 +6578,7 @@ impl<'db> Type<'db> {
     /// This means that placeholder types are not considered to unify if there are any bounds set on
     /// them. For example `Option<T>` and `Option<U>` do not unify as we cannot show that `T = U`
     pub fn could_unify_with_deeply(&self, db: &'db dyn HirDatabase, other: &Type<'db>) -> bool {
-        self.owner.must_unify(other.owner);
+        self.owner.must_unify(db, other.owner);
         let env = self.param_env(db);
         let interner = DbInterner::new_no_crate(db);
         let tys = hir_ty::replace_errors_with_variables(
@@ -6544,7 +6589,7 @@ impl<'db> Type<'db> {
     }
 
     pub fn could_coerce_to(&self, db: &'db dyn HirDatabase, to: &Type<'db>) -> bool {
-        self.owner.must_unify(to.owner);
+        self.owner.must_unify(db, to.owner);
         let env = self.param_env(db);
         let interner = DbInterner::new_no_crate(db);
         let tys = hir_ty::replace_errors_with_variables(
@@ -7375,7 +7420,7 @@ fn generic_args_from_tys<'db>(
             let arg = arg.borrow();
 
             match &mut owner {
-                Some(owner) => *owner = owner.must_unify(arg.owner),
+                Some(owner) => *owner = owner.must_unify(interner.db(), arg.owner),
                 None => owner = Some(arg.owner),
             }
 
