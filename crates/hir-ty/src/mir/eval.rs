@@ -1569,13 +1569,23 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                 | CastKind::PointerExposeAddress
                 | CastKind::PointerFromExposedAddress => {
                     let current_ty = self.operand_ty(operand, locals)?;
-                    let is_signed = matches!(current_ty.kind(), TyKind::Int(_)).into();
-                    let current = pad16(self.eval_operand(operand, locals)?.get(self)?, is_signed);
+                    let operand_bytes = self.eval_operand(operand, locals)?.get(self)?;
                     let dest_size = self.size_of_sized(
                         target_ty.as_ref(),
                         locals,
                         "destination of int to int cast",
                     )?;
+                    if let TyKind::Adt(adt_def, _) = current_ty.kind()
+                        && let AdtId::EnumId(enum_id) = adt_def.def_id()
+                        && let variants = &enum_id.enum_variants(self.db).variants
+                        && variants.len() == 1
+                    {
+                        // Single-variant enums don't store a discriminant, so read it directly.
+                        let i = self.const_eval_discriminant(variants[0].0)?;
+                        return Ok(Owned(i.to_le_bytes()[0..dest_size].to_vec()));
+                    }
+                    let is_signed = matches!(current_ty.kind(), TyKind::Int(_)).into();
+                    let current = pad16(operand_bytes, is_signed);
                     Owned(current[0..dest_size].to_vec())
                 }
                 CastKind::FloatToInt => {
