@@ -520,6 +520,11 @@ impl DisplayTarget {
         let edition = krate.data(db).edition;
         Self { krate, edition }
     }
+
+    pub fn from_crate_and_edition(db: &dyn HirDatabase, krate: Crate, edition: Edition) -> Self {
+        let _ = db;
+        Self { krate, edition }
+    }
 }
 
 #[derive(Clone, Copy)]
