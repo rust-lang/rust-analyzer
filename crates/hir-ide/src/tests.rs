@@ -1,10 +1,15 @@
+mod builtin_derives;
 mod closure_captures;
 mod coercion;
+mod consteval;
 mod diagnostics;
 mod display_source_code;
+mod dyn_compatibility;
 mod incremental;
+mod layout;
 mod macros;
 mod method_resolution;
+mod mir;
 mod never_type;
 mod opaque_types;
 mod patterns;
@@ -12,6 +17,7 @@ mod regression;
 mod simple;
 mod trait_aliases;
 mod traits;
+mod variance;
 
 use base_db::{Crate, SourceDatabase};
 use expect_test::Expect;
@@ -36,10 +42,9 @@ use syntax::{
 use test_fixture::WithFixture;
 
 use crate::{
-    InferenceDiagnostic, InferenceResult,
+    Adjustment, InferenceDiagnostic, InferenceResult,
     db::{AnonConstId, HirDatabase},
     display::{DisplayTarget, HirDisplay},
-    infer::Adjustment,
     next_solver::Ty,
     setup_tracing,
     test_db::TestDB,
