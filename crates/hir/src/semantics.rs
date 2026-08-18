@@ -2187,13 +2187,9 @@ impl<'db> SemanticsImpl<'db> {
         def: DefWithoutBodyWithAnonConsts,
     ) -> &'a ExprToAnonConst<'db> {
         cache.entry(def).or_insert_with(|| match def {
-            Either::Left(def) => {
-                let all_anon_consts =
-                    AnonConstId::all_from_signature(self.db, def).into_iter().flatten().copied();
-                all_anon_consts
-                    .map(|anon_const| (anon_const.loc(self.db).expr, anon_const))
-                    .collect()
-            }
+            Either::Left(def) => AnonConstId::all_from_signature(self.db, def)
+                .map(|anon_const| (anon_const.loc(self.db).expr, anon_const))
+                .collect(),
             Either::Right(def) => {
                 let all_anon_consts =
                     self.db.field_types_with_diagnostics(def).defined_anon_consts().iter().copied();
