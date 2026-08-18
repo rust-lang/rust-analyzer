@@ -83,7 +83,7 @@ use hir_expand::{
     AstId, MacroCallKind, RenderedExpandError, ValueResult, builtin::BuiltinDeriveExpander,
     proc_macro::ProcMacroKind,
 };
-use hir_ty::{
+use hir_ide::{
     GenericPredicates, InferBodyId, InferenceResult, ParamEnvAndCrate, TyDefId,
     TyLoweringDiagnostic, ValueTyDefId, all_super_traits, autoderef, check_orphan_rules,
     consteval::try_const_usize,
@@ -96,6 +96,7 @@ use hir_ty::{
     layout::{Layout as TyLayout, RustcEnumVariantIdx, RustcFieldIdx, TagEncoding},
     method_resolution::{self, InherentImpls, MethodResolutionContext},
     mir::interpret_mir,
+    mir_pretty::{MirBodyPretty as _, MirEvalErrorPretty as _},
     next_solver::{
         AliasTy, AnyImplId, ClauseKind, DbInterner, EarlyBinder, ErrorGuaranteed, FnSig,
         GenericArg, GenericArgs, ParamEnv, PolyFnSig, Region, SolverDefId, Ty, TyKind, TypingMode,
@@ -205,22 +206,24 @@ pub use {
         tt,
     },
     // FIXME: Properly encapsulate mir
-    hir_ty::mir,
-    hir_ty::{
+    hir_ide::mir,
+    hir_ide::{
         CastError, PointerCast, attach_db, attach_db_allow_change,
         consteval::ConstEvalError,
         diagnostics::UnsafetyReason,
         display::{ClosureStyle, DisplayTarget, HirDisplay, HirDisplayError, HirWrite},
         drop::DropGlue,
         dyn_compatibility::{DynCompatibilityViolation, MethodViolationCode},
+        impl_hir_database,
         layout::LayoutError,
         mir::{MirEvalError, MirLowerError},
+        mir_pretty::ConstEvalErrorPretty,
         next_solver::abi::Safety,
         next_solver::{clear_tls_solver_cache, collect_ty_garbage},
         setup_tracing,
     },
     // FIXME: These are needed for import assets, properly encapsulate them.
-    hir_ty::{method_resolution::TraitImpls, next_solver::SimplifiedType},
+    hir_ide::{method_resolution::TraitImpls, next_solver::SimplifiedType},
     intern::{Symbol, sym},
 };
 
@@ -233,7 +236,7 @@ use {
         name::AsName,
         span_map::{ExpansionSpanMap, RealSpanMap, SpanMap},
     },
-    hir_ty::next_solver,
+    hir_ide::next_solver,
 };
 
 /// hir::Crate describes a single crate. It's the main interface with which
@@ -497,7 +500,7 @@ impl ModuleDef {
                 def.diagnostics(db, &mut acc, style_lints);
             }
             None => {
-                for diag in hir_ty::diagnostics::incorrect_case(db, id) {
+                for diag in hir_ide::diagnostics::incorrect_case(db, id) {
                     acc.push(diag.into())
                 }
             }
@@ -1012,7 +1015,7 @@ impl Module {
                                 AssocItem::Const(it) => it.id.into(),
                                 AssocItem::TypeAlias(it) => it.id.into(),
                             };
-                            !hir_ty::dyn_compatibility::generics_require_sized_self(db, assoc_item)
+                            !hir_ide::dyn_compatibility::generics_require_sized_self(db, assoc_item)
                         });
                     }
                 }
@@ -2063,7 +2066,7 @@ impl DefWithBody {
             ));
         }
 
-        let missing_unsafe = hir_ty::diagnostics::missing_unsafe(db, id);
+        let missing_unsafe = hir_ide::diagnostics::missing_unsafe(db, id);
         for (node, reason) in missing_unsafe.unsafe_exprs {
             match source_map.expr_or_pat_syntax(node) {
                 Ok(node) => acc.push(
@@ -2102,7 +2105,7 @@ impl DefWithBody {
             acc.extend(AnyDiagnostic::body_validation_diagnostic(db, diagnostic, source_map));
         }
 
-        for diag in hir_ty::diagnostics::incorrect_case(db, id.into()) {
+        for diag in hir_ide::diagnostics::incorrect_case(db, id.into()) {
             acc.push(diag.into())
         }
     }
@@ -2480,30 +2483,30 @@ impl Function {
         let (target_features, target_feature_is_safe_in_target) = caller
             .map(|caller| {
                 let target_features = match caller.id {
-                    AnyFunctionId::FunctionId(id) => hir_ty::TargetFeatures::from_fn(db, id),
+                    AnyFunctionId::FunctionId(id) => hir_ide::TargetFeatures::from_fn(db, id),
                     AnyFunctionId::BuiltinDeriveImplMethod { .. } => {
-                        hir_ty::TargetFeatures::default()
+                        hir_ide::TargetFeatures::default()
                     }
                 };
                 let target_feature_is_safe_in_target =
                     match &caller.krate(db).id.workspace_data(db).target {
-                        Ok(target) => hir_ty::target_feature_is_safe_in_target(target),
-                        Err(_) => hir_ty::TargetFeatureIsSafeInTarget::No,
+                        Ok(target) => hir_ide::target_feature_is_safe_in_target(target),
+                        Err(_) => hir_ide::TargetFeatureIsSafeInTarget::No,
                     };
                 (target_features, target_feature_is_safe_in_target)
             })
             .unwrap_or_else(|| {
-                (hir_ty::TargetFeatures::default(), hir_ty::TargetFeatureIsSafeInTarget::No)
+                (hir_ide::TargetFeatures::default(), hir_ide::TargetFeatureIsSafeInTarget::No)
             });
         matches!(
-            hir_ty::is_fn_unsafe_to_call(
+            hir_ide::is_fn_unsafe_to_call(
                 db,
                 id,
                 &target_features,
                 call_edition,
                 target_feature_is_safe_in_target
             ),
-            hir_ty::Unsafety::Unsafe
+            hir_ide::Unsafety::Unsafe
         )
     }
 
@@ -2573,7 +2576,7 @@ impl Function {
     }
 }
 
-// Note: logically, this belongs to `hir_ty`, but we are not using it there yet.
+// Note: logically, this belongs to `hir_ide`, but we are not using it there yet.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Access {
     Shared,
@@ -2581,11 +2584,11 @@ pub enum Access {
     Owned,
 }
 
-impl From<hir_ty::next_solver::Mutability> for Access {
-    fn from(mutability: hir_ty::next_solver::Mutability) -> Access {
+impl From<hir_ide::next_solver::Mutability> for Access {
+    fn from(mutability: hir_ide::next_solver::Mutability) -> Access {
         match mutability {
-            hir_ty::next_solver::Mutability::Not => Access::Shared,
-            hir_ty::next_solver::Mutability::Mut => Access::Exclusive,
+            hir_ide::next_solver::Mutability::Not => Access::Shared,
+            hir_ide::next_solver::Mutability::Mut => Access::Exclusive,
         }
     }
 }
@@ -2835,7 +2838,7 @@ impl HasVisibility for Const {
 
 pub struct EvaluatedConst<'db> {
     def: InferBodyId<'db>,
-    allocation: hir_ty::next_solver::Allocation<'db>,
+    allocation: hir_ide::next_solver::Allocation<'db>,
     ty: Ty<'db>,
 }
 
@@ -2985,7 +2988,7 @@ impl Trait {
     }
 
     pub fn dyn_compatibility(&self, db: &dyn HirDatabase) -> Option<DynCompatibilityViolation> {
-        hir_ty::dyn_compatibility::dyn_compatibility(db, self.id)
+        hir_ide::dyn_compatibility::dyn_compatibility(db, self.id)
     }
 
     pub fn dyn_compatibility_all_violations(
@@ -2993,7 +2996,7 @@ impl Trait {
         db: &dyn HirDatabase,
     ) -> Option<Vec<DynCompatibilityViolation>> {
         let mut violations = vec![];
-        _ = hir_ty::dyn_compatibility::dyn_compatibility_with_callback(
+        _ = hir_ide::dyn_compatibility::dyn_compatibility_with_callback(
             db,
             self.id,
             &mut |violation| {
@@ -3105,7 +3108,7 @@ impl BuiltinType {
 
     pub fn i32() -> BuiltinType {
         BuiltinType {
-            inner: hir_def::builtin_type::BuiltinType::Int(hir_ty::primitive::BuiltinInt::I32),
+            inner: hir_def::builtin_type::BuiltinType::Int(hir_ide::primitive::BuiltinInt::I32),
         }
     }
 
@@ -3715,7 +3718,7 @@ impl AssocItem {
                     db.type_for_type_alias_with_diagnostics(type_alias.id).diagnostics(),
                     &TypeAliasSignature::with_source_map(db, type_alias.id).1,
                 );
-                for diag in hir_ty::diagnostics::incorrect_case(db, type_alias.id.into()) {
+                for diag in hir_ide::diagnostics::incorrect_case(db, type_alias.id.into()) {
                     acc.push(diag.into());
                 }
             }
@@ -4315,9 +4318,9 @@ impl GenericParam {
             GenericParam::LifetimeParam(it) => it.id.parent,
         };
         let index = match self {
-            GenericParam::TypeParam(it) => hir_ty::type_or_const_param_idx(db, it.id.into()),
+            GenericParam::TypeParam(it) => hir_ide::type_or_const_param_idx(db, it.id.into()),
             GenericParam::ConstParam(_) => return None,
-            GenericParam::LifetimeParam(it) => hir_ty::lifetime_param_idx(db, it.id),
+            GenericParam::LifetimeParam(it) => hir_ide::lifetime_param_idx(db, it.id),
         };
         db.variances_of(parent).get(index as usize).map(Into::into)
     }
@@ -4390,7 +4393,7 @@ impl TypeParam {
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type<'_> {
         let interner = DbInterner::new_no_crate(db);
-        let index = hir_ty::type_or_const_param_idx(db, self.id.into());
+        let index = hir_ide::type_or_const_param_idx(db, self.id.into());
         let ty = Ty::new_param(interner, self.id, index);
         Type::new(self.id.parent(), ty)
     }
@@ -4495,7 +4498,7 @@ impl ConstParam {
 }
 
 fn generic_arg_from_param(db: &dyn HirDatabase, id: TypeOrConstParamId) -> Option<GenericArg<'_>> {
-    let local_idx = hir_ty::type_or_const_param_idx(db, id);
+    let local_idx = hir_ide::type_or_const_param_idx(db, id);
     let defaults = db.generic_defaults(id.parent);
     let ty = defaults.get(local_idx as usize)?;
     // FIXME: This shouldn't be `instantiate_identity()`, we shouldn't leak `TyKind::Param`s.
@@ -4686,7 +4689,7 @@ impl Impl {
                 let loc = id.loc(db);
                 let krate = loc.module(db).krate(db);
                 let interner = DbInterner::new_with(db, krate);
-                let trait_ref = hir_ty::builtin_derive::impl_trait(interner, id)
+                let trait_ref = hir_ide::builtin_derive::impl_trait(interner, id)
                     .instantiate_identity()
                     .skip_norm_wip();
                 Some(TraitRef { owner: TypeOwnerId::BuiltinDeriveImplId(id), trait_ref })
@@ -4705,7 +4708,7 @@ impl Impl {
                 let krate = loc.module(db).krate(db);
                 let interner = DbInterner::new_with(db, krate);
                 let ty =
-                    hir_ty::builtin_derive::impl_trait(interner, id).map_bound(|it| it.self_ty());
+                    hir_ide::builtin_derive::impl_trait(interner, id).map_bound(|it| it.self_ty());
                 Type { owner: TypeOwnerId::BuiltinDeriveImplId(id), ty }
             }
         }
@@ -4769,11 +4772,11 @@ impl Impl {
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct TraitRef<'db> {
     owner: TypeOwnerId<'db>,
-    trait_ref: hir_ty::next_solver::TraitRef<'db>,
+    trait_ref: hir_ide::next_solver::TraitRef<'db>,
 }
 
 impl<'db> TraitRef<'db> {
-    fn new(owner: GenericDefId, trait_ref: hir_ty::next_solver::TraitRef<'db>) -> Self {
+    fn new(owner: GenericDefId, trait_ref: hir_ide::next_solver::TraitRef<'db>) -> Self {
         Self { owner: TypeOwnerId::GenericDefId(owner), trait_ref }
     }
 
@@ -4958,7 +4961,7 @@ pub struct ClosureCapture<'db> {
     owner: ExpressionStoreOwnerId,
     infer_owner: InferBodyId<'db>,
     closure: ExprId,
-    capture: &'db hir_ty::closure_analysis::CapturedPlace,
+    capture: &'db hir_ide::closure_analysis::CapturedPlace,
 }
 
 impl<'db> ClosureCapture<'db> {
@@ -4972,11 +4975,9 @@ impl<'db> ClosureCapture<'db> {
 
     /// Returns whether this place has any field (aka. non-deref) projections.
     pub fn has_field_projections(&self) -> bool {
-        self.capture
-            .place
-            .projections
-            .iter()
-            .any(|proj| matches!(proj.kind, hir_ty::closure_analysis::ProjectionKind::Field { .. }))
+        self.capture.place.projections.iter().any(|proj| {
+            matches!(proj.kind, hir_ide::closure_analysis::ProjectionKind::Field { .. })
+        })
     }
 
     pub fn usages(&self) -> CaptureUsages<'db> {
@@ -4985,16 +4986,16 @@ impl<'db> ClosureCapture<'db> {
 
     pub fn kind(&self) -> CaptureKind {
         match self.capture.info.capture_kind {
-            hir_ty::closure_analysis::UpvarCapture::ByValue => CaptureKind::Move,
-            hir_ty::closure_analysis::UpvarCapture::ByUse => CaptureKind::SharedRef, // Good enough?
-            hir_ty::closure_analysis::UpvarCapture::ByRef(
-                hir_ty::closure_analysis::BorrowKind::Immutable,
+            hir_ide::closure_analysis::UpvarCapture::ByValue => CaptureKind::Move,
+            hir_ide::closure_analysis::UpvarCapture::ByUse => CaptureKind::SharedRef, // Good enough?
+            hir_ide::closure_analysis::UpvarCapture::ByRef(
+                hir_ide::closure_analysis::BorrowKind::Immutable,
             ) => CaptureKind::SharedRef,
-            hir_ty::closure_analysis::UpvarCapture::ByRef(
-                hir_ty::closure_analysis::BorrowKind::UniqueImmutable,
+            hir_ide::closure_analysis::UpvarCapture::ByRef(
+                hir_ide::closure_analysis::BorrowKind::UniqueImmutable,
             ) => CaptureKind::UniqueSharedRef,
-            hir_ty::closure_analysis::UpvarCapture::ByRef(
-                hir_ty::closure_analysis::BorrowKind::Mutable,
+            hir_ide::closure_analysis::UpvarCapture::ByRef(
+                hir_ide::closure_analysis::BorrowKind::Mutable,
             ) => CaptureKind::MutableRef,
         }
     }
@@ -5004,8 +5005,8 @@ impl<'db> ClosureCapture<'db> {
         let mut result = self.local().name(db).display(db, edition).to_string();
         for (i, proj) in self.capture.place.projections.iter().enumerate() {
             match proj.kind {
-                hir_ty::closure_analysis::ProjectionKind::Deref => {}
-                hir_ty::closure_analysis::ProjectionKind::Field { field_idx, variant_idx } => {
+                hir_ide::closure_analysis::ProjectionKind::Deref => {}
+                hir_ide::closure_analysis::ProjectionKind::Field { field_idx, variant_idx } => {
                     let ty = self.capture.place.ty_before_projection(i);
                     match ty.kind() {
                         TyKind::Tuple(_) => format_to!(result, "_{field_idx}"),
@@ -5036,8 +5037,8 @@ impl<'db> ClosureCapture<'db> {
         let mut last_derefs = 0;
         for (i, proj) in self.capture.place.projections.iter().enumerate() {
             match proj.kind {
-                hir_ty::closure_analysis::ProjectionKind::Deref => last_derefs += 1,
-                hir_ty::closure_analysis::ProjectionKind::Field { field_idx, variant_idx } => {
+                hir_ide::closure_analysis::ProjectionKind::Deref => last_derefs += 1,
+                hir_ide::closure_analysis::ProjectionKind::Field { field_idx, variant_idx } => {
                     last_derefs = 0;
 
                     let ty = self.capture.place.ty_before_projection(i);
@@ -5088,7 +5089,7 @@ pub enum CaptureKind {
 #[derive(Debug, Clone)]
 pub struct CaptureUsages<'db> {
     parent: ExpressionStoreOwnerId,
-    sources: &'db [hir_ty::closure_analysis::CaptureSourceStack],
+    sources: &'db [hir_ide::closure_analysis::CaptureSourceStack],
 }
 
 impl CaptureUsages<'_> {
@@ -5249,7 +5250,7 @@ impl<'db> PartialEq for Type<'db> {
         if self.ty != other.ty {
             return false;
         }
-        hir_ty::with_attached_db(|db| {
+        hir_ide::with_attached_db(|db| {
             self.owner.can_rebase_into(db, other.owner, self.ty)
                 || other.owner.can_rebase_into(db, self.owner, other.ty)
         })
@@ -5355,7 +5356,7 @@ impl<'db> Type<'db> {
             let args = GenericArgs::for_item(infcx.interner, owner, |_, param, _, _| {
                 *var_for_param
                     .entry(param)
-                    .or_insert_with(|| infcx.var_for_def(param, hir_ty::Span::Dummy))
+                    .or_insert_with(|| infcx.var_for_def(param, hir_ide::Span::Dummy))
             });
 
             ty.ty.instantiate(infcx.interner, args).skip_norm_wip()
@@ -5470,7 +5471,7 @@ impl<'db> Type<'db> {
     pub fn is_mutable_reference(&self) -> bool {
         matches!(
             self.ty.skip_binder().kind(),
-            TyKind::Ref(.., hir_ty::next_solver::Mutability::Mut)
+            TyKind::Ref(.., hir_ide::next_solver::Mutability::Mut)
         )
     }
 
@@ -5564,7 +5565,7 @@ impl<'db> Type<'db> {
 
     pub fn as_reference(&self) -> Option<(Type<'db>, Mutability)> {
         let TyKind::Ref(_lt, ty, m) = self.ty.skip_binder().kind() else { return None };
-        let m = Mutability::from_mutable(matches!(m, hir_ty::next_solver::Mutability::Mut));
+        let m = Mutability::from_mutable(matches!(m, hir_ide::next_solver::Mutability::Mut));
         Some((self.derived(ty), m))
     }
 
@@ -5575,8 +5576,8 @@ impl<'db> Type<'db> {
     pub fn add_reference(&self, db: &'db dyn HirDatabase, mutability: Mutability) -> Self {
         let interner = DbInterner::new_no_crate(db);
         let ty_mutability = match mutability {
-            Mutability::Shared => hir_ty::next_solver::Mutability::Not,
-            Mutability::Mut => hir_ty::next_solver::Mutability::Mut,
+            Mutability::Shared => hir_ide::next_solver::Mutability::Not,
+            Mutability::Mut => hir_ide::next_solver::Mutability::Mut,
         };
         self.derived(Ty::new_ref(
             interner,
@@ -5656,7 +5657,7 @@ impl<'db> Type<'db> {
                 ParamEnvAndCrate { param_env: db.trait_environment(def), krate }
             }
             TypeOwnerId::BuiltinDeriveImplId(def) => ParamEnvAndCrate {
-                param_env: hir_ty::builtin_derive::param_env(interner, def),
+                param_env: hir_ide::builtin_derive::param_env(interner, def),
                 krate,
             },
             TypeOwnerId::AnonConstId(def) => ParamEnvAndCrate {
@@ -5799,7 +5800,7 @@ impl<'db> Type<'db> {
                 {
                     arg.into()
                 } else {
-                    infcx.var_for_def(param, hir_ty::Span::Dummy)
+                    infcx.var_for_def(param, hir_ide::Span::Dummy)
                 }
             })
         })
@@ -5851,7 +5852,7 @@ impl<'db> Type<'db> {
             _ => {
                 let env = self.param_env(db);
                 let (fn_trait, sig) =
-                    hir_ty::callable_sig_from_fn_trait(self.ty.skip_binder(), env, db)?;
+                    hir_ide::callable_sig_from_fn_trait(self.ty.skip_binder(), env, db)?;
                 return Some(Callable {
                     ty: self.clone(),
                     sig,
@@ -5914,14 +5915,14 @@ impl<'db> Type<'db> {
         // Used outside of rust-analyzer (e.g. by `ra_ap_hir` consumers).
         matches!(
             self.ty.skip_binder().kind(),
-            TyKind::RawPtr(.., hir_ty::next_solver::Mutability::Mut)
+            TyKind::RawPtr(.., hir_ide::next_solver::Mutability::Mut)
         )
     }
 
     pub fn as_raw_ptr(&self) -> Option<(Type<'db>, Mutability)> {
         // Used outside of rust-analyzer (e.g. by `ra_ap_hir` consumers).
         let TyKind::RawPtr(ty, m) = self.ty.skip_binder().kind() else { return None };
-        let m = Mutability::from_mutable(matches!(m, hir_ty::next_solver::Mutability::Mut));
+        let m = Mutability::from_mutable(matches!(m, hir_ide::next_solver::Mutability::Mut));
         Some((self.derived(ty), m))
     }
 
@@ -6002,7 +6003,7 @@ impl<'db> Type<'db> {
         let interner = DbInterner::new_no_crate(db);
         let env = self.param_env(db);
         // There should be no inference vars in types passed here
-        let canonical = hir_ty::replace_errors_with_variables(interner, &self.ty.skip_binder());
+        let canonical = hir_ide::replace_errors_with_variables(interner, &self.ty.skip_binder());
         autoderef(db, env, canonical)
     }
 
@@ -6216,8 +6217,8 @@ impl<'db> Type<'db> {
             traits_in_scope,
             edition: resolver.krate().data(db).edition,
             features,
-            call_span: hir_ty::Span::Dummy,
-            receiver_span: hir_ty::Span::Dummy,
+            call_span: hir_ide::Span::Dummy,
+            receiver_span: hir_ide::Span::Dummy,
         };
         f(&ctx)
     }
@@ -6244,8 +6245,8 @@ impl<'db> Type<'db> {
         self.with_method_resolution(db, scope.resolver(), traits_in_scope, |ctx| {
             // There should be no inference vars in types passed here
             let canonical =
-                hir_ty::replace_errors_with_variables(ctx.infcx.interner, &self.ty.skip_binder());
-            let (self_ty, _) = ctx.infcx.instantiate_canonical(hir_ty::Span::Dummy, &canonical);
+                hir_ide::replace_errors_with_variables(ctx.infcx.interner, &self.ty.skip_binder());
+            let (self_ty, _) = ctx.infcx.instantiate_canonical(hir_ide::Span::Dummy, &canonical);
 
             match name {
                 Some(name) => {
@@ -6353,8 +6354,8 @@ impl<'db> Type<'db> {
         self.with_method_resolution(db, scope.resolver(), traits_in_scope, |ctx| {
             // There should be no inference vars in types passed here
             let canonical =
-                hir_ty::replace_errors_with_variables(ctx.infcx.interner, &self.ty.skip_binder());
-            let (self_ty, _) = ctx.infcx.instantiate_canonical(hir_ty::Span::Dummy, &canonical);
+                hir_ide::replace_errors_with_variables(ctx.infcx.interner, &self.ty.skip_binder());
+            let (self_ty, _) = ctx.infcx.instantiate_canonical(hir_ide::Span::Dummy, &canonical);
 
             match name {
                 Some(name) => {
@@ -6430,7 +6431,7 @@ impl<'db> Type<'db> {
         let _p = tracing::info_span!("applicable_inherent_traits").entered();
         self.autoderef_(db)
             .filter_map(|ty| ty.dyn_trait())
-            .flat_map(move |dyn_trait_id| hir_ty::all_super_traits(db, dyn_trait_id))
+            .flat_map(move |dyn_trait_id| hir_ide::all_super_traits(db, dyn_trait_id))
             .copied()
             .map(Trait::from)
     }
@@ -6448,7 +6449,7 @@ impl<'db> Type<'db> {
                         ClauseKind::Trait(tr) if tr.self_ty() == ty => Some(tr.def_id().0),
                         _ => None,
                     })
-                    .flat_map(|t| hir_ty::all_super_traits(db, t))
+                    .flat_map(|t| hir_ide::all_super_traits(db, t))
                     .copied()
             })
             .map(Trait::from)
@@ -6521,11 +6522,11 @@ impl<'db> Type<'db> {
         self.owner.must_unify(other.owner);
         let env = self.param_env(db);
         let interner = DbInterner::new_no_crate(db);
-        let tys = hir_ty::replace_errors_with_variables(
+        let tys = hir_ide::replace_errors_with_variables(
             interner,
             &(self.ty.skip_binder(), other.ty.skip_binder()),
         );
-        hir_ty::could_unify(db, env, &tys)
+        hir_ide::could_unify(db, env, &tys)
     }
 
     /// Check if type unifies with another type eagerly making sure there are no unresolved goals.
@@ -6536,22 +6537,22 @@ impl<'db> Type<'db> {
         self.owner.must_unify(other.owner);
         let env = self.param_env(db);
         let interner = DbInterner::new_no_crate(db);
-        let tys = hir_ty::replace_errors_with_variables(
+        let tys = hir_ide::replace_errors_with_variables(
             interner,
             &(self.ty.skip_binder(), other.ty.skip_binder()),
         );
-        hir_ty::could_unify_deeply(db, env, &tys)
+        hir_ide::could_unify_deeply(db, env, &tys)
     }
 
     pub fn could_coerce_to(&self, db: &'db dyn HirDatabase, to: &Type<'db>) -> bool {
         self.owner.must_unify(to.owner);
         let env = self.param_env(db);
         let interner = DbInterner::new_no_crate(db);
-        let tys = hir_ty::replace_errors_with_variables(
+        let tys = hir_ide::replace_errors_with_variables(
             interner,
             &(self.ty.skip_binder(), to.ty.skip_binder()),
         );
-        hir_ty::could_coerce(db, env, &tys)
+        hir_ide::could_coerce(db, env, &tys)
     }
 
     pub fn as_type_param(&self, _db: &'db dyn HirDatabase) -> Option<TypeParam> {
@@ -6563,7 +6564,7 @@ impl<'db> Type<'db> {
 
     /// Returns unique `GenericParam`s contained in this type.
     pub fn generic_params(&self, db: &'db dyn HirDatabase) -> FxHashSet<GenericParam> {
-        hir_ty::collect_params(&self.ty.skip_binder())
+        hir_ide::collect_params(&self.ty.skip_binder())
             .into_iter()
             .map(|id| TypeOrConstParam { id }.split(db).either_into())
             .collect()
@@ -6579,7 +6580,7 @@ impl<'db> Type<'db> {
         let env = self.param_env(db);
         let interner = DbInterner::new_with(db, env.krate);
         let infcx = interner.infer_ctxt().build(TypingMode::PostAnalysis);
-        hir_ty::drop::has_drop_glue(&infcx, self.ty.skip_binder(), env.param_env)
+        hir_ide::drop::has_drop_glue(&infcx, self.ty.skip_binder(), env.param_env)
     }
 }
 
@@ -6946,7 +6947,7 @@ pub enum PredicatePolarity {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitPredicate<'db> {
-    inner: hir_ty::next_solver::TraitPredicate<'db>,
+    inner: hir_ide::next_solver::TraitPredicate<'db>,
     owner: TypeOwnerId<'db>,
 }
 
@@ -7397,7 +7398,7 @@ fn has_non_default_type_params(db: &dyn HirDatabase, generic_def: GenericDefId) 
         .filter(|(_, param)| matches!(param, TypeOrConstParamData::TypeParamData(_)))
         .map(|(local_id, _)| TypeOrConstParamId { parent: generic_def, local_id })
         .any(|param| {
-            let param = hir_ty::type_or_const_param_idx(db, param);
+            let param = hir_ide::type_or_const_param_idx(db, param);
             defaults.get(param as usize).is_none()
         })
 }
