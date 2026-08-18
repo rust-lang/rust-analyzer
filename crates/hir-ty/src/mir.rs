@@ -35,7 +35,6 @@ use crate::{
 mod eval;
 mod lower;
 mod monomorphization;
-mod pretty;
 
 pub use eval::{
     Evaluator, IsSigned, MirEvalError, VTableMap, interpret_mir, pad16,
@@ -81,7 +80,7 @@ pub struct Local {
 /// validator.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Operand {
-    kind: OperandKind,
+    pub kind: OperandKind,
     // FIXME : This should actually just be of type `MirSpan`.
     span: Option<MirSpan>,
 }
@@ -214,7 +213,7 @@ impl<V: PartialEq> ProjectionElem<V> {
     }
 }
 
-type PlaceElem = ProjectionElem<LocalId>;
+pub type PlaceElem = ProjectionElem<LocalId>;
 
 impl<W: crate::next_solver::WorldExposer> GenericTypeVisitable<W> for PlaceElem {
     fn generic_visit_with(&self, _: &mut W) {}
