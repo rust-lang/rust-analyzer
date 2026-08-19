@@ -9,7 +9,7 @@ use cfg::{CfgExpr, CfgOptions};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, DefWithBodyId, EnumId, EnumVariantId, GenericDefId, GenericParamId, ImplId,
-    Lookup, MacroId, ModuleDefId, ModuleId, StaticId, SyntheticSyntax, TraitId,
+    Lookup, MacroId, ModuleDefId, ModuleId, SyntheticSyntax, TraitId,
     attrs::AttrFlags,
     expr_store::{
         Body, ExprOrPatPtr, ExpressionStore, ExpressionStoreDiagnostics, ExpressionStoreSourceMap,
@@ -22,8 +22,8 @@ use hir_def::{
         diagnostics::{DefDiagnosticKind, DefDiagnostics},
     },
     signatures::{
-        ConstSignature, FunctionSignature, ImplFlags, ImplSignature, StaticSignature, TraitFlags,
-        TraitSignature, TypeAliasSignature,
+        ConstSignature, FunctionSignature, ImplFlags, ImplSignature, TraitFlags, TraitSignature,
+        TypeAliasSignature,
     },
     type_ref::TypeRefId,
     unstable_features::UnstableFeatures,
@@ -34,8 +34,8 @@ use hir_expand::{
 };
 use hir_ty::{
     CastError, ExplicitDropMethodUseKind, InferBodyId, InferenceDiagnostic, InferenceResult,
-    InferenceTyDiagnosticSource, ParamEnvAndCrate, PathGenericsSource, PathLoweringDiagnostic,
-    TyLoweringDiagnostic, check_orphan_rules,
+    ParamEnvAndCrate, PathGenericsSource, PathLoweringDiagnostic, TyLoweringDiagnostic,
+    check_orphan_rules,
     db::{AnonConstId, HirDatabase, signature_anon_consts_and_diagnostics},
     diagnostics::{BodyValidationDiagnostic, UnsafetyReason},
     display::{DisplayTarget, HirDisplay},
@@ -1168,18 +1168,7 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
     }
 
     fn collect_anon_const(&mut self, source_map: &ExpressionStoreSourceMap, def: AnonConstId<'db>) {
-        self.emit_inference_errors(def.into(), source_map, None, def.into());
-    }
-
-    fn collect_static(&mut self, def: StaticId) {
-        let (signature, signature_source_map) = StaticSignature::with_source_map(self.db, def);
-        self.collect_expr_store(&signature.store, signature_source_map);
-
-        self.collect_def_with_body(
-            Some(signature_source_map),
-            def.into(),
-            TypeOwnerId::NoParams(self.krate),
-        );
+        self.emit_inference_errors(def.into(), source_map, def.into());
     }
 
     fn collect_enum(&mut self, def: EnumId) {
@@ -1204,7 +1193,6 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
 
     fn collect_enum_variant(&mut self, def: EnumVariantId) {
         self.collect_def_with_body(
-            None,
             def.into(),
             TypeOwnerId::GenericDefId(def.loc(self.db).parent.into()),
         );
@@ -1237,16 +1225,11 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
         }
     }
 
-    fn collect_def_with_body(
-        &mut self,
-        sig_map: Option<&ExpressionStoreSourceMap>,
-        def: DefWithBodyId,
-        type_owner: TypeOwnerId<'db>,
-    ) {
+    fn collect_def_with_body(&mut self, def: DefWithBodyId, type_owner: TypeOwnerId<'db>) {
         let (body, source_map) = Body::with_source_map(self.db, def);
 
         self.collect_expr_store(body, source_map);
-        self.emit_inference_errors(def.into(), source_map, sig_map, type_owner);
+        self.emit_inference_errors(def.into(), source_map, type_owner);
 
         // FIXME: Missing unsafe and body validation should be defined for any `InferBodyId`.
         let missing_unsafe = hir_ty::diagnostics::missing_unsafe(self.db, def);
@@ -1294,7 +1277,6 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
         &mut self,
         def: InferBodyId<'db>,
         source_map: &ExpressionStoreSourceMap,
-        sig_map: Option<&ExpressionStoreSourceMap>,
         type_owner: TypeOwnerId<'db>,
     ) {
         let infer = InferenceResult::of(self.db, def);
@@ -1306,7 +1288,6 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
                 self.edition,
                 diag,
                 source_map,
-                sig_map,
                 type_owner,
             )
         }));
@@ -1334,7 +1315,7 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
         self.collect_generic_def(signature_store, signature_source_map, generic_def);
 
         let def_with_body: DefWithBodyId = def.into();
-        self.collect_def_with_body(Some(signature_source_map), def_with_body, generic_def.into());
+        self.collect_def_with_body(def_with_body, generic_def.into());
     }
 
     fn collect_generic_variant(&mut self, def: impl Into<GenericDefId> + Into<VariantId> + Copy) {
@@ -1364,7 +1345,7 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
             ModuleDefId::MacroId(def) => self.collect_macro_def(def),
             ModuleDefId::FunctionId(def) => self.collect_generic_def_with_body(def),
             ModuleDefId::ConstId(def) => self.collect_generic_def_with_body(def),
-            ModuleDefId::StaticId(def) => self.collect_static(def),
+            ModuleDefId::StaticId(def) => self.collect_generic_def_with_body(def),
             ModuleDefId::EnumVariantId(def) => self.collect_enum_variant(def),
             ModuleDefId::AdtId(AdtId::StructId(def)) => self.collect_generic_variant(def),
             ModuleDefId::AdtId(AdtId::UnionId(def)) => self.collect_generic_variant(def),
@@ -1557,7 +1538,6 @@ impl<'db> AnyDiagnostic<'db> {
         edition: Edition,
         d: &'db InferenceDiagnostic,
         source_map: &ExpressionStoreSourceMap,
-        sig_map: Option<&ExpressionStoreSourceMap>,
         type_owner: TypeOwnerId<'db>,
     ) -> Option<AnyDiagnostic<'db>> {
         let expr_syntax = |expr| Self::expr_syntax(expr, source_map);
@@ -1747,11 +1727,7 @@ impl<'db> AnyDiagnostic<'db> {
                 let expr = expr_syntax(*expr)?;
                 CannotIndexInto { expr, found: new_ty(found.as_ref()) }.into()
             }
-            InferenceDiagnostic::TyDiagnostic { source, diag } => {
-                let source_map = match source {
-                    InferenceTyDiagnosticSource::Body => source_map,
-                    InferenceTyDiagnosticSource::Signature => sig_map.expect("cannot have `InferenceTyDiagnosticSource::Signature` when there is no signature"),
-                };
+            InferenceDiagnostic::TyDiagnostic { diag } => {
                 Self::ty_diagnostic(diag, source_map, db)?
             }
             InferenceDiagnostic::PathDiagnostic { node, diag } => {
