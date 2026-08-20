@@ -603,7 +603,6 @@ impl<'db> Ty<'db> {
                     );
                     FnSig {
                         inputs_and_output: Tys::new_from_iter(
-                            interner,
                             sig.tupled_inputs_ty
                                 .tuple_fields()
                                 .iter()
