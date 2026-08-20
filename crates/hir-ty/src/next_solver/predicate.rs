@@ -274,8 +274,8 @@ impl<'db> std::fmt::Debug for Clauses<'db> {
 
 impl<'db> Clauses<'db> {
     #[inline]
-    pub fn empty(interner: DbInterner<'db>) -> Self {
-        interner.default_types().empty.clauses
+    pub fn empty() -> Self {
+        crate::next_solver::default_types().empty.clauses
     }
 
     #[inline]
@@ -437,8 +437,8 @@ pub struct ParamEnv<'db> {
 }
 
 impl<'db> ParamEnv<'db> {
-    pub fn empty(interner: DbInterner<'db>) -> Self {
-        ParamEnv { clauses: Clauses::empty(interner) }
+    pub fn empty() -> Self {
+        ParamEnv { clauses: Clauses::empty() }
     }
 
     pub fn clauses(self) -> Clauses<'db> {
