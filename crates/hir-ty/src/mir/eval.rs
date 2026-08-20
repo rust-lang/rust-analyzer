@@ -713,7 +713,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                     let variant_layout = match &layout.variants {
                         Variants::Single { .. } | Variants::Empty => &layout,
                         Variants::Multiple { variants, .. } => {
-                            &variants[match prev_ty.variant_id {
+                            let variant_idx = match prev_ty.variant_id {
                                 Some(hir_def::VariantId::EnumVariantId(it)) => {
                                     RustcEnumVariantIdx(it.index(self.db))
                                 }
@@ -722,7 +722,8 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                                         "mismatched layout".into(),
                                     ));
                                 }
-                            }]
+                            };
+                            &variants[variant_idx]
                         }
                     };
                     let offset = variant_layout.fields.offset(f.0 as usize).bytes_usize();
