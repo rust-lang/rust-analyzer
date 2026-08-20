@@ -280,6 +280,16 @@ impl<'db> Clauses<'db> {
 
     #[inline]
     pub fn new_from_slice(slice: &[Clause<'db>]) -> Self {
+        if slice.is_empty() {
+            // Common case: avoid looking up the empty slice.
+            Self::empty()
+        } else {
+            Self::new_from_slice_no_empty(slice)
+        }
+    }
+
+    #[inline]
+    pub(crate) fn new_from_slice_no_empty(slice: &[Clause<'db>]) -> Self {
         let slice = unsafe { ::std::mem::transmute::<&[Clause<'db>], &[Clause<'static>]>(slice) };
         let flags = FlagComputation::<DbInterner<'db>>::for_clauses(slice);
         let flags = ClausesCachedTypeInfo(WithCachedTypeInfo {
