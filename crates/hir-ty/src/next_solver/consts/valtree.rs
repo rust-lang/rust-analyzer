@@ -10,7 +10,7 @@ use crate::{
     MemoryMap, ParamEnvAndCrate, consteval,
     db::HirDatabase,
     mir::{IsSigned, pad16},
-    next_solver::{Const, Consts, TyKind, WorldExposer},
+    next_solver::{Const, Consts, TyKind, WorldExposer, default_types},
 };
 
 use super::{DbInterner, Ty};
@@ -125,7 +125,7 @@ pub(super) fn allocation_to_const<'db>(
                 let Some(bytes) = memory_map.get(addr, size) else {
                     return Const::error(interner);
                 };
-                let u8_values = &interner.default_types().consts.u8_values;
+                let u8_values = &default_types().consts.u8_values;
                 ValTreeKind::Branch(Consts::new_from_iter(
                     interner,
                     bytes.iter().map(|&byte| u8_values[usize::from(byte)]),
