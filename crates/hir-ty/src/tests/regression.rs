@@ -3193,3 +3193,71 @@ fn main() {
     "#,
     );
 }
+
+#[test]
+fn issue_23124_atpit_hidden_type_with_method_generic_does_not_panic() {
+    check_no_mismatches(
+        r#"
+        //- minicore: copy
+        trait Bar {
+            type E: Copy;
+
+            fn foo<T>() -> Self::E;
+        }
+
+        impl<S> Bar for S {
+            type E = impl Copy;
+
+            fn foo<T>() -> Self::E {
+                || ()
+            }
+        }
+
+        trait ValidBar {
+            type E: Copy;
+
+            fn foo() -> Self::E;
+        }
+
+        impl<S> ValidBar for S {
+            type E = impl Copy;
+
+            fn foo() -> Self::E {
+                || ()
+            }
+        }
+        "#,
+    );
+
+    check_no_mismatches(
+        r#"
+        //- minicore: sized
+        fn recursive<T>() -> impl Sized {
+            // A concrete recursive call is a non-defining opaque use.
+            recursive::<u8>();
+            1u16
+        }
+        "#,
+    );
+
+    check_no_mismatches(
+        r#"
+        //- minicore: sized
+        fn only_nondefining<T>() -> impl Sized {
+            // There is no defining use, but this must still recover without a panic.
+            only_nondefining::<u8>();
+            loop {}
+        }
+        "#,
+    );
+
+    check_no_mismatches(
+        r#"
+        //- minicore: sized
+        fn const_nondefining<const N: usize>() -> impl Sized {
+            const_nondefining::<1>();
+            1u16
+        }
+        "#,
+    );
+}
