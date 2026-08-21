@@ -46,7 +46,9 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use base_db::{CrateDisplayName, CrateOrigin, LangCrateOrigin, SourceDatabase, all_crates};
+use base_db::{
+    CrateDisplayName, CrateOrigin, LangCrateOrigin, SourceDatabase, TargetKind, all_crates,
+};
 use either::Either;
 use hir_def::{
     AdtId, AssocItemId, AssocItemLoc, BuiltinDeriveImplId, CallableDefId, ConstId, ConstParamId,
@@ -324,6 +326,10 @@ impl Crate {
 
     pub fn display_name(self, db: &dyn HirDatabase) -> Option<CrateDisplayName> {
         self.id.extra_data(db).display_name.clone()
+    }
+
+    pub fn target_kind(self, db: &dyn HirDatabase) -> TargetKind {
+        self.id.data(db).target_kind
     }
 
     pub fn query_external_importables(
