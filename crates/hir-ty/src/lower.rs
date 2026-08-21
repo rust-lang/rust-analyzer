@@ -311,6 +311,35 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         (res, bound_vars)
     }
 
+    // Trait predicates flatten their own bound variables together with those from an
+    // overarching predicate into a single binder.
+    fn with_flattened_binder<T>(
+        &mut self,
+        binder: &[Name],
+        f: impl FnOnce(&mut TyLoweringContext<'db, '_>) -> T,
+    ) -> T {
+        let interner = self.interner;
+        let generic_def = self.generic_def;
+        let (names, bound_vars) = self.bound_vars.last_mut().unwrap();
+        let old_names_len = names.len();
+        let old_bound_vars = *bound_vars;
+
+        names.extend_from_slice(binder);
+        let new_bound_vars = old_bound_vars.iter().chain(
+            binder
+                .iter()
+                .map(|_| BoundVariableKind::Region(BoundRegionKind::Named(generic_def.into()))),
+        );
+        *bound_vars = BoundVarKinds::new_from_iter(interner, new_bound_vars);
+
+        let res = f(self);
+
+        let (names, bound_vars) = self.bound_vars.last_mut().unwrap();
+        names.truncate(old_names_len);
+        *bound_vars = old_bound_vars;
+        res
+    }
+
     pub(crate) fn with_impl_trait_mode(self, impl_trait_mode: ImplTraitLoweringMode) -> Self {
         Self { impl_trait_mode: ImplTraitLoweringState::new(impl_trait_mode), ..self }
     }
@@ -909,6 +938,9 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                 Some(lifetimes) => {
                     self.with_shifted_in(lifetimes, |ctx| lower_type_outlives(ctx, target, bound)).0
                 }
+                None if matches!(bound, TypeBound::ForLifetime(..)) => {
+                    self.with_shifted_in(&[], |ctx| lower_type_outlives(ctx, target, bound)).0
+                }
                 None => lower_type_outlives(self, target, bound),
             },
             &WherePredicate::Lifetime { bound, target } => Either::Right(iter::once((
@@ -975,7 +1007,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
         match bound {
             &TypeBound::ForLifetime(ref binder, path) => {
-                self.with_shifted_in(binder, |ctx| lower_path_bound(ctx, path)).0
+                self.with_flattened_binder(binder, |ctx| lower_path_bound(ctx, path))
             }
             &TypeBound::Path(path, TraitBoundModifier::None) => lower_path_bound(self, path),
             &TypeBound::Path(path, TraitBoundModifier::Maybe) => {
@@ -1031,8 +1063,9 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             for b in bounds {
                 let db = self.db;
                 match b {
-                    TypeBound::Path(_, TraitBoundModifier::None) => {
-                        // `dyn Trait<'a>` is an existential predicate that introduces a binder.
+                    TypeBound::Path(_, TraitBoundModifier::None) | TypeBound::ForLifetime(..) => {
+                        // A `dyn Trait` existential predicate introduces its own binder. Explicit
+                        // HRTB variables are flattened into this binder by `lower_type_bound`.
                         self.with_shifted_in(&[], |ctx| {
                             ctx.lower_type_bound(b, dummy_self_ty, false)
                         })
@@ -1364,7 +1397,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
     fn find_and_lower_hrtb_lifetime(&mut self, lifetime: LifetimeRefId) -> Option<Region<'db>> {
         if let LifetimeRef::Named(lt_name) = &self.store[lifetime] {
             self.bound_vars.iter().rev().enumerate().find_map(|(debruijn, (binder, _))| {
-                binder.iter().enumerate().find_map(|(index, l)| {
+                binder.iter().enumerate().rev().find_map(|(index, l)| {
                     (l == lt_name).then(|| {
                         self.hrtb_region_param(
                             index as u32,

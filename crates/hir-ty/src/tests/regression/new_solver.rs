@@ -977,3 +977,146 @@ impl Foo {
 "#,
     );
 }
+
+#[test]
+fn nested_associated_type_bound_independent_hrtb_does_not_panic() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a> {
+    type Assoc;
+}
+
+trait TraitB<'b> {}
+
+fn foo<T>()
+where
+    for<'a> T: TraitA<'a, Assoc: for<'b> TraitB<'b>>,
+{
+    foo::<T>();
+}
+"#,
+    );
+}
+
+#[test]
+fn nested_associated_type_bound_hrtb_does_not_panic() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a> {
+    type Assoc;
+}
+
+trait TraitB<'b> {
+    type Assoc;
+}
+
+trait TraitC<'a, 'b, 'c> {}
+
+fn one_level<T>()
+where
+    for<'a> T: TraitA<'a, Assoc: for<'b> TraitB<'a>>,
+{
+    one_level::<T>();
+}
+
+fn two_levels<T>()
+where
+    for<'a> T: TraitA<
+        'a,
+        Assoc: for<'b> TraitB<'a, Assoc: for<'c> TraitC<'a, 'b, 'c>>,
+    >,
+{
+    two_levels::<T>();
+}
+"#,
+    );
+}
+
+#[test]
+fn issue_23064() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a> {
+    type AsA;
+}
+
+trait TraitB<'b> {
+    type AsB;
+}
+
+trait TraitC {}
+
+fn foo()
+where
+    for<'a> T: TraitA<'a, AsA: for<'b> TraitB<'a, AsB: TraitC>>,
+{
+    foo();
+}
+"#,
+    );
+}
+
+#[test]
+fn issue_23063() {
+    check_no_mismatches(
+        r#"
+trait TraitA<'a, 'b, 'c> { type AsA; }
+trait TraitB<'a, 'b> { type AsB; }
+trait TraitC<'a, 'b, 'c> {}
+
+fn foo<T>() where for<const N: u8 = { T::<0>::A as u8 + TraitB<'a, 'b, AsB: for<'c> TraitC<'a, 'b, 'c>>::B as u8 }> T: TraitA<'a, AsA: for<'b> TraitB<'a, 'b, AsB: for<'c> TraitC<'a, 'b, 'c>>> { div(()) }
+"#,
+    );
+}
+
+#[test]
+fn nested_hrtb_starts_own_predicate_binder() {
+    let (db, file_id) = TestDB::with_single_file(
+        r#"
+trait Trait<'a> {}
+
+fn f<'outer, T>(_: &'outer T)
+where
+    T: for<'a> Trait<'a>,
+{
+}
+"#,
+    );
+
+    crate::attach_db(&db, || {
+        let module_id = db.module_for_file(file_id.file_id(&db));
+        let def_map = module_id.def_map(&db);
+        let scope = &def_map[module_id].scope;
+        let func = scope
+            .declarations()
+            .find_map(
+                |decl| {
+                    if let ModuleDefId::FunctionId(func) = decl { Some(func) } else { None }
+                },
+            )
+            .unwrap();
+        let predicate = crate::lower::GenericPredicates::query_own_explicit(&db, func.into())
+            .iter_identity()
+            .find(|predicate| !predicate.skip_norm_wip().kind().bound_vars().is_empty())
+            .unwrap();
+        let predicate = predicate.skip_norm_wip().kind();
+
+        assert_eq!(predicate.bound_vars().len(), 1);
+        let rustc_type_ir::ClauseKind::Trait(trait_predicate) = predicate.skip_binder() else {
+            panic!("expected trait predicate");
+        };
+        let rustc_type_ir::GenericArgKind::Lifetime(region) =
+            trait_predicate.trait_ref.args[1].kind()
+        else {
+            panic!("expected lifetime argument");
+        };
+        let RegionKind::ReBound(rustc_type_ir::BoundVarIndexKind::Bound(debruijn), bound_region) =
+            region.kind()
+        else {
+            panic!("expected bound region");
+        };
+
+        assert_eq!(debruijn, rustc_type_ir::DebruijnIndex::ZERO);
+        assert_eq!(bound_region.var.as_u32(), 0);
+    });
+}
