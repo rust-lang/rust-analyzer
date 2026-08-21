@@ -184,8 +184,8 @@ fn add_function_impl(
     acc: &mut Completions,
     ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
-    func: hir::Function,
-    impl_def: hir::Impl,
+    func: hir::Function<'_>,
+    impl_def: hir::Impl<'_>,
 ) {
     let fn_name = &func.name(ctx.db);
     let sugar: &[_] = if func.is_async(ctx.db) {
@@ -204,8 +204,8 @@ fn add_function_impl_(
     acc: &mut Completions,
     ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
-    func: hir::Function,
-    impl_def: hir::Impl,
+    func: hir::Function<'_>,
+    impl_def: hir::Impl<'_>,
     fn_name: &Name,
     async_sugaring: AsyncSugaring,
 ) {
@@ -261,10 +261,10 @@ enum AsyncSugaring {
 }
 
 /// Transform a relevant associated item to inline generics from the impl, remove attrs and docs, etc.
-fn get_transformed_assoc_item(
-    ctx: &CompletionContext<'_, '_>,
+fn get_transformed_assoc_item<'db>(
+    ctx: &CompletionContext<'_, 'db>,
     assoc_item: ast::AssocItem,
-    impl_def: hir::Impl,
+    impl_def: hir::Impl<'_>,
     macro_file: Option<MacroCallId>,
 ) -> Option<ast::AssocItem> {
     let trait_ = impl_def.trait_(ctx.db)?;
@@ -292,10 +292,10 @@ fn get_transformed_assoc_item(
 }
 
 /// Transform a relevant associated item to inline generics from the impl, remove attrs and docs, etc.
-fn get_transformed_fn(
-    ctx: &CompletionContext<'_, '_>,
+fn get_transformed_fn<'db>(
+    ctx: &CompletionContext<'_, 'db>,
     fn_: ast::Fn,
-    impl_def: hir::Impl,
+    impl_def: hir::Impl<'_>,
     async_: AsyncSugaring,
 ) -> Option<ast::Fn> {
     let trait_ = impl_def.trait_(ctx.db)?;
@@ -379,7 +379,7 @@ fn add_type_alias_impl(
     ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
     type_alias: hir::TypeAlias,
-    impl_def: hir::Impl,
+    impl_def: hir::Impl<'_>,
 ) {
     let alias_name = type_alias.name(ctx.db).as_str().to_smolstr();
 
@@ -462,7 +462,7 @@ fn add_const_impl(
     ctx: &CompletionContext<'_, '_>,
     replacement_range: TextRange,
     const_: hir::Const,
-    impl_def: hir::Impl,
+    impl_def: hir::Impl<'_>,
 ) {
     let const_name = const_.name(ctx.db).map(|n| n.display_no_db(ctx.edition).to_smolstr());
 

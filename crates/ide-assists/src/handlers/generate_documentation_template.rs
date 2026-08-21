@@ -290,7 +290,7 @@ fn is_public(ast_func: &ast::Fn, ctx: &AssistContext<'_, '_>) -> Option<bool> {
 }
 
 /// Checks that all parent modules of the function are public / exported
-fn all_parent_mods_public(hir_func: &hir::Function, ctx: &AssistContext<'_, '_>) -> bool {
+fn all_parent_mods_public(hir_func: &hir::Function<'_>, ctx: &AssistContext<'_, '_>) -> bool {
     let mut module = hir_func.module(ctx.db());
     loop {
         if let Some(parent) = module.parent(ctx.db()) {
@@ -495,7 +495,7 @@ fn build_path(ast_func: &ast::Fn, ctx: &AssistContext<'_, '_>, edition: Edition)
     let leaf = self_partial_type(ast_func)
         .or_else(|| ast_func.name().map(|n| n.to_string()))
         .unwrap_or_else(|| "*".into());
-    let module_def: ModuleDef = ctx.sema.to_def(ast_func)?.module(ctx.db()).into();
+    let module_def: ModuleDef<'_> = ctx.sema.to_def(ast_func)?.module(ctx.db()).into();
     match module_def.canonical_path(ctx.db(), edition) {
         Some(path) => Some(format!("{crate_name}::{path}::{leaf}")),
         None => Some(format!("{crate_name}::{leaf}")),
