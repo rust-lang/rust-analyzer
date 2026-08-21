@@ -101,6 +101,26 @@ SOURCE_FILE
                 L_PAREN "("
                 R_PAREN ")"
               COMMA ","
+            WHITESPACE "\n        "
+            MATCH_ARM
+              WILDCARD_PAT
+                UNDERSCORE "_"
+              WHITESPACE " "
+              FAT_ARROW "=>"
+              WHITESPACE " "
+              MACRO_EXPR
+                MACRO_CALL
+                  PATH
+                    PATH_SEGMENT
+                      NAME_REF
+                        IDENT "foo"
+                  BANG "!"
+                  TOKEN_TREE
+                    L_PAREN "("
+                    R_PAREN ")"
+            MATCH_ARM
+              ERROR
+                SEMICOLON ";"
             WHITESPACE "\n    "
             R_CURLY "}"
         WHITESPACE "\n"
@@ -111,3 +131,7 @@ error 58: expected expression
 error 85: expected pattern
 error 100: expected pattern
 error 145: expected expression
+error 172: expected `,`
+error 172: expected pattern
+error 173: expected `=>`
+error 173: expected expression

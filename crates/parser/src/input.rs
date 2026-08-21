@@ -83,7 +83,7 @@ impl Input {
         self.contextual_kind.get(idx).copied().unwrap_or(SyntaxKind::EOF)
     }
     pub(crate) fn edition(&self, idx: usize) -> Edition {
-        self.edition[idx]
+        self.edition.get(idx).copied().unwrap_or(Edition::CURRENT)
     }
     pub(crate) fn is_joint(&self, n: usize) -> bool {
         let (idx, b_idx) = self.bit_index(n);

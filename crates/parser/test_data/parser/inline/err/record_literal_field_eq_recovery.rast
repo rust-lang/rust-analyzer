@@ -64,5 +64,5 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 26: expected `:`
-error 33: expected SEMICOLON
+error 33: expected `;`
 error 44: expected `:`

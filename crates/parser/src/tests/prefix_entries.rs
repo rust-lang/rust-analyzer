@@ -31,7 +31,7 @@ fn stmt() {
 #[test]
 fn pat() {
     check(PrefixEntryPoint::Pat, "x y", "x");
-    check(PrefixEntryPoint::Pat, "fn f() {}", "fn");
+    check(PrefixEntryPoint::Pat, "fn f() {}", "");
     check(PrefixEntryPoint::Pat, ".. ..", "..");
 }
 
@@ -47,7 +47,7 @@ fn expr() {
     check(PrefixEntryPoint::Expr, "92 92", "92");
     check(PrefixEntryPoint::Expr, "+1", "+");
     check(PrefixEntryPoint::Expr, "-1", "-1");
-    check(PrefixEntryPoint::Expr, "fn foo() {}", "fn");
+    check(PrefixEntryPoint::Expr, "fn foo() {}", "");
     check(PrefixEntryPoint::Expr, "#[attr] ()", "#[attr] ()");
     check(PrefixEntryPoint::Expr, "foo.0", "foo.0");
     check(PrefixEntryPoint::Expr, "foo.0.1", "foo.0.1");

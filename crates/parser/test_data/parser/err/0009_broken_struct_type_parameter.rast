@@ -45,11 +45,11 @@ SOURCE_FILE
     SEMICOLON ";"
   WHITESPACE "\n"
 error 9: expected generic parameter
-error 11: expected R_ANGLE
+error 11: expected `>`
 error 11: expected `;`, `{`, or `(`
 error 12: expected an item
 error 14: expected an item
 error 15: expected an item
 error 17: expected an item
-error 24: expected SEMICOLON
+error 24: expected `;`
 error 24: expected expression

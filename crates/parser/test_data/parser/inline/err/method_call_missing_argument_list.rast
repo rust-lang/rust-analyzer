@@ -52,5 +52,5 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 27: expected argument list
-error 27: expected SEMICOLON
+error 27: expected `;`
 error 46: expected argument list

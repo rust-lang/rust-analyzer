@@ -11,12 +11,14 @@ pub(super) const TYPE_FIRST: TokenSet = paths::PATH_FIRST.union(TokenSet::new(&[
     T![&],
     T![_],
     T![fn],
+    T![const],
     T![unsafe],
     T![extern],
     T![for],
     T![impl],
     T![dyn],
     T![Self],
+    T![lifetime_ident],
     LIFETIME_IDENT,
 ]));
 
@@ -32,7 +34,8 @@ pub(super) const TYPE_RECOVERY_SET: TokenSet = TokenSet::new(&[
     // struct S { f pub g: () }
     // struct S { f: pub g: () }
     T![pub],
-]);
+])
+.union(TYPE_FIRST);
 
 pub(crate) fn type_(p: &mut Parser<'_>) {
     type_with_bounds_cond(p, true);
@@ -43,6 +46,11 @@ pub(super) fn type_no_bounds(p: &mut Parser<'_>) {
 }
 
 fn type_with_bounds_cond(p: &mut Parser<'_>, allow_bounds: bool) {
+    if !p.at_ts(TYPE_FIRST) {
+        p.err_recover("expected type", TYPE_RECOVERY_SET);
+        return;
+    }
+
     match p.current() {
         T!['('] => paren_or_tuple_type(p),
         T![!] => never_type(p),
@@ -50,7 +58,7 @@ fn type_with_bounds_cond(p: &mut Parser<'_>, allow_bounds: bool) {
         T!['['] => array_or_slice_type(p),
         T![&] => ref_type(p),
         T![_] => infer_type(p),
-        T![fn] | T![unsafe] | T![extern] => fn_ptr_type(p),
+        T![fn] | T![unsafe] | T![extern] | T![const] => fn_ptr_type(p),
         T![for] => for_type(p, allow_bounds),
         T![impl] => impl_trait_type(p),
         T![dyn] => dyn_trait_type(p),
@@ -61,12 +69,7 @@ fn type_with_bounds_cond(p: &mut Parser<'_>, allow_bounds: bool) {
         }
         _ if paths::is_path_start(p) => path_or_macro_type(p, allow_bounds),
         LIFETIME_IDENT if p.nth_at(1, T![+]) => bare_dyn_trait_type(p),
-        T!['{'] => {
-            p.err_recover("expected type, found `{`", TYPE_RECOVERY_SET);
-        }
-        _ => {
-            p.err_recover("expected type", TYPE_RECOVERY_SET);
-        }
+        _ => p.err_and_bump("expected type"),
     }
 }
 
@@ -233,6 +236,7 @@ fn infer_type(p: &mut Parser<'_>) {
 // type D = extern "C" fn ( u8 , ... ) -> u8;
 fn fn_ptr_type(p: &mut Parser<'_>) {
     let m = p.start();
+    p.eat(T![const]);
     p.eat(T![unsafe]);
     if p.at(T![extern]) {
         abi(p);

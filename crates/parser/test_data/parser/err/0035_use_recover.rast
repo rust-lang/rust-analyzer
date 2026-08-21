@@ -50,6 +50,6 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 17: expected one of `*`, `::`, `{`, `self`, `super` or an identifier
-error 17: expected SEMICOLON
+error 17: expected `;`
 error 37: expected one of `*`, `::`, `{`, `self`, `super` or an identifier
-error 37: expected SEMICOLON
+error 37: expected `;`

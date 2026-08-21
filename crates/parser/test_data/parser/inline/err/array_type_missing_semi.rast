@@ -21,7 +21,7 @@ SOURCE_FILE
     SEMICOLON ";"
   WHITESPACE "\n"
 error 12: expected `;` or `]`
-error 12: expected SEMICOLON
+error 12: expected `;`
 error 13: expected an item
 error 15: expected an item
 error 16: expected an item
