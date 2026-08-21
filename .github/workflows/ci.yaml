@@ -285,12 +285,8 @@ jobs:
       - run: npm run typecheck
         working-directory: ./editors/code
 
-      # You may fix the code automatically by running `npm run lint:fix` if this steps fails.
-      - run: npm run lint
-        working-directory: ./editors/code
-
-      # To fix this steps, please run `npm run format`.
-      - run: npm run format:check
+      # To fix this steps, please run `npm run fix`.
+      - run: npm run ci
         working-directory: ./editors/code
 
       - name: Run VS Code tests (Linux)

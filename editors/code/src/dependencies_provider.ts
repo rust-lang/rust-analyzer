@@ -1,14 +1,14 @@
-import * as vscode from "vscode";
-import * as fspath from "path";
 import * as fs from "fs";
+import * as fspath from "path";
+import * as vscode from "vscode";
 import type { CtxInit } from "./ctx";
-import * as ra from "./lsp_ext";
 import type { FetchDependencyListResult } from "./lsp_ext";
+import * as ra from "./lsp_ext";
 import { unwrapUndefinable } from "./util";
 
-export class RustDependenciesProvider implements vscode.TreeDataProvider<
-    Dependency | DependencyFile
-> {
+export class RustDependenciesProvider
+    implements vscode.TreeDataProvider<Dependency | DependencyFile>
+{
     dependenciesMap: { [id: string]: Dependency | DependencyFile };
     ctx: CtxInit;
 

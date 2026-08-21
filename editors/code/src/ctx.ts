@@ -1,9 +1,23 @@
+import { spawn } from "node:child_process";
+import { text } from "node:stream/consumers";
 import * as vscode from "vscode";
 import * as lc from "vscode-languageclient/node";
-import * as ra from "./lsp_ext";
-
-import { Config, prepareVSCodeConfig } from "./config";
+import { bootstrap } from "./bootstrap";
 import { createClient } from "./client";
+import { execRevealDependency } from "./commands";
+import { Config, prepareVSCodeConfig } from "./config";
+import {
+    type Dependency,
+    type DependencyFile,
+    type DependencyId,
+    RustDependenciesProvider,
+} from "./dependencies_provider";
+import type { ServerStatusParams } from "./lsp_ext";
+import * as ra from "./lsp_ext";
+import type { RustAnalyzerExtensionApi } from "./main";
+import { PersistentState } from "./persistent_state";
+import { type SyntaxElement, SyntaxTreeProvider } from "./syntax_tree_provider";
+import { prepareTestExplorer } from "./test_explorer";
 import {
     findRustToolchainFiles,
     isCargoTomlEditor,
@@ -14,21 +28,6 @@ import {
     log,
     type RustEditor,
 } from "./util";
-import type { ServerStatusParams } from "./lsp_ext";
-import {
-    type Dependency,
-    type DependencyFile,
-    RustDependenciesProvider,
-    type DependencyId,
-} from "./dependencies_provider";
-import { SyntaxTreeProvider, type SyntaxElement } from "./syntax_tree_provider";
-import { execRevealDependency } from "./commands";
-import { PersistentState } from "./persistent_state";
-import { bootstrap } from "./bootstrap";
-import { prepareTestExplorer } from "./test_explorer";
-import { spawn } from "node:child_process";
-import { text } from "node:stream/consumers";
-import type { RustAnalyzerExtensionApi } from "./main";
 
 // We only support local folders, not eg. Live Share (`vlsl:` scheme), so don't activate if
 // only those are in use. We use "Empty" to represent these scenarios
@@ -602,7 +601,7 @@ export interface Disposable {
     dispose(): void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: todo
 export type Cmd = (...args: any[]) => unknown;
 
 /**
