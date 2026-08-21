@@ -1282,19 +1282,21 @@ impl<'db> PlaceTy<'db> {
         self.projection_ty_core(
             infcx.interner,
             elem,
-            |ty| {
-                if matches!(ty.kind(), TyKind::Alias(..)) {
-                    let mut ocx = ObligationCtxt::new(infcx);
-                    match ocx.structurally_normalize_ty(&ObligationCause::dummy(), env, ty) {
-                        Ok(it) => it,
-                        Err(_) => Ty::new_error(infcx.interner, ErrorGuaranteed),
-                    }
-                } else {
-                    ty
-                }
-            },
+            |ty| Self::normalize_projection_ty(infcx, env, ty),
             |self_ty, variant, field_id| Self::field_ty(infcx, self_ty, variant, field_id),
         )
+    }
+
+    fn normalize_projection_ty(infcx: &InferCtxt<'db>, env: ParamEnv<'db>, ty: Ty<'db>) -> Ty<'db> {
+        if matches!(ty.kind(), TyKind::Alias(..)) {
+            let mut ocx = ObligationCtxt::new(infcx);
+            match ocx.structurally_normalize_ty(&ObligationCause::dummy(), env, ty) {
+                Ok(it) => it,
+                Err(_) => Ty::new_error(infcx.interner, ErrorGuaranteed),
+            }
+        } else {
+            ty
+        }
     }
 
     /// `place_ty.projection_ty_core(tcx, elem, |...| { ... })`

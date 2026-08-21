@@ -9,7 +9,7 @@ use rustc_type_ir::inherent::{IntoKind, Ty as _};
 use crate::{
     BindingMode, ByRef,
     mir::{
-        FieldIndex, LocalId, MutBorrowKind, Operand, OperandKind, PlaceRef, Projection,
+        FieldIndex, LocalId, MutBorrowKind, Operand, OperandKind, PlaceRef, PlaceTy, Projection,
         lower::{
             BasicBlockId, BinOp, BindingId, BorrowKind, Expr, Idx, MemoryMap, MirLowerCtx,
             MirLowerError, MirSpan, Pat, PatId, PlaceElem, ProjectionElem, ResolveValueResult,
@@ -491,6 +491,13 @@ impl<'db> MirLowerCtx<'_, 'db> {
                 )?
             }
             Pat::Ref { pat, mutability: _ } => {
+                let ty = cond_place.ty(&self.result, &self.infcx, self.env).ty;
+                let ty = PlaceTy::normalize_projection_ty(&self.infcx, self.env, ty);
+                if !ty.is_ref() {
+                    return Err(MirLowerError::TypeError(
+                        "non reference type matched with reference pattern",
+                    ));
+                }
                 let cond_place = cond_place.project(ProjectionElem::Deref);
                 self.pattern_match_inner(current, current_else, cond_place, *pat, mode)?
             }
