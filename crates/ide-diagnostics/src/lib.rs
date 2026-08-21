@@ -36,6 +36,7 @@ mod handlers {
     pub(crate) mod cannot_be_dereferenced;
     pub(crate) mod cannot_implicitly_deref_trait_object;
     pub(crate) mod cannot_index_into;
+    pub(crate) mod const_arg_has_wrong_type;
     pub(crate) mod duplicate_field;
     pub(crate) mod elided_lifetimes_in_path;
     pub(crate) mod expected_array_or_slice_pat;
@@ -441,6 +442,9 @@ pub fn semantic_diagnostics(
             AnyDiagnostic::UnaryOperatorCannotBeApplied(d) => handlers::unary_operator_cannot_be_applied::unary_operator_cannot_be_applied(&ctx, &d),
             AnyDiagnostic::CannotImplicitlyDerefTraitObject(d) => handlers::cannot_implicitly_deref_trait_object::cannot_implicitly_deref_trait_object(&ctx, &d),
             AnyDiagnostic::CannotIndexInto(d) => handlers::cannot_index_into::cannot_index_into(&ctx, &d),
+            AnyDiagnostic::ConstArgHasWrongType(d) => {
+                handlers::const_arg_has_wrong_type::const_arg_has_wrong_type(&ctx, &d)
+            }
             AnyDiagnostic::CastToUnsized(d) => handlers::invalid_cast::cast_to_unsized(&ctx, &d),
             AnyDiagnostic::InferVarsNotAllowed(d) => handlers::infer_vars_not_allowed::infer_vars_not_allowed(&ctx, &d),
             AnyDiagnostic::ArrayPatternWithoutFixedLength(d) => {

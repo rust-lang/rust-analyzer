@@ -61,7 +61,7 @@ pub(crate) use hir_def::TrackedStructToken;
 
 use crate::{
     ImplTraitId, Span, TyLoweringDiagnostic,
-    consteval::{create_anon_const, path_to_const},
+    consteval::{CreateConstError, create_anon_const, path_to_const},
     db::{AnonConstId, GeneralConstId, HirDatabase, InternedOpaqueTyId},
     generics::{Generics, SingleGenerics, generics},
     infer::unify::InferenceTable,
@@ -459,6 +459,38 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         self.lower_expr_as_const(const_ref.expr, const_type)
     }
 
+    fn const_ty(&self, konst: Const<'db>) -> Option<Ty<'db>> {
+        let ty = match konst.kind() {
+            ConstKind::Param(param) => self.db.const_param_ty(param.id),
+            ConstKind::Value(value) => value.ty,
+            _ => return None,
+        };
+        Some(ty)
+    }
+
+    fn push_const_type_diagnostic(
+        &mut self,
+        source: Span,
+        konst: &Result<Const<'db>, CreateConstError<'db>>,
+        const_type: Ty<'db>,
+    ) {
+        let ct_ty = match konst {
+            Ok(konst) => self.const_ty(*konst),
+            Err(CreateConstError::TypeMismatch { actual }) => Some(*actual),
+            Err(_) => None,
+        };
+        let Some(ct_ty) = ct_ty else { return };
+        if ct_ty == const_type || ct_ty.references_error() || const_type.references_error() {
+            return;
+        }
+        self.push_diagnostic(TyLoweringDiagnostic::ConstArgHasWrongType {
+            source,
+            type_owner: self.generic_def,
+            ct_ty: ct_ty.store(),
+            expected_ty: const_type.store(),
+        });
+    }
+
     pub(crate) fn lower_expr_as_const(
         &mut self,
         expr_id: ExprId,
@@ -484,6 +516,8 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             self.forbid_params_after,
         );
 
+        self.push_const_type_diagnostic(expr_id.into(), &konst, const_type);
+
         if let Ok(konst) = konst
             && let ConstKind::Unevaluated(konst) = konst.kind()
             && let GeneralConstId::AnonConstId(konst) = konst.def.0
@@ -497,12 +531,24 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         })
     }
 
-    pub(crate) fn lower_path_as_const(&mut self, path: &Path, _const_type: Ty<'db>) -> Const<'db> {
-        path_to_const(self.db, self.resolver, &|| self.generics(), self.forbid_params_after, path)
-            .unwrap_or({
-                // FIXME: Report an error.
-                self.types.consts.error
-            })
+    pub(crate) fn lower_path_as_const(
+        &mut self,
+        path: &Path,
+        const_type: Ty<'db>,
+        source: Span,
+    ) -> Const<'db> {
+        let konst = path_to_const(
+            self.db,
+            self.resolver,
+            &|| self.generics(),
+            self.forbid_params_after,
+            path,
+        );
+        self.push_const_type_diagnostic(source, &konst, const_type);
+        konst.unwrap_or({
+            // FIXME: Report an error.
+            self.types.consts.error
+        })
     }
 
     fn generics(&self) -> &Generics<'db> {
