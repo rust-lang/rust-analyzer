@@ -1072,6 +1072,7 @@ impl<'db> ExprCollector<'db> {
 
         let mut statements =
             Vec::with_capacity(usize::from(self_param.is_some()) + (params.len() * 2));
+        let mut parameter_names = FxIndexSet::default();
 
         if let Some(self_param) = self_param {
             let Binding { ref name, mode, hygiene, .. } = self.store.bindings[self_param.formal];
@@ -1094,7 +1095,8 @@ impl<'db> ExprCollector<'db> {
         }
 
         for param in params {
-            let (name, hygiene, is_simple_parameter) = match self.store.pats[param.formal] {
+            let user_written_pat = param.formal;
+            let (mut name, mut hygiene, is_simple_parameter) = match self.store.pats[param.formal] {
                 // Check if this is a binding pattern, if so, we can optimize and avoid adding a
                 // `let <pat> = __argN;` statement. In this case, we do not rename the parameter.
                 Pat::Bind { id, subpat: None, .. }
@@ -1113,6 +1115,23 @@ impl<'db> ExprCollector<'db> {
                 }
                 _ => (self.generate_new_name(), HygieneId::ROOT, false),
             };
+            // `let b = b` normally resolves the initializer to the existing `b`. rustc's
+            // desugared path records which formal parameter it means, while ours is resolved by
+            // name. If an earlier parameter pattern introduced the same name, give this later
+            // formal a synthetic name so the move still resolves to it.
+            if parameter_names.contains(&(name.clone(), hygiene)) {
+                name = self.generate_new_name();
+                hygiene = HygieneId::ROOT;
+            }
+            let mut parameter_pats = vec![user_written_pat];
+            while let Some(pat_id) = parameter_pats.pop() {
+                let pat = &self.store.pats[pat_id];
+                if let &Pat::Bind { id, .. } = pat {
+                    let binding = &self.store.bindings[id];
+                    parameter_names.insert((binding.name.clone(), binding.hygiene));
+                }
+                pat.walk_child_pats(|pat_id| parameter_pats.push(pat_id));
+            }
             let pat_syntax = self.store.pat_map_back.get(param.formal).copied();
             if !is_simple_parameter {
                 // It needs to be mutable so the inner patterns can borrow it mutably (`ref mut`).
@@ -1153,7 +1172,7 @@ impl<'db> ExprCollector<'db> {
             if let Some(pat_syntax) = pat_syntax {
                 self.store.pat_map_back.insert(parent_pat_id, pat_syntax);
             }
-            *param = Param { formal: parent_pat_id, user_written: param.formal };
+            *param = Param { formal: parent_pat_id, user_written: user_written_pat };
         }
 
         let coroutine = self.desugared_coroutine_expr(
