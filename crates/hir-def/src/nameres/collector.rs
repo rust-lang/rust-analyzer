@@ -32,8 +32,8 @@ use crate::{
     EnumLoc, ExternBlockLoc, ExternCrateId, ExternCrateLoc, FunctionId, FunctionLoc, FxIndexMap,
     ImplLoc, Intern, ItemContainerId, Lookup, Macro2Id, Macro2Loc, MacroExpander, MacroId,
     MacroRulesId, MacroRulesLoc, MacroRulesLocFlags, ModuleDefId, ModuleId, ProcMacroId,
-    ProcMacroLoc, StaticLoc, StructLoc, TraitLoc, TypeAliasLoc, UnionLoc, UnresolvedMacro, UseId,
-    UseLoc, file_item_tree,
+    ProcMacroLoc, StaticLoc, StructIdLt, StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
+    UnresolvedMacro, UseId, UseLoc, file_item_tree,
     item_scope::{GlobId, ImportId, ImportOrExternCrate, PerNsGlobImports},
     item_tree::{
         self, Attrs, AttrsOrCfg, ImportAlias, ImportKind, ItemTree, ItemTreeAstId, Macro2,
@@ -2140,11 +2140,16 @@ impl ModCollector<'_, '_> {
                             .map(|&vis| resolve_vis(def_map, local_def_map, &self.item_tree[vis]))
                             .fold(None, |a: Option<Visibility>, b| a?.min(db, b, def_map)),
                     };
-                    let interned = StructLoc {
-                        container: module_id,
-                        id: InFile::new(self.tree_id.file_id(), ast_id),
-                    }
-                    .intern(db);
+                    let interned = unsafe {
+                        StructIdLt::new(
+                            db,
+                            StructLoc {
+                                container: module_id,
+                                id: InFile::new(self.tree_id.file_id(), ast_id),
+                            },
+                        )
+                        .to_static()
+                    };
                     consider_deferred_derives(
                         self.tree_id.file_id(),
                         &mut self.def_collector.deferred_builtin_derives,
