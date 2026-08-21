@@ -374,6 +374,10 @@ fn print_generic_params(
         w!(p, "<");
         let mut first = true;
         for (_i, param) in generic_params.iter_lt() {
+            if param.is_elided() {
+                continue;
+            }
+
             if !first {
                 w!(p, ", ");
             }
@@ -1255,6 +1259,7 @@ impl Printer<'_> {
             }
             LifetimeRef::Placeholder => w!(self, "'_"),
             LifetimeRef::Error => w!(self, "'{{error}}"),
+            LifetimeRef::HrtbParam(_) => w!(self, "'_"), // FIXME: properly handle it, currently do not have enough data to handle
             &LifetimeRef::Param(p) => self.print_lifetime_param(p),
         }
     }
@@ -1290,7 +1295,9 @@ impl Printer<'_> {
                     Mutability::Mut => "mut ",
                 };
                 w!(self, "&");
-                if let Some(lt) = &ref_.lifetime {
+                if let Some(lt) = &ref_.lifetime
+                    && !self.store[*lt].is_elided(self.db)
+                {
                     self.print_lifetime_ref(*lt);
                     w!(self, " ");
                 }
@@ -1371,23 +1378,22 @@ impl Printer<'_> {
             }
 
             match bound {
-                TypeBound::Path(path, modifier) => {
+                TypeBound::Path(binder, path, modifier) => {
+                    if let Some(lifetimes) = binder {
+                        w!(
+                            self,
+                            "for<{}> ",
+                            lifetimes
+                                .iter()
+                                .map(|it| it.display(self.db, self.edition))
+                                .format(", ")
+                                .to_string()
+                        );
+                    }
                     match modifier {
                         TraitBoundModifier::None => (),
                         TraitBoundModifier::Maybe => w!(self, "?"),
                     }
-                    self.print_path(&self.store[*path]);
-                }
-                TypeBound::ForLifetime(lifetimes, path) => {
-                    w!(
-                        self,
-                        "for<{}> ",
-                        lifetimes
-                            .iter()
-                            .map(|it| it.display(self.db, self.edition))
-                            .format(", ")
-                            .to_string()
-                    );
                     self.print_path(&self.store[*path]);
                 }
                 TypeBound::Lifetime(lt) => self.print_lifetime_ref(*lt),

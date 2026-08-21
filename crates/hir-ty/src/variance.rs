@@ -592,8 +592,8 @@ struct TestBox<U,T:Getter<U>+Setter<U>> { //~ ERROR [U: *, T: +]
 }
 "#,
             expect![[r#"
-                get[Self: contravariant, T: covariant]
-                get[Self: contravariant, T: contravariant]
+                get[Self: contravariant, T: covariant, '_: invariant]
+                get[Self: contravariant, T: contravariant, '_: invariant]
                 TestStruct[U: covariant, T: covariant]
                 TestEnum[U: bivariant, T: covariant]
                 TestContraStruct[U: bivariant, T: covariant]
@@ -628,10 +628,10 @@ fn pick<'b, G>(get: &'b G, if_odd: &'b i32) -> i32
 {}
 "#,
             expect![[r#"
-                get[Self: contravariant, T: covariant]
+                get[Self: contravariant, T: covariant, '_: invariant]
                 Cloner[T: covariant]
-                get[T: invariant]
-                get['a: invariant, G: contravariant]
+                get[T: invariant, '_: invariant]
+                get['a: invariant, G: contravariant, '_: invariant]
                 pick['b: contravariant, G: contravariant]
             "#]],
         );
@@ -653,7 +653,7 @@ struct TOption<'a> { //~ ERROR ['a: +]
 "#,
             expect![[r#"
                 Option[T: covariant]
-                foo[Self: contravariant]
+                foo[Self: contravariant, '_: invariant]
                 TOption['a: covariant]
             "#]],
         );
@@ -701,8 +701,8 @@ struct TestObject<A, R> { //~ ERROR [A: o, R: o]
                 TestMut[A: covariant, B: invariant]
                 TestIndirect[A: covariant, B: invariant]
                 TestIndirect2[A: invariant, B: invariant]
-                get[Self: contravariant, A: covariant]
-                set[Self: invariant, A: contravariant]
+                get[Self: contravariant, A: covariant, '_: invariant]
+                set[Self: invariant, A: contravariant, '_: invariant]
                 TestObject[A: invariant, R: invariant]
             "#]],
         );
@@ -719,7 +719,7 @@ trait SomeTrait<'a> { fn foo(&self); } // OK on traits.
             expect![[r#"
                 SomeStruct['a: bivariant]
                 SomeEnum['a: bivariant]
-                foo[Self: contravariant, 'a: invariant]
+                foo[Self: contravariant, 'a: invariant, '_: invariant]
             "#]],
         );
     }
@@ -948,7 +948,7 @@ struct FixedPoint<T, U, V>(&'static FixedPoint<(), T, U>, V);
                     res,
                     "{name}[{}]\n",
                     generics(&db, def)
-                        .iter(false)
+                        .iter(true)
                         .map(|(_, param)| match param {
                             GenericParamDataRef::TypeParamData(type_param_data) => {
                                 type_param_data.name.as_ref().unwrap()

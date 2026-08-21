@@ -1207,7 +1207,7 @@ fn main() {
 
 "#,
             expect![[r#"
-                me Function fn(&self, i32) -> bool []
+                me Function(…) fn(&self, i32) -> bool []
             "#]],
         );
     }
@@ -2672,8 +2672,8 @@ struct WorldSnapshot { _f: () };
 fn go(world: &WorldSnapshot) { go(w$0) }
 "#,
             expect![[r#"
-                lc world &WorldSnapshot [type+name+local]
-                ex world  [type]
+                lc world &WorldSnapshot [type_could_unify+name+local]
+                ex world  [type_could_unify]
                 st WorldSnapshot {…} WorldSnapshot { _f: () } []
                 st &WorldSnapshot {…} [type]
                 st WorldSnapshot WorldSnapshot []
