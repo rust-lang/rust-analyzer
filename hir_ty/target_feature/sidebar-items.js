@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TARGET_FEATURE_IMPLICATIONS_RAW"],"static":["TARGET_FEATURE_IMPLICATIONS"],"struct":["TargetFeatures"]};

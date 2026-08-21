@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["attrs_including_inner"],"struct":["AttrDocCommentIter","DocCommentIter"],"trait":["HasArgList","HasAttrs","HasDocComments","HasGenericArgs","HasGenericParams","HasLoopBody","HasModuleItem","HasName","HasTypeBounds","HasVisibility"]};
