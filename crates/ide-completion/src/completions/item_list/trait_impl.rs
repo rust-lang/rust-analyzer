@@ -330,7 +330,10 @@ fn get_transformed_fn(
                     );
                 }
             }
-            editor.delete(fn_.async_token()?);
+            if let Some(async_token) = fn_.async_token() {
+                editor.delete_whitespace(async_token.next_token());
+                editor.delete(&async_token);
+            }
         }
         AsyncSugaring::Resugar => {
             let ty = fn_.ret_type()?.ty()?;
@@ -1727,7 +1730,7 @@ trait DesugaredAsyncTrait {
 }
 
 impl DesugaredAsyncTrait for () {
-     fn foo(&self) -> impl Future<Output = usize> {
+    fn foo(&self) -> impl Future<Output = usize> {
     $0
 }
 }
