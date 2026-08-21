@@ -1888,9 +1888,8 @@ impl<'db> AnonConst<'db> {
         self,
         db: &'db dyn HirDatabase,
     ) -> Result<EvaluatedConst<'db>, ConstEvalError<'db>> {
-        let interner = DbInterner::new_no_crate(db);
         let ty = self.id.loc(db).ty.get().instantiate_identity().skip_norm_wip();
-        db.anon_const_eval(self.id, GenericArgs::empty(interner), None).map(|it| EvaluatedConst {
+        db.anon_const_eval(self.id, GenericArgs::empty(), None).map(|it| EvaluatedConst {
             allocation: it,
             def: self.id.into(),
             ty,
@@ -2535,10 +2534,9 @@ impl Function {
                 "evaluation of builtin derive impl methods is not supported".to_owned(),
             )));
         };
-        let interner = DbInterner::new_no_crate(db);
         let body = db.monomorphized_mir_body(
             id.into(),
-            GenericArgs::empty(interner).store(),
+            GenericArgs::empty().store(),
             ParamEnvAndCrate {
                 param_env: db.trait_environment(id.into()),
                 krate: id.module(db).krate(db),
@@ -2817,9 +2815,8 @@ impl Const {
 
     /// Evaluate the constant.
     pub fn eval(self, db: &dyn HirDatabase) -> Result<EvaluatedConst<'_>, ConstEvalError<'_>> {
-        let interner = DbInterner::new_no_crate(db);
         let ty = db.value_ty(self.id.into()).unwrap().instantiate_identity().skip_norm_wip();
-        db.const_eval(self.id, GenericArgs::empty(interner), None).map(|it| EvaluatedConst {
+        db.const_eval(self.id, GenericArgs::empty(), None).map(|it| EvaluatedConst {
             allocation: it,
             def: self.id.into(),
             ty,
@@ -5317,7 +5314,7 @@ impl<'db> Type<'db> {
                 GenericArgs::error_for_item(interner, def.into())
             }
             TypeOwnerId::AnonConstId(def) => GenericArgs::error_for_item(interner, def.into()),
-            TypeOwnerId::NoParams(_) => GenericArgs::empty(interner),
+            TypeOwnerId::NoParams(_) => GenericArgs::empty(),
         };
         Type::no_params(krate, self.ty.instantiate(interner, args).skip_norm_wip())
     }
@@ -5331,9 +5328,7 @@ impl<'db> Type<'db> {
                 generic_args_from_tys(interner, def.into(), args)
             }
             TypeOwnerId::AnonConstId(def) => generic_args_from_tys(interner, def.into(), args),
-            TypeOwnerId::NoParams(krate) => {
-                (GenericArgs::empty(interner), TypeOwnerId::NoParams(krate))
-            }
+            TypeOwnerId::NoParams(krate) => (GenericArgs::empty(), TypeOwnerId::NoParams(krate)),
         };
         Type { owner, ty: EarlyBinder::bind(self.ty.instantiate(interner, args).skip_norm_wip()) }
     }
@@ -5663,9 +5658,7 @@ impl<'db> Type<'db> {
                 param_env: db.trait_environment(def.loc(db).owner.generic_def(db)),
                 krate,
             },
-            TypeOwnerId::NoParams(_) => {
-                ParamEnvAndCrate { param_env: ParamEnv::empty(interner), krate }
-            }
+            TypeOwnerId::NoParams(_) => ParamEnvAndCrate { param_env: ParamEnv::empty(), krate },
         }
     }
 
@@ -5789,8 +5782,7 @@ impl<'db> Type<'db> {
         trait_: Trait,
         args: &[Type<'db>],
     ) -> bool {
-        let interner = DbInterner::new_no_crate(db);
-        let env = ParamEnvAndCrate { param_env: ParamEnv::empty(interner), krate: self.krate(db) };
+        let env = ParamEnvAndCrate { param_env: ParamEnv::empty(), krate: self.krate(db) };
         traits::implements_trait_unique_with_infcx(db, env, trait_.id, &mut |infcx| {
             let mut args = Self::instantiate_many_with_infer(iter::once(self).chain(args), infcx);
             GenericArgs::for_item(infcx.interner, trait_.id.into(), |_, param, _, _| {

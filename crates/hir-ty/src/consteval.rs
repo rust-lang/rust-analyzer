@@ -123,9 +123,8 @@ fn intern_const_ref<'db>(
         (TyKind::Ref(_, inner_ty, _), Literal::String(value))
             if matches!(inner_ty.kind(), TyKind::Str) =>
         {
-            let u8_values = &interner.default_types().consts.u8_values;
+            let u8_values = &default_types().consts.u8_values;
             ValTreeKind::Branch(Consts::new_from_iter(
-                interner,
                 value.as_str().as_bytes().iter().map(|&byte| u8_values[usize::from(byte)]),
             ))
         }
@@ -155,7 +154,7 @@ pub(crate) fn literal_ty<'db>(
     default_uint: impl FnOnce(&DefaultAny<'db>) -> Ty<'db>,
     default_float: impl FnOnce(&DefaultAny<'db>) -> Ty<'db>,
 ) -> Ty<'db> {
-    let types = interner.default_types();
+    let types = default_types();
     match value {
         Literal::Bool(..) => types.types.bool,
         Literal::String(..) => types.types.static_str_ref,
@@ -219,7 +218,7 @@ pub fn usize_const<'db>(db: &'db dyn HirDatabase, value: Option<u128>, krate: Cr
     let Ok(data_layout) = db.target_data_layout(krate) else {
         return Const::error(interner);
     };
-    let usize_ty = interner.default_types().types.usize;
+    let usize_ty = default_types().types.usize;
     let Some(scalar) = ScalarInt::try_from_uint(value, data_layout.pointer_size()) else {
         return Const::error(interner);
     };
@@ -253,7 +252,7 @@ pub fn try_const_usize<'db>(db: &'db dyn HirDatabase, c: Const<'db>) -> Option<u
             }
         },
         ConstKind::Value(val) => {
-            if val.ty == default_types(db).types.usize {
+            if val.ty == default_types().types.usize {
                 Some(val.value.inner().to_leaf().to_uint_unchecked())
             } else {
                 None
@@ -291,7 +290,7 @@ pub fn try_const_isize<'db>(db: &'db dyn HirDatabase, c: Const<'db>) -> Option<i
             }
         },
         ConstKind::Value(val) => {
-            if val.ty == default_types(db).types.isize {
+            if val.ty == default_types().types.isize {
                 Some(val.value.inner().to_leaf().to_int_unchecked())
             } else {
                 None
@@ -347,7 +346,7 @@ pub(crate) fn path_to_const<'a, 'db>(
         | ValueNs::StructId(_)
         | ValueNs::EnumVariantId(_) => return Err(CreateConstError::ResolveToNonConst),
     };
-    let args = GenericArgs::empty(interner);
+    let args = GenericArgs::empty();
     Ok(Const::new_unevaluated(interner, UnevaluatedConst { def: konst.into(), args }))
 }
 
@@ -411,7 +410,7 @@ pub(crate) fn create_anon_const<'a, 'db>(
             let args = if allow_using_generic_params {
                 GenericArgs::identity_for_item(interner, owner.generic_def(interner.db).into())
             } else {
-                GenericArgs::empty(interner)
+                GenericArgs::empty()
             };
             Ok(Const::new_unevaluated(
                 interner,
@@ -426,7 +425,6 @@ pub(crate) fn const_eval_discriminant_variant<'db>(
     db: &'db dyn HirDatabase,
     variant_id: EnumVariantId,
 ) -> Result<i128, ConstEvalError<'db>> {
-    let interner = DbInterner::new_no_crate(db);
     let def = variant_id.into();
     let body = Body::of(db, def);
     let loc = variant_id.lookup(db);
@@ -446,7 +444,7 @@ pub(crate) fn const_eval_discriminant_variant<'db>(
 
     let mir_body = db.monomorphized_mir_body(
         def.into(),
-        GenericArgs::empty(interner).store(),
+        GenericArgs::empty().store(),
         ParamEnvAndCrate {
             param_env: db.trait_environment(def.generic_def(db)),
             krate: def.krate(db),
@@ -561,10 +559,9 @@ pub(crate) fn const_eval_static<'db>(
         db: &'db dyn HirDatabase,
         def: StaticId,
     ) -> Result<StoredAllocation, ConstEvalError<'db>> {
-        let interner = DbInterner::new_no_crate(db);
         let body = db.monomorphized_mir_body(
             def.into(),
-            GenericArgs::empty(interner).store(),
+            GenericArgs::empty().store(),
             ParamEnvAndCrate { param_env: db.trait_environment(def.into()), krate: def.krate(db) }
                 .store(),
         )?;

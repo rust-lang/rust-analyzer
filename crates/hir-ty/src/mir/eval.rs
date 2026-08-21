@@ -1503,8 +1503,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                         )?)
                     }
                     AggregateKind::Union(it, f) => {
-                        let layout =
-                            self.layout_adt((*it).into(), GenericArgs::empty(self.interner()))?;
+                        let layout = self.layout_adt((*it).into(), GenericArgs::empty())?;
                         let offset = layout
                             .fields
                             .offset(u32::from(f.local_id.into_raw()) as usize)
@@ -2902,7 +2901,6 @@ impl<'a, 'db> Evaluator<'a, 'db> {
                     ty,
                 };
                 let generics_for_target = GenericArgs::new_from_iter(
-                    self.interner(),
                     generic_args
                         .iter()
                         .enumerate()

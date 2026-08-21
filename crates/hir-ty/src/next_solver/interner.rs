@@ -90,18 +90,28 @@ macro_rules! interned_slice {
 
         impl<'db> $name<'db> {
             #[inline]
-            pub fn empty(interner: DbInterner<'db>) -> Self {
-                interner.default_types().empty.$default_types_field
+            pub fn empty() -> Self {
+                $crate::next_solver::default_types().empty.$default_types_field
             }
 
             #[inline]
             pub fn new_from_slice(slice: &[$ty_db]) -> Self {
+                if slice.is_empty() {
+                    // Common case: avoid looking up the empty slice.
+                    Self::empty()
+                } else {
+                    Self::new_from_slice_no_empty(slice)
+                }
+            }
+
+            #[inline]
+            pub(crate) fn new_from_slice_no_empty(slice: &[$ty_db]) -> Self {
                 let slice = unsafe { ::std::mem::transmute::<&[$ty_db], &[$ty_static]>(slice) };
                 Self { interned: ::intern::InternedSlice::from_header_and_slice((), slice) }
             }
 
             #[inline]
-            pub fn new_from_iter<I, T>(_interner: DbInterner<'db>, args: I) -> T::Output
+            pub fn new_from_iter<I, T>(args: I) -> T::Output
             where
                 I: IntoIterator<Item = T>,
                 T: ::rustc_type_ir::CollectAndApply<$ty_db, Self>,
@@ -168,7 +178,7 @@ macro_rules! interned_slice {
         impl<'db> Default for $name<'db> {
             #[inline]
             fn default() -> Self {
-                $name::empty(DbInterner::conjure())
+                $name::empty()
             }
         }
 
@@ -247,13 +257,13 @@ macro_rules! impl_foldable_for_interned_slice {
                 self,
                 folder: &mut F,
             ) -> Result<Self, F::Error> {
-                Self::new_from_iter(folder.cx(), self.iter().map(|it| it.try_fold_with(folder)))
+                Self::new_from_iter(self.iter().map(|it| it.try_fold_with(folder)))
             }
             fn fold_with<F: rustc_type_ir::TypeFolder<DbInterner<'db>>>(
                 self,
                 folder: &mut F,
             ) -> Self {
-                Self::new_from_iter(folder.cx(), self.iter().map(|it| it.fold_with(folder)))
+                Self::new_from_iter(self.iter().map(|it| it.fold_with(folder)))
             }
         }
     };
@@ -395,11 +405,6 @@ impl<'db> DbInterner<'db> {
             Note: you might have called `DbInterner::new_no_crate()` \
             where you should've called `DbInterner::new_with()`",
         )
-    }
-
-    #[inline]
-    pub fn default_types(&self) -> &'db crate::next_solver::DefaultAny<'db> {
-        crate::next_solver::default_types(self.db)
     }
 
     #[inline]
@@ -847,7 +852,6 @@ impl<'db> rustc_type_ir::relate::Relate<DbInterner<'db>> for Pattern<'db> {
                     return Err(TypeError::Mismatch);
                 }
                 let pats = PatList::new_from_iter(
-                    relation.cx(),
                     std::iter::zip(a.iter(), b.iter()).map(|(a, b)| relation.relate(a, b)),
                 )?;
                 Ok(Pattern::new(tcx, PatternKind::Or(pats)))
@@ -1014,7 +1018,7 @@ impl<'db> Interner for DbInterner<'db> {
         I: Iterator<Item = T>,
         T: rustc_type_ir::CollectAndApply<Self::GenericArg, Self::GenericArgs>,
     {
-        GenericArgs::new_from_iter(self, args)
+        GenericArgs::new_from_iter(args)
     }
 
     type UnsizingParams = UnsizingParams;
@@ -1075,7 +1079,6 @@ impl<'db> Interner for DbInterner<'db> {
                 // We compute them based on the only `Ty` level info in rustc,
                 // move `variances_of_opaque` into `rustc_next_trait_solver` for reuse.
                 return VariancesOf::new_from_iter(
-                    self,
                     (0..self.generics_of(def_id).count()).map(|_| Variance::Invariant),
                 );
             }
@@ -1092,7 +1095,7 @@ impl<'db> Interner for DbInterner<'db> {
             | SolverDefId::InternedCoroutineId(_)
             | SolverDefId::InternedCoroutineClosureId(_)
             | SolverDefId::AnonConstId(_) => {
-                return VariancesOf::empty(self);
+                return VariancesOf::empty();
             }
         };
         self.db.variances_of(generic_def)
@@ -1161,12 +1164,9 @@ impl<'db> Interner for DbInterner<'db> {
         def_id: Self::TraitAssocTermId,
         args: Self::GenericArgs,
     ) -> (rustc_type_ir::TraitRef<Self>, Self::GenericArgsSlice) {
-        let trait_def_id = self.projection_parent(def_id).0;
-        let trait_generics = crate::generics::generics(self.db, trait_def_id.into());
-        let trait_generics_len = trait_generics.len(true);
-        let trait_args = GenericArgs::new_from_slice(&args.as_slice()[..trait_generics_len]);
-        let alias_args = &args.as_slice()[trait_generics_len..];
-        (TraitRef::new_from_args(self, trait_def_id.into(), trait_args), alias_args)
+        let trait_def_id = self.projection_parent(def_id);
+        let trait_ref = TraitRef::from_assoc(self, trait_def_id, args);
+        (trait_ref, &args.as_slice()[trait_ref.args.len()..])
     }
 
     fn check_args_compatible(self, def_id: Self::DefId, args: Self::GenericArgs) -> bool {
@@ -1196,7 +1196,7 @@ impl<'db> Interner for DbInterner<'db> {
         I: Iterator<Item = T>,
         T: rustc_type_ir::CollectAndApply<Self::Ty, Self::Tys>,
     {
-        Tys::new_from_iter(self, args)
+        Tys::new_from_iter(args)
     }
 
     fn projection_parent(self, def_id: Self::TraitAssocTermId) -> Self::TraitId {
@@ -1345,12 +1345,9 @@ impl<'db> Interner for DbInterner<'db> {
         let own_bounds: FxHashSet<_> =
             self.item_self_bounds(def_id).skip_binder().into_iter().collect();
         if all_bounds.len() == own_bounds.len() {
-            EarlyBinder::bind(Clauses::empty(self))
+            EarlyBinder::bind(Clauses::empty())
         } else {
-            EarlyBinder::bind(Clauses::new_from_iter(
-                self,
-                all_bounds.difference(&own_bounds).cloned(),
-            ))
+            EarlyBinder::bind(Clauses::new_from_iter(all_bounds.difference(&own_bounds).cloned()))
         }
     }
 
@@ -1978,7 +1975,7 @@ impl<'db> Interner for DbInterner<'db> {
         let mut map = Default::default();
         let delegate = Anonymize { interner: self, map: &mut map };
         let inner = self.replace_escaping_bound_vars_uncached(value.skip_binder(), delegate);
-        let bound_vars = BoundVarKinds::new_from_iter(self, map.into_values());
+        let bound_vars = BoundVarKinds::new_from_iter(map.into_values());
         Binder::bind_with_vars(inner, bound_vars)
     }
 
@@ -2172,7 +2169,7 @@ impl<'db> Interner for DbInterner<'db> {
         };
         EarlyBinder::bind(Const::new_unevaluated(
             self,
-            UnevaluatedConst { def: GeneralConstIdWrapper(id), args: GenericArgs::empty(self) },
+            UnevaluatedConst { def: GeneralConstIdWrapper(id), args: GenericArgs::empty() },
         ))
     }
 
@@ -2292,7 +2289,6 @@ impl<'db> DbInterner<'db> {
     {
         FnSig {
             inputs_and_output: Tys::new_from_iter(
-                self,
                 inputs.into_iter().chain(std::iter::once(output)),
             ),
             fn_sig_kind: FnSigKind::new(abi, safety, c_variadic),
