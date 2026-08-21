@@ -76,10 +76,18 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
         if let Some(t) = ctx.token_at_offset().find(|it| it.kind() == T![;]) {
             t.parent().and_then(ast::ExprStmt::cast)?.syntax().clone()
         } else {
-            let expr = ancestors_at_offset(ctx.source_file().syntax(), ctx.offset())
-                .next()
-                .and_then(ast::Expr::cast)?;
-            expr.syntax().ancestors().find_map(valid_target_expr(ctx))?.syntax().clone()
+            ancestors_at_offset(ctx.source_file().syntax(), ctx.offset())
+                .skip(1)
+                .take_while(|node| {
+                    // Stop ascending if we encounter a node that is not one of the kinds we want.
+                    // This prevents the assist from applying to an undesirably wide containing
+                    // expression.
+                    let kind = node.kind();
+                    ast::Expr::can_cast(kind) || kind == SyntaxKind::RECORD_EXPR_FIELD
+                })
+                .find_map(valid_target_expr(ctx))?
+                .syntax()
+                .clone()
         }
     } else {
         match ctx.covering_element() {
@@ -366,6 +374,11 @@ fn valid_target_expr(ctx: &AssistContext<'_, '_>) -> impl Fn(SyntaxNode) -> Opti
             let path_expr = ast::PathExpr::cast(node)?;
             let path_resolution = ctx.sema.resolve_path(&path_expr.path()?)?;
             like_const_value(ctx, path_resolution).then_some(path_expr.into())
+        }
+        SyntaxKind::RECORD_EXPR_FIELD => {
+            // If we are on `k` in `Struct { k: v }`, then extract `v`.
+            let record_field = ast::RecordExprField::cast(node)?;
+            record_field.expr()
         }
         _ => ast::Expr::cast(node),
     }
@@ -950,6 +963,11 @@ fn foo() {
     fn dont_extract_in_comment() {
         cov_mark::check!(extract_var_in_comment_is_not_applicable);
         check_assist_not_applicable(extract_variable, r#"fn main() { 1 + /* $0comment$0 */ 1; }"#);
+    }
+
+    #[test]
+    fn dont_extract_in_pattern() {
+        check_assist_not_applicable(extract_variable, r#"fn foo() { [].map(|$0x$0| x + 1) } "#);
     }
 
     #[test]
@@ -1579,6 +1597,63 @@ struct S {
 
 fn main() {
     S { foo: $01 + 1$0 }
+}
+"#,
+            r#"
+struct S {
+    foo: i32
+}
+
+fn main() {
+    let $0foo = 1 + 1;
+    S { foo }
+}
+"#,
+            "Extract into variable",
+        )
+    }
+
+    /// Selecting an entire field of a record expression will extract that field’s value expression.
+    #[test]
+    fn extract_var_from_record_field() {
+        check_assist_by_label(
+            extract_variable,
+            r#"
+struct S {
+    foo: i32
+}
+
+fn main() {
+    S { $0foo: 1 + 1,$0 }
+}
+"#,
+            r#"
+struct S {
+    foo: i32
+}
+
+fn main() {
+    let $0foo = 1 + 1;
+    S { foo, }
+}
+"#,
+            "Extract into variable",
+        )
+    }
+
+    /// Having the cursor in the field name of a record expression will extract that field’s value
+    /// expression.
+    #[test]
+    fn extract_var_from_record_field_name() {
+        check_assist_by_label(
+            extract_variable,
+            r#"
+struct S {
+    foo: i32
+}
+
+fn main() {
+    S { f$0oo: 1 + 1 }
 }
 "#,
             r#"
