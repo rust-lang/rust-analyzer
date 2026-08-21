@@ -15,7 +15,7 @@ use hir_def::{
     type_ref::TypeRefId,
 };
 use hir_expand::{HirFileId, InFile, mod_path::ModPath, name::Name};
-use hir_ty::{
+use hir_ide::{
     CastError, ExplicitDropMethodUseKind, InferenceDiagnostic, InferenceTyDiagnosticSource,
     PathGenericsSource, PathLoweringDiagnostic, TyLoweringDiagnostic,
     db::HirDatabase,
@@ -35,7 +35,7 @@ use triomphe::Arc;
 use crate::{AssocItem, Field, Function, GenericDef, Trait, Type, TypeOwnerId, Variant};
 
 pub use hir_def::VariantId;
-pub use hir_ty::{
+pub use hir_ide::{
     GenericArgsProhibitedReason, IncorrectGenericsLenKind, ReturnKind,
     diagnostics::{CaseType, IncorrectCase},
 };
@@ -1345,20 +1345,20 @@ impl<'db> AnyDiagnostic<'db> {
     }
 
     fn span_syntax(
-        span: hir_ty::Span,
+        span: hir_ide::Span,
         source_map: &ExpressionStoreSourceMap,
     ) -> Option<InFile<AstPtr<SpanAst>>> {
         Some(match span {
-            hir_ty::Span::ExprId(idx) => Self::expr_syntax(idx, source_map)?.map(|it| it.upcast()),
-            hir_ty::Span::PatId(idx) => Self::pat_syntax(idx, source_map)?.map(|it| it.upcast()),
-            hir_ty::Span::TypeRefId(idx) => {
+            hir_ide::Span::ExprId(idx) => Self::expr_syntax(idx, source_map)?.map(|it| it.upcast()),
+            hir_ide::Span::PatId(idx) => Self::pat_syntax(idx, source_map)?.map(|it| it.upcast()),
+            hir_ide::Span::TypeRefId(idx) => {
                 Self::type_syntax(idx, source_map)?.map(|it| it.upcast())
             }
-            hir_ty::Span::BindingId(idx) => {
+            hir_ide::Span::BindingId(idx) => {
                 let &pat = source_map.patterns_for_binding(idx).first()?;
                 Self::pat_syntax(pat, source_map)?.map(|it| it.upcast())
             }
-            hir_ty::Span::Dummy => {
+            hir_ide::Span::Dummy => {
                 never!("should never create a diagnostic for dummy spans");
                 return None;
             }
