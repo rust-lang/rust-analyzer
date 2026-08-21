@@ -201,7 +201,13 @@ impl Docs {
 
     fn extend_with_doc_comment(&mut self, comment: ast::Comment, indent: &mut usize) {
         let Some((doc, offset)) = comment.doc_comment() else { return };
-        self.extend_with_doc_str(doc, comment.syntax().text_range().start() + offset, indent);
+        // Multiline block doc comments are usually decorated with a leading `*` on every line.
+        let star_trim = match comment.kind().shape {
+            ast::CommentShape::Block => block_star_prefix(doc),
+            ast::CommentShape::Line => None,
+        };
+        let offset = comment.syntax().text_range().start() + offset;
+        self.push_doc_lines(doc, Some(offset), indent, star_trim);
     }
 
     fn extend_with_doc_attr(&mut self, value: ast::String, indent: &mut usize) {
@@ -218,19 +224,36 @@ impl Docs {
         offset_in_ast: TextSize,
         indent: &mut usize,
     ) {
-        self.push_doc_lines(doc, Some(offset_in_ast), indent);
+        self.push_doc_lines(doc, Some(offset_in_ast), indent, None);
     }
 
     fn extend_with_unmapped_doc_str(&mut self, doc: &str, indent: &mut usize) {
-        self.push_doc_lines(doc, None, indent);
+        self.push_doc_lines(doc, None, indent, None);
     }
 
-    fn push_doc_lines(&mut self, doc: &str, mut ast_offset: Option<TextSize>, indent: &mut usize) {
+    /// `star_trim` is the whitespace before the `*` decoration of a block doc comment, as computed
+    /// by [`block_star_prefix()`]; the decoration is stripped from the lines that carry it.
+    fn push_doc_lines(
+        &mut self,
+        doc: &str,
+        mut ast_offset: Option<TextSize>,
+        indent: &mut usize,
+        star_trim: Option<&str>,
+    ) {
         for line in doc.split('\n') {
-            self.docs_source_map
-                .push(DocsSourceMapLine { string_offset: TextSize::of(&self.docs), ast_offset });
+            let source_len = TextSize::of(line);
+            // `*`, `* ` and `**` are decoration, but `*foo` is content.
+            let line = star_trim
+                .and_then(|prefix| line.strip_prefix(prefix))
+                .filter(|&rest| rest == "*" || rest.starts_with("* ") || rest.starts_with("**"))
+                .map_or(line, |rest| &rest[1..]);
+
+            self.docs_source_map.push(DocsSourceMapLine {
+                string_offset: TextSize::of(&self.docs),
+                ast_offset: ast_offset.map(|it| it + (source_len - TextSize::of(line))),
+            });
             if let Some(ref mut offset) = ast_offset {
-                *offset += TextSize::of(line) + TextSize::of("\n");
+                *offset += source_len + TextSize::of("\n");
             }
 
             let line = line.trim_end();
@@ -345,6 +368,17 @@ impl Docs {
         docs_source_map.shrink_to_fit();
         macro_calls.shrink_to_fit();
     }
+}
+
+/// The whitespace preceding the `*` decoration on every line of a block doc comment, or `None` if
+/// the block is not uniformly decorated (including single-line ones) and must be left alone.
+/// Mirrors the `Block` branch of rustdoc's `get_horizontal_trim`.
+fn block_star_prefix(doc: &str) -> Option<&str> {
+    // The first line is skipped, as it follows the `/**`. Blank lines are never decorated.
+    let mut lines = doc.split('\n').skip(1).filter(|line| !line.trim().is_empty());
+    let prefix = lines.next()?.split_once('*')?.0;
+    let decorated = |line: &str| line.strip_prefix(prefix).is_some_and(|it| it.starts_with('*'));
+    (prefix.bytes().all(|b| matches!(b, b' ' | b'\t')) && lines.all(decorated)).then_some(prefix)
 }
 
 struct DocMacroExpander<'db> {
@@ -587,6 +621,7 @@ pub(crate) fn extract_docs<'a, 'db>(
 mod tests {
     use expect_test::expect;
     use hir_expand::InFile;
+    use syntax::{AstToken, ast};
     use test_fixture::WithFixture;
     use thin_vec::ThinVec;
     use tt::{TextRange, TextSize};
@@ -761,5 +796,75 @@ mod tests {
             docs.find_ast_range(range(23, 25)),
             Some((in_file(range(263, 265)), IsInnerDoc::Yes))
         );
+    }
+
+    /// Extracts the docs of the first comment in `source`, running the same normalization as
+    /// [`super::extract_docs`] does for inline docs.
+    fn comment_docs(source: &str) -> Docs {
+        let (_db, file_id) = TestDB::with_single_file("");
+        let comment = syntax::SourceFile::parse(source, span::Edition::CURRENT)
+            .syntax_node()
+            .descendants_with_tokens()
+            .filter_map(|it| it.into_token())
+            .find_map(ast::Comment::cast)
+            .expect("no comment in the fixture");
+        let mut docs = Docs {
+            docs: String::new(),
+            docs_source_map: Vec::new(),
+            outline_mod: None,
+            inline_file: file_id.into(),
+            prefix_len: TextSize::new(0),
+            inline_inner_docs_start: None,
+            outline_inner_docs_start: None,
+        };
+        let mut indent = usize::MAX;
+        docs.extend_with_doc_comment(comment, &mut indent);
+        docs.remove_indent(indent, 0);
+        docs.remove_last_newline();
+        docs
+    }
+
+    #[test]
+    fn block_doc_comment_stars() {
+        #[track_caller]
+        fn check(source: &str, expect: expect_test::Expect) {
+            expect.assert_eq(&comment_docs(source).docs);
+        }
+
+        // The decoration is stripped, but markdown bullets and `*foo` are content.
+        check(
+            "/**\n * foo\n *\n *   * bullet\n *bar\n */",
+            expect![[r#"
+
+                foo
+
+                  * bullet
+                *bar
+            "#]],
+        );
+        // Single-line block doc comments are left alone, like rustdoc does.
+        check("/** * item */", expect!["* item"]);
+        // So are blocks without a consistent star column.
+        check(
+            "/**\n * foo\n   * bar\n */",
+            expect![[r#"
+
+                * foo
+                  * bar
+            "#]],
+        );
+    }
+
+    #[test]
+    fn block_doc_comment_source_map() {
+        let docs = comment_docs("/**\n * foo\n * bar\n */");
+        assert_eq!(docs.docs, "\nfoo\nbar\n");
+
+        let range = |start, end| TextRange::new(TextSize::new(start), TextSize::new(end));
+        let in_file = |range| InFile::new(docs.inline_file, range);
+        let mapped = |start, end| docs.find_ast_range(range(start, end));
+        // Both `foo` and `bar` map back past the stripped ` * ` decoration.
+        assert_eq!(mapped(1, 4), Some((in_file(range(7, 10)), IsInnerDoc::No)));
+        assert_eq!(mapped(5, 8), Some((in_file(range(14, 17)), IsInnerDoc::No)));
     }
 }
