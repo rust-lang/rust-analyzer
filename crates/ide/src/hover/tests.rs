@@ -11948,3 +11948,21 @@ fn main() {}
         "#]],
     );
 }
+
+#[test]
+fn hover_body_local_anon_const() {
+    check(
+        r#"
+fn main() {
+    let x: [$0u8; 2 + 2] = [0; 4];
+}
+    "#,
+        expect![[r#"
+            *u8*
+
+            ```rust
+            u8
+            ```
+        "#]],
+    );
+}
