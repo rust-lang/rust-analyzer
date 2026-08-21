@@ -8,6 +8,7 @@ use hir::{AsAssocItem, FindPathConfig, HasContainer, HirDisplay, InFile, Name, S
 use ide_db::{
     FileId, FileRange, RootDatabase,
     defs::{Definition, NameClass, NameRefClass},
+    imports::insert_use::InsertUseConfig,
     rename::{IdentifierKind, RenameDefinition, bail, format_err, source_edit_from_references},
     source_change::SourceChangeBuilder,
 };
@@ -240,6 +241,144 @@ pub(crate) fn will_rename_file(
         def.rename(&sema, new_name_stem, RenameDefinition::Yes, &config.ide_db_config()).ok()?;
     change.file_system_edits.clear();
     Some(change)
+}
+
+/// Move a file-based module under a new parent module and fix the mod-tree plus
+/// all references. The new parent is given as its absolute crate-relative
+/// segments (e.g. `["state"]`, or `[]` for the crate root); `new_leaf` is the
+/// module's name at the destination. See [`ide_db::rename::move_mod`].
+pub(crate) fn will_move_module(
+    db: &RootDatabase,
+    file_id: FileId,
+    new_parent_segments: &[String],
+    new_leaf: &str,
+) -> Option<SourceChange> {
+    let sema = Semantics::new(db);
+    let module = sema.file_to_module_def(file_id)?;
+    let root = module.krate(db).root_module(db);
+    let new_parent = if new_parent_segments.is_empty() {
+        root
+    } else {
+        let segs = new_parent_segments.iter().map(|s| Name::new_root(s));
+        root.resolve_mod_path(db, segs)?.find_map(|item| match item {
+            hir::ItemInNs::Types(hir::ModuleDef::Module(m)) => Some(m),
+            _ => None,
+        })?
+    };
+    let mut change = ide_db::rename::move_mod(&sema, module, new_parent, new_leaf).ok()?;
+    // The editor performs the physical file move; we only supply text edits.
+    change.file_system_edits.clear();
+    Some(change)
+}
+
+/// Move an item into another module, both named by absolute path exactly as
+/// they would be written in source: `my_crate::a::foo` into `my_crate::b`.
+///
+/// Paths, rather than the [`FilePosition`] the editor-facing entry points take:
+/// the caller here is as likely to be a script running a batch of moves as a
+/// cursor, and a path is what such a caller already knows. See
+/// [`ide_db::rename::move_item`].
+pub(crate) fn move_item(
+    db: &RootDatabase,
+    item_path: &str,
+    destination: &str,
+    insert_use_cfg: &InsertUseConfig,
+) -> RenameResult<SourceChange> {
+    let sema = Semantics::new(db);
+    let item = resolve_item_path(db, item_path)?;
+    let dst = resolve_module_path(db, destination)?;
+    ide_db::rename::move_item(&sema, item, dst, insert_use_cfg)
+}
+
+/// Crate-relative segments of `path`, paired with every crate its head names.
+/// Plural because a lib and a bin target share a name, and only trying to
+/// resolve tells them apart.
+fn split_crate_path(
+    db: &RootDatabase,
+    path: &str,
+) -> RenameResult<(Vec<hir::Crate>, Vec<Name>, String)> {
+    let mut segments = path.split("::").map(str::trim).filter(|it| !it.is_empty());
+    let crate_name =
+        segments.next().ok_or_else(|| format_err!("`{path}` names no crate"))?.to_owned();
+    let segments: Vec<Name> = segments.map(Name::new_root).collect();
+    let crates: Vec<hir::Crate> = hir::Crate::all(db)
+        .into_iter()
+        .filter(|krate| {
+            krate.display_name(db).is_some_and(|it| it.crate_name().to_string() == crate_name)
+        })
+        .collect();
+    if crates.is_empty() {
+        bail!("No crate named `{crate_name}` in this workspace");
+    }
+    Ok((crates, segments, crate_name))
+}
+
+/// Walks the module tree by name rather than resolving the path: a refactoring
+/// tool addresses code by where it *is*, and a private item — which is most of
+/// what one wants to move out of an overgrown file — resolves from nowhere but
+/// its own module.
+fn descend_modules(db: &RootDatabase, from: hir::Module, segments: &[Name]) -> Option<hir::Module> {
+    segments.iter().try_fold(from, |module, segment| {
+        module.children(db).find(|it| it.name(db).as_ref() == Some(segment))
+    })
+}
+
+fn resolve_module_path(db: &RootDatabase, path: &str) -> RenameResult<hir::Module> {
+    let (crates, segments, _) = split_crate_path(db, path)?;
+    let mut found: Vec<hir::Module> = crates
+        .into_iter()
+        .filter_map(|krate| descend_modules(db, krate.root_module(db), &segments))
+        .collect();
+    found.dedup();
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        0 => bail!("`{path}` does not name a module"),
+        _ => bail!("`{path}` names a module in more than one crate of that name"),
+    }
+}
+
+fn resolve_item_path(db: &RootDatabase, path: &str) -> RenameResult<hir::ModuleDef> {
+    let (crates, segments, crate_name) = split_crate_path(db, path)?;
+    let Some((item_name, module_segments)) = segments.split_last() else {
+        bail!("`{path}` names a crate, not an item");
+    };
+    let mut found: Vec<hir::ModuleDef> = crates
+        .into_iter()
+        .filter_map(|krate| {
+            let module = descend_modules(db, krate.root_module(db), module_segments)?;
+            module.declarations(db).into_iter().find(|it| it.name(db).as_ref() == Some(item_name))
+        })
+        .collect();
+    found.dedup();
+    match found.len() {
+        1 => Ok(found.remove(0)),
+        // Naming what the module does hold turns "wrong path" apart from "wrong
+        // idea of where the item lives", which is otherwise a guessing game.
+        0 => bail!(
+            "`{path}` does not name an item{}",
+            neighbours_hint(db, &crate_name, module_segments)
+        ),
+        _ => bail!("`{path}` names an item in more than one crate of that name"),
+    }
+}
+
+/// ` (module `x` declares: a, b, c)`, or nothing when even the module is wrong.
+fn neighbours_hint(db: &RootDatabase, crate_name: &str, module_segments: &[Name]) -> String {
+    let Ok(module) = resolve_module_path(
+        db,
+        &std::iter::once(crate_name.to_owned())
+            .chain(module_segments.iter().map(|it| it.as_str().to_owned()))
+            .join("::"),
+    ) else {
+        return String::new();
+    };
+    let names = module
+        .declarations(db)
+        .into_iter()
+        .filter_map(|it| it.name(db))
+        .map(|it| it.as_str().to_owned())
+        .join(", ");
+    if names.is_empty() { String::new() } else { format!(" (that module declares: {names})") }
 }
 
 // FIXME: Should support `extern crate`.
@@ -847,10 +986,11 @@ fn rename_elided_lifetime(
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
+    use ide_db::imports::insert_use::{ImportGranularity, InsertUseConfig};
     use ide_db::source_change::SourceChange;
     use ide_db::text_edit::TextEdit;
     use itertools::Itertools;
-    use stdx::trim_indent;
+    use stdx::{format_to, trim_indent};
     use test_utils::assert_eq_text;
 
     use crate::fixture;
@@ -955,6 +1095,1327 @@ mod tests {
             .unwrap()
             .expect("Expect returned a RenameError");
         expect.assert_eq(&filter_expect(source_change))
+    }
+
+    const TEST_INSERT_USE: InsertUseConfig = InsertUseConfig {
+        granularity: ImportGranularity::Crate,
+        prefix_kind: hir::PrefixKind::Plain,
+        enforce_granularity: true,
+        group: true,
+        skip_glob_imports: true,
+    };
+
+    /// Renders every touched file with the change applied, rather than the raw
+    /// indels: a move is judged by the code it leaves behind, and half of what
+    /// can go wrong here — a path spelled from the wrong module, an import that
+    /// lands in the wrong file — is invisible in offsets.
+    #[track_caller]
+    fn check_move_item(
+        item: &str,
+        destination: &str,
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        expect: Expect,
+    ) {
+        let (analysis, _) = fixture::file(ra_fixture);
+        let rendered =
+            match analysis.move_item_to_module(item, destination, &TEST_INSERT_USE).unwrap() {
+                Ok(source_change) => {
+                    let mut rendered = String::new();
+                    for (&file_id, (edit, _)) in
+                        source_change.source_file_edits.iter().sorted_by_key(|&(&id, _)| id)
+                    {
+                        let mut text = analysis.file_text(file_id).unwrap().to_string();
+                        edit.apply(&mut text);
+                        format_to!(rendered, "//- {file_id:?}\n{text}\n");
+                    }
+                    rendered
+                }
+                Err(err) => format!("error: {err}"),
+            };
+        expect.assert_eq(&rendered)
+    }
+
+    #[test]
+    fn move_item_rewrites_qualified_reference() {
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+fn f() { crate::a::foo(); }
+//- /a.rs
+pub fn foo() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(0)
+                mod a;
+                mod b;
+                fn f() { crate::b::foo(); }
+
+                //- FileId(1)
+
+                //- FileId(2)
+                pub fn foo() {}
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_imports_bare_reference_left_behind() {
+        // `foo` resolved for `g` by being its neighbour. It stops being one, so
+        // the source file has to import it — and a private item would no longer
+        // be reachable from there at all, hence `pub(crate)`.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+fn foo() {}
+pub fn g() { foo(); }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                use crate::b::foo;
+
+                pub fn g() { foo(); }
+
+                //- FileId(2)
+                pub(crate) fn foo() {}
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_respells_body_paths_from_destination() {
+        // The body's own paths were resolved against `a`: `helper` was a bare
+        // neighbour call and `S` came in through a `use` that stays behind.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+pub struct S;
+//- /a.rs
+use crate::S;
+pub(crate) fn helper() -> S { S }
+pub fn foo() -> S { helper() }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                use crate::S;
+                pub(crate) fn helper() -> S { S }
+
+                //- FileId(2)
+                pub fn foo() -> crate::S { crate::a::helper() }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_widens_a_private_neighbour_it_calls() {
+        // `helper` was reachable only from inside `a`, so the destination cannot
+        // even spell it. Leaving the call as written would emit code that does
+        // not compile, so the neighbour is widened and the call spelled out.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+fn helper() {}
+pub fn foo() { helper(); }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                pub(crate) fn helper() {}
+
+                //- FileId(2)
+                pub fn foo() { crate::a::helper(); }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_keeps_recursive_call_bare() {
+        // The self-call resolves to the item being moved, so spelling it out
+        // from the destination would name a place it is leaving.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub fn foo(n: u32) -> u32 { if n == 0 { 0 } else { foo(n - 1) } }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+
+                //- FileId(2)
+                pub fn foo(n: u32) -> u32 { if n == 0 { 0 } else { foo(n - 1) } }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_splits_use_group() {
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+mod c;
+//- /a.rs
+pub fn foo() {}
+pub fn bar() {}
+//- /b.rs
+//- /c.rs
+use crate::a::{bar, foo};
+fn f() { foo(); bar(); }
+"#,
+            expect![[r#"
+                //- FileId(1)
+                pub fn bar() {}
+
+                //- FileId(2)
+                pub fn foo() {}
+
+                //- FileId(3)
+                use crate::b::foo;
+                use crate::a::{bar};
+                fn f() { foo(); bar(); }
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_moves_a_type_and_leaves_its_impl() {
+        // An impl block is not part of the type's item, and an inherent impl is
+        // valid from any module of the crate — so it stays, with its self-type
+        // reference re-spelled.
+        check_move_item(
+            "ra_test_fixture::a::S",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub struct S;
+impl S { pub fn new() -> S { S } }
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                use crate::b::S;
+
+                impl S { pub fn new() -> S { S } }
+
+                //- FileId(2)
+                pub struct S;
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_carries_its_comments_and_attributes() {
+        // What is written *about* an item is part of it: a doc comment, a plain
+        // comment sitting on top of it, and its attributes all travel along.
+        check_move_item(
+            "ra_test_fixture::a::foo",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+// why this exists
+/// What it does.
+#[inline]
+pub fn foo() {}
+
+pub fn after() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                //- FileId(1)
+                pub fn after() {}
+
+                //- FileId(2)
+                // why this exists
+                /// What it does.
+                #[inline]
+                pub fn foo() {}
+
+            "#]],
+        );
+    }
+
+    #[test]
+    fn move_item_rejects_what_text_alone_does_not_carry() {
+        check_move_item(
+            "ra_test_fixture::a::m",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub mod m {}
+//- /b.rs
+"#,
+            expect!["error: Cannot move a module as an item"],
+        );
+    }
+
+    #[test]
+    fn move_item_reports_an_unknown_path() {
+        check_move_item(
+            "ra_test_fixture::a::nope",
+            "ra_test_fixture::b",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+//- /b.rs
+"#,
+            expect!["error: `ra_test_fixture::a::nope` does not name an item"],
+        );
+    }
+
+    fn check_expect_will_move(
+        new_parent_segments: &[&str],
+        new_leaf: &str,
+        #[rust_analyzer::rust_fixture] ra_fixture: &str,
+        expect: Expect,
+    ) {
+        let (analysis, position) = fixture::position(ra_fixture);
+        let segs: Vec<String> = new_parent_segments.iter().map(|s| s.to_string()).collect();
+        let source_change = analysis
+            .will_move_module(position.file_id, &segs, new_leaf)
+            .unwrap()
+            .expect("Expect returned a RenameError");
+        expect.assert_eq(&filter_expect(source_change))
+    }
+
+    #[test]
+    fn will_move_module_cross_parent() {
+        // Move `m` from parent `a` to parent `b`: drop `pub mod m;` in a.rs, add
+        // it in b.rs, and rewrite the `crate::a::m` reference to `crate::b::m`.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+fn f() { crate::a::m::g(); }
+//- /a.rs
+pub mod m;
+//- /a/m.rs
+$0pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "b",
+                                delete: 30..31,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "",
+                                delete: 0..11,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_removes_indented_declaration() {
+        // The declaration is indented, so removing it must take the whole line.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+fn f() { crate::a::inner::m::g(); }
+//- /a.rs
+pub mod inner {
+    pub mod m;
+}
+//- /a/inner/m.rs
+$0pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate",
+                                delete: 23..31,
+                            },
+                            Indel {
+                                insert: "b",
+                                delete: 33..38,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "\n}",
+                                delete: 15..32,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_cross_crate_reference() {
+        // `m` lives in crate `foo` at `foo::a::m` and is referenced from crate
+        // `main` as `foo::a::m::g()`. Moving `m` from `a` to `b` inside `foo` must
+        // rewrite the cross-crate reference to `foo::b::m` — keeping the EXTERN
+        // crate name `foo`, NOT `crate::b::m` (which would name `main`'s root).
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /main.rs crate:main deps:foo
+fn f() { foo::a::m::g(); }
+//- /lib.rs crate:foo
+pub mod a;
+pub mod b;
+//- /a.rs
+pub mod m;
+//- /a/m.rs
+$0pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "b",
+                                delete: 14..15,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            4,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            2,
+                        ),
+                        [
+                            Indel {
+                                insert: "",
+                                delete: 0..11,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_use_group_keeps_visibility() {
+        // The extracted import is built from the original `use` item, so the
+        // re-export stays a re-export instead of silently becoming private.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+pub use crate::a::{m, n};
+//- /a.rs
+pub mod m;
+pub mod n {}
+//- /a/m.rs
+$0pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b",
+                                delete: 22..27,
+                            },
+                            Indel {
+                                insert: "m",
+                                delete: 29..38,
+                            },
+                            Indel {
+                                insert: "pub use crate::a::{n};\n",
+                                delete: 40..40,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "n {}",
+                                delete: 8..10,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 11..24,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_splits_use_group() {
+        // `use crate::a::{m, n};` imports the moved module `m` inside a group.
+        // Moving `m` to `b` must split it out into its own `use crate::b::m;`
+        // statement, leaving `use crate::a::{n};` for the sibling.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+use crate::a::{m, n};
+//- /a.rs
+pub mod m;
+pub mod n {}
+//- /a/m.rs
+$0pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b",
+                                delete: 18..23,
+                            },
+                            Indel {
+                                insert: "m",
+                                delete: 25..34,
+                            },
+                            Indel {
+                                insert: "use crate::a::{n};\n",
+                                delete: 36..36,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "n {}",
+                                delete: 8..10,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 11..24,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_use_group_sole_member() {
+        // `use crate::a::{m};` — `m` is the only member, so the whole `use` item is
+        // replaced with `use crate::b::m;` (no empty `{}` left behind).
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+use crate::a::{m};
+//- /a.rs
+pub mod m;
+//- /a/m.rs
+$0pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b",
+                                delete: 18..23,
+                            },
+                            Indel {
+                                insert: "m",
+                                delete: 25..31,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "",
+                                delete: 0..11,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_use_group_through_m() {
+        // `use crate::a::{m::X, n};` imports item `X` THROUGH the moved module.
+        // Splitting must carry the tail: `use crate::b::m::X;` + `use crate::a::{n};`.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+use crate::a::{m::X, n};
+//- /a.rs
+pub mod m;
+pub mod n {}
+//- /a/m.rs
+$0pub struct X;
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b::m",
+                                delete: 18..23,
+                            },
+                            Indel {
+                                insert: "X",
+                                delete: 25..37,
+                            },
+                            Indel {
+                                insert: "use crate::a::{n};\n",
+                                delete: 39..39,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "n {}",
+                                delete: 8..10,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 11..24,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_use_group_into_m_nested_and_glob() {
+        // Nested list `{m::{X, Y}}` and glob `{m::*}` both carry their tail wholesale.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+use crate::a::{m::{X, Y}, n};
+use crate::a::{m::*, k};
+//- /a.rs
+pub mod m;
+pub mod n {}
+pub mod k {}
+//- /a/m.rs
+$0pub struct X;
+pub struct Y;
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b",
+                                delete: 18..23,
+                            },
+                            Indel {
+                                insert: "m",
+                                delete: 25..26,
+                            },
+                            Indel {
+                                insert: "X",
+                                delete: 29..38,
+                            },
+                            Indel {
+                                insert: "Y",
+                                delete: 40..41,
+                            },
+                            Indel {
+                                insert: "n}",
+                                delete: 59..67,
+                            },
+                            Indel {
+                                insert: "use crate::b::m::*;\nuse crate::a::{k};\n",
+                                delete: 69..69,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "n {}",
+                                delete: 8..10,
+                            },
+                            Indel {
+                                insert: "k",
+                                delete: 19..20,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 24..37,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_use_group_two_members_through_m() {
+        // `use crate::a::{m::X, m::Y};` — both members reach through `m`, so the whole
+        // group empties: the `use` is replaced wholesale with one standalone import
+        // per member (`use crate::b::m::X;\nuse crate::b::m::Y;`). Group-wise handling
+        // rewrites BOTH members, not just the first.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+use crate::a::{m::X, m::Y};
+//- /a.rs
+pub mod m;
+//- /a/m.rs
+$0pub struct X;
+pub struct Y;
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b::m",
+                                delete: 18..23,
+                            },
+                            Indel {
+                                insert: "X",
+                                delete: 25..40,
+                            },
+                            Indel {
+                                insert: "use crate::b::m::Y;\n",
+                                delete: 42..42,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "",
+                                delete: 0..11,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_use_group_two_members_with_survivor() {
+        // `use crate::a::{m::X, m::Y, n};` — two members reach `m`, one sibling (`n`)
+        // stays. Group-wise handling splits BOTH moved members out into their own
+        // imports and deletes them as one overlap-free run, leaving `use crate::a::{n};`.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+use crate::a::{m::X, m::Y, n};
+//- /a.rs
+pub mod m;
+pub mod n {}
+//- /a/m.rs
+$0pub struct X;
+pub struct Y;
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::b::m",
+                                delete: 18..23,
+                            },
+                            Indel {
+                                insert: "X",
+                                delete: 25..43,
+                            },
+                            Indel {
+                                insert: "use crate::b::m::Y;\nuse crate::a::{n};\n",
+                                delete: 45..45,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "n {}",
+                                delete: 8..10,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 11..24,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_mod_rs_directory_module() {
+        // Move the `mod.rs`-style directory module `a` (with a child `child`) from the
+        // crate root under `b`. The editor physically moves the whole `a/` directory;
+        // we only fix the mod-tree (drop `mod a;` in lib.rs, add it in b.rs) and rewrite
+        // references. A reference *through* the moved module — `crate::a::child::g` — is
+        // rewritten by the same path-prefix pass (the `a` segment carries `::child::g`).
+        check_expect_will_move(
+            &["b"],
+            "a",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+fn f() { crate::a::child::g(); }
+//- /a/mod.rs
+$0pub mod child;
+//- /a/child.rs
+pub fn g() {}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            0,
+                        ),
+                        [
+                            Indel {
+                                insert: "b",
+                                delete: 4..5,
+                            },
+                            Indel {
+                                insert: "fn",
+                                delete: 7..10,
+                            },
+                            Indel {
+                                insert: "f() { crate::b::a::child::g(); }",
+                                delete: 11..13,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 14..47,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "mod a;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_reanchors_super_in_moved_file() {
+        // Move `m` from `a` to `b`. Inside m.rs, `super::sib` (super == crate::a)
+        // must be re-anchored to `crate::a::sib` — both in a `use` and in an expr
+        // path — because after the move `super` would point at `b`.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub mod m;
+pub mod sib;
+//- /a/sib.rs
+pub fn h() {}
+//- /a/m.rs
+$0use super::sib;
+pub fn g() { super::sib::h(); }
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            4,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "sib",
+                                delete: 8..9,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 11..24,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::a",
+                                delete: 4..9,
+                            },
+                            Indel {
+                                insert: "crate::a",
+                                delete: 29..34,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_reanchors_multi_super_runs() {
+        // `m` lives at crate::a::b::m. Move it to crate::x::m. A `super::super`
+        // run (== crate::a, drop 2 of 3 segments) and a `super` run (== crate::a::b)
+        // must each re-anchor to a different absolute prefix.
+        check_expect_will_move(
+            &["x"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod x;
+//- /a.rs
+pub mod b;
+pub mod sib_a;
+//- /a/sib_a.rs
+pub fn p() {}
+//- /a/b.rs
+pub mod m;
+pub mod sib_b;
+//- /a/b/sib_b.rs
+pub fn q() {}
+//- /a/b/m.rs
+$0use super::super::sib_a;
+pub fn g() { super::sib_b::q(); }
+//- /x.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            5,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate",
+                                delete: 4..9,
+                            },
+                            Indel {
+                                insert: "a",
+                                delete: 11..16,
+                            },
+                            Indel {
+                                insert: "crate::a::b",
+                                delete: 38..43,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            6,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            3,
+                        ),
+                        [
+                            Indel {
+                                insert: "sib_b",
+                                delete: 8..9,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 11..26,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
+    }
+
+    #[test]
+    fn will_move_module_super_boundaries() {
+        // Grouped `use super::{…}` re-anchors ONLY the leading `super` (never
+        // crossing the `{`); `self::` is left intact; and a `super` inside a
+        // nested inline `mod` is a documented boundary — skipped, not miswritten.
+        check_expect_will_move(
+            &["b"],
+            "m",
+            r#"
+//- /lib.rs
+mod a;
+mod b;
+//- /a.rs
+pub mod m;
+pub mod sib;
+pub mod sib2;
+//- /a/sib.rs
+pub fn h() {}
+//- /a/sib2.rs
+pub fn h2() {}
+//- /a/m.rs
+$0use super::{sib, sib2};
+pub mod child { pub fn c() { super::super::sib::h(); } }
+pub fn g() {
+    self::child::c();
+    super::sib::h();
+}
+//- /b.rs
+"#,
+            expect![[r#"
+                source_file_edits: [
+                    (
+                        FileId(
+                            4,
+                        ),
+                        [
+                            Indel {
+                                insert: "crate::a",
+                                delete: 4..9,
+                            },
+                            Indel {
+                                insert: "crate::a",
+                                delete: 120..125,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            5,
+                        ),
+                        [
+                            Indel {
+                                insert: "pub mod m;\n",
+                                delete: 0..0,
+                            },
+                        ],
+                    ),
+                    (
+                        FileId(
+                            1,
+                        ),
+                        [
+                            Indel {
+                                insert: "sib",
+                                delete: 8..9,
+                            },
+                            Indel {
+                                insert: "sib2",
+                                delete: 19..22,
+                            },
+                            Indel {
+                                insert: "",
+                                delete: 24..38,
+                            },
+                        ],
+                    ),
+                ]
+                file_system_edits: []
+            "#]],
+        );
     }
 
     fn check_prepare(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect) {
