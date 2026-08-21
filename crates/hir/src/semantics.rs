@@ -58,7 +58,7 @@ use crate::{
     ConstParam, Crate, DeriveHelper, Enum, EnumVariant, ExpressionStoreOwner, Field, Function,
     GenericSubstitution, HasSource, Impl, InFile, InlineAsmOperand, ItemInNs, Label, LifetimeParam,
     Local, Macro, Module, ModuleDef, Name, OverloadedDeref, ScopeDef, Static, Struct, ToolModule,
-    Trait, TupleField, Type, TypeAlias, TypeParam, Union, Variant,
+    Trait, TupleField, Type, TypeAlias, TypeParam, UncoveredPattern, Union, Variant,
     db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
     source_analyzer::{SourceAnalyzer, resolve_hir_path},
@@ -1770,6 +1770,19 @@ impl<'db> SemanticsImpl<'db> {
         self.analyze(expr.syntax())?
             .type_of_expr(self.db, expr)
             .map(|(ty, coerced)| TypeInfo { original: ty, adjusted: coerced })
+    }
+
+    /// Return the patterns left uncovered by the arms of `match_expr`
+    pub fn missing_match_arm_patterns(
+        &self,
+        match_expr: &ast::MatchExpr,
+        ignore_conditional_arms: bool,
+    ) -> Option<Vec<UncoveredPattern>> {
+        self.analyze(match_expr.syntax())?.missing_match_arm_patterns(
+            self.db,
+            match_expr,
+            ignore_conditional_arms,
+        )
     }
 
     pub fn type_of_pat(&self, pat: &ast::Pat) -> Option<TypeInfo<'db>> {
