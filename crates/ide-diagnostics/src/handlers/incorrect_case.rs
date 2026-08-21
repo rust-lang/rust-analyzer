@@ -61,7 +61,9 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::IncorrectCase) -> Option<Vec
 
 #[cfg(test)]
 mod change_case {
-    use crate::tests::{check_diagnostics, check_diagnostics_with_disabled, check_fix};
+    use crate::tests::{
+        check_diagnostics, check_diagnostics_with_disabled, check_fix, check_fix_with_disabled,
+    };
 
     #[test]
     fn test_rename_incorrect_case() {
@@ -108,7 +110,7 @@ pub fn some_fn(val: u8) -> u8 {
 "#,
         );
 
-        check_fix(
+        check_fix_with_disabled(
             r#"
 fn some_fn() {
     let whatAWeird_Formatting$0 = 10;
@@ -121,6 +123,7 @@ fn some_fn() {
     another_func(what_aweird_formatting);
 }
 "#,
+            &["E0425"],
         );
 
         check_fix(
@@ -854,8 +857,6 @@ static FOO: () = {
     }
 
     #[test]
-    // FIXME
-    #[should_panic]
     fn enum_variant_body_inner_item() {
         check_diagnostics(
             r#"
