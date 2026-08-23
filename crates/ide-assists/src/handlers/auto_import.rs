@@ -8,8 +8,7 @@ use ide_db::{
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},
         insert_use::{
-            ImportScope, insert_use_as_alias_with_editor,
-            insert_use_with_editor_preserving_namespaces,
+            ImportScope, insert_use_as_alias_with_editor, insert_use_with_editor,
         },
     },
 };
@@ -129,7 +128,7 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opt
         let add_normal_import = |acc: &mut Assists, label| {
             acc.add_group(&group_label, assist_id, label, range, |builder| {
                 let editor = builder.make_editor(scope.as_syntax_node());
-                insert_use_with_editor_preserving_namespaces(
+                insert_use_with_editor(
                     &ctx.sema,
                     &scope,
                     mod_path_to_ast(&import_path, edition),
@@ -151,6 +150,7 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opt
             acc.add_group(&group_label, assist_id, label, range, |builder| {
                 let editor = builder.make_editor(scope.as_syntax_node());
                 insert_use_as_alias_with_editor(
+                    &ctx.sema,
                     &scope,
                     mod_path_to_ast(&import_path, edition),
                     &ctx.config.insert_use,

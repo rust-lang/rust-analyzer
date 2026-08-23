@@ -304,6 +304,7 @@ pub fn resolve_completion_edits(
         let full_path = make.path_from_text_with_edition(&import.path, current_edition);
         if import.as_underscore {
             insert_use::insert_use_as_alias_with_editor(
+                &sema,
                 &scope,
                 full_path,
                 &config.insert_use,
@@ -311,7 +312,7 @@ pub fn resolve_completion_edits(
                 &editor,
             );
         } else {
-            insert_use::insert_use_with_editor_preserving_namespaces(
+            insert_use::insert_use_with_editor(
                 &sema,
                 &scope,
                 full_path,

@@ -17,7 +17,7 @@ use crate::{
     RootDatabase,
     imports::merge_imports::{
         MergeBehavior, NormalizationStyle, common_prefix, eq_attrs, eq_visibility,
-        try_merge_imports, try_merge_imports_preserving_path, use_tree_cmp, wrap_in_tree_list,
+        try_merge_imports, use_tree_cmp, wrap_in_tree_list,
     },
 };
 
@@ -152,45 +152,17 @@ impl ImportScope {
 
 /// Insert an import path into the given file/node. A `merge` value of none indicates that no import merging is allowed to occur.
 pub fn insert_use_with_editor(
-    scope: &ImportScope,
-    path: ast::Path,
-    cfg: &InsertUseConfig,
-    syntax_editor: &SyntaxEditor,
-) {
-    insert_use_with_alias_option_with_editor(
-        scope,
-        path,
-        cfg,
-        None,
-        syntax_editor,
-        try_merge_imports,
-    );
-}
-
-/// Inserts a use without turning a path that resolves in multiple namespaces into a nested `self`.
-pub fn insert_use_with_editor_preserving_namespaces(
     sema: &Semantics<'_, RootDatabase>,
     scope: &ImportScope,
     path: ast::Path,
     cfg: &InsertUseConfig,
     syntax_editor: &SyntaxEditor,
 ) {
-    insert_use_with_alias_option_with_editor(
-        scope,
-        path,
-        cfg,
-        None,
-        syntax_editor,
-        |make, lhs, rhs, merge_behavior| match namespace_collision_prefix_len(sema, lhs) {
-            Some(prefix_len) => {
-                try_merge_imports_preserving_path(make, lhs, rhs, merge_behavior, prefix_len)
-            }
-            None => try_merge_imports(make, lhs, rhs, merge_behavior),
-        },
-    );
+    insert_use_with_alias_option_with_editor(sema, scope, path, cfg, None, syntax_editor);
 }
 
 pub fn insert_uses_with_editor(
+    sema: &Semantics<'_, RootDatabase>,
     scope: &ImportScope,
     paths: impl IntoIterator<Item = ast::Path>,
     cfg: &InsertUseConfig,
@@ -217,11 +189,12 @@ pub fn insert_uses_with_editor(
     }
 
     for path in paths {
-        insert_use_with_editor(scope, path, cfg, syntax_editor);
+        insert_use_with_editor(sema, scope, path, cfg, syntax_editor);
     }
 }
 
 pub fn insert_use_as_alias_with_editor(
+    sema: &Semantics<'_, RootDatabase>,
     scope: &ImportScope,
     path: ast::Path,
     cfg: &InsertUseConfig,
@@ -238,21 +211,16 @@ pub fn insert_use_as_alias_with_editor(
         .expect("Failed to make ast node `Rename`");
     let alias = node.rename();
 
-    insert_use_with_alias_option_with_editor(scope, path, cfg, alias, editor, try_merge_imports);
+    insert_use_with_alias_option_with_editor(sema, scope, path, cfg, alias, editor);
 }
 
 fn insert_use_with_alias_option_with_editor(
+    sema: &Semantics<'_, RootDatabase>,
     scope: &ImportScope,
     path: ast::Path,
     cfg: &InsertUseConfig,
     alias: Option<ast::Rename>,
     syntax_editor: &SyntaxEditor,
-    merge_imports: impl Fn(
-        &syntax::ast::syntax_factory::SyntaxFactory,
-        &ast::Use,
-        &ast::Use,
-        MergeBehavior,
-    ) -> Option<ast::Use>,
 ) {
     let make = syntax_editor.make();
     let _p = tracing::info_span!("insert_use_with_alias_option").entered();
@@ -299,8 +267,14 @@ fn insert_use_with_alias_option_with_editor(
         for existing_use in
             scope.as_syntax_node().children().filter_map(ast::Use::cast).filter(filter)
         {
-            if let Some(merged) = merge_imports(syntax_editor.make(), &existing_use, &use_item, mb)
-            {
+            let preserve_path_len = namespace_collision_prefix_len(sema, &existing_use);
+            if let Some(merged) = try_merge_imports(
+                syntax_editor.make(),
+                &existing_use,
+                &use_item,
+                mb,
+                preserve_path_len,
+            ) {
                 syntax_editor.replace(existing_use.syntax(), merged.syntax());
                 return;
             }

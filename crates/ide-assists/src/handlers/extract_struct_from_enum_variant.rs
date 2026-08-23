@@ -1,7 +1,7 @@
 use std::iter;
 
 use either::Either;
-use hir::{EnumVariant, HasCrate, Module, ModuleDef, Name};
+use hir::{EnumVariant, HasCrate, Module, ModuleDef, Name, Semantics};
 use ide_db::{
     FxHashSet, RootDatabase,
     defs::Definition,
@@ -90,6 +90,7 @@ pub(crate) fn extract_struct_from_enum_variant(
                 let file_editor = builder.make_editor(processed[0].0.syntax());
                 processed.into_iter().for_each(|(path, node, import)| {
                     apply_references(
+                        &ctx.sema,
                         ctx.config.insert_use,
                         path,
                         node,
@@ -110,7 +111,15 @@ pub(crate) fn extract_struct_from_enum_variant(
                     references,
                 );
                 processed.into_iter().for_each(|(path, node, import)| {
-                    apply_references(ctx.config.insert_use, path, node, import, edition, &editor)
+                    apply_references(
+                        &ctx.sema,
+                        ctx.config.insert_use,
+                        path,
+                        node,
+                        import,
+                        edition,
+                        &editor,
+                    )
                 });
             }
 
@@ -385,6 +394,7 @@ fn collect_variant_comments(
 }
 
 fn apply_references(
+    sema: &Semantics<'_, RootDatabase>,
     insert_use_cfg: InsertUseConfig,
     segment: ast::PathSegment,
     node: SyntaxNode,
@@ -395,6 +405,7 @@ fn apply_references(
     let make = editor.make();
     if let Some((scope, path)) = import {
         insert_use_with_editor(
+            sema,
             &scope,
             mod_path_to_ast_with_factory(make, &path, edition),
             &insert_use_cfg,

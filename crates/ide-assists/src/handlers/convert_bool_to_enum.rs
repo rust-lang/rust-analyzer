@@ -88,7 +88,13 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_
             );
             for (file_id, scope, path) in delayed_mutations {
                 let editor = edit.make_editor(scope.as_syntax_node());
-                insert_use_with_editor(&scope, path, &ctx.config.insert_use, &editor);
+                insert_use_with_editor(
+                    &ctx.sema,
+                    &scope,
+                    path,
+                    &ctx.config.insert_use,
+                    &editor,
+                );
                 edit.add_file_edits(file_id, editor);
             }
         },

@@ -1358,7 +1358,7 @@ fn check_with_config(
         .find_map(ast::Path::cast)
         .unwrap();
 
-    insert_use_with_editor(&file, path, config, &editor);
+    insert_use_with_editor(sema, &file, path, config, &editor);
     let edit = editor.finish();
     let result = edit.new_root().to_string();
     assert_eq_text!(&trim_indent(ra_fixture_after), &result);
@@ -1432,7 +1432,7 @@ fn check_merge_only_fail(ra_fixture0: &str, ra_fixture1: &str, mb: MergeBehavior
         .unwrap();
 
     let make = SyntaxFactory::without_mappings();
-    let result = try_merge_imports(&make, &use0, &use1, mb);
+    let result = try_merge_imports(&make, &use0, &use1, mb, None);
     assert_eq!(result.map(|u| u.to_string()), None);
 }
 
@@ -1498,7 +1498,7 @@ fn check_merge(ra_fixture0: &str, ra_fixture1: &str, last: &str, mb: MergeBehavi
         .unwrap();
 
     let make = SyntaxFactory::without_mappings();
-    let result = try_merge_imports(&make, &use0, &use1, mb);
+    let result = try_merge_imports(&make, &use0, &use1, mb, None);
     assert_eq!(result.map(|u| u.to_string().trim().to_owned()), Some(last.trim().to_owned()));
 }
 
@@ -1529,7 +1529,7 @@ fn merge_gated_imports_with_different_values() {
         .unwrap();
 
     let make = SyntaxFactory::without_mappings();
-    let result = try_merge_imports(&make, &use0, &use1, MergeBehavior::Crate);
+    let result = try_merge_imports(&make, &use0, &use1, MergeBehavior::Crate, None);
     assert_eq!(result, None);
 }
 
