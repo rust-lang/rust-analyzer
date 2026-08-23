@@ -155,7 +155,7 @@ fn try_merge_trees_with_factory(
                 return None;
             }
 
-            return Some(rhs);
+            return Some((rhs, true));
         } else {
             lhs = split_prefix(&lhs, &lhs_prefix, make)?;
             rhs = split_prefix(&rhs, &rhs_prefix, make)?;
