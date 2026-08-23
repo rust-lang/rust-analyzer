@@ -112,7 +112,10 @@ fn complete_trait_impl_name(
             .find(|child| {
                 !matches!(
                     child.kind(),
-                    SyntaxKind::COMMENT | SyntaxKind::WHITESPACE | SyntaxKind::ATTR
+                    SyntaxKind::COMMENT
+                        | SyntaxKind::DOC_COMMENT
+                        | SyntaxKind::WHITESPACE
+                        | SyntaxKind::ATTR
                 )
             })
             .unwrap_or_else(|| SyntaxElement::Node(real_file_item.clone()));
