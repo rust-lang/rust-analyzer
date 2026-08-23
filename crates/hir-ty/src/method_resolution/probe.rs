@@ -148,17 +148,18 @@ impl PickConstraintsForShadowed {
 
     fn candidate_may_shadow(&self, candidate: &Candidate<'_>) -> bool {
         // An item never shadows itself
-        candidate.item != self.def_id
+        candidate.item != self.def_id &&
             // and we're only concerned about inherent impls doing the shadowing.
             // Shadowing can only occur if the shadowed is further along
             // the Receiver dereferencing chain than the shadowed.
-            && match candidate.kind {
-                CandidateKind::InherentImplCandidate { receiver_steps, .. } => match self.receiver_steps {
-                    Some(shadowed_receiver_steps) => receiver_steps > shadowed_receiver_steps,
-                    _ => false
-                },
-                _ => false
-            }
+            (match candidate.kind {
+                CandidateKind::InherentImplCandidate { receiver_steps, .. } =>
+                    match self.receiver_steps {
+                        Some(shadowed_receiver_steps) => receiver_steps > shadowed_receiver_steps,
+                        _ => false,
+                    }
+                _ => false,
+            })
     }
 }
 
@@ -353,7 +354,7 @@ impl<'a, 'db> MethodResolutionContext<'a, 'db> {
                     }
                     TyKind::Error(_) => {}
                     _ => panic!("unexpected bad final type in method autoderef"),
-                };
+                }
                 return Choice::final_choice_from_err(MethodError::ErrorReported);
             }
         }
@@ -586,17 +587,21 @@ impl<'db> ProbeChoice<'db> for ProbeForNameChoice<'db> {
     ) {
         let item = items
             .iter()
-            .filter_map(|(name, id)| {
+            .find_map(|(name, id)| {
+                if *name != this.choice.item_name {
+                    return None;
+                }
+
                 let id = match *id {
                     AssocItemId::FunctionId(id) => id.into(),
                     AssocItemId::ConstId(id) => id.into(),
-                    AssocItemId::TypeAliasId(_) => return None,
+                    AssocItemId::TypeAliasId(_) => {
+                        return None;
+                    }
                 };
-                Some((name, id))
+                Some(id)
             })
-            .find(|(name, _)| **name == this.choice.item_name)
-            .map(|(_, id)| id)
-            .filter(|id| this.mode == Mode::Path || matches!(id, CandidateId::FunctionId(_)));
+            .filter(|id| (this.mode == Mode::Path || matches!(id, CandidateId::FunctionId(_))));
         if let Some(item) = item {
             callback(this, item);
         }
@@ -1003,11 +1008,11 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
             self.db(),
             module.krate(self.db()),
             module.block(self.db()),
-            &mut |impls| {
+            &mut (|impls| {
                 for &impl_def_id in impls.for_self_ty(self_ty) {
                     self.assemble_inherent_impl_probe(impl_def_id, receiver_steps);
                 }
-            },
+            }),
         );
     }
 
@@ -1032,10 +1037,10 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
 
     #[instrument(level = "debug", skip(self))]
     fn assemble_inherent_candidates_from_object(&mut self, self_ty: Ty<'db>) {
-        let principal = match self_ty.kind() {
+        let principal = (match self_ty.kind() {
             TyKind::Dynamic(data, ..) => Some(data),
             _ => None,
-        }
+        })
         .and_then(|data| data.principal())
         .unwrap_or_else(|| {
             panic!("non-object {:?} in assemble_inherent_candidates_from_object", self_ty)
@@ -1384,7 +1389,7 @@ impl<'a, 'db, Choice: ProbeChoice<'db>> ProbeContext<'a, 'db, Choice> {
                         pick.autoref_or_ptr_adjustment = Some(AutorefOrPtrAdjustment::Autoref {
                             mutbl,
                             unsize: pick.autoref_or_ptr_adjustment.is_some_and(|a| a.get_unsize()),
-                        })
+                        });
                     }
 
                     _ => (),
@@ -2087,7 +2092,9 @@ fn is_relevant_kind_for_mode(mode: Mode, kind: AssocItemId) -> Option<CandidateI
         (Mode::MethodCall, AssocItemId::FunctionId(id)) => id.into(),
         (Mode::Path, AssocItemId::ConstId(id)) => id.into(),
         (Mode::Path, AssocItemId::FunctionId(id)) => id.into(),
-        _ => return None,
+        _ => {
+            return None;
+        }
     })
 }
 
