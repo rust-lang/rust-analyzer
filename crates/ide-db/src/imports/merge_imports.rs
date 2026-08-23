@@ -64,6 +64,66 @@ pub fn try_merge_imports(
     make_use_with_tree(lhs, use_tree)
 }
 
+/// Merges imports without replacing the protected path with a nested `self` import.
+pub(super) fn try_merge_imports_preserving_path(
+    make: &SyntaxFactory,
+    lhs: &ast::Use,
+    rhs: &ast::Use,
+    merge_behavior: MergeBehavior,
+    preserve_path_len: usize,
+) -> Option<ast::Use> {
+    if !eq_visibility(lhs.visibility(), rhs.visibility()) || !eq_attrs(lhs.attrs(), rhs.attrs()) {
+        return None;
+    }
+
+    let lhs_tree = lhs.use_tree()?;
+    let rhs_tree = rhs.use_tree()?;
+    if merge_behavior == MergeBehavior::One {
+        let merge_lhs = wrap_in_tree_list(&lhs_tree, make).unwrap_or(lhs_tree);
+        let merge_rhs = wrap_in_tree_list(&rhs_tree, make).unwrap_or(rhs_tree);
+        let mut use_trees = merge_lhs
+            .use_tree_list()?
+            .use_trees()
+            .chain(merge_rhs.use_tree_list()?.use_trees())
+            .collect::<Vec<_>>();
+        use_trees.sort_unstable_by(use_tree_cmp);
+        return make_use_with_tree(lhs, with_use_tree_list(&merge_lhs, use_trees, make)?);
+    }
+    if merge_behavior == MergeBehavior::Module {
+        return None;
+    }
+
+    let lhs_path = lhs_tree.path()?;
+    let rhs_path = rhs_tree.path()?;
+    let (lhs_prefix, rhs_prefix) = common_prefix(&lhs_path, &rhs_path)?;
+    if path_len(lhs_prefix.clone()) != preserve_path_len {
+        return None;
+    }
+    let lhs_is_prefix =
+        lhs_tree.is_simple_path() && lhs_tree.rename().is_none() && lhs_path == lhs_prefix;
+    let rhs_is_prefix =
+        rhs_tree.is_simple_path() && rhs_tree.rename().is_none() && rhs_path == rhs_prefix;
+    if lhs_is_prefix == rhs_is_prefix {
+        return None;
+    }
+
+    let (merge_lhs, merge_rhs) = match (lhs_prefix.qualifier(), rhs_prefix.qualifier()) {
+        (Some(lhs_parent), Some(rhs_parent)) => (
+            split_prefix(&lhs_tree, &lhs_parent, make)?,
+            split_prefix(&rhs_tree, &rhs_parent, make)?,
+        ),
+        (None, None) => (wrap_in_tree_list(&lhs_tree, make)?, wrap_in_tree_list(&rhs_tree, make)?),
+        _ => return None,
+    };
+    let mut use_trees = merge_lhs
+        .use_tree_list()?
+        .use_trees()
+        .chain(merge_rhs.use_tree_list()?.use_trees())
+        .collect::<Vec<_>>();
+    use_trees.sort_unstable_by(use_tree_cmp);
+    make_use_with_tree(lhs, with_use_tree_list(&merge_lhs, use_trees, make)?)
+}
+
 /// Merge `rhs` into `lhs` keeping both intact.
 pub fn try_merge_trees(
     make: &SyntaxFactory,

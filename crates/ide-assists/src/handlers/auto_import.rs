@@ -7,7 +7,10 @@ use ide_db::{
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},
-        insert_use::{ImportScope, insert_use_as_alias_with_editor, insert_use_with_editor},
+        insert_use::{
+            ImportScope, insert_use_as_alias_with_editor,
+            insert_use_with_editor_preserving_namespaces,
+        },
     },
 };
 use syntax::{AstNode, Edition, SyntaxNode, ast, match_ast};
@@ -126,7 +129,8 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Opt
         let add_normal_import = |acc: &mut Assists, label| {
             acc.add_group(&group_label, assist_id, label, range, |builder| {
                 let editor = builder.make_editor(scope.as_syntax_node());
-                insert_use_with_editor(
+                insert_use_with_editor_preserving_namespaces(
+                    &ctx.sema,
                     &scope,
                     mod_path_to_ast(&import_path, edition),
                     &ctx.config.insert_use,
@@ -352,8 +356,8 @@ mod tests {
     use test_fixture::WithFixture;
 
     use crate::tests::{
-        TEST_CONFIG, check_assist, check_assist_by_label, check_assist_not_applicable,
-        check_assist_target,
+        TEST_CONFIG, check_assist, check_assist_by_label, check_assist_import_one,
+        check_assist_not_applicable, check_assist_target,
     };
 
     fn check_auto_import_order(before: &str, order: &[&str]) {
@@ -550,6 +554,80 @@ mod baz {
 
             Formatter
             ",
+        );
+    }
+
+    #[test]
+    fn preserves_value_namespace_when_merging() {
+        check_assist(
+            auto_import,
+            r#"
+use foo::bar;
+
+mod foo {
+    pub mod bar {
+        pub struct Baz;
+    }
+    pub fn bar() {}
+}
+
+fn main() {
+    let _: Baz$0;
+    bar();
+}
+"#,
+            r#"
+use foo::{bar, bar::Baz};
+
+mod foo {
+    pub mod bar {
+        pub struct Baz;
+    }
+    pub fn bar() {}
+}
+
+fn main() {
+    let _: Baz;
+    bar();
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn preserves_value_namespace_when_merging_all_imports() {
+        check_assist_import_one(
+            auto_import,
+            r#"
+use foo::bar;
+
+mod foo {
+    pub mod bar {
+        pub struct Baz;
+    }
+    pub fn bar() {}
+}
+
+fn main() {
+    let _: Baz$0;
+    bar();
+}
+"#,
+            r#"
+use {foo::bar, foo::bar::Baz};
+
+mod foo {
+    pub mod bar {
+        pub struct Baz;
+    }
+    pub fn bar() {}
+}
+
+fn main() {
+    let _: Baz;
+    bar();
+}
+"#,
         );
     }
 

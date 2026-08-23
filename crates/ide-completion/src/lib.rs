@@ -311,7 +311,13 @@ pub fn resolve_completion_edits(
                 &editor,
             );
         } else {
-            insert_use::insert_use_with_editor(&scope, full_path, &config.insert_use, &editor);
+            insert_use::insert_use_with_editor_preserving_namespaces(
+                &sema,
+                &scope,
+                full_path,
+                &config.insert_use,
+                &editor,
+            );
         }
     });
 
