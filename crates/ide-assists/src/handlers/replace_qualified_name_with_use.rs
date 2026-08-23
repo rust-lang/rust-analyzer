@@ -95,13 +95,7 @@ pub(crate) fn replace_qualified_name_with_use(
                 Some(qualifier) => make.path_concat(qualifier, path),
                 None => path,
             };
-            insert_use_with_editor(
-                &ctx.sema,
-                &scope,
-                path,
-                &ctx.config.insert_use,
-                &editor,
-            );
+            insert_use_with_editor(&ctx.sema, &scope, path, &ctx.config.insert_use, &editor);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

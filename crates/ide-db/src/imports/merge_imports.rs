@@ -59,13 +59,8 @@ pub fn try_merge_imports(
 
     let lhs_tree = lhs.use_tree()?;
     let rhs_tree = rhs.use_tree()?;
-    let (merged_tree, normalize) = try_merge_trees_with_factory(
-        lhs_tree,
-        rhs_tree,
-        merge_behavior,
-        preserve_path_len,
-        make,
-    )?;
+    let (merged_tree, normalize) =
+        try_merge_trees_with_factory(lhs_tree, rhs_tree, merge_behavior, preserve_path_len, make)?;
 
     let use_tree = if normalize {
         // Ignore `None` result because normalization should not affect the merge result.
@@ -85,8 +80,7 @@ pub fn try_merge_trees(
     rhs: &ast::UseTree,
     merge: MergeBehavior,
 ) -> Option<ast::UseTree> {
-    let (merged, _) =
-        try_merge_trees_with_factory(lhs.clone(), rhs.clone(), merge, None, make)?;
+    let (merged, _) = try_merge_trees_with_factory(lhs.clone(), rhs.clone(), merge, None, make)?;
 
     // Ignore `None` result because normalization should not affect the merge result.
     Some(try_normalize_use_tree(merged.clone(), merge.into(), make).unwrap_or(merged))
@@ -118,9 +112,7 @@ fn try_merge_trees_with_factory(
 
         let (lhs_prefix, rhs_prefix) = common_prefix(&lhs_path, &rhs_path)?;
         if let Some(preserve_path_len) = preserve_path_len {
-            if merge == MergeBehavior::Module
-                || path_len(lhs_prefix.clone()) != preserve_path_len
-            {
+            if merge == MergeBehavior::Module || path_len(lhs_prefix.clone()) != preserve_path_len {
                 return None;
             }
 
@@ -133,13 +125,10 @@ fn try_merge_trees_with_factory(
             }
 
             let (merge_lhs, merge_rhs) = match (lhs_prefix.qualifier(), rhs_prefix.qualifier()) {
-                (Some(lhs_parent), Some(rhs_parent)) => (
-                    split_prefix(&lhs, &lhs_parent, make)?,
-                    split_prefix(&rhs, &rhs_parent, make)?,
-                ),
-                (None, None) => {
-                    (wrap_in_tree_list(&lhs, make)?, wrap_in_tree_list(&rhs, make)?)
+                (Some(lhs_parent), Some(rhs_parent)) => {
+                    (split_prefix(&lhs, &lhs_parent, make)?, split_prefix(&rhs, &rhs_parent, make)?)
                 }
+                (None, None) => (wrap_in_tree_list(&lhs, make)?, wrap_in_tree_list(&rhs, make)?),
                 _ => return None,
             };
             let mut use_trees = merge_lhs

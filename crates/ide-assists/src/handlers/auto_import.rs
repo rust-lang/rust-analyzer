@@ -7,9 +7,7 @@ use ide_db::{
     helpers::mod_path_to_ast,
     imports::{
         import_assets::{ImportAssets, ImportCandidate, LocatedImport, TraitImportCandidate},
-        insert_use::{
-            ImportScope, insert_use_as_alias_with_editor, insert_use_with_editor,
-        },
+        insert_use::{ImportScope, insert_use_as_alias_with_editor, insert_use_with_editor},
     },
 };
 use syntax::{AstNode, Edition, SyntaxNode, ast, match_ast};
