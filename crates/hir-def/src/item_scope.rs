@@ -147,7 +147,6 @@ pub struct ItemScope {
     use_imports_values: FxHashMap<ImportOrGlob, ImportOrDef>,
     use_imports_macros: FxHashMap<ImportOrExternCrate, ImportOrDef>,
 
-    use_decls: ThinVec<UseId>,
     extern_crate_decls: ThinVec<ExternCrateId>,
     /// Macros visible in current module in legacy textual scope
     ///
@@ -297,10 +296,6 @@ impl ItemScope {
 
     pub fn extern_blocks(&self) -> impl Iterator<Item = ExternBlockId> + '_ {
         self.extern_blocks.iter().copied()
-    }
-
-    pub fn use_decls(&self) -> impl ExactSizeIterator<Item = UseId> + '_ {
-        self.use_decls.iter().copied()
     }
 
     pub fn impls(&self) -> impl ExactSizeIterator<Item = ImplId> + '_ {
@@ -835,7 +830,6 @@ impl ItemScope {
             attr_macros,
             derive_macros,
             extern_crate_decls,
-            use_decls,
             use_imports_values,
             use_imports_types,
             use_imports_macros,
@@ -859,7 +853,6 @@ impl ItemScope {
         attr_macros.shrink_to_fit();
         derive_macros.shrink_to_fit();
         extern_crate_decls.shrink_to_fit();
-        use_decls.shrink_to_fit();
         macro_invocations.shrink_to_fit();
     }
 }

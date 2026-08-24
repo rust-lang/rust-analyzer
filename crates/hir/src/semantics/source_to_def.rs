@@ -91,7 +91,7 @@ use hir_def::{
     AdtId, BlockId, BuiltinDeriveImplId, ConstId, ConstParamId, DefWithBodyId, EnumId,
     EnumVariantId, ExpressionStoreOwnerId, ExternBlockId, ExternCrateId, FieldId, FunctionId,
     GenericDefId, GenericParamId, ImplId, LifetimeParamId, Lookup, MacroId, ModuleId, StaticId,
-    StructId, TraitId, TypeAliasId, TypeParamId, UnionId, UseId, VariantId,
+    StructId, TraitId, TypeAliasId, TypeParamId, UnionId, VariantId,
     dyn_map::{
         DynMap,
         keys::{self, Key},
@@ -320,10 +320,6 @@ impl<'db> SourceToDefCtx<'db, '_> {
         src: InFile<&ast::ExternBlock>,
     ) -> Option<ExternBlockId> {
         self.to_def(src, keys::EXTERN_BLOCK)
-    }
-    #[allow(dead_code)]
-    pub(super) fn use_to_def(&mut self, src: InFile<&ast::Use>) -> Option<UseId> {
-        self.to_def(src, keys::USE)
     }
     pub(super) fn adt_to_def(
         &mut self,

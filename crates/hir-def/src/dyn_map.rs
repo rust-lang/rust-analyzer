@@ -35,7 +35,7 @@ pub mod keys {
     use crate::{
         BlockId, BuiltinDeriveImplId, ConstId, EnumId, EnumVariantId, ExternBlockId, ExternCrateId,
         FieldId, FunctionId, ImplId, LifetimeParamId, Macro2Id, MacroRulesId, ProcMacroId,
-        StaticId, StructId, TraitId, TypeAliasId, TypeOrConstParamId, UnionId, UseId,
+        StaticId, StructId, TraitId, TypeAliasId, TypeOrConstParamId, UnionId,
         dyn_map::{DynMap, Policy},
     };
 
@@ -53,7 +53,6 @@ pub mod keys {
     pub const UNION: Key<ast::Union, UnionId> = Key::new();
     pub const ENUM: Key<ast::Enum, EnumId> = Key::new();
     pub const EXTERN_CRATE: Key<ast::ExternCrate, ExternCrateId> = Key::new();
-    pub const USE: Key<ast::Use, UseId> = Key::new();
 
     pub const ENUM_VARIANT: Key<ast::Variant, EnumVariantId> = Key::new();
     pub const TUPLE_FIELD: Key<ast::TupleField, FieldId> = Key::new();
