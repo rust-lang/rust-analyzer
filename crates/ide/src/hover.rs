@@ -561,9 +561,10 @@ fn notable_traits<'db>(
             let trait_ = trait_.into();
             ty.impls_trait(db, trait_, &[]).then(|| {
                 // FIXME: This may have a better implementation
+                let inst_ty = ty.instantiate_with_errors();
                 let impl_items = hir::Impl::all_for_trait(db, trait_)
                     .into_iter()
-                    .find(|it| it.self_ty(db).could_unify_with_deeply(db, ty))
+                    .find(|it| it.self_ty(db).could_unify_with_deeply(db, &inst_ty))
                     .map_or(Vec::new(), |impl_| impl_.items(db));
                 (
                     trait_,
