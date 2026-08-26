@@ -20,4 +20,10 @@ fn block() {
         #![doc("This is fine, `for` bodies accept inner attributes")]
         //! So are ModuleDoc comments
     }
+    let tuple = (
+        {
+            #![doc("This is fine, tuple elements accept inner attributes")]
+            //! So are ModuleDoc comments
+        },
+    );
 }
