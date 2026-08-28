@@ -162,6 +162,37 @@ fn main() {
 }
 
 #[test]
+fn flyimport_preserves_macro_namespace_with_existing_self() {
+    check_edit(
+        "vec!",
+        r#"
+//- /lib.rs crate:dep
+pub mod vec {
+    pub struct Vec;
+}
+#[macro_export]
+macro_rules! vec {
+    () => {};
+}
+
+//- /main.rs crate:main deps:dep
+use dep::vec::{self, Vec};
+
+fn main() {
+    ve$0
+}
+"#,
+        r#"
+use dep::{vec, vec::Vec};
+
+fn main() {
+    vec!($0)
+}
+"#,
+    );
+}
+
+#[test]
 fn struct_fuzzy_completion() {
     check_edit(
         "ThirdStruct",

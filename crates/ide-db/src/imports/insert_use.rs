@@ -10,14 +10,14 @@ use syntax::{
     ast::{
         self, AstNode, HasAttrs, HasModuleItem, HasVisibility, PathSegmentKind, edit::IndentLevel,
     },
-    syntax_editor::{Position, SyntaxEditor},
+    syntax_editor::{Position, Removable, SyntaxEditor},
 };
 
 use crate::{
     RootDatabase,
     imports::merge_imports::{
         MergeBehavior, NormalizationStyle, common_prefix, eq_attrs, eq_visibility,
-        try_merge_imports, use_tree_cmp, wrap_in_tree_list,
+        remove_redundant_self_import, try_merge_imports, use_tree_cmp, wrap_in_tree_list,
     },
 };
 
@@ -252,7 +252,8 @@ fn insert_use_with_alias_option_with_editor(
         };
     }
 
-    let mut use_tree = make.use_tree(path, None, alias, false);
+    let remove_self = alias.is_none();
+    let mut use_tree = make.use_tree(path.clone(), None, alias, false);
     if mb == Some(MergeBehavior::One)
         && use_tree.path().is_some()
         && let Some(wrapped) = wrap_in_tree_list(&use_tree, make)
@@ -261,24 +262,44 @@ fn insert_use_with_alias_option_with_editor(
     }
     let use_item = make.use_(scope.required_cfgs.iter().cloned().rev(), None, use_tree);
 
-    // merge into existing imports if possible
-    if let Some(mb) = mb {
-        let filter = |it: &_| !(cfg.skip_glob_imports && ast::Use::is_simple_glob(it));
-        for existing_use in
-            scope.as_syntax_node().children().filter_map(ast::Use::cast).filter(filter)
+    let mut inserted = false;
+    for existing_use in scope.as_syntax_node().children().filter_map(ast::Use::cast) {
+        let mut updated = existing_use.clone();
+        if remove_self
+            && eq_visibility(existing_use.visibility(), use_item.visibility())
+            && eq_attrs(existing_use.attrs(), use_item.attrs())
+        {
+            let Some(cleaned) = remove_redundant_self_import(&existing_use, &path, make) else {
+                if inserted {
+                    existing_use.remove(syntax_editor);
+                } else {
+                    syntax_editor.replace(existing_use.syntax(), use_item.syntax());
+                    inserted = true;
+                }
+                continue;
+            };
+            updated = cleaned;
+        }
+        // Keep scanning after insertion: a later use may still contain a
+        // redundant `self` binding for the newly imported path.
+        if !inserted
+            && let Some(mb) = mb
+            && !(cfg.skip_glob_imports && existing_use.is_simple_glob())
         {
             let preserve_path_len = namespace_collision_prefix_len(sema, &existing_use);
-            if let Some(merged) = try_merge_imports(
-                syntax_editor.make(),
-                &existing_use,
-                &use_item,
-                mb,
-                preserve_path_len,
-            ) {
-                syntax_editor.replace(existing_use.syntax(), merged.syntax());
-                return;
+            if let Some(merged) =
+                try_merge_imports(make, &updated, &use_item, mb, preserve_path_len)
+            {
+                updated = merged;
+                inserted = true;
             }
         }
+        if updated != existing_use {
+            syntax_editor.replace(existing_use.syntax(), updated.syntax());
+        }
+    }
+    if inserted {
+        return;
     }
     // either we weren't allowed to merge or there is no import that fits the merge conditions
     // so look for the place we have to insert to

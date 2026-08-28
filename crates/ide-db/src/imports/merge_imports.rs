@@ -73,6 +73,73 @@ pub fn try_merge_imports(
     make_use_with_tree(lhs, use_tree)
 }
 
+/// Remove `self` bindings supplied by an explicit import of `path`.
+/// Returns `None` if no imports remain.
+pub(super) fn remove_redundant_self_import(
+    use_item: &ast::Use,
+    path: &ast::Path,
+    make: &SyntaxFactory,
+) -> Option<ast::Use> {
+    let Some(tree) = use_item.use_tree() else { return Some(use_item.clone()) };
+    let segments = path.segments().collect::<Vec<_>>();
+    let name = path.segment().and_then(|segment| segment.name_ref());
+    let updated = remove_redundant_self(tree.clone(), &segments, name.as_ref(), make)?;
+    if updated == tree {
+        Some(use_item.clone())
+    } else {
+        Some(make_use_with_tree(use_item, updated).unwrap_or_else(|| use_item.clone()))
+    }
+}
+
+fn remove_redundant_self(
+    tree: ast::UseTree,
+    path: &[ast::PathSegment],
+    name: Option<&ast::NameRef>,
+    make: &SyntaxFactory,
+) -> Option<ast::UseTree> {
+    let Some(list) = tree.use_tree_list() else { return Some(tree) };
+    let prefix = tree.path().map(|path| path.segments().collect::<Vec<_>>()).unwrap_or_default();
+    if prefix.len() > path.len()
+        || prefix.iter().zip(path).any(|(a, b)| a.syntax().text() != b.syntax().text())
+    {
+        return Some(tree);
+    }
+    let path = &path[prefix.len()..];
+    let mut changed = false;
+    let subtrees = list
+        .use_trees()
+        .filter_map(|subtree| {
+            let redundant_self = path.is_empty()
+                && subtree.path().as_ref().is_some_and(path_is_self)
+                && subtree.rename().is_none_or(|rename| {
+                    rename.name().zip(name).is_some_and(|(alias, name)| alias.text() == name.text())
+                });
+            if redundant_self {
+                changed = true;
+                return None;
+            }
+            let updated = remove_redundant_self(subtree.clone(), path, name, make);
+            changed |= updated.as_ref() != Some(&subtree);
+            updated
+        })
+        .collect::<Vec<_>>();
+    if !changed {
+        return Some(tree);
+    }
+    if subtrees.is_empty() {
+        return None;
+    }
+    // Only collapse this level. General normalization could turn another
+    // explicit multi-namespace import back into a type-only `self` import.
+    let collapse = subtrees.len() == 1 && !subtrees[0].path().as_ref().is_some_and(path_is_self);
+    let Some(updated) = with_use_tree_list(&tree, subtrees, make) else { return Some(tree) };
+    if collapse {
+        Some(merge_single_subtree_into_parent_tree(updated.clone(), make).unwrap_or(updated))
+    } else {
+        Some(updated)
+    }
+}
+
 /// Merge `rhs` into `lhs` keeping both intact.
 pub fn try_merge_trees(
     make: &SyntaxFactory,
