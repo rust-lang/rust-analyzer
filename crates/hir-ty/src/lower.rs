@@ -206,6 +206,13 @@ pub trait TyLoweringInferVarsCtx<'db> {
     }
 }
 
+#[derive(Clone)]
+struct BoundVarsFrame<'db> {
+    names: Vec<Name>,
+    bound_vars: BoundVarKinds<'db>,
+    concatenating: bool,
+}
+
 pub struct TyLoweringContext<'db, 'a> {
     pub db: &'db dyn HirDatabase,
     pub(crate) interner: DbInterner<'db>,
@@ -228,7 +235,7 @@ pub struct TyLoweringContext<'db, 'a> {
     pub(crate) defined_anon_consts: ThinVec<AnonConstId<'db>>,
     infer_vars: Option<&'a mut dyn TyLoweringInferVarsCtx<'db>>,
     is_lowering_impl_trait_bounds: bool,
-    bound_vars: Vec<(Vec<Name>, BoundVarKinds<'db>)>,
+    bound_vars: Vec<BoundVarsFrame<'db>>,
     lifetime_lowering_mode: LifetimeLoweringMode,
 }
 
@@ -246,8 +253,11 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         let impl_trait_mode = ImplTraitLoweringState::new(ImplTraitLoweringMode::Disallowed);
         let in_binders = DebruijnIndex::ZERO;
         let interner = DbInterner::new_with(db, resolver.krate());
-        let bound_vars =
-            vec![(Vec::new(), TyLoweringContext::bound_vars(db, interner, generic_def, generics))];
+        let bound_vars = vec![BoundVarsFrame {
+            names: Vec::new(),
+            bound_vars: TyLoweringContext::bound_vars(db, interner, generic_def, generics),
+            concatenating: false,
+        }];
         Self {
             db,
             // Can provide no block since we don't use it for trait solving.
@@ -309,6 +319,34 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         let res = self.with_debruijn(self.in_binders.shifted_in(1), f);
         let bound_vars = self.pop_bound_vars();
         (res, bound_vars)
+    }
+
+    fn with_flattened_binder<T>(
+        &mut self,
+        binder: &[Name],
+        f: impl FnOnce(&mut TyLoweringContext<'db, '_>) -> T,
+    ) -> T {
+        let interner = self.interner;
+        let parent_bound_vars = if self.bound_vars.len() == 1 {
+            BoundVarKinds::empty(interner)
+        } else {
+            self.bound_vars.last().unwrap().bound_vars
+        };
+        self.push_bound_vars(binder);
+        let bound_vars = BoundVarKinds::new_from_iter(
+            interner,
+            parent_bound_vars.iter().chain(self.peek_bound_vars().iter()),
+        );
+        let frame = self.bound_vars.last_mut().unwrap();
+        frame.bound_vars = bound_vars;
+        frame.concatenating = true;
+        let result = f(self);
+
+        let frame = self.bound_vars.pop().unwrap();
+        let parent = self.bound_vars.last_mut().unwrap();
+        parent.names.extend(frame.names);
+        parent.bound_vars = frame.bound_vars;
+        result
     }
 
     pub(crate) fn with_impl_trait_mode(self, impl_trait_mode: ImplTraitLoweringMode) -> Self {
@@ -385,15 +423,19 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                 BoundVariableKind::Region(BoundRegionKind::Named(self.generic_def.into()))
             }),
         );
-        self.bound_vars.push((binder.to_vec(), bound_vars));
+        self.bound_vars.push(BoundVarsFrame {
+            names: binder.to_vec(),
+            bound_vars,
+            concatenating: false,
+        });
     }
 
     fn pop_bound_vars(&mut self) -> BoundVarKinds<'db> {
-        self.bound_vars.pop().unwrap().1
+        self.bound_vars.pop().unwrap().bound_vars
     }
 
     fn peek_bound_vars(&self) -> BoundVarKinds<'db> {
-        self.bound_vars.last().unwrap().1
+        self.bound_vars.last().unwrap().bound_vars
     }
 
     fn bound_vars(
@@ -909,6 +951,9 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
                 Some(lifetimes) => {
                     self.with_shifted_in(lifetimes, |ctx| lower_type_outlives(ctx, target, bound)).0
                 }
+                None if matches!(bound, TypeBound::ForLifetime(..)) => {
+                    self.with_shifted_in(&[], |ctx| lower_type_outlives(ctx, target, bound)).0
+                }
                 None => lower_type_outlives(self, target, bound),
             },
             &WherePredicate::Lifetime { bound, target } => Either::Right(iter::once((
@@ -933,6 +978,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
         self_ty: Ty<'db>,
         ignore_bindings: bool,
     ) -> impl Iterator<Item = (Clause<'db>, GenericPredicateSource)> + use<'db> {
+        let old_frame = self.bound_vars.last().unwrap().clone();
         let interner = self.interner;
         let meta_sized = self.lang_items.MetaSized;
         let pointee_sized = self.lang_items.PointeeSized;
@@ -975,7 +1021,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
         match bound {
             &TypeBound::ForLifetime(ref binder, path) => {
-                self.with_shifted_in(binder, |ctx| lower_path_bound(ctx, path)).0
+                self.with_flattened_binder(binder, |ctx| lower_path_bound(ctx, path))
             }
             &TypeBound::Path(path, TraitBoundModifier::None) => lower_path_bound(self, path),
             &TypeBound::Path(path, TraitBoundModifier::Maybe) => {
@@ -1007,10 +1053,12 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             }
             TypeBound::Use(_) | TypeBound::Error => {}
         }
-        clause
+        let result = clause
             .into_iter()
             .map(|pred| (pred, GenericPredicateSource::SelfOnly))
-            .chain(assoc_bounds.into_iter().flatten())
+            .chain(assoc_bounds.into_iter().flatten());
+        *self.bound_vars.last_mut().unwrap() = old_frame;
+        result
     }
 
     fn lower_dyn_trait(&mut self, bounds: &[TypeBound]) -> Ty<'db> {
@@ -1031,8 +1079,7 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
             for b in bounds {
                 let db = self.db;
                 match b {
-                    TypeBound::Path(_, TraitBoundModifier::None) => {
-                        // `dyn Trait<'a>` is an existential predicate that introduces a binder.
+                    TypeBound::Path(_, TraitBoundModifier::None) | TypeBound::ForLifetime(..) => {
                         self.with_shifted_in(&[], |ctx| {
                             ctx.lower_type_bound(b, dummy_self_ty, false)
                         })
@@ -1363,17 +1410,21 @@ impl<'db, 'a> TyLoweringContext<'db, 'a> {
 
     fn find_and_lower_hrtb_lifetime(&mut self, lifetime: LifetimeRefId) -> Option<Region<'db>> {
         if let LifetimeRef::Named(lt_name) = &self.store[lifetime] {
-            self.bound_vars.iter().rev().enumerate().find_map(|(debruijn, (binder, _))| {
-                binder.iter().enumerate().find_map(|(index, l)| {
-                    (l == lt_name).then(|| {
-                        self.hrtb_region_param(
-                            index as u32,
-                            DebruijnIndex::from_usize(debruijn),
-                            self.generic_def,
-                        )
-                    })
-                })
-            })
+            let mut debruijn = 0;
+            for frame in self.bound_vars.iter().rev() {
+                if let Some(index) = frame.names.iter().position(|name| name == lt_name) {
+                    let offset = frame.bound_vars.len() - frame.names.len();
+                    return Some(self.hrtb_region_param(
+                        (offset + index) as u32,
+                        DebruijnIndex::from_usize(debruijn),
+                        self.generic_def,
+                    ));
+                }
+                if !frame.concatenating {
+                    debruijn += 1;
+                }
+            }
+            None
         } else {
             None
         }
