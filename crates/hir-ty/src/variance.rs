@@ -60,7 +60,7 @@ fn variances_of_query(db: &dyn HirDatabase, def: GenericDefId) -> StoredVariance
     }
 
     let generics = generics(db, def);
-    let count = generics.len(true);
+    let count = generics.len(false);
     if count == 0 {
         return VariancesOf::empty().store();
     }
@@ -591,8 +591,8 @@ struct TestBox<U,T:Getter<U>+Setter<U>> { //~ ERROR [U: *, T: +]
 }
 "#,
             expect![[r#"
-                get[Self: contravariant, T: covariant, '_: invariant]
-                get[Self: contravariant, T: contravariant, '_: invariant]
+                get[Self: contravariant, T: covariant]
+                get[Self: contravariant, T: contravariant]
                 TestStruct[U: covariant, T: covariant]
                 TestEnum[U: bivariant, T: covariant]
                 TestContraStruct[U: bivariant, T: covariant]
@@ -627,10 +627,10 @@ fn pick<'b, G>(get: &'b G, if_odd: &'b i32) -> i32
 {}
 "#,
             expect![[r#"
-                get[Self: contravariant, T: covariant, '_: invariant]
+                get[Self: contravariant, T: covariant]
                 Cloner[T: covariant]
-                get[T: invariant, '_: invariant]
-                get['a: invariant, G: contravariant, '_: invariant]
+                get[T: invariant]
+                get['a: invariant, G: contravariant]
                 pick['b: contravariant, G: contravariant]
             "#]],
         );
@@ -652,7 +652,7 @@ struct TOption<'a> { //~ ERROR ['a: +]
 "#,
             expect![[r#"
                 Option[T: covariant]
-                foo[Self: contravariant, '_: invariant]
+                foo[Self: contravariant]
                 TOption['a: covariant]
             "#]],
         );
@@ -700,8 +700,8 @@ struct TestObject<A, R> { //~ ERROR [A: o, R: o]
                 TestMut[A: covariant, B: invariant]
                 TestIndirect[A: covariant, B: invariant]
                 TestIndirect2[A: invariant, B: invariant]
-                get[Self: contravariant, A: covariant, '_: invariant]
-                set[Self: invariant, A: contravariant, '_: invariant]
+                get[Self: contravariant, A: covariant]
+                set[Self: invariant, A: contravariant]
                 TestObject[A: invariant, R: invariant]
             "#]],
         );
@@ -718,7 +718,7 @@ trait SomeTrait<'a> { fn foo(&self); } // OK on traits.
             expect![[r#"
                 SomeStruct['a: bivariant]
                 SomeEnum['a: bivariant]
-                foo[Self: contravariant, 'a: invariant, '_: invariant]
+                foo[Self: contravariant, 'a: invariant]
             "#]],
         );
     }
@@ -947,7 +947,7 @@ struct FixedPoint<T, U, V>(&'static FixedPoint<(), T, U>, V);
                     res,
                     "{name}[{}]\n",
                     generics(&db, def)
-                        .iter(true)
+                        .iter(false)
                         .map(|(_, param)| match param {
                             GenericParamDataRef::TypeParamData(type_param_data) => {
                                 type_param_data.name.as_ref().unwrap()
