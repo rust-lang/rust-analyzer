@@ -9232,6 +9232,7 @@ fn main() {
 fn notable_local() {
     check(
         r#"
+#![feature(doc_notable_trait)]
 #[doc(notable_trait)]
 trait Notable {
     type Assoc;
@@ -9359,6 +9360,7 @@ fn notable_ranged() {
     check_hover_range(
         r#"
 //- minicore: future, iterator
+#![feature(doc_notable_trait)]
 struct S;
 #[doc(notable_trait)]
 trait Notable {}
@@ -9387,6 +9389,7 @@ fn notable_actions() {
     check_actions(
         r#"
 //- minicore: future, iterator
+#![feature(doc_notable_trait)]
 struct S;
 struct S2;
 #[doc(notable_trait)]
@@ -9406,7 +9409,7 @@ impl Iterator for S {
                         file_id: FileId(
                             0,
                         ),
-                        offset: 7,
+                        offset: 38,
                     },
                 ),
                 GoToType(
@@ -9445,8 +9448,8 @@ impl Iterator for S {
                                 file_id: FileId(
                                     0,
                                 ),
-                                full_range: 21..59,
-                                focus_range: 49..56,
+                                full_range: 52..90,
+                                focus_range: 80..87,
                                 name: "Notable",
                                 kind: Trait,
                                 description: "trait Notable",
@@ -9458,8 +9461,8 @@ impl Iterator for S {
                                 file_id: FileId(
                                     0,
                                 ),
-                                full_range: 10..20,
-                                focus_range: 17..19,
+                                full_range: 41..51,
+                                focus_range: 48..50,
                                 name: "S2",
                                 kind: Struct,
                                 description: "struct S2",
