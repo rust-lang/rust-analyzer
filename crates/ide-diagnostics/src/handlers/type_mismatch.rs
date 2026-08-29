@@ -6,7 +6,7 @@ use ide_db::{
     text_edit::TextEdit,
 };
 use syntax::{
-    AstNode, AstPtr, TextSize,
+    AstNode, AstPtr, SyntaxNodePtr, TextSize,
     ast::{
         self, BlockExpr, Expr, ExprStmt, HasArgList, RefExpr,
         edit::{AstNodeEdit, IndentLevel},
@@ -114,8 +114,6 @@ fn add_or_fix_reference(
     expr_ptr: &InFile<AstPtr<ast::Expr>>,
     acc: &mut Vec<Assist>,
 ) -> Option<()> {
-    let range = ctx.sema.diagnostics_display_range((*expr_ptr).map(|it| it.into()));
-
     let (expected_with_ref_removed, expected_mutability) = d.expected.as_reference()?;
 
     if let Some((actual_with_ref_removed, hir::Mutability::Shared)) = d.actual.as_reference()
@@ -131,10 +129,11 @@ fn add_or_fix_reference(
         // as the suggestion would overwrite the macro _definition_ position
         let expr = ctx.sema.original_ast_node(expr)?;
         let expr_without_ref = RefExpr::cast(expr.syntax().clone())?.expr()?;
+        let range = ctx.sema.original_range_opt(expr.syntax())?;
 
         let pos = expr_without_ref.syntax().text_range().start();
         let edit = TextEdit::insert(pos, expected_mutability.as_keyword_for_ref().to_owned());
-        let source_change = SourceChange::from_text_edit(range.file_id, edit);
+        let source_change = SourceChange::from_text_edit(range.file_id.file_id(ctx.db()), edit);
         acc.push(fix(
             "make_reference_mutable",
             "Make reference mutable",
@@ -166,10 +165,11 @@ fn add_or_fix_reference(
     }
 
     let ampersands = format!("&{}", expected_mutability.as_keyword_for_ref());
+    let target = expr_edit_target(ctx, expr_ptr)?;
 
-    let edit = insert_prefix(&expr, range.range, &ampersands);
-    let source_change = SourceChange::from_text_edit(range.file_id, edit);
-    acc.push(fix("add_reference_here", "Add reference here", source_change, range.range));
+    let edit = insert_prefix(&expr, target.range.range, &ampersands, target.is_macro_call);
+    let source_change = SourceChange::from_text_edit(target.range.file_id.file_id(ctx.db()), edit);
+    acc.push(fix("add_reference_here", "Add reference here", source_change, target.range.range));
     Some(())
 }
 
@@ -481,8 +481,45 @@ fn array_length(
     Some(())
 }
 
-fn insert_prefix(expr: &Expr, range: syntax::TextRange, text: &str) -> TextEdit {
-    if expr.precedence().needs_parentheses_in(ast::prec::ExprPrecedence::Prefix) {
+struct ExprEditTarget {
+    range: hir::FileRange,
+    is_macro_call: bool,
+}
+
+/// Finds a source range that can be edited as one complete expression.
+///
+/// A diagnostic display range may contain only the user-written spans of a mixed-origin macro
+/// expansion. If the expanded expression cannot be mapped strictly, walk up through expression
+/// macro calls until the complete call can be mapped instead.
+fn expr_edit_target(
+    ctx: &DiagnosticsContext<'_, '_>,
+    expr_ptr: &InFile<AstPtr<ast::Expr>>,
+) -> Option<ExprEditTarget> {
+    let mut ptr = (*expr_ptr).map(|it| it.syntax_node_ptr());
+    let mut is_macro_call = false;
+
+    loop {
+        let node = ctx.sema.to_node_syntax(ptr);
+        // try to get the original range
+        if let Some(range) = ctx.sema.original_range_opt(&node) {
+            return Some(ExprEditTarget { range, is_macro_call });
+        }
+
+        // retry with the expression macro call that produced this expansion.
+        let call = ptr.file_id.call_node(ctx.db())?;
+        let macro_expr = call.value.parent().and_then(ast::MacroExpr::cast)?;
+        ptr = call.with_value(SyntaxNodePtr::new(macro_expr.syntax()));
+        is_macro_call = true;
+    }
+}
+
+fn insert_prefix(
+    expr: &Expr,
+    range: syntax::TextRange,
+    text: &str,
+    is_macro_call: bool,
+) -> TextEdit {
+    if !is_macro_call && expr.precedence().needs_parentheses_in(ast::prec::ExprPrecedence::Prefix) {
         let mut builder = TextEdit::builder();
         builder.insert(range.start(), format!("{text}("));
         builder.insert(range.end(), ")".to_owned());
