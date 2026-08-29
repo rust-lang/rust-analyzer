@@ -942,6 +942,137 @@ fn main() {
     }
 
     #[test]
+    fn fix_issue_23247() {
+        check_fix(
+            r#"
+struct String;
+impl String {
+    fn from(_value: &str) -> String { String }
+    fn push_str(&mut self, _value: &String) {}
+}
+macro_rules! format {
+    ($arg:expr) => { must_use({ make_string($arg) }) };
+}
+fn make_string(_arg: &str) -> String { String }
+fn must_use<T>(value: T) -> T { value }
+fn main() {
+    let mut test = String::from("example");
+    test.push_str($0format!("bug"));
+}
+            "#,
+            r#"
+struct String;
+impl String {
+    fn from(_value: &str) -> String { String }
+    fn push_str(&mut self, _value: &String) {}
+}
+macro_rules! format {
+    ($arg:expr) => { must_use({ make_string($arg) }) };
+}
+fn make_string(_arg: &str) -> String { String }
+fn must_use<T>(value: T) -> T { value }
+fn main() {
+    let mut test = String::from("example");
+    test.push_str(&format!("bug"));
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn fix_issue_19428() {
+        check_fix(
+            r#"
+//- minicore: fmt
+struct Formatter;
+struct DebugList;
+impl Formatter {
+    fn debug_list(&mut self) -> DebugList { DebugList }
+}
+impl DebugList {
+    fn entry(&mut self, _value: &core::fmt::Arguments<'_>) -> &mut Self { self }
+    fn finish(&mut self) {}
+}
+fn foo(f: &mut Formatter) {
+    f.debug_list().entry($0format_args!("")).finish();
+}
+            "#,
+            r#"
+struct Formatter;
+struct DebugList;
+impl Formatter {
+    fn debug_list(&mut self) -> DebugList { DebugList }
+}
+impl DebugList {
+    fn entry(&mut self, _value: &core::fmt::Arguments<'_>) -> &mut Self { self }
+    fn finish(&mut self) {}
+}
+fn foo(f: &mut Formatter) {
+    f.debug_list().entry(&format_args!("")).finish();
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn add_reference_to_partially_mapped_nested_macro_call() {
+        check_fix(
+            r#"
+struct String;
+macro_rules! inner {
+    ($arg:expr) => { make_string($arg) };
+}
+macro_rules! outer {
+    ($arg:expr) => { inner!($arg) };
+}
+fn make_string(_arg: &str) -> String { String }
+fn test(_foo: &String) {}
+fn main() {
+    test($0outer!("bug"));
+}
+            "#,
+            r#"
+struct String;
+macro_rules! inner {
+    ($arg:expr) => { make_string($arg) };
+}
+macro_rules! outer {
+    ($arg:expr) => { inner!($arg) };
+}
+fn make_string(_arg: &str) -> String { String }
+fn test(_foo: &String) {}
+fn main() {
+    test(&outer!("bug"));
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn add_reference_to_macro_call_ignores_expansion_precedence() {
+        check_fix(
+            r#"
+macro_rules! sum {
+    ($left:expr, $right:expr) => { $left + $right };
+}
+fn test(_foo: &i32) {}
+fn main() {
+    test($0sum!(1, 2));
+}
+            "#,
+            r#"
+macro_rules! sum {
+    ($left:expr, $right:expr) => { $left + $right };
+}
+fn test(_foo: &i32) {}
+fn main() {
+    test(&sum!(1, 2));
+}
+            "#,
+        );
+    }
+
+    #[test]
     fn fix_reference_to_macro_call() {
         check_fix(
             r#"
