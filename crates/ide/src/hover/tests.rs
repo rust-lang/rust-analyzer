@@ -10299,6 +10299,24 @@ fn foo() -> $0impl Trait {
             ```
         "#]],
     );
+
+    check(
+        r#"
+//- minicore: send, unpin
+trait Trait {}
+impl Trait for T {}
+fn foo() -> $0impl Trait + Unpin {
+    2
+}
+"#,
+        expect![[r#"
+            *impl*
+            ```rust
+            impl Trait + Unpin + Send
+            impl Trait + Unpin = i32
+            ```
+        "#]],
+    );
 }
 
 #[test]
