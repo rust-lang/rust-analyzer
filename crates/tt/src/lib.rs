@@ -735,8 +735,11 @@ pub fn pretty(tkns: TokenTreesView<'_>) -> String {
             last =
                 [last, tokentree_to_text(tkn.clone())].join(if last_to_joint { "" } else { " " });
             last_to_joint = false;
-            if let TtElement::Leaf(Leaf::Punct(Punct { spacing, .. })) = tkn
-                && spacing == Spacing::Joint
+            if let TtElement::Leaf(Leaf::Punct(Punct { char, spacing, .. })) = tkn
+                // `#` and `$` are prefix sigils, not binary operators. rustc never renders
+                // whitespace after them, and `stringify!` must agree with rustc because its
+                // result is an observable string literal.
+                && (spacing == Spacing::Joint || matches!(char, '#' | '$'))
             {
                 last_to_joint = true;
             }

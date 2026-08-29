@@ -125,6 +125,42 @@ fn main() {
     );
 }
 
+/// `stringify!` produces an observable string literal, so it has to agree with rustc.
+/// Checked against `rustc 1.95.0`:
+///
+/// ```ignore
+/// stringify!(#inner<#ty>)     // "#inner<#ty>"
+/// stringify!(#outer::#ty_pc)  // "#outer::#ty_pc"
+/// stringify!($x)              // "$x"
+/// ```
+///
+/// We still differ from rustc on spacing around `::` and `<`, which does not change how
+/// the string re-lexes. We must not differ on `#` and `$`, which are prefix sigils that
+/// bind to the token after them.
+#[test]
+fn test_stringify_expand_prefix_sigils() {
+    check(
+        r#"
+#[rustc_builtin_macro]
+macro_rules! stringify {() => {}}
+
+fn main() {
+    stringify!(#inner<#ty>);
+    stringify!($x);
+}
+"#,
+        expect![[r##"
+#[rustc_builtin_macro]
+macro_rules! stringify {() => {}}
+
+fn main() {
+    "#inner <#ty >";
+    "$x";
+}
+"##]],
+    );
+}
+
 #[test]
 fn test_env_expand() {
     check(

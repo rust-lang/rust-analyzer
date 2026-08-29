@@ -481,7 +481,12 @@ fn display_token_tree<S>(
             )?;
         }
         TokenTree::Punct(Punct { ch, joint, span: _ }) => {
-            *emit_whitespace = !*joint;
+            // `#` and `$` are prefix sigils, not binary operators: `#[attr]`, `#![attr]`,
+            // `$x`, `$crate`. rustc's token stream renderer never emits whitespace after
+            // them, independently of jointness, so neither do we. Jointness cannot express
+            // this on its own because the token that follows is usually an ident or a
+            // delimiter rather than another punct, which makes the sigil `Spacing::Alone`.
+            *emit_whitespace = !*joint && !matches!(*ch, b'#' | b'$');
             write!(f, "{}", *ch as char)?;
         }
         TokenTree::Ident(Ident { sym, is_raw, span: _ }) => {
@@ -762,6 +767,67 @@ mod tests {
     #[test]
     fn doc_comment_from_str() {
         let token_stream = TokenStream::from_str("/// foo", ()).unwrap();
-        assert_eq!(token_stream.to_string(), r#"# [doc = " foo"]"#);
+        assert_eq!(token_stream.to_string(), r#"#[doc = " foo"]"#);
+    }
+
+    /// Differential test against rustc.
+    ///
+    /// The right hand side of every pair is the literal output of
+    /// `proc_macro::TokenStream::to_string()` under rustc, captured by feeding the left
+    /// hand side to a real proc macro built by the real compiler:
+    ///
+    /// ```ignore
+    /// #[proc_macro]
+    /// pub fn show(input: TokenStream) -> TokenStream {
+    ///     format!("{:?}", input.to_string()).parse().unwrap()
+    /// }
+    /// ```
+    ///
+    /// rustc renders `#` and `$` tight against the token that follows them, because both
+    /// are prefix sigils rather than operators. Proc macros in the wild rely on this: a
+    /// macro that scans `input.to_string()` for `#name` interpolation markers silently
+    /// stops matching if a space is inserted, and emits its template verbatim instead of
+    /// the substituted code. That is what makes this a correctness bug rather than a
+    /// formatting preference.
+    #[test]
+    fn rustc_parity_prefix_sigils() {
+        let cases = [
+            ("#a #b #c", "#a #b #c"),
+            ("##a", "##a"),
+            ("#0", "#0"),
+            ("$x", "$x"),
+            ("$($y),*", "$($y),*"),
+            ("$(#a)*", "$(#a)*"),
+        ];
+        for (input, rustc) in cases {
+            let ours = TokenStream::from_str(input, ()).unwrap().to_string();
+            assert_eq!(ours, rustc, "rendering of `{input}` diverges from rustc");
+        }
+    }
+
+    /// Records where our rendering still diverges from rustc, so the gap is visible and
+    /// any future change to it shows up as a diff rather than silently.
+    ///
+    /// Everything here is whitespace that does not change how the tokens re-lex, unlike
+    /// the `#`/`$` cases above. Captured with the same proc macro described on
+    /// [`rustc_parity_prefix_sigils`].
+    #[test]
+    fn rustc_parity_known_divergences() {
+        let cases = [
+            // (input, rustc, ours)
+            ("std::vec::Vec<u8>", "std::vec::Vec<u8>", "std :: vec :: Vec < u8 >"),
+            ("$crate::foo", "$crate::foo", "$crate :: foo"),
+            ("a.b().c", "a.b().c", "a . b (). c"),
+            ("let x = (1, 2); y;", "let x = (1, 2); y;", "let x = (1 , 2); y ;"),
+            ("x: u8", "x: u8", "x : u8"),
+            ("() [] {}", "() [] {}", "()[]{}"),
+            ("if a { b } else { c }", "if a { b } else { c }", "if a {b}else {c}"),
+            ("#inner<#ty>", "#inner<#ty>", "#inner <#ty >"),
+        ];
+        for (input, rustc, ours) in cases {
+            let actual = TokenStream::from_str(input, ()).unwrap().to_string();
+            assert_eq!(actual, ours, "rendering of `{input}` changed");
+            assert_ne!(actual, rustc, "`{input}` now matches rustc, update this test");
+        }
     }
 }
