@@ -226,20 +226,17 @@ mod tests {
 
     #[test]
     fn new_from_existing_keeps_file_name_and_is_writable() {
-        let source = NamedTempFile::new_from_existing(
-            "stdx-test-source",
-            &{
-                let dir = general_imp::create_dir("stdx-test-orig").unwrap();
-                let path = dir.join("Cargo.lock");
-                std::fs::write(&path, b"contents").unwrap();
-                // Simulate a read-only source, like a lockfile in a read-only
-                // toolchain installation.
-                let mut perms = std::fs::metadata(&path).unwrap().permissions();
-                perms.set_readonly(true);
-                std::fs::set_permissions(&path, perms).unwrap();
-                path
-            },
-        )
+        let source = NamedTempFile::new_from_existing("stdx-test-source", &{
+            let dir = general_imp::create_dir("stdx-test-orig").unwrap();
+            let path = dir.join("Cargo.lock");
+            std::fs::write(&path, b"contents").unwrap();
+            // Simulate a read-only source, like a lockfile in a read-only
+            // toolchain installation.
+            let mut perms = std::fs::metadata(&path).unwrap().permissions();
+            perms.set_readonly(true);
+            std::fs::set_permissions(&path, perms).unwrap();
+            path
+        })
         .unwrap();
         // The copy keeps the file name so that consumers which require an exact
         // name (Cargo insists on `Cargo.lock`) can use it.
