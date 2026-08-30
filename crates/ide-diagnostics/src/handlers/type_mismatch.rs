@@ -1015,6 +1015,43 @@ fn foo(f: &mut Formatter) {
     }
 
     #[test]
+    fn add_reference_inside_macro_call() {
+        check_fix(
+            r#"
+macro_rules! identity { ($($t:tt)*) => ($($t)*) }
+fn test() -> &'static i32 {
+    identity! {
+        $01000
+    }
+}
+            "#,
+            r#"
+macro_rules! identity { ($($t:tt)*) => ($($t)*) }
+fn test() -> &'static i32 {
+    identity! {
+        &1000
+    }
+}
+            "#,
+        );
+
+        check_fix(
+            r#"
+macro_rules! needs_i32_ref { ($e:expr) => { let _: &'static i32 = ($e); } }
+fn test() {
+    needs_i32_ref!($01000);
+}
+            "#,
+            r#"
+macro_rules! needs_i32_ref { ($e:expr) => { let _: &'static i32 = ($e); } }
+fn test() {
+    needs_i32_ref!(&1000);
+}
+            "#,
+        );
+    }
+
+    #[test]
     fn add_reference_to_partially_mapped_nested_macro_call() {
         check_fix(
             r#"
