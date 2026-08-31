@@ -276,9 +276,8 @@ impl StoredProjection {
     }
 }
 
-// FIXME: would be nicer to rename PlaceRef -> Place, Place -> StoredPlace, but I didn't want to blow up the diff
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct PlaceRef<'db> {
+pub struct Place<'db> {
     pub local: LocalId,
     pub projection: Projection<'db>,
 }
@@ -290,28 +289,28 @@ pub struct StoredPlace {
 }
 
 impl StoredPlace {
-    pub fn as_ref<'db>(&self) -> PlaceRef<'db> {
-        PlaceRef { local: self.local, projection: self.projection.as_ref() }
+    pub fn as_ref<'db>(&self) -> Place<'db> {
+        Place { local: self.local, projection: self.projection.as_ref() }
     }
 }
 
-impl<'db> PlaceRef<'db> {
-    fn is_parent(&self, child: PlaceRef<'db>) -> bool {
+impl<'db> Place<'db> {
+    fn is_parent(&self, child: Place<'db>) -> bool {
         self.local == child.local
             && child.projection.as_slice().starts_with(self.projection.as_slice())
     }
 
     /// The place itself is not included
-    fn iterate_over_parents<'a>(&'a self) -> impl Iterator<Item = PlaceRef<'db>> + 'a {
+    fn iterate_over_parents<'a>(&'a self) -> impl Iterator<Item = Place<'db>> + 'a {
         let projection = self.projection.as_slice();
-        (0..projection.len()).map(move |x| PlaceRef {
+        (0..projection.len()).map(move |x| Place {
             local: self.local,
             projection: Projection::new_from_slice(&projection[0..x]),
         })
     }
 
-    fn project(&self, projection: PlaceElem) -> PlaceRef<'db> {
-        PlaceRef { local: self.local, projection: self.projection.project(projection) }
+    fn project(&self, projection: PlaceElem) -> Place<'db> {
+        Place { local: self.local, projection: self.projection.project(projection) }
     }
 
     pub fn store(&self) -> StoredPlace {
@@ -331,10 +330,10 @@ impl<'db> PlaceRef<'db> {
     }
 }
 
-impl<'db> From<LocalId> for PlaceRef<'db> {
+impl<'db> From<LocalId> for Place<'db> {
     fn from(local: LocalId) -> Self {
         let empty: &[PlaceElem] = &[];
-        PlaceRef { local, projection: Projection::new_from_slice(empty) }
+        Place { local, projection: Projection::new_from_slice(empty) }
     }
 }
 
@@ -1194,13 +1193,13 @@ impl From<&ExprId> for MirSpan {
     }
 }
 
-impl<'tcx> PlaceRef<'tcx> {
+impl<'tcx> Place<'tcx> {
     /// If this place represents a local variable like `_X` with no
     /// projections, return `Some(_X)`.
     #[inline]
     pub fn as_local(&self) -> Option<LocalId> {
         match *self {
-            PlaceRef { local, projection } if projection.as_slice().is_empty() => Some(local),
+            Place { local, projection } if projection.as_slice().is_empty() => Some(local),
             _ => None,
         }
     }

@@ -57,7 +57,7 @@ use crate::{
 
 use super::{
     AggregateKind, BasicBlockId, BinOp, CastKind, LocalId, MirBody, MirLowerError, MirSpan,
-    Operand, OperandKind, PlaceElem, PlaceRef, PlaceTy, ProjectionElem, Rvalue, StatementKind,
+    Operand, OperandKind, Place, PlaceElem, PlaceTy, ProjectionElem, Rvalue, StatementKind,
     StoredPlace, TerminatorKind, UnOp, return_slot,
 };
 
@@ -563,11 +563,11 @@ type Result<'db, T> = std::result::Result<T, MirEvalError<'db>>;
 
 #[derive(Debug, Default)]
 struct DropFlags<'db> {
-    need_drop: FxHashSet<PlaceRef<'db>>,
+    need_drop: FxHashSet<Place<'db>>,
 }
 
 impl<'db> DropFlags<'db> {
-    fn add_place(&mut self, p: PlaceRef<'db>) {
+    fn add_place(&mut self, p: Place<'db>) {
         if p.iterate_over_parents().any(|it| self.need_drop.contains(&it)) {
             return;
         }
@@ -575,7 +575,7 @@ impl<'db> DropFlags<'db> {
         self.need_drop.insert(p);
     }
 
-    fn remove_place(&mut self, p: PlaceRef<'db>) -> bool {
+    fn remove_place(&mut self, p: Place<'db>) -> bool {
         // FIXME: replace parents with parts
         if let Some(parent) = p.iterate_over_parents().find(|it| self.need_drop.contains(it)) {
             self.need_drop.remove(&parent);

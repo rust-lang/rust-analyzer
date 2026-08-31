@@ -57,7 +57,7 @@ use crate::{
     },
 };
 
-use super::{OperandKind, PlaceRef};
+use super::{OperandKind, Place};
 
 mod as_place;
 mod pattern_matching;
@@ -379,7 +379,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn lower_expr_to_place_with_adjust(
         &mut self,
         expr_id: ExprId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         current: BasicBlockId,
         adjustments: &[Adjustment],
     ) -> Result<'db, Option<BasicBlockId>> {
@@ -439,7 +439,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn lower_expr_to_place_with_borrow_adjust(
         &mut self,
         expr_id: ExprId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         current: BasicBlockId,
         rest: &[Adjustment],
         m: Mutability,
@@ -457,7 +457,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn lower_expr_to_place(
         &mut self,
         expr_id: ExprId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         prev_block: BasicBlockId,
     ) -> Result<'db, Option<BasicBlockId>> {
         if let Some(adjustments) = self.infer.expr_adjustments.get(&expr_id) {
@@ -469,7 +469,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn lower_expr_to_place_without_adjust(
         &mut self,
         expr_id: ExprId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         mut current: BasicBlockId,
     ) -> Result<'db, Option<BasicBlockId>> {
         match &self.store[expr_id] {
@@ -1328,7 +1328,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
 
     fn push_field_projection(
         &mut self,
-        place: &mut PlaceRef<'db>,
+        place: &mut Place<'db>,
         expr_id: ExprId,
     ) -> Result<'db, ()> {
         if let Expr::Field { expr, name } = &self.store[expr_id] {
@@ -1461,7 +1461,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         &mut self,
         const_id: GeneralConstId<'db>,
         prev_block: BasicBlockId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         subst: GenericArgs<'db>,
         span: MirSpan,
     ) -> Result<'db, ()> {
@@ -1494,7 +1494,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn write_bytes_to_place(
         &mut self,
         prev_block: BasicBlockId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         cv: Box<[u8]>,
         ty: Ty<'db>,
         span: MirSpan,
@@ -1507,7 +1507,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         &mut self,
         variant_id: EnumVariantId,
         prev_block: BasicBlockId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         ty: Ty<'db>,
         fields: Box<[Operand]>,
         span: MirSpan,
@@ -1529,7 +1529,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         &mut self,
         func: Operand,
         args: impl Iterator<Item = ExprId>,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         mut current: BasicBlockId,
         is_uninhabited: bool,
         span: MirSpan,
@@ -1554,7 +1554,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         &mut self,
         func: Operand,
         args: Box<[Operand]>,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         current: BasicBlockId,
         is_uninhabited: bool,
         span: MirSpan,
@@ -1605,27 +1605,27 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         self.result.basic_blocks[block].statements.push(statement);
     }
 
-    fn push_fake_read(&mut self, block: BasicBlockId, p: PlaceRef<'db>, span: MirSpan) {
+    fn push_fake_read(&mut self, block: BasicBlockId, p: Place<'db>, span: MirSpan) {
         self.push_statement(block, StatementKind::FakeRead(p.store()).with_span(span));
     }
 
     fn push_assignment(
         &mut self,
         block: BasicBlockId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         rvalue: Rvalue,
         span: MirSpan,
     ) {
         self.push_statement(block, StatementKind::Assign(place.store(), rvalue).with_span(span));
     }
 
-    fn discr_temp_place(&mut self, current: BasicBlockId) -> PlaceRef<'db> {
+    fn discr_temp_place(&mut self, current: BasicBlockId) -> Place<'db> {
         match &self.discr_temp {
             Some(it) => it.as_ref(),
             None => {
                 // FIXME: rustc's ty is dependent on the adt type, maybe we need to do that as well
                 let discr_ty = Ty::new_int(self.interner(), rustc_type_ir::IntTy::I128);
-                let tmp: PlaceRef<'_> = self
+                let tmp: Place<'_> = self
                     .temp(discr_ty, current, MirSpan::Unknown)
                     .expect("discr_ty is never unsized")
                     .into();
@@ -1638,7 +1638,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
     fn lower_loop(
         &mut self,
         prev_block: BasicBlockId,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         label: Option<LabelId>,
         span: MirSpan,
         f: impl FnOnce(&mut MirLowerCtx<'_, 'db>, BasicBlockId) -> Result<'db, ()>,
@@ -1749,7 +1749,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
         statements: &[hir_def::hir::Statement],
         mut current: BasicBlockId,
         tail: Option<ExprId>,
-        place: PlaceRef<'db>,
+        place: Place<'db>,
         span: MirSpan,
     ) -> Result<'db, Option<Idx<BasicBlock>>> {
         let scope = self.push_drop_scope();
@@ -2002,7 +2002,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                 self.set_terminator(
                     prev,
                     TerminatorKind::Drop {
-                        place: PlaceRef::from(l).store(),
+                        place: Place::from(l).store(),
                         target: *current,
                         unwind: None,
                     },
