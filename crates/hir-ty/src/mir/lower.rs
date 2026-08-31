@@ -46,8 +46,8 @@ use crate::{
     mir::{
         AggregateKind, Arena, BasicBlock, BasicBlockId, BinOp, BorrowKind, CastKind, Expr,
         FieldIndex, GenericArgs, Idx, InferenceResult, Local, LocalId, MemoryMap, MirBody, MirSpan,
-        Mutability, Operand, Place, PlaceElem, PointerCast, Projection, ProjectionElem, Rvalue,
-        Statement, StatementKind, SwitchTargets, Terminator, TerminatorKind, Ty, UnOp, VariantId,
+        Mutability, Operand, PlaceElem, PointerCast, Projection, ProjectionElem, Rvalue, Statement,
+        StatementKind, StoredPlace, SwitchTargets, Terminator, TerminatorKind, Ty, UnOp, VariantId,
         return_slot,
     },
     next_solver::{
@@ -69,7 +69,7 @@ struct LoopBlocks {
     begin: BasicBlockId,
     /// `None` for loops that are not terminating
     end: Option<BasicBlockId>,
-    place: Place,
+    place: StoredPlace,
     drop_scope_index: usize,
 }
 
@@ -85,7 +85,7 @@ struct MirLowerCtx<'a, 'db> {
     store_owner: ExpressionStoreOwnerId,
     current_loop_blocks: Option<LoopBlocks>,
     labeled_loop_blocks: FxHashMap<LabelId, LoopBlocks>,
-    discr_temp: Option<Place>,
+    discr_temp: Option<StoredPlace>,
     db: &'db dyn HirDatabase,
     store: &'a ExpressionStore,
     infer: &'a InferenceResult<'db>,
@@ -123,7 +123,7 @@ pub enum MirLowerError<'db> {
     LangItemNotFound,
     MutatingRvalue,
     UnresolvedLabel,
-    UnresolvedUpvar(Place),
+    UnresolvedUpvar(StoredPlace),
     InaccessibleLocal,
 
     // monomorphization errors:
@@ -1199,7 +1199,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                     else {
                         not_supported!("non-local capture");
                     };
-                    Ok(Place {
+                    Ok(StoredPlace {
                         local: this.binding_local(local)?,
                         projection: Projection::new_from_iter(convert_closure_capture_projections(
                             self.db, place,
@@ -2119,12 +2119,14 @@ pub fn mir_body_for_closure_query<'db>(
             projections.push(ProjectionElem::Deref);
         }
         projections.push(ProjectionElem::Field(FieldIndex(capture_idx as u32)));
-        let capture_param_place = Place {
+        let capture_param_place = StoredPlace {
             local: closure_local,
             projection: Projection::new_from_slice(&projections).store(),
         };
-        let capture_local_place =
-            Place { local: capture_local, projection: Projection::new_from_slice(&[]).store() };
+        let capture_local_place = StoredPlace {
+            local: capture_local,
+            projection: Projection::new_from_slice(&[]).store(),
+        };
         let capture_local_rvalue =
             Rvalue::Use(Operand { kind: OperandKind::Move(capture_param_place), span: None });
         ctx.push_assignment(

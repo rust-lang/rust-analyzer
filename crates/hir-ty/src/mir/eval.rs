@@ -57,8 +57,8 @@ use crate::{
 
 use super::{
     AggregateKind, BasicBlockId, BinOp, CastKind, LocalId, MirBody, MirLowerError, MirSpan,
-    Operand, OperandKind, Place, PlaceElem, PlaceRef, PlaceTy, ProjectionElem, Rvalue,
-    StatementKind, TerminatorKind, UnOp, return_slot,
+    Operand, OperandKind, PlaceElem, PlaceRef, PlaceTy, ProjectionElem, Rvalue, StatementKind,
+    StoredPlace, TerminatorKind, UnOp, return_slot,
 };
 
 mod shim;
@@ -713,11 +713,11 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         self.infcx.interner.lang_items()
     }
 
-    fn place_addr(&self, p: &Place, locals: &Locals<'a, 'db>) -> Result<'db, Address> {
+    fn place_addr(&self, p: &StoredPlace, locals: &Locals<'a, 'db>) -> Result<'db, Address> {
         Ok(self.place_addr_and_ty_and_metadata(p, locals)?.0)
     }
 
-    fn place_interval(&self, p: &Place, locals: &Locals<'a, 'db>) -> Result<'db, Interval> {
+    fn place_interval(&self, p: &StoredPlace, locals: &Locals<'a, 'db>) -> Result<'db, Interval> {
         let place_addr_and_ty = self.place_addr_and_ty_and_metadata(p, locals)?;
         Ok(Interval {
             addr: place_addr_and_ty.0,
@@ -786,7 +786,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
 
     fn place_addr_and_ty_and_metadata<'b>(
         &'b self,
-        p: &Place,
+        p: &StoredPlace,
         locals: &'b Locals<'a, 'db>,
     ) -> Result<'db, (Address, Ty<'db>, Option<IntervalOrOwned>)> {
         let mut addr = locals.ptr[p.local].addr;
@@ -908,7 +908,11 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         self.layout(Ty::new_adt(self.interner(), adt, subst))
     }
 
-    fn place_ty<'b>(&'b self, p: &Place, locals: &'b Locals<'a, 'db>) -> Result<'db, Ty<'db>> {
+    fn place_ty<'b>(
+        &'b self,
+        p: &StoredPlace,
+        locals: &'b Locals<'a, 'db>,
+    ) -> Result<'db, Ty<'db>> {
         Ok(self.place_addr_and_ty_and_metadata(p, locals)?.1)
     }
 
@@ -2176,7 +2180,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         Ok(Interval::new(addr, size))
     }
 
-    fn eval_place(&mut self, p: &Place, locals: &Locals<'a, 'db>) -> Result<'db, Interval> {
+    fn eval_place(&mut self, p: &StoredPlace, locals: &Locals<'a, 'db>) -> Result<'db, Interval> {
         let addr = self.place_addr(p, locals)?;
         Ok(Interval::new(
             addr,
@@ -3081,7 +3085,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
 
     fn drop_place(
         &mut self,
-        place: &Place,
+        place: &StoredPlace,
         locals: &mut Locals<'a, 'db>,
         span: MirSpan,
     ) -> Result<'db, ()> {

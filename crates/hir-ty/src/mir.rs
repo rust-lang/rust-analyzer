@@ -92,7 +92,7 @@ pub enum OperandKind {
     ///
     /// Before drop elaboration, the type of the place must be `Copy`. After drop elaboration there
     /// is no such requirement.
-    Copy(Place),
+    Copy(StoredPlace),
 
     /// Creates a value by performing loading the place, just like the `Copy` operand.
     ///
@@ -101,7 +101,7 @@ pub enum OperandKind {
     /// place without first re-initializing it.
     ///
     /// [UCG#188]: https://github.com/rust-lang/unsafe-code-guidelines/issues/188
-    Move(Place),
+    Move(StoredPlace),
     /// Constants are already semantically values, and remain unchanged.
     Constant {
         konst: StoredConst,
@@ -284,12 +284,12 @@ pub struct PlaceRef<'db> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Place {
+pub struct StoredPlace {
     pub local: LocalId,
     pub projection: StoredProjection,
 }
 
-impl Place {
+impl StoredPlace {
     pub fn as_ref<'db>(&self) -> PlaceRef<'db> {
         PlaceRef { local: self.local, projection: self.projection.as_ref() }
     }
@@ -314,8 +314,8 @@ impl<'db> PlaceRef<'db> {
         PlaceRef { local: self.local, projection: self.projection.project(projection) }
     }
 
-    pub fn store(&self) -> Place {
-        Place { local: self.local, projection: self.projection.store() }
+    pub fn store(&self) -> StoredPlace {
+        StoredPlace { local: self.local, projection: self.projection.store() }
     }
     pub fn ty(
         &self,
@@ -493,7 +493,7 @@ pub enum TerminatorKind {
     /// > The drop glue is executed if, among all statements executed within this `Body`, an assignment to
     /// > the place or one of its "parents" occurred more recently than a move out of it. This does not
     /// > consider indirect assignments.
-    Drop { place: Place, target: BasicBlockId, unwind: Option<BasicBlockId> },
+    Drop { place: StoredPlace, target: BasicBlockId, unwind: Option<BasicBlockId> },
 
     /// Drops the place and assigns a new value to it.
     ///
@@ -526,7 +526,7 @@ pub enum TerminatorKind {
     ///
     /// Disallowed after drop elaboration.
     DropAndReplace {
-        place: Place,
+        place: StoredPlace,
         value: Operand,
         target: BasicBlockId,
         unwind: Option<BasicBlockId>,
@@ -551,7 +551,7 @@ pub enum TerminatorKind {
         /// reused across function calls without duplicating the contents.
         args: Box<[Operand]>,
         /// Where the returned value will be written
-        destination: Place,
+        destination: StoredPlace,
         /// Where to go after this call returns. If none, the call necessarily diverges.
         target: Option<BasicBlockId>,
         /// Cleanups to be done if the call unwinds.
@@ -596,7 +596,7 @@ pub enum TerminatorKind {
         /// Where to resume to.
         resume: BasicBlockId,
         /// The place to store the resume argument in.
-        resume_arg: Place,
+        resume_arg: StoredPlace,
         /// Cleanup to be done if the coroutine is dropped at this suspend point.
         drop: Option<BasicBlockId>,
     },
@@ -888,7 +888,7 @@ pub enum Rvalue {
     /// exactly what the behavior of this operation should be.
     ///
     /// `Shallow` borrows are disallowed after drop lowering.
-    Ref(BorrowKind, Place),
+    Ref(BorrowKind, StoredPlace),
 
     /// Creates a pointer/reference to the given thread local.
     ///
@@ -919,7 +919,7 @@ pub enum Rvalue {
     /// If the type of the place is an array, this is the array length. For slices (`[T]`, not
     /// `&[T]`) this accesses the place's metadata to determine the length. This rvalue is
     /// ill-formed for places of other types.
-    Len(Place),
+    Len(StoredPlace),
 
     /// Performs essentially all of the casts that can be performed via `as`.
     ///
@@ -980,7 +980,7 @@ pub enum Rvalue {
     /// variant index; use `discriminant_for_variant` to convert.
     ///
     /// [#91095]: https://github.com/rust-lang/rust/issues/91095
-    Discriminant(Place),
+    Discriminant(StoredPlace),
 
     /// Creates an aggregate value, like a tuple or struct.
     ///
@@ -1000,18 +1000,18 @@ pub enum Rvalue {
     /// read never happened and just projects further. This allows simplifying various MIR
     /// optimizations and codegen backends that previously had to handle deref operations anywhere
     /// in a place.
-    CopyForDeref(Place),
+    CopyForDeref(StoredPlace),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum StatementKind {
-    Assign(Place, Rvalue),
-    FakeRead(Place),
+    Assign(StoredPlace, Rvalue),
+    FakeRead(StoredPlace),
     //SetDiscriminant {
     //    place: Box<Place>,
     //    variant_index: VariantIdx,
     //},
-    Deinit(Place),
+    Deinit(StoredPlace),
     StorageLive(LocalId),
     StorageDead(LocalId),
     //Retag(RetagKind, Box<Place>),
@@ -1072,8 +1072,8 @@ impl MirBody<'_> {
         self.binding_locals.iter().map(|(it, y)| (*y, it)).collect()
     }
 
-    fn walk_places(&mut self, mut f: impl FnMut(&mut Place)) {
-        fn for_operand(op: &mut Operand, f: &mut impl FnMut(&mut Place)) {
+    fn walk_places(&mut self, mut f: impl FnMut(&mut StoredPlace)) {
+        fn for_operand(op: &mut Operand, f: &mut impl FnMut(&mut StoredPlace)) {
             match &mut op.kind {
                 OperandKind::Copy(p) | OperandKind::Move(p) => {
                     f(p);
