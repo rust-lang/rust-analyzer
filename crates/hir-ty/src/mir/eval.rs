@@ -792,7 +792,7 @@ impl<'a, 'db> Evaluator<'a, 'db> {
         let mut addr = locals.ptr[p.local].addr;
         let mut ty = PlaceTy::from_ty(locals.body.locals[p.local].ty.as_ref());
         let mut metadata: Option<IntervalOrOwned> = None; // locals are always sized
-        for proj in p.projection.lookup() {
+        for proj in p.projection.as_slice() {
             let prev_ty = ty;
             ty = self.projected_ty(ty, *proj);
             match proj {

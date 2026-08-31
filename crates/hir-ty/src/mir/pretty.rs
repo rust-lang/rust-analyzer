@@ -398,7 +398,7 @@ impl<'a, 'db> MirPrettyCtx<'a, 'db> {
                 }
             }
         }
-        f(self, p.local, p.projection.lookup());
+        f(self, p.local, p.projection.as_slice());
     }
 
     fn operand(&mut self, r: &Operand) {

@@ -2152,7 +2152,7 @@ pub fn mir_body_for_closure_query<'db>(
     }
     let mut err = None;
     ctx.result.walk_places(|mir_place| {
-        let mir_projections = mir_place.projection.lookup();
+        let mir_projections = mir_place.projection.as_slice();
         if let Some(hir_places) = upvar_map.get(&mir_place.local) {
             let projections = hir_places.iter().find_map(|hir_place| {
                 let iter = mir_projections

@@ -267,13 +267,12 @@ impl<'db> std::ops::Deref for Projection<'db> {
 }
 
 impl StoredProjection {
-    // FIXME: rename to as_slice
-    pub fn lookup(&self) -> &[PlaceElem] {
+    pub fn as_slice(&self) -> &[PlaceElem] {
         self.as_ref().as_slice()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.lookup().is_empty()
+        self.as_slice().is_empty()
     }
 }
 
