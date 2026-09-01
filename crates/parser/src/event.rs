@@ -73,7 +73,12 @@ pub(crate) enum Event {
     /// instead of an integer literal followed by a dot as the lexer has no contextual knowledge.
     /// This event instructs whatever consumes the events to split the float literal into
     /// the corresponding parts.
-    FloatSplitHack { ends_in_dot: bool },
+    ///
+    /// `flat` tells the consumer whether the parts belong to the node that is currently open.
+    /// Field access nests (`foo.0.0` is a `FIELD_EXPR` inside a `FIELD_EXPR`), so the split has
+    /// to close the enclosing node(s) in the middle of the literal. In a flat field list, like
+    /// the one of `builtin#offset_of`, the parts are plain siblings and nothing is closed.
+    FloatSplitHack { ends_in_dot: bool, flat: bool },
     /// Index into the parser's side `errors` vec.
     Error { err: u32 },
 }
@@ -126,10 +131,12 @@ pub(super) fn process(mut events: Vec<Event>, mut errors: Vec<String>) -> Output
             Event::Token { kind, n_raw_tokens } => {
                 res.token(kind, n_raw_tokens);
             }
-            Event::FloatSplitHack { ends_in_dot } => {
-                res.float_split_hack(ends_in_dot);
-                let ev = mem::replace(&mut events[i + 1], Event::tombstone());
-                assert!(matches!(ev, Event::Finish), "{ev:?}");
+            Event::FloatSplitHack { ends_in_dot, flat } => {
+                res.float_split_hack(ends_in_dot, flat);
+                if !flat {
+                    let ev = mem::replace(&mut events[i + 1], Event::tombstone());
+                    assert!(matches!(ev, Event::Finish), "{ev:?}");
+                }
             }
             Event::Error { err } => {
                 // Move the string out of the side table; each index is visited

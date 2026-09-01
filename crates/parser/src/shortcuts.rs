@@ -75,8 +75,8 @@ impl LexedStr<'_> {
                 Step::Token { kind, n_input_tokens: n_raw_tokens } => {
                     builder.token(kind, n_raw_tokens)
                 }
-                Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
-                    builder.float_split(has_pseudo_dot)
+                Step::FloatSplit { ends_in_dot: has_pseudo_dot, flat } => {
+                    builder.float_split(has_pseudo_dot, flat)
                 }
                 Step::Enter { kind } => builder.enter(kind),
                 Step::Exit => builder.exit(),
@@ -124,14 +124,14 @@ impl Builder<'_, '_> {
         self.do_token(kind, n_tokens as usize);
     }
 
-    fn float_split(&mut self, has_pseudo_dot: bool) {
+    fn float_split(&mut self, has_pseudo_dot: bool, flat: bool) {
         match mem::replace(&mut self.state, State::Normal) {
             State::PendingEnter => unreachable!(),
             State::PendingExit => (self.sink)(StrStep::Exit),
             State::Normal => (),
         }
         self.eat_trivias();
-        self.do_float_split(has_pseudo_dot);
+        self.do_float_split(has_pseudo_dot, flat);
     }
 
     fn enter(&mut self, kind: SyntaxKind) {
@@ -190,7 +190,7 @@ impl Builder<'_, '_> {
         (self.sink)(StrStep::Token { kind, text });
     }
 
-    fn do_float_split(&mut self, has_pseudo_dot: bool) {
+    fn do_float_split(&mut self, has_pseudo_dot: bool, flat: bool) {
         let text = &self.lexed.range_text(self.pos..self.pos + 1);
 
         match text.split_once('.') {
@@ -200,8 +200,10 @@ impl Builder<'_, '_> {
                 (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: left });
                 (self.sink)(StrStep::Exit);
 
-                // here we move the exit up, the original exit has been deleted in process
-                (self.sink)(StrStep::Exit);
+                if !flat {
+                    // here we move the exit up, the original exit has been deleted in process
+                    (self.sink)(StrStep::Exit);
+                }
 
                 (self.sink)(StrStep::Token { kind: SyntaxKind::DOT, text: "." });
 
@@ -215,7 +217,7 @@ impl Builder<'_, '_> {
                     (self.sink)(StrStep::Exit);
 
                     // the parser creates an unbalanced start node, we are required to close it here
-                    self.state = State::PendingExit;
+                    self.state = if flat { State::Normal } else { State::PendingExit };
                 }
             }
             None => {
@@ -226,10 +228,13 @@ impl Builder<'_, '_> {
                 (self.sink)(StrStep::Token { kind: SyntaxKind::FLOAT_NUMBER, text });
                 (self.sink)(StrStep::Exit);
 
-                // move up
-                (self.sink)(StrStep::Exit);
+                if !flat {
+                    // move up
+                    (self.sink)(StrStep::Exit);
+                }
 
-                self.state = if has_pseudo_dot { State::Normal } else { State::PendingExit };
+                self.state =
+                    if flat || has_pseudo_dot { State::Normal } else { State::PendingExit };
             }
         }
 

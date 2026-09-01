@@ -237,8 +237,22 @@ impl<'t> Parser<'t> {
             marker = new_marker;
         };
         self.pos += 1;
-        self.push_event(Event::FloatSplitHack { ends_in_dot });
+        self.push_event(Event::FloatSplitHack { ends_in_dot, flat: false });
         (ends_in_dot, marker)
+    }
+
+    /// Splits the current float literal into its integer parts and the dot separating them,
+    /// emitting all of them as children of the node that is currently open.
+    ///
+    /// Unlike [`Parser::split_float`] this does not close any node, so it fits flat field
+    /// lists such as the one of `builtin#offset_of`. Returns whether the literal ended in a
+    /// dot (`0.`), in which case only the leading index and the dot have been emitted.
+    pub(crate) fn split_float_flat(&mut self) -> bool {
+        assert!(self.at(SyntaxKind::FLOAT_NUMBER));
+        let ends_in_dot = !self.inp.is_joint(self.pos);
+        self.pos += 1;
+        self.push_event(Event::FloatSplitHack { ends_in_dot, flat: true });
+        ends_in_dot
     }
 
     /// Advances the parser by one token, remapping its kind.

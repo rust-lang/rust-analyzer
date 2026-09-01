@@ -3847,6 +3847,27 @@ fn foo() {
     }
 
     #[test]
+    fn offset_of_tuple_fields() {
+        // Consecutive tuple indices are lexed as a single float literal, they have to be
+        // split apart again, see https://github.com/rust-lang/rust-analyzer/issues/23178.
+        check(
+            r#"
+//- minicore: offset_of
+struct Bar(Baz);
+struct Baz(Foo);
+struct Foo {
+    field: i32,
+ // ^^^^^
+}
+
+fn foo() {
+    let _ = core::mem::offset_of!(Bar, 0.0.fiel$0d);
+}
+        "#,
+        );
+    }
+
+    #[test]
     fn goto_def_for_match_keyword() {
         check(
             r#"

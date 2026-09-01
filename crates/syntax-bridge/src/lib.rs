@@ -162,8 +162,8 @@ where
             parser::Step::Token { kind, n_input_tokens: n_raw_tokens } => {
                 tree_sink.token(kind, n_raw_tokens)
             }
-            parser::Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
-                tree_sink.float_split(has_pseudo_dot)
+            parser::Step::FloatSplit { ends_in_dot: has_pseudo_dot, flat } => {
+                tree_sink.float_split(has_pseudo_dot, flat)
             }
             parser::Step::Enter { kind } => tree_sink.start_node(kind),
             parser::Step::Exit => tree_sink.finish_node(),
@@ -865,7 +865,7 @@ fn delim_to_str(d: tt::DelimiterKind, closing: bool) -> Option<&'static str> {
 impl TtTreeSink<'_> {
     /// Parses a float literal as if it was a one to two name ref nodes with a dot inbetween.
     /// This occurs when a float literal is used as a field access.
-    fn float_split(&mut self, has_pseudo_dot: bool) {
+    fn float_split(&mut self, has_pseudo_dot: bool, flat: bool) {
         let token_tree = self.cursor.token_tree();
         let (text, span) = match &token_tree {
             Some(tt::TokenTree::Leaf(tt::Leaf::Literal(
@@ -883,8 +883,10 @@ impl TtTreeSink<'_> {
                 self.inner.finish_node();
                 self.token_map.push(self.text_pos + TextSize::of(left), span);
 
-                // here we move the exit up, the original exit has been deleted in process
-                self.inner.finish_node();
+                if !flat {
+                    // here we move the exit up, the original exit has been deleted in process
+                    self.inner.finish_node();
+                }
 
                 self.inner.token(SyntaxKind::DOT, ".");
                 self.token_map.push(self.text_pos + TextSize::of(left) + TextSize::of("."), span);
@@ -898,8 +900,10 @@ impl TtTreeSink<'_> {
                     self.token_map.push(self.text_pos + TextSize::of(text), span);
                     self.inner.finish_node();
 
-                    // the parser creates an unbalanced start node, we are required to close it here
-                    self.inner.finish_node();
+                    if !flat {
+                        // the parser creates an unbalanced start node, we are required to close it here
+                        self.inner.finish_node();
+                    }
                 }
                 self.text_pos += TextSize::of(text);
             }
@@ -909,10 +913,13 @@ impl TtTreeSink<'_> {
                 self.inner.token(SyntaxKind::FLOAT_NUMBER, text);
                 self.token_map.push(self.text_pos + TextSize::of(text), span);
                 self.inner.finish_node();
-                self.inner.finish_node();
 
-                if !has_pseudo_dot {
+                if !flat {
                     self.inner.finish_node();
+
+                    if !has_pseudo_dot {
+                        self.inner.finish_node();
+                    }
                 }
 
                 self.text_pos += TextSize::of(text);

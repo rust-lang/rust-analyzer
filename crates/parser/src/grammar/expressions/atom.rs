@@ -269,8 +269,31 @@ fn builtin_expr(p: &mut Parser<'_>) -> Option<CompletedMarker> {
         // fn foo() {
         //     builtin#offset_of(Foo, (bar.baz.0));
         // }
+
+        // test offset_of_tuple_fields
+        // fn foo() {
+        //     builtin#offset_of(Foo, 0.1);
+        //     builtin#offset_of(Foo, 0 .1.1.1);
+        //     builtin#offset_of(Foo, 0. 1);
+        //     builtin#offset_of(Foo, (0.1.bar.2));
+        // }
         while !p.at(EOF) && !p.at(T![')']) {
-            name_ref_mod_path_or_index(p);
+            // The lexer has no context, so consecutive tuple field indices come in as a
+            // float literal (`0.1` in `offset_of!(Foo, 0.1)`). Split it into its parts,
+            // the same way field access does.
+            //
+            // rustc does the same in `Parser::parse_floating_field_access`, which pushes the
+            // two halves of a `DestructuredFloat::MiddleDot` into one flat list of fields:
+            // https://github.com/rust-lang/rust/blob/8de399ac7b7cce3314f4f7e2cd2e1285b1608e14/compiler/rustc_parse/src/parser/expr.rs#L1132
+            if p.at(FLOAT_NUMBER) {
+                if p.split_float_flat() {
+                    // The literal ended in a dot (`0.`), which already separates it from
+                    // the next field.
+                    continue;
+                }
+            } else {
+                name_ref_mod_path_or_index(p);
+            }
             if !p.at(T![')']) {
                 p.expect(T![.]);
             }

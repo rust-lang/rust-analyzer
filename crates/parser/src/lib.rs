@@ -123,8 +123,10 @@ impl TopEntryPoint {
                 match step {
                     Step::Enter { .. } => depth += 1,
                     Step::Exit => depth -= 1,
-                    Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
-                        depth -= 1 + !has_pseudo_dot as usize
+                    Step::FloatSplit { ends_in_dot: has_pseudo_dot, flat } => {
+                        if !flat {
+                            depth -= 1 + !has_pseudo_dot as usize
+                        }
                     }
                     Step::Token { .. } | Step::Error { .. } => (),
                 }

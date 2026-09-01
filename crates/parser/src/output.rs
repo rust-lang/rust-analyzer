@@ -26,7 +26,7 @@ pub struct Output {
 #[derive(Debug)]
 pub enum Step<'a> {
     Token { kind: SyntaxKind, n_input_tokens: u8 },
-    FloatSplit { ends_in_dot: bool },
+    FloatSplit { ends_in_dot: bool, flat: bool },
     Enter { kind: SyntaxKind },
     Exit,
     Error { msg: &'a str },
@@ -50,6 +50,11 @@ impl Output {
     const TAG_SHIFT: u32 = Self::TAG_MASK.trailing_zeros();
     const N_INPUT_TOKEN_SHIFT: u32 = Self::N_INPUT_TOKEN_MASK.trailing_zeros();
     const KIND_SHIFT: u32 = Self::KIND_MASK.trailing_zeros();
+
+    /// Flags of a `SPLIT_EVENT`, stored in the `n_input_tokens` byte, which is
+    /// unused for splits as they always consume exactly one input token.
+    const SPLIT_ENDS_IN_DOT: u32 = 1 << Self::N_INPUT_TOKEN_SHIFT;
+    const SPLIT_FLAT: u32 = 2 << Self::N_INPUT_TOKEN_SHIFT;
 
     const TOKEN_EVENT: u8 = 0;
     const ENTER_EVENT: u8 = 1;
@@ -78,9 +83,10 @@ impl Output {
                     Step::Enter { kind }
                 }
                 Self::EXIT_EVENT => Step::Exit,
-                Self::SPLIT_EVENT => {
-                    Step::FloatSplit { ends_in_dot: event & Self::N_INPUT_TOKEN_MASK != 0 }
-                }
+                Self::SPLIT_EVENT => Step::FloatSplit {
+                    ends_in_dot: event & Self::SPLIT_ENDS_IN_DOT != 0,
+                    flat: event & Self::SPLIT_FLAT != 0,
+                },
                 _ => unreachable!(),
             }
         })
@@ -93,9 +99,10 @@ impl Output {
         self.event.push(e)
     }
 
-    pub(crate) fn float_split_hack(&mut self, ends_in_dot: bool) {
+    pub(crate) fn float_split_hack(&mut self, ends_in_dot: bool, flat: bool) {
         let e = ((Self::SPLIT_EVENT as u32) << Self::TAG_SHIFT)
-            | ((ends_in_dot as u32) << Self::N_INPUT_TOKEN_SHIFT)
+            | (if ends_in_dot { Self::SPLIT_ENDS_IN_DOT } else { 0 })
+            | (if flat { Self::SPLIT_FLAT } else { 0 })
             | Self::EVENT_MASK;
         self.event.push(e);
     }
