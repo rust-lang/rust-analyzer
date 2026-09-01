@@ -87,6 +87,13 @@ impl SpanMap {
     /// Returns the span at the given position.
     pub fn span_at(&self, offset: TextSize) -> Span {
         let entry = self.spans.partition_point(|&(it, _)| it <= offset);
+        let entry = match entry < self.spans.len() {
+            true => entry,
+            false => {
+                stdx::never!("span map queried past its last entry at {:?}", offset);
+                self.spans.len() - 1
+            }
+        };
         self.spans[entry].1
     }
 

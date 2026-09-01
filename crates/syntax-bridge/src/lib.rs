@@ -288,10 +288,10 @@ where
                         continue;
                     }
 
-                    let spacing = match conv.peek().map(|next| next.kind(conv)) {
-                        Some(kind) if is_single_token_op(kind) => tt::Spacing::Joint,
-                        _ => tt::Spacing::Alone,
-                    };
+                    let joint =
+                        conv.peek().map(|next| next.kind(conv)).is_some_and(is_single_token_op)
+                            && conv.peek_start() == Some(abs_range.end());
+                    let spacing = if joint { tt::Spacing::Joint } else { tt::Spacing::Alone };
                     let Some(char) = token.to_char(conv) else {
                         panic!("Token from lexer must be single char: token = {token:#?}")
                     };
@@ -502,6 +502,8 @@ trait TokenConverter: Sized {
 
     fn peek(&self) -> Option<Self::Token>;
 
+    fn peek_start(&self) -> Option<TextSize>;
+
     fn span_for(&self, range: TextRange) -> Span;
 
     fn call_site(&self) -> Span;
@@ -562,6 +564,13 @@ impl TokenConverter for RawConverter<'_> {
         Some(self.pos)
     }
 
+    fn peek_start(&self) -> Option<TextSize> {
+        if self.pos == self.lexed.len() {
+            return None;
+        }
+        self.lexed.text_range(self.pos).start.try_into().ok()
+    }
+
     fn span_for(&self, range: TextRange) -> Span {
         Span { range, anchor: self.anchor, ctx: self.ctx }
     }
@@ -598,6 +607,13 @@ impl TokenConverter for StaticRawConverter<'_> {
         Some(self.pos)
     }
 
+    fn peek_start(&self) -> Option<TextSize> {
+        if self.pos == self.lexed.len() {
+            return None;
+        }
+        self.lexed.text_range(self.pos).start.try_into().ok()
+    }
+
     fn span_for(&self, _: TextRange) -> Span {
         self.span
     }
@@ -609,6 +625,7 @@ impl TokenConverter for StaticRawConverter<'_> {
 
 struct Converter<SpanMap, OnEvent> {
     current: Option<SyntaxToken>,
+    pending: VecDeque<SyntaxToken>,
     current_leaves: VecDeque<tt::Leaf>,
     preorder: PreorderWithTokens,
     range: TextRange,
@@ -637,6 +654,7 @@ where
     ) -> Self {
         let mut converter = Converter {
             current: None,
+            pending: VecDeque::new(),
             preorder: node.preorder_with_tokens(),
             range: node.text_range(),
             punct_offset: None,
@@ -653,6 +671,9 @@ where
     }
 
     fn next_token(&mut self) -> Option<SyntaxToken> {
+        if let Some(token) = self.pending.pop_front() {
+            return Some(token);
+        }
         while let Some(ev) = self.preorder.next() {
             let (keep_event, insert_leaves) = (self.on_event)(&mut self.preorder, &ev);
             self.current_leaves.extend(insert_leaves);
@@ -675,7 +696,12 @@ where
                             }
                         }
                     } else if let syntax::NodeOrToken::Token(token) = token {
-                        return Some(token);
+                        let interior =
+                            |token: &SyntaxToken| self.range.contains_range(token.text_range());
+                        self.pending.extend(token.leading_trivia().filter(interior));
+                        self.pending.push_back(token.clone());
+                        self.pending.extend(token.trailing_trivia().filter(interior));
+                        return self.pending.pop_front();
                     }
                 }
                 WalkEvent::Leave(ele) => {
@@ -815,6 +841,21 @@ where
             SynToken::Ordinary(curr)
         };
         Some(token)
+    }
+
+    fn peek_start(&self) -> Option<TextSize> {
+        if let Some((punct, mut offset)) = self.punct_offset.clone() {
+            offset += TextSize::of('.');
+            if usize::from(offset) < punct.text().len() {
+                return Some(punct.text_range().start() + offset);
+            }
+        }
+
+        let curr = self.current.clone()?;
+        if !self.range.contains_range(curr.text_range()) {
+            return None;
+        }
+        Some(curr.text_range().start())
     }
 
     fn span_for(&self, range: TextRange) -> Span {
@@ -999,22 +1040,33 @@ impl TtTreeSink<'_> {
             }
         }
 
-        self.token_map.push(self.text_pos, combined_span.expect("expected at least one token"));
-        self.inner.token(kind, self.buf.as_str());
-        self.buf.clear();
         // FIXME: Emitting whitespace for this is really just a hack, we should get rid of it.
         // Add whitespace between adjoint puncts
-        if let Some([tt::Leaf::Punct(curr), tt::Leaf::Punct(next)]) = last_two {
-            // Note: We always assume the semi-colon would be the last token in
-            // other parts of RA such that we don't add whitespace here.
-            //
-            // When `next` is a `Punct` of `'`, that's a part of a lifetime identifier so we don't
-            // need to add whitespace either.
-            if curr.spacing == tt::Spacing::Alone && curr.char != ';' && next.char != '\'' {
-                self.inner.token(WHITESPACE, " ");
-                self.text_pos += TextSize::of(' ');
-                self.token_map.push(self.text_pos, curr.span);
+        //
+        // Note: We always assume the semi-colon would be the last token in
+        // other parts of RA such that we don't add whitespace here.
+        //
+        // When `next` is a `Punct` of `'`, that's a part of a lifetime identifier so we don't
+        // need to add whitespace either.
+        let separator = match last_two {
+            Some([tt::Leaf::Punct(curr), tt::Leaf::Punct(next)])
+                if curr.spacing == tt::Spacing::Alone && curr.char != ';' && next.char != '\'' =>
+            {
+                Some(curr.span)
             }
+            _ => None,
+        };
+        let trailing = match separator {
+            Some(_) => vec![parser::Trivia { kind: WHITESPACE, text: " ", error: false }],
+            None => Vec::new(),
+        };
+
+        self.token_map.push(self.text_pos, combined_span.expect("expected at least one token"));
+        self.inner.token_with_trivia(kind, self.buf.as_str(), &[], &trailing);
+        self.buf.clear();
+        if let Some(span) = separator {
+            self.text_pos += TextSize::of(' ');
+            self.token_map.push(self.text_pos, span);
         }
     }
 
