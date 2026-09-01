@@ -1,2 +1,3 @@
 SOURCE_FILE
-  SHEBANG "#!/use/bin/env rusti"
+  SHEBANG "#!/use/bin/env rusti" [] []
+  EOF "" [] []

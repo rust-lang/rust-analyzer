@@ -1,30 +1,27 @@
 SOURCE_FILE
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     CFG_META
-      CFG_KW "cfg"
-      L_PAREN "("
+      CFG_KW "cfg" [] []
+      L_PAREN "(" [] []
       CFG_ATOM
-        IDENT "foo"
-      R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+        IDENT "foo" [] []
+      R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     CFG_META
-      CFG_KW "cfg"
-      L_PAREN "("
+      CFG_KW "cfg" [] []
+      L_PAREN "(" [] []
       CFG_ATOM
-        IDENT "foo"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
-        STRING "\"bar\""
-      COMMA ","
-      R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+        IDENT "foo" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
+        STRING "\"bar\"" [] []
+      COMMA "," [] []
+      R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF "" [] []

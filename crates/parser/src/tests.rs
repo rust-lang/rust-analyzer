@@ -88,10 +88,11 @@ fn parse(entry: TopEntryPoint, text: &str, edition: Edition) -> (String, bool) {
     let mut depth = 0;
     let mut len = 0;
     lexed.intersperse_trivia(&output, &mut |step| match step {
-        crate::StrStep::Token { kind, text } => {
+        crate::StrStep::Token { kind, text, leading, trailing } => {
             assert!(depth > 0);
+            writeln!(buf, "{indent}{kind:?} {text:?} {leading:?} {trailing:?}").unwrap();
+            len += leading.iter().chain(trailing).map(|it| it.text.len()).sum::<usize>();
             len += text.len();
-            writeln!(buf, "{indent}{kind:?} {text:?}").unwrap();
         }
         crate::StrStep::Enter { kind } => {
             assert!(depth > 0 || len == 0);

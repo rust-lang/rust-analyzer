@@ -1,125 +1,96 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           IF_EXPR
-            IF_KW "if"
-            WHITESPACE " "
+            IF_KW "if" [WHITESPACE("    ")] [WHITESPACE(" ")]
             LITERAL
-              TRUE_KW "true"
-            WHITESPACE " "
+              TRUE_KW "true" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                L_CURLY "{" [] []
+                R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           LOOP_EXPR
-            LOOP_KW "loop"
-            WHITESPACE " "
+            LOOP_KW "loop" [WHITESPACE("    ")] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                L_CURLY "{" [] []
+                R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           MATCH_EXPR
-            MATCH_KW "match"
-            WHITESPACE " "
+            MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
             TUPLE_EXPR
-              L_PAREN "("
-              R_PAREN ")"
-            WHITESPACE " "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] [WHITESPACE(" ")]
             MATCH_ARM_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-        WHITESPACE "\n    "
+              L_CURLY "{" [] []
+              R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           WHILE_EXPR
-            WHILE_KW "while"
-            WHITESPACE " "
+            WHILE_KW "while" [WHITESPACE("    ")] [WHITESPACE(" ")]
             LITERAL
-              TRUE_KW "true"
-            WHITESPACE " "
+              TRUE_KW "true" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                L_CURLY "{" [] []
+                R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           FOR_EXPR
-            FOR_KW "for"
-            WHITESPACE " "
+            FOR_KW "for" [WHITESPACE("    ")] [WHITESPACE(" ")]
             WILDCARD_PAT
-              UNDERSCORE "_"
-            WHITESPACE " "
-            IN_KW "in"
-            WHITESPACE " "
+              UNDERSCORE "_" [] [WHITESPACE(" ")]
+            IN_KW "in" [] [WHITESPACE(" ")]
             TUPLE_EXPR
-              L_PAREN "("
-              R_PAREN ")"
-            WHITESPACE " "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                L_CURLY "{" [] []
+                R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-        WHITESPACE "\n    "
+              L_CURLY "{" [WHITESPACE("    ")] []
+              R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-        WHITESPACE "\n    "
+              L_CURLY "{" [WHITESPACE("    ")] []
+              R_CURLY "}" [] [NEWLINE("\n")]
         MACRO_RULES
-          MACRO_RULES_KW "macro_rules"
-          BANG "!"
-          WHITESPACE " "
+          MACRO_RULES_KW "macro_rules" [WHITESPACE("    ")] []
+          BANG "!" [] [WHITESPACE(" ")]
           NAME
-            IDENT "test"
-          WHITESPACE " "
+            IDENT "test" [] [WHITESPACE(" ")]
           TOKEN_TREE
-            L_CURLY "{"
-            WHITESPACE "\n         "
+            L_CURLY "{" [] [NEWLINE("\n")]
             TOKEN_TREE
-              L_PAREN "("
-              R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            R_ANGLE ">"
-            WHITESPACE " "
+              L_PAREN "(" [WHITESPACE("         ")] []
+              R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] []
+            R_ANGLE ">" [] [WHITESPACE(" ")]
             TOKEN_TREE
-              L_CURLY "{"
-              R_CURLY "}"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-        WHITESPACE "\n    "
+              L_CURLY "{" [] []
+              R_CURLY "}" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
         MACRO_EXPR
           MACRO_CALL
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "test"
-            BANG "!"
+                  IDENT "test" [WHITESPACE("    ")] []
+            BANG "!" [] []
             TOKEN_TREE
-              L_CURLY "{"
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              L_CURLY "{" [] []
+              R_CURLY "}" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

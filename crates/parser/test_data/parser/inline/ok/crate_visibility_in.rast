@@ -1,44 +1,37 @@
 SOURCE_FILE
   STRUCT
     VISIBILITY
-      PUB_KW "pub"
+      PUB_KW "pub" [] []
       VISIBILITY_INNER
-        L_PAREN "("
-        IN_KW "in"
-        WHITESPACE " "
+        L_PAREN "(" [] []
+        IN_KW "in" [] [WHITESPACE(" ")]
         PATH
           PATH
             PATH_SEGMENT
               NAME_REF
-                SUPER_KW "super"
-          COLON2 "::"
+                SUPER_KW "super" [] []
+          COLON2 "::" [] []
           PATH_SEGMENT
             NAME_REF
-              IDENT "A"
-        R_PAREN ")"
-    WHITESPACE " "
-    STRUCT_KW "struct"
-    WHITESPACE " "
+              IDENT "A" [] []
+        R_PAREN ")" [] [WHITESPACE(" ")]
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "S" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
     VISIBILITY
-      PUB_KW "pub"
+      PUB_KW "pub" [] []
       VISIBILITY_INNER
-        L_PAREN "("
-        IN_KW "in"
-        WHITESPACE " "
+        L_PAREN "(" [] []
+        IN_KW "in" [] [WHITESPACE(" ")]
         PATH
           PATH_SEGMENT
             NAME_REF
-              CRATE_KW "crate"
-        R_PAREN ")"
-    WHITESPACE " "
-    STRUCT_KW "struct"
-    WHITESPACE " "
+              CRATE_KW "crate" [] []
+        R_PAREN ")" [] [WHITESPACE(" ")]
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "S" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,35 +1,26 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "M"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "M" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PTR_TYPE
-      STAR "*"
-      MUT_KW "mut"
-      WHITESPACE " "
+      STAR "*" [] []
+      MUT_KW "mut" [] [WHITESPACE(" ")]
       TUPLE_TYPE
-        L_PAREN "("
-        R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        L_PAREN "(" [] []
+        R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "C"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "C" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PTR_TYPE
-      STAR "*"
-      MUT_KW "mut"
-      WHITESPACE " "
+      STAR "*" [] []
+      MUT_KW "mut" [] [WHITESPACE(" ")]
       TUPLE_TYPE
-        L_PAREN "("
-        R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+        L_PAREN "(" [] []
+        R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

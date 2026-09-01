@@ -1,13 +1,10 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Placeholder"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Placeholder" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     INFER_TYPE
-      UNDERSCORE "_"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      UNDERSCORE "_" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

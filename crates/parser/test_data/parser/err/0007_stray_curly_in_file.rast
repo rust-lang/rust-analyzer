@@ -1,33 +1,21 @@
 SOURCE_FILE
-  ERROR
-    R_CURLY "}"
-  WHITESPACE "\n\n"
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [!R_CURLY("}"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
-  ERROR
-    R_CURLY "}"
-  WHITESPACE "\n\n"
+      IDENT "S" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n"), !R_CURLY("}"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
-  ERROR
-    R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [NEWLINE("\n"), !R_CURLY("}"), NEWLINE("\n")] []
 error 0: unmatched `}`
-error 14: unmatched `}`
-error 29: unmatched `}`
+error 13: unmatched `}`
+error 28: unmatched `}`

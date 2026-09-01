@@ -1,26 +1,22 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Foo"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "Foo" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FN_PTR_TYPE
-      FN_KW "fn"
+      FN_KW "fn" [] []
       PARAM_LIST
-        L_PAREN "("
+        L_PAREN "(" [] []
         PARAM
           WILDCARD_PAT
-            UNDERSCORE "_"
-          COLON ":"
-          WHITESPACE " "
+            UNDERSCORE "_" [] []
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "bar"
-        R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                  IDENT "bar" [] []
+        R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,71 +1,57 @@
 SOURCE_FILE
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       USE_TREE_LIST
-        L_CURLY "{"
+        L_CURLY "{" [] []
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "a"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "a" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "b"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            IDENT "b" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "T" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "test"
+      IDENT "test" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   USE
-    USE_KW "use"
-    WHITESPACE " "
+    USE_KW "use" [] [WHITESPACE(" ")]
     USE_TREE
       USE_TREE_LIST
-        L_CURLY "{"
+        L_CURLY "{" [] []
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "a"
-        WHITESPACE " "
-        COMMA ","
-        ERROR
-          COMMA ","
-        WHITESPACE " "
+                IDENT "a" [] [WHITESPACE(" ")]
+        COMMA "," [] []
         USE_TREE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "b"
-        R_CURLY "}"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "b" [!COMMA(","), WHITESPACE(" ")] []
+        R_CURLY "}" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 6: expected R_CURLY
 error 46: expected use tree

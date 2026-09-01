@@ -1,23 +1,18 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "F"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "F" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     FN_PTR_TYPE
-      FN_KW "fn"
+      FN_KW "fn" [] []
       PARAM_LIST
-        L_PAREN "("
-        R_PAREN ")"
-      WHITESPACE " "
+        L_PAREN "(" [] []
+        R_PAREN ")" [] [WHITESPACE(" ")]
       RET_TYPE
-        THIN_ARROW "->"
-        WHITESPACE " "
+        THIN_ARROW "->" [] [WHITESPACE(" ")]
         TUPLE_TYPE
-          L_PAREN "("
-          R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

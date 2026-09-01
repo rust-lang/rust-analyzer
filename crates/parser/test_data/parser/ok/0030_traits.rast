@@ -1,62 +1,49 @@
 SOURCE_FILE
   TRAIT
-    TRAIT_KW "trait"
-    WHITESPACE " "
+    TRAIT_KW "trait" [] [WHITESPACE(" ")]
     NAME
-      IDENT "Runnable"
-    WHITESPACE " "
+      IDENT "Runnable" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "handler"
+          IDENT "handler" [] []
         PARAM_LIST
-          L_PAREN "("
-          R_PAREN ")"
-        SEMICOLON ";"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
   TRAIT
-    TRAIT_KW "trait"
-    WHITESPACE " "
+    TRAIT_KW "trait" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "TraitWithExpr"
-    WHITESPACE " "
+      IDENT "TraitWithExpr" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "fn_with_expr"
+          IDENT "fn_with_expr" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "x"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "x" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             ARRAY_TYPE
-              L_BRACK "["
+              L_BRACK "[" [] []
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "i32"
-              SEMICOLON ";"
-              WHITESPACE " "
+                      IDENT "i32" [] []
+              SEMICOLON ";" [] [WHITESPACE(" ")]
               CONST_ARG
                 LITERAL
-                  INT_NUMBER "1"
-              R_BRACK "]"
-          R_PAREN ")"
-        SEMICOLON ";"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+                  INT_NUMBER "1" [] []
+              R_BRACK "]" [] []
+          R_PAREN ")" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

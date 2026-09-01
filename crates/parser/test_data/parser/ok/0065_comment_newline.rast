@@ -1,17 +1,13 @@
 SOURCE_FILE
   FN
-    COMMENT "/// Example"
-    WHITESPACE "\n\n"
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [COMMENT("/// Example"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "test"
+      IDENT "test" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

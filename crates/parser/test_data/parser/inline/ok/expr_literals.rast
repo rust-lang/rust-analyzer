@@ -1,160 +1,109 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            TRUE_KW "true"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            TRUE_KW "true" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            FALSE_KW "false"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            FALSE_KW "false" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            FLOAT_NUMBER "2.0"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            FLOAT_NUMBER "2.0" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            BYTE "b'a'"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            BYTE "b'a'" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            CHAR "'b'"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            CHAR "'b'" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            STRING "\"c\""
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            STRING "\"c\"" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            STRING "r\"d\""
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            STRING "r\"d\"" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            BYTE_STRING "b\"e\""
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            BYTE_STRING "b\"e\"" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            BYTE_STRING "br\"f\""
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            BYTE_STRING "br\"f\"" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            C_STRING "c\"g\""
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            C_STRING "c\"g\"" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            C_STRING "cr\"h\""
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+            C_STRING "cr\"h\"" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

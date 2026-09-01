@@ -1,17 +1,15 @@
 SOURCE_FILE
   ATTR
-    POUND "#"
-    BANG "!"
-    L_BRACK "["
+    POUND "#" [] []
+    BANG "!" [] []
+    L_BRACK "[" [] []
     CFG_META
-      CFG_KW "cfg"
-      L_PAREN "("
+      CFG_KW "cfg" [] []
+      L_PAREN "(" [] []
       CFG_ATOM
-        IDENT "key"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
-        STRING "\"value\""
-      R_PAREN ")"
-    R_BRACK "]"
-  WHITESPACE "\n"
+        IDENT "key" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
+        STRING "\"value\"" [] []
+      R_PAREN ")" [] []
+    R_BRACK "]" [] [NEWLINE("\n")]
+  EOF "" [] []

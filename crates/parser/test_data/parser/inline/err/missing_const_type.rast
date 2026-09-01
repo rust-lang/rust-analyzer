@@ -1,14 +1,11 @@
 SOURCE_FILE
   CONST
-    CONST_KW "const"
-    WHITESPACE " "
+    CONST_KW "const" [] [WHITESPACE(" ")]
     NAME
-      IDENT "C"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "C" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     LITERAL
-      INT_NUMBER "0"
-    SEMICOLON ";"
-  WHITESPACE "\n"
-error 7: missing type for `const`
+      INT_NUMBER "0" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 8: missing type for `const`

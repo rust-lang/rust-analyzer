@@ -1,29 +1,24 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         METHOD_CALL_EXPR
           PATH_EXPR
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "x"
-          DOT "."
-          WHITESPACE "\n    "
+                  IDENT "x" [WHITESPACE("    ")] []
+          DOT "." [] [NEWLINE("\n")]
           ARG_LIST
-            L_PAREN "("
-            R_PAREN ")"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 17: expected method name, field name or number
+            L_PAREN "(" [WHITESPACE("    ")] []
+            R_PAREN ")" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 18: expected method name, field name or number

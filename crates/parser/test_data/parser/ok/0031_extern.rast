@@ -1,973 +1,813 @@
 SOURCE_FILE
   EXTERN_BLOCK
     ABI
-      EXTERN_KW "extern"
-    WHITESPACE " "
+      EXTERN_KW "extern" [] [WHITESPACE(" ")]
     EXTERN_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "socket"
+          IDENT "socket" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "domain"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "domain" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "ty"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "ty" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "protocol"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "protocol" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "c_int" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "bind"
+          IDENT "bind" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "fd"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "fd" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "addr"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "addr" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              CONST_KW "const"
-              WHITESPACE " "
+              STAR "*" [] []
+              CONST_KW "const" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "sockaddr"
-          COMMA ","
-          WHITESPACE " "
+                      IDENT "sockaddr" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "len" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "connect"
+          IDENT "connect" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "address"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "address" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              CONST_KW "const"
-              WHITESPACE " "
+              STAR "*" [] []
+              CONST_KW "const" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "sockaddr"
-          COMMA ","
-          WHITESPACE "\n                   "
+                      IDENT "sockaddr" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "len" [WHITESPACE("                   ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "listen"
+          IDENT "listen" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "backlog"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "backlog" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "c_int" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "getsockname"
+          IDENT "getsockname" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "address"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "address" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "sockaddr"
-          COMMA ","
-          WHITESPACE "\n                       "
+                      IDENT "sockaddr" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "address_len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "address_len" [WHITESPACE("                       ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                      IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "getsockopt"
+          IDENT "getsockopt" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "sockfd"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "sockfd" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE "\n                      "
+                    IDENT "c_int" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "level"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "level" [WHITESPACE("                      ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE "\n                      "
+                    IDENT "c_int" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "optname"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "optname" [WHITESPACE("                      ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE "\n                      "
+                    IDENT "c_int" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "optval"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "optval" [WHITESPACE("                      ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "c_void"
-          COMMA ","
-          WHITESPACE "\n                      "
+                      IDENT "c_void" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "optlen"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "optlen" [WHITESPACE("                      ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                      IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "setsockopt"
+          IDENT "setsockopt" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "level"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "level" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "name"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "name" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE "\n                      "
+                    IDENT "c_int" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "value"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "value" [WHITESPACE("                      ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              CONST_KW "const"
-              WHITESPACE " "
+              STAR "*" [] []
+              CONST_KW "const" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "c_void"
-          COMMA ","
-          WHITESPACE "\n                      "
+                      IDENT "c_void" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "option_len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "option_len" [WHITESPACE("                      ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "getpeername"
+          IDENT "getpeername" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "address"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "address" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "sockaddr"
-          COMMA ","
-          WHITESPACE "\n                       "
+                      IDENT "sockaddr" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "address_len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "address_len" [WHITESPACE("                       ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                      IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "c_int"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "c_int" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "sendto"
+          IDENT "sendto" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "buf"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "buf" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              CONST_KW "const"
-              WHITESPACE " "
+              STAR "*" [] []
+              CONST_KW "const" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "c_void"
-          COMMA ","
-          WHITESPACE " "
+                      IDENT "c_void" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "len" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "size_t"
-          COMMA ","
-          WHITESPACE "\n                  "
+                    IDENT "size_t" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "flags"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "flags" [WHITESPACE("                  ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "addr"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "addr" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              CONST_KW "const"
-              WHITESPACE " "
+              STAR "*" [] []
+              CONST_KW "const" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "sockaddr"
-          COMMA ","
-          WHITESPACE "\n                  "
+                      IDENT "sockaddr" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "addrlen"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "addrlen" [WHITESPACE("                  ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "ssize_t"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "ssize_t" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "send"
+          IDENT "send" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "buf"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "buf" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              CONST_KW "const"
-              WHITESPACE " "
+              STAR "*" [] []
+              CONST_KW "const" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "c_void"
-          COMMA ","
-          WHITESPACE " "
+                      IDENT "c_void" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "len" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "size_t"
-          COMMA ","
-          WHITESPACE "\n                "
+                    IDENT "size_t" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "flags"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "flags" [WHITESPACE("                ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "c_int" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "ssize_t"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "ssize_t" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "recvfrom"
+          IDENT "recvfrom" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "buf"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "buf" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "c_void"
-          COMMA ","
-          WHITESPACE " "
+                      IDENT "c_void" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "len" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "size_t"
-          COMMA ","
-          WHITESPACE "\n                    "
+                    IDENT "size_t" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "flags"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "flags" [WHITESPACE("                    ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "addr"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "addr" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "sockaddr"
-          COMMA ","
-          WHITESPACE "\n                    "
+                      IDENT "sockaddr" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "addrlen"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "addrlen" [WHITESPACE("                    ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "socklen_t"
-          R_PAREN ")"
-        WHITESPACE " "
+                      IDENT "socklen_t" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "ssize_t"
-        SEMICOLON ";"
-      WHITESPACE "\n    "
+                  IDENT "ssize_t" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
       FN
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
-        FN_KW "fn"
-        WHITESPACE " "
+          PUB_KW "pub" [WHITESPACE("    ")] [WHITESPACE(" ")]
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "recv"
+          IDENT "recv" [] []
         PARAM_LIST
-          L_PAREN "("
+          L_PAREN "(" [] []
           PARAM
             IDENT_PAT
               NAME
-                IDENT "socket"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "socket" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          COMMA ","
-          WHITESPACE " "
+                    IDENT "c_int" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "buf"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "buf" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PTR_TYPE
-              STAR "*"
-              MUT_KW "mut"
-              WHITESPACE " "
+              STAR "*" [] []
+              MUT_KW "mut" [] [WHITESPACE(" ")]
               PATH_TYPE
                 PATH
                   PATH_SEGMENT
-                    COLON2 "::"
+                    COLON2 "::" [] []
                     NAME_REF
-                      IDENT "c_void"
-          COMMA ","
-          WHITESPACE " "
+                      IDENT "c_void" [] []
+          COMMA "," [] [WHITESPACE(" ")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "len"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "len" [] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "size_t"
-          COMMA ","
-          WHITESPACE "\n                "
+                    IDENT "size_t" [] []
+          COMMA "," [] [NEWLINE("\n")]
           PARAM
             IDENT_PAT
               NAME
-                IDENT "flags"
-            COLON ":"
-            WHITESPACE " "
+                IDENT "flags" [WHITESPACE("                ")] []
+            COLON ":" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
-                  COLON2 "::"
+                  COLON2 "::" [] []
                   NAME_REF
-                    IDENT "c_int"
-          R_PAREN ")"
-        WHITESPACE " "
+                    IDENT "c_int" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
-                COLON2 "::"
+                COLON2 "::" [] []
                 NAME_REF
-                  IDENT "ssize_t"
-        SEMICOLON ";"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n"
+                  IDENT "ssize_t" [] []
+        SEMICOLON ";" [] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

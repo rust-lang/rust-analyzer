@@ -1,147 +1,92 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "a"
+      IDENT "a" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         EXPR_STMT
           ARRAY_EXPR
-            L_BRACK "["
+            L_BRACK "[" [] []
             LITERAL
-              INT_NUMBER "1"
-            COMMA ","
-            WHITESPACE " "
+              INT_NUMBER "1" [] []
+            COMMA "," [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "2"
-            COMMA ","
-            WHITESPACE " "
-            ERROR
-              AT "@"
-        ERROR
-          COMMA ","
-        WHITESPACE " "
+              INT_NUMBER "2" [] []
+            COMMA "," [] [WHITESPACE(" ")]
         STRUCT
-          STRUCT_KW "struct"
-          ERROR
-            COMMA ","
-        WHITESPACE " "
+          STRUCT_KW "struct" [!AT("@"), !COMMA(","), WHITESPACE(" ")] []
         LET_STMT
-          LET_KW "let"
-        ERROR
-          R_BRACK "]"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          LET_KW "let" [!COMMA(","), WHITESPACE(" ")] []
+        R_CURLY "}" [!R_BRACK("]"), WHITESPACE(" ")] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "b"
+      IDENT "b" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "foo"
+                    IDENT "foo" [] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               LITERAL
-                INT_NUMBER "1"
-              COMMA ","
-              WHITESPACE " "
+                INT_NUMBER "1" [] []
+              COMMA "," [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "2"
-              COMMA ","
-              WHITESPACE " "
-              ERROR
-                AT "@"
-        ERROR
-          COMMA ","
-        WHITESPACE " "
+                INT_NUMBER "2" [] []
+              COMMA "," [] [WHITESPACE(" ")]
         IMPL
-          IMPL_KW "impl"
-        ERROR
-          COMMA ","
-        WHITESPACE " "
+          IMPL_KW "impl" [!AT("@"), !COMMA(","), WHITESPACE(" ")] []
         LET_STMT
-          LET_KW "let"
-        ERROR
-          R_PAREN ")"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          LET_KW "let" [!COMMA(","), WHITESPACE(" ")] []
+        R_CURLY "}" [!R_PAREN(")"), WHITESPACE(" ")] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "c"
+      IDENT "c" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         EXPR_STMT
           METHOD_CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "foo"
-            DOT "."
+                    IDENT "foo" [] []
+            DOT "." [] []
             NAME_REF
-              IDENT "bar"
+              IDENT "bar" [] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               LITERAL
-                INT_NUMBER "1"
-              COMMA ","
-              WHITESPACE " "
+                INT_NUMBER "1" [] []
+              COMMA "," [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "2"
-              COMMA ","
-              WHITESPACE " "
-              ERROR
-                AT "@"
-        ERROR
-          COMMA ","
-        WHITESPACE " "
-        ERROR
-          R_BRACK "]"
-        ERROR
-          COMMA ","
-        WHITESPACE " "
+                INT_NUMBER "2" [] []
+              COMMA "," [] [WHITESPACE(" ")]
         TRAIT
-          TRAIT_KW "trait"
-          ERROR
-            COMMA ","
-        WHITESPACE " "
+          TRAIT_KW "trait" [!AT("@"), !COMMA(","), WHITESPACE(" "), !R_BRACK("]"), !COMMA(","), WHITESPACE(" ")] []
         LET_STMT
-          LET_KW "let"
-        ERROR
-          R_PAREN ")"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+          LET_KW "let" [!COMMA(","), WHITESPACE(" ")] []
+        R_CURLY "}" [!R_PAREN(")"), WHITESPACE(" ")] [NEWLINE("\n")]
+  EOF "" [] []
 error 16: expected expression
 error 17: expected R_BRACK
 error 17: expected SEMICOLON
@@ -165,7 +110,7 @@ error 92: expected expression
 error 93: expected R_PAREN
 error 93: expected SEMICOLON
 error 93: expected expression, item or let statement
-error 95: expected expression, item or let statement
+error 94: expected expression, item or let statement
 error 96: expected expression, item or let statement
 error 103: expected a name
 error 104: expected `{`

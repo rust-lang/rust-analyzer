@@ -1,44 +1,34 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "f"
+                    IDENT "f" [] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           CALL_EXPR
             CALL_EXPR
               CALL_EXPR
@@ -46,105 +36,96 @@ SOURCE_FILE
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "f"
+                        IDENT "f" [] []
                 ARG_LIST
-                  L_PAREN "("
-                  R_PAREN ")"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
               ARG_LIST
-                L_PAREN "("
+                L_PAREN "(" [] []
                 LITERAL
-                  INT_NUMBER "1"
-                R_PAREN ")"
+                  INT_NUMBER "1" [] []
+                R_PAREN ")" [] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               LITERAL
-                INT_NUMBER "1"
-              COMMA ","
-              WHITESPACE " "
+                INT_NUMBER "1" [] []
+              COMMA "," [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "2"
-              COMMA ","
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "2" [] []
+              COMMA "," [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "f"
+                    IDENT "f" [] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               CALL_EXPR
                 PATH_EXPR
                   PATH
                     PATH
                       PATH_SEGMENT
                         TYPE_ANCHOR
-                          L_ANGLE "<"
+                          L_ANGLE "<" [] []
                           PATH_TYPE
                             PATH
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "Foo"
-                          R_ANGLE ">"
-                    COLON2 "::"
+                                  IDENT "Foo" [] []
+                          R_ANGLE ">" [] []
+                    COLON2 "::" [] []
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "func"
+                        IDENT "func" [] []
                 ARG_LIST
-                  L_PAREN "("
-                  R_PAREN ")"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "f"
+                    IDENT "f" [WHITESPACE("    ")] []
             ARG_LIST
-              L_PAREN "("
+              L_PAREN "(" [] []
               CALL_EXPR
                 PATH_EXPR
                   PATH
                     PATH
                       PATH_SEGMENT
                         TYPE_ANCHOR
-                          L_ANGLE "<"
+                          L_ANGLE "<" [] []
                           PATH_TYPE
                             PATH
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "Foo"
-                          WHITESPACE " "
-                          AS_KW "as"
-                          WHITESPACE " "
+                                  IDENT "Foo" [] [WHITESPACE(" ")]
+                          AS_KW "as" [] [WHITESPACE(" ")]
                           PATH_TYPE
                             PATH
                               PATH_SEGMENT
                                 NAME_REF
-                                  IDENT "Trait"
-                          R_ANGLE ">"
-                    COLON2 "::"
+                                  IDENT "Trait" [] []
+                          R_ANGLE ">" [] []
+                    COLON2 "::" [] []
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "func"
+                        IDENT "func" [] []
                 ARG_LIST
-                  L_PAREN "("
-                  R_PAREN ")"
-              R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

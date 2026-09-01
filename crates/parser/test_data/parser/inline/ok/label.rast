@@ -1,70 +1,54 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           LOOP_EXPR
             LABEL
               LIFETIME
-                LIFETIME_IDENT "'a"
-              COLON ":"
-            WHITESPACE " "
-            LOOP_KW "loop"
-            WHITESPACE " "
+                LIFETIME_IDENT "'a" [WHITESPACE("    ")] []
+              COLON ":" [] [WHITESPACE(" ")]
+            LOOP_KW "loop" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                L_CURLY "{" [] []
+                R_CURLY "}" [] [NEWLINE("\n")]
         EXPR_STMT
           WHILE_EXPR
             LABEL
               LIFETIME
-                LIFETIME_IDENT "'b"
-              COLON ":"
-            WHITESPACE " "
-            WHILE_KW "while"
-            WHITESPACE " "
+                LIFETIME_IDENT "'b" [WHITESPACE("    ")] []
+              COLON ":" [] [WHITESPACE(" ")]
+            WHILE_KW "while" [] [WHITESPACE(" ")]
             LITERAL
-              TRUE_KW "true"
-            WHITESPACE " "
+              TRUE_KW "true" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                R_CURLY "}"
-        WHITESPACE "\n    "
+                L_CURLY "{" [] []
+                R_CURLY "}" [] [NEWLINE("\n")]
         FOR_EXPR
           LABEL
             LIFETIME
-              LIFETIME_IDENT "'c"
-            COLON ":"
-          WHITESPACE " "
-          FOR_KW "for"
-          WHITESPACE " "
+              LIFETIME_IDENT "'c" [WHITESPACE("    ")] []
+            COLON ":" [] [WHITESPACE(" ")]
+          FOR_KW "for" [] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "x"
-          WHITESPACE " "
-          IN_KW "in"
-          WHITESPACE " "
+              IDENT "x" [] [WHITESPACE(" ")]
+          IN_KW "in" [] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          WHITESPACE " "
+            L_PAREN "(" [] []
+            R_PAREN ")" [] [WHITESPACE(" ")]
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              L_CURLY "{" [] []
+              R_CURLY "}" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

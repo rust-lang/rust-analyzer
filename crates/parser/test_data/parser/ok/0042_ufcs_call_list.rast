@@ -1,128 +1,105 @@
 SOURCE_FILE
-  COMMENT "// https://github.com/rust-lang/rust-analyzer/issues/596"
-  WHITESPACE "\n\n"
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [COMMENT("// https://github.com/rust-lang/rust-analyzer/issues/596"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "Foo"
-    SEMICOLON ";"
-  WHITESPACE "\n\n"
+      IDENT "Foo" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   IMPL
-    IMPL_KW "impl"
-    WHITESPACE " "
+    IMPL_KW "impl" [NEWLINE("\n")] [WHITESPACE(" ")]
     PATH_TYPE
       PATH
         PATH_SEGMENT
           NAME_REF
-            IDENT "Foo"
-    WHITESPACE " "
+            IDENT "Foo" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE "\n    "
+      L_CURLY "{" [] [NEWLINE("\n")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [WHITESPACE("    ")] [WHITESPACE(" ")]
         NAME
-          IDENT "bar"
+          IDENT "bar" [] []
         PARAM_LIST
-          L_PAREN "("
-          R_PAREN ")"
-        WHITESPACE " "
+          L_PAREN "(" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
         RET_TYPE
-          THIN_ARROW "->"
-          WHITESPACE " "
+          THIN_ARROW "->" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "bool"
-        WHITESPACE " "
+                  IDENT "bool" [] [WHITESPACE(" ")]
         BLOCK_EXPR
           STMT_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [] [NEWLINE("\n")]
             MACRO_EXPR
               MACRO_CALL
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "unimplemented"
-                BANG "!"
+                      IDENT "unimplemented" [WHITESPACE("        ")] []
+                BANG "!" [] []
                 TOKEN_TREE
-                  L_PAREN "("
-                  R_PAREN ")"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-      WHITESPACE "\n"
-      R_CURLY "}"
-  WHITESPACE "\n\n"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+      R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "baz"
+      IDENT "baz" [] []
     PARAM_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       PARAM
         WILDCARD_PAT
-          UNDERSCORE "_"
-        COLON ":"
-        WHITESPACE " "
+          UNDERSCORE "_" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "bool"
-      R_PAREN ")"
-    WHITESPACE " "
+                IDENT "bool" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         CALL_EXPR
           PATH_EXPR
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "baz"
+                  IDENT "baz" [WHITESPACE("    ")] []
           ARG_LIST
-            L_PAREN "("
+            L_PAREN "(" [] []
             CALL_EXPR
               PATH_EXPR
                 PATH
                   PATH
                     PATH_SEGMENT
                       TYPE_ANCHOR
-                        L_ANGLE "<"
+                        L_ANGLE "<" [] []
                         PATH_TYPE
                           PATH
                             PATH_SEGMENT
                               NAME_REF
-                                IDENT "Foo"
-                        R_ANGLE ">"
-                  COLON2 "::"
+                                IDENT "Foo" [] []
+                        R_ANGLE ">" [] []
+                  COLON2 "::" [] []
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "bar"
+                      IDENT "bar" [] []
               ARG_LIST
-                L_PAREN "("
-                R_PAREN ")"
-            R_PAREN ")"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                L_PAREN "(" [] []
+                R_PAREN ")" [] []
+            R_PAREN ")" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

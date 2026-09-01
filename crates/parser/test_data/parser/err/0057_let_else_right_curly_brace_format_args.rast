@@ -1,90 +1,70 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "r"
+      IDENT "r" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "ok"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "ok" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "format_args"
-              BANG "!"
+                    IDENT "format_args" [] []
+              BANG "!" [] []
               TOKEN_TREE
-                L_PAREN "("
-                STRING "\"\""
-                R_PAREN ")"
-          WHITESPACE " "
+                L_PAREN "(" [] []
+                STRING "\"\"" [] []
+                R_PAREN ")" [] [WHITESPACE(" ")]
           LET_ELSE
-            ELSE_KW "else"
-            WHITESPACE " "
+            ELSE_KW "else" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
                 EXPR_STMT
                   RETURN_EXPR
-                    RETURN_KW "return"
-                  SEMICOLON ";"
-                WHITESPACE " "
-                R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n\n    "
+                    RETURN_KW "return" [] []
+                  SEMICOLON ";" [] [WHITESPACE(" ")]
+                R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "bad"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "bad" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           MACRO_EXPR
             MACRO_CALL
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "format_args"
-              BANG "!"
-              WHITESPACE " "
+                    IDENT "format_args" [] []
+              BANG "!" [] [WHITESPACE(" ")]
               TOKEN_TREE
-                L_CURLY "{"
-                STRING "\"\""
-                R_CURLY "}"
-          WHITESPACE " "
+                L_CURLY "{" [] []
+                STRING "\"\"" [] []
+                R_CURLY "}" [] [WHITESPACE(" ")]
           LET_ELSE
-            ELSE_KW "else"
-            WHITESPACE " "
+            ELSE_KW "else" [] [WHITESPACE(" ")]
             BLOCK_EXPR
               STMT_LIST
-                L_CURLY "{"
-                WHITESPACE " "
+                L_CURLY "{" [] [WHITESPACE(" ")]
                 EXPR_STMT
                   RETURN_EXPR
-                    RETURN_KW "return"
-                  SEMICOLON ";"
-                WHITESPACE " "
-                R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 89: right curly brace `}` before `else` in a `let...else` statement not allowed
+                    RETURN_KW "return" [] []
+                  SEMICOLON ";" [] [WHITESPACE(" ")]
+                R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 90: right curly brace `}` before `else` in a `let...else` statement not allowed

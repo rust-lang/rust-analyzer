@@ -1,28 +1,22 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             UNDERSCORE_EXPR
-              UNDERSCORE "_"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+              UNDERSCORE "_" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             CALL_EXPR
@@ -30,21 +24,18 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "Some"
+                      IDENT "Some" [WHITESPACE("    ")] []
               ARG_LIST
-                L_PAREN "("
+                L_PAREN "(" [] []
                 UNDERSCORE_EXPR
-                  UNDERSCORE "_"
-                R_PAREN ")"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                  UNDERSCORE "_" [] []
+                R_PAREN ")" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "None"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                    IDENT "None" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

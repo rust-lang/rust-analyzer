@@ -283,7 +283,7 @@ use baz;"#,
 
                 replacements:
 
-
+                Line 0: Token(USE_KW@1..4 "use" [NEWLINE("\n")] [WHITESPACE(" ")]) -> use
 
                 deletions:
 
@@ -313,7 +313,8 @@ use baz;"#,
 
                 replacements:
 
-
+                Line 0: Token(FN_KW@0..2 "fn" [] [WHITESPACE(" ")]) ->
+                    fn
 
                 deletions:
 

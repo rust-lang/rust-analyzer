@@ -1,33 +1,11 @@
 SOURCE_FILE
-  SHEBANG "#!/use/bin/env rusti\n"
+  SHEBANG "#!/use/bin/env rusti\n" [] []
   ATTR
-    POUND "#"
-    BANG "!"
-  ERROR
-    SLASH "/"
+    POUND "#" [] []
+    BANG "!" [] []
   USE
-    USE_KW "use"
-    ERROR
-      SLASH "/"
-  ERROR
-    PATH
-      PATH_SEGMENT
-        NAME_REF
-          IDENT "bin"
-  ERROR
-    SLASH "/"
-  ERROR
-    PATH
-      PATH_SEGMENT
-        NAME_REF
-          IDENT "env"
-  WHITESPACE " "
-  ERROR
-    PATH
-      PATH_SEGMENT
-        NAME_REF
-          IDENT "rusti"
-  WHITESPACE "\n"
+    USE_KW "use" [!SLASH("/")] []
+  EOF "" [!SLASH("/"), !IDENT("bin"), !SLASH("/"), !IDENT("env"), WHITESPACE(" "), !IDENT("rusti"), NEWLINE("\n")] []
 error 23: expected L_BRACK
 error 23: expected an item
 error 27: expected one of `*`, `::`, `{`, `self`, `super` or an identifier

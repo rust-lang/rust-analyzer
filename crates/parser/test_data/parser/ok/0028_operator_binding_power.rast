@@ -1,403 +1,296 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "binding_power"
+      IDENT "binding_power" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "x"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "x" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BIN_EXPR
             BIN_EXPR
               LITERAL
-                INT_NUMBER "1"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                INT_NUMBER "1" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               BIN_EXPR
                 BIN_EXPR
                   LITERAL
-                    INT_NUMBER "2"
-                  WHITESPACE " "
-                  STAR "*"
-                  WHITESPACE " "
+                    INT_NUMBER "2" [] [WHITESPACE(" ")]
+                  STAR "*" [] [WHITESPACE(" ")]
                   LITERAL
-                    INT_NUMBER "3"
-                WHITESPACE " "
-                PERCENT "%"
-                WHITESPACE " "
+                    INT_NUMBER "3" [] [WHITESPACE(" ")]
+                PERCENT "%" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "4"
-            WHITESPACE " "
-            MINUS "-"
-            WHITESPACE " "
+                  INT_NUMBER "4" [] [WHITESPACE(" ")]
+            MINUS "-" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "5"
-              WHITESPACE " "
-              SLASH "/"
-              WHITESPACE " "
+                INT_NUMBER "5" [] [WHITESPACE(" ")]
+              SLASH "/" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "6"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "6" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            PLUS "+"
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            PLUS "+" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              STAR "*"
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              STAR "*" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            SHL "<<"
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            SHL "<<" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            AMP "&"
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            AMP "&" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              SHR ">>"
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              SHR ">>" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            CARET "^"
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            CARET "^" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              AMP "&"
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              AMP "&" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            PIPE "|"
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            PIPE "|" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              CARET "^"
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              CARET "^" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            EQ2 "=="
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ2 "==" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              PIPE "|"
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              PIPE "|" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             LITERAL
-              INT_NUMBER "1"
-            WHITESPACE " "
-            AMP2 "&&"
-            WHITESPACE " "
+              INT_NUMBER "1" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            AMP2 "&&" [] [WHITESPACE(" ")]
             BIN_EXPR
               LITERAL
-                INT_NUMBER "2"
-              WHITESPACE " "
-              EQ2 "=="
-              WHITESPACE " "
+                INT_NUMBER "2" [] [WHITESPACE(" ")]
+              EQ2 "==" [] [WHITESPACE(" ")]
               LITERAL
-                INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
-        COMMENT "//1 || 2 && 2;"
-        WHITESPACE "\n    "
-        COMMENT "//1 .. 2 || 3;"
-        WHITESPACE "\n    "
-        COMMENT "//1 = 2 .. 3;"
-        WHITESPACE "\n    "
-        COMMENT "//---&*1 - --2 * 9;"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [WHITESPACE("    "), COMMENT("//1 || 2 && 2;"), NEWLINE("\n"), WHITESPACE("    "), COMMENT("//1 .. 2 || 3;"), NEWLINE("\n"), WHITESPACE("    "), COMMENT("//1 = 2 .. 3;"), NEWLINE("\n"), WHITESPACE("    "), COMMENT("//---&*1 - --2 * 9;"), NEWLINE("\n")] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "right_associative"
+      IDENT "right_associative" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "b"
-              WHITESPACE " "
-              EQ "="
-              WHITESPACE " "
+                      IDENT "b" [] [WHITESPACE(" ")]
+              EQ "=" [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "c"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                      IDENT "c" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "b"
-              WHITESPACE " "
-              PLUSEQ "+="
-              WHITESPACE " "
+                      IDENT "b" [] [WHITESPACE(" ")]
+              PLUSEQ "+=" [] [WHITESPACE(" ")]
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "c"
-                WHITESPACE " "
-                MINUSEQ "-="
-                WHITESPACE " "
+                        IDENT "c" [] [WHITESPACE(" ")]
+                MINUSEQ "-=" [] [WHITESPACE(" ")]
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "d"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                        IDENT "d" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "b"
-              WHITESPACE " "
-              STAREQ "*="
-              WHITESPACE " "
+                      IDENT "b" [] [WHITESPACE(" ")]
+              STAREQ "*=" [] [WHITESPACE(" ")]
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "c"
-                WHITESPACE " "
-                SLASHEQ "/="
-                WHITESPACE " "
+                        IDENT "c" [] [WHITESPACE(" ")]
+                SLASHEQ "/=" [] [WHITESPACE(" ")]
                 BIN_EXPR
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "d"
-                  WHITESPACE " "
-                  PERCENTEQ "%="
-                  WHITESPACE " "
+                          IDENT "d" [] [WHITESPACE(" ")]
+                  PERCENTEQ "%=" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "e"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                          IDENT "e" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "b"
-              WHITESPACE " "
-              AMPEQ "&="
-              WHITESPACE " "
+                      IDENT "b" [] [WHITESPACE(" ")]
+              AMPEQ "&=" [] [WHITESPACE(" ")]
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "c"
-                WHITESPACE " "
-                PIPEEQ "|="
-                WHITESPACE " "
+                        IDENT "c" [] [WHITESPACE(" ")]
+                PIPEEQ "|=" [] [WHITESPACE(" ")]
                 BIN_EXPR
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "d"
-                  WHITESPACE " "
-                  CARETEQ "^="
-                  WHITESPACE " "
+                          IDENT "d" [] [WHITESPACE(" ")]
+                  CARETEQ "^=" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "e"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                          IDENT "e" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "b"
-              WHITESPACE " "
-              SHLEQ "<<="
-              WHITESPACE " "
+                      IDENT "b" [] [WHITESPACE(" ")]
+              SHLEQ "<<=" [] [WHITESPACE(" ")]
               BIN_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "c"
-                WHITESPACE " "
-                SHREQ ">>="
-                WHITESPACE " "
+                        IDENT "c" [] [WHITESPACE(" ")]
+                SHREQ ">>=" [] [WHITESPACE(" ")]
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "d"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                        IDENT "d" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "mixed_associativity"
+      IDENT "mixed_associativity" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
-        COMMENT "// (a + b) = (c += ((d * e) = f))"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             BIN_EXPR
@@ -405,51 +298,40 @@ SOURCE_FILE
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "a"
-              WHITESPACE " "
-              PLUS "+"
-              WHITESPACE " "
+                      IDENT "a" [WHITESPACE("    "), COMMENT("// (a + b) = (c += ((d * e) = f))"), NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
+              PLUS "+" [] [WHITESPACE(" ")]
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "b"
-            WHITESPACE " "
-            EQ "="
-            WHITESPACE " "
+                      IDENT "b" [] [WHITESPACE(" ")]
+            EQ "=" [] [WHITESPACE(" ")]
             BIN_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "c"
-              WHITESPACE " "
-              PLUSEQ "+="
-              WHITESPACE " "
+                      IDENT "c" [] [WHITESPACE(" ")]
+              PLUSEQ "+=" [] [WHITESPACE(" ")]
               BIN_EXPR
                 BIN_EXPR
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "d"
-                  WHITESPACE " "
-                  STAR "*"
-                  WHITESPACE " "
+                          IDENT "d" [] [WHITESPACE(" ")]
+                  STAR "*" [] [WHITESPACE(" ")]
                   PATH_EXPR
                     PATH
                       PATH_SEGMENT
                         NAME_REF
-                          IDENT "e"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                          IDENT "e" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "f"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                        IDENT "f" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

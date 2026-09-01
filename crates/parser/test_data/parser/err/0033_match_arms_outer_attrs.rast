@@ -1,65 +1,51 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         MATCH_EXPR
-          MATCH_KW "match"
-          WHITESPACE " "
+          MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          WHITESPACE " "
+            L_PAREN "(" [] []
+            R_PAREN ")" [] [WHITESPACE(" ")]
           MATCH_ARM_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [] [NEWLINE("\n")]
             MATCH_ARM
               WILDCARD_PAT
-                UNDERSCORE "_"
-              WHITESPACE " "
-              FAT_ARROW "=>"
-              WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               TUPLE_EXPR
-                L_PAREN "("
-                R_PAREN ")"
-              COMMA ","
-            WHITESPACE "\n        "
+                L_PAREN "(" [] []
+                R_PAREN ")" [] []
+              COMMA "," [] [NEWLINE("\n")]
             MATCH_ARM
               WILDCARD_PAT
-                UNDERSCORE "_"
-              WHITESPACE " "
-              FAT_ARROW "=>"
-              WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               TUPLE_EXPR
-                L_PAREN "("
-                R_PAREN ")"
-              COMMA ","
-            WHITESPACE "\n        "
+                L_PAREN "(" [] []
+                R_PAREN ")" [] []
+              COMMA "," [] [NEWLINE("\n")]
             MATCH_ARM
               ATTR
-                POUND "#"
-                L_BRACK "["
+                POUND "#" [WHITESPACE("        ")] []
+                L_BRACK "[" [] []
                 CFG_META
-                  CFG_KW "cfg"
-                  L_PAREN "("
+                  CFG_KW "cfg" [] []
+                  L_PAREN "(" [] []
                   CFG_ATOM
-                    IDENT "test"
-                  R_PAREN ")"
-                R_BRACK "]"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 80: expected pattern
-error 80: expected FAT_ARROW
-error 80: expected expression
+                    IDENT "test" [] []
+                  R_PAREN ")" [] []
+                R_BRACK "]" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 81: expected pattern
+error 81: expected FAT_ARROW
+error 81: expected expression

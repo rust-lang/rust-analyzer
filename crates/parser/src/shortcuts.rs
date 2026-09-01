@@ -9,16 +9,29 @@
 //! that needs to live somewhere. Rather than putting it to lexer or parser, we
 //! use a separate shortcuts module for that.
 
-use std::mem;
+use std::{collections::VecDeque, fmt, mem};
 
-use crate::{
-    Edition, LexedStr, Step,
-    SyntaxKind::{self, *},
-};
+use crate::{Edition, LexedStr, Step, SyntaxKind};
+
+#[derive(Clone, Copy)]
+pub struct Trivia<'a> {
+    pub kind: SyntaxKind,
+    pub text: &'a str,
+    pub error: bool,
+}
+
+impl fmt::Debug for Trivia<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.error {
+            write!(f, "!")?;
+        }
+        write!(f, "{:?}({:?})", self.kind, self.text)
+    }
+}
 
 #[derive(Debug)]
 pub enum StrStep<'a> {
-    Token { kind: SyntaxKind, text: &'a str },
+    Token { kind: SyntaxKind, text: &'a str, leading: &'a [Trivia<'a>], trailing: &'a [Trivia<'a>] },
     Enter { kind: SyntaxKind },
     Exit,
     Error { msg: &'a str, pos: usize },
@@ -68,7 +81,18 @@ impl LexedStr<'_> {
         output: &crate::Output,
         sink: &mut dyn FnMut(StrStep<'_>),
     ) -> bool {
-        let mut builder = Builder { lexed: self, pos: 0, state: State::PendingEnter, sink };
+        let mut builder = Builder {
+            lexed: self,
+            pos: 0,
+            pending: Vec::new(),
+            split: VecDeque::new(),
+            split_offset: 0,
+            flatten_depth: 0,
+            region_start: None,
+            depth: 0,
+            state: State::PendingEnter,
+            sink,
+        };
 
         for event in output.iter() {
             match event {
@@ -81,7 +105,10 @@ impl LexedStr<'_> {
                 Step::Enter { kind } => builder.enter(kind),
                 Step::Exit => builder.exit(),
                 Step::Error { msg } => {
-                    let text_pos = builder.lexed.text_start(builder.pos);
+                    let text_pos = match builder.split.is_empty() {
+                        true => builder.lexed.text_start(builder.pos),
+                        false => builder.split_offset,
+                    };
                     (builder.sink)(StrStep::Error { msg, pos: text_pos });
                 }
             }
@@ -89,7 +116,7 @@ impl LexedStr<'_> {
 
         match mem::replace(&mut builder.state, State::Normal) {
             State::PendingExit => {
-                builder.eat_trivias();
+                builder.eof();
                 (builder.sink)(StrStep::Exit);
             }
             State::PendingEnter | State::Normal => unreachable!(),
@@ -103,6 +130,12 @@ impl LexedStr<'_> {
 struct Builder<'a, 'b> {
     lexed: &'a LexedStr<'a>,
     pos: usize,
+    pending: Vec<Trivia<'a>>,
+    split: VecDeque<Trivia<'a>>,
+    split_offset: usize,
+    flatten_depth: usize,
+    region_start: Option<usize>,
+    depth: usize,
     state: State,
     sink: &'b mut dyn FnMut(StrStep<'_>),
 }
@@ -113,14 +146,17 @@ enum State {
     PendingExit,
 }
 
-impl Builder<'_, '_> {
+impl<'a> Builder<'a, '_> {
     fn token(&mut self, kind: SyntaxKind, n_tokens: u8) {
+        if self.flatten_depth > 0 {
+            self.skip_token(n_tokens as usize);
+            return;
+        }
         match mem::replace(&mut self.state, State::Normal) {
             State::PendingEnter => unreachable!(),
             State::PendingExit => (self.sink)(StrStep::Exit),
             State::Normal => (),
         }
-        self.eat_trivias();
         self.do_token(kind, n_tokens as usize);
     }
 
@@ -130,11 +166,19 @@ impl Builder<'_, '_> {
             State::PendingExit => (self.sink)(StrStep::Exit),
             State::Normal => (),
         }
-        self.eat_trivias();
         self.do_float_split(has_pseudo_dot);
     }
 
     fn enter(&mut self, kind: SyntaxKind) {
+        if self.flatten_depth > 0 {
+            self.flatten_depth += 1;
+            return;
+        }
+        if kind == SyntaxKind::ERROR && self.depth > 0 {
+            self.flatten_depth = 1;
+            return;
+        }
+        self.depth += 1;
         match mem::replace(&mut self.state, State::Normal) {
             State::PendingEnter => {
                 (self.sink)(StrStep::Enter { kind });
@@ -146,19 +190,18 @@ impl Builder<'_, '_> {
             State::Normal => (),
         }
 
-        let n_trivias =
-            (self.pos..self.lexed.len()).take_while(|&it| self.lexed.kind(it).is_trivia()).count();
-        let leading_trivias = self.pos..self.pos + n_trivias;
-        let n_attached_trivias = n_attached_trivias(
-            kind,
-            leading_trivias.rev().map(|it| (self.lexed.kind(it), self.lexed.text(it))),
-        );
-        self.eat_n_trivias(n_trivias - n_attached_trivias);
         (self.sink)(StrStep::Enter { kind });
-        self.eat_n_trivias(n_attached_trivias);
     }
 
     fn exit(&mut self) {
+        if self.flatten_depth > 0 {
+            self.flatten_depth -= 1;
+            if self.flatten_depth == 0 {
+                self.finish_skipped_region();
+            }
+            return;
+        }
+        self.depth -= 1;
         match mem::replace(&mut self.state, State::PendingExit) {
             State::PendingEnter => unreachable!(),
             State::PendingExit => (self.sink)(StrStep::Exit),
@@ -166,52 +209,171 @@ impl Builder<'_, '_> {
         }
     }
 
-    fn eat_trivias(&mut self) {
-        while self.pos < self.lexed.len() {
-            let kind = self.lexed.kind(self.pos);
-            if !kind.is_trivia() {
-                break;
+    fn fill_split(&mut self) {
+        if !self.split.is_empty() {
+            return;
+        }
+        if self.pos >= self.lexed.len() || !self.lexed.kind(self.pos).is_trivia() {
+            return;
+        }
+        self.split_offset = self.lexed.text_start(self.pos);
+        let kind = self.lexed.kind(self.pos);
+        let text = self.lexed.text(self.pos);
+        self.pos += 1;
+        if kind != SyntaxKind::WHITESPACE {
+            self.split.push_back(Trivia { kind, text, error: false });
+            return;
+        }
+        let mut rest = text;
+        while let Some(idx) = rest.find('\n') {
+            let (line, tail) = rest.split_at(idx + 1);
+            let (ws, newline) = match line.strip_suffix("\r\n") {
+                Some(ws) => (ws, &line[line.len() - 2..]),
+                None => (&line[..idx], &line[idx..]),
+            };
+            if !ws.is_empty() {
+                self.split.push_back(Trivia {
+                    kind: SyntaxKind::WHITESPACE,
+                    text: ws,
+                    error: false,
+                });
             }
-            self.do_token(kind, 1);
+            self.split.push_back(Trivia { kind: SyntaxKind::NEWLINE, text: newline, error: false });
+            rest = tail;
+        }
+        if !rest.is_empty() {
+            self.split.push_back(Trivia { kind: SyntaxKind::WHITESPACE, text: rest, error: false });
         }
     }
 
-    fn eat_n_trivias(&mut self, n: usize) {
-        for _ in 0..n {
-            let kind = self.lexed.kind(self.pos);
-            assert!(kind.is_trivia());
-            self.do_token(kind, 1);
+    fn take_leading(&mut self) -> Vec<Trivia<'a>> {
+        let mut res = Vec::new();
+        loop {
+            self.fill_split();
+            match self.split.pop_front() {
+                Some(trivia) => {
+                    self.split_offset += trivia.text.len();
+                    res.push(trivia)
+                }
+                None => break,
+            }
         }
+        res
+    }
+
+    fn take_trailing(&mut self) -> Vec<Trivia<'a>> {
+        let mut res = Vec::new();
+        loop {
+            self.fill_split();
+            let Some(trivia) = self.split.pop_front() else { break };
+            self.split_offset += trivia.text.len();
+            let newline = trivia.kind == SyntaxKind::NEWLINE;
+            res.push(trivia);
+            if newline {
+                break;
+            }
+        }
+        res
+    }
+
+    fn skip_token(&mut self, n_tokens: usize) {
+        if self.region_start.is_none() {
+            let leading = self.take_leading();
+            self.pending.extend(leading);
+            self.region_start = Some(self.pos);
+        } else {
+            let leftover: Vec<_> = self.split.drain(..).collect();
+            self.split_offset += leftover.iter().map(|it| it.text.len()).sum::<usize>();
+            self.pending.extend(leftover);
+            while self.pos < self.lexed.len() && self.lexed.kind(self.pos).is_trivia() {
+                self.pos += 1;
+            }
+        }
+        self.pos += n_tokens;
+    }
+
+    fn finish_skipped_region(&mut self) {
+        let Some(start) = self.region_start.take() else { return };
+        for pos in start..self.pos {
+            let kind = self.lexed.kind(pos);
+            self.pending.push(Trivia {
+                kind,
+                text: self.lexed.text(pos),
+                error: !kind.is_trivia(),
+            });
+        }
+    }
+
+    fn take_pending_leading(&mut self) -> Vec<Trivia<'a>> {
+        let mut leading = mem::take(&mut self.pending);
+        leading.extend(self.take_leading());
+        leading
+    }
+
+    fn eof(&mut self) {
+        let leading = self.take_pending_leading();
+        (self.sink)(StrStep::Token {
+            kind: SyntaxKind::EOF,
+            text: "",
+            leading: &leading,
+            trailing: &[],
+        });
     }
 
     fn do_token(&mut self, kind: SyntaxKind, n_tokens: usize) {
-        let text = &self.lexed.range_text(self.pos..self.pos + n_tokens);
+        let leading = self.take_pending_leading();
+        let text = self.lexed.range_text(self.pos..self.pos + n_tokens);
         self.pos += n_tokens;
-        (self.sink)(StrStep::Token { kind, text });
+        let trailing = self.take_trailing();
+        (self.sink)(StrStep::Token { kind, text, leading: &leading, trailing: &trailing });
     }
 
     fn do_float_split(&mut self, has_pseudo_dot: bool) {
-        let text = &self.lexed.range_text(self.pos..self.pos + 1);
+        let leading = self.take_pending_leading();
+        let start = self.pos;
+        let text = self.lexed.range_text(self.pos..self.pos + 1);
+        self.pos += 1;
+        let trailing = self.take_trailing();
 
         match text.split_once('.') {
             Some((left, right)) => {
                 assert!(!left.is_empty());
                 (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
-                (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: left });
+                (self.sink)(StrStep::Token {
+                    kind: SyntaxKind::INT_NUMBER,
+                    text: left,
+                    leading: &leading,
+                    trailing: &[],
+                });
                 (self.sink)(StrStep::Exit);
 
                 // here we move the exit up, the original exit has been deleted in process
                 (self.sink)(StrStep::Exit);
 
-                (self.sink)(StrStep::Token { kind: SyntaxKind::DOT, text: "." });
-
                 if has_pseudo_dot {
                     assert!(right.is_empty(), "{left}.{right}");
+                    (self.sink)(StrStep::Token {
+                        kind: SyntaxKind::DOT,
+                        text: ".",
+                        leading: &[],
+                        trailing: &trailing,
+                    });
                     self.state = State::Normal;
                 } else {
                     assert!(!right.is_empty(), "{left}.{right}");
+                    (self.sink)(StrStep::Token {
+                        kind: SyntaxKind::DOT,
+                        text: ".",
+                        leading: &[],
+                        trailing: &[],
+                    });
                     (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
-                    (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: right });
+                    (self.sink)(StrStep::Token {
+                        kind: SyntaxKind::INT_NUMBER,
+                        text: right,
+                        leading: &[],
+                        trailing: &trailing,
+                    });
                     (self.sink)(StrStep::Exit);
 
                     // the parser creates an unbalanced start node, we are required to close it here
@@ -219,12 +381,13 @@ impl Builder<'_, '_> {
                 }
             }
             None => {
-                // illegal float literal which doesn't have dot in form (like 1e0)
-                // we should emit an error node here
-                (self.sink)(StrStep::Error { msg: "illegal float literal", pos: self.pos });
-                (self.sink)(StrStep::Enter { kind: SyntaxKind::ERROR });
-                (self.sink)(StrStep::Token { kind: SyntaxKind::FLOAT_NUMBER, text });
-                (self.sink)(StrStep::Exit);
+                (self.sink)(StrStep::Error {
+                    msg: "illegal float literal",
+                    pos: self.lexed.text_start(start),
+                });
+                self.pending.extend(leading);
+                self.pending.push(Trivia { kind: SyntaxKind::ERROR, text, error: true });
+                self.pending.extend(trailing);
 
                 // move up
                 (self.sink)(StrStep::Exit);
@@ -232,56 +395,5 @@ impl Builder<'_, '_> {
                 self.state = if has_pseudo_dot { State::Normal } else { State::PendingExit };
             }
         }
-
-        self.pos += 1;
     }
-}
-
-fn n_attached_trivias<'a>(
-    kind: SyntaxKind,
-    trivias: impl Iterator<Item = (SyntaxKind, &'a str)>,
-) -> usize {
-    match kind {
-        CONST | ENUM | FN | IMPL | MACRO_CALL | MACRO_DEF | MACRO_RULES | MODULE | RECORD_FIELD
-        | STATIC | STRUCT | TRAIT | TUPLE_FIELD | TYPE_ALIAS | UNION | USE | VARIANT
-        | EXTERN_CRATE => {
-            let mut res = 0;
-            let mut trivias = trivias.enumerate().peekable();
-
-            while let Some((i, (kind, text))) = trivias.next() {
-                match kind {
-                    WHITESPACE if text.contains("\n\n") => {
-                        // we check whether the next token is a doc-comment
-                        // and skip the whitespace in this case
-                        if let Some((COMMENT, peek_text)) = trivias.peek().map(|(_, pair)| pair)
-                            && is_outer(peek_text)
-                        {
-                            continue;
-                        }
-                        break;
-                    }
-                    COMMENT => {
-                        if is_inner(text) {
-                            break;
-                        }
-                        res = i + 1;
-                    }
-                    _ => (),
-                }
-            }
-            res
-        }
-        _ => 0,
-    }
-}
-
-fn is_outer(text: &str) -> bool {
-    if text.starts_with("////") || text.starts_with("/***") {
-        return false;
-    }
-    text.starts_with("///") || text.starts_with("/**")
-}
-
-fn is_inner(text: &str) -> bool {
-    text.starts_with("//!") || text.starts_with("/*!")
 }

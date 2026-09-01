@@ -1,120 +1,99 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "f"
+      IDENT "f" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         BIN_EXPR
           PATH_EXPR
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "S"
+                  IDENT "S" [WHITESPACE("    ")] []
                 GENERIC_ARG_LIST
-                  COLON2 "::"
-                  L_ANGLE "<"
+                  COLON2 "::" [] []
+                  L_ANGLE "<" [] []
                   TYPE_ARG
                     PATH_TYPE
                       PATH
                         PATH
                           PATH_SEGMENT
                             NAME_REF
-                              IDENT "Item"
+                              IDENT "Item" [] []
                             GENERIC_ARG_LIST
-                              COLON2 "::"
-                              L_ANGLE "<"
+                              COLON2 "::" [] []
+                              L_ANGLE "<" [] []
                               TYPE_ARG
                                 PATH_TYPE
                                   PATH
                                     PATH_SEGMENT
                                       NAME_REF
-                                        IDENT "lol"
-                              R_ANGLE ">"
-                        COLON2 "::"
+                                        IDENT "lol" [] []
+                              R_ANGLE ">" [] []
+                        COLON2 "::" [] []
                         PATH_SEGMENT
-                          ERROR
-                            L_ANGLE "<"
                   TYPE_ARG
                     PATH_TYPE
                       PATH
                         PATH_SEGMENT
                           NAME_REF
-                            IDENT "nope"
-                  R_ANGLE ">"
-          R_ANGLE ">"
-          ERROR
-            SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+                            IDENT "nope" [!L_ANGLE("<")] []
+                  R_ANGLE ">" [] []
+          R_ANGLE ">" [] []
+        R_CURLY "}" [!SEMICOLON(";"), NEWLINE("\n")] [NEWLINE("\n")]
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "g"
+      IDENT "g" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          COLON ":"
-          WHITESPACE " "
+            UNDERSCORE "_" [] []
+          COLON ":" [] [WHITESPACE(" ")]
           PATH_TYPE
             PATH
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "Item"
+                    IDENT "Item" [] []
                   GENERIC_ARG_LIST
-                    COLON2 "::"
-                    L_ANGLE "<"
+                    COLON2 "::" [] []
+                    L_ANGLE "<" [] []
                     TYPE_ARG
                       PATH_TYPE
                         PATH
                           PATH_SEGMENT
                             NAME_REF
-                              IDENT "lol"
-                    R_ANGLE ">"
-              COLON2 "::"
+                              IDENT "lol" [] []
+                    R_ANGLE ">" [] []
+              COLON2 "::" [] []
               PATH_SEGMENT
-                ERROR
-                  L_ANGLE "<"
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "nope"
-            R_ANGLE ">"
-            WHITESPACE " "
-            ERROR
-              EQ "="
-        WHITESPACE " "
+                    IDENT "nope" [!L_ANGLE("<")] []
+            R_ANGLE ">" [] [WHITESPACE(" ")]
         EXPR_STMT
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+            L_PAREN "(" [!EQ("="), WHITESPACE(" ")] []
+            R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 30: expected identifier, `self`, `super`, `crate`, or `Self`
 error 31: expected COMMA
 error 37: expected expression

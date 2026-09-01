@@ -1,22 +1,17 @@
 SOURCE_FILE
   TRAIT
-    TRAIT_KW "trait"
-    WHITESPACE " "
+    TRAIT_KW "trait" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
     ASSOC_ITEM_LIST
-      L_CURLY "{"
-      WHITESPACE " "
+      L_CURLY "{" [] [WHITESPACE(" ")]
       FN
-        FN_KW "fn"
-        WHITESPACE " "
+        FN_KW "fn" [] [WHITESPACE(" ")]
         NAME
-          IDENT "foo"
+          IDENT "foo" [] []
         PARAM_LIST
-          L_PAREN "("
-          R_PAREN ")"
-        SEMICOLON ";"
-      WHITESPACE " "
-      R_CURLY "}"
-  WHITESPACE "\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] []
+        SEMICOLON ";" [] [WHITESPACE(" ")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

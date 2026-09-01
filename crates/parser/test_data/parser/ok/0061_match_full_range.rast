@@ -1,27 +1,20 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "main"
+      IDENT "main" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         MATCH_EXPR
-          MATCH_KW "match"
-          WHITESPACE " "
+          MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
           RANGE_EXPR
-            DOT2 ".."
-          WHITESPACE " "
+            DOT2 ".." [] [WHITESPACE(" ")]
           MATCH_ARM_LIST
-            L_CURLY "{"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+            L_CURLY "{" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

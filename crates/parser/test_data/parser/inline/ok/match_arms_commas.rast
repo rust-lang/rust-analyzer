@@ -1,60 +1,44 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         MATCH_EXPR
-          MATCH_KW "match"
-          WHITESPACE " "
+          MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
           TUPLE_EXPR
-            L_PAREN "("
-            R_PAREN ")"
-          WHITESPACE " "
+            L_PAREN "(" [] []
+            R_PAREN ")" [] [WHITESPACE(" ")]
           MATCH_ARM_LIST
-            L_CURLY "{"
-            WHITESPACE "\n        "
+            L_CURLY "{" [] [NEWLINE("\n")]
             MATCH_ARM
               WILDCARD_PAT
-                UNDERSCORE "_"
-              WHITESPACE " "
-              FAT_ARROW "=>"
-              WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               TUPLE_EXPR
-                L_PAREN "("
-                R_PAREN ")"
-              COMMA ","
-            WHITESPACE "\n        "
+                L_PAREN "(" [] []
+                R_PAREN ")" [] []
+              COMMA "," [] [NEWLINE("\n")]
             MATCH_ARM
               WILDCARD_PAT
-                UNDERSCORE "_"
-              WHITESPACE " "
-              FAT_ARROW "=>"
-              WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               BLOCK_EXPR
                 STMT_LIST
-                  L_CURLY "{"
-                  R_CURLY "}"
-            WHITESPACE "\n        "
+                  L_CURLY "{" [] []
+                  R_CURLY "}" [] [NEWLINE("\n")]
             MATCH_ARM
               WILDCARD_PAT
-                UNDERSCORE "_"
-              WHITESPACE " "
-              FAT_ARROW "=>"
-              WHITESPACE " "
+                UNDERSCORE "_" [WHITESPACE("        ")] [WHITESPACE(" ")]
+              FAT_ARROW "=>" [] [WHITESPACE(" ")]
               TUPLE_EXPR
-                L_PAREN "("
-                R_PAREN ")"
-            WHITESPACE "\n    "
-            R_CURLY "}"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                L_PAREN "(" [] []
+                R_PAREN ")" [] [NEWLINE("\n")]
+            R_CURLY "}" [WHITESPACE("    ")] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

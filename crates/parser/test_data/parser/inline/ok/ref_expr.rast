@@ -1,158 +1,117 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
-        COMMENT "// reference operator"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    "), COMMENT("// reference operator"), NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
+            AMP "&" [] []
             LITERAL
-              INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
-            MUT_KW "mut"
-            WHITESPACE " "
+            AMP "&" [] []
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             REF_EXPR
-              AMP "&"
+              AMP "&" [] []
               CALL_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "f"
+                        IDENT "f" [] []
                 ARG_LIST
-                  L_PAREN "("
-                  R_PAREN ")"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
+            AMP "&" [] []
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "raw"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                    IDENT "raw" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
+            AMP "&" [] []
             FIELD_EXPR
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "raw"
-              DOT "."
+                      IDENT "raw" [] []
+              DOT "." [] []
               NAME_REF
-                INT_NUMBER "0"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
-        COMMENT "// raw reference operator"
-        WHITESPACE "\n    "
+                INT_NUMBER "0" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    "), COMMENT("// raw reference operator"), NEWLINE("\n"), WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
-            RAW_KW "raw"
-            WHITESPACE " "
-            MUT_KW "mut"
-            WHITESPACE " "
+            AMP "&" [] []
+            RAW_KW "raw" [] [WHITESPACE(" ")]
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "foo"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                    IDENT "foo" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
-            RAW_KW "raw"
-            WHITESPACE " "
-            CONST_KW "const"
-            WHITESPACE " "
+            AMP "&" [] []
+            RAW_KW "raw" [] [WHITESPACE(" ")]
+            CONST_KW "const" [] [WHITESPACE(" ")]
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "foo"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                    IDENT "foo" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           REF_EXPR
-            AMP "&"
-            RAW_KW "raw"
-            WHITESPACE " "
+            AMP "&" [] []
+            RAW_KW "raw" [] [WHITESPACE(" ")]
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "foo"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                    IDENT "foo" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

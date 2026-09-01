@@ -1,96 +1,75 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
             NAME
-              IDENT "x"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "x" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           RANGE_EXPR
             LITERAL
-              INT_NUMBER "1"
-            DOT2 ".."
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "1" [] []
+            DOT2 ".." [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           MATCH_EXPR
-            MATCH_KW "match"
-            WHITESPACE " "
+            MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
             RANGE_EXPR
               LITERAL
-                INT_NUMBER "1"
-              DOT2 ".."
-            WHITESPACE " "
+                INT_NUMBER "1" [] []
+              DOT2 ".." [] [WHITESPACE(" ")]
             MATCH_ARM_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [] [WHITESPACE(" ")]
               MATCH_ARM
                 WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                FAT_ARROW "=>"
-                WHITESPACE " "
+                  UNDERSCORE "_" [] [WHITESPACE(" ")]
+                FAT_ARROW "=>" [] [WHITESPACE(" ")]
                 TUPLE_EXPR
-                  L_PAREN "("
-                  R_PAREN ")"
-              WHITESPACE " "
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           MATCH_EXPR
-            MATCH_KW "match"
-            WHITESPACE " "
+            MATCH_KW "match" [WHITESPACE("    ")] [WHITESPACE(" ")]
             RANGE_EXPR
               METHOD_CALL_EXPR
                 PATH_EXPR
                   PATH
                     PATH_SEGMENT
                       NAME_REF
-                        IDENT "a"
-                DOT "."
+                        IDENT "a" [] []
+                DOT "." [] []
                 NAME_REF
-                  IDENT "b"
+                  IDENT "b" [] []
                 ARG_LIST
-                  L_PAREN "("
-                  R_PAREN ")"
-              DOT2 ".."
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] []
+              DOT2 ".." [] []
               PATH_EXPR
                 PATH
                   PATH_SEGMENT
                     NAME_REF
-                      IDENT "S"
-            WHITESPACE " "
+                      IDENT "S" [] [WHITESPACE(" ")]
             MATCH_ARM_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [] [WHITESPACE(" ")]
               MATCH_ARM
                 WILDCARD_PAT
-                  UNDERSCORE "_"
-                WHITESPACE " "
-                FAT_ARROW "=>"
-                WHITESPACE " "
+                  UNDERSCORE "_" [] [WHITESPACE(" ")]
+                FAT_ARROW "=>" [] [WHITESPACE(" ")]
                 TUPLE_EXPR
-                  L_PAREN "("
-                  R_PAREN ")"
-              WHITESPACE " "
-              R_CURLY "}"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+                  L_PAREN "(" [] []
+                  R_PAREN ")" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

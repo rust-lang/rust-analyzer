@@ -1,34 +1,28 @@
 SOURCE_FILE
   TYPE_ALIAS
-    TYPE_KW "type"
-    WHITESPACE " "
+    TYPE_KW "type" [] [WHITESPACE(" ")]
     NAME
-      IDENT "T"
-    WHITESPACE " "
-    EQ "="
-    WHITESPACE " "
+      IDENT "T" [] [WHITESPACE(" ")]
+    EQ "=" [] [WHITESPACE(" ")]
     PATTERN_TYPE
-      BUILTIN_KW "builtin"
-      POUND "#"
-      PATTERN_TYPE_KW "pattern_type"
-      WHITESPACE " "
-      L_PAREN "("
+      BUILTIN_KW "builtin" [] []
+      POUND "#" [] []
+      PATTERN_TYPE_KW "pattern_type" [] [WHITESPACE(" ")]
+      L_PAREN "(" [] []
       PATH_TYPE
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "u8"
-      WHITESPACE " "
-      IS_KW "is"
-      WHITESPACE " "
+              IDENT "u8" [] [WHITESPACE(" ")]
+      IS_KW "is" [] [WHITESPACE(" ")]
       RANGE_PAT
         LITERAL_PAT
           LITERAL
-            INT_NUMBER "0"
-        DOT2 ".."
+            INT_NUMBER "0" [] []
+        DOT2 ".." [] []
         LITERAL_PAT
           LITERAL
-            INT_NUMBER "10"
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+            INT_NUMBER "10" [] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

@@ -1,201 +1,155 @@
 SOURCE_FILE
-  COMMENT "// https://github.com/rust-lang/rust-analyzer/pull/983"
-  WHITESPACE "\n\n"
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [COMMENT("// https://github.com/rust-lang/rust-analyzer/pull/983"), NEWLINE("\n"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "compound_assignment"
+      IDENT "compound_assignment" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
+        L_CURLY "{" [] [NEWLINE("\n")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [WHITESPACE("    ")] [WHITESPACE(" ")]
           IDENT_PAT
-            MUT_KW "mut"
-            WHITESPACE " "
+            MUT_KW "mut" [] [WHITESPACE(" ")]
             NAME
-              IDENT "a"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+              IDENT "a" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           LITERAL
-            INT_NUMBER "0"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+            INT_NUMBER "0" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            PLUSEQ "+="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            PLUSEQ "+=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "1"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "1" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            MINUSEQ "-="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            MINUSEQ "-=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "2"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "2" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            STAREQ "*="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            STAREQ "*=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "3"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "3" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            PERCENTEQ "%="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            PERCENTEQ "%=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "4"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "4" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            SLASHEQ "/="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            SLASHEQ "/=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "5"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "5" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            PIPEEQ "|="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            PIPEEQ "|=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "6"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "6" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            AMPEQ "&="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            AMPEQ "&=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "7"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "7" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            CARETEQ "^="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            CARETEQ "^=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "8"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "8" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            LTEQ "<="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            LTEQ "<=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "9"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "9" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            GTEQ ">="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            GTEQ ">=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "10"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "10" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            SHREQ ">>="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            SHREQ ">>=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "11"
-          SEMICOLON ";"
-        WHITESPACE "\n    "
+              INT_NUMBER "11" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
         EXPR_STMT
           BIN_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "a"
-            WHITESPACE " "
-            SHLEQ "<<="
-            WHITESPACE " "
+                    IDENT "a" [WHITESPACE("    ")] [WHITESPACE(" ")]
+            SHLEQ "<<=" [] [WHITESPACE(" ")]
             LITERAL
-              INT_NUMBER "12"
-          SEMICOLON ";"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              INT_NUMBER "12" [] []
+          SEMICOLON ";" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []

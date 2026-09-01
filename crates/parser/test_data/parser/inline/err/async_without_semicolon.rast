@@ -1,32 +1,24 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         LET_STMT
-          LET_KW "let"
-          WHITESPACE " "
+          LET_KW "let" [] [WHITESPACE(" ")]
           WILDCARD_PAT
-            UNDERSCORE "_"
-          WHITESPACE " "
-          EQ "="
-          WHITESPACE " "
+            UNDERSCORE "_" [] [WHITESPACE(" ")]
+          EQ "=" [] [WHITESPACE(" ")]
           BLOCK_EXPR
-            ASYNC_KW "async"
-            WHITESPACE " "
+            ASYNC_KW "async" [] [WHITESPACE(" ")]
             STMT_LIST
-              L_CURLY "{"
-              R_CURLY "}"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
-error 27: expected SEMICOLON
+              L_CURLY "{" [] []
+              R_CURLY "}" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 28: expected SEMICOLON

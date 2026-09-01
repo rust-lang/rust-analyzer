@@ -1,58 +1,49 @@
 SOURCE_FILE
   FN
     ATTR
-      POUND "#"
-      L_BRACK "["
+      POUND "#" [] []
+      L_BRACK "[" [] []
       CFG_META
-        CFG_KW "cfg"
-        L_PAREN "("
+        CFG_KW "cfg" [] []
+        L_PAREN "(" [] []
         CFG_ATOM
-          IDENT "test"
-        R_PAREN ")"
-      R_BRACK "]"
-    WHITESPACE "\n"
+          IDENT "test" [] []
+        R_PAREN ")" [] []
+      R_BRACK "]" [] [NEWLINE("\n")]
     ATTR
-      POUND "#"
-      L_BRACK "["
+      POUND "#" [] []
+      L_BRACK "[" [] []
       PATH_META
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "Ignore"
-      R_BRACK "]"
-    WHITESPACE "\n"
-    FN_KW "fn"
-    WHITESPACE " "
+              IDENT "Ignore" [] []
+      R_BRACK "]" [] [NEWLINE("\n")]
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        R_CURLY "}"
-  WHITESPACE "\n\n"
+        L_CURLY "{" [] []
+        R_CURLY "}" [] [NEWLINE("\n")]
   MODULE
     ATTR
-      POUND "#"
-      L_BRACK "["
+      POUND "#" [NEWLINE("\n")] []
+      L_BRACK "[" [] []
       KEY_VALUE_META
         PATH
           PATH_SEGMENT
             NAME_REF
-              IDENT "path"
-        WHITESPACE " "
-        EQ "="
-        WHITESPACE " "
+              IDENT "path" [] [WHITESPACE(" ")]
+        EQ "=" [] [WHITESPACE(" ")]
         LITERAL
-          STRING "\"a.rs\""
-      R_BRACK "]"
-    WHITESPACE "\n"
-    MOD_KW "mod"
-    WHITESPACE " "
+          STRING "\"a.rs\"" [] []
+      R_BRACK "]" [] [NEWLINE("\n")]
+    MOD_KW "mod" [] [WHITESPACE(" ")]
     NAME
-      IDENT "b"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "b" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

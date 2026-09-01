@@ -1,28 +1,25 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    WHITESPACE " "
+      IDENT "S" [] [WHITESPACE(" ")]
     TUPLE_FIELD_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       TUPLE_FIELD
         ATTR
-          POUND "#"
-          L_BRACK "["
+          POUND "#" [] []
+          L_BRACK "[" [] []
           PATH_META
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "attr"
-          R_BRACK "]"
-        WHITESPACE " "
+                  IDENT "attr" [] []
+          R_BRACK "]" [] [WHITESPACE(" ")]
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "f32"
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "f32" [] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []

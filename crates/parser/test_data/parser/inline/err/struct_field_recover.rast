@@ -1,61 +1,46 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    WHITESPACE " "
+      IDENT "S" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      WHITESPACE " "
+      L_CURLY "{" [] [WHITESPACE(" ")]
       RECORD_FIELD
         NAME
-          IDENT "f"
-      WHITESPACE " "
+          IDENT "f" [] [WHITESPACE(" ")]
       RECORD_FIELD
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
+          PUB_KW "pub" [] [WHITESPACE(" ")]
         NAME
-          IDENT "g"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "g" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         TUPLE_TYPE
-          L_PAREN "("
-          R_PAREN ")"
-      WHITESPACE " "
-      R_CURLY "}"
-  WHITESPACE "\n"
+          L_PAREN "(" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
+      R_CURLY "}" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    WHITESPACE " "
+      IDENT "S" [] [WHITESPACE(" ")]
     RECORD_FIELD_LIST
-      L_CURLY "{"
-      WHITESPACE " "
+      L_CURLY "{" [] [WHITESPACE(" ")]
       RECORD_FIELD
         NAME
-          IDENT "f"
-        COLON ":"
-      WHITESPACE " "
+          IDENT "f" [] []
+        COLON ":" [] [WHITESPACE(" ")]
       RECORD_FIELD
         VISIBILITY
-          PUB_KW "pub"
-        WHITESPACE " "
+          PUB_KW "pub" [] [WHITESPACE(" ")]
         NAME
-          IDENT "g"
-        COLON ":"
-        WHITESPACE " "
+          IDENT "g" [] []
+        COLON ":" [] [WHITESPACE(" ")]
         TUPLE_TYPE
-          L_PAREN "("
-          R_PAREN ")"
-      WHITESPACE " "
-      R_CURLY "}"
-  WHITESPACE "\n"
-error 12: expected COLON
-error 12: expected type
-error 12: expected COMMA
-error 38: expected type
-error 38: expected COMMA
+          L_PAREN "(" [] []
+          R_PAREN ")" [] [WHITESPACE(" ")]
+      R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
+error 13: expected COLON
+error 13: expected type
+error 13: expected COMMA
+error 39: expected type
+error 39: expected COMMA

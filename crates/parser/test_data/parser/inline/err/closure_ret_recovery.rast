@@ -1,52 +1,38 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
-    WHITESPACE " "
+      L_PAREN "(" [] []
+      R_PAREN ")" [] [WHITESPACE(" ")]
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE " "
+        L_CURLY "{" [] [WHITESPACE(" ")]
         CLOSURE_EXPR
           PARAM_LIST
-            PIPE "|"
-            PIPE "|"
-          WHITESPACE " "
+            PIPE "|" [] []
+            PIPE "|" [] [WHITESPACE(" ")]
           RET_TYPE
-            THIN_ARROW "->"
-            WHITESPACE " "
+            THIN_ARROW "->" [] [WHITESPACE(" ")]
             PATH_TYPE
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "A"
-          ERROR
-            R_ANGLE ">"
-          WHITESPACE " "
+                    IDENT "A" [] []
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              WHITESPACE " "
+              L_CURLY "{" [!R_ANGLE(">"), WHITESPACE(" ")] [WHITESPACE(" ")]
               LET_STMT
-                LET_KW "let"
-                WHITESPACE " "
+                LET_KW "let" [] [WHITESPACE(" ")]
                 IDENT_PAT
                   NAME
-                    IDENT "x"
-                WHITESPACE " "
-                EQ "="
-                WHITESPACE " "
+                    IDENT "x" [] [WHITESPACE(" ")]
+                EQ "=" [] [WHITESPACE(" ")]
                 LITERAL
-                  INT_NUMBER "1"
-                SEMICOLON ";"
-              WHITESPACE " "
-              R_CURLY "}"
-        WHITESPACE " "
-        R_CURLY "}"
-  WHITESPACE "\n"
+                  INT_NUMBER "1" [] []
+                SEMICOLON ";" [] [WHITESPACE(" ")]
+              R_CURLY "}" [] [WHITESPACE(" ")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 18: expected a curly brace

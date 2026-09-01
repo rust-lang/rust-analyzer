@@ -1,43 +1,37 @@
 SOURCE_FILE
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
+      IDENT "S" [] []
     TUPLE_FIELD_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+      IDENT "S" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
   STRUCT
-    STRUCT_KW "struct"
-    WHITESPACE " "
+    STRUCT_KW "struct" [] [WHITESPACE(" ")]
     NAME
-      IDENT "S"
+      IDENT "S" [] []
     TUPLE_FIELD_LIST
-      L_PAREN "("
+      L_PAREN "(" [] []
       TUPLE_FIELD
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "A"
-      COMMA ","
-      ERROR
-        COMMA ","
+                IDENT "A" [] []
+      COMMA "," [] []
       TUPLE_FIELD
         PATH_TYPE
           PATH
             PATH_SEGMENT
               NAME_REF
-                IDENT "B"
-      R_PAREN ")"
-    SEMICOLON ";"
-  WHITESPACE "\n"
+                IDENT "B" [!COMMA(",")] []
+      R_PAREN ")" [] []
+    SEMICOLON ";" [] [NEWLINE("\n")]
+  EOF "" [] []
 error 9: expected a type
 error 9: expected R_PAREN
 error 9: expected SEMICOLON

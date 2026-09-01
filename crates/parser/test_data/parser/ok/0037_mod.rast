@@ -1,16 +1,9 @@
 SOURCE_FILE
-  COMMENT "// https://github.com/rust-lang/rust-analyzer/issues/357"
-  WHITESPACE "\n\n"
-  COMMENT "//! docs"
-  WHITESPACE "\n"
   MODULE
-    COMMENT "// non-docs"
-    WHITESPACE "\n"
-    MOD_KW "mod"
-    WHITESPACE " "
+    MOD_KW "mod" [COMMENT("// https://github.com/rust-lang/rust-analyzer/issues/357"), NEWLINE("\n"), NEWLINE("\n"), COMMENT("//! docs"), NEWLINE("\n"), COMMENT("// non-docs"), NEWLINE("\n")] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
-    WHITESPACE " "
+      IDENT "foo" [] [WHITESPACE(" ")]
     ITEM_LIST
-      L_CURLY "{"
-      R_CURLY "}"
+      L_CURLY "{" [] []
+      R_CURLY "}" [] []
+  EOF "" [] []

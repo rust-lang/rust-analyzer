@@ -1,57 +1,54 @@
 SOURCE_FILE
   FN
-    FN_KW "fn"
-    WHITESPACE " "
+    FN_KW "fn" [] [WHITESPACE(" ")]
     NAME
-      IDENT "foo"
+      IDENT "foo" [] []
     PARAM_LIST
-      L_PAREN "("
-      R_PAREN ")"
+      L_PAREN "(" [] []
+      R_PAREN ")" [] []
     BLOCK_EXPR
       STMT_LIST
-        L_CURLY "{"
-        WHITESPACE "\n    "
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
+        L_CURLY "{" [] [NEWLINE("\n")]
+        SEMICOLON ";" [WHITESPACE("    ")] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
         EXPR_STMT
           CALL_EXPR
             PATH_EXPR
               PATH
                 PATH_SEGMENT
                   NAME_REF
-                    IDENT "some_expr"
+                    IDENT "some_expr" [] []
             ARG_LIST
-              L_PAREN "("
-              R_PAREN ")"
-          SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+          SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
         EXPR_STMT
           BLOCK_EXPR
             STMT_LIST
-              L_CURLY "{"
-              SEMICOLON ";"
-              SEMICOLON ";"
-              SEMICOLON ";"
-              R_CURLY "}"
-          SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
-        SEMICOLON ";"
+              L_CURLY "{" [] []
+              SEMICOLON ";" [] []
+              SEMICOLON ";" [] []
+              SEMICOLON ";" [] []
+              R_CURLY "}" [] []
+          SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
+        SEMICOLON ";" [] []
         CALL_EXPR
           PATH_EXPR
             PATH
               PATH_SEGMENT
                 NAME_REF
-                  IDENT "Ok"
+                  IDENT "Ok" [] []
           ARG_LIST
-            L_PAREN "("
+            L_PAREN "(" [] []
             TUPLE_EXPR
-              L_PAREN "("
-              R_PAREN ")"
-            R_PAREN ")"
-        WHITESPACE "\n"
-        R_CURLY "}"
-  WHITESPACE "\n"
+              L_PAREN "(" [] []
+              R_PAREN ")" [] []
+            R_PAREN ")" [] [NEWLINE("\n")]
+        R_CURLY "}" [] [NEWLINE("\n")]
+  EOF "" [] []
