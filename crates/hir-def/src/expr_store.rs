@@ -125,7 +125,7 @@ struct ExpressionOnlyStore {
 
     /// A map from an variable usages to their hygiene ID.
     ///
-    /// Expressions (and destructuing patterns) that can be recorded here are single segment path, although not all single segments path refer
+    /// Expressions (and destructuring patterns) that can be recorded here are single segment path, although not all single segments path refer
     /// to variables and have hygiene (some refer to items, we don't know at this stage).
     ident_hygiene: FxHashMap<ExprOrPatIdPacked, HygieneId>,
 
