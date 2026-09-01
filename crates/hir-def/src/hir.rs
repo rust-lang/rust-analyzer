@@ -10,7 +10,9 @@
 //!    names refer to.
 //! 4. Desugared. There's no `if let`.
 //!
-//! See also a neighboring `body` module.
+//! See also a neighboring [`body`] module.
+//!
+//! [`body`]: crate::expr_store::body
 
 pub mod format_args;
 pub mod generics;
