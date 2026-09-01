@@ -689,8 +689,7 @@ impl ExpressionStore {
                 visitor.on_pat(*pat);
                 visitor.on_expr(*expr);
             }
-            Expr::Block { statements, tail, id: _, label: _ }
-            | Expr::Unsafe { statements, tail, id: _ } => {
+            Expr::Block { statements, tail, id: _, label: _, unsafe_: _ } => {
                 for stmt in statements {
                     match stmt {
                         Statement::Let { initializer, else_branch, pat, type_ref } => {
