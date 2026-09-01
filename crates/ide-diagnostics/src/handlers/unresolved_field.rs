@@ -38,15 +38,12 @@ pub(crate) fn unresolved_field(
             d.receiver.display(ctx.sema.db, ctx.display_target)
         ),
         adjusted_display_range(ctx, d.expr, &|expr| {
-            Some(
-                match expr.left()? {
-                    ast::Expr::MethodCallExpr(it) => it.name_ref(),
-                    ast::Expr::FieldExpr(it) => it.name_ref(),
-                    _ => None,
-                }?
-                .syntax()
-                .text_range(),
-            )
+            let name_ref = match expr.left()? {
+                ast::Expr::MethodCallExpr(it) => it.name_ref(),
+                ast::Expr::FieldExpr(it) => it.name_ref(),
+                _ => None,
+            }?;
+            Some(syntax::token_span(name_ref.syntax()))
         }),
     )
     .with_fixes(fixes(ctx, d))
@@ -230,7 +227,7 @@ fn record_field_layout(
             let last_field_syntax = record_field.syntax();
             let last_field_indent = IndentLevel::from_node(last_field_syntax);
             (
-                last_field_syntax.text_range().end(),
+                syntax::token_span(last_field_syntax).end(),
                 syntax.kind() != SyntaxKind::COMMA,
                 last_field_indent,
             )
@@ -242,7 +239,7 @@ fn record_field_layout(
             (offset, false, indent)
         }
     };
-    let trailing_new_line = if !field_list.syntax().text().contains_char('\n') {
+    let trailing_new_line = if !syntax::token_text(field_list.syntax()).contains('\n') {
         format!("\n{}", field_list.indent_level())
     } else {
         String::new()

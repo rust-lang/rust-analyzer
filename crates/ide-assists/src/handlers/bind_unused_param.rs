@@ -1,5 +1,6 @@
 use crate::assist_context::{AssistContext, Assists};
 use ide_db::{assists::AssistId, defs::Definition, line_index};
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{self, HasName, edit::AstNodeEdit},
@@ -41,7 +42,7 @@ pub(crate) fn bind_unused_param(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     acc.add(
         AssistId::quick_fix("bind_unused_param"),
         format!("Bind as `let _ = {name};`"),
-        param.syntax().text_range(),
+        token_span(param.syntax()),
         |builder| {
             let line_index = line_index(ctx.db(), ctx.vfs_file_id());
 

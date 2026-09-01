@@ -52,7 +52,7 @@ pub(crate) fn generate_documentation_template(
     }
 
     let parent_syntax = ast_func.syntax();
-    let text_range = parent_syntax.text_range();
+    let text_range = syntax::token_span(parent_syntax);
     let indent_level = IndentLevel::from_node(parent_syntax);
 
     acc.add(
@@ -97,9 +97,9 @@ pub(crate) fn generate_documentation_template(
 // ```
 pub(crate) fn generate_doc_example(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let tok: ast::Comment = ctx.find_token_at_offset()?;
-    let node = tok.syntax().parent()?;
-    let last_doc_token =
-        ast::AnyHasDocComments::cast(node.clone())?.doc_comments().last()?.syntax().clone();
+    let has_docs = tok.syntax().parent_ancestors().find_map(ast::AnyHasDocComments::cast)?;
+    let node = has_docs.syntax().clone();
+    let last_doc_token = has_docs.doc_comments().last()?.syntax().clone();
     let next_token = skip_whitespace_token(last_doc_token.next_token()?, syntax::Direction::Next)?;
 
     let example = match_ast! {
@@ -117,7 +117,7 @@ pub(crate) fn generate_doc_example(acc: &mut Assists, ctx: &AssistContext<'_, '_
     acc.add(
         AssistId::generate("generate_doc_example"),
         "Generate a documentation example",
-        node.text_range(),
+        syntax::token_span(&node),
         |builder| {
             builder.insert(
                 next_token.text_range().start(),

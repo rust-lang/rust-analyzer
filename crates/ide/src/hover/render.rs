@@ -1,5 +1,6 @@
 //! Logic for rendering the different hover messages
 use std::{borrow::Cow, env, mem, ops::Not};
+use syntax::token_span;
 
 use either::Either;
 use hir::{
@@ -307,7 +308,7 @@ pub(super) fn struct_rest_pat(
 
 pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<HoverResult> {
     let (path, tt) = attr.as_simple_call()?;
-    if !tt.syntax().text_range().contains(token.text_range().start()) {
+    if !token_span(tt.syntax()).contains(token.text_range().start()) {
         return None;
     }
     let (is_clippy, lints) = match &*path {

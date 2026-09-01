@@ -12,6 +12,7 @@ mod html;
 mod tests;
 
 use std::ops::ControlFlow;
+use syntax::token_span;
 
 use either::Either;
 use hir::{
@@ -246,6 +247,24 @@ fn traverse(
         }
     }
 
+    for token in root.descendants_with_tokens().filter_map(|it| it.into_token()) {
+        for piece in token.leading_trivia().chain(token.trailing_trivia()) {
+            let Some(comment) = ast::Comment::cast(piece) else { continue };
+            let range = comment.syntax().text_range();
+            if !range_to_highlight.contains_range(range) {
+                continue;
+            }
+            let mut highlight = match comment.kind().doc {
+                Some(_) => HlTag::Comment | HlMod::Documentation,
+                None => HlTag::Comment.into(),
+            };
+            if !filter_by_config(&mut highlight, config) {
+                continue;
+            }
+            hl.add(HlRange { range, highlight, binding_hash: None });
+        }
+    }
+
     let empty = FxHashSet::default();
 
     // FIXME: accommodate range highlighting
@@ -268,7 +287,10 @@ fn traverse(
         use WalkEvent::{Enter, Leave};
 
         let range = match &event {
-            Enter(it) | Leave(it) => it.text_range(),
+            Enter(it) | Leave(it) => match it {
+                NodeOrToken::Node(node) => token_span(node),
+                NodeOrToken::Token(token) => token.text_range(),
+            },
         };
 
         // Element outside of the viewport, no need to highlight

@@ -1,6 +1,7 @@
 use either::Either;
 use hir::InFile;
 use ide_db::FileRange;
+use syntax::token_span;
 use syntax::{
     AstNode, AstPtr,
     ast::{self, HasArgList},
@@ -61,17 +62,17 @@ fn invalid_args_range(
             Either::Left(ast::Expr::CallExpr(call)) => {
                 let arg_list = call.arg_list()?;
                 (
-                    arg_list.syntax().text_range(),
+                    token_span(arg_list.syntax()),
                     arg_list.r_paren_token(),
-                    arg_list.args().nth(expected).map(|it| it.syntax().text_range()),
+                    arg_list.args().nth(expected).map(|it| token_span(it.syntax())),
                 )
             }
             Either::Left(ast::Expr::MethodCallExpr(call)) => {
                 let arg_list = call.arg_list()?;
                 (
-                    arg_list.syntax().text_range(),
+                    token_span(arg_list.syntax()),
                     arg_list.r_paren_token(),
-                    arg_list.args().nth(expected).map(|it| it.syntax().text_range()),
+                    arg_list.args().nth(expected).map(|it| token_span(it.syntax())),
                 )
             }
             Either::Right(ast::Pat::TupleStructPat(pat)) => {
@@ -80,7 +81,7 @@ fn invalid_args_range(
                 (
                     l_paren.text_range().cover(r_paren.text_range()),
                     Some(r_paren),
-                    pat.fields().nth(expected).map(|it| it.syntax().text_range()),
+                    pat.fields().nth(expected).map(|it| token_span(it.syntax())),
                 )
             }
             _ => return None,

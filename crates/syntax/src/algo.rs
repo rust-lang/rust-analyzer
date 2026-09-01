@@ -1,6 +1,9 @@
 //! Collection of assorted algorithms for syntax trees.
 
+use std::iter;
+
 use itertools::Itertools;
+use rowan::TokenAtOffset;
 
 use crate::{
     AstNode, Direction, NodeOrToken, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
@@ -38,6 +41,43 @@ pub fn find_node_at_range<N: AstNode>(syntax: &SyntaxNode, range: TextRange) -> 
     syntax.covering_element(range).ancestors().find_map(N::cast)
 }
 
+pub fn token_at_offset_with_trivia(
+    node: &SyntaxNode,
+    offset: TextSize,
+) -> TokenAtOffset<SyntaxToken> {
+    let mut touching: Vec<SyntaxToken> = Vec::new();
+    for token in node.token_at_offset(offset) {
+        let pieces =
+            token.leading_trivia().chain(iter::once(token.clone())).chain(token.trailing_trivia());
+        for piece in pieces {
+            let range = piece.text_range();
+            if range.start() <= offset && offset <= range.end() && !touching.contains(&piece) {
+                touching.push(piece);
+            }
+        }
+    }
+
+    match touching.len() {
+        0 => TokenAtOffset::None,
+        1 => TokenAtOffset::Single(touching.swap_remove(0)),
+        _ => {
+            let last = touching.pop().unwrap();
+            TokenAtOffset::Between(touching.swap_remove(0), last)
+        }
+    }
+}
+
+pub fn trivia_at_offset(node: &SyntaxNode, offset: TextSize) -> Option<SyntaxToken> {
+    token_at_offset_with_trivia(node, offset)
+        .find(|piece| piece.kind().is_trivia() && piece.text_range().contains(offset))
+}
+
+pub fn starts_line(token: &SyntaxToken) -> bool {
+    let newline = |piece: &SyntaxToken| piece.kind() == SyntaxKind::NEWLINE;
+    token.leading_trivia().any(|piece| newline(&piece))
+        || token.prev_token().is_none_or(|prev| prev.trailing_trivia().any(|piece| newline(&piece)))
+}
+
 /// Skip to next non `trivia` token
 pub fn skip_trivia_token(mut token: SyntaxToken, direction: Direction) -> Option<SyntaxToken> {
     while token.kind().is_trivia() {
@@ -50,7 +90,7 @@ pub fn skip_trivia_token(mut token: SyntaxToken, direction: Direction) -> Option
 }
 /// Skip to next non `whitespace` token
 pub fn skip_whitespace_token(mut token: SyntaxToken, direction: Direction) -> Option<SyntaxToken> {
-    while token.kind() == SyntaxKind::WHITESPACE {
+    while matches!(token.kind(), SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE) {
         token = match direction {
             Direction::Next => token.next_token()?,
             Direction::Prev => token.prev_token()?,

@@ -101,8 +101,7 @@ pub(crate) fn inline_local_variable(acc: &mut Assists, ctx: &AssistContext<'_, '
                     editor.insert_all(
                         Position::after(place.end()),
                         vec![
-                            make.token(T![:]).into(),
-                            make.whitespace(" ").into(),
+                            make.token_trivia(T![:], "", " ").into(),
                             replacement.syntax().clone().into(),
                         ],
                     );

@@ -4,6 +4,7 @@ use ide_db::{
     base_db::{Crate, relevant_crates},
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     algo::find_node_at_offset,
     ast::{self, AstNode},
@@ -32,7 +33,7 @@ pub(crate) fn parent_module(db: &RootDatabase, position: FilePosition) -> Vec<Na
     if let Some(m) = &module
         && !m
             .item_list()
-            .is_some_and(|it| it.syntax().text_range().contains_inclusive(position.offset))
+            .is_some_and(|it| token_span(it.syntax()).contains_inclusive(position.offset))
     {
         cov_mark::hit!(test_resolve_parent_module_on_module_decl);
         module = m.syntax().ancestors().skip(1).find_map(ast::Module::cast);

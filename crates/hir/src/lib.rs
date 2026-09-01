@@ -1313,7 +1313,7 @@ fn emit_def_diagnostic_<'db>(
             acc.push(
                 MacroDefError {
                     node: InFile::new(ast.file_id, AstPtr::new(&node)),
-                    name: node.name().map(|it| it.syntax().text_range()),
+                    name: node.name().map(|it| syntax::token_span(it.syntax())),
                     message: message.clone(),
                 }
                 .into(),
@@ -1336,8 +1336,8 @@ fn precise_macro_call_location(
                 .path()
                 .and_then(|it| it.segment())
                 .and_then(|it| it.name_ref())
-                .map(|it| it.syntax().text_range());
-            let range = range.unwrap_or_else(|| node.syntax().text_range());
+                .map(|it| syntax::token_span(it.syntax()));
+            let range = range.unwrap_or_else(|| syntax::token_span(node.syntax()));
             ast_id.with_value(range)
         }
         MacroCallKind::Derive { ast_id, derive_attr_index, derive_index, .. } => {
@@ -1345,8 +1345,9 @@ fn precise_macro_call_location(
             ast_id.with_value(range)
         }
         MacroCallKind::Attr { ast_id, censored_attr_ids: attr_ids, .. } => {
-            let attr_range =
-                attr_ids.invoc_attr().find_attr_range(db, krate, *ast_id).1.syntax().text_range();
+            let attr_range = syntax::token_span(
+                attr_ids.invoc_attr().find_attr_range(db, krate, *ast_id).1.syntax(),
+            );
             ast_id.with_value(attr_range)
         }
     }

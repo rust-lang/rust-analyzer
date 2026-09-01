@@ -9,6 +9,7 @@ use ide_db::{
     famous_defs::FamousDefs,
     syntax_helpers::suggest_name,
 };
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{
@@ -71,7 +72,7 @@ pub(crate) fn generate_blanket_trait_impl(
     acc.add(
         AssistId("generate_blanket_trait_impl", AssistKind::Generate, None),
         "Generate blanket trait implementation",
-        name.syntax().text_range(),
+        token_span(name.syntax()),
         |builder| {
             let editor = builder.make_editor(traitd.syntax());
             let make = editor.make();
@@ -128,15 +129,9 @@ pub(crate) fn generate_blanket_trait_impl(
                 body,
             );
 
-            let impl_ = impl_.indent(indent);
+            let impl_ = impl_.indent(indent).with_leading_trivia(&format!("\n\n{indent}"), make);
 
-            editor.insert_all(
-                Position::after(traitd.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    impl_.syntax().clone().into(),
-                ],
-            );
+            editor.insert(Position::after(traitd.syntax()), impl_.syntax());
 
             if let Some(cap) = ctx.config.snippet_cap
                 && let Some(self_ty) = impl_.self_ty()

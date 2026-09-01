@@ -14,6 +14,7 @@ use ide_db::{
 use itertools::Itertools;
 use syntax::ast::edit::AstNodeEdit;
 use syntax::ast::syntax_factory::SyntaxFactory;
+use syntax::token_span;
 use syntax::{
     AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T,
     ast::{self, HasName, edit::IndentLevel},
@@ -58,7 +59,7 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_
         find_bool_node(ctx)?;
     let target_module = ctx.sema.scope(&target_node)?.module().nearest_non_block_module(ctx.db());
 
-    let target = name.syntax().text_range();
+    let target = token_span(name.syntax());
     acc.add(
         AssistId::refactor_rewrite("convert_bool_to_enum"),
         "Convert boolean to enum",
@@ -67,7 +68,7 @@ pub(crate) fn convert_bool_to_enum(acc: &mut Assists, ctx: &AssistContext<'_, '_
             let make = SyntaxFactory::without_mappings();
             if let Some(ty) = &ty_annotation {
                 cov_mark::hit!(replaces_ty_annotation);
-                edit.replace(ty.syntax().text_range(), "Bool");
+                edit.replace(token_span(ty.syntax()), "Bool");
             }
 
             if let Some(initializer) = initializer {
@@ -182,7 +183,7 @@ fn find_bool_node<'db>(ctx: &AssistContext<'_, 'db>) -> Option<BoolNodeData<'db>
 }
 
 fn replace_bool_expr(edit: &mut SourceChangeBuilder, expr: ast::Expr, make: &SyntaxFactory) {
-    let expr_range = expr.syntax().text_range();
+    let expr_range = token_span(expr.syntax());
     let enum_expr = bool_expr_to_enum_expr(expr, make);
     edit.replace(expr_range, enum_expr.syntax().text())
 }
@@ -251,7 +252,7 @@ fn replace_usages(
                     cov_mark::hit!(replaces_negation);
 
                     edit.replace(
-                        prefix_expr.syntax().text_range(),
+                        token_span(prefix_expr.syntax()),
                         format!("{inner_expr} == Bool::False"),
                     );
                 } else if let Some((record_field, initializer)) = name
@@ -296,11 +297,11 @@ fn replace_usages(
                         _ => (),
                     }
                 } else if let Some((ty_annotation, initializer)) = find_assoc_const_usage(&name) {
-                    edit.replace(ty_annotation.syntax().text_range(), "Bool");
+                    edit.replace(token_span(ty_annotation.syntax()), "Bool");
                     replace_bool_expr(edit, initializer, make);
                 } else if let Some(receiver) = find_method_call_expr_usage(&name) {
                     edit.replace(
-                        receiver.syntax().text_range(),
+                        token_span(receiver.syntax()),
                         format!("({receiver} == Bool::True)"),
                     );
                 } else if name.syntax().ancestors().find_map(ast::UseTree::cast).is_none() {
@@ -504,8 +505,8 @@ fn add_enum_def(
     let enum_def = make_bool_enum(make_enum_pub, make).reset_indent().indent(indent);
 
     edit.insert(
-        insert_before.text_range().start(),
-        format!("{}\n\n{indent}", enum_def.syntax().text()),
+        syntax::token_span(&insert_before).start(),
+        format!("{}\n\n{indent}", syntax::token_text(enum_def.syntax())),
     );
 
     Some(())
@@ -530,8 +531,7 @@ fn make_bool_enum(make_pub: bool, make: &SyntaxFactory) -> ast::Enum {
             T!['('],
             vec![
                 NodeOrToken::Token(make.ident("PartialEq")),
-                NodeOrToken::Token(make.token(T![,])),
-                NodeOrToken::Token(make.whitespace(" ")),
+                NodeOrToken::Token(make.token_trivia(T![,], "", " ")),
                 NodeOrToken::Token(make.ident("Eq")),
             ],
         ),

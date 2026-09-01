@@ -1,5 +1,6 @@
 use hir::{HasSource, HirDisplay, InRealFile};
 use ide_db::assists::AssistId;
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxNode,
     ast::{self, HasArgList, syntax_factory::SyntaxFactory},
@@ -53,7 +54,7 @@ pub(crate) fn generate_enum_variant(acc: &mut Assists, ctx: &AssistContext<'_, '
         return None;
     };
 
-    let target = path.syntax().text_range();
+    let target = token_span(path.syntax());
     let name_ref: &ast::NameRef = &name_ref;
     let db = ctx.db();
     let InRealFile { file_id, value: enum_node } = e.source(db)?.original_ast_node_rooted(db)?;

@@ -2,6 +2,7 @@
 //! a call or use-site.
 
 use std::collections::BTreeSet;
+use syntax::token_span;
 
 use either::Either;
 use hir::{
@@ -77,8 +78,7 @@ pub(crate) fn signature_help(
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(file_id);
     let file = file.syntax();
-    let token = file
-        .token_at_offset(offset)
+    let token = algo::token_at_offset_with_trivia(file, offset)
         .left_biased()
         // if the cursor is sandwiched between two space tokens and the call is unclosed
         // this prevents us from leaving the CallExpression
@@ -147,7 +147,7 @@ pub(crate) fn signature_help(
         // helpful inside them.
         if let Some(expr) = ast::Expr::cast(node.clone())
             && !matches!(expr, ast::Expr::RecordExpr(..))
-            && expr.syntax().text().contains_char('\n')
+            && syntax::token_text(expr.syntax()).contains('\n')
         {
             break;
         }
@@ -705,7 +705,7 @@ fn signature_help_for_tuple_pat_ish<'db>(
 ) -> SignatureHelp {
     let rest_pat = field_pats.find(|it| matches!(it, ast::Pat::RestPat(_)));
     let is_left_of_rest_pat =
-        rest_pat.is_none_or(|it| token.text_range().start() < it.syntax().text_range().end());
+        rest_pat.is_none_or(|it| token.text_range().start() < token_span(it.syntax()).end());
 
     let commas = pat
         .children_with_tokens()

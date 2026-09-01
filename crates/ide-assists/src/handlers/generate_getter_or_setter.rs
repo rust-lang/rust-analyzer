@@ -1,5 +1,6 @@
 use ide_db::{famous_defs::FamousDefs, source_change::SourceChangeBuilder};
 use stdx::{format_to, to_lower_snake_case};
+use syntax::token_span;
 use syntax::{
     TextRange,
     ast::{
@@ -405,7 +406,7 @@ fn parse_record_field(
         format_to!(fn_name, "_mut");
     }
 
-    let target = record_field.syntax().text_range();
+    let target = token_span(record_field.syntax());
 
     Some(RecordFieldInfo { field_name, field_ty, fn_name, target })
 }
@@ -467,10 +468,8 @@ fn build_source_change(
         None,
         Some(make.assoc_item_list(items)),
     );
-    editor.insert_all(
-        Position::after(assist_info.strukt.syntax()),
-        vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
-    );
+    let impl_def = impl_def.with_leading_trivia("\n\n", make);
+    editor.insert(Position::after(assist_info.strukt.syntax()), impl_def.syntax());
 
     if let Some(cap) = ctx.config.snippet_cap
         && let Some(assoc_list) = impl_def.assoc_item_list()

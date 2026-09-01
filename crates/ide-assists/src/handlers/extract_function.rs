@@ -1,4 +1,5 @@
 use std::{iter, ops::RangeInclusive};
+use syntax::token_span;
 
 use either::Either;
 use hir::{
@@ -70,7 +71,12 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
         return None;
     }
 
-    let node = ctx.covering_element();
+    let node = match syntax::algo::trivia_at_offset(ctx.source_file().syntax(), range.start())
+        .filter(|piece| piece.text_range().contains_range(range))
+    {
+        Some(piece) => piece.into(),
+        None => ctx.covering_element(),
+    };
     if matches!(node.kind(), T!['{'] | T!['}'] | T!['('] | T![')'] | T!['['] | T![']']) {
         cov_mark::hit!(extract_function_in_braces_is_not_applicable);
         return None;
@@ -168,6 +174,11 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                 }
                 _ => fn_def.indent_with_mapping(new_indent, make).syntax().clone(),
             };
+            let fn_def = syntax::clone_subtree_with_outer_trivia(
+                &fn_def,
+                Some(&format!("\n\n{new_indent}")),
+                None,
+            );
             if let Some(cap) = ctx.config.snippet_cap {
                 let extracted_fn = fn_def.descendants().find_map(ast::Fn::cast);
                 if let Some(fn_) = extracted_fn {
@@ -227,14 +238,59 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
                     }
                     editor.replace_with_many(expr.syntax(), replacement);
                 }
-                FunctionBody::Span { .. } => editor.replace_all(elements, vec![call_expr.into()]),
+                FunctionBody::Span { .. } => {
+                    let edge = |element: &SyntaxElement, leading: bool| -> String {
+                        let token = match element {
+                            SyntaxElement::Node(node) => {
+                                if leading {
+                                    node.first_token()
+                                } else {
+                                    node.last_token()
+                                }
+                            }
+                            SyntaxElement::Token(token) => Some(token.clone()),
+                        };
+                        let pieces: Vec<_> = token
+                            .into_iter()
+                            .flat_map(|token| match leading {
+                                true => Either::Left(token.leading_trivia()),
+                                false => Either::Right(token.trailing_trivia()),
+                            })
+                            .collect();
+                        let has_comment =
+                            pieces.iter().any(|piece| piece.kind() == SyntaxKind::COMMENT);
+                        let kept = match leading {
+                            true if !has_comment => &pieces[..],
+                            true => match pieces
+                                .iter()
+                                .rposition(|piece| piece.kind() == SyntaxKind::NEWLINE)
+                            {
+                                Some(index) => &pieces[index + 1..],
+                                None => &pieces[..],
+                            },
+                            false => match pieces
+                                .iter()
+                                .position(|piece| piece.kind() == SyntaxKind::COMMENT)
+                            {
+                                Some(index) => &pieces[..index],
+                                None => &pieces[..],
+                            },
+                        };
+                        kept.iter().map(|piece| piece.text().to_owned()).collect()
+                    };
+                    let leading = edge(elements.start(), true);
+                    let trailing = edge(elements.end(), false);
+                    let call_expr = syntax::clone_subtree_with_outer_trivia(
+                        &call_expr,
+                        Some(&leading),
+                        Some(&trailing),
+                    );
+                    editor.replace_all_discard_trivia(elements, vec![call_expr.into()])
+                }
             }
 
             // Insert the newly extracted function (or impl)
-            editor.insert_all(
-                Position::after(insert_after),
-                vec![make.whitespace(&format!("\n\n{new_indent}")).into(), fn_def.into()],
-            );
+            editor.insert(Position::after(insert_after), fn_def);
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )
@@ -298,7 +354,7 @@ fn extraction_target(node: &SyntaxNode, selection_range: TextRange) -> Option<Fu
     // Covering element returned the parent block of one or multiple statements that have been selected
     if let Some(stmt_list) = ast::StmtList::cast(node.clone()) {
         if let Some(block_expr) = stmt_list.syntax().parent().and_then(ast::BlockExpr::cast)
-            && block_expr.syntax().text_range() == selection_range
+            && token_span(block_expr.syntax()) == selection_range
         {
             return FunctionBody::from_expr(block_expr.into());
         }
@@ -663,7 +719,7 @@ impl FunctionBody {
         // If the tail expr is part of the selection too, make that the last element
         // Otherwise use the last stmt
         let last_element = if let Some(tail_expr) =
-            parent.tail_expr().filter(|it| selected.intersect(it.syntax().text_range()).is_some())
+            parent.tail_expr().filter(|it| selected.intersect(token_span(it.syntax())).is_some())
         {
             Some(tail_expr.syntax().clone().into())
         } else {
@@ -696,7 +752,7 @@ impl FunctionBody {
             FunctionBody::Expr(expr) => Some(expr.clone()),
             FunctionBody::Span { parent, text_range, .. } => {
                 let tail_expr = parent.tail_expr()?;
-                text_range.contains_range(tail_expr.syntax().text_range()).then_some(tail_expr)
+                text_range.contains_range(token_span(tail_expr.syntax())).then_some(tail_expr)
             }
         }
     }
@@ -707,7 +763,7 @@ impl FunctionBody {
             FunctionBody::Span { parent, text_range, .. } => {
                 parent
                     .statements()
-                    .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
+                    .filter(|stmt| text_range.contains_range(token_span(stmt.syntax())))
                     .filter_map(|stmt| match stmt {
                         ast::Stmt::ExprStmt(expr_stmt) => expr_stmt.expr().map(|e| vec![e]),
                         ast::Stmt::Item(_) => None,
@@ -730,7 +786,7 @@ impl FunctionBody {
                     .for_each(|expr| preorder_expr(&expr, cb));
                 if let Some(expr) = parent
                     .tail_expr()
-                    .filter(|it| text_range.contains_range(it.syntax().text_range()))
+                    .filter(|it| text_range.contains_range(token_span(it.syntax())))
                 {
                     preorder_expr(&expr, cb);
                 }
@@ -744,7 +800,7 @@ impl FunctionBody {
             FunctionBody::Span { parent, text_range, .. } => {
                 parent
                     .statements()
-                    .filter(|stmt| text_range.contains_range(stmt.syntax().text_range()))
+                    .filter(|stmt| text_range.contains_range(token_span(stmt.syntax())))
                     .for_each(|stmt| match stmt {
                         ast::Stmt::ExprStmt(expr_stmt) => {
                             if let Some(expr) = expr_stmt.expr() {
@@ -766,7 +822,7 @@ impl FunctionBody {
                     });
                 if let Some(expr) = parent
                     .tail_expr()
-                    .filter(|it| text_range.contains_range(it.syntax().text_range()))
+                    .filter(|it| text_range.contains_range(token_span(it.syntax())))
                 {
                     walk_patterns_in_expr(&expr, cb);
                 }
@@ -776,7 +832,7 @@ impl FunctionBody {
 
     fn text_range(&self) -> TextRange {
         match self {
-            FunctionBody::Expr(expr) => expr.syntax().text_range(),
+            FunctionBody::Expr(expr) => token_span(expr.syntax()),
             &FunctionBody::Span { text_range, .. } => text_range,
         }
     }
@@ -815,7 +871,7 @@ impl FunctionBody {
         let mut res = FxIndexSet::default();
 
         let (text_range, element) = match self {
-            FunctionBody::Expr(expr) => (expr.syntax().text_range(), Either::Left(expr)),
+            FunctionBody::Expr(expr) => (token_span(expr.syntax()), Either::Left(expr)),
             FunctionBody::Span { parent, text_range, .. } => (*text_range, Either::Right(parent)),
         };
 
@@ -854,7 +910,7 @@ impl FunctionBody {
         let mut set_parent_loop = |loop_: &dyn ast::HasLoopBody| {
             if loop_
                 .loop_body()
-                .is_some_and(|it| it.syntax().text_range().contains_range(self.text_range()))
+                .is_some_and(|it| token_span(it.syntax()).contains_range(self.text_range()))
             {
                 parent_loop.get_or_insert(loop_.syntax().clone());
             }
@@ -922,9 +978,9 @@ impl FunctionBody {
         let expr = expr?;
         let contains_tail_expr = if let Some(body_tail) = self.tail_expr() {
             let mut contains_tail_expr = false;
-            let tail_expr_range = body_tail.syntax().text_range();
+            let tail_expr_range = token_span(body_tail.syntax());
             for_each_tail_expr(&expr, &mut |e| {
-                if tail_expr_range.contains_range(e.syntax().text_range()) {
+                if tail_expr_range.contains_range(token_span(e.syntax())) {
                     contains_tail_expr = true;
                 }
             });
@@ -1091,7 +1147,7 @@ impl FunctionBody {
                 let defined_outside_parent_loop = container_info
                     .parent_loop
                     .as_ref()
-                    .is_none_or(|it| it.text_range().contains_range(src.syntax().text_range()));
+                    .is_none_or(|it| it.text_range().contains_range(token_span(src.syntax())));
 
                 let is_copy = ty.is_copy(ctx.db());
                 let has_usages = self.has_usages_after_body(&usages);
@@ -2041,7 +2097,7 @@ fn fix_param_usages<'db>(
     let mut usages_for_param: Vec<(&Param<'db>, Vec<ast::Expr>)> = Vec::new();
     let mut usages_for_self_param: Vec<ast::Expr> = Vec::new();
     let source_range = source_syntax.text_range();
-    let syntax_offset = source_range.start() - syntax.text_range().start();
+    let syntax_offset = source_syntax.text_range().start() - syntax.text_range().start();
 
     let reference_filter = |reference: &FileReference| {
         source_range.contains_range(reference.range).then_some(())?;

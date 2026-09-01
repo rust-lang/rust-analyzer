@@ -30,10 +30,13 @@ pub(crate) fn goto_implementation(
     let source_file = sema.parse_guess_edition(file_id);
     let syntax = source_file.syntax().clone();
 
-    let original_token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
-        IDENT | T![self] | INT_NUMBER => 1,
-        _ => 0,
-    })?;
+    let original_token = pick_best_token(
+        syntax.token_at_offset(offset).filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            IDENT | T![self] | INT_NUMBER => 1,
+            _ => 0,
+        },
+    )?;
     let range = original_token.text_range();
     let navs = sema
         .descend_into_macros_exact(original_token)

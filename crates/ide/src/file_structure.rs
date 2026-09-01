@@ -1,4 +1,5 @@
 use ide_db::SymbolKind;
+use syntax::token_span;
 use syntax::{
     AstNode, AstToken, NodeOrToken, SourceFile, SyntaxNode, SyntaxToken, TextRange, WalkEvent,
     ast::{self, HasAttrs, HasGenericParams, HasName},
@@ -47,10 +48,19 @@ pub(crate) fn file_structure(
 ) -> Vec<StructureNode> {
     let mut res = Vec::new();
     let mut stack = Vec::new();
+    let mut seen_trivia = ide_db::FxHashSet::default();
 
     for event in file.syntax().preorder_with_tokens() {
         match event {
             WalkEvent::Enter(NodeOrToken::Node(node)) => {
+                for piece in split_leading_trivia(node.first_token()).0 {
+                    if seen_trivia.insert(piece.text_range())
+                        && let Some(mut symbol) = structure_token(piece)
+                    {
+                        symbol.parent = stack.last().copied();
+                        res.push(symbol);
+                    }
+                }
                 if let Some(mut symbol) = structure_node(&node, config) {
                     symbol.parent = stack.last().copied();
                     stack.push(res.len());
@@ -63,20 +73,45 @@ pub(crate) fn file_structure(
                 }
             }
             WalkEvent::Enter(NodeOrToken::Token(token)) => {
-                if let Some(mut symbol) = structure_token(token) {
-                    symbol.parent = stack.last().copied();
-                    stack.push(res.len());
-                    res.push(symbol);
+                let pieces = token
+                    .leading_trivia()
+                    .chain(std::iter::once(token.clone()))
+                    .chain(token.trailing_trivia());
+                for piece in pieces {
+                    if seen_trivia.insert(piece.text_range())
+                        && let Some(mut symbol) = structure_token(piece)
+                    {
+                        symbol.parent = stack.last().copied();
+                        res.push(symbol);
+                    }
                 }
             }
-            WalkEvent::Leave(NodeOrToken::Token(token)) => {
-                if structure_token(token).is_some() {
-                    stack.pop().unwrap();
-                }
-            }
+            WalkEvent::Leave(NodeOrToken::Token(_)) => (),
         }
     }
     res
+}
+
+fn split_leading_trivia(
+    token: Option<syntax::SyntaxToken>,
+) -> (Vec<syntax::SyntaxToken>, Vec<syntax::SyntaxToken>) {
+    let leading: Vec<_> = token.into_iter().flat_map(|it| it.leading_trivia()).collect();
+    let mut detached = 0;
+    let mut newlines = 0;
+    for (index, piece) in leading.iter().enumerate() {
+        match piece.kind() {
+            syntax::SyntaxKind::NEWLINE => {
+                newlines += 1;
+                if newlines >= 2 {
+                    detached = index + 1;
+                }
+            }
+            syntax::SyntaxKind::WHITESPACE => (),
+            _ => newlines = 0,
+        }
+    }
+    let attached = leading[detached..].to_vec();
+    (leading.into_iter().take(detached).collect(), attached)
 }
 
 fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<StructureNode> {
@@ -104,11 +139,20 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
     ) -> Option<StructureNode> {
         let name = node.name()?;
 
+        let mut node_range = token_span(node.syntax());
+        if let Some(comment) = split_leading_trivia(node.syntax().first_token())
+            .1
+            .into_iter()
+            .find(|it| it.kind() == syntax::SyntaxKind::COMMENT)
+        {
+            node_range = TextRange::new(comment.text_range().start(), node_range.end());
+        }
+
         Some(StructureNode {
             parent: None,
             label: name.text().to_owned(),
-            navigation_range: name.syntax().text_range(),
-            node_range: node.syntax().text_range(),
+            navigation_range: token_span(name.syntax()),
+            node_range,
             kind,
             detail,
             deprecated: node.attrs().filter_map(|x| x.simple_name()).any(|x| x == "deprecated"),
@@ -117,20 +161,17 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
 
     fn collapse_ws(node: &SyntaxNode, output: &mut String) {
         let mut can_insert_ws = false;
-        node.text().for_each_chunk(|chunk| {
-            for line in chunk.lines() {
-                let line = line.trim();
-                if line.is_empty() {
-                    if can_insert_ws {
-                        output.push(' ');
-                        can_insert_ws = false;
-                    }
-                } else {
-                    output.push_str(line);
-                    can_insert_ws = true;
-                }
+        for line in syntax::token_text(node).lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
             }
-        })
+            if can_insert_ws {
+                output.push(' ');
+            }
+            output.push_str(line);
+            can_insert_ws = true;
+        }
     }
 
     match_ast! {
@@ -172,12 +213,12 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 let target_type = it.self_ty()?;
                 let target_trait = it.trait_();
                 let label = match target_trait {
-                    None => format!("impl {}", target_type.syntax().text()),
+                    None => format!("impl {}", syntax::token_text(target_type.syntax())),
                     Some(t) => {
                         format!("impl {}{} for {}",
-                            it.excl_token().map(|x| x.to_string()).unwrap_or_default(),
-                            t.syntax().text(),
-                            target_type.syntax().text(),
+                            it.excl_token().map(|x| x.text().to_owned()).unwrap_or_default(),
+                            syntax::token_text(t.syntax()),
+                            syntax::token_text(target_type.syntax()),
                         )
                     }
                 };
@@ -185,8 +226,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 let node = StructureNode {
                     parent: None,
                     label,
-                    navigation_range: target_type.syntax().text_range(),
-                    node_range: it.syntax().text_range(),
+                    navigation_range: token_span(target_type.syntax()),
+                    node_range: token_span(it.syntax()),
                     kind: StructureNodeKind::SymbolKind(SymbolKind::Impl),
                     detail: None,
                     deprecated: false,
@@ -206,8 +247,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 let node = StructureNode {
                     parent: None,
                     label,
-                    navigation_range: pat.syntax().text_range(),
-                    node_range: it.syntax().text_range(),
+                    navigation_range: token_span(pat.syntax()),
+                    node_range: token_span(it.syntax()),
                     kind: StructureNodeKind::SymbolKind(SymbolKind::Local),
                     detail: it.ty().map(|ty| ty.to_string()),
                     deprecated: false,
@@ -224,8 +265,8 @@ fn structure_node(node: &SyntaxNode, config: &FileStructureConfig) -> Option<Str
                 Some(StructureNode {
                     parent: None,
                     label,
-                    navigation_range: abi.syntax().text_range(),
-                    node_range: it.syntax().text_range(),
+                    navigation_range: token_span(abi.syntax()),
+                    node_range: token_span(it.syntax()),
                     kind: StructureNodeKind::ExternBlock,
                     detail: None,
                     deprecated: false,

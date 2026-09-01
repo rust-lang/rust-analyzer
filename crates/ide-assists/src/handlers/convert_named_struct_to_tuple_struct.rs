@@ -1,11 +1,12 @@
 use either::Either;
 use ide_db::{defs::Definition, search::FileReference};
+use syntax::token_span;
 use syntax::{
-    NodeOrToken, SyntaxKind, SyntaxNode, T,
-    algo::next_non_trivia_token,
-    ast::{self, AstNode, HasAttrs, HasGenericParams, HasVisibility},
+    NodeOrToken, SyntaxToken, T,
+    algo::{next_non_trivia_token, previous_non_trivia_token},
+    ast::{self, AstNode, HasAttrs, HasGenericParams, HasVisibility, edit::AstNodeEdit},
     match_ast,
-    syntax_editor::{Element, Position, SyntaxEditor},
+    syntax_editor::{Position, SyntaxEditor},
 };
 
 use crate::{
@@ -65,7 +66,7 @@ pub(crate) fn convert_named_struct_to_tuple_struct(
         .or_else(|| ctx.find_node_at_offset::<ast::Variant>().map(Either::Right))?;
     let field_list = strukt_or_variant.as_ref().either(|s| s.field_list(), |v| v.field_list())?;
 
-    if ctx.offset() > field_list.syntax().text_range().start() {
+    if ctx.offset() > token_span(field_list.syntax()).start() {
         // Assist could be distracting after the braces
         return None;
     }
@@ -82,7 +83,7 @@ pub(crate) fn convert_named_struct_to_tuple_struct(
     acc.add(
         AssistId::refactor_rewrite("convert_named_struct_to_tuple_struct"),
         "Convert to tuple struct",
-        strukt_or_variant.syntax().text_range(),
+        token_span(strukt_or_variant.syntax()),
         |builder| {
             edit_field_references(ctx, builder, record_fields.fields());
             edit_struct_references(ctx, builder, strukt_def);
@@ -121,33 +122,15 @@ fn edit_struct_def(
             editor.delete(w.syntax());
 
             elements.extend([
-                make.whitespace("\n").into(),
-                remove_trailing_comma(w).into(),
+                remove_trailing_comma(w).with_leading_trivia("\n", make).syntax().clone().into(),
                 make.token(T![;]).into(),
-                make.whitespace("\n").into(),
             ]);
-
-            if let Some(tok) = strukt
-                .generic_param_list()
-                .and_then(|l| l.r_angle_token())
-                .and_then(|tok| tok.next_token())
-                .filter(|tok| tok.kind() == SyntaxKind::WHITESPACE)
-            {
-                editor.delete(tok);
-            }
         } else {
             elements.push(make.token(T![;]).into());
         }
     }
+    trim_trailing_trivia(&editor, previous_non_trivia_token(record_fields.syntax().clone()));
     editor.replace_with_many(record_fields.syntax(), elements);
-
-    if let Some(tok) = record_fields
-        .l_curly_token()
-        .and_then(|tok| tok.prev_token())
-        .filter(|tok| tok.kind() == SyntaxKind::WHITESPACE)
-    {
-        editor.delete(tok)
-    }
 
     builder.add_file_edits(ctx.vfs_file_id(), editor);
 }
@@ -251,13 +234,14 @@ where
     };
 
     if l_curly.kind() == T!['{'] {
-        delete_whitespace(editor, l_curly.prev_token());
-        delete_whitespace(editor, l_curly.next_token());
-        editor.replace(l_curly, make.token(T!['(']));
+        trim_trailing_trivia(editor, previous_non_trivia_token(l_curly.clone()));
+        let leading: String = l_curly.leading_trivia().map(|it| it.text().to_owned()).collect();
+        editor.replace_discard_trivia(l_curly, make.token_with_trivia(T!['('], "(", &leading, ""));
     }
     if r_curly.kind() == T!['}'] {
-        delete_whitespace(editor, r_curly.prev_token());
-        editor.replace(r_curly, make.token(T![')']));
+        trim_trailing_trivia(editor, previous_non_trivia_token(r_curly.clone()));
+        let trailing: String = r_curly.trailing_trivia().map(|it| it.text().to_owned()).collect();
+        editor.replace_discard_trivia(r_curly, make.token_with_trivia(T![')'], ")", "", &trailing));
     }
 
     for name_ref in fields(&field_list) {
@@ -267,15 +251,26 @@ where
         if let Some(colon) = next_non_trivia_token(name_range.end().clone())
             && colon.kind() == T![:]
         {
+            let leading: String = name_range
+                .start()
+                .as_token()
+                .cloned()
+                .or_else(|| name_range.start().as_node().and_then(|it| it.first_token()))
+                .into_iter()
+                .flat_map(|token| token.leading_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+            if !leading.is_empty()
+                && let Some(next) = next_non_trivia_token(colon.clone())
+            {
+                let trailing: String =
+                    next.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+                let moved = make.token_with_trivia(next.kind(), next.text(), &leading, &trailing);
+                editor.replace_discard_trivia(next, moved);
+            }
+
             editor.delete(&colon);
             editor.delete_all(name_range);
-
-            if let Some(next) = next_non_trivia_token(colon.clone())
-                && next.kind() != T!['}']
-            {
-                // Avoid overlapping delete whitespace on `{ field: }`
-                delete_whitespace(editor, colon.next_token());
-            }
         }
     }
     Some(())
@@ -315,23 +310,26 @@ fn edit_field_references(
     }
 }
 
-fn delete_whitespace(edit: &SyntaxEditor, whitespace: Option<impl Element>) {
-    let Some(whitespace) = whitespace else { return };
-    let NodeOrToken::Token(token) = whitespace.syntax_element() else { return };
-
-    if token.kind() == SyntaxKind::WHITESPACE && !token.text().contains('\n') {
-        edit.delete(token);
+fn trim_trailing_trivia(editor: &SyntaxEditor, token: Option<SyntaxToken>) {
+    let Some(token) = token else { return };
+    if token.trailing_trivia().len() == 0
+        || token.trailing_trivia().any(|piece| piece.kind() == syntax::SyntaxKind::NEWLINE)
+    {
+        return;
     }
+    let leading: String = token.leading_trivia().map(|piece| piece.text().to_owned()).collect();
+    let trimmed = editor.make().token_with_trivia(token.kind(), token.text(), &leading, "");
+    editor.replace_discard_trivia(token, trimmed);
 }
 
-fn remove_trailing_comma(w: ast::WhereClause) -> SyntaxNode {
-    let (editor, w) = SyntaxEditor::new(w.syntax().clone());
-    if let Some(last) = w.last_child_or_token()
+fn remove_trailing_comma(w: ast::WhereClause) -> ast::WhereClause {
+    let (editor, w) = SyntaxEditor::with_ast_node(&w);
+    if let Some(last) = w.syntax().last_child_or_token()
         && last.kind() == T![,]
     {
         editor.delete(last);
     }
-    editor.finish().new_root().clone()
+    ast::WhereClause::cast(editor.finish().new_root().clone()).unwrap()
 }
 
 #[cfg(test)]
@@ -750,7 +748,6 @@ where
 struct Wrap<T>(T)
 where
     T: Display;
-
 "#,
         );
     }

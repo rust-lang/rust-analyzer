@@ -3,8 +3,9 @@ use ide_db::{
     famous_defs::FamousDefs,
     syntax_helpers::node_ext::{for_each_tail_expr, walk_expr},
 };
+use syntax::token_span;
 use syntax::{
-    AstNode, NodeOrToken, SyntaxKind,
+    AstNode, NodeOrToken,
     ast::{self, HasArgList, HasGenericArgs},
     match_ast,
 };
@@ -65,7 +66,7 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
 
     let happy_type = extract_wrapped_type(type_ref)?;
 
-    acc.add(kind.assist_id(), kind.label(), type_ref.syntax().text_range(), |builder| {
+    acc.add(kind.assist_id(), kind.label(), token_span(type_ref.syntax()), |builder| {
         let editor = builder.make_editor(&parent);
         let make = editor.make();
 
@@ -83,7 +84,7 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         let is_unit_type = is_unit_type(&happy_type);
         if is_unit_type {
             if let Some(NodeOrToken::Token(token)) = ret_type.syntax().next_sibling_or_token()
-                && token.kind() == SyntaxKind::WHITESPACE
+                && token.kind().is_trivia()
             {
                 editor.delete(token);
             }
@@ -118,12 +119,21 @@ pub(crate) fn unwrap_return_type(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
                         );
                         match tail_parent {
                             Some(Either::Left(_expr)) => {
-                                if let Some(ws) = tail_expr
-                                    .syntax()
-                                    .prev_sibling_or_token()
-                                    .filter(|e| e.kind() == SyntaxKind::WHITESPACE)
+                                if let Some(prev) =
+                                    tail_expr.syntax().first_token().and_then(|it| it.prev_token())
+                                    && prev.trailing_trivia().len() != 0
                                 {
-                                    editor.delete(ws);
+                                    let leading: String = prev
+                                        .leading_trivia()
+                                        .map(|piece| piece.text().to_owned())
+                                        .collect();
+                                    let trimmed = make.token_with_trivia(
+                                        prev.kind(),
+                                        prev.text(),
+                                        &leading,
+                                        "",
+                                    );
+                                    editor.replace_discard_trivia(prev, trimmed);
                                 }
                                 editor.delete(tail_expr.syntax());
                             }

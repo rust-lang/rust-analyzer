@@ -8,6 +8,7 @@ use hir::Semantics;
 use ide_db::text_edit::TextEdit;
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
 use syntax::ast::{self, AstNode, HasName};
+use syntax::token_span;
 
 use crate::{
     DiscriminantHints, InlayHint, InlayHintLabel, InlayHintPosition, InlayHintsConfig, InlayKind,
@@ -59,8 +60,8 @@ fn variant_hints(
     let d = v.eval(sema.db);
 
     let range = match variant.field_list() {
-        Some(field_list) => name.syntax().text_range().cover(field_list.syntax().text_range()),
-        None => name.syntax().text_range(),
+        Some(field_list) => token_span(name.syntax()).cover(token_span(field_list.syntax())),
+        None => token_span(name.syntax()),
     };
     let eq_ = if eq_token.is_none() { " =" } else { "" };
     let label = InlayHintLabel::simple(
@@ -95,7 +96,7 @@ fn variant_hints(
         position: InlayHintPosition::After,
         pad_left: false,
         pad_right: false,
-        resolve_parent: Some(enum_.syntax().text_range()),
+        resolve_parent: Some(token_span(enum_.syntax())),
     });
 
     Some(())

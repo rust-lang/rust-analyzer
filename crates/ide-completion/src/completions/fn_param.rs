@@ -3,6 +3,7 @@
 use hir::HirDisplay;
 use ide_db::FxHashMap;
 use itertools::Either;
+use syntax::token_span;
 use syntax::{
     AstNode, Direction, SmolStr, SyntaxKind, TextRange, TextSize, ToSmolStr, algo,
     ast::{self, HasModuleItem},
@@ -191,7 +192,7 @@ fn should_add_self_completions(
         return false;
     }
     match param_list.params().next() {
-        Some(first) => first.pat().is_some_and(|pat| pat.syntax().text_range().contains(cursor)),
+        Some(first) => first.pat().is_some_and(|pat| token_span(pat.syntax()).contains(cursor)),
         None => true,
     }
 }

@@ -13,10 +13,10 @@ use ide_db::{
     text_edit::TextEdit,
     ty_filter::TryEnum,
 };
-use itertools::{Either, Itertools};
 use stdx::never;
+use syntax::token_span;
 use syntax::{
-    SmolStr,
+    NodeOrToken, SmolStr,
     SyntaxKind::{CLOSURE_EXPR, EXPR_STMT, MATCH_ARM, STMT_LIST},
     T, TextRange, TextSize, ToSmolStr,
     ast::{self, AstNode, AstToken},
@@ -452,21 +452,32 @@ fn include_references(initial_element: &ast::Expr) -> (ast::Expr, String) {
         resulting_element.syntax().parent().and_then(ast::RefExpr::cast)
     {
         let last_child_or_token = parent_ref_element.syntax().last_child_or_token();
-        prefix.insert_str(
-            0,
-            parent_ref_element
-                .syntax()
-                .children_with_tokens()
-                .filter(|it| Some(it) != last_child_or_token.as_ref())
-                .flat_map(|it| {
-                    let has_ws = it.next_sibling_or_token().is_some_and(|it| it.kind().is_trivia());
-                    let need_ws = !has_ws && it.kind().is_any_identifier();
-                    itertools::chain([Either::Left(it)], need_ws.then_some(Either::Right(" ")))
-                })
-                .format("")
-                .to_smolstr()
-                .as_str(),
-        );
+        let mut rendered = String::new();
+        for it in parent_ref_element
+            .syntax()
+            .children_with_tokens()
+            .filter(|it| Some(it) != last_child_or_token.as_ref())
+        {
+            let last = match &it {
+                NodeOrToken::Token(token) => Some(token.clone()),
+                NodeOrToken::Node(node) => node.last_token(),
+            };
+            match &it {
+                NodeOrToken::Token(token) => rendered.push_str(token.text()),
+                NodeOrToken::Node(node) => rendered.push_str(&node.text().to_string()),
+            }
+            let trailing: String = last
+                .into_iter()
+                .flat_map(|token| token.trailing_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+            if trailing.is_empty() && it.kind().is_any_identifier() {
+                rendered.push(' ');
+            } else {
+                rendered.push_str(&trailing);
+            }
+        }
+        prefix.insert_str(0, &rendered);
         resulting_element = ast::Expr::from(parent_ref_element);
     }
 
@@ -555,7 +566,7 @@ pub(crate) fn is_in_condition(it: &ast::Expr) -> bool {
                 ast::MatchGuard(guard) => guard.condition()? == *it,
                 ast::BinExpr(bin_expr) => (bin_expr.op_token()?.kind() == T![&&])
                     .then(|| is_in_condition(&bin_expr.into()))?,
-                ast::Expr(expr) => (expr.syntax().text_range().start() == it.syntax().text_range().start())
+                ast::Expr(expr) => (token_span(expr.syntax()).start() == token_span(it.syntax()).start())
                     .then(|| is_in_condition(&expr))?,
                 _ => return None,
             } })

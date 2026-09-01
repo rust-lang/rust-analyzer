@@ -3,6 +3,7 @@ use syntax::ast::RangeItem;
 use syntax::ast::edit::AstNodeEdit;
 use syntax::ast::{self, AstNode, HasName, LetStmt, Pat};
 use syntax::syntax_editor::SyntaxEditor;
+use syntax::token_span;
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -70,7 +71,7 @@ pub(crate) fn convert_let_else_to_match(
         } else {
             "Convert let-else to let and match"
         },
-        let_stmt.syntax().text_range(),
+        token_span(let_stmt.syntax()),
         |builder| {
             let make = editor.make();
             let binding_paths = bindings

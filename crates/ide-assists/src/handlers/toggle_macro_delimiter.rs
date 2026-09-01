@@ -1,4 +1,5 @@
 use ide_db::assists::AssistId;
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxKind, SyntaxToken, T,
     algo::{previous_non_trivia_token, skip_trivia_token},
@@ -72,7 +73,7 @@ pub(crate) fn toggle_macro_delimiter(acc: &mut Assists, ctx: &AssistContext<'_, 
             MacroDelims::LBra | MacroDelims::RBra => "Replace delimiters with parentheses",
             MacroDelims::LCur | MacroDelims::RCur => "Replace delimiters with brackets",
         },
-        token_tree.syntax().text_range(),
+        token_span(token_tree.syntax()),
         |builder| {
             let editor = builder.make_editor(token_tree.syntax());
             let make = editor.make();

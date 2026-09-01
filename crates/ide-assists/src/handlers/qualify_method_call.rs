@@ -1,5 +1,6 @@
 use hir::{AsAssocItem, AssocItem, AssocItemContainer, ItemInNs, ModuleDef, db::HirDatabase};
 use ide_db::assists::AssistId;
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::{
@@ -38,7 +39,7 @@ pub(crate) fn qualify_method_call(acc: &mut Assists, ctx: &AssistContext<'_, '_>
 
     let ident = name.ident_token()?;
 
-    let range = call.syntax().text_range();
+    let range = token_span(call.syntax());
     let resolved_call = ctx.sema.resolve_method_call(&call)?;
 
     let current_module = ctx.sema.scope(call.syntax())?.module();

@@ -76,7 +76,7 @@ fn check_errors(#[rust_analyzer::rust_fixture] ra_fixture: &str, expect: Expect)
             let ast = editioned_file_id.parse(&db).syntax_node();
             let ast_id_map = ast_id.file_id.ast_id_map(&db);
             let node = ast_id_map.get_erased(ast_id.value).to_node(&ast);
-            Some((node.text_range(), errors))
+            Some((syntax::token_span(&node), errors))
         })
         .sorted_unstable_by_key(|(range, _)| range.start())
         .format_with("\n", |(range, err), format| format(&format_args!("{range:?}: {err}")))
@@ -133,12 +133,11 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
         let mut expect_errors = false;
         let mut show_spans = false;
         let mut show_ctxt = false;
-        for comment in call.syntax().children_with_tokens().filter(|it| it.kind() == COMMENT) {
-            tree |= comment.to_string().contains("+tree");
-            expect_errors |= comment.to_string().contains("+errors");
-            show_spans |= comment.to_string().contains("+spans");
-            show_ctxt |= comment.to_string().contains("+syntaxctxt");
-        }
+        let markers = marker_comments(call.syntax());
+        tree |= markers.contains("+tree");
+        expect_errors |= markers.contains("+errors");
+        show_spans |= markers.contains("+spans");
+        show_ctxt |= markers.contains("+syntaxctxt");
 
         let mut expn_text = String::new();
         if let Some(err) = &exp.err {
@@ -174,14 +173,13 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
                 .fold(String::new(), |mut acc, line| format_to_acc!(acc, "// {line}"));
             format_to!(expn_text, "\n{}", tree)
         }
-        let range = call.syntax().text_range();
-        let range: Range<usize> = range.into();
+        let range: Range<usize> = call_range(call.syntax()).into();
         text_edits.push((range, expn_text));
     }
 
     text_edits.sort_by_key(|(range, _)| range.start);
     text_edits.reverse();
-    let mut expanded_text = source_file.to_string();
+    let mut expanded_text = source_file.syntax().text().to_string();
     for (range, text) in text_edits {
         expanded_text.replace_range(range, &text);
     }
@@ -208,10 +206,9 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
             let call = file_id.call_node(&db);
             let mut show_spans = false;
             let mut show_ctxt = false;
-            for comment in call.value.children_with_tokens().filter(|it| it.kind() == COMMENT) {
-                show_spans |= comment.to_string().contains("+spans");
-                show_ctxt |= comment.to_string().contains("+syntaxctxt");
-            }
+            let markers = marker_comments(&call.value);
+            show_spans |= markers.contains("+spans");
+            show_ctxt |= markers.contains("+syntaxctxt");
             let pp = pretty_print_macro_expansion(
                 src.value,
                 src.file_id.span_map(&db),
@@ -301,6 +298,34 @@ fn reindent(indent: IndentLevel, pp: String) -> String {
             res.push_str(line)
         } else {
             format_to!(res, "{}{}", indent, line)
+        }
+    }
+    res
+}
+
+fn call_range(call: &SyntaxNode) -> TextRange {
+    let text_start = call
+        .first_token()
+        .map_or_else(|| call.text_range().start(), |token| token.text_range().start());
+    let start = call
+        .first_token()
+        .and_then(|token| token.leading_trivia().find(|it| it.kind() == COMMENT))
+        .map_or(text_start, |comment| comment.text_range().start());
+    let end =
+        call.last_token().map_or_else(|| call.text_range().end(), |token| token.text_range().end());
+    TextRange::new(start, end)
+}
+
+fn marker_comments(call: &SyntaxNode) -> String {
+    let mut res = String::new();
+    for token in call.descendants_with_tokens().filter_map(|it| it.into_token()) {
+        if matches!(token.kind(), T!['('] | T!['['] | T!['{']) {
+            break;
+        }
+        for trivia in token.leading_trivia().chain(token.trailing_trivia()) {
+            if trivia.kind() == COMMENT {
+                res.push_str(trivia.text());
+            }
         }
     }
     res

@@ -1,4 +1,5 @@
 use ide_db::defs::{Definition, NameRefClass};
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxNode,
     ast::{self, HasName, Name, edit::AstNodeEdit},
@@ -35,7 +36,7 @@ pub(crate) fn convert_match_to_let_else(
 ) -> Option<()> {
     let let_stmt: ast::LetStmt = ctx.find_node_at_offset()?;
     let pat = let_stmt.pat()?;
-    if ctx.offset() > pat.syntax().text_range().end() {
+    if ctx.offset() > token_span(pat.syntax()).end() {
         return None;
     }
 
@@ -60,7 +61,7 @@ pub(crate) fn convert_match_to_let_else(
     acc.add(
         AssistId::refactor_rewrite("convert_match_to_let_else"),
         "Convert match to let-else",
-        let_stmt.syntax().text_range(),
+        token_span(let_stmt.syntax()),
         |builder| {
             let extracting_arm_pat =
                 rename_variable(&extracting_arm_pat, &extracted_variable_positions, pat);
@@ -73,7 +74,7 @@ pub(crate) fn convert_match_to_let_else(
                 ("", "")
             };
             builder.replace(
-                let_stmt.syntax().text_range(),
+                token_span(let_stmt.syntax()),
                 format!("let {open_paren}{extracting_arm_pat}{close_paren} = {initializer_expr} else {diverging_arm_expr};"),
             )
         },
@@ -136,7 +137,9 @@ fn rename_variable(pat: &ast::Pat, extracted: &[Name], binding: ast::Pat) -> Syn
     let make = editor.make();
     let extracted = extracted
         .iter()
-        .map(|e| e.syntax().text_range() - pat.syntax().text_range().start())
+        .map(|e| {
+            token_span(e.syntax()) - token_span(pat.syntax()).start() + token_span(&syntax).start()
+        })
         .map(|r| syntax.covering_element(r))
         .collect::<Vec<_>>();
     for extracted_syntax in extracted {

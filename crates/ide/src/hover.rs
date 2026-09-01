@@ -4,6 +4,7 @@ mod render;
 mod tests;
 
 use std::{iter, ops::Not};
+use syntax::token_span;
 
 use either::Either;
 use hir::{DisplayTarget, GenericDef, GenericSubstitution, HasCrate, HasSource, Semantics};
@@ -165,22 +166,26 @@ fn hover_offset(
     edition: Edition,
     display_target: DisplayTarget,
 ) -> Option<RangeInfo<HoverResult>> {
-    let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT
-        | INT_NUMBER
-        | LIFETIME_IDENT
-        | T![self]
-        | T![super]
-        | T![crate]
-        | T![Self]
-        | T![_] => 4,
-        // index and prefix ops and closure pipe
-        T!['['] | T![']'] | T![?] | T![*] | T![-] | T![!] | T![|] => 3,
-        kind if kind.is_keyword(edition) => 2,
-        T!['('] | T![')'] => 2,
-        kind if kind.is_trivia() => 0,
-        _ => 1,
-    })?;
+    let original_token = pick_best_token(
+        syntax::algo::token_at_offset_with_trivia(&file, offset)
+            .filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            IDENT
+            | INT_NUMBER
+            | LIFETIME_IDENT
+            | T![self]
+            | T![super]
+            | T![crate]
+            | T![Self]
+            | T![_] => 4,
+            // index and prefix ops and closure pipe
+            T!['['] | T![']'] | T![?] | T![*] | T![-] | T![!] | T![|] => 3,
+            kind if kind.is_keyword(edition) => 2,
+            T!['('] | T![')'] => 2,
+            kind if kind.is_trivia() => 0,
+            _ => 1,
+        },
+    )?;
 
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
         cov_mark::hit!(no_highlight_on_comment_hover);
@@ -439,8 +444,8 @@ fn hover_ranged(
         res.or_else(|| render::type_info_of(sema, config, &expr_or_pat, edition, display_target));
     res.map(|it| {
         let range = match expr_or_pat {
-            Either::Left(it) => it.syntax().text_range(),
-            Either::Right(it) => it.syntax().text_range(),
+            Either::Left(it) => token_span(it.syntax()),
+            Either::Right(it) => token_span(it.syntax()),
         };
         RangeInfo::new(range, it)
     })

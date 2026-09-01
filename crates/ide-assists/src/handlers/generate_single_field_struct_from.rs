@@ -9,6 +9,7 @@ use syntax::ast::{
     syntax_factory::SyntaxFactory,
 };
 use syntax::syntax_editor::{Position, SyntaxEditor};
+use syntax::token_span;
 
 use crate::{
     AssistId,
@@ -74,7 +75,7 @@ pub(crate) fn generate_single_field_struct_from(
     acc.add(
         AssistId::generate("generate_single_field_struct_from"),
         "Generate single field `From`",
-        strukt.syntax().text_range(),
+        token_span(strukt.syntax()),
         |builder| {
             let editor = builder.make_editor(strukt.syntax());
             let make = editor.make();
@@ -142,13 +143,8 @@ pub(crate) fn generate_single_field_struct_from(
                 .unwrap()
                 .indent_with_mapping(indent, make);
 
-            editor.insert_all(
-                Position::after(strukt.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    impl_.syntax().clone().into(),
-                ],
-            );
+            let impl_ = impl_.with_leading_trivia(&format!("\n\n{indent}"), make);
+            editor.insert(Position::after(strukt.syntax()), impl_.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

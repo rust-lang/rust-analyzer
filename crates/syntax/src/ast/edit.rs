@@ -9,11 +9,12 @@ use std::{
 };
 
 use crate::{
-    AstToken, NodeOrToken, SyntaxElement,
+    SyntaxElement,
     SyntaxKind::{ATTR, COMMENT, WHITESPACE},
     SyntaxNode, SyntaxToken,
     ast::{self, AstNode, HasName, make},
     syntax_editor::{Position, Removable, SyntaxEditor, SyntaxMappingBuilder},
+    syntax_node::{clone_subtree_with_outer_trivia, make_token_with_trivia, map_indent},
 };
 
 use super::syntax_factory::SyntaxFactory;
@@ -77,54 +78,37 @@ impl IndentLevel {
     }
 
     pub fn from_token(token: &SyntaxToken) -> IndentLevel {
-        for ws in prev_tokens(token.clone()).filter_map(ast::Whitespace::cast) {
-            let text = ws.syntax().text();
-            if let Some(pos) = text.rfind('\n') {
-                let level = text[pos + 1..].chars().count() / 4;
-                return IndentLevel(level as u8);
+        let mut indent = 0;
+        for piece in preceding_pieces(token.clone()) {
+            match piece.kind() {
+                crate::SyntaxKind::NEWLINE => return IndentLevel(indent),
+                WHITESPACE => indent = (piece.text().chars().count() / 4) as u8,
+                _ => indent = 0,
             }
         }
         IndentLevel(0)
     }
 
     pub(super) fn clone_increase_indent(self, node: &SyntaxNode) -> SyntaxNode {
-        let (editor, node) = SyntaxEditor::new(node.clone());
-        let tokens = node
-            .preorder_with_tokens()
-            .filter_map(|event| match event {
-                rowan::WalkEvent::Leave(NodeOrToken::Token(it)) => Some(it),
-                _ => None,
-            })
-            .filter_map(ast::Whitespace::cast)
-            .filter(|ws| ws.text().contains('\n'));
-        for ws in tokens {
-            let new_ws = make::tokens::whitespace(&format!("{}{self}", ws.syntax()));
-            editor.replace(ws.syntax(), &new_ws);
-        }
-        editor.finish().new_root().clone()
+        map_indent(node, &|indent| format!("{indent}{self}"))
     }
 
     pub(super) fn clone_decrease_indent(self, node: &SyntaxNode) -> SyntaxNode {
-        let (editor, node) = SyntaxEditor::new(node.clone());
-        let tokens = node
-            .preorder_with_tokens()
-            .filter_map(|event| match event {
-                rowan::WalkEvent::Leave(NodeOrToken::Token(it)) => Some(it),
-                _ => None,
-            })
-            .filter_map(ast::Whitespace::cast)
-            .filter(|ws| ws.text().contains('\n'));
-        for ws in tokens {
-            let new_ws =
-                make::tokens::whitespace(&ws.syntax().text().replace(&format!("\n{self}"), "\n"));
-            editor.replace(ws.syntax(), &new_ws);
-        }
-        editor.finish().new_root().clone()
+        let me = self.to_string();
+        map_indent(node, &|indent| indent.strip_prefix(&me).unwrap_or(indent).to_owned())
     }
 }
 
-fn prev_tokens(token: SyntaxToken) -> impl Iterator<Item = SyntaxToken> {
-    iter::successors(Some(token), |token| token.prev_token())
+fn preceding_pieces(token: SyntaxToken) -> impl Iterator<Item = SyntaxToken> {
+    let own_leading = token.leading_trivia().rev().collect::<Vec<_>>();
+    let earlier =
+        iter::successors(token.prev_token(), |token| token.prev_token()).flat_map(|token| {
+            let mut pieces = token.trailing_trivia().rev().collect::<Vec<_>>();
+            pieces.push(token.clone());
+            pieces.extend(token.leading_trivia().rev());
+            pieces
+        });
+    own_leading.into_iter().chain(earlier)
 }
 
 pub trait AstNodeEdit: AstNode + Clone + Sized {
@@ -148,6 +132,46 @@ pub trait AstNodeEdit: AstNode + Clone + Sized {
         new_node
     }
     #[must_use]
+    fn with_leading_trivia(&self, text: &str, make: &SyntaxFactory) -> Self {
+        let pieces: Vec<_> = self
+            .syntax()
+            .first_token()
+            .into_iter()
+            .flat_map(|token| token.leading_trivia())
+            .collect();
+        let mut leading = text.to_owned();
+        if let Some(start) = pieces.iter().position(|it| it.kind() == COMMENT) {
+            leading.extend(pieces[start..].iter().map(|it| it.text()));
+        }
+        let node = clone_subtree_with_outer_trivia(self.syntax(), Some(&leading), None);
+        self.remap_children(Self::cast(node).unwrap(), make)
+    }
+    #[must_use]
+    fn with_trailing_trivia(&self, text: &str, make: &SyntaxFactory) -> Self {
+        let pieces: Vec<_> = self
+            .syntax()
+            .last_token()
+            .into_iter()
+            .flat_map(|token| token.trailing_trivia())
+            .collect();
+        let mut trailing: String = match pieces.iter().rposition(|it| it.kind() == COMMENT) {
+            Some(end) => pieces[..=end].iter().map(|it| it.text()).collect(),
+            None => String::new(),
+        };
+        trailing.push_str(text);
+        let node = clone_subtree_with_outer_trivia(self.syntax(), None, Some(&trailing));
+        self.remap_children(Self::cast(node).unwrap(), make)
+    }
+    #[must_use]
+    fn remap_children(&self, new_node: Self, make: &SyntaxFactory) -> Self {
+        if let Some(mut mapping) = make.mappings() {
+            let mut builder = SyntaxMappingBuilder::new(new_node.syntax().clone());
+            builder.map_children(self.syntax().children(), new_node.syntax().children());
+            builder.finish(&mut mapping);
+        }
+        new_node
+    }
+    #[must_use]
     fn dedent(&self, level: IndentLevel) -> Self {
         Self::cast(level.clone_decrease_indent(self.syntax())).unwrap()
     }
@@ -162,21 +186,29 @@ impl<N: AstNode + Clone> AstNodeEdit for N {}
 
 pub trait AttrsOwnerEdit: ast::HasAttrs {
     fn remove_attrs_and_docs(&self, editor: &SyntaxEditor) {
-        let mut remove_next_ws = false;
         for child in self.syntax().children_with_tokens() {
-            match child.kind() {
-                ATTR | COMMENT => {
-                    remove_next_ws = true;
-                    editor.delete(child);
-                    continue;
-                }
-                WHITESPACE if remove_next_ws => {
-                    editor.delete(child);
-                }
-                _ => (),
+            if child.kind() == ATTR {
+                editor.delete_discard_trivia(child);
             }
-            remove_next_ws = false;
         }
+
+        let Some(first) =
+            self.syntax().children_with_tokens().find(|child| child.kind() != ATTR).and_then(
+                |child| match child {
+                    crate::NodeOrToken::Node(node) => node.first_token(),
+                    crate::NodeOrToken::Token(token) => Some(token),
+                },
+            )
+        else {
+            return;
+        };
+        if first.leading_trivia().all(|piece| piece.kind() != COMMENT) {
+            return;
+        }
+        let trailing: String =
+            first.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+        let trimmed = make_token_with_trivia(first.kind(), first.text(), "", &trailing);
+        editor.replace_discard_trivia(first, trimmed);
     }
 }
 
@@ -195,13 +227,6 @@ impl ast::IdentPat {
                         .map(|it| it.syntax().clone().into())
                         .unwrap_or_else(|| at_token.into());
                     editor.delete_all(start..=end);
-
-                    // Remove any trailing ws
-                    if let Some(last) =
-                        self.syntax().last_token().filter(|it| it.kind() == WHITESPACE)
-                    {
-                        editor.delete(last);
-                    }
                 }
             }
             Some(pat) => {
@@ -214,11 +239,22 @@ impl ast::IdentPat {
                 } else {
                     // Don't have an `@`, should have a name
                     let name = self.name().unwrap();
+                    let trailing: String = name
+                        .syntax()
+                        .last_token()
+                        .into_iter()
+                        .flat_map(|token| token.trailing_trivia())
+                        .map(|piece| piece.text().to_owned())
+                        .collect();
                     let elements = vec![
-                        make.whitespace(" ").into(),
-                        make.token(T![@]).into(),
-                        make.whitespace(" ").into(),
-                        pat.syntax().clone().into(),
+                        make.token_with_trivia(
+                            T![@],
+                            "@",
+                            if trailing.is_empty() { " " } else { "" },
+                            " ",
+                        )
+                        .into(),
+                        pat.with_trailing_trivia(&trailing, make).syntax().clone().into(),
                     ];
 
                     if self.syntax().parent().is_none() {
@@ -412,5 +448,5 @@ fn check_split_prefix(before: &str, expected: &str) {
     let prefix = use_tree.path().unwrap();
     use_tree.split_prefix_with_editor(&editor, &prefix);
     let edit = editor.finish();
-    assert_eq!(edit.new_root().to_string(), expected);
+    assert_eq!(edit.new_root().text().to_string(), expected);
 }

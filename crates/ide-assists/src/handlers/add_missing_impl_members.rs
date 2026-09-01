@@ -1,6 +1,8 @@
 use hir::HasSource;
+use syntax::token_span;
 use syntax::{
     Edition,
+    ast::edit::AstNodeEdit,
     ast::{self, AstNode, syntax_factory::SyntaxFactory},
     syntax_editor::{Position, SyntaxEditor},
 };
@@ -149,7 +151,7 @@ fn add_missing_impl_members_inner(
         return None;
     }
 
-    let target = impl_def.syntax().text_range();
+    let target = token_span(impl_def.syntax());
     acc.add(AssistId::quick_fix(assist_id), label, target, |edit| {
         let editor = edit.make_editor(impl_def.syntax());
         let make = editor.make();
@@ -193,13 +195,12 @@ fn add_missing_impl_members_inner(
             .collect::<Vec<_>>();
 
         if let Some(assoc_item_list) = impl_def.assoc_item_list() {
-            assoc_item_list.add_items(&editor, new_assoc_items);
+            let inserted = assoc_item_list.add_items(&editor, new_assoc_items);
+            first_new_item = inserted.into_iter().next();
         } else {
             let assoc_item_list = make.assoc_item_list(new_assoc_items);
-            editor.insert_all(
-                Position::after(impl_def.syntax()),
-                vec![make.whitespace(" ").into(), assoc_item_list.syntax().clone().into()],
-            );
+            let assoc_item_list = assoc_item_list.with_leading_trivia(" ", make);
+            editor.insert(Position::after(impl_def.syntax()), assoc_item_list.syntax());
             first_new_item = assoc_item_list.assoc_items().next();
         }
 
@@ -208,7 +209,7 @@ fn add_missing_impl_members_inner(
             if let DefaultMethods::No = mode
                 && let Some(ast::AssocItem::Fn(func)) = &first_new_item
                 && let Some(m) = func.syntax().descendants().find_map(ast::MacroCall::cast)
-                && m.syntax().text() == "todo!()"
+                && syntax::token_text(m.syntax()) == "todo!()"
             {
                 placeholder = Some(m);
             }

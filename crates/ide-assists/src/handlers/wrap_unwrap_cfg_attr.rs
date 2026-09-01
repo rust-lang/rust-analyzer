@@ -1,4 +1,5 @@
 use ide_db::source_change::SourceChangeBuilder;
+use syntax::token_span;
 use syntax::{
     NodeOrToken, SyntaxToken, T, TextRange, algo,
     ast::{self, AstNode, edit::AstNodeEdit},
@@ -165,7 +166,7 @@ fn wrap_derive(
     attr: ast::Attr,
     derive_element: TextRange,
 ) -> Option<()> {
-    let range = attr.syntax().text_range();
+    let range = token_span(attr.syntax());
     let ast::Meta::TokenTreeMeta(meta) = attr.meta()? else { return None };
     let token_tree = meta.token_tree()?;
     let mut path_text = String::new();
@@ -205,13 +206,10 @@ fn wrap_derive(
         );
 
         let cfg_attr = make.attr_outer(meta.clone().into());
+        let new_derive = new_derive.with_trailing_trivia("\n", make);
         editor.replace_with_many(
             attr.syntax(),
-            vec![
-                new_derive.syntax().clone().into(),
-                make.whitespace("\n").into(),
-                cfg_attr.syntax().clone().into(),
-            ],
+            vec![new_derive.syntax().clone().into(), cfg_attr.syntax().clone().into()],
         );
 
         if let Some(snippet_cap) = ctx.config.snippet_cap
@@ -238,7 +236,7 @@ fn wrap_cfg_attrs(
     attrs: Vec<ast::Attr>,
 ) -> Option<()> {
     let (first_attr, last_attr) = (attrs.first()?, attrs.last()?);
-    let range = first_attr.syntax().text_range().cover(last_attr.syntax().text_range());
+    let range = token_span(first_attr.syntax()).cover(token_span(last_attr.syntax()));
     let handle_source_change = |edit: &mut SourceChangeBuilder| {
         let editor = edit.make_editor(first_attr.syntax());
         let make = editor.make();
@@ -276,7 +274,7 @@ fn unwrap_cfg_attr(
     meta: ast::CfgAttrMeta,
 ) -> Option<()> {
     let top_attr = ast::Meta::from(meta.clone()).parent_attr()?;
-    let range = top_attr.syntax().text_range();
+    let range = token_span(top_attr.syntax());
     let inner_metas: Vec<ast::Meta> = meta.metas().collect();
     if inner_metas.is_empty() {
         return None;
@@ -292,10 +290,11 @@ fn unwrap_cfg_attr(
             let make = editor.make();
             let mut elements = vec![];
             for (i, meta) in inner_metas.into_iter().enumerate() {
-                if i > 0 {
-                    elements.push(make.whitespace(&format!("\n{indent}")).into());
-                }
                 let attr = if is_inner { make.attr_inner(meta) } else { make.attr_outer(meta) };
+                let attr = match i {
+                    0 => attr,
+                    _ => attr.with_leading_trivia(&format!("\n{indent}"), make),
+                };
                 elements.push(attr.syntax().clone().into());
             }
             editor.replace_with_many(top_attr.syntax(), elements);

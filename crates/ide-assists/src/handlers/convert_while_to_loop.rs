@@ -1,4 +1,5 @@
 use std::iter;
+use syntax::token_span;
 
 use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use syntax::{
@@ -45,7 +46,7 @@ pub(crate) fn convert_while_to_loop(acc: &mut Assists, ctx: &AssistContext<'_, '
     let while_cond = while_expr.condition()?;
     let l_curly = while_body.stmt_list()?.l_curly_token()?;
 
-    let target = while_expr.syntax().text_range();
+    let target = token_span(while_expr.syntax());
     acc.add(
         AssistId::refactor_rewrite("convert_while_to_loop"),
         "Convert while to loop",
@@ -76,19 +77,13 @@ pub(crate) fn convert_while_to_loop(acc: &mut Assists, ctx: &AssistContext<'_, '
             } else {
                 let if_cond = invert_boolean_expression(make, while_cond);
                 let if_expr = make.expr_if(if_cond, break_block, None).indent(while_indent_level);
-                if !while_body.syntax().text().contains_char('\n') {
-                    editor.insert(
-                        Position::after(&l_curly),
-                        make.whitespace(&format!("\n{while_indent_level}")),
-                    );
-                }
-                editor.insert_all(
-                    Position::after(&l_curly),
-                    vec![
-                        make.whitespace(&format!("\n{}", while_indent_level + 1)).into(),
-                        if_expr.syntax().syntax_element(),
-                    ],
-                );
+                let if_expr =
+                    if_expr.with_leading_trivia(&format!("\n{}", while_indent_level + 1), make);
+                let if_expr = match syntax::token_text(while_body.syntax()).contains('\n') {
+                    true => if_expr,
+                    false => if_expr.with_trailing_trivia(&format!("\n{while_indent_level}"), make),
+                };
+                editor.insert(Position::after(&l_curly), if_expr.syntax());
             };
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },

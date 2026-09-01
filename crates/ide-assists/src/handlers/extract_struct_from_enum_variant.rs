@@ -1,4 +1,5 @@
 use std::iter;
+use syntax::token_span;
 
 use either::Either;
 use hir::{EnumVariant, HasCrate, Module, ModuleDef, Name};
@@ -54,7 +55,7 @@ pub(crate) fn extract_struct_from_enum_variant(
 
     let enum_ast = variant.parent_enum();
     let enum_hir = ctx.sema.to_def(&enum_ast)?;
-    let target = variant.syntax().text_range();
+    let target = token_span(variant.syntax());
     acc.add(
         AssistId::refactor_rewrite("extract_struct_from_enum_variant"),
         "Extract struct from enum variant",
@@ -137,12 +138,6 @@ pub(crate) fn extract_struct_from_enum_variant(
                 field_list.clone()
             };
 
-            let (comments_for_struct, comments_to_delete) =
-                collect_variant_comments(make, variant.syntax());
-            for element in &comments_to_delete {
-                editor.delete(element.clone());
-            }
-
             let def = create_struct_def(
                 make,
                 variant_name.clone(),
@@ -155,15 +150,22 @@ pub(crate) fn extract_struct_from_enum_variant(
             let indent = enum_ast.indent_level();
             let def = def.indent(indent);
 
+            let _first = enum_ast.syntax().first_token();
+
             let mut insert_items: Vec<SyntaxElement> = Vec::new();
-            for attr in enum_ast.attrs() {
-                insert_items.push(attr.syntax().clone().into());
-                insert_items.push(make.whitespace("\n").into());
-            }
-            insert_items.extend(comments_for_struct);
+            let mut attrs = enum_ast.attrs().peekable();
+            let has_attrs = attrs.peek().is_some();
+            insert_items.extend(attrs.map(|attr| attr.syntax().clone().into()));
+
+            let comments = collect_variant_comments(&editor, variant.syntax(), "\n");
+            let has_comments = !comments.is_empty();
+            insert_items.extend(comments);
+
+            let def =
+                if has_attrs || has_comments { def.with_leading_trivia("\n", make) } else { def };
+            let def = def.with_trailing_trivia(&format!("\n\n{indent}"), make);
             insert_items.push(def.syntax().clone().into());
-            insert_items.push(make.whitespace(&format!("\n\n{indent}")).into());
-            editor.insert_all_with_whitespace(Position::before(enum_ast.syntax()), insert_items);
+            editor.insert_all(Position::before(enum_ast.syntax()), insert_items);
 
             update_variant(&editor, &variant, generic_params);
 
@@ -343,45 +345,44 @@ fn update_variant(
     let field_list = make.tuple_field_list(iter::once(tuple_field));
     editor.replace(variant.field_list()?.syntax(), field_list.syntax());
 
-    // remove any ws after the name
-    if let Some(ws) = name
-        .syntax()
-        .siblings_with_tokens(syntax::Direction::Next)
-        .find_map(|tok| tok.into_token().filter(|tok| tok.kind() == WHITESPACE))
+    if let Some(last) = name.syntax().last_token()
+        && last.trailing_trivia().len() != 0
     {
-        editor.delete(ws);
+        let leading: String = last.leading_trivia().map(|piece| piece.text().to_owned()).collect();
+        let trimmed = make.token_with_trivia(last.kind(), last.text(), &leading, "");
+        editor.replace_discard_trivia(last, trimmed);
     }
 
     Some(())
 }
 
 fn collect_variant_comments(
-    make: &SyntaxFactory,
+    editor: &SyntaxEditor,
     node: &SyntaxNode,
-) -> (Vec<SyntaxElement>, Vec<SyntaxElement>) {
-    let mut to_insert: Vec<SyntaxElement> = Vec::new();
-    let mut to_delete: Vec<SyntaxElement> = Vec::new();
-    let mut after_comment = false;
+    leading: &str,
+) -> Vec<SyntaxElement> {
+    let make = editor.make();
+    let Some(first) = node.first_token() else { return Vec::new() };
 
-    for child in node.children_with_tokens() {
-        match child.kind() {
-            COMMENT => {
-                after_comment = true;
-                to_insert.push(child.clone());
-                to_delete.push(child);
-            }
-            WHITESPACE if after_comment => {
-                after_comment = false;
-                to_insert.push(make.whitespace("\n").into());
-                to_delete.push(child);
-            }
-            _ => {
-                after_comment = false;
-            }
+    let mut comments: Vec<SyntaxElement> = Vec::new();
+    let mut kept = String::new();
+    for piece in first.leading_trivia() {
+        if piece.kind() == COMMENT {
+            let before = if comments.is_empty() { leading } else { "\n" };
+            comments.push(make.token_with_trivia(COMMENT, piece.text(), before, "").into());
+        } else {
+            kept = piece.text().to_owned();
         }
     }
 
-    (to_insert, to_delete)
+    if !comments.is_empty() {
+        let trailing: String =
+            first.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+        let trimmed = make.token_with_trivia(first.kind(), first.text(), &kept, &trailing);
+        editor.replace_discard_trivia(first, trimmed);
+    }
+
+    comments
 }
 
 fn apply_references(
@@ -405,7 +406,20 @@ fn apply_references(
     let path = make.path_from_segments(iter::once(segment.clone()), false);
     editor.insert(Position::before(segment.syntax()), make.token(T!['(']));
     editor.insert(Position::before(segment.syntax()), path.syntax());
-    editor.insert(Position::after(&node), make.token(T![')']));
+    let r_paren = make.token(T![')']);
+    let r_paren = match node.last_token().filter(|it| it.trailing_trivia().len() != 0) {
+        Some(last) => {
+            let trailing: String =
+                last.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+            let leading: String =
+                last.leading_trivia().map(|piece| piece.text().to_owned()).collect();
+            let trimmed = make.token_with_trivia(last.kind(), last.text(), &leading, "");
+            editor.replace_discard_trivia(last, trimmed);
+            make.token_with_trivia(r_paren.kind(), r_paren.text(), "", &trailing)
+        }
+        None => r_paren,
+    };
+    editor.insert(Position::after(&node), r_paren);
 }
 
 fn process_references(
@@ -450,7 +464,7 @@ fn reference_to_node(
         reference.name.as_name_ref()?.syntax().parent().and_then(ast::PathSegment::cast)?;
 
     // filter out the reference in marco
-    let segment_range = segment.syntax().text_range();
+    let segment_range = token_span(segment.syntax());
     if segment_range != reference.range {
         return None;
     }

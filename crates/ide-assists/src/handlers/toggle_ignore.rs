@@ -1,3 +1,4 @@
+use syntax::token_span;
 use syntax::{
     AstNode, AstToken,
     ast::{self, HasAttrs, edit::AstNodeEdit},
@@ -33,15 +34,15 @@ pub(crate) fn toggle_ignore(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
         None => acc.add(
             AssistId::refactor("toggle_ignore"),
             "Ignore this test",
-            attr.syntax().text_range(),
+            token_span(attr.syntax()),
             |builder| {
-                builder.insert(attr.syntax().text_range().end(), format!("\n{indent}#[ignore]"))
+                builder.insert(token_span(attr.syntax()).end(), format!("\n{indent}#[ignore]"))
             },
         ),
         Some(ignore_attr) => acc.add(
             AssistId::refactor("toggle_ignore"),
             "Re-enable this test",
-            ignore_attr.syntax().text_range(),
+            token_span(ignore_attr.syntax()),
             |builder| {
                 builder.delete(ignore_attr.syntax().text_range());
                 let whitespace = ignore_attr
@@ -58,7 +59,9 @@ pub(crate) fn toggle_ignore(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> O
 }
 
 fn has_ignore_attribute(fn_def: &ast::Fn) -> Option<ast::Attr> {
-    fn_def.attrs().find(|attr| attr.path().is_some_and(|it| it.syntax().text() == "ignore"))
+    fn_def
+        .attrs()
+        .find(|attr| attr.path().is_some_and(|it| syntax::token_text(it.syntax()) == "ignore"))
 }
 
 #[cfg(test)]

@@ -35,7 +35,7 @@ macro_rules! f {
     };
 }
 
-struct#0:MacroRules[BE8F, 0]@58..64#1920# MyTraitMap2#0:MacroCall[BE8F, 0]@31..42#ROOT2024# {#0:MacroRules[BE8F, 0]@72..73#1920#
+struct#0:MacroRules[BE8F, 0]@58..64#1920# MyTraitMap2#0:MacroCall[BE8F, 0]@10..21#ROOT2024# {#0:MacroRules[BE8F, 0]@72..73#1920#
     map#0:MacroRules[BE8F, 0]@86..89#1920#:#0:MacroRules[BE8F, 0]@89..90#1920# #0:MacroRules[BE8F, 0]@89..90#1920#::#0:MacroRules[BE8F, 0]@91..93#1920#std#0:MacroRules[BE8F, 0]@93..96#1920#::#0:MacroRules[BE8F, 0]@96..98#1920#collections#0:MacroRules[BE8F, 0]@98..109#1920#::#0:MacroRules[BE8F, 0]@109..111#1920#HashSet#0:MacroRules[BE8F, 0]@111..118#1920#<#0:MacroRules[BE8F, 0]@118..119#1920#(#0:MacroRules[BE8F, 0]@119..120#1920#)#0:MacroRules[BE8F, 0]@120..121#1920#>#0:MacroRules[BE8F, 0]@121..122#1920#,#0:MacroRules[BE8F, 0]@122..123#1920#
 }#0:MacroRules[BE8F, 0]@132..133#1920#
 "#]],
@@ -531,31 +531,31 @@ fn bar() {
 }
 // MACRO_ITEMS@0..17
 //   FN@0..17
-//     FN_KW@0..2 "fn"
+//     FN_KW@0..2 "fn" [] []
 //     NAME@2..5
-//       IDENT@2..5 "bar"
+//       IDENT@2..5 "bar" [] []
 //     PARAM_LIST@5..7
-//       L_PAREN@5..6 "("
-//       R_PAREN@6..7 ")"
+//       L_PAREN@5..6 "(" [] []
+//       R_PAREN@6..7 ")" [] []
 //     BLOCK_EXPR@7..17
 //       STMT_LIST@7..17
-//         L_CURLY@7..8 "{"
+//         L_CURLY@7..8 "{" [] []
 //         EXPR_STMT@8..16
 //           BIN_EXPR@8..15
 //             PAREN_EXPR@8..13
-//               L_PAREN@8..9 "("
+//               L_PAREN@8..9 "(" [] []
 //               BIN_EXPR@9..12
 //                 LITERAL@9..10
-//                   INT_NUMBER@9..10 "1"
-//                 PLUS@10..11 "+"
+//                   INT_NUMBER@9..10 "1" [] []
+//                 PLUS@10..11 "+" [] []
 //                 LITERAL@11..12
-//                   INT_NUMBER@11..12 "2"
-//               R_PAREN@12..13 ")"
-//             STAR@13..14 "*"
+//                   INT_NUMBER@11..12 "2" [] []
+//               R_PAREN@12..13 ")" [] []
+//             STAR@13..14 "*" [] []
 //             LITERAL@14..15
-//               INT_NUMBER@14..15 "3"
-//           SEMICOLON@15..16 ";"
-//         R_CURLY@16..17 "}"
+//               INT_NUMBER@14..15 "3" [] []
+//           SEMICOLON@15..16 ";" [] []
+//         R_CURLY@16..17 "}" [] []
 
 "#]],
     )
@@ -654,37 +654,37 @@ struct Bar {
 }
 // MACRO_ITEMS@0..40
 //   STRUCT@0..20
-//     STRUCT_KW@0..6 "struct"
+//     STRUCT_KW@0..6 "struct" [] []
 //     NAME@6..9
-//       IDENT@6..9 "Foo"
+//       IDENT@6..9 "Foo" [] []
 //     RECORD_FIELD_LIST@9..20
-//       L_CURLY@9..10 "{"
+//       L_CURLY@9..10 "{" [] []
 //       RECORD_FIELD@10..19
 //         NAME@10..15
-//           IDENT@10..15 "field"
-//         COLON@15..16 ":"
+//           IDENT@10..15 "field" [] []
+//         COLON@15..16 ":" [] []
 //         PATH_TYPE@16..19
 //           PATH@16..19
 //             PATH_SEGMENT@16..19
 //               NAME_REF@16..19
-//                 IDENT@16..19 "u32"
-//       R_CURLY@19..20 "}"
+//                 IDENT@16..19 "u32" [] []
+//       R_CURLY@19..20 "}" [] []
 //   STRUCT@20..40
-//     STRUCT_KW@20..26 "struct"
+//     STRUCT_KW@20..26 "struct" [] []
 //     NAME@26..29
-//       IDENT@26..29 "Bar"
+//       IDENT@26..29 "Bar" [] []
 //     RECORD_FIELD_LIST@29..40
-//       L_CURLY@29..30 "{"
+//       L_CURLY@29..30 "{" [] []
 //       RECORD_FIELD@30..39
 //         NAME@30..35
-//           IDENT@30..35 "field"
-//         COLON@35..36 ":"
+//           IDENT@30..35 "field" [] []
+//         COLON@35..36 ":" [] []
 //         PATH_TYPE@36..39
 //           PATH@36..39
 //             PATH_SEGMENT@36..39
 //               NAME_REF@36..39
-//                 IDENT@36..39 "u32"
-//       R_CURLY@39..40 "}"
+//                 IDENT@36..39 "u32" [] []
+//       R_CURLY@39..40 "}" [] []
 
             "#]],
     );
@@ -742,34 +742,34 @@ fn f() -> i32 {
     a
 // MACRO_STMTS@0..15
 //   LET_STMT@0..7
-//     LET_KW@0..3 "let"
+//     LET_KW@0..3 "let" [] []
 //     IDENT_PAT@3..4
 //       NAME@3..4
-//         IDENT@3..4 "a"
-//     EQ@4..5 "="
+//         IDENT@3..4 "a" [] []
+//     EQ@4..5 "=" [] []
 //     LITERAL@5..6
-//       INT_NUMBER@5..6 "0"
-//     SEMICOLON@6..7 ";"
+//       INT_NUMBER@5..6 "0" [] []
+//     SEMICOLON@6..7 ";" [] []
 //   EXPR_STMT@7..14
 //     BIN_EXPR@7..13
 //       PATH_EXPR@7..8
 //         PATH@7..8
 //           PATH_SEGMENT@7..8
 //             NAME_REF@7..8
-//               IDENT@7..8 "a"
-//       EQ@8..9 "="
+//               IDENT@7..8 "a" [] []
+//       EQ@8..9 "=" [] []
 //       BIN_EXPR@9..13
 //         LITERAL@9..11
-//           INT_NUMBER@9..11 "10"
-//         PLUS@11..12 "+"
+//           INT_NUMBER@9..11 "10" [] []
+//         PLUS@11..12 "+" [] []
 //         LITERAL@12..13
-//           INT_NUMBER@12..13 "1"
-//     SEMICOLON@13..14 ";"
+//           INT_NUMBER@12..13 "1" [] []
+//     SEMICOLON@13..14 ";" [] []
 //   PATH_EXPR@14..15
 //     PATH@14..15
 //       PATH_SEGMENT@14..15
 //         NAME_REF@14..15
-//           IDENT@14..15 "a"
+//           IDENT@14..15 "a" [] []
 
 }
 "#]],
@@ -1745,42 +1745,42 @@ fn f() {
 }
 // MACRO_ITEMS@0..19
 //   FN@0..19
-//     FN_KW@0..2 "fn"
+//     FN_KW@0..2 "fn" [] []
 //     NAME@2..3
-//       IDENT@2..3 "f"
+//       IDENT@2..3 "f" [] []
 //     PARAM_LIST@3..5
-//       L_PAREN@3..4 "("
-//       R_PAREN@4..5 ")"
+//       L_PAREN@3..4 "(" [] []
+//       R_PAREN@4..5 ")" [] []
 //     BLOCK_EXPR@5..19
 //       STMT_LIST@5..19
-//         L_CURLY@5..6 "{"
+//         L_CURLY@5..6 "{" [] []
 //         EXPR_STMT@6..10
 //           PATH_EXPR@6..10
 //             PATH@6..10
 //               PATH@6..7
 //                 PATH_SEGMENT@6..7
 //                   NAME_REF@6..7
-//                     IDENT@6..7 "K"
-//               COLON2@7..9 "::"
+//                     IDENT@6..7 "K" [] []
+//               COLON2@7..9 "::" [] []
 //               PATH_SEGMENT@9..10
 //                 ERROR@9..10
-//                   L_PAREN@9..10 "("
+//                   L_PAREN@9..10 "(" [] []
 //         EXPR_STMT@10..16
 //           CALL_EXPR@10..16
 //             PATH_EXPR@10..11
 //               PATH@10..11
 //                 PATH_SEGMENT@10..11
 //                   NAME_REF@10..11
-//                     IDENT@10..11 "C"
+//                     IDENT@10..11 "C" [] []
 //             ARG_LIST@11..16
-//               L_PAREN@11..12 "("
+//               L_PAREN@11..12 "(" [] []
 //               LITERAL@12..15
-//                 STRING@12..15 "\"0\""
-//               R_PAREN@15..16 ")"
+//                 STRING@12..15 "\"0\"" [] []
+//               R_PAREN@15..16 ")" [] []
 //         ERROR@16..17
-//           R_PAREN@16..17 ")"
-//         SEMICOLON@17..18 ";"
-//         R_CURLY@18..19 "}"
+//           R_PAREN@16..17 ")" [] []
+//         SEMICOLON@17..18 ";" [] []
+//         R_CURLY@18..19 "}" [] []
 
 "#]],
     );

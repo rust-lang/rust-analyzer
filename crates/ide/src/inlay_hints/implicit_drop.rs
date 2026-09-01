@@ -12,6 +12,7 @@ use hir::{
     name,
 };
 use ide_db::{FileRange, famous_defs::FamousDefs};
+use syntax::token_span;
 
 use syntax::{
     ToSmolStr,
@@ -125,7 +126,7 @@ pub(super) fn hints(
                 kind: InlayKind::Drop,
                 label,
                 text_edit: None,
-                resolve_parent: Some(node.syntax().text_range()),
+                resolve_parent: Some(token_span(node.syntax())),
             })
         }
     }

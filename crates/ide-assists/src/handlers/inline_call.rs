@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use syntax::token_span;
 
 use either::Either;
 use hir::{FileRange, PathResolution, Semantics, TypeInfo, db::HirDatabase, sym};
@@ -90,7 +91,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
         .clone()
         .in_scope(&SearchScope::file_range(FileRange {
             file_id: def_file,
-            range: func_body.syntax().text_range(),
+            range: token_span(func_body.syntax()),
         }))
         .at_least_one();
     if is_recursive_fn {
@@ -101,7 +102,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     acc.add(
         AssistId::refactor_inline("inline_into_callers"),
         "Inline into all callers",
-        name.syntax().text_range(),
+        token_span(name.syntax()),
         |builder| {
             let mut usages = usages.all();
             let current_file_usage = usages.references.remove(&def_file);
@@ -124,10 +125,10 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_, '_>
                 // Skip calls nested inside other calls being inlined to avoid overlapping
                 // edits. Nested calls are implicitly replaced when the outer call is inlined.
                 let all_ranges: Vec<TextRange> =
-                    call_infos.iter().map(|ci| ci.node.syntax().text_range()).collect();
+                    call_infos.iter().map(|ci| token_span(ci.node.syntax())).collect();
                 let (call_infos, nested_infos): (Vec<_>, Vec<_>) =
                     call_infos.into_iter().partition(|ci| {
-                        let r = ci.node.syntax().text_range();
+                        let r = token_span(ci.node.syntax());
                         !all_ranges.iter().any(|&other| other != r && other.contains_range(r))
                     });
                 let nested_count = nested_infos.len();
@@ -349,7 +350,7 @@ fn inline<'db>(
 
     // Capture before `with_ast_node` re-roots and loses the source-relative position.
     let mut original_body_indent = IndentLevel::from_node(fn_body.syntax());
-    let body_offset = fn_body.syntax().text_range().start();
+    let body_offset = token_span(fn_body.syntax()).start();
     let (editor, body) = SyntaxEditor::with_ast_node(fn_body);
 
     let usages_for_locals = |local| {
@@ -374,7 +375,7 @@ fn inline<'db>(
                     .map(|FileReference { name, .. }| match name {
                         FileReferenceNode::NameRef(it) => body
                             .syntax()
-                            .covering_element(it.syntax().text_range() - body_offset)
+                            .covering_element(token_span(it.syntax()) - body_offset)
                             .ancestors()
                             .nth(3)
                             .and_then(ast::PathExpr::cast),
@@ -400,7 +401,7 @@ fn inline<'db>(
                 usages_for_locals(self_local)
                     .filter_map(|FileReference { name, .. }| match name {
                         FileReferenceNode::NameRef(it) => Some(
-                            body.syntax().covering_element(it.syntax().text_range() - body_offset),
+                            body.syntax().covering_element(token_span(it.syntax()) - body_offset),
                         ),
                         _ => None,
                     })
@@ -431,8 +432,8 @@ fn inline<'db>(
                 // generics aren't valid in expression position. The outermost
                 // `GenericArgList` text is unique within `t`'s text (any inner generics
                 // are nested inside it), so `replacen(.., 1)` is safe.
-                let stripped = t.syntax().text().to_string().replacen(
-                    &generic_arg_list.syntax().text().to_string(),
+                let stripped = syntax::token_text(t.syntax()).replacen(
+                    &syntax::token_text(generic_arg_list.syntax()),
                     "",
                     1,
                 );
@@ -453,7 +454,7 @@ fn inline<'db>(
                 if let Some(node) = has_token.as_node()
                     && let Some(ident_pat) = ast::IdentPat::cast(node.to_owned())
                 {
-                    func_let_vars.insert(ident_pat.syntax().text().to_string());
+                    func_let_vars.insert(syntax::token_text(ident_pat.syntax()));
                 }
             }
         }
@@ -540,7 +541,7 @@ fn inline<'db>(
 
         // check if there is a local var in the function that conflicts with parameter
         // if it does then emit a let statement and continue
-        if func_let_vars.contains(&expr.syntax().text().to_string()) {
+        if func_let_vars.contains(&syntax::token_text(expr.syntax())) {
             if is_self_param {
                 rewrite_self_to_this(&editor);
             }

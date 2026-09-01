@@ -3,6 +3,7 @@ use ide_db::RootDatabase;
 use ide_db::text_edit::TextEdit;
 use ide_db::{EditionedFileId, FileRange, source_change::SourceChange};
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{AstNode, SyntaxNode, SyntaxNodePtr, ast};
 
 use crate::{Diagnostic, DiagnosticCode, fix};
@@ -29,8 +30,8 @@ pub(crate) fn useless_braces(
             return Some(());
         }
 
-        let use_range = use_tree_list.syntax().text_range();
-        let to_replace = single_use_tree.syntax().text().to_string();
+        let use_range = token_span(use_tree_list.syntax());
+        let to_replace = syntax::token_text(single_use_tree.syntax());
         let mut edit_builder = TextEdit::builder();
         edit_builder.delete(use_range);
         edit_builder.insert(use_range.start(), to_replace);

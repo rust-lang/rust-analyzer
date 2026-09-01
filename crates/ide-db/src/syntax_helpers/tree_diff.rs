@@ -27,10 +27,10 @@ impl TreeDiff {
                 TreeDiffInsertPos::After(it) => it.text_range().end(),
                 TreeDiffInsertPos::AsFirstChild(it) => it.text_range().start(),
             };
-            to.iter().for_each(|to| builder.insert(offset, to.to_string()));
+            to.iter().for_each(|to| builder.insert(offset, full_text(to)));
         }
         for (from, to) in &self.replacements {
-            builder.replace(from.text_range(), to.to_string());
+            builder.replace(from.text_range(), full_text(to));
         }
         for text_range in self.deletions.iter().map(SyntaxElement::text_range) {
             builder.delete(text_range);
@@ -39,6 +39,13 @@ impl TreeDiff {
 
     pub fn is_empty(&self) -> bool {
         self.replacements.is_empty() && self.deletions.is_empty() && self.insertions.is_empty()
+    }
+}
+
+fn full_text(element: &SyntaxElement) -> String {
+    match element {
+        NodeOrToken::Node(it) => it.text().to_string(),
+        NodeOrToken::Token(it) => it.text_including_trivia(),
     }
 }
 
@@ -63,6 +70,14 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
     }
     return diff;
 
+    fn syntax_element_trimmed_eq(lhs: &SyntaxElement, rhs: &SyntaxElement) -> bool {
+        let text = |element: &SyntaxElement| match element {
+            NodeOrToken::Node(it) => syntax::token_text(it),
+            NodeOrToken::Token(it) => it.text().to_owned(),
+        };
+        lhs.kind() == rhs.kind() && text(lhs) == text(rhs)
+    }
+
     fn syntax_element_eq(lhs: &SyntaxElement, rhs: &SyntaxElement) -> bool {
         lhs.kind() == rhs.kind()
             && lhs.text_range().len() == rhs.text_range().len()
@@ -70,7 +85,9 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
                 (NodeOrToken::Node(lhs), NodeOrToken::Node(rhs)) => {
                     lhs == rhs || lhs.text() == rhs.text()
                 }
-                (NodeOrToken::Token(lhs), NodeOrToken::Token(rhs)) => lhs.text() == rhs.text(),
+                (NodeOrToken::Token(lhs), NodeOrToken::Token(rhs)) => {
+                    lhs.text_including_trivia() == rhs.text_including_trivia()
+                }
                 _ => false,
             }
     }
@@ -91,6 +108,7 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
         let mut rhs_children = rhs.children_with_tokens();
         let mut lhs_children = lhs.children_with_tokens();
         let mut last_lhs = None;
+        let mut consumed_last: Option<SyntaxElement> = None;
         loop {
             let lhs_child = lhs_children.next();
             match (lhs_child.clone(), rhs_children.next()) {
@@ -121,18 +139,18 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
                     // use insertions as we do not want to replace the entire module node.
                     look_ahead_scratch.push(rhs_ele.clone());
                     let mut rhs_children_clone = rhs_children.clone();
-                    let mut insert = false;
+                    let mut matched = None;
                     for rhs_child in &mut rhs_children_clone {
-                        if syntax_element_eq(&lhs_ele, &rhs_child) {
+                        if syntax_element_trimmed_eq(&lhs_ele, &rhs_child) {
                             cov_mark::hit!(diff_insertions);
-                            insert = true;
+                            matched = Some(rhs_child);
                             break;
                         }
                         look_ahead_scratch.push(rhs_child);
                     }
-                    let drain = look_ahead_scratch.drain(..);
-                    if insert {
-                        let insert_pos = if let Some(prev) = last_lhs.clone().filter(|_| insert) {
+                    let drain = std::mem::take(&mut look_ahead_scratch);
+                    if let Some(matched) = matched {
+                        let insert_pos = if let Some(prev) = last_lhs.clone() {
                             TreeDiffInsertPos::After(prev)
                         } else {
                             cov_mark::hit!(insert_first_child);
@@ -141,12 +159,49 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
 
                         diff.insertions.entry(insert_pos).or_default().extend(drain);
                         rhs_children = rhs_children_clone;
+
+                        if !syntax_element_eq(&lhs_ele, &matched) {
+                            if lhs_ele.kind() != matched.kind() {
+                                diff.replacements.insert(lhs_ele, matched);
+                            } else {
+                                go(diff, lhs_ele, matched);
+                            }
+                        }
                     } else {
-                        go(diff, lhs_ele, rhs_ele);
+                        let mut lhs_children_clone = lhs_children.clone();
+                        let mut deleted = vec![lhs_ele.clone()];
+                        let mut survivor = None;
+                        for lhs_child in &mut lhs_children_clone {
+                            if syntax_element_trimmed_eq(&lhs_child, &rhs_ele) {
+                                survivor = Some(lhs_child);
+                                break;
+                            }
+                            deleted.push(lhs_child);
+                        }
+                        match survivor {
+                            Some(survivor) => {
+                                cov_mark::hit!(diff_deletions);
+                                diff.deletions.extend(deleted);
+                                lhs_children = lhs_children_clone;
+                                consumed_last = Some(survivor.clone());
+                                if !syntax_element_eq(&survivor, &rhs_ele) {
+                                    if survivor.kind() != rhs_ele.kind() {
+                                        diff.replacements.insert(survivor, rhs_ele);
+                                    } else {
+                                        go(diff, survivor, rhs_ele);
+                                    }
+                                }
+                            }
+                            None if lhs_ele.kind() != rhs_ele.kind() => {
+                                cov_mark::hit!(diff_node_token_replace);
+                                diff.replacements.insert(lhs_ele, rhs_ele);
+                            }
+                            None => go(diff, lhs_ele, rhs_ele),
+                        }
                     }
                 }
             }
-            last_lhs = lhs_child.or(last_lhs);
+            last_lhs = consumed_last.take().or(lhs_child).or(last_lhs);
         }
     }
 }
@@ -173,20 +228,18 @@ mod tests {
 
                 replacements:
 
-                Line 0: Token(USE_KW@0..3 "use") -> ident
+                Line 1: Token(EOF@9..9 "" [] []) -> ident
 
                 deletions:
 
-                Line 1: " "
-                Line 1: node
-                Line 1: ;
+                Line 0: use node;
             "#]],
         );
     }
 
     #[test]
     fn replace_parent() {
-        cov_mark::check!(diff_insert_as_first_child);
+        cov_mark::check!(insert_first_child);
         check_diff(
             r#""#,
             r#"use foo::bar;"#,
@@ -209,7 +262,7 @@ mod tests {
 
     #[test]
     fn insert_last() {
-        cov_mark::check!(diff_insert);
+        cov_mark::check!(diff_insertions);
         check_diff(
             r#"
 use foo;
@@ -222,11 +275,11 @@ use baz;"#,
                 insertions:
 
                 Line 2: After(Node(USE@10..18))
-                -> "\n"
                 -> use baz;
 
                 replacements:
 
+                Line 3: Token(SEMICOLON@17..18 ";" [] []) -> ;
 
 
                 deletions:
@@ -249,9 +302,8 @@ use baz;"#,
             expect![[r#"
                 insertions:
 
-                Line 2: After(Token(WHITESPACE@9..10 "\n"))
+                Line 0: After(Node(USE@0..10))
                 -> use bar;
-                -> "\n"
 
                 replacements:
 
@@ -277,9 +329,8 @@ use baz;"#,
             expect![[r#"
                 insertions:
 
-                Line 0: After(Token(WHITESPACE@0..1 "\n"))
+                Line 0: AsFirstChild(Node(SOURCE_FILE@0..18))
                 -> use foo;
-                -> "\n"
 
                 replacements:
 
@@ -309,7 +360,6 @@ use baz;"#,
 
                 Line 0: AsFirstChild(Node(SOURCE_FILE@0..30))
                 -> use foo::bar;
-                -> "\n\n    "
 
                 replacements:
 
@@ -325,7 +375,7 @@ use baz;"#,
 
     #[test]
     fn delete_last() {
-        cov_mark::check!(diff_delete);
+        cov_mark::check!(diff_deletions);
         check_diff(
             r#"use foo;
             use bar;"#,
@@ -337,19 +387,18 @@ use baz;"#,
 
                 replacements:
 
-
+                Line 1: Token(SEMICOLON@7..8 ";" [] [NEWLINE("\n")]) -> ;
 
                 deletions:
 
-                Line 1: "\n            "
-                Line 2: use bar;
+                Line 1: use bar;
             "#]],
         );
     }
 
     #[test]
     fn delete_middle() {
-        cov_mark::check!(diff_insertions);
+        cov_mark::check!(diff_deletions);
         check_diff(
             r#"
 use expect_test::{expect, Expect};
@@ -365,9 +414,7 @@ use crate::AstNode;
             expect![[r#"
                 insertions:
 
-                Line 1: After(Node(USE@1..35))
-                -> "\n\n"
-                -> use crate::AstNode;
+
 
                 replacements:
 
@@ -376,9 +423,6 @@ use crate::AstNode;
                 deletions:
 
                 Line 2: use text_edit::TextEdit;
-                Line 3: "\n\n"
-                Line 4: use crate::AstNode;
-                Line 5: "\n"
             "#]],
         )
     }
@@ -401,14 +445,11 @@ use crate::AstNode;
 
                 replacements:
 
-                Line 2: Token(IDENT@5..14 "text_edit") -> crate
-                Line 2: Token(IDENT@16..24 "TextEdit") -> AstNode
-                Line 2: Token(WHITESPACE@25..27 "\n\n") -> "\n"
+
 
                 deletions:
 
-                Line 3: use crate::AstNode;
-                Line 4: "\n"
+                Line 0: use text_edit::TextEdit;
             "#]],
         )
     }
@@ -434,15 +475,13 @@ use std::ops::{self, RangeInclusive};
                 Line 2: After(Node(PATH_SEGMENT@5..8))
                 -> ::
                 -> fmt
-                Line 6: After(Token(WHITESPACE@86..87 "\n"))
+                Line 0: After(Node(USE@0..87))
                 -> use std::hash::BuildHasherDefault;
-                -> "\n"
                 -> use std::ops::{self, RangeInclusive};
-                -> "\n"
 
                 replacements:
 
-                Line 2: Token(IDENT@5..8 "std") -> std
+                Line 2: Node(PATH_SEGMENT@5..8) -> std
 
                 deletions:
 
@@ -478,31 +517,19 @@ fn main() {
             expect![[r#"
                 insertions:
 
-                Line 3: After(Node(BLOCK_EXPR@40..63))
-                -> " "
-                -> match Err(92) {
-                        Ok(it) => it,
-                        _ => return,
-                    }
-                -> ;
-                Line 3: After(Node(IF_EXPR@17..63))
-                -> "\n    "
+                Line 2: After(Node(IF_EXPR@13..64))
                 -> foo(x);
 
                 replacements:
 
-                Line 3: Token(IF_KW@17..19 "if") -> let
-                Line 3: Token(LET_KW@20..23 "let") -> x
-                Line 3: Node(BLOCK_EXPR@40..63) -> =
+                Line 2: Node(IF_EXPR@13..64) -> let x = match Err(92) {
+                        Ok(it) => it,
+                        _ => return,
+                    };
 
                 deletions:
 
-                Line 3: " "
-                Line 3: Ok(x)
-                Line 3: " "
-                Line 3: =
-                Line 3: " "
-                Line 3: Err(92)
+
             "#]],
         )
     }

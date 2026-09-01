@@ -1,6 +1,7 @@
 use hir::{UnsafeLint, UnsafetyReason};
 use ide_db::text_edit::TextEdit;
 use ide_db::{assists::Assist, source_change::SourceChange};
+use syntax::token_span;
 use syntax::{AstNode, match_ast};
 use syntax::{SyntaxNode, ast};
 
@@ -52,18 +53,18 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &hir::MissingUnsafe) -> Option<Vec
 
     let node_to_add_unsafe_block = pick_best_node_to_add_unsafe_block(&expr)?;
 
-    let mut replacement = format!("unsafe {{ {} }}", node_to_add_unsafe_block.text());
+    let mut replacement = format!("unsafe {{ {} }}", syntax::token_text(&node_to_add_unsafe_block));
     if let Some(expr) = ast::Expr::cast(node_to_add_unsafe_block.clone())
         && needs_parentheses(&expr)
     {
         replacement = format!("({replacement})");
     }
-    let edit = TextEdit::replace(node_to_add_unsafe_block.text_range(), replacement);
+    let edit = TextEdit::replace(syntax::token_span(&node_to_add_unsafe_block), replacement);
     let source_change = SourceChange::from_text_edit(
         d.node.file_id.original_file(ctx.sema.db).file_id(ctx.sema.db),
         edit,
     );
-    Some(vec![fix("add_unsafe", "Add unsafe block", source_change, expr.syntax().text_range())])
+    Some(vec![fix("add_unsafe", "Add unsafe block", source_change, token_span(expr.syntax()))])
 }
 
 // Pick the first ancestor expression of the unsafe `expr` that is not a
@@ -102,7 +103,7 @@ fn pick_best_node_to_add_unsafe_block(unsafe_expr: &ast::Expr) -> Option<SyntaxN
                     // block, e.g. `unsafe_expr += 1`
                     let is_left_hand_side_of_assignment = {
                         if let Some(ast::BinaryOp::Assignment { .. }) = it.op_kind() {
-                            it.lhs().map(|lhs| lhs.syntax().text_range().contains_range(node.text_range())).unwrap_or(false)
+                            it.lhs().map(|lhs| token_span(lhs.syntax()).contains_range(node.text_range())).unwrap_or(false)
                         } else {
                             false
                         }

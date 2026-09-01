@@ -3,6 +3,7 @@
 //! Currently this renders the implied `Sized` bound.
 use either::Either;
 use ide_db::{famous_defs::FamousDefs, text_edit::TextEdit};
+use syntax::token_span;
 
 use syntax::ast::{self, AstNode};
 
@@ -42,14 +43,14 @@ pub(super) fn hints(
                 return None;
             }
             sema.resolve_trait(&path.path()?)?;
-            path.syntax().text_range()
+            token_span(path.syntax())
         }
         Either::Right(dyn_) => {
             if dyn_.dyn_token().is_some() {
                 return None;
             }
 
-            dyn_.syntax().text_range()
+            token_span(dyn_.syntax())
         }
     };
 

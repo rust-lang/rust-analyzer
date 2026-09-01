@@ -4,10 +4,9 @@
 use either::Either;
 
 use crate::{
-    SyntaxElement, SyntaxNode, SyntaxToken, T,
+    SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
     ast::{self, AstChildren, AstNode, AstToken, support},
     match_ast,
-    syntax_node::SyntaxElementChildren,
 };
 
 pub trait HasName: AstNode {
@@ -114,13 +113,59 @@ pub fn attrs_including_inner(owner: &dyn HasAttrs) -> impl Iterator<Item = ast::
 
 pub trait HasDocComments: HasAttrs {
     fn doc_comments(&self) -> DocCommentIter {
-        DocCommentIter { iter: self.syntax().children_with_tokens() }
+        DocCommentIter::from_syntax_node(self.syntax())
     }
+}
+
+fn prelude_elements(node: &ast::SyntaxNode) -> Vec<Either<ast::Attr, ast::SyntaxToken>> {
+    let mut res = Vec::new();
+    let mut children = node.children_with_tokens().peekable();
+    if let Some(SyntaxElement::Token(token)) = children.peek()
+        && token.kind() == T!['{']
+    {
+        res.extend(token.trailing_trivia().map(Either::Right));
+        children.next();
+    }
+    for child in children {
+        let first = match &child {
+            SyntaxElement::Node(node) => node.first_token(),
+            SyntaxElement::Token(token) => Some(token.clone()),
+        };
+        if let Some(first) = first {
+            res.extend(first.leading_trivia().map(Either::Right));
+        }
+        match child {
+            SyntaxElement::Node(node) if node.kind() == SyntaxKind::ATTR => {
+                res.extend(ast::Attr::cast(node).map(Either::Left));
+            }
+            _ => break,
+        }
+    }
+    res
+}
+
+fn prelude_trivia(node: &ast::SyntaxNode) -> Vec<ast::SyntaxToken> {
+    prelude_elements(node).into_iter().filter_map(|it| it.right()).collect()
+}
+
+fn holds_inner_docs(node: &ast::SyntaxNode) -> bool {
+    node.kind() == SyntaxKind::SOURCE_FILE
+        || matches!(node.first_child_or_token(), Some(SyntaxElement::Token(token)) if token.kind() == T!['{'])
+}
+
+fn prelude_doc_comments(node: &ast::SyntaxNode) -> impl Iterator<Item = ast::Comment> + use<> {
+    let inner = holds_inner_docs(node);
+    prelude_trivia(node).into_iter().filter_map(ast::Comment::cast).filter(move |comment| {
+        match comment.kind().doc {
+            Some(placement) => (placement == ast::CommentPlacement::Inner) == inner,
+            None => false,
+        }
+    })
 }
 
 impl DocCommentIter {
     pub fn from_syntax_node(syntax_node: &ast::SyntaxNode) -> DocCommentIter {
-        DocCommentIter { iter: syntax_node.children_with_tokens() }
+        DocCommentIter { iter: prelude_doc_comments(syntax_node).collect::<Vec<_>>().into_iter() }
     }
 
     #[cfg(test)]
@@ -134,37 +179,39 @@ impl DocCommentIter {
 }
 
 pub struct DocCommentIter {
-    iter: SyntaxElementChildren,
+    iter: std::vec::IntoIter<ast::Comment>,
 }
 
 impl Iterator for DocCommentIter {
     type Item = ast::Comment;
     fn next(&mut self) -> Option<ast::Comment> {
-        self.iter.by_ref().find_map(|el| {
-            el.into_token().and_then(ast::Comment::cast).filter(ast::Comment::is_doc)
-        })
+        self.iter.next()
     }
 }
 
 pub struct AttrDocCommentIter {
-    iter: SyntaxElementChildren,
+    iter: std::vec::IntoIter<Either<ast::Attr, ast::Comment>>,
 }
 
 impl AttrDocCommentIter {
     pub fn from_syntax_node(syntax_node: &ast::SyntaxNode) -> AttrDocCommentIter {
-        AttrDocCommentIter { iter: syntax_node.children_with_tokens() }
+        let res: Vec<_> = prelude_elements(syntax_node)
+            .into_iter()
+            .filter_map(|it| match it {
+                Either::Left(attr) => Some(Either::Left(attr)),
+                Either::Right(token) => {
+                    ast::Comment::cast(token).filter(ast::Comment::is_doc).map(Either::Right)
+                }
+            })
+            .collect();
+        AttrDocCommentIter { iter: res.into_iter() }
     }
 }
 
 impl Iterator for AttrDocCommentIter {
     type Item = Either<ast::Attr, ast::Comment>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.find_map(|el| match el {
-            SyntaxElement::Node(node) => ast::Attr::cast(node).map(Either::Left),
-            SyntaxElement::Token(tok) => {
-                ast::Comment::cast(tok).filter(ast::Comment::is_doc).map(Either::Right)
-            }
-        })
+        self.iter.next()
     }
 }
 

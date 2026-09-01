@@ -3,6 +3,7 @@
 //! let /* & */ (/* ref */ x,) = &(0,);
 //! ```
 use std::mem;
+use syntax::token_span;
 
 use hir::Mutability;
 use ide_db::famous_defs::FamousDefs;
@@ -28,11 +29,11 @@ pub(super) fn hints(
             // for ident patterns that @ bind a name, render the un-ref patterns in front of the inner pattern
             // instead of the name as that makes it more clear and doesn't really change the outcome
             ast::Pat::IdentPat(it) => {
-                it.pat().map_or_else(|| it.syntax().text_range(), |it| it.syntax().text_range())
+                it.pat().map_or_else(|| token_span(it.syntax()), |it| token_span(it.syntax()))
             }
-            it => it.syntax().text_range(),
+            it => token_span(it.syntax()),
         },
-        |it| it.syntax().text_range(),
+        |it| token_span(it.syntax()),
     );
     let mut hint = InlayHint {
         range,
@@ -42,7 +43,7 @@ pub(super) fn hints(
         position: InlayHintPosition::Before,
         pad_left: false,
         pad_right: false,
-        resolve_parent: Some(pat.syntax().text_range()),
+        resolve_parent: Some(token_span(pat.syntax())),
     };
     let pattern_adjustments = sema.pattern_adjustments(pat);
     let mut was_mut_last = false;
@@ -70,14 +71,14 @@ pub(super) fn hints(
             };
             if let Some(bm) = bm {
                 acc.push(InlayHint {
-                    range: pat.syntax().text_range(),
+                    range: token_span(pat.syntax()),
                     kind: InlayKind::BindingMode,
                     label: bm.into(),
                     text_edit: None,
                     position: InlayHintPosition::Before,
                     pad_left: false,
                     pad_right: true,
-                    resolve_parent: Some(pat.syntax().text_range()),
+                    resolve_parent: Some(token_span(pat.syntax())),
                 });
             }
         }
@@ -86,7 +87,7 @@ pub(super) fn hints(
             was_mut_last = false;
             acc.push(InlayHint::closing_paren_after(
                 InlayKind::BindingMode,
-                pat.syntax().text_range(),
+                token_span(pat.syntax()),
             ));
         }
         _ => (),

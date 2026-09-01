@@ -26,7 +26,7 @@ pub fn item_name(db: &RootDatabase, item: ItemInNs) -> Option<Name> {
 
 /// Picks the token with the highest rank returned by the passed in function.
 pub fn pick_best_token(
-    tokens: TokenAtOffset<SyntaxToken>,
+    tokens: impl Iterator<Item = SyntaxToken>,
     f: impl Fn(SyntaxKind) -> usize,
 ) -> Option<SyntaxToken> {
     tokens.max_by_key(move |t| f(t.kind()))

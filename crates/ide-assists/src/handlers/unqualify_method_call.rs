@@ -1,5 +1,6 @@
 use hir::AsAssocItem;
 use syntax::ast::{self, AstNode, HasArgList, prec::ExprPrecedence};
+use syntax::token_span;
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -27,7 +28,7 @@ pub(crate) fn unqualify_method_call(acc: &mut Assists, ctx: &AssistContext<'_, '
     let ast::Expr::PathExpr(path_expr) = call.expr()? else { return None };
     let path = path_expr.path()?;
 
-    let cursor_in_range = path.syntax().text_range().contains_range(ctx.selection_trimmed());
+    let cursor_in_range = token_span(path.syntax()).contains_range(ctx.selection_trimmed());
     if !cursor_in_range {
         return None;
     }
@@ -48,7 +49,7 @@ pub(crate) fn unqualify_method_call(acc: &mut Assists, ctx: &AssistContext<'_, '
     acc.add(
         AssistId::refactor_rewrite("unqualify_method_call"),
         "Unqualify method call",
-        call.syntax().text_range(),
+        token_span(call.syntax()),
         |builder| {
             let editor = builder.make_editor(call.syntax());
             let make = editor.make();

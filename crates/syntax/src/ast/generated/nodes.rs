@@ -5,6 +5,7 @@ use crate::{
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, T,
     ast::{self, AstChildren, AstNode, support},
+    syntax_node::token_text,
 };
 use std::{fmt, hash};
 pub struct Abi {
@@ -10063,931 +10064,931 @@ impl From<Variant> for AnyHasVisibility {
 }
 impl std::fmt::Display for Adt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmOperand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmPiece {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AssocItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CfgPredicate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ExternItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for FieldList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for GenericParam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Meta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Pat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for UseBoundGenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for VariantDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Abi {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ArgList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ArrayExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ArrayType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmClobberAbi {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmConst {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmDirSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmLabel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmOperandExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmOperandNamed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmOption {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmRegOperand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmRegSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AsmSym {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AssocItemList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AssocTypeArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Attr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for AwaitExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for BecomeExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for BinExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for BlockExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for BoxPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for BreakExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CallExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CastExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CfgAtom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CfgAttrMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CfgComposite {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for CfgMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ClosureExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Const {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ConstArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ConstBlockPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ConstParam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ContinueExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for DerefPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for DynTraitType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Enum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ExprStmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ExternBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ExternCrate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ExternItemList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for FieldExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Fn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for FnPtrType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ForBinder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ForExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ForType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for FormatArgsArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for FormatArgsExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for GenericArgList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for GenericParamList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for IdentPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for IfExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Impl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ImplRestriction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ImplTraitType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for IncludeBytesExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for IndexExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for InferType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ItemList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for KeyValueMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Label {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LetElse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LetExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LetStmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Lifetime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LifetimeArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LifetimeParam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LiteralPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for LoopExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroCall {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroItems {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroRules {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroStmts {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MacroType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MatchArm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MatchArmList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MatchExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MatchGuard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MethodCallExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for MutRestriction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for NameRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for NeverType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for NotNull {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for OffsetOfExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for OrPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Param {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ParamList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ParenExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ParenPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ParenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ParenthesizedArgList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PathExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PathMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PathPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PathSegment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PathType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PatternType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PrefixExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for PtrType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RangeExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RangePat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordExprField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordExprFieldList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordFieldList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordPatField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RecordPatFieldList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RefExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RefPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RefType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Rename {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RestPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for RetType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ReturnExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for ReturnTypeSyntax {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for SelfParam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for SlicePat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for SliceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for SourceFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Static {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for StmtList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Struct {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TokenTree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TokenTreeMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Trait {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TryBlockModifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TryExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TupleExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TupleField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TupleFieldList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TuplePat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TupleStructPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TupleType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TypeAlias {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TypeAnchor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TypeArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TypeBound {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TypeBoundList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for TypeParam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for UnderscoreExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Union {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for UnsafeMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Use {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for UseBoundGenericArgs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for UseTree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for UseTreeList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Variant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for VariantList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for VisibilityInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for WhereClause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for WherePred {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for WhileExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for WildcardPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for YeetExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }
 impl std::fmt::Display for YieldExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        f.write_str(&token_text(self.syntax()))
     }
 }

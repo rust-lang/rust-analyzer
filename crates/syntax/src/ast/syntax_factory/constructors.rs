@@ -8,6 +8,7 @@ use crate::{
         HasName, HasTypeBounds, HasVisibility, Lifetime, Param, RangeItem, make,
     },
     syntax_editor::SyntaxMappingBuilder,
+    syntax_node::make_token_with_trivia,
 };
 
 use super::SyntaxFactory;
@@ -2111,8 +2112,18 @@ impl SyntaxFactory {
         make::token(kind)
     }
 
-    pub fn whitespace(&self, text: &str) -> SyntaxToken {
-        make::tokens::whitespace(text)
+    pub fn token_trivia(&self, kind: SyntaxKind, leading: &str, trailing: &str) -> SyntaxToken {
+        make::token_trivia(kind, leading, trailing)
+    }
+
+    pub fn token_with_trivia(
+        &self,
+        kind: SyntaxKind,
+        text: &str,
+        leading: &str,
+        trailing: &str,
+    ) -> SyntaxToken {
+        make_token_with_trivia(kind, text, leading, trailing)
     }
 
     pub fn ident(&self, text: &str) -> SyntaxToken {

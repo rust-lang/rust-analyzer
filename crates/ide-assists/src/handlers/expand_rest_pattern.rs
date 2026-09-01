@@ -1,5 +1,6 @@
 use hir::{PathResolution, StructKind};
 use ide_db::syntax_helpers::suggest_name::NameGenerator;
+use syntax::token_span;
 use syntax::{
     AstNode, ToSmolStr,
     ast::{self, syntax_factory::SyntaxFactory},
@@ -49,7 +50,7 @@ fn expand_record_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_record_rest_pattern"),
         "Fill struct fields",
-        rest_pat.syntax().text_range(),
+        token_span(rest_pat.syntax()),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();
@@ -126,7 +127,7 @@ fn expand_tuple_struct_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_tuple_struct_rest_pattern"),
         "Fill tuple struct fields",
-        rest_pat.syntax().text_range(),
+        token_span(rest_pat.syntax()),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();
@@ -188,7 +189,7 @@ fn expand_tuple_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_tuple_rest_pattern"),
         "Fill tuple fields",
-        rest_pat.syntax().text_range(),
+        token_span(rest_pat.syntax()),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();
@@ -249,7 +250,7 @@ fn expand_slice_rest_pattern(
     acc.add(
         AssistId::refactor_rewrite("expand_slice_rest_pattern"),
         "Fill slice fields",
-        rest_pat.syntax().text_range(),
+        token_span(rest_pat.syntax()),
         |builder| {
             let editor = builder.make_editor(rest_pat.syntax());
             let make = editor.make();

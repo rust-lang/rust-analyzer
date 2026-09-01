@@ -12,6 +12,7 @@ use ide_db::{
 };
 use itertools::Itertools;
 use stdx::to_lower_snake_case;
+use syntax::token_span;
 use syntax::{
     Edition, SyntaxKind, SyntaxNode, T, TextRange,
     ast::{
@@ -80,7 +81,7 @@ fn gen_fn(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
 
     let function_builder =
         FunctionBuilder::from_call(&make, ctx, &call, fn_name, target_module, target, &adt_info)?;
-    let text_range = call.syntax().text_range();
+    let text_range = token_span(call.syntax());
     let label = format!("Generate {} function", function_builder.fn_name);
     add_func_to_accumulator(acc, ctx, text_range, function_builder, file, adt_info, label)
 }
@@ -174,7 +175,7 @@ fn gen_method(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
         target_module,
         target,
     )?;
-    let text_range = call.syntax().text_range();
+    let text_range = token_span(call.syntax());
     let adt_info = AdtInfo::new(adt, impl_.is_some());
     let label = format!("Generate {} method", function_builder.fn_name);
     add_func_to_accumulator(acc, ctx, text_range, function_builder, file, Some(adt_info), label)
@@ -728,7 +729,6 @@ fn insert_rendered_impl(
     cap: Option<SnippetCap>,
 ) {
     let make = editor.make();
-    let leading_ws = make.whitespace(&format!("\n{leading_ws_indent}"));
     let name = make.ty_path(make.ident_path(&format!(
         "{}",
         adt.name(ctx.db()).display(ctx.db(), function_builder.target_edition)
@@ -743,7 +743,8 @@ fn insert_rendered_impl(
         add_generated_fn_annotation(editor, edit, function_builder, &fn_, cap);
     }
 
-    editor.insert_all(position, vec![leading_ws.into(), impl_.syntax().clone().into()]);
+    let impl_ = impl_.with_leading_trivia(&format!("\n{leading_ws_indent}"), make);
+    editor.insert(position, impl_.syntax());
 }
 
 fn insert_rendered_fn(
@@ -757,15 +758,15 @@ fn insert_rendered_fn(
     cap: Option<SnippetCap>,
 ) {
     let make = editor.make();
-    let leading_ws = make.whitespace(&leading_ws);
     let func = function_builder.render(make).indent(indent);
+    let func = func.with_leading_trivia(&leading_ws, make);
+    let func = match trailing_ws {
+        Some(trailing_ws) => func.with_trailing_trivia(&trailing_ws, make),
+        None => func,
+    };
     add_generated_fn_annotation(editor, edit, function_builder, &func, cap);
 
-    let mut elements = vec![leading_ws.into(), func.syntax().clone().into()];
-    if let Some(trailing_ws) = trailing_ws {
-        elements.push(make.whitespace(&trailing_ws).into());
-    }
-    editor.insert_all(position, elements);
+    editor.insert(position, func.syntax());
 }
 
 fn add_generated_fn_annotation(

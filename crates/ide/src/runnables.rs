@@ -1,4 +1,5 @@
 use std::{fmt, sync::OnceLock};
+use syntax::token_span;
 
 use arrayvec::ArrayVec;
 use ast::HasName;
@@ -287,7 +288,7 @@ fn find_related_tests_in_module(
     let mod_scope = SearchScope::file_range(hir::FileRange { file_id, range: mod_source.value });
     let fn_pos = FilePosition {
         file_id: file_id.file_id(sema.db),
-        offset: fn_name.syntax().text_range().start(),
+        offset: token_span(fn_name.syntax()).start(),
     };
     find_related_tests(sema, syntax, fn_pos, Some(mod_scope), tests)
 }

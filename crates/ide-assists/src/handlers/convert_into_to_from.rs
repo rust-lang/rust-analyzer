@@ -2,6 +2,7 @@ use ide_db::{
     famous_defs::FamousDefs, helpers::mod_path_to_ast_with_factory, traits::resolve_target_trait,
 };
 use syntax::ast::{self, AstNode, HasGenericArgs, HasName};
+use syntax::token_span;
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -87,7 +88,7 @@ pub(crate) fn convert_into_to_from(acc: &mut Assists, ctx: &AssistContext<'_, '_
     acc.add(
         AssistId::refactor_rewrite("convert_into_to_from"),
         "Convert Into to From",
-        impl_.syntax().text_range(),
+        token_span(impl_.syntax()),
         |builder| {
             let editor = builder.make_editor(impl_.syntax());
             let make = editor.make();

@@ -1,4 +1,5 @@
 use std::{iter, mem::discriminant};
+use syntax::token_span;
 
 use crate::Analysis;
 use crate::{
@@ -63,22 +64,26 @@ pub(crate) fn goto_definition(
     let sema = &Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let edition = sema.attach_first_edition(file_id).edition(db);
-    let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT
-        | INT_NUMBER
-        | LIFETIME_IDENT
-        | T![self]
-        | T![super]
-        | T![crate]
-        | T![Self]
-        | COMMENT => 4,
-        // index and prefix ops
-        T!['['] | T![']'] | T![?] | T![*] | T![-] | T![!] => 3,
-        kind if kind.is_keyword(edition) => 2,
-        T!['('] | T![')'] => 2,
-        kind if kind.is_trivia() => 0,
-        _ => 1,
-    })?;
+    let original_token = pick_best_token(
+        syntax::algo::token_at_offset_with_trivia(&file, offset)
+            .filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            IDENT
+            | INT_NUMBER
+            | LIFETIME_IDENT
+            | T![self]
+            | T![super]
+            | T![crate]
+            | T![Self]
+            | COMMENT => 4,
+            // index and prefix ops
+            T!['['] | T![']'] | T![?] | T![*] | T![-] | T![!] => 3,
+            kind if kind.is_keyword(edition) => 2,
+            T!['('] | T![')'] => 2,
+            kind if kind.is_trivia() => 0,
+            _ => 1,
+        },
+    )?;
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
         return doc_comment.get_definition_with_descend_at(sema, offset, |def, _, link_range| {
             let nav = def.try_to_nav(sema)?;
@@ -641,7 +646,7 @@ fn nav_for_break_points(
                 ast::Expr::WhileExpr(while_) => while_.while_token()?.text_range(),
                 ast::Expr::ForExpr(for_) => for_.for_token()?.text_range(),
                 // We guarantee that the label exists
-                ast::Expr::BlockExpr(blk) => blk.label().unwrap().syntax().text_range(),
+                ast::Expr::BlockExpr(blk) => token_span(blk.label().unwrap().syntax()),
                 _ => return None,
             };
             let nav = expr_to_nav(db, expr_in_file, Some(focus_range));
@@ -664,7 +669,7 @@ fn expr_to_nav(
 ) -> UpmappingResult<NavigationTarget> {
     let kind = SymbolKind::Label;
 
-    let value_range = value.syntax().text_range();
+    let value_range = token_span(value.syntax());
     let navs = navigation_target::orig_range_with_focus_r(db, file_id, value_range, focus_range);
     navs.map(|(hir::FileRangeWrapper { file_id, range }, focus_range)| {
         NavigationTarget::from_syntax(

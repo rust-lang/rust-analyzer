@@ -1,6 +1,7 @@
 use ide_db::{FileId, FxHashSet};
 use syntax::{
     AstNode, SmolStr, T, TextRange, ToSmolStr,
+    ast::edit::AstNodeEdit,
     ast::{self, HasGenericParams, HasName},
     format_smolstr,
     syntax_editor::{Element, Position, SyntaxEditor},
@@ -112,12 +113,9 @@ fn generate_fn_def_assist(
         editor.replace(lifetime.syntax(), make.lifetime(&new_lifetime_name).syntax());
 
         if let Some(pos) = loc_needing_lifetime.and_then(|l| l.to_position()) {
-            editor.insert_all(
+            editor.insert(
                 pos,
-                vec![
-                    make.lifetime(&new_lifetime_name).syntax().clone().into(),
-                    make.whitespace(" ").into(),
-                ],
+                make.lifetime(&new_lifetime_name).with_trailing_trivia(" ", make).syntax(),
             );
         }
 
@@ -191,13 +189,20 @@ fn insert_new_generic_param_list_imp(
 ) -> Option<()> {
     let make = editor.make();
     let impl_kw = impl_.impl_token()?;
+    let trailing: String = impl_kw.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+    if !trailing.is_empty() {
+        let leading: String =
+            impl_kw.leading_trivia().map(|piece| piece.text().to_owned()).collect();
+        let trimmed = make.token_with_trivia(impl_kw.kind(), impl_kw.text(), &leading, "");
+        editor.replace_discard_trivia(impl_kw.clone(), trimmed);
+    }
 
     editor.insert_all(
         Position::after(impl_kw),
         vec![
             make.token(T![<]).syntax_element(),
             make.lifetime(lifetime_name).syntax().syntax_element(),
-            make.token(T![>]).syntax_element(),
+            make.token_with_trivia(T![>], ">", "", &trailing).syntax_element(),
         ],
     );
 
@@ -216,8 +221,7 @@ fn insert_lifetime_param(
     let mut elements = Vec::new();
 
     if needs_comma {
-        elements.push(make.token(T![,]).syntax_element());
-        elements.push(make.whitespace(" ").syntax_element());
+        elements.push(make.token_trivia(T![,], "", " ").syntax_element());
     }
 
     let lifetime = make.lifetime(lifetime_name);

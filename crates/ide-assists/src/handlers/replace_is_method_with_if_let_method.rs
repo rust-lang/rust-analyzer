@@ -1,5 +1,6 @@
 use either::Either;
 use ide_db::syntax_helpers::suggest_name;
+use syntax::token_span;
 use syntax::{
     ast::{self, AstNode, HasArgList, prec::ExprPrecedence, syntax_factory::SyntaxFactory},
     syntax_editor::SyntaxEditor,
@@ -66,7 +67,7 @@ pub(crate) fn replace_is_method_with_if_let_method(
             acc.add(
                 AssistId::refactor_rewrite(assist_id),
                 message,
-                call_expr.syntax().text_range(),
+                token_span(call_expr.syntax()),
                 |edit| {
                     let make = editor.make();
                     let pat = make.tuple_struct_pat(make.ident_path(text), [pat]).into();

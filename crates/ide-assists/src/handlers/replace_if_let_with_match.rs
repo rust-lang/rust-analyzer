@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use std::iter::successors;
+use syntax::token_span;
 
 use ide_db::{RootDatabase, defs::NameClass, ty_filter::TryEnum};
 use syntax::{
@@ -52,7 +53,7 @@ pub(crate) fn replace_if_let_with_match(
 ) -> Option<()> {
     let if_expr: ast::IfExpr = ctx.find_node_at_offset()?;
     let available_range = TextRange::new(
-        if_expr.syntax().text_range().start(),
+        token_span(if_expr.syntax()).start(),
         if_expr.then_branch()?.syntax().text_range().start(),
     );
     let cursor_in_range = available_range.contains_range(ctx.selection_trimmed());
@@ -82,7 +83,9 @@ pub(crate) fn replace_if_let_with_match(
         let (cond, guard) = match let_and_guard(&cond, ctx)? {
             (None, guard) => (None, Some(guard?)),
             (Some((pat, expr)), guard) => {
-                if scrutinee_to_be_expr.syntax().text() != expr.syntax().text() {
+                if syntax::token_text(scrutinee_to_be_expr.syntax())
+                    != syntax::token_text(expr.syntax())
+                {
                     // Only if all condition expressions are equal we can merge them into a match
                     return None;
                 }
@@ -232,8 +235,8 @@ pub(crate) fn replace_match_with_if_let(
     let match_expr: ast::MatchExpr = ctx.find_node_at_offset()?;
     let match_arm_list = match_expr.match_arm_list()?;
     let available_range = TextRange::new(
-        match_expr.syntax().text_range().start(),
-        match_arm_list.syntax().text_range().start(),
+        token_span(match_expr.syntax()).start(),
+        token_span(match_arm_list.syntax()).start(),
     );
     let cursor_in_range = available_range.contains_range(ctx.selection_trimmed());
     if !cursor_in_range {
@@ -265,7 +268,7 @@ pub(crate) fn replace_match_with_if_let(
     acc.add(
         AssistId::refactor_rewrite("replace_match_with_if_let"),
         format!("Replace match with if{let_}"),
-        match_expr.syntax().text_range(),
+        token_span(match_expr.syntax()),
         move |builder| {
             let editor = builder.make_editor(match_expr.syntax());
             let make = editor.make();
@@ -296,7 +299,7 @@ pub(crate) fn replace_match_with_if_let(
                     ast::Pat::WildcardPat(_) => make.expr_literal("true").into(),
                     _ => make.expr_let(pat, scrutinee.clone()).into(),
                 };
-                let condition = if condition.syntax().text() == "true"
+                let condition = if syntax::token_text(condition.syntax()) == "true"
                     && let Some(guard) = guard
                 {
                     guard

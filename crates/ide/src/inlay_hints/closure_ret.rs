@@ -4,6 +4,7 @@
 use hir::DisplayTarget;
 use ide_db::{famous_defs::FamousDefs, text_edit::TextEditBuilder};
 use syntax::ast::{self, AstNode};
+use syntax::token_span;
 
 use crate::{
     ClosureReturnTypeHints, InlayHint, InlayHintPosition, InlayHintsConfig, InlayKind,
@@ -35,7 +36,7 @@ pub(super) fn hints(
 
     let param_list = closure.param_list()?;
 
-    let resolve_parent = Some(closure.syntax().text_range());
+    let resolve_parent = Some(token_span(closure.syntax()));
     let descended_closure = sema.descend_node_into_attributes(closure.clone()).pop()?;
     let ty = sema.type_of_expr(&ast::Expr::ClosureExpr(descended_closure.clone()))?.adjusted();
     let callable = ty.as_callable(sema.db)?;
@@ -51,11 +52,11 @@ pub(super) fn hints(
     }
 
     let offset_to_insert_ty =
-        arrow.as_ref().map_or_else(|| param_list.syntax().text_range(), |t| t.text_range()).end();
+        arrow.as_ref().map_or_else(|| token_span(param_list.syntax()), |t| t.text_range()).end();
 
     // Insert braces if necessary
     let insert_braces = |builder: &mut TextEditBuilder| {
-        if !has_block_body && let Some(range) = closure.body().map(|b| b.syntax().text_range()) {
+        if !has_block_body && let Some(range) = closure.body().map(|b| token_span(b.syntax())) {
             builder.insert(range.start(), "{ ".to_owned());
             builder.insert(range.end(), " }".to_owned());
         }
@@ -72,7 +73,7 @@ pub(super) fn hints(
     );
 
     acc.push(InlayHint {
-        range: param_list.syntax().text_range(),
+        range: token_span(param_list.syntax()),
         kind: InlayKind::Type,
         label,
         text_edit,

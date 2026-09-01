@@ -1,8 +1,9 @@
 //! Implementation of "chaining" inlay hints.
 use hir::DisplayTarget;
 use ide_db::famous_defs::FamousDefs;
+use syntax::token_span;
 use syntax::{
-    Direction, NodeOrToken, SyntaxKind, T, TextRange,
+    SyntaxKind, T, TextRange,
     ast::{self, AstNode},
 };
 
@@ -28,26 +29,18 @@ pub(super) fn hints(
     let descended = sema.descend_node_into_attributes(expr.clone()).pop();
     let desc_expr = descended.as_ref().unwrap_or(expr);
 
-    let mut tokens = expr
+    let next_token = syntax::algo::next_non_trivia_token(expr.syntax().clone())?;
+    let newline_token = expr
         .syntax()
-        .siblings_with_tokens(Direction::Next)
-        .filter_map(NodeOrToken::into_token)
-        .filter(|t| match t.kind() {
-            SyntaxKind::WHITESPACE if !t.text().contains('\n') => false,
-            SyntaxKind::COMMENT => false,
-            _ => true,
-        });
-
-    // Chaining can be defined as an expression whose next sibling tokens are newline and dot
-    // Ignoring extra whitespace and comments
-    let next_token = tokens.next()?;
-    if next_token.kind() == SyntaxKind::WHITESPACE {
-        let newline_token = next_token;
-        let mut next_next = tokens.next()?;
-        while next_next.kind() == SyntaxKind::WHITESPACE {
-            next_next = tokens.next()?;
-        }
-        if next_next.kind() == T![.] {
+        .last_token()
+        .into_iter()
+        .flat_map(|token| token.trailing_trivia())
+        .chain(next_token.leading_trivia())
+        .find(|piece| piece.kind() == SyntaxKind::NEWLINE);
+    if let Some(newline_token) = newline_token
+        && next_token.kind() == T![.]
+    {
+        {
             let ty = sema.type_of_expr(desc_expr)?.original;
             if ty.is_unknown() {
                 return None;
@@ -60,7 +53,7 @@ pub(super) fn hints(
             }
             let label = label_of_ty(famous_defs, config, &ty, display_target)?;
             let range = {
-                let mut range = expr.syntax().text_range();
+                let mut range = token_span(expr.syntax());
                 if config.type_hints_placement == TypeHintsPlacement::EndOfLine {
                     range = TextRange::new(
                         range.start(),
@@ -77,7 +70,7 @@ pub(super) fn hints(
                 position: InlayHintPosition::After,
                 pad_left: true,
                 pad_right: false,
-                resolve_parent: Some(expr.syntax().text_range()),
+                resolve_parent: Some(token_span(expr.syntax())),
             });
         }
     }

@@ -2,6 +2,7 @@ use hir::diagnostics::RemoveUnnecessaryElse;
 use ide_db::text_edit::TextEdit;
 use ide_db::{assists::Assist, source_change::SourceChange};
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxToken, TextRange,
     ast::{
@@ -77,13 +78,13 @@ fn fixes(ctx: &DiagnosticsContext<'_, '_>, d: &RemoveUnnecessaryElse) -> Option<
         let then_replacement =
             format!("\n{then_indent}if {condition} {{{then_stmts}\n{then_indent}}}",);
         let replacement = format!("{{{then_replacement}{else_replacement}\n{base_indent}}}");
-        (replacement, if_expr.syntax().text_range())
+        (replacement, token_span(if_expr.syntax()))
     } else {
         (
             else_replacement,
             TextRange::new(
-                if_expr.then_branch()?.syntax().text_range().end(),
-                if_expr.syntax().text_range().end(),
+                token_span(if_expr.then_branch()?.syntax()).end(),
+                token_span(if_expr.syntax()).end(),
             ),
         )
     };

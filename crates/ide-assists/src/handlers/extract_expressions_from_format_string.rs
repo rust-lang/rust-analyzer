@@ -4,10 +4,9 @@ use ide_db::{
     syntax_helpers::format_string_exprs::{Arg, parse_format_exprs},
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
-    AstNode, AstToken, NodeOrToken,
-    SyntaxKind::WHITESPACE,
-    SyntaxToken, T,
+    AstNode, AstToken, NodeOrToken, SyntaxToken, T,
     ast::{self, TokenTree},
 };
 
@@ -55,7 +54,7 @@ pub(crate) fn extract_expressions_from_format_string(
             None,
         ),
         "Extract format expressions",
-        tt.syntax().text_range(),
+        token_span(tt.syntax()),
         |edit| {
             let editor = edit.make_editor(tt.syntax());
             let make = editor.make();
@@ -76,12 +75,12 @@ pub(crate) fn extract_expressions_from_format_string(
                     .map(|arg| {
                         // Strip off leading and trailing whitespace tokens
                         let arg = match arg.split_first() {
-                            Some((NodeOrToken::Token(t), rest)) if t.kind() == WHITESPACE => rest,
+                            Some((NodeOrToken::Token(t), rest)) if t.kind().is_trivia() => rest,
                             _ => arg,
                         };
 
                         match arg.split_last() {
-                            Some((NodeOrToken::Token(t), rest)) if t.kind() == WHITESPACE => rest,
+                            Some((NodeOrToken::Token(t), rest)) if t.kind().is_trivia() => rest,
                             _ => arg,
                         }
                     });
@@ -101,10 +100,7 @@ pub(crate) fn extract_expressions_from_format_string(
             for arg in extracted_args {
                 if matches!(arg, Arg::Expr(_) | Arg::Placeholder) {
                     // insert ", " before each arg
-                    new_tt_bits.extend_from_slice(&[
-                        NodeOrToken::Token(make.token(T![,])),
-                        NodeOrToken::Token(make.whitespace(" ")),
-                    ]);
+                    new_tt_bits.push(NodeOrToken::Token(make.token_trivia(T![,], "", " ")));
                 }
 
                 match arg {

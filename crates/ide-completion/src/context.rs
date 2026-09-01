@@ -5,6 +5,7 @@ mod analysis;
 mod tests;
 
 use std::{iter, sync::LazyLock};
+use syntax::token_span;
 
 use base_db::toolchain_channel;
 use hir::{
@@ -123,8 +124,8 @@ impl PathCompletionCtx<'_> {
         let unmap = |node: &_| sema.original_range_opt(node).map(|it| it.range);
         let ret_type = fn_item.ret_type().and_then(|it| it.ty());
         match (ret_type, fn_item.param_list()) {
-            (Some(ty), _) => Some(("-> ", unmap(ty.syntax())?.start())),
-            (None, Some(param)) => Some((" ->", unmap(param.syntax())?.end())),
+            (Some(ty), _) => Some(("-> ", token_span(ty.syntax()).start())),
+            (None, Some(param)) => Some((" ->", token_span(param.syntax()).end())),
             (None, None) => None,
         }
     }
@@ -767,7 +768,9 @@ impl<'a, 'db> CompletionContext<'a, 'db> {
 
         // always pick the token to the immediate left of the cursor, as that is what we are actually
         // completing on
-        let original_token = original_file.syntax().token_at_offset(offset).left_biased()?;
+        let original_token =
+            syntax::algo::token_at_offset_with_trivia(original_file.syntax(), offset)
+                .left_biased()?;
 
         // try to skip completions on path with invalid colons
         // this approach works in normal path and inside token tree

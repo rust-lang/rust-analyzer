@@ -934,32 +934,32 @@ pub fn new() {
 // MACRO_ITEMS@0..31
 //   FN@0..31
 //     VISIBILITY@0..3
-//       PUB_KW@0..3 "pub"
-//     FN_KW@3..5 "fn"
+//       PUB_KW@0..3 "pub" [] []
+//     FN_KW@3..5 "fn" [] []
 //     NAME@5..8
-//       IDENT@5..8 "new"
+//       IDENT@5..8 "new" [] []
 //     PARAM_LIST@8..10
-//       L_PAREN@8..9 "("
-//       R_PAREN@9..10 ")"
+//       L_PAREN@8..9 "(" [] []
+//       R_PAREN@9..10 ")" [] []
 //     BLOCK_EXPR@10..31
 //       STMT_LIST@10..31
-//         L_CURLY@10..11 "{"
+//         L_CURLY@10..11 "{" [] []
 //         LET_STMT@11..28
-//           LET_KW@11..14 "let"
+//           LET_KW@11..14 "let" [] []
 //           WILDCARD_PAT@14..15
-//             UNDERSCORE@14..15 "_"
-//           EQ@15..16 "="
+//             UNDERSCORE@14..15 "_" [] []
+//           EQ@15..16 "=" [] []
 //           CAST_EXPR@16..28
 //             LITERAL@16..17
-//               INT_NUMBER@16..17 "0"
-//             AS_KW@17..19 "as"
+//               INT_NUMBER@16..17 "0" [] []
+//             AS_KW@17..19 "as" [] []
 //             PATH_TYPE@19..28
 //               PATH@19..28
 //                 PATH_SEGMENT@19..28
 //                   NAME_REF@19..22
-//                     IDENT@19..22 "u32"
+//                     IDENT@19..22 "u32" [] []
 //                   GENERIC_ARG_LIST@22..28
-//                     L_ANGLE@22..23 "<"
+//                     L_ANGLE@22..23 "<" [] []
 //                     TYPE_ARG@23..27
 //                       DYN_TRAIT_TYPE@23..27
 //                         TYPE_BOUND_LIST@23..27
@@ -968,19 +968,19 @@ pub fn new() {
 //                               PATH@23..26
 //                                 PATH_SEGMENT@23..26
 //                                   TYPE_ANCHOR@23..26
-//                                     L_ANGLE@23..24 "<"
+//                                     L_ANGLE@23..24 "<" [] []
 //                                     PAREN_TYPE@24..26
-//                                       L_PAREN@24..25 "("
+//                                       L_PAREN@24..25 "(" [] []
 //                                       ERROR@25..26
-//                                         INT_NUMBER@25..26 "8"
-//                           PLUS@26..27 "+"
+//                                         INT_NUMBER@25..26 "8" [] []
+//                           PLUS@26..27 "+" [] []
 //                     CONST_ARG@27..28
 //                       LITERAL@27..28
-//                         INT_NUMBER@27..28 "8"
+//                         INT_NUMBER@27..28 "8" [] []
 //         ERROR@28..29
-//           R_PAREN@28..29 ")"
-//         SEMICOLON@29..30 ";"
-//         R_CURLY@30..31 "}"
+//           R_PAREN@28..29 ")" [] []
+//         SEMICOLON@29..30 ";" [] []
+//         R_CURLY@30..31 "}" [] []
 
 "#]],
     );

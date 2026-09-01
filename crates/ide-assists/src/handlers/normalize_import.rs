@@ -1,4 +1,5 @@
 use ide_db::imports::merge_imports::try_normalize_import;
+use syntax::token_span;
 use syntax::{AstNode, ast, syntax_editor::SyntaxEditor};
 
 use crate::{
@@ -24,7 +25,7 @@ pub(crate) fn normalize_import(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
         ctx.covering_element().ancestors().find_map(ast::Use::cast)?
     };
 
-    let target = use_item.syntax().text_range();
+    let target = token_span(use_item.syntax());
     let (editor, _) = SyntaxEditor::new(use_item.syntax().tree_top());
     let normalized_use_item =
         try_normalize_import(editor.make(), &use_item, ctx.config.insert_use.granularity.into())?;

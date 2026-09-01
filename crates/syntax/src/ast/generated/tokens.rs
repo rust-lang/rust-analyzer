@@ -11,7 +11,7 @@ pub struct Byte {
 }
 impl std::fmt::Display for Byte {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for Byte {
@@ -41,7 +41,7 @@ pub struct ByteString {
 }
 impl std::fmt::Display for ByteString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for ByteString {
@@ -71,7 +71,7 @@ pub struct CString {
 }
 impl std::fmt::Display for CString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for CString {
@@ -101,7 +101,7 @@ pub struct Char {
 }
 impl std::fmt::Display for Char {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for Char {
@@ -131,7 +131,7 @@ pub struct Comment {
 }
 impl std::fmt::Display for Comment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for Comment {
@@ -161,7 +161,7 @@ pub struct FloatNumber {
 }
 impl std::fmt::Display for FloatNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for FloatNumber {
@@ -191,7 +191,7 @@ pub struct Ident {
 }
 impl std::fmt::Display for Ident {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for Ident {
@@ -221,7 +221,7 @@ pub struct IntNumber {
 }
 impl std::fmt::Display for IntNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for IntNumber {
@@ -251,7 +251,7 @@ pub struct String {
 }
 impl std::fmt::Display for String {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for String {
@@ -281,7 +281,7 @@ pub struct Whitespace {
 }
 impl std::fmt::Display for Whitespace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.syntax, f)
+        f.write_str(self.syntax.text())
     }
 }
 impl AstToken for Whitespace {

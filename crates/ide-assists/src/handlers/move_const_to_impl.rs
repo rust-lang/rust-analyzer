@@ -1,5 +1,6 @@
 use hir::{AsAssocItem, AssocItemContainer, FileRange, HasSource};
 use ide_db::{assists::AssistId, defs::Definition, search::SearchScope};
+use syntax::token_span;
 use syntax::{
     SyntaxKind,
     ast::{
@@ -47,7 +48,7 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     let const_: ast::Const = ctx.find_node_at_offset()?;
     // Don't show the assist when the cursor is at the const's body.
     if let Some(body) = const_.body()
-        && body.syntax().text_range().contains(ctx.offset())
+        && token_span(body.syntax()).contains(ctx.offset())
     {
         return None;
     }
@@ -88,23 +89,27 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     acc.add(
         AssistId::refactor_rewrite("move_const_to_impl"),
         "Move const to impl block",
-        const_.syntax().text_range(),
+        token_span(const_.syntax()),
         |builder| {
             let usages = Definition::Const(def)
                 .usages(&ctx.sema)
                 .in_scope(&SearchScope::file_range(FileRange {
                     file_id: ctx.file_id(),
-                    range: parent_fn.syntax().text_range(),
+                    range: token_span(parent_fn.syntax()),
                 }))
                 .all();
 
-            let range_to_delete = match const_.syntax().next_sibling_or_token() {
-                Some(s) if matches!(s.kind(), SyntaxKind::WHITESPACE) => {
-                    // Remove following whitespaces too.
-                    const_.syntax().text_range().cover(s.text_range())
+            let mut range_to_delete = const_.syntax().text_range();
+            if let Some(next) =
+                const_.syntax().last_token().and_then(syntax::algo::next_non_trivia_token)
+            {
+                for piece in next.leading_trivia() {
+                    range_to_delete = range_to_delete.cover(piece.text_range());
+                    if piece.kind() == SyntaxKind::NEWLINE {
+                        break;
+                    }
                 }
-                _ => const_.syntax().text_range(),
-            };
+            }
             builder.delete(range_to_delete);
 
             let usages = usages.iter().flat_map(|(file_id, usages)| {
@@ -122,12 +127,12 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
             let last_const =
                 items.assoc_items().take_while(|it| matches!(it, ast::AssocItem::Const(_))).last();
             let insert_offset = match &last_const {
-                Some(it) => it.syntax().text_range().end(),
+                Some(it) => token_span(it.syntax()).end(),
                 None => match items.l_curly_token() {
                     Some(l_curly) => l_curly.text_range().end(),
                     // Not sure if this branch is ever reachable, but it wouldn't hurt to have a
                     // fallback.
-                    None => items.syntax().text_range().start(),
+                    None => token_span(items.syntax()).start(),
                 },
             };
 
@@ -140,7 +145,8 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
 
             let const_ = const_.reset_indent();
             let const_ = const_.indent(indent);
-            builder.insert(insert_offset, format!("\n{indent}{const_}{fixup}"));
+            let const_text = syntax::token_text_with_comments(const_.syntax());
+            builder.insert(insert_offset, format!("\n{indent}{const_text}{fixup}"));
         },
     )
 }

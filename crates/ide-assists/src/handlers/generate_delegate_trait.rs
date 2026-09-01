@@ -13,6 +13,7 @@ use ide_db::{
     syntax_helpers::suggest_name,
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     AstNode, Edition, SmolStr, SyntaxElement, SyntaxKind, ToSmolStr,
     ast::{
@@ -132,11 +133,11 @@ impl Field {
         let (name, range, ty) = match f {
             Either::Left(f) => {
                 let name = f.name()?.to_string();
-                (name, f.syntax().text_range(), f.ty()?)
+                (name, token_span(f.syntax()), f.ty()?)
             }
             Either::Right((f, l)) => {
                 let name = l.fields().position(|it| it == f)?.to_string();
-                (name, f.syntax().text_range(), f.ty()?)
+                (name, token_span(f.syntax()), f.ty()?)
             }
         };
 
@@ -242,7 +243,7 @@ impl Struct {
                 field.range,
                 |builder| {
                     builder.insert(
-                        self.strukt.syntax().text_range().end(),
+                        token_span(self.strukt.syntax()).end(),
                         format!("\n\n{}", delegate.syntax()),
                     );
                 },
@@ -519,7 +520,7 @@ fn remove_useless_where_clauses(editor: &SyntaxEditor, delegate: &ast::Impl) {
         pred.syntax()
             .descendants_with_tokens()
             .filter_map(|e| e.into_token())
-            .any(|e| e.kind() == SyntaxKind::IDENT && live_generics.contains(&e.to_string()))
+            .any(|e| e.kind() == SyntaxKind::IDENT && live_generics.contains(e.text()))
             .not()
     };
 

@@ -5,6 +5,7 @@ use ide_db::{
     label::Label,
     source_change::SourceChangeBuilder,
 };
+use syntax::token_span;
 use syntax::{
     AstNode, ToSmolStr,
     ast::{HasName, edit::AstNodeEdit},
@@ -124,7 +125,7 @@ fn find_insert_after(
     let impl_items_before_redundant = impl_def
         .assoc_item_list()?
         .assoc_items()
-        .take_while(|it| it.syntax().text_range().start() < redundant_range.start())
+        .take_while(|it| token_span(it.syntax()).start() < redundant_range.start())
         .filter_map(|it| name_of(&it))
         .collect::<Vec<_>>();
 
@@ -137,7 +138,7 @@ fn find_insert_after(
             })
         })
         .last()
-        .map(|it| it.syntax().text_range());
+        .map(|it| token_span(it.syntax()));
 
     return after_item.or_else(|| Some(trait_def.assoc_item_list()?.l_curly_token()?.text_range()));
 

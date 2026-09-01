@@ -1,6 +1,7 @@
 //! Implementation of inlay hints for generic parameters.
 use either::Either;
 use ide_db::{active_parameter::generic_def_for_node, famous_defs::FamousDefs};
+use syntax::token_span;
 use syntax::{
     AstNode,
     ast::{self, AnyHasGenericArgs, HasGenericArgs, HasName},
@@ -117,7 +118,7 @@ pub(crate) fn hints(
             kind: InlayKind::GenericParameter,
             label,
             text_edit: None,
-            resolve_parent: Some(node.syntax().text_range()),
+            resolve_parent: Some(token_span(node.syntax())),
         })
     });
 

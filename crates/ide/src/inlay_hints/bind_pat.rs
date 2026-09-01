@@ -5,6 +5,7 @@
 //! ```
 use hir::{DisplayTarget, Semantics};
 use ide_db::{RootDatabase, famous_defs::FamousDefs};
+use syntax::token_span;
 
 use itertools::Itertools;
 use syntax::{
@@ -85,10 +86,7 @@ pub(super) fn hints(
             config,
             desc_pat.syntax(),
             &ty,
-            colon_token
-                .as_ref()
-                .map_or_else(|| pat.syntax().text_range(), |t| t.text_range())
-                .end(),
+            colon_token.as_ref().map_or_else(|| token_span(pat.syntax()), |t| t.text_range()).end(),
             &|_| (),
             if colon_token.is_some() { "" } else { ": " },
         )
@@ -102,8 +100,8 @@ pub(super) fn hints(
     }
 
     let text_range = match pat.name() {
-        Some(name) => name.syntax().text_range(),
-        None => pat.syntax().text_range(),
+        Some(name) => token_span(name.syntax()),
+        None => token_span(pat.syntax()),
     };
     let mut range = match type_ascriptable {
         Some(Some(t)) => text_range.cover(t.text_range()),
@@ -114,7 +112,7 @@ pub(super) fn hints(
     if matches!(config.type_hints_placement, TypeHintsPlacement::EndOfLine)
         && let Some(let_stmt) = enclosing_let_stmt
     {
-        let stmt_range = let_stmt.syntax().text_range();
+        let stmt_range = token_span(let_stmt.syntax());
         range = TextRange::new(range.start(), stmt_range.end());
         pad_left = true;
     }
@@ -126,7 +124,7 @@ pub(super) fn hints(
         position: InlayHintPosition::After,
         pad_left,
         pad_right: false,
-        resolve_parent: Some(pat.syntax().text_range()),
+        resolve_parent: Some(token_span(pat.syntax())),
     });
 
     Some(())

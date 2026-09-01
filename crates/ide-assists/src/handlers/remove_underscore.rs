@@ -3,6 +3,7 @@ use ide_db::{
     defs::{Definition, NameClass, NameRefClass},
     rename::RenameDefinition,
 };
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::{AssistContext, Assists};
@@ -36,7 +37,7 @@ pub(crate) fn remove_underscore(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
             NameClass::PatFieldShorthand { local_def, .. } => Definition::Local(local_def),
             _ => return None,
         };
-        (text.to_owned(), name_ref.syntax().text_range(), def)
+        (text.to_owned(), token_span(name_ref.syntax()), def)
     } else {
         let name_ref = ctx.find_node_at_offset::<ast::NameRef>()?;
         let text = name_ref.text();
@@ -48,7 +49,7 @@ pub(crate) fn remove_underscore(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
             NameRefClass::FieldShorthand { local_ref, .. } => Definition::Local(local_ref),
             _ => return None,
         };
-        (text.to_owned(), name_ref.syntax().text_range(), def)
+        (text.to_owned(), token_span(name_ref.syntax()), def)
     };
 
     if !def.usages(&ctx.sema).at_least_one() {

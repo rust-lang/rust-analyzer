@@ -22,6 +22,10 @@ use stdx::{format_to, format_to_acc, never};
 use crate::{
     AstNode, SourceFile, SyntaxKind, SyntaxToken,
     ast::{self, Param, make::quote::quote},
+    syntax_node::{
+        clone_subtree_with_outer_trivia, make_token_with_trivia, token_text,
+        token_text_with_comments,
+    },
     utils::is_raw_identifier,
 };
 
@@ -248,7 +252,7 @@ pub fn item_list(body: Option<Vec<ast::Item>>) -> ast::ItemList {
     let body_indent = if is_break_braces { "    " } else { "" };
 
     let body = match body {
-        Some(bd) => bd.iter().map(|elem| elem.to_string()).join("\n\n    "),
+        Some(bd) => bd.iter().map(|elem| token_text_with_comments(elem.syntax())).join("\n\n    "),
         None => String::new(),
     };
     ast_from_text(&format!("mod C {{{body_newline}{body_indent}{body}{body_newline}}}"))
@@ -265,7 +269,7 @@ pub fn assoc_item_list(body: Option<Vec<ast::AssocItem>>) -> ast::AssocItemList 
     let body_indent = if is_break_braces { "    ".to_owned() } else { String::new() };
 
     let body = match body {
-        Some(bd) => bd.iter().map(|elem| elem.to_string()).join("\n\n    "),
+        Some(bd) => bd.iter().map(|elem| token_text_with_comments(elem.syntax())).join("\n\n    "),
         None => String::new(),
     };
     ast_from_text(&format!("impl C for D {{{body_newline}{body_indent}{body}{body_newline}}}"))
@@ -587,18 +591,38 @@ pub fn hacky_block_expr(
     tail_expr: Option<ast::Expr>,
 ) -> ast::BlockExpr {
     let mut buf = "{\n".to_owned();
+    let mut carry = 0;
     for node_or_token in elements.into_iter() {
         match node_or_token {
-            rowan::NodeOrToken::Node(n) => format_to!(buf, "    {n}\n"),
-            rowan::NodeOrToken::Token(t) => {
-                let kind = t.kind();
-                if kind == SyntaxKind::COMMENT {
-                    format_to!(buf, "    {t}\n")
-                } else if kind == SyntaxKind::WHITESPACE {
-                    let content = t.text().trim_matches(|c| c != '\n');
-                    if !content.is_empty() {
-                        format_to!(buf, "{}", &content[1..])
+            rowan::NodeOrToken::Node(n) => {
+                let mut newlines = carry;
+                carry = n
+                    .last_token()
+                    .into_iter()
+                    .flat_map(|it| it.trailing_trivia())
+                    .filter(|piece| piece.kind() == SyntaxKind::NEWLINE)
+                    .count();
+                for piece in n.first_token().into_iter().flat_map(|it| it.leading_trivia()) {
+                    match piece.kind() {
+                        SyntaxKind::COMMENT => {
+                            newlines = 0;
+                            format_to!(buf, "    {}\n", piece.text())
+                        }
+                        SyntaxKind::NEWLINE => {
+                            newlines += 1;
+                            if newlines > 1 {
+                                buf.push('\n');
+                                newlines = 0;
+                            }
+                        }
+                        _ => (),
                     }
+                }
+                format_to!(buf, "    {}\n", token_text(&n))
+            }
+            rowan::NodeOrToken::Token(t) => {
+                if t.kind() == SyntaxKind::COMMENT {
+                    format_to!(buf, "    {}\n", t.text())
                 }
             }
         }
@@ -747,7 +771,7 @@ pub fn expr_assignment(lhs: ast::Expr, rhs: ast::Expr) -> ast::BinExpr {
     expr_from_text(&format!("{lhs} = {rhs}"))
 }
 fn block_whitespace(after: &impl AstNode) -> &'static str {
-    if after.syntax().text().contains_char('\n') { "\n" } else { " " }
+    if token_text(after.syntax()).contains('\n') { "\n" } else { " " }
 }
 pub fn arg_list(args: impl IntoIterator<Item = ast::Expr>) -> ast::ArgList {
     let args = args.into_iter().format(", ");
@@ -1386,9 +1410,7 @@ fn expr_from_text_with_edition<E: Into<ast::Expr> + AstNode>(text: &str, edition
             panic!("Failed to make expr node `{node}` from text `{text}`")
         }
     };
-    let node = node.clone_subtree();
-    assert_eq!(node.syntax().text_range().start(), 0.into());
-    node
+    E::cast(clone_subtree_with_outer_trivia(node.syntax(), Some(""), Some(""))).unwrap()
 }
 
 #[track_caller]
@@ -1406,45 +1428,35 @@ fn ast_from_text_with_edition<N: AstNode>(text: &str, edition: Edition) -> N {
             panic!("Failed to make ast node `{node}` from text `{text}`")
         }
     };
-    let node = node.clone_subtree();
-    assert_eq!(node.syntax().text_range().start(), 0.into());
-    node
+    N::cast(clone_subtree_with_outer_trivia(node.syntax(), Some(""), Some(""))).unwrap()
 }
 
 pub fn token(kind: SyntaxKind) -> SyntaxToken {
-    tokens::SOURCE_FILE
-        .tree()
-        .syntax()
-        .descendants_with_tokens()
-        .filter_map(|it| it.into_token())
-        .find(|it| it.kind() == kind)
-        .unwrap_or_else(|| panic!("unhandled token: {kind:?}"))
+    token_trivia(kind, "", "")
+}
+
+pub fn token_trivia(kind: SyntaxKind, leading: &str, trailing: &str) -> SyntaxToken {
+    let text = match kind {
+        SyntaxKind::WHITESPACE => " ",
+        kind => match kind.text() {
+            "" => panic!("unhandled token: {kind:?}"),
+            text => text,
+        },
+    };
+    make_token_with_trivia(kind, text, leading, trailing)
 }
 
 pub mod tokens {
-    use std::sync::LazyLock;
-
-    use parser::Edition;
-
-    use crate::{AstNode, Parse, SourceFile, SyntaxKind::*, SyntaxToken, ast};
-
-    pub(super) static SOURCE_FILE: LazyLock<Parse<SourceFile>> = LazyLock::new(|| {
-        SourceFile::parse(
-            "use crate::foo; const C: <()>::Item = ( true && true , true || true , 1 != 1, 2 == 2, 3 < 3, 4 <= 4, 5 > 5, 6 >= 6, !true, *p, &p , &mut p, async { let _ @ [] }, while loop {} {})\n;\n\nunsafe impl A for B where: {}",
-            Edition::CURRENT,
-        )
-    });
+    use crate::{AstNode, SyntaxKind::*, SyntaxToken, ast, syntax_node::make_token};
 
     pub fn whitespace(text: &str) -> SyntaxToken {
         assert!(text.trim().is_empty());
-        let sf = SourceFile::parse(text, Edition::CURRENT).ok().unwrap();
-        sf.syntax().first_child_or_token().unwrap().into_token().unwrap()
+        make_token(WHITESPACE, text)
     }
 
     pub fn doc_comment(text: &str) -> SyntaxToken {
         assert!(!text.trim().is_empty());
-        let sf = SourceFile::parse(text, Edition::CURRENT).ok().unwrap();
-        sf.syntax().first_child_or_token().unwrap().into_token().unwrap()
+        make_token(COMMENT, text)
     }
 
     pub fn literal(text: &str) -> SyntaxToken {
@@ -1486,7 +1498,7 @@ mod tests {
                     PATH@0..3
                       PATH_SEGMENT@0..3
                         NAME_REF@0..3
-                          IDENT@0..3 "Vec"
+                          IDENT@0..3 "Vec" [] []
             "#]],
         );
 
@@ -1498,16 +1510,16 @@ mod tests {
                     PATH@0..6
                       PATH_SEGMENT@0..6
                         NAME_REF@0..3
-                          IDENT@0..3 "Vec"
+                          IDENT@0..3 "Vec" [] []
                         GENERIC_ARG_LIST@3..6
-                          L_ANGLE@3..4 "<"
+                          L_ANGLE@3..4 "<" [] []
                           TYPE_ARG@4..5
                             PATH_TYPE@4..5
                               PATH@4..5
                                 PATH_SEGMENT@4..5
                                   NAME_REF@4..5
-                                    IDENT@4..5 "T"
-                          R_ANGLE@5..6 ">"
+                                    IDENT@4..5 "T" [] []
+                          R_ANGLE@5..6 ">" [] []
             "#]],
         );
     }
@@ -1530,7 +1542,7 @@ mod tests {
                 PARAM@0..4
                   IDENT_PAT@0..4
                     NAME@0..4
-                      IDENT@0..4 "name"
+                      IDENT@0..4 "name" [] []
             "#]],
         );
 
@@ -1547,11 +1559,11 @@ mod tests {
                   RANGE_PAT@0..10
                     IDENT_PAT@0..5
                       NAME@0..5
-                        IDENT@0..5 "start"
-                    DOT2@5..7 ".."
+                        IDENT@0..5 "start" [] []
+                    DOT2@5..7 ".." [] []
                     IDENT_PAT@7..10
                       NAME@7..10
-                        IDENT@7..10 "end"
+                        IDENT@7..10 "end" [] []
             "#]],
         );
     }

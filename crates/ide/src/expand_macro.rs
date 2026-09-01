@@ -6,6 +6,7 @@ use ide_db::{
 use span::{SpanMap, TextRange, TextSize};
 use stdx::format_to;
 use syntax::syntax_editor::SyntaxEditor;
+use syntax::token_span;
 use syntax::{AstNode, NodeOrToken, SyntaxKind, SyntaxNode, T, ast};
 
 use crate::FilePosition;
@@ -30,10 +31,15 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
     let file = sema.parse(file_id);
     let krate = sema.file_to_module_def(file_id.file_id(db))?.krate(db).into();
 
-    let tok = pick_best_token(file.syntax().token_at_offset(position.offset), |kind| match kind {
-        SyntaxKind::IDENT => 1,
-        _ => 0,
-    })?;
+    let tok = pick_best_token(
+        file.syntax()
+            .token_at_offset(position.offset)
+            .filter(|it| it.text_range().contains_inclusive(position.offset)),
+        |kind| match kind {
+            SyntaxKind::IDENT => 1,
+            _ => 0,
+        },
+    )?;
 
     // due to how rust-analyzer works internally, we need to special case derive attributes,
     // otherwise they might not get found, e.g. here with the cursor at $0 `#[attr]` would expand:
@@ -160,7 +166,7 @@ fn expand_macro_recur(
         sema.hir_file_for(&expanded).macro_file().expect("expansion must produce a macro file");
     let expansion_span_map = file_id.expansion_span_map(sema.db);
     result_span_map.merge(
-        TextRange::at(offset_in_original_node, macro_call.syntax().text_range().len()),
+        TextRange::at(offset_in_original_node, token_span(macro_call.syntax()).len()),
         expanded.text_range().len(),
         expansion_span_map,
     );
@@ -185,13 +191,13 @@ fn expand(
             error,
             result_span_map,
             TextSize::new(
-                (offset_in_original_node + (u32::from(child.syntax().text_range().start()) as i32))
+                (offset_in_original_node + (u32::from(token_span(child.syntax()).start()) as i32))
                     as u32,
             ),
         ) {
             offset_in_original_node = offset_in_original_node
                 + (u32::from(new_node.text_range().len()) as i32)
-                - (u32::from(child.syntax().text_range().len()) as i32);
+                - (u32::from(token_span(child.syntax()).len()) as i32);
             // check if the whole original syntax is replaced
             if expanded == *child.syntax() {
                 return new_node;

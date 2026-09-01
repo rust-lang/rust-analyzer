@@ -15,10 +15,7 @@ use std::{
 use rowan::TextRange;
 use rustc_hash::FxHashMap;
 
-use crate::{
-    AstNode, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, T,
-    ast::{self, edit::IndentLevel, syntax_factory::SyntaxFactory},
-};
+use crate::{AstNode, SyntaxElement, SyntaxNode, SyntaxToken, ast::syntax_factory::SyntaxFactory};
 
 mod edit_algo;
 mod edits;
@@ -31,6 +28,7 @@ pub use mapping::{SyntaxMapping, SyntaxMappingBuilder};
 pub struct SyntaxEditor {
     root: SyntaxNode,
     changes: RefCell<Vec<Change>>,
+    discarded: RefCell<Vec<SyntaxElement>>,
     annotations: RefCell<Vec<(SyntaxElement, SyntaxAnnotation)>>,
     make: SyntaxFactory,
 }
@@ -51,6 +49,7 @@ impl SyntaxEditor {
         let editor = Self {
             root: root.clone(),
             changes: RefCell::new(Vec::new()),
+            discarded: RefCell::new(Vec::new()),
             annotations: RefCell::new(Vec::new()),
             make: SyntaxFactory::with_mappings(),
         };
@@ -94,6 +93,7 @@ impl SyntaxEditor {
         if let Some(mut m) = self.make.mappings() {
             m.merge(other.make.take());
         }
+        self.discarded.borrow_mut().append(&mut other.discarded.into_inner());
         self.annotations.borrow_mut().append(&mut other.annotations.into_inner());
     }
 
@@ -105,24 +105,6 @@ impl SyntaxEditor {
     pub fn insert_all(&self, position: Position, elements: Vec<SyntaxElement>) {
         debug_assert!(is_ancestor_or_self(&position.parent(), &self.root));
         self.changes.borrow_mut().push(Change::InsertAll(position, elements))
-    }
-
-    pub fn insert_with_whitespace(&self, position: Position, element: impl Element) {
-        self.insert_all_with_whitespace(position, vec![element.syntax_element()])
-    }
-
-    pub fn insert_all_with_whitespace(&self, position: Position, mut elements: Vec<SyntaxElement>) {
-        if let Some(first) = elements.first()
-            && let Some(ws) = ws_before(&position, first, &self.make)
-        {
-            elements.insert(0, ws.into());
-        }
-        if let Some(last) = elements.last()
-            && let Some(ws) = ws_after(&position, last, &self.make)
-        {
-            elements.push(ws.into());
-        }
-        self.insert_all(position, elements)
     }
 
     pub fn delete(&self, element: impl Element) {
@@ -177,6 +159,33 @@ impl SyntaxEditor {
             }
         }
         changes.push(Change::Replace(old, Some(new)));
+    }
+
+    pub fn delete_discard_trivia(&self, element: impl Element) {
+        let element = element.syntax_element();
+        self.discarded.borrow_mut().push(element.clone());
+        self.delete(element);
+    }
+
+    pub fn replace_discard_trivia(&self, old: impl Element, new: impl Element) {
+        let old = old.syntax_element();
+        self.discarded.borrow_mut().push(old.clone());
+        self.replace(old, new);
+    }
+
+    pub fn replace_with_many_discard_trivia(&self, old: impl Element, new: Vec<SyntaxElement>) {
+        let old = old.syntax_element();
+        self.discarded.borrow_mut().push(old.clone());
+        self.replace_with_many(old, new);
+    }
+
+    pub fn replace_all_discard_trivia(
+        &self,
+        range: RangeInclusive<SyntaxElement>,
+        new: Vec<SyntaxElement>,
+    ) {
+        self.discarded.borrow_mut().push(range.start().clone());
+        self.replace_all(range, new);
     }
 
     pub fn replace_with_many(&self, old: impl Element, new: Vec<SyntaxElement>) {
@@ -292,6 +301,7 @@ impl Position {
         match &self.repr {
             PositionRepr::FirstChild(parent) => (parent.clone(), 0),
             PositionRepr::After(child) => (child.parent().unwrap(), child.index() + 1),
+            PositionRepr::Before(child) => (child.parent().unwrap(), child.index()),
         }
     }
 }
@@ -300,6 +310,7 @@ impl Position {
 enum PositionRepr {
     FirstChild(SyntaxNode),
     After(SyntaxElement),
+    Before(SyntaxElement),
 }
 
 impl Position {
@@ -309,12 +320,7 @@ impl Position {
     }
 
     pub fn before(elem: impl Element) -> Position {
-        let elem = elem.syntax_element();
-        let repr = match elem.prev_sibling_or_token() {
-            Some(it) => PositionRepr::After(it),
-            None => PositionRepr::FirstChild(elem.parent().unwrap()),
-        };
-        Position { repr }
+        Position { repr: PositionRepr::Before(elem.syntax_element()) }
     }
 
     pub fn first_child_of(node: &(impl Into<SyntaxNode> + Clone)) -> Position {
@@ -356,6 +362,7 @@ impl Change {
                     0.into(),
                 ),
                 PositionRepr::After(child) => TextRange::at(child.text_range().end(), 0.into()),
+                PositionRepr::Before(child) => TextRange::at(child.text_range().start(), 0.into()),
             },
             Change::Replace(target, _) | Change::ReplaceWithMany(target, _) => target.text_range(),
             Change::ReplaceAll(range, _) => {
@@ -477,86 +484,6 @@ impl Element for SyntaxToken {
     fn syntax_element(self) -> SyntaxElement {
         self.into()
     }
-}
-
-fn ws_before(
-    position: &Position,
-    new: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    let prev = match &position.repr {
-        PositionRepr::FirstChild(_) => return None,
-        PositionRepr::After(it) => it,
-    };
-
-    if prev.kind() == T!['{']
-        && new.kind() == SyntaxKind::USE
-        && let Some(item_list) = prev.parent().and_then(ast::ItemList::cast)
-    {
-        let mut indent = IndentLevel::from_element(&item_list.syntax().clone().into());
-        indent.0 += 1;
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-
-    if prev.kind() == T!['{']
-        && ast::Stmt::can_cast(new.kind())
-        && let Some(stmt_list) = prev.parent().and_then(ast::StmtList::cast)
-    {
-        let mut indent = IndentLevel::from_element(&stmt_list.syntax().clone().into());
-        indent.0 += 1;
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-
-    ws_between(prev, new, factory)
-}
-
-fn ws_after(
-    position: &Position,
-    new: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    let next = match &position.repr {
-        PositionRepr::FirstChild(parent) => parent.first_child_or_token()?,
-        PositionRepr::After(sibling) => sibling.next_sibling_or_token()?,
-    };
-    ws_between(new, &next, factory)
-}
-
-fn ws_between(
-    left: &SyntaxElement,
-    right: &SyntaxElement,
-    factory: &SyntaxFactory,
-) -> Option<SyntaxToken> {
-    if left.kind() == SyntaxKind::WHITESPACE || right.kind() == SyntaxKind::WHITESPACE {
-        return None;
-    }
-    if right.kind() == T![;] || right.kind() == T![,] {
-        return None;
-    }
-    if left.kind() == T![<] || right.kind() == T![>] {
-        return None;
-    }
-    if left.kind() == T![&] && right.kind() == SyntaxKind::LIFETIME {
-        return None;
-    }
-    if right.kind() == SyntaxKind::GENERIC_ARG_LIST {
-        return None;
-    }
-    if right.kind() == SyntaxKind::USE {
-        let mut indent = IndentLevel::from_element(left);
-        if left.kind() == SyntaxKind::USE {
-            indent.0 = IndentLevel::from_element(right).0.max(indent.0);
-        }
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-    if left.kind() == SyntaxKind::ATTR {
-        let mut indent = IndentLevel::from_element(right);
-        if right.kind() == SyntaxKind::ATTR {
-            indent.0 = IndentLevel::from_element(left).0.max(indent.0);
-        }
-        return Some(factory.whitespace(&format!("\n{indent}")));
-    }
-    Some(factory.whitespace(" "))
 }
 
 fn is_ancestor_or_self(node: &SyntaxNode, ancestor: &SyntaxNode) -> bool {
@@ -878,7 +805,9 @@ mod tests {
 
         let edit = editor.finish();
 
-        let expect = expect![["fn it() {\n    \n}"]];
+        let expect = expect![[r#"
+            fn it() {
+            }"#]];
         expect.assert_eq(&edit.new_root.to_string());
     }
 

@@ -1,7 +1,9 @@
 use ide_db::{famous_defs::FamousDefs, traits::resolve_target_trait};
+use syntax::ast::edit::AstNodeEdit;
 use syntax::ast::edit::IndentLevel;
 use syntax::ast::{self, AstNode, HasGenericArgs, HasName, syntax_factory::SyntaxFactory};
-use syntax::syntax_editor::{Element, Position};
+use syntax::syntax_editor::Position;
+use syntax::token_span;
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -75,7 +77,7 @@ pub(crate) fn convert_from_to_tryfrom(
     acc.add(
         AssistId::refactor_rewrite("convert_from_to_tryfrom"),
         "Convert From to TryFrom",
-        impl_.syntax().text_range(),
+        token_span(impl_.syntax()),
         |builder| {
             let editor = builder.make_editor(impl_.syntax());
             let make = editor.make();
@@ -95,7 +97,10 @@ pub(crate) fn convert_from_to_tryfrom(
 
             let error_type_alias =
                 make.ty_alias(None, "Error", None, None, None, Some((make.ty("()"), None)));
-            let error_type = ast::AssocItem::TypeAlias(error_type_alias);
+            let indent = IndentLevel::from_token(&associated_l_curly) + 1;
+            let error_type = ast::AssocItem::TypeAlias(error_type_alias)
+                .with_leading_trivia(&format!("\n{indent}"), make)
+                .with_trailing_trivia("\n", make);
 
             if let Some(cap) = ctx.config.snippet_cap
                 && let ast::AssocItem::TypeAlias(type_alias) = &error_type
@@ -105,15 +110,7 @@ pub(crate) fn convert_from_to_tryfrom(
                 editor.add_annotation(ty.syntax(), placeholder);
             }
 
-            let indent = IndentLevel::from_token(&associated_l_curly) + 1;
-            editor.insert_all(
-                Position::after(associated_l_curly),
-                vec![
-                    make.whitespace(&format!("\n{indent}")).syntax_element(),
-                    error_type.syntax().syntax_element(),
-                    make.whitespace("\n").syntax_element(),
-                ],
-            );
+            editor.insert(Position::after(associated_l_curly), error_type.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

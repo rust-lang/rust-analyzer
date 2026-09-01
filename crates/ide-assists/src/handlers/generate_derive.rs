@@ -1,8 +1,12 @@
+use syntax::token_span;
 use syntax::{
     SyntaxKind::{ATTR, COMMENT, WHITESPACE},
     T,
-    ast::{self, AstNode, HasAttrs, edit::IndentLevel},
-    syntax_editor::{Element, Position},
+    ast::{
+        self, AstNode, HasAttrs,
+        edit::{AstNodeEdit, IndentLevel},
+    },
+    syntax_editor::Position,
 };
 
 use crate::{AssistContext, AssistId, Assists};
@@ -28,7 +32,7 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let cap = ctx.config.snippet_cap?;
     let nominal = ctx.find_node_at_offset::<ast::Adt>()?;
-    let target = nominal.syntax().text_range();
+    let target = token_span(nominal.syntax());
     let derive_attr = nominal
         .attrs()
         .filter_map(|x| x.as_simple_call())
@@ -52,18 +56,19 @@ pub(crate) fn generate_derive(acc: &mut Assists, ctx: &AssistContext<'_, '_>) ->
                         make.token_tree(T!['('], vec![]),
                     ));
                 let indent = IndentLevel::from_node(nominal.syntax());
-                let after_attrs_and_comments = nominal
-                    .syntax()
-                    .children_with_tokens()
-                    .find(|it| !matches!(it.kind(), WHITESPACE | COMMENT | ATTR))
-                    .map_or(Position::first_child_of(nominal.syntax()), Position::before);
+                let target = nominal.syntax().children_with_tokens().find(|it| {
+                    !matches!(it.kind(), WHITESPACE | syntax::SyntaxKind::NEWLINE | COMMENT | ATTR)
+                });
+                let _first = target.as_ref().and_then(|it| match it {
+                    syntax::NodeOrToken::Node(node) => node.first_token(),
+                    syntax::NodeOrToken::Token(token) => Some(token.clone()),
+                });
+                let after_attrs_and_comments =
+                    target.map_or(Position::first_child_of(nominal.syntax()), Position::before);
 
-                editor.insert_all(
+                editor.insert(
                     after_attrs_and_comments,
-                    vec![
-                        derive.syntax().syntax_element(),
-                        make.whitespace(&format!("\n{indent}")).syntax_element(),
-                    ],
+                    derive.with_trailing_trivia(&format!("\n{indent}"), make).syntax(),
                 );
 
                 let meta = derive.meta().expect("make::attr_outer was expected to have Meta");
@@ -213,9 +218,7 @@ struct SomeThingIrrelevant;
 struct Foo { a: i32$0, }
 struct EvenMoreIrrelevant;
             ",
-            "/// `Foo` is a pretty important struct.
-/// It does stuff.
-struct Foo { a: i32, }",
+            "struct Foo { a: i32, }",
         );
     }
 }

@@ -1,5 +1,11 @@
 use either::Either;
-use syntax::{AstNode, algo::find_node_at_range, ast, syntax_editor::SyntaxEditor};
+use syntax::token_span;
+use syntax::{
+    AstNode,
+    algo::find_node_at_range,
+    ast::{self},
+    syntax_editor::SyntaxEditor,
+};
 
 use crate::{
     AssistId,
@@ -68,22 +74,17 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
     {
         return None;
     }
-    let target = tgt.syntax().text_range();
+    let target = token_span(tgt.syntax());
 
     let (editor, edit_tgt) = SyntaxEditor::new(tgt.syntax().clone());
+    let offset = token_span(tgt.syntax()).start() - token_span(&edit_tgt).start();
     let assignments: Vec<_> = collector
         .assignments
         .into_iter()
         .filter_map(|(stmt, rhs)| {
             Some((
-                find_node_at_range::<ast::BinExpr>(
-                    &edit_tgt,
-                    stmt.syntax().text_range() - target.start(),
-                )?,
-                find_node_at_range::<ast::Expr>(
-                    &edit_tgt,
-                    rhs.syntax().text_range() - target.start(),
-                )?,
+                find_node_at_range::<ast::BinExpr>(&edit_tgt, token_span(stmt.syntax()) - offset)?,
+                find_node_at_range::<ast::Expr>(&edit_tgt, token_span(rhs.syntax()) - offset)?,
             ))
         })
         .collect();
@@ -106,7 +107,7 @@ pub(crate) fn pull_assignment_up(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         move |edit| {
             let editor = edit.make_editor(tgt.syntax());
             let make = editor.make();
-            let assign_expr = make.expr_assignment(collector.common_lhs, new_tgt.clone());
+            let assign_expr = make.expr_assignment(collector.common_lhs, new_tgt);
             let assign_stmt = make.expr_stmt(assign_expr.into());
 
             editor.replace(tgt.syntax(), assign_stmt.syntax());

@@ -151,12 +151,16 @@ pub(crate) fn external_docs(
 ) -> Option<DocumentationLinks> {
     let sema = &Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
-    let token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT | INT_NUMBER | T![self] => 3,
-        T!['('] | T![')'] => 2,
-        kind if kind.is_trivia() => 0,
-        _ => 1,
-    })?;
+    let token = pick_best_token(
+        syntax::algo::token_at_offset_with_trivia(&file, offset)
+            .filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            IDENT | INT_NUMBER | T![self] => 3,
+            T!['('] | T![')'] => 2,
+            kind if kind.is_trivia() => 0,
+            _ => 1,
+        },
+    )?;
     let token = sema.descend_into_macros_single_exact(token);
 
     let node = token.parent()?;
@@ -321,7 +325,10 @@ impl DocCommentToken {
             };
             let token_start = t.text_range().start();
             let abs_in_expansion_offset = token_start + relative_comment_offset + descended_prefix_len;
-            let (attributes, def) = Self::doc_attributes(sema, &node, is_inner)?;
+            let (node, attributes, def) = std::iter::successors(Some(node), |it| it.parent())
+                .find_map(|node| {
+                    Self::doc_attributes(sema, &node, is_inner).map(|(a, d)| (node, a, d))
+                })?;
             let doc_mapping = attributes.hir_docs(sema.db)?;
             let (in_expansion_range, link, ns, is_inner) =
                 extract_definitions_from_docs(&Documentation::new_borrowed(doc_mapping.docs())).into_iter().find_map(|(range, link, ns)| {

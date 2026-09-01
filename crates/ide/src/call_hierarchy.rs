@@ -104,10 +104,13 @@ pub(crate) fn outgoing_calls(
     let sema = Semantics::new(db);
     let file = sema.parse_guess_edition(file_id);
     let file = file.syntax();
-    let token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT => 1,
-        _ => 0,
-    })?;
+    let token = pick_best_token(
+        file.token_at_offset(offset).filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            IDENT => 1,
+            _ => 0,
+        },
+    )?;
     let mut calls = CallLocations::default();
 
     sema.descend_into_macros_exact(token)

@@ -1,6 +1,7 @@
 //! Assorted functions shared by several assists.
 
 use std::slice;
+use syntax::token_span;
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
 use hir::{
@@ -40,7 +41,7 @@ pub(crate) mod ref_field_expr;
 
 pub(crate) fn unwrap_trivial_block(block_expr: ast::BlockExpr) -> ast::Expr {
     extract_trivial_expression(&block_expr)
-        .filter(|expr| !expr.syntax().text().contains_char('\n'))
+        .filter(|expr| !syntax::token_text(expr.syntax()).contains('\n'))
         .unwrap_or_else(|| block_expr.into())
 }
 
@@ -57,11 +58,15 @@ pub fn extract_trivial_expression(block_expr: &ast::BlockExpr) -> Option<ast::Ex
             });
         non_trivial_children.next().is_some()
     };
+    let span = syntax::token_span(stmt_list.syntax());
     if stmt_list
         .syntax()
-        .children_with_tokens()
+        .descendants_with_tokens()
         .filter_map(NodeOrToken::into_token)
-        .any(|token| token.kind() == syntax::SyntaxKind::COMMENT)
+        .flat_map(|token| token.leading_trivia().chain(token.trailing_trivia()))
+        .any(|piece| {
+            piece.kind() == syntax::SyntaxKind::COMMENT && span.contains_range(piece.text_range())
+        })
     {
         return None;
     }
@@ -140,7 +145,7 @@ fn needs_parens_in_guard_chain(make: &SyntaxFactory, guard: &ast::Expr) -> bool 
 pub fn test_related_attribute_syn(fn_def: &ast::Fn) -> Option<ast::Attr> {
     fn_def.attrs().find_map(|attr| {
         let path = attr.path()?;
-        let text = path.syntax().text().to_string();
+        let text = syntax::token_text(path.syntax());
         if text.starts_with("test") || text.ends_with("test") { Some(attr) } else { None }
     })
 }
@@ -272,9 +277,12 @@ pub fn add_trait_assoc_items_to_impl(
 
 pub(crate) fn vis_offset(node: &SyntaxNode) -> TextSize {
     node.children_with_tokens()
-        .find(|it| !matches!(it.kind(), WHITESPACE | COMMENT | ATTR))
-        .map(|it| it.text_range().start())
-        .unwrap_or_else(|| node.text_range().start())
+        .find(|it| !matches!(it.kind(), WHITESPACE | syntax::SyntaxKind::NEWLINE | COMMENT | ATTR))
+        .map(|it| match it {
+            NodeOrToken::Node(node) => syntax::token_span(&node).start(),
+            NodeOrToken::Token(token) => token.text_range().start(),
+        })
+        .unwrap_or_else(|| syntax::token_span(node).start())
 }
 
 pub(crate) fn invert_boolean_expression(make: &SyntaxFactory, expr: ast::Expr) -> ast::Expr {
@@ -358,7 +366,7 @@ pub(crate) fn insert_attributes(
     let indent = IndentLevel::from_element(&elem);
     let whitespace = format!("\n{indent}");
     let elements: Vec<syntax::SyntaxElement> = attrs
-        .flat_map(|attr| [attr.syntax().clone().into(), make.whitespace(&whitespace).into()])
+        .map(|attr| attr.with_trailing_trivia(&whitespace, make).syntax().clone().into())
         .collect();
     editor.insert_all(syntax::syntax_editor::Position::before(elem), elements);
 }
@@ -368,12 +376,13 @@ pub(crate) fn next_prev() -> impl Iterator<Item = Direction> {
 }
 
 pub(crate) fn does_pat_match_variant(pat: &ast::Pat, var: &ast::Pat) -> bool {
-    let first_node_text = |pat: &ast::Pat| pat.syntax().first_child().map(|node| node.text());
+    let first_node_text =
+        |pat: &ast::Pat| pat.syntax().first_child().map(|node| syntax::token_text(&node));
 
     let pat_head = match pat {
         ast::Pat::IdentPat(bind_pat) => match bind_pat.pat() {
             Some(p) => first_node_text(&p),
-            None => return pat.syntax().text() == var.syntax().text(),
+            None => return syntax::token_text(pat.syntax()) == syntax::token_text(var.syntax()),
         },
         pat => first_node_text(pat),
     };
@@ -1097,7 +1106,7 @@ pub(crate) fn tt_from_syntax(
 }
 
 pub(crate) fn cover_let_chain(mut expr: ast::Expr, range: TextRange) -> Option<ast::Expr> {
-    if !expr.syntax().text_range().contains_range(range) {
+    if !token_span(expr.syntax()).contains_range(range) {
         return None;
     }
     loop {
@@ -1110,7 +1119,7 @@ pub(crate) fn cover_let_chain(mut expr: ast::Expr, range: TextRange) -> Option<a
         };
 
         if let Some(chain_expr) = chain_expr
-            && chain_expr.syntax().text_range().contains_range(range)
+            && token_span(chain_expr.syntax()).contains_range(range)
         {
             break Some(chain_expr);
         }
@@ -1126,7 +1135,11 @@ pub(crate) fn cover_edit_range(
         NodeOrToken::Node(node) => node,
         NodeOrToken::Token(t) => t.parent().unwrap(),
     };
-    let mut iter = node.children_with_tokens().filter(|it| range.contains_range(it.text_range()));
+    let span = |it: &syntax::SyntaxElement| match it {
+        NodeOrToken::Node(node) => token_span(node),
+        NodeOrToken::Token(token) => token.text_range(),
+    };
+    let mut iter = node.children_with_tokens().filter(|it| range.contains_range(span(it)));
     let first = iter.next().unwrap_or(node.into());
     let last = iter.last().unwrap_or_else(|| first.clone());
     first..=last
@@ -1137,8 +1150,8 @@ pub(crate) fn is_selected(
     selection: syntax::TextRange,
     allow_empty: bool,
 ) -> bool {
-    selection.intersect(it.syntax().text_range()).is_some_and(|it| !it.is_empty())
-        || allow_empty && it.syntax().text_range().contains_range(selection)
+    selection.intersect(token_span(it.syntax())).is_some_and(|it| !it.is_empty())
+        || allow_empty && token_span(it.syntax()).contains_range(selection)
 }
 
 pub fn is_body_const(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> bool {

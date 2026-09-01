@@ -8,14 +8,18 @@
 
 use std::ops::Range;
 
-use parser::{Edition, Reparser};
+use parser::{Edition, Reparser, SyntaxKind};
+use rowan::Language;
 
 use crate::{
     SyntaxError,
     SyntaxKind::*,
     T, TextRange, TextSize,
     parsing::build_tree,
-    syntax_node::{GreenNode, GreenToken, NodeOrToken, SyntaxElement, SyntaxNode},
+    syntax_node::{
+        GreenNode, GreenToken, NodeOrToken, RustLanguage, SyntaxElement, SyntaxNode, SyntaxToken,
+        trivia_pieces,
+    },
 };
 
 pub(crate) fn incremental_reparse(
@@ -50,17 +54,14 @@ fn reparse_token(
     edition: Edition,
 ) -> Option<(GreenNode, Vec<SyntaxError>, TextRange)> {
     let prev_token = root.covering_element(delete).as_token()?.clone();
+
+    if !prev_token.text_range().contains_range(delete) {
+        return reparse_trivia(&prev_token, delete, insert, edition);
+    }
+
     let prev_token_kind = prev_token.kind();
     match prev_token_kind {
-        WHITESPACE | COMMENT | IDENT | STRING | BYTE_STRING | C_STRING => {
-            if prev_token_kind == WHITESPACE || prev_token_kind == COMMENT {
-                // removing a new line may extends previous token
-                let deleted_range = delete - prev_token.text_range().start();
-                if prev_token.text()[deleted_range].contains('\n') {
-                    return None;
-                }
-            }
-
+        IDENT | STRING | BYTE_STRING | C_STRING => {
             let mut new_text = get_text_after_edit(prev_token.clone().into(), delete, insert);
             let (new_token_kind, new_err) = parser::LexedStr::single_token(edition, &new_text)?;
 
@@ -82,7 +83,12 @@ fn reparse_token(
                 new_text.pop();
             }
 
-            let new_token = GreenToken::new(rowan::SyntaxKind(prev_token_kind.into()), &new_text);
+            let new_token = GreenToken::with_trivia(
+                rowan::SyntaxKind(prev_token_kind.into()),
+                &new_text,
+                prev_token.green().leading_trivia().to_vec(),
+                prev_token.green().trailing_trivia().to_vec(),
+            );
             let range = TextRange::up_to(TextSize::of(&new_text));
             Some((
                 prev_token.replace_with(new_token),
@@ -92,6 +98,86 @@ fn reparse_token(
         }
         _ => None,
     }
+}
+
+fn reparse_trivia(
+    token: &SyntaxToken,
+    delete: TextRange,
+    insert: &str,
+    edition: Edition,
+) -> Option<(GreenNode, Vec<SyntaxError>, TextRange)> {
+    let green = token.green();
+    let full_start = token.text_range_including_trivia().start();
+
+    let mut leading = green.leading_trivia().to_vec();
+    let mut trailing = green.trailing_trivia().to_vec();
+
+    let mut offset = full_start;
+    let mut target = None;
+    for (is_leading, index) in
+        (0..leading.len()).map(|it| (true, it)).chain((0..trailing.len()).map(|it| (false, it)))
+    {
+        if !is_leading && index == 0 {
+            offset =
+                leading.iter().fold(full_start, |acc, it| acc + it.text_len()) + green.text_len();
+        }
+        let piece = if is_leading { &leading[index] } else { &trailing[index] };
+        let range = TextRange::at(offset, piece.text_len());
+        if range.contains_range(delete) {
+            target = Some((is_leading, index, range));
+            break;
+        }
+        offset = range.end();
+    }
+    let (is_leading, index, range) = target?;
+
+    let piece = if is_leading { &leading[index] } else { &trailing[index] };
+    let old_text = piece.text();
+
+    let deleted = delete - range.start();
+    if old_text[Range::<usize>::from(deleted)].contains('\n') {
+        return None;
+    }
+
+    let mut new_text = old_text.to_owned();
+    new_text.replace_range(Range::<usize>::from(deleted), insert);
+
+    let (new_kind, new_err) = parser::LexedStr::single_token(edition, &new_text)?;
+    if !new_kind.is_trivia() {
+        return None;
+    }
+    let piece_kind = RustLanguage::kind_from_raw(piece.kind());
+    let is_whitespace = matches!(piece_kind, SyntaxKind::WHITESPACE | SyntaxKind::NEWLINE);
+    if is_whitespace != (new_kind == SyntaxKind::WHITESPACE) {
+        return None;
+    }
+    if !is_whitespace && piece_kind != new_kind {
+        return None;
+    }
+    if !is_leading && new_text.contains('\n') {
+        return None;
+    }
+
+    let new_pieces: Vec<GreenToken> = match is_whitespace {
+        true => trivia_pieces(&new_text)
+            .into_iter()
+            .map(|(kind, text)| GreenToken::new(kind, text))
+            .collect(),
+        false => vec![GreenToken::new(piece.kind(), &new_text)],
+    };
+    if is_leading {
+        leading.splice(index..index + 1, new_pieces);
+    } else {
+        trailing.splice(index..index + 1, new_pieces);
+    }
+
+    let new_token = GreenToken::with_trivia(green.kind(), green.text(), leading, trailing);
+    let err_range = TextRange::up_to(TextSize::of(&new_text));
+    Some((
+        token.replace_with(new_token),
+        new_err.into_iter().map(|msg| SyntaxError::new(msg, err_range)).collect(),
+        range,
+    ))
 }
 
 fn reparse_block(
@@ -112,17 +198,40 @@ fn reparse_block(
     let tree_traversal = reparser.parse(&parser_input);
 
     let (green, new_parser_errors, _eof) = build_tree(lexed, tree_traversal);
+    let green = strip_eof(green);
 
     Some((node.replace_with(green), new_parser_errors, node.text_range()))
 }
 
-fn get_text_after_edit(element: SyntaxElement, mut delete: TextRange, insert: &str) -> String {
-    delete -= element.text_range().start();
-
-    let mut text = match element {
-        NodeOrToken::Token(token) => token.text().to_owned(),
-        NodeOrToken::Node(node) => node.text().to_string(),
+fn strip_eof(green: GreenNode) -> GreenNode {
+    let is_empty_eof = |child: &rowan::NodeOrToken<_, &rowan::GreenTokenData>| match child {
+        NodeOrToken::Token(token) => {
+            RustLanguage::kind_from_raw(token.kind()) == EOF
+                && token.text().is_empty()
+                && token.leading_trivia().is_empty()
+                && token.trailing_trivia().is_empty()
+        }
+        NodeOrToken::Node(_) => false,
     };
+    if !green.children().next_back().is_some_and(|it| is_empty_eof(&it)) {
+        return green;
+    }
+    let children = green.children().collect::<Vec<_>>();
+    GreenNode::new(
+        green.kind(),
+        children[..children.len() - 1].iter().map(|child| match child {
+            NodeOrToken::Node(node) => NodeOrToken::Node((*node).to_owned()),
+            NodeOrToken::Token(token) => NodeOrToken::Token((*token).to_owned()),
+        }),
+    )
+}
+
+fn get_text_after_edit(element: SyntaxElement, mut delete: TextRange, insert: &str) -> String {
+    let (start, mut text) = match &element {
+        NodeOrToken::Token(token) => (token.text_range().start(), token.text().to_owned()),
+        NodeOrToken::Node(node) => (node.text_range().start(), node.text().to_string()),
+    };
+    delete -= start;
     text.replace_range(Range::<usize>::from(delete), insert);
     text
 }
@@ -142,11 +251,16 @@ fn find_reparsable_node(node: &SyntaxNode, range: TextRange) -> Option<(SyntaxNo
 }
 
 fn is_balanced(lexed: &parser::LexedStr<'_>) -> bool {
-    if lexed.is_empty() || lexed.kind(0) != T!['{'] || lexed.kind(lexed.len() - 1) != T!['}'] {
+    let significant =
+        (0..lexed.len()).filter(|&it| !lexed.kind(it).is_trivia()).collect::<Vec<_>>();
+    let (Some(&first), Some(&last)) = (significant.first(), significant.last()) else {
+        return false;
+    };
+    if first == last || lexed.kind(first) != T!['{'] || lexed.kind(last) != T!['}'] {
         return false;
     }
     let mut balance = 0usize;
-    for i in 1..lexed.len() - 1 {
+    for i in first + 1..last {
         match lexed.kind(i) {
             T!['{'] => balance += 1,
             T!['}'] => {
@@ -198,6 +312,19 @@ mod tests {
     use super::*;
     use crate::{AstNode, Parse, SourceFile};
 
+    fn do_check_fallback(before: &str, replace_with: &str) {
+        let (range, before) = extract_range(before);
+        let parse = SourceFile::parse(&before, Edition::CURRENT);
+        let reparsed = incremental_reparse(
+            parse.tree().syntax(),
+            range,
+            replace_with,
+            parse.errors.as_deref().unwrap_or_default().iter().cloned(),
+            Edition::CURRENT,
+        );
+        assert!(reparsed.is_none(), "expected this edit to need a full reparse");
+    }
+
     fn do_check(before: &str, replace_with: &str, reparsed_len: u32) {
         let (range, before) = extract_range(before);
         let after = {
@@ -246,7 +373,7 @@ fn foo() {
 }
 ",
             "baz",
-            25,
+            26,
         );
         do_check(
             r"
@@ -255,7 +382,7 @@ struct Foo {
 }
 ",
             ",\n    g: (),",
-            14,
+            15,
         );
         do_check(
             r"
@@ -266,7 +393,7 @@ fn foo {
 }
 ",
             "62",
-            31, // FIXME: reparse only int literal here
+            32, // FIXME: reparse only int literal here
         );
         do_check(
             r"
@@ -275,7 +402,7 @@ mod foo {
 }
 ",
             "bar",
-            11,
+            12,
         );
 
         do_check(
@@ -294,7 +421,7 @@ impl IntoIterator<Item=i32> for Foo {
 }
 ",
             "n next(",
-            9,
+            10,
         );
         do_check(r"use a::b::{foo,$0,bar$0};", "baz", 10);
         do_check(
@@ -304,14 +431,14 @@ pub enum A {
 }
 ",
             "\nBar;\n",
-            11,
+            12,
         );
         do_check(
             r"
 foo!{a, b$0$0 d}
 ",
             ", c[3]",
-            8,
+            9,
         );
         do_check(
             r"
@@ -320,7 +447,7 @@ fn foo() {
 }
 ",
             "123",
-            14,
+            15,
         );
         do_check(
             r"
@@ -329,7 +456,7 @@ extern {
 }
 ",
             " exit(code: c_int)",
-            11,
+            12,
         );
     }
 
@@ -342,12 +469,11 @@ fn foo() -> i32 { 1 }
             "\n\n\n   \n",
             1,
         );
-        do_check(
+        do_check_fallback(
             r"
 fn foo() -> $0$0 {}
 ",
             "  \n",
-            2,
         );
         do_check(
             r"
@@ -370,19 +496,11 @@ fn foo /* $0$0 */ () {}
             "some comment",
             6,
         );
-        do_check(
+        do_check_fallback(
             r"
 fn baz $0$0 () {}
 ",
             "    \t\t\n\n",
-            2,
-        );
-        do_check(
-            r"
-fn baz $0$0 () {}
-",
-            "    \t\t\n\n",
-            2,
         );
         do_check(
             r"
@@ -392,12 +510,11 @@ mod { }
             "c",
             14,
         );
-        do_check(
+        do_check_fallback(
             r#"
 fn -> &str { "Hello$0$0" }
 "#,
             ", world",
-            7,
         );
         do_check(
             r#"
@@ -406,12 +523,11 @@ fn -> &str { // "Hello$0$0"
             ", world",
             10,
         );
-        do_check(
+        do_check_fallback(
             r##"
 fn -> &str { r#"Hello$0$0"#
 "##,
             ", world",
-            10,
         );
         do_check(
             r"
@@ -427,12 +543,12 @@ enum Foo {
 
     #[test]
     fn reparse_str_token_with_error_unchanged() {
-        do_check(r#""$0Unclosed$0 string literal"#, "Still unclosed", 24);
+        do_check_fallback(r#""$0Unclosed$0 string literal"#, "Still unclosed");
     }
 
     #[test]
     fn reparse_str_token_with_error_fixed() {
-        do_check(r#""unterminated$0$0"#, "\"", 13);
+        do_check_fallback(r#""unterminated$0$0"#, "\"");
     }
 
     #[test]

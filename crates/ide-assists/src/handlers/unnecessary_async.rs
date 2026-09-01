@@ -50,11 +50,11 @@ pub(crate) fn unnecessary_async(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
     // Remove the `async` keyword plus whitespace after it, if any.
     let async_range = {
         let async_token = function.async_token()?;
-        let next_token = async_token.next_token()?;
-        if matches!(next_token.kind(), SyntaxKind::WHITESPACE) {
-            TextRange::new(async_token.text_range().start(), next_token.text_range().end())
-        } else {
-            async_token.text_range()
+        match async_token.trailing_trivia().next() {
+            Some(piece) if piece.kind() == SyntaxKind::WHITESPACE => {
+                TextRange::new(async_token.text_range().start(), piece.text_range().end())
+            }
+            _ => async_token.text_range(),
         }
     };
 

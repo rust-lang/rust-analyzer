@@ -4,6 +4,7 @@ use ide_db::assists::Assist;
 use ide_db::source_change::{SourceChange, SourceChangeBuilder};
 use ide_db::text_edit::TextEdit;
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     AstNode, AstPtr,
     ast::{self, HasArgList},
@@ -58,7 +59,7 @@ fn fix_method_call(
 
     let file_id = mcall_ptr.file_id;
     let mcall = mcall_ptr.to_node(db);
-    let range = mcall.syntax().text_range();
+    let range = token_span(mcall.syntax());
 
     // `mcall` is `foo.drop()` -- extract the receiver, and wrap it in `drop()`
     // NOTE: it could theoretically be `(&mut foo).drop()` instead, in which case the fix
@@ -102,7 +103,7 @@ fn fix_path(
         };
         let recv = ref_recv.expr()?;
 
-        let range = call.syntax().text_range();
+        let range = token_span(call.syntax());
 
         let mut builder = SourceChangeBuilder::new(file_id.original_file(db).file_id(db));
         let editor = builder.make_editor(call.syntax());
@@ -116,7 +117,7 @@ fn fix_path(
         // `path` could be the `Foo::drop` in `let d = Foo::drop;`
         // -- replace the path with `drop`
 
-        let range = InFile::new(file_id, path.syntax().text_range())
+        let range = InFile::new(file_id, token_span(path.syntax()))
             .original_node_file_range_rooted_opt(db)?;
 
         let edit = TextEdit::replace(range.range, "drop".to_owned());

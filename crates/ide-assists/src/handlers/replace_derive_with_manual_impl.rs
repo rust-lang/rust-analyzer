@@ -3,10 +3,10 @@ use ide_db::{
     helpers::mod_path_to_ast_with_factory, imports::import_assets::NameToImport, items_locator,
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
-    Edition,
-    SyntaxKind::WHITESPACE,
-    T,
+    Edition, T,
+    ast::edit::AstNodeEdit,
     ast::{self, AstNode, HasName, syntax_factory::SyntaxFactory},
     syntax_editor::{Position, SyntaxEditor},
 };
@@ -138,7 +138,7 @@ fn add_assist(
     adt: &ast::Adt,
     current_edition: Edition,
 ) -> Option<()> {
-    let target = attr.syntax().text_range();
+    let target = token_span(attr.syntax());
     let annotated_name = adt.name()?;
     let label_trait_path = match replace_trait_mod_path.as_ref() {
         Some(path) => {
@@ -172,19 +172,22 @@ fn add_assist(
         let trait_path = make.ty_path(replace_trait_path.clone()).into();
 
         let (impl_def, first_assoc_item) = if let Some(impl_def) = impl_def {
+            let impl_def = impl_def.with_leading_trivia("\n\n", make);
             (
                 impl_def.clone(),
                 impl_def.assoc_item_list().and_then(|list| list.assoc_items().next()),
             )
         } else {
-            (generate_trait_impl(make, impl_is_unsafe, adt, trait_path), None)
+            let impl_def = generate_trait_impl(make, impl_is_unsafe, adt, trait_path)
+                .with_leading_trivia("\n\n", make);
+            (impl_def, None)
         };
 
         if let Some(cap) = ctx.config.snippet_cap {
             if let Some(first_assoc_item) = first_assoc_item {
                 if let ast::AssocItem::Fn(ref func) = first_assoc_item
                     && let Some(m) = func.syntax().descendants().find_map(ast::MacroCall::cast)
-                    && m.syntax().text() == "todo!()"
+                    && syntax::token_text(m.syntax()) == "todo!()"
                 {
                     // Make the `todo!()` a placeholder
                     editor.add_annotation(m.syntax(), builder.make_placeholder_snippet(cap));
@@ -202,10 +205,7 @@ fn add_assist(
             }
         }
 
-        editor.insert_all(
-            insert_after,
-            vec![make.whitespace("\n\n").into(), impl_def.syntax().clone().into()],
-        );
+        editor.insert(insert_after, impl_def.syntax());
         builder.add_file_edits(ctx.vfs_file_id(), editor);
     })
 }
@@ -296,7 +296,7 @@ fn update_attribute(
                 .collect::<Vec<_>>()
         });
         // ...which are interspersed with ", "
-        let tt = Itertools::intersperse(tt, vec![make.token(T![,]), make.whitespace(" ")]);
+        let tt = Itertools::intersperse(tt, vec![make.token_trivia(T![,], "", " ")]);
         // ...wrap them into the appropriate `NodeOrToken` variant
         let tt = tt.flatten().map(syntax::NodeOrToken::Token);
         // ...and make them into a flat list of tokens
@@ -307,13 +307,35 @@ fn update_attribute(
     } else {
         // Remove the attr and any trailing whitespace
 
-        if let Some(line_break) =
-            attr.syntax().next_sibling_or_token().filter(|t| t.kind() == WHITESPACE)
-        {
-            editor.delete(line_break)
+        let leading: String = attr
+            .syntax()
+            .first_token()
+            .into_iter()
+            .flat_map(|token| token.leading_trivia())
+            .map(|piece| piece.text().to_owned())
+            .collect();
+        match leading.strip_suffix('\n') {
+            Some(kept) if !kept.is_empty() => {
+                editor.delete(attr.syntax());
+                if let Some(next) = syntax::algo::next_non_trivia_token(attr.syntax().clone()) {
+                    let mut leading = kept.to_owned();
+                    leading.extend(next.leading_trivia().map(|piece| piece.text().to_owned()));
+                    let trailing: String =
+                        next.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+                    let token =
+                        make.token_with_trivia(next.kind(), next.text(), &leading, &trailing);
+                    editor.replace(next, token);
+                }
+            }
+            Some(_) => editor.delete(attr.syntax()),
+            None => match attr.syntax().next_sibling_or_token() {
+                Some(next) if !next.kind().text().is_empty() => editor.replace_all(
+                    attr.syntax().clone().into()..=next.clone(),
+                    vec![make.token(next.kind()).into()],
+                ),
+                _ => editor.delete(attr.syntax()),
+            },
         }
-
-        editor.delete(attr.syntax())
     }
 }
 

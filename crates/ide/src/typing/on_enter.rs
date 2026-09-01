@@ -5,7 +5,7 @@ use ide_db::{FilePosition, RootDatabase, source_change::SnippetEdit};
 use syntax::{
     AstNode, SmolStr, SourceFile,
     SyntaxKind::*,
-    SyntaxToken, TextRange, TextSize, TokenAtOffset,
+    SyntaxToken, TextRange, TextSize, TokenAtOffset, algo,
     ast::{self, AstToken, edit::IndentLevel},
 };
 
@@ -53,7 +53,7 @@ pub(crate) fn on_enter(db: &RootDatabase, position: FilePosition) -> Option<Text
         ide_db::base_db::EditionedFileId::current_edition(db, position.file_id);
     let parse = editioned_file_id_wrapper.parse(db);
     let file = parse.tree();
-    let token = file.syntax().token_at_offset(position.offset).left_biased()?;
+    let token = algo::token_at_offset_with_trivia(file.syntax(), position.offset).left_biased()?;
 
     if let Some(comment) = ast::Comment::cast(token.clone()) {
         return on_enter_in_comment(&comment, &file, position.offset);
@@ -128,7 +128,7 @@ fn brace_contents_on_same_line(l_curly: &SyntaxToken) -> Option<(SyntaxToken, St
     let mut token = l_curly.next_token()?;
 
     loop {
-        if token.kind() == WHITESPACE && token.text().contains('\n') {
+        if syntax::algo::starts_line(&token) {
             return None;
         }
 
@@ -138,15 +138,15 @@ fn brace_contents_on_same_line(l_curly: &SyntaxToken) -> Option<(SyntaxToken, St
                 tokens.push(token.clone());
             }
             R_CURLY if depth == 0 => {
-                let first = tokens.iter().position(|it| it.kind() != WHITESPACE);
-                let last = tokens.iter().rposition(|it| it.kind() != WHITESPACE);
-                let content = match first.zip(last) {
-                    Some((first, last)) => {
-                        tokens[first..=last].iter().map(|it| it.text()).collect()
-                    }
-                    None => String::new(),
-                };
-                return Some((token, content));
+                let mut content = String::new();
+                content.extend(l_curly.trailing_trivia().map(|it| it.text().to_owned()));
+                for token in &tokens {
+                    content.extend(token.leading_trivia().map(|it| it.text().to_owned()));
+                    content.push_str(token.text());
+                    content.extend(token.trailing_trivia().map(|it| it.text().to_owned()));
+                }
+                content.extend(token.leading_trivia().map(|it| it.text().to_owned()));
+                return Some((token, content.trim().to_owned()));
             }
             R_CURLY => {
                 depth -= 1;
@@ -160,18 +160,23 @@ fn brace_contents_on_same_line(l_curly: &SyntaxToken) -> Option<(SyntaxToken, St
 }
 
 fn followed_by_comment(comment: &ast::Comment) -> bool {
-    let ws = match comment.syntax().next_token().and_then(ast::Whitespace::cast) {
-        Some(it) => it,
-        None => return false,
-    };
-    if ws.spans_multiple_lines() {
-        return false;
+    let mut newlines = 0;
+    let mut token = comment.syntax().next_token();
+    while let Some(it) = token {
+        if !matches!(it.kind(), WHITESPACE | NEWLINE) {
+            return ast::Comment::cast(it).is_some();
+        }
+        newlines += it.text().matches('\n').count();
+        if newlines > 1 {
+            return false;
+        }
+        token = it.next_token();
     }
-    ws.syntax().next_token().and_then(ast::Comment::cast).is_some()
+    false
 }
 
 fn node_indent(file: &SourceFile, token: &SyntaxToken) -> Option<SmolStr> {
-    let ws = match file.syntax().token_at_offset(token.text_range().start()) {
+    let ws = match algo::token_at_offset_with_trivia(file.syntax(), token.text_range().start()) {
         TokenAtOffset::Between(l, r) => {
             assert!(r == *token);
             l
@@ -182,12 +187,15 @@ fn node_indent(file: &SourceFile, token: &SyntaxToken) -> Option<SmolStr> {
         }
         TokenAtOffset::None => unreachable!(),
     };
-    if ws.kind() != WHITESPACE {
-        return None;
+    match ws.kind() {
+        NEWLINE => Some("".into()),
+        WHITESPACE => {
+            let text = ws.text();
+            let pos = text.rfind('\n').map(|it| it + 1).unwrap_or(0);
+            Some(text[pos..].into())
+        }
+        _ => None,
     }
-    let text = ws.text();
-    let pos = text.rfind('\n').map(|it| it + 1).unwrap_or(0);
-    Some(text[pos..].into())
 }
 
 #[cfg(test)]

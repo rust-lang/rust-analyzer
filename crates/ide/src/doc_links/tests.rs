@@ -87,15 +87,17 @@ fn def_under_cursor<'db>(
     sema: &Semantics<'db, RootDatabase>,
     position: &FilePosition,
 ) -> (Definition<'db>, Cow<'db, hir::Docs>) {
-    let (docs, def) = sema
-        .parse_guess_edition(position.file_id)
-        .syntax()
-        .token_at_offset(position.offset)
-        .left_biased()
-        .unwrap()
-        .parent_ancestors()
-        .find_map(|it| node_to_def(sema, &it))
+    let file = sema.parse_guess_edition(position.file_id).syntax().clone();
+    let token =
+        syntax::algo::token_at_offset_with_trivia(&file, position.offset).left_biased().unwrap();
+    let candidates: Vec<_> =
+        token.parent_ancestors().filter_map(|it| node_to_def(sema, &it)).collect();
+    let (docs, def) = candidates
+        .iter()
+        .find(|it| it.as_ref().is_some_and(|(docs, _)| docs.is_some()))
+        .or_else(|| candidates.first())
         .expect("no def found")
+        .clone()
         .unwrap();
     let docs = docs.expect("no docs found for cursor def");
     (def, docs)

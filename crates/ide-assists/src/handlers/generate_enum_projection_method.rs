@@ -1,5 +1,6 @@
 use ide_db::assists::GroupLabel;
 use stdx::to_lower_snake_case;
+use syntax::token_span;
 use syntax::{
     AstNode, Edition,
     ast::{self, HasName, HasVisibility, edit::AstNodeEdit},
@@ -139,7 +140,7 @@ fn generate_enum_projection_method(
     // Return early if we've found an existing new fn
     let impl_def = find_struct_impl(ctx, &parent_enum, &fn_names)?;
 
-    let target = variant.syntax().text_range();
+    let target = token_span(variant.syntax());
     acc.add_group(
         &GroupLabel("Generate an `is_`,`as_`, or `try_into_` for this enum variant".to_owned()),
         AssistId::generate(assist_id),
@@ -166,13 +167,8 @@ fn generate_enum_projection_method(
             let indent = parent_enum.indent_level();
             let assoc_list = make.assoc_item_list(fn_items);
             let new_impl = generate_impl_with_item(make, &parent_enum, Some(assoc_list));
-            editor.insert_all(
-                Position::after(parent_enum.syntax()),
-                vec![
-                    make.whitespace(&format!("\n\n{indent}")).into(),
-                    new_impl.syntax().clone().into(),
-                ],
-            );
+            let new_impl = new_impl.with_leading_trivia(&format!("\n\n{indent}"), make);
+            editor.insert(Position::after(parent_enum.syntax()), new_impl.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

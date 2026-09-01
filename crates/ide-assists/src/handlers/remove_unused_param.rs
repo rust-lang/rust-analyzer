@@ -1,4 +1,5 @@
 use ide_db::{EditionedFileId, defs::Definition, search::FileReference};
+use syntax::token_span;
 use syntax::{
     AstNode, SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, T, TextRange,
     algo::{find_node_at_range, least_common_ancestor_element},
@@ -78,7 +79,7 @@ pub(crate) fn remove_unused_param(acc: &mut Assists, ctx: &AssistContext<'_, '_>
     acc.add(
         AssistId::refactor("remove_unused_param"),
         "Remove unused parameter",
-        param.syntax().text_range(),
+        token_span(param.syntax()),
         |builder| {
             let editor = builder.make_editor(&parent);
             let elements = elements_to_remove(param.syntax());

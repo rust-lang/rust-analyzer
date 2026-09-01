@@ -55,7 +55,8 @@ pub use crate::{
     syntax_error::SyntaxError,
     syntax_node::{
         PreorderWithTokens, RustLanguage, SyntaxElement, SyntaxElementChildren, SyntaxNode,
-        SyntaxNodeChildren, SyntaxToken, SyntaxTreeBuilder,
+        SyntaxNodeChildren, SyntaxToken, SyntaxTreeBuilder, clone_subtree_with_outer_trivia,
+        is_error, strip_trivia, token_span, token_text, token_text_with_comments,
     },
 };
 pub use parser::{Edition, SyntaxKind, T};
@@ -366,10 +367,7 @@ fn api_walkthrough() {
     // There's a bunch of traversal methods on `SyntaxNode`:
     assert_eq!(expr_syntax.parent().as_ref(), Some(stmt_list.syntax()));
     assert_eq!(stmt_list.syntax().first_child_or_token().map(|it| it.kind()), Some(T!['{']));
-    assert_eq!(
-        expr_syntax.next_sibling_or_token().map(|it| it.kind()),
-        Some(SyntaxKind::WHITESPACE)
-    );
+    assert_eq!(expr_syntax.next_sibling_or_token().map(|it| it.kind()), Some(T!['}']));
 
     // As well as some iterator helpers:
     let f = expr_syntax.ancestors().find_map(ast::Fn::cast);
@@ -377,7 +375,7 @@ fn api_walkthrough() {
     assert!(expr_syntax.siblings_with_tokens(Direction::Next).any(|it| it.kind() == T!['}']));
     assert_eq!(
         expr_syntax.descendants_with_tokens().count(),
-        8, // 5 tokens `1`, ` `, `+`, ` `, `1`
+        6, // 3 tokens `1`, `+`, `1` - the spaces around `+` are trivia on them
            // 2 child literal expressions: `1`, `1`
            // 1 the node itself: `1 + 1`
     );
@@ -405,9 +403,7 @@ fn api_walkthrough() {
 "1 + 1" BIN_EXPR
   "1" LITERAL
     "1" INT_NUMBER
-  " " WHITESPACE
   "+" PLUS
-  " " WHITESPACE
   "1" LITERAL
     "1" INT_NUMBER
 "#

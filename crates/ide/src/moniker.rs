@@ -146,18 +146,22 @@ pub(crate) fn moniker(
     let sema = &Semantics::new(db);
     let file = sema.parse_guess_edition(file_id).syntax().clone();
     let current_crate: hir::Crate = crates_for(db, file_id).pop()?.into();
-    let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT
-        | INT_NUMBER
-        | LIFETIME_IDENT
-        | T![self]
-        | T![super]
-        | T![crate]
-        | T![Self]
-        | COMMENT => 2,
-        kind if kind.is_trivia() => 0,
-        _ => 1,
-    })?;
+    let original_token = pick_best_token(
+        syntax::algo::token_at_offset_with_trivia(&file, offset)
+            .filter(|it| it.text_range().contains_inclusive(offset)),
+        |kind| match kind {
+            IDENT
+            | INT_NUMBER
+            | LIFETIME_IDENT
+            | T![self]
+            | T![super]
+            | T![crate]
+            | T![Self]
+            | COMMENT => 2,
+            kind if kind.is_trivia() => 0,
+            _ => 1,
+        },
+    )?;
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
         return doc_comment.get_definition_with_descend_at(sema, offset, |def, _, _| {
             let m = def_to_moniker(db, def, current_crate)?;

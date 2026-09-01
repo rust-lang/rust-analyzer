@@ -202,6 +202,15 @@ impl SnippetEdit {
     }
 }
 
+use syntax::token_span;
+
+fn element_span(element: &syntax::SyntaxElement) -> TextRange {
+    match element {
+        syntax::NodeOrToken::Node(node) => token_span(node),
+        syntax::NodeOrToken::Token(token) => token.text_range(),
+    }
+}
+
 pub struct SourceChangeBuilder {
     edit: TextEditBuilder,
     pub file_id: FileId,
@@ -268,18 +277,16 @@ impl SourceChangeBuilder {
 
                 let snippet = match (kind, elements) {
                     (AnnotationSnippet::Before, [element]) => {
-                        Snippet::Tabstop(element.text_range().start())
+                        Snippet::Tabstop(element_span(element).start())
                     }
                     (AnnotationSnippet::After, [element]) => {
-                        Snippet::Tabstop(element.text_range().end())
+                        Snippet::Tabstop(element_span(element).end())
                     }
                     (AnnotationSnippet::Over, [element]) => {
-                        Snippet::Placeholder(element.text_range())
+                        Snippet::Placeholder(element_span(element))
                     }
                     (AnnotationSnippet::Over, elements) if !elements.is_empty() => {
-                        Snippet::PlaceholderGroup(
-                            elements.iter().map(|it| it.text_range()).collect(),
-                        )
+                        Snippet::PlaceholderGroup(elements.iter().map(element_span).collect())
                     }
                     _ => continue,
                 };
@@ -319,7 +326,7 @@ impl SourceChangeBuilder {
         self.edit.replace(range, replace_with.into())
     }
     pub fn replace_ast<N: AstNode>(&mut self, old: N, new: N) {
-        diff(old.syntax(), new.syntax()).into_text_edit(&mut self.edit)
+        self.edit.replace(token_span(old.syntax()), syntax::token_text(new.syntax()))
     }
     pub fn create_file(&mut self, dst: AnchoredPathBuf, content: impl Into<String>) {
         let file_system_edit = FileSystemEdit::CreateFile { dst, initial_contents: content.into() };

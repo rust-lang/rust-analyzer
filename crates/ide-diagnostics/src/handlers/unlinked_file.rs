@@ -1,6 +1,7 @@
 //! Diagnostic emitted for files that aren't part of any crate.
 
 use std::iter;
+use syntax::token_span;
 
 use hir::crate_def_map;
 use hir::{EditionedFileId, InFile, ModuleSource};
@@ -267,7 +268,7 @@ fn make_fixes(
     match items.clone().skip_while(|item| !is_outline_mod(item)).take_while(is_outline_mod).last() {
         Some(last) => {
             cov_mark::hit!(unlinked_file_append_to_existing_mods);
-            let offset = last.syntax().text_range().end();
+            let offset = token_span(last.syntax()).end();
             let indent = IndentLevel::from_node(last.syntax());
             mod_decl_builder.insert(offset, format!("\n{indent}{mod_decl}"));
             pub_mod_decl_builder.insert(offset, format!("\n{indent}{pub_mod_decl}"));
@@ -278,7 +279,7 @@ fn make_fixes(
             match items.next() {
                 Some(first) => {
                     cov_mark::hit!(unlinked_file_prepend_before_first_item);
-                    let offset = first.syntax().text_range().start();
+                    let offset = token_span(first.syntax()).start();
                     let indent = IndentLevel::from_node(first.syntax());
                     mod_decl_builder.insert(offset, format!("{mod_decl}\n\n{indent}"));
                     pub_mod_decl_builder.insert(offset, format!("{pub_mod_decl}\n\n{indent}"));
@@ -290,7 +291,7 @@ fn make_fixes(
                     cov_mark::hit!(unlinked_file_empty_file);
                     let mut indent = IndentLevel::from(0);
                     let offset = match &source {
-                        ModuleSource::SourceFile(it) => it.syntax().text_range().end(),
+                        ModuleSource::SourceFile(it) => token_span(it.syntax()).end(),
                         ModuleSource::Module(it) => {
                             indent = IndentLevel::from_node(it.syntax()) + 1;
                             it.item_list()?.r_curly_token()?.text_range().start()

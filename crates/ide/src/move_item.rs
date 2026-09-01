@@ -1,7 +1,7 @@
 use std::{iter::once, mem};
+use syntax::token_span;
 
 use hir::Semantics;
-use ide_db::syntax_helpers::tree_diff::diff;
 use ide_db::text_edit::{TextEdit, TextEditBuilder};
 use ide_db::{FileRange, RootDatabase, helpers::pick_best_token};
 use itertools::Itertools;
@@ -33,7 +33,7 @@ pub(crate) fn move_item(
 
     let item = if range.range.is_empty() {
         SyntaxElement::Token(pick_best_token(
-            file.syntax().token_at_offset(range.range.start()),
+            syntax::algo::token_at_offset_with_trivia(file.syntax(), range.range.start()),
             |kind| match kind {
                 SyntaxKind::IDENT | SyntaxKind::LIFETIME_IDENT => 2,
                 kind if kind.is_trivia() => 0,
@@ -120,8 +120,8 @@ fn swap_sibling_in_list<A: AstNode + Clone, I: Iterator<Item = A>>(
     direction: Direction,
 ) -> Option<TextEdit> {
     let list_lookup = list.array_windows().find(|[l, r]| match direction {
-        Direction::Up => r.syntax().text_range().contains_range(range),
-        Direction::Down => l.syntax().text_range().contains_range(range),
+        Direction::Up => token_span(r.syntax()).contains_range(range),
+        Direction::Down => token_span(l.syntax()).contains_range(range),
     });
 
     if let Some([l, r]) = list_lookup {
@@ -141,11 +141,11 @@ fn replace_nodes<'a>(
 ) -> TextEdit {
     let cursor_offset = if range.is_empty() {
         // FIXME: `applySnippetTextEdits` does not support non-empty selection ranges
-        if first.text_range().contains_range(range) {
-            Some(range.start() - first.text_range().start())
-        } else if second.text_range().contains_range(range) {
+        if token_span(first).contains_range(range) {
+            Some(range.start() - token_span(first).start())
+        } else if token_span(second).contains_range(range) {
             mem::swap(&mut first, &mut second);
-            Some(range.start() - first.text_range().start())
+            Some(range.start() - token_span(first).start())
         } else {
             None
         }
@@ -155,17 +155,17 @@ fn replace_nodes<'a>(
 
     let first_with_cursor = match cursor_offset {
         Some(offset) => {
-            let mut item_text = first.text().to_string();
+            let mut item_text = syntax::token_text(first);
             item_text.insert_str(offset.into(), "$0");
             item_text
         }
-        None => first.text().to_string(),
+        None => syntax::token_text(first),
     };
 
     let mut edit = TextEditBuilder::default();
 
-    diff(first, second).into_text_edit(&mut edit);
-    edit.replace(second.text_range(), first_with_cursor);
+    edit.replace(token_span(first), syntax::token_text(second));
+    edit.replace(token_span(second), first_with_cursor);
 
     edit.finish()
 }

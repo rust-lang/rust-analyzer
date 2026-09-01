@@ -72,7 +72,7 @@ fn generate_tokens(grammar: &AstSrc) -> String {
             }
             impl std::fmt::Display for #name {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    std::fmt::Display::fmt(&self.syntax, f)
+                    f.write_str(self.syntax.text())
                 }
             }
             impl AstToken for #name {
@@ -400,7 +400,7 @@ fn generate_nodes(kinds: KindsSrc, grammar: &AstSrc) -> String {
             quote! {
                 impl std::fmt::Display for #name {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        std::fmt::Display::fmt(self.syntax(), f)
+                        f.write_str(&token_text(self.syntax()))
                     }
                 }
             }
@@ -425,6 +425,7 @@ fn generate_nodes(kinds: KindsSrc, grammar: &AstSrc) -> String {
         use crate::{
             SyntaxNode, SyntaxToken, SyntaxKind::{self, *},
             ast::{self, AstNode, AstChildren, support},
+            syntax_node::token_text,
             T,
         };
 

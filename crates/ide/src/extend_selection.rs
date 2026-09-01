@@ -1,4 +1,5 @@
 use std::iter::successors;
+use syntax::token_span;
 
 use hir::Semantics;
 use ide_db::RootDatabase;
@@ -58,8 +59,8 @@ fn try_extend_selection(
 
     if range.is_empty() {
         let offset = range.start();
-        let mut leaves = root.token_at_offset(offset);
-        if leaves.clone().all(|it| it.kind() == WHITESPACE) {
+        let mut leaves = algo::token_at_offset_with_trivia(root, offset);
+        if leaves.clone().all(|it| matches!(it.kind(), WHITESPACE | NEWLINE)) {
             return Some(extend_ws(root, leaves.next()?, offset));
         }
         let leaf_range = match leaves {
@@ -76,7 +77,13 @@ fn try_extend_selection(
         };
         return Some(leaf_range);
     };
-    let node = match root.covering_element(range) {
+    let covering = match algo::trivia_at_offset(root, range.start())
+        .filter(|piece| piece.text_range().contains_range(range))
+    {
+        Some(piece) => piece.into(),
+        None => root.covering_element(range),
+    };
+    let node = match covering {
         NodeOrToken::Token(token) => {
             if token.text_range() != range {
                 return Some(token.text_range());
@@ -99,8 +106,8 @@ fn try_extend_selection(
         return Some(range);
     }
 
-    if node.text_range() != range {
-        return Some(node.text_range());
+    if token_span(&node) != range {
+        return Some(token_span(&node));
     }
 
     let node = shallowest_node(&node);
@@ -111,7 +118,18 @@ fn try_extend_selection(
         return Some(range);
     }
 
-    node.parent().map(|it| it.text_range())
+    let parent = node.parent()?;
+    let parent_range = token_span(&parent);
+    if parent_range == range {
+        return Some(parent_range);
+    }
+    match parent
+        .first_token()
+        .and_then(|first| first.leading_trivia().find(|piece| piece.kind() == COMMENT))
+    {
+        Some(doc) => Some(TextRange::new(doc.text_range().start(), parent_range.end())),
+        None => Some(parent_range),
+    }
 }
 
 fn extend_tokens_from_range(
@@ -182,7 +200,7 @@ fn extend_tokens_from_range(
 
 /// Find the shallowest node with same range, which allows us to traverse siblings.
 fn shallowest_node(node: &SyntaxNode) -> SyntaxNode {
-    node.ancestors().take_while(|n| n.text_range() == node.text_range()).last().unwrap()
+    node.ancestors().take_while(|n| token_span(n) == token_span(node)).last().unwrap()
 }
 
 fn extend_single_word_in_comment_or_string(
@@ -215,34 +233,61 @@ fn extend_single_word_in_comment_or_string(
 }
 
 fn extend_ws(root: &SyntaxNode, ws: SyntaxToken, offset: TextSize) -> TextRange {
-    let ws_text = ws.text();
-    let suffix = TextRange::new(offset, ws.text_range().end()) - ws.text_range().start();
-    let prefix = TextRange::new(ws.text_range().start(), offset) - ws.text_range().start();
+    let is_ws = |token: &SyntaxToken| matches!(token.kind(), WHITESPACE | NEWLINE);
+
+    let mut first = ws.clone();
+    while let Some(prev) = first.prev_token().filter(is_ws) {
+        first = prev;
+    }
+    let mut last = ws;
+    while let Some(next) = last.next_token().filter(is_ws) {
+        last = next;
+    }
+
+    let run = TextRange::new(first.text_range().start(), last.text_range().end());
+    let mut ws_text = String::new();
+    let mut cursor = Some(first);
+    while let Some(token) = cursor {
+        ws_text.push_str(token.text());
+        cursor = (token != last).then(|| token.next_token()).flatten();
+    }
+
+    let suffix = TextRange::new(offset, run.end()) - run.start();
+    let prefix = TextRange::new(run.start(), offset) - run.start();
     let ws_suffix = &ws_text[suffix];
     let ws_prefix = &ws_text[prefix];
     if ws_text.contains('\n')
         && !ws_suffix.contains('\n')
-        && let Some(node) = ws.next_sibling_or_token()
+        && let Some(node) = algo::next_non_trivia_token(last.clone()).map(|next| {
+            next.parent_ancestors()
+                .take_while(|it| token_span(it).start() == next.text_range().start())
+                .last()
+                .map_or_else(|| NodeOrToken::Token(next.clone()), NodeOrToken::Node)
+        })
     {
-        let start = match ws_prefix.rfind('\n') {
-            Some(idx) => ws.text_range().start() + TextSize::from((idx + 1) as u32),
-            None => node.text_range().start(),
+        let node_range = match &node {
+            NodeOrToken::Node(it) => token_span(it),
+            NodeOrToken::Token(it) => it.text_range(),
         };
-        let end = if root.text().char_at(node.text_range().end()) == Some('\n') {
-            node.text_range().end() + TextSize::of('\n')
+        let start = match ws_prefix.rfind('\n') {
+            Some(idx) => run.start() + TextSize::from((idx + 1) as u32),
+            None => node_range.start(),
+        };
+        let end = if root.text().char_at(node_range.end()) == Some('\n') {
+            node_range.end() + TextSize::of('\n')
         } else {
-            node.text_range().end()
+            node_range.end()
         };
         return TextRange::new(start, end);
     }
-    ws.text_range()
+    run
 }
 
 fn pick_best(l: SyntaxToken, r: SyntaxToken) -> SyntaxToken {
     return if priority(&r) > priority(&l) { r } else { l };
     fn priority(n: &SyntaxToken) -> usize {
         match n.kind() {
-            WHITESPACE => 0,
+            WHITESPACE | NEWLINE => 0,
             IDENT | T![self] | T![super] | T![crate] | T![Self] | LIFETIME_IDENT => 2,
             _ => 1,
         }
@@ -277,16 +322,15 @@ fn extend_list_item(node: &SyntaxNode) -> Option<TextRange> {
 
     if let Some(delimiter_node) = nearby_delimiter(delimiter, node, Direction::Next) {
         // Include any following whitespace when delimiter is after list item.
-        let final_node = delimiter_node
-            .next_sibling_or_token()
-            .and_then(|it| it.into_token())
-            .filter(is_single_line_ws)
-            .unwrap_or(delimiter_node);
+        let end = match delimiter_node.trailing_trivia().next() {
+            Some(piece) if is_single_line_ws(&piece) => piece.text_range().end(),
+            _ => delimiter_node.text_range().end(),
+        };
 
-        return Some(TextRange::new(node.text_range().start(), final_node.text_range().end()));
+        return Some(TextRange::new(token_span(node).start(), end));
     }
     if let Some(delimiter_node) = nearby_delimiter(delimiter, node, Direction::Prev) {
-        return Some(TextRange::new(delimiter_node.text_range().start(), node.text_range().end()));
+        return Some(TextRange::new(delimiter_node.text_range().start(), token_span(node).end()));
     }
 
     None
@@ -304,14 +348,28 @@ fn extend_comments(comment: ast::Comment) -> Option<TextRange> {
 
 fn adj_comments(comment: &ast::Comment, dir: Direction) -> ast::Comment {
     let mut res = comment.clone();
-    for element in comment.syntax().siblings_with_tokens(dir) {
-        let token = match element.as_token() {
-            None => break,
-            Some(token) => token,
+    let mut token = comment.syntax().clone();
+    let mut newlines = 0;
+    loop {
+        token = match dir {
+            Direction::Next => match token.next_token() {
+                Some(it) => it,
+                None => break,
+            },
+            Direction::Prev => match token.prev_token() {
+                Some(it) => it,
+                None => break,
+            },
         };
         if let Some(c) = ast::Comment::cast(token.clone()) {
-            res = c
-        } else if token.kind() != WHITESPACE || token.text().contains("\n\n") {
+            res = c;
+            newlines = 0;
+        } else if matches!(token.kind(), WHITESPACE | NEWLINE) {
+            newlines += token.text().matches('\n').count();
+            if newlines > 1 {
+                break;
+            }
+        } else {
             break;
         }
     }

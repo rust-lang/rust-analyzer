@@ -448,7 +448,11 @@ fn handle_control_flow_keywords(
 ) -> Option<ReferenceSearchResult> {
     let file = sema.parse_guess_edition(file_id);
     let edition = sema.attach_first_edition(file_id).edition(sema.db);
-    let token = pick_best_token(file.syntax().token_at_offset(offset), |kind| match kind {
+    let at_offset = file
+        .syntax()
+        .token_at_offset(offset)
+        .filter(|it| it.text_range().contains_inclusive(offset));
+    let token = pick_best_token(at_offset, |kind| match kind {
         _ if kind.is_keyword(edition) => 4,
         T![=>] => 3,
         _ => 1,

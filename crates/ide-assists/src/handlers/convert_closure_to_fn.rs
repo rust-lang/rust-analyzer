@@ -5,6 +5,7 @@ use ide_db::{
     search::FileReferenceNode, source_change::SourceChangeBuilder,
 };
 use stdx::format_to;
+use syntax::token_span;
 use syntax::{
     AstNode, Direction, SyntaxKind, SyntaxNode, T, TextSize, ToSmolStr,
     algo::{skip_trivia_token, skip_whitespace_token},
@@ -273,7 +274,7 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
             match &closure_name {
                 Some((closure_decl, _, _)) => {
                     fn_ = fn_.indent(closure_decl.indent_level());
-                    builder.replace(closure_decl.syntax().text_range(), fn_.to_string());
+                    builder.replace(token_span(closure_decl.syntax()), fn_.to_string());
                 }
                 None => {
                     let Some(top_stmt) =
@@ -288,10 +289,8 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
                     else {
                         return;
                     };
-                    builder.replace(
-                        closure.syntax().text_range(),
-                        closure_name_or_default.to_string(),
-                    );
+                    builder
+                        .replace(token_span(closure.syntax()), closure_name_or_default.to_string());
                     match top_stmt {
                         Either::Left(stmt) => {
                             let indent = stmt.indent_level();
@@ -303,18 +302,18 @@ pub(crate) fn convert_closure_to_fn(acc: &mut Assists, ctx: &AssistContext<'_, '
                                     skip_whitespace_token(token.prev_token()?, Direction::Prev)
                                 })
                                 .map(|it| it.text_range().end())
-                                .unwrap_or_else(|| stmt.syntax().text_range().start());
+                                .unwrap_or_else(|| token_span(stmt.syntax()).start());
                             builder.insert(range, format!("\n{indent}{fn_}"));
                         }
                         Either::Right(Either::Left(closure_inside_closure)) => {
                             let Some(closure_body) = closure_inside_closure.body() else { return };
                             // FIXME: Maybe we can indent this properly, adding newlines and all, but this is hard.
                             builder.insert(
-                                closure_body.syntax().text_range().start(),
+                                token_span(closure_body.syntax()).start(),
                                 format!("{{ {fn_} "),
                             );
                             builder
-                                .insert(closure_body.syntax().text_range().end(), " }".to_owned());
+                                .insert(token_span(closure_body.syntax()).end(), " }".to_owned());
                         }
                         Either::Right(Either::Right(block_expr)) => {
                             let Some(tail_expr) = block_expr.tail_expr() else { return };

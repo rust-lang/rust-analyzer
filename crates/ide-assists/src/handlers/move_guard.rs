@@ -1,6 +1,6 @@
-use itertools::{Itertools, chain};
+use itertools::chain;
+use syntax::token_span;
 use syntax::{
-    SyntaxKind::WHITESPACE,
     TextRange,
     ast::{
         AstNode, BlockExpr, ElseBranch, Expr, IfExpr, MatchArm, Pat, edit::AstNodeEdit,
@@ -41,16 +41,12 @@ use crate::{AssistContext, AssistId, Assists};
 pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let match_arm = ctx.find_node_at_offset::<MatchArm>()?;
     let guard = match_arm.guard()?;
-    if ctx.offset() > guard.syntax().text_range().end() {
+    if ctx.offset() > token_span(guard.syntax()).end() {
         cov_mark::hit!(move_guard_inapplicable_in_arm_body);
         return None;
     }
     let rest_arms = rest_arms(&match_arm, ctx.selection_trimmed())?;
-    let space_before_delete = chain(
-        guard.syntax().prev_sibling_or_token(),
-        rest_arms.iter().filter_map(|it| it.syntax().prev_sibling_or_token()),
-    );
-    let space_after_arrow = match_arm.fat_arrow_token()?.next_sibling_or_token();
+    match_arm.fat_arrow_token()?;
 
     let arm_expr = match_arm.expr()?;
     let make = SyntaxFactory::without_mappings();
@@ -67,25 +63,15 @@ pub(crate) fn move_guard_to_arm_body(acc: &mut Assists, ctx: &AssistContext<'_, 
         .indent(arm_expr.indent_level());
     let ElseBranch::IfExpr(if_expr) = if_branch else { return None };
 
-    let target = guard.syntax().text_range();
+    let target = token_span(guard.syntax());
     acc.add(
         AssistId::refactor_rewrite("move_guard_to_arm_body"),
         "Move guard to arm body",
         target,
         |builder| {
             let editor = builder.make_editor(match_arm.syntax());
-            for element in space_before_delete {
-                if element.kind() == WHITESPACE {
-                    editor.delete(element);
-                }
-            }
             for rest_arm in &rest_arms {
                 editor.delete(rest_arm.syntax());
-            }
-            if let Some(element) = space_after_arrow
-                && element.kind() == WHITESPACE
-            {
-                editor.replace(element, make.whitespace(" "));
             }
 
             editor.delete(guard.syntax());
@@ -228,9 +214,13 @@ pub(crate) fn move_arm_cond_to_match_guard(
                 }
             }
 
-            let newline = make.whitespace(&format!("\n{indent_level}"));
-            let replace_arms = replace_arms.iter().map(|it| it.syntax().syntax_element());
-            let replace_arms = Itertools::intersperse(replace_arms, newline.syntax_element());
+            let replace_arms = replace_arms.iter().enumerate().map(|(i, it)| match i {
+                0 => it.syntax().syntax_element(),
+                _ => it
+                    .with_leading_trivia(&format!("\n{indent_level}"), make)
+                    .syntax()
+                    .syntax_element(),
+            });
             editor.replace_with_many(match_arm.syntax(), replace_arms.collect());
 
             builder.add_file_edits(ctx.vfs_file_id(), editor);
@@ -249,9 +239,9 @@ fn rest_arms(match_arm: &MatchArm, selection: TextRange) -> Option<Vec<MatchArm>
             selection.is_empty() || crate::utils::is_selected(it, selection, false)
         })
         .take_while(move |it| {
-            it.pat()
-                .zip(match_arm.pat())
-                .is_some_and(|(a, b)| a.syntax().text() == b.syntax().text())
+            it.pat().zip(match_arm.pat()).is_some_and(|(a, b)| {
+                syntax::token_text(a.syntax()) == syntax::token_text(b.syntax())
+            })
         })
         .collect::<Vec<_>>()
         .into()

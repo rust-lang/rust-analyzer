@@ -1,5 +1,6 @@
 use hir::HasVisibility;
 use ide_db::{FxHashSet, path_transform::PathTransform};
+use syntax::token_span;
 use syntax::{
     ast::{
         self, AstNode, HasGenericParams, HasName, HasVisibility as _,
@@ -65,14 +66,14 @@ pub(crate) fn generate_delegate_methods(
         Some(field) => {
             let field_name = field.name()?;
             let field_ty = field.ty()?;
-            (field_name.to_string(), field_ty, field.syntax().text_range())
+            (field_name.to_string(), field_ty, token_span(field.syntax()))
         }
         None => {
             let field = ctx.find_node_at_offset::<ast::TupleField>()?;
             let field_list = ctx.find_node_at_offset::<ast::TupleFieldList>()?;
             let field_list_index = field_list.fields().position(|it| it == field)?;
             let field_ty = field.ty()?;
-            (field_list_index.to_string(), field_ty, field.syntax().text_range())
+            (field_list_index.to_string(), field_ty, token_span(field.syntax()))
         }
     };
 
@@ -210,16 +211,12 @@ pub(crate) fn generate_delegate_methods(
 
                         // Fixup impl_def indentation
                         let indent = strukt.indent_level();
-                        let impl_def = impl_def.indent(indent);
+                        let impl_def = impl_def
+                            .indent(indent)
+                            .with_leading_trivia(&format!("\n\n{indent}"), make);
 
                         // Insert the impl block.
-                        editor.insert_all(
-                            Position::after(strukt.syntax()),
-                            vec![
-                                make.whitespace(&format!("\n\n{indent}")).into(),
-                                impl_def.syntax().clone().into(),
-                            ],
-                        );
+                        editor.insert(Position::after(strukt.syntax()), impl_def.syntax());
                         impl_def.assoc_item_list().and_then(|list| list.assoc_items().next())
                     }
                 };

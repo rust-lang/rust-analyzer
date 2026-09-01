@@ -7,6 +7,7 @@ use ide_db::{
     },
 };
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxNode,
     ast::{self, HasArgList, edit::AstNodeEdit, syntax_factory::SyntaxFactory},
@@ -74,7 +75,7 @@ pub(crate) fn convert_if_to_bool_then(
         return None;
     }
 
-    let target = expr.syntax().text_range();
+    let target = token_span(expr.syntax());
     acc.add(
         AssistId::refactor_rewrite("convert_if_to_bool_then"),
         "Convert `if` expression to `bool::then` call",
@@ -179,7 +180,7 @@ pub(crate) fn convert_bool_then_to_if(
         return None;
     }
 
-    let target = mcall.syntax().text_range();
+    let target = token_span(mcall.syntax());
     acc.add(
         AssistId::refactor_rewrite("convert_bool_then_to_if"),
         "Convert `bool::then` call to `if`",

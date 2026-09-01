@@ -1,4 +1,5 @@
-use syntax::{AstNode, SyntaxKind, T, ast, syntax_editor::Position};
+use syntax::token_span;
+use syntax::{AstNode, T, ast, ast::edit::AstNodeEdit};
 
 use crate::{AssistContext, AssistId, Assists};
 
@@ -34,7 +35,7 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         return None;
     }
 
-    let target = parens.syntax().text_range();
+    let target = token_span(parens.syntax());
     acc.add(
         AssistId::refactor("remove_parentheses"),
         "Remove redundant parentheses",
@@ -42,18 +43,38 @@ pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_, '_>)
         |builder| {
             let editor = builder.make_editor(parens.syntax());
             let make = editor.make();
-            let prev_token = parens.syntax().first_token().and_then(|it| it.prev_token());
-            let need_to_add_ws = match prev_token {
-                Some(it) => {
-                    let tokens = [T![&], T![!], T!['('], T!['['], T!['{']];
-                    it.kind() != SyntaxKind::WHITESPACE && !tokens.contains(&it.kind())
-                }
-                None => false,
+            let has_ws =
+                parens.syntax().first_token().is_some_and(|it| it.leading_trivia().len() != 0)
+                    || syntax::algo::previous_non_trivia_token(parens.syntax().clone())
+                        .is_some_and(|it| it.trailing_trivia().len() != 0);
+            let need_to_add_ws =
+                match syntax::algo::previous_non_trivia_token(parens.syntax().clone()) {
+                    Some(it) => {
+                        let tokens = [T![&], T![!], T!['('], T!['['], T!['{']];
+                        !has_ws && !tokens.contains(&it.kind())
+                    }
+                    None => false,
+                };
+            let leading: String = match need_to_add_ws {
+                true => " ".to_owned(),
+                false => parens
+                    .syntax()
+                    .first_token()
+                    .into_iter()
+                    .flat_map(|it| it.leading_trivia())
+                    .map(|piece| piece.text().to_owned())
+                    .collect(),
             };
-            if need_to_add_ws {
-                editor.insert(Position::before(parens.syntax()), make.whitespace(" "));
-            }
-            editor.replace(parens.syntax(), expr.syntax());
+            let trailing: String = parens
+                .syntax()
+                .last_token()
+                .into_iter()
+                .flat_map(|it| it.trailing_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+            let expr =
+                expr.with_leading_trivia(&leading, make).with_trailing_trivia(&trailing, make);
+            editor.replace_discard_trivia(parens.syntax(), expr.syntax());
             builder.add_file_edits(ctx.vfs_file_id(), editor);
         },
     )

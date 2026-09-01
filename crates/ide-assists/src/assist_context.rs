@@ -4,8 +4,8 @@ use hir::{EditionedFileId, FileRange, Semantics};
 use ide_db::{FileId, RootDatabase, label::Label};
 use syntax::Edition;
 use syntax::{
-    AstNode, AstToken, Direction, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange,
-    TextSize, TokenAtOffset,
+    AstNode, AstToken, SourceFile, SyntaxElement, SyntaxKind, SyntaxToken, TextRange, TextSize,
+    TokenAtOffset,
     algo::{self, find_node_at_offset, find_node_at_range},
 };
 
@@ -67,21 +67,19 @@ impl<'a, 'db> AssistContext<'a, 'db> {
 
         let start = frange.range.start();
         let end = frange.range.end();
-        let left = source_file.syntax().token_at_offset(start);
-        let right = source_file.syntax().token_at_offset(end);
-        let left =
-            left.right_biased().and_then(|t| algo::skip_whitespace_token(t, Direction::Next));
-        let right =
-            right.left_biased().and_then(|t| algo::skip_whitespace_token(t, Direction::Prev));
+        let left = source_file.syntax().token_at_offset(start).right_biased();
+        let right = source_file.syntax().token_at_offset(end).left_biased();
         let left = left.map(|t| t.text_range().start().clamp(start, end));
         let right = right.map(|t| t.text_range().end().clamp(start, end));
 
         let trimmed_range = match (left, right) {
-            (Some(left), Some(right)) if left <= right => TextRange::new(left, right),
-            // Selection solely consists of whitespace so just fall back to the original
+            (Some(left), Some(right)) if left < right || frange.range.is_empty() => {
+                TextRange::new(left.min(right), right)
+            }
             _ => frange.range,
         };
-        let token_at_offset = source_file.syntax().token_at_offset(frange.range.start());
+        let token_at_offset =
+            algo::token_at_offset_with_trivia(source_file.syntax(), frange.range.start());
         let covering_element = source_file.syntax().covering_element(trimmed_range);
 
         AssistContext {

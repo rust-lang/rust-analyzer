@@ -5,6 +5,7 @@ use ide_db::{
     assists::AssistId,
     defs::{Definition, NameRefClass},
 };
+use syntax::token_span;
 use syntax::{
     AstNode, Direction, SyntaxKind, TextSize,
     ast::{self, NameRef, edit::IndentLevel},
@@ -33,7 +34,7 @@ use syntax::{
 
 pub(crate) fn generate_constant(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -> Option<()> {
     let constant_token = ctx.find_node_at_offset::<ast::NameRef>()?;
-    if constant_token.to_string().chars().any(|it| !(it.is_uppercase() || it == '_')) {
+    if constant_token.text().chars().any(|it| !(it.is_uppercase() || it == '_')) {
         cov_mark::hit!(not_constant_name);
         return None;
     }
@@ -82,7 +83,7 @@ pub(crate) fn generate_constant(acc: &mut Assists, ctx: &AssistContext<'_, '_>) 
         target_data_for_generate_constant(ctx, current_module, constant_module).unwrap_or_else(
             || {
                 let indent = IndentLevel::from_node(statement.syntax());
-                (statement.syntax().text_range().start(), indent, None, format!("\n{indent}"))
+                (token_span(statement.syntax()).start(), indent, None, format!("\n{indent}"))
             },
         );
 
@@ -131,7 +132,7 @@ fn target_data_for_generate_constant(
 
             let siblings_has_newline = l_curly_token
                 .siblings_with_tokens(Direction::Next)
-                .any(|it| it.kind() == SyntaxKind::WHITESPACE && it.to_string().contains('\n'));
+                .any(|it| it.kind() == SyntaxKind::NEWLINE);
             let post_string =
                 if siblings_has_newline { format!("{indent}") } else { format!("\n{indent}") };
             Some((offset, indent + 1, Some(file_id.file_id(ctx.db())), post_string))

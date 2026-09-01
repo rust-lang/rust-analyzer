@@ -1,6 +1,7 @@
 use hir::Type;
 use ide_db::FxHashMap;
 use std::iter::successors;
+use syntax::token_span;
 use syntax::{
     Direction,
     algo::neighbor,
@@ -40,10 +41,10 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
         return None;
     }
     let current_expr = current_arm.expr()?;
-    let current_text_range = current_arm.syntax().text_range();
+    let current_text_range = token_span(current_arm.syntax());
     let current_arm_types = get_arm_types(ctx, &current_arm);
     let multi_arm_selection = !ctx.has_empty_selection()
-        && ctx.selection_trimmed().end() > current_arm.syntax().text_range().end();
+        && ctx.selection_trimmed().end() > token_span(current_arm.syntax()).end();
 
     // We check if the following match arms match this one. We could, but don't,
     // compare to the previous match arm as well.
@@ -52,12 +53,13 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             Some(expr) if arm.guard().is_none() => {
                 // don't include match arms that start after our selection
                 if multi_arm_selection
-                    && arm.syntax().text_range().start() >= ctx.selection_trimmed().end()
+                    && token_span(arm.syntax()).start() >= ctx.selection_trimmed().end()
                 {
                     return false;
                 }
 
-                let same_text = expr.syntax().text() == current_expr.syntax().text();
+                let same_text =
+                    syntax::token_text(expr.syntax()) == syntax::token_text(current_expr.syntax());
                 if !same_text {
                     return false;
                 }
@@ -91,8 +93,8 @@ pub(crate) fn merge_match_arms(acc: &mut Assists, ctx: &AssistContext<'_, '_>) -
             let arm = format!("{pats} => {current_expr},");
 
             if let [first, .., last] = &*arms_to_merge {
-                let start = first.syntax().text_range().start();
-                let end = last.syntax().text_range().end();
+                let start = token_span(first.syntax()).start();
+                let end = token_span(last.syntax()).end();
 
                 edit.replace(TextRange::new(start, end), arm);
             }

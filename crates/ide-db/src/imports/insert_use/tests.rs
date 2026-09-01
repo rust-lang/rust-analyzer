@@ -1360,7 +1360,7 @@ fn check_with_config(
 
     insert_use_with_editor(&file, path, config, &editor);
     let edit = editor.finish();
-    let result = edit.new_root().to_string();
+    let result = edit.new_root().text().to_string();
     assert_eq_text!(&trim_indent(ra_fixture_after), &result);
 }
 

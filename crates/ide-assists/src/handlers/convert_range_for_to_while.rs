@@ -1,5 +1,6 @@
 use ide_db::assists::AssistId;
 use itertools::Itertools;
+use syntax::token_span;
 use syntax::{
     AstNode, SyntaxElement,
     SyntaxKind::WHITESPACE,
@@ -58,19 +59,35 @@ pub(crate) fn convert_range_for_to_while(
     acc.add(
         AssistId::refactor("convert_range_for_to_while"),
         description,
-        for_.syntax().text_range(),
+        token_span(for_.syntax()),
         |builder| {
             let make = editor.make();
             let indent = for_.indent_level();
             let pat = make.ident_pat(pat.ref_token().is_some(), true, name.clone());
             let let_stmt = make.let_stmt(pat.into(), None, Some(start));
-            editor.insert_all(
+            let leading: String = for_
+                .syntax()
+                .first_token()
+                .into_iter()
+                .flat_map(|token| token.leading_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
+            editor.insert(
                 Position::before(for_.syntax()),
-                vec![
-                    let_stmt.syntax().syntax_element(),
-                    make.whitespace(&format!("\n{}", indent)).syntax_element(),
-                ],
+                let_stmt
+                    .with_leading_trivia(&leading, make)
+                    .with_trailing_trivia(&format!("\n{indent}"), make)
+                    .syntax(),
             );
+            if let Some(first) = for_.syntax().first_token()
+                && first != for_kw
+                && !leading.is_empty()
+            {
+                let after: String =
+                    first.trailing_trivia().map(|piece| piece.text().to_owned()).collect();
+                let trimmed = make.token_with_trivia(first.kind(), first.text(), "", &after);
+                editor.replace_discard_trivia(first, trimmed);
+            }
 
             let mut elements = vec![];
 
@@ -79,25 +96,36 @@ pub(crate) fn convert_range_for_to_while(
                 ordering: ast::Ordering::Less,
                 strict: !inclusive,
             });
+            let trailing: String = iterable
+                .syntax()
+                .last_token()
+                .into_iter()
+                .flat_map(|token| token.trailing_trivia())
+                .map(|piece| piece.text().to_owned())
+                .collect();
             if let Some(end) = end {
                 elements.extend([
-                    make.token(T![while]).syntax_element(),
-                    make.whitespace(" ").syntax_element(),
-                    make.expr_bin(var_expr.clone(), op, end).syntax().syntax_element(),
+                    make.token_trivia(T![while], "", " ").syntax_element(),
+                    make.expr_bin(var_expr.clone(), op, end)
+                        .with_trailing_trivia(&trailing, make)
+                        .syntax()
+                        .syntax_element(),
                 ]);
             } else {
-                elements.push(make.token(T![loop]).syntax_element());
+                elements.push(make.token_trivia(T![loop], "", &trailing).syntax_element());
             }
 
-            editor.replace_all(
+            editor.replace_all_discard_trivia(
                 for_kw.syntax_element()..=iterable.syntax().syntax_element(),
                 elements,
             );
 
             let op = ast::BinaryOp::Assignment { op: Some(ast::ArithOp::Add) };
             let incrementer = vec![
-                make.whitespace(&format!("\n{}", indent + 1)).syntax_element(),
-                make.expr_bin(var_expr, op, step).syntax().syntax_element(),
+                make.expr_bin(var_expr, op, step)
+                    .with_leading_trivia(&format!("\n{}", indent + 1), make)
+                    .syntax()
+                    .syntax_element(),
                 make.token(T![;]).syntax_element(),
             ];
             process_loop_body(body, label, &editor, incrementer);
@@ -165,8 +193,7 @@ fn process_loop_body(
     let elements = itertools::chain(
         [
             continue_label.syntax().syntax_element(),
-            make.token(T![:]).syntax_element(),
-            make.whitespace(" ").syntax_element(),
+            make.token_trivia(T![:], "", " ").syntax_element(),
             new_body.syntax_element(),
         ],
         incrementer,

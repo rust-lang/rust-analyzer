@@ -21,6 +21,7 @@
 //! The correct behavior in such cases is probably to show a dialog to the user.
 //! Our current behavior is ¯\_(ツ)_/¯.
 use std::fmt::{self, Display};
+use syntax::token_span;
 
 use crate::{
     source_change::ChangeAnnotation,
@@ -568,7 +569,7 @@ fn source_edit_from_name(
 
         // FIXME: instead of splitting the shorthand, recursively trigger a rename of the
         // other name https://github.com/rust-lang/rust-analyzer/issues/6547
-        edit.insert(ident_pat.syntax().text_range().start(), format!("{new_name}: "));
+        edit.insert(token_span(ident_pat.syntax()).start(), format!("{new_name}: "));
         return true;
     }
 
@@ -600,8 +601,8 @@ fn source_edit_from_name_ref(
 
                         // same names, we can use a shorthand here instead.
                         // we do not want to erase attributes hence this range start
-                        let s = field_name.syntax().text_range().start();
-                        let e = init.syntax().text_range().start();
+                        let s = token_span(field_name.syntax()).start();
+                        let e = token_span(init.syntax()).start();
                         edit.delete(TextRange::new(s, e));
                         return true;
                     }
@@ -612,8 +613,8 @@ fn source_edit_from_name_ref(
 
                     // same names, we can use a shorthand here instead.
                     // we do not want to erase attributes hence this range start
-                    let s = field_name.syntax().text_range().end();
-                    let e = init.syntax().text_range().end();
+                    let s = token_span(field_name.syntax()).end();
+                    let e = token_span(init.syntax()).end();
                     edit.delete(TextRange::new(s, e));
                     return true;
                 }
@@ -623,7 +624,7 @@ fn source_edit_from_name_ref(
                 cov_mark::hit!(test_rename_field_in_field_shorthand);
                 // Foo { field } -> Foo { new_name: field }
                 //       ^ insert `new_name: `
-                let offset = name_ref.syntax().text_range().start();
+                let offset = token_span(name_ref.syntax()).start();
                 edit.insert(offset, format!("{new_name}: "));
                 return true;
             }
@@ -631,7 +632,7 @@ fn source_edit_from_name_ref(
                 cov_mark::hit!(test_rename_local_in_field_shorthand);
                 // Foo { field } -> Foo { field: new_name }
                 //            ^ insert `: new_name`
-                let offset = name_ref.syntax().text_range().end();
+                let offset = token_span(name_ref.syntax()).end();
                 edit.insert(offset, format!(": {new_name}"));
                 return true;
             }
@@ -656,10 +657,10 @@ fn source_edit_from_name_ref(
 
                         // same names, we can use a shorthand here instead/
                         // we do not want to erase attributes hence this range start
-                        let s = field_name.syntax().text_range().start();
-                        let e = pat.syntax().text_range().start();
+                        let s = token_span(field_name.syntax()).start();
+                        let e = token_span(pat.syntax()).start();
                         edit.delete(TextRange::new(s, e));
-                        edit.replace(name.syntax().text_range(), new_name);
+                        edit.replace(token_span(name.syntax()), new_name);
                         return true;
                     }
                 }
@@ -729,7 +730,7 @@ fn source_edit_from_def<'db>(
             };
             file_id = Some(source.file_id);
             if let Either::Left(pat) = source.value {
-                let name_range = pat.name().unwrap().syntax().text_range();
+                let name_range = token_span(pat.name().unwrap().syntax());
 
                 // special cases required for renaming fields/locals in Record patterns
                 if let Some(pat_field) = pat.syntax().parent().and_then(ast::RecordPatField::cast) {
@@ -745,7 +746,7 @@ fn source_edit_from_def<'db>(
                                 name_ref
                                     .syntax()
                                     .text_range()
-                                    .cover_offset(pat.syntax().text_range().start()),
+                                    .cover_offset(token_span(pat.syntax()).start()),
                             );
                             edit.replace(name_range, name_ref.text().to_owned());
                         } else {
@@ -764,7 +765,7 @@ fn source_edit_from_def<'db>(
                         //   original_ast_node_rootedd: `
                         //               ^^^^^ replace this with `new_name`
                         edit.insert(
-                            pat.syntax().text_range().start(),
+                            token_span(pat.syntax()).start(),
                             format!("{}: ", pat_field.field_name().unwrap()),
                         );
                         edit.replace(

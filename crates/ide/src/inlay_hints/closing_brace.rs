@@ -5,6 +5,7 @@
 //! ```
 use hir::{DisplayTarget, HirDisplay, InRealFile, Semantics};
 use ide_db::{FileRange, RootDatabase};
+use syntax::token_span;
 use syntax::{
     SyntaxKind, SyntaxNode, T,
     ast::{self, AstNode, HasLoopBody, HasName},
@@ -27,7 +28,7 @@ pub(super) fn hints(
 ) -> Option<()> {
     let min_lines = config.closing_brace_hints_min_lines?;
 
-    let name = |it: ast::Name| it.syntax().text_range();
+    let name = |it: ast::Name| token_span(it.syntax());
 
     let mut node = node.clone();
     let mut closing_token;
@@ -90,7 +91,7 @@ pub(super) fn hints(
 
         let lifetime = label.lifetime()?.to_string();
 
-        (lifetime, Some(label.syntax().text_range()))
+        (lifetime, Some(token_span(label.syntax())))
     } else if let Some(block) = ast::BlockExpr::cast(node.clone()) {
         closing_token = block.stmt_list()?.r_curly_token()?;
 
@@ -148,19 +149,19 @@ pub(super) fn hints(
 
         (
             format!("{}!", mac.path()?),
-            mac.path().and_then(|it| it.segment()).map(|it| it.syntax().text_range()),
+            mac.path().and_then(|it| it.segment()).map(|it| token_span(it.syntax())),
         )
     };
 
-    if let Some(mut next) = closing_token.next_token() {
+    if let Some(mut next) = syntax::algo::next_non_trivia_token(closing_token.clone()) {
         if next.kind() == T![;]
-            && let Some(tok) = next.next_token()
+            && let Some(tok) = syntax::algo::next_non_trivia_token(next.clone())
         {
             closing_token = next;
             next = tok;
         }
-        if !(next.kind() == SyntaxKind::WHITESPACE && next.text().contains('\n')) {
-            // Only display the hint if the `}` is the last token on the line
+        // Only display the hint if the `}` is the last token on the line
+        if !next.leading_trivia().any(|piece| piece.kind() == SyntaxKind::NEWLINE) {
             return None;
         }
     }

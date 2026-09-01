@@ -1,6 +1,7 @@
 //! Completion of names from the current scope in type position.
 
 use hir::{HirDisplay, ScopeDef};
+use syntax::token_span;
 use syntax::{AstNode, ast};
 
 use crate::{
@@ -166,8 +167,7 @@ pub(crate) fn complete_type_path<'db>(
                     let arg_idx = arg_list
                         .generic_args()
                         .filter(|arg| {
-                            arg.syntax().text_range().end()
-                                < ctx.original_token.text_range().start()
+                            token_span(arg.syntax()).end() < ctx.original_token.text_range().start()
                         })
                         .count();
 

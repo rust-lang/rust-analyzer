@@ -4,6 +4,7 @@
 use ide_db::RootDatabase;
 use ide_db::text_edit::TextEdit;
 use ide_db::{EditionedFileId, FileRange, source_change::SourceChange};
+use syntax::token_span;
 use syntax::{AstNode, SyntaxNode, ast, match_ast};
 
 use crate::{Diagnostic, DiagnosticCode, fix};
@@ -39,19 +40,18 @@ fn check_expr_field_shorthand(
             None => continue,
         };
 
-        let field_name = name_ref.syntax().text().to_string();
-        let field_expr = expr.syntax().text().to_string();
+        let field_name = syntax::token_text(name_ref.syntax());
+        let field_expr = syntax::token_text(expr.syntax());
         let field_name_is_tup_index = name_ref.as_tuple_field().is_some();
         if field_name != field_expr || field_name_is_tup_index {
             continue;
         }
 
         let mut edit_builder = TextEdit::builder();
-        edit_builder.delete(record_field.syntax().text_range());
-        edit_builder.insert(record_field.syntax().text_range().start(), field_name);
+        edit_builder.replace(token_span(record_field.syntax()), field_name);
         let edit = edit_builder.finish();
 
-        let field_range = record_field.syntax().text_range();
+        let field_range = token_span(record_field.syntax());
         let vfs_file_id = file_id.file_id(db);
         acc.push(
             Diagnostic::new(
@@ -85,19 +85,18 @@ fn check_pat_field_shorthand(
             None => continue,
         };
 
-        let field_name = name_ref.syntax().text().to_string();
-        let field_pat = pat.syntax().text().to_string();
+        let field_name = syntax::token_text(name_ref.syntax());
+        let field_pat = syntax::token_text(pat.syntax());
         let field_name_is_tup_index = name_ref.as_tuple_field().is_some();
         if field_name != field_pat || field_name_is_tup_index {
             continue;
         }
 
         let mut edit_builder = TextEdit::builder();
-        edit_builder.delete(record_pat_field.syntax().text_range());
-        edit_builder.insert(record_pat_field.syntax().text_range().start(), field_name);
+        edit_builder.replace(token_span(record_pat_field.syntax()), field_name);
         let edit = edit_builder.finish();
 
-        let field_range = record_pat_field.syntax().text_range();
+        let field_range = token_span(record_pat_field.syntax());
         let vfs_file_id = file_id.file_id(db);
         acc.push(
             Diagnostic::new(

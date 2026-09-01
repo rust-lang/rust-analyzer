@@ -40,7 +40,17 @@ pub trait HasSource: Sized {
         db: &dyn HirDatabase,
     ) -> Option<InFile<(TextRange, Option<Self::Ast>)>> {
         let source = self.source(db)?;
-        Some(source.map(|node| (node.syntax().text_range(), Some(node))))
+        Some(source.map(|node| (range_with_docs(node.syntax()), Some(node))))
+    }
+}
+
+fn range_with_docs(node: &syntax::SyntaxNode) -> TextRange {
+    let range = syntax::token_span(node);
+    match node.first_token().and_then(|it| {
+        it.leading_trivia().find(|piece| piece.kind() == syntax::SyntaxKind::COMMENT)
+    }) {
+        Some(comment) => TextRange::new(comment.text_range().start(), range.end()),
+        None => range,
     }
 }
 
@@ -179,7 +189,9 @@ impl HasSource for Function {
     ) -> Option<InFile<(TextRange, Option<Self::Ast>)>> {
         match self.id {
             AnyFunctionId::FunctionId(id) => Some(
-                id.loc(db).source(db).map(|source| (source.syntax().text_range(), Some(source))),
+                id.loc(db)
+                    .source(db)
+                    .map(|source| (range_with_docs(source.syntax()), Some(source))),
             ),
             AnyFunctionId::BuiltinDeriveImplMethod { impl_, .. } => {
                 Some(impl_.loc(db).source(db).map(|range| (range, None)))
@@ -240,7 +252,9 @@ impl HasSource for Impl {
     ) -> Option<InFile<(TextRange, Option<Self::Ast>)>> {
         match self.id {
             AnyImplId::ImplId(id) => Some(
-                id.loc(db).source(db).map(|source| (source.syntax().text_range(), Some(source))),
+                id.loc(db)
+                    .source(db)
+                    .map(|source| (range_with_docs(source.syntax()), Some(source))),
             ),
             AnyImplId::BuiltinDeriveImplId(impl_) => {
                 Some(impl_.loc(db).source(db).map(|range| (range, None)))

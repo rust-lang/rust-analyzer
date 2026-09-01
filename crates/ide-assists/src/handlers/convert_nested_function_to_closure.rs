@@ -1,5 +1,6 @@
 use ide_db::assists::AssistId;
 use syntax::ast::{self, HasGenericParams, HasName};
+use syntax::token_span;
 use syntax::{AstNode, SyntaxKind};
 
 use crate::assist_context::{AssistContext, Assists};
@@ -38,7 +39,7 @@ pub(crate) fn convert_nested_function_to_closure(
         return None;
     }
 
-    let target = function.syntax().text_range();
+    let target = token_span(function.syntax());
     let body = function.body()?;
     let name = function.name()?;
     let param_list = function.param_list()?;
@@ -48,7 +49,7 @@ pub(crate) fn convert_nested_function_to_closure(
         "Convert nested function to closure",
         target,
         |edit| {
-            let params = &param_list.syntax().text().to_string();
+            let params = &syntax::token_text(param_list.syntax());
             let params = params.strip_prefix('(').unwrap_or(params);
             let params = params.strip_suffix(')').unwrap_or(params);
 

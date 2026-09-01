@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use syntax::token_span;
 
 use itertools::Itertools;
 
@@ -156,7 +157,7 @@ fn add_sort_methods_assist(
     let selection = ctx.selection_trimmed();
 
     // ignore assist if the selection intersects with an associated item.
-    if item_list.assoc_items().any(|item| item.syntax().text_range().intersect(selection).is_some())
+    if item_list.assoc_items().any(|item| token_span(item.syntax()).intersect(selection).is_some())
     {
         return None;
     }
