@@ -265,7 +265,6 @@ impl<'db> InferenceContext<'db> {
             | Expr::Assignment { .. }
             | Expr::Yield { .. }
             | Expr::Cast { .. }
-            | Expr::Unsafe { .. }
             | Expr::Await { .. }
             | Expr::Ref { .. }
             | Expr::RecordLit { .. }
@@ -391,11 +390,8 @@ impl<'db> InferenceContext<'db> {
                 );
                 self.types.types.bool
             }
-            Expr::Block { statements, tail, label, id: _ } => {
+            Expr::Block { statements, tail, label, id: _, unsafe_: _ } => {
                 self.infer_block(tgt_expr, statements, *tail, *label, expected)
-            }
-            Expr::Unsafe { id: _, statements, tail } => {
-                self.infer_block(tgt_expr, statements, *tail, None, expected)
             }
             Expr::Const(id) => {
                 self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {

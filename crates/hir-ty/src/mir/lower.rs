@@ -649,10 +649,7 @@ impl<'a, 'db> MirLowerCtx<'a, 'db> {
                 }
                 Ok(self.merge_blocks(Some(then_target), else_target, expr_id.into()))
             }
-            Expr::Unsafe { id: _, statements, tail } => {
-                self.lower_block_to_place(statements, current, *tail, place, expr_id.into())
-            }
-            Expr::Block { id: _, statements, tail, label } => {
+            Expr::Block { id: _, statements, tail, label, unsafe_: _ } => {
                 if let Some(label) = label {
                     self.lower_loop(current, place, Some(*label), expr_id.into(), |this, begin| {
                         if let Some(current) = this.lower_block_to_place(

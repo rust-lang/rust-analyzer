@@ -17,7 +17,7 @@ use hir_def::{
     StructId, TraitId, VariantId,
     attrs::parse_extra_crate_attrs,
     expr_store::{Body, ExprOrPatSource, ExpressionStore, HygieneId, path::Path},
-    hir::{BindingId, Expr, ExprId, ExprOrPatId},
+    hir::{BindingId, Expr, ExprId, ExprOrPatId, Unsafe},
     nameres::{ModuleOrigin, crate_def_map},
     resolver::{self, HasResolver, Resolver, TypeNs, ValueNs},
     type_ref::Mutability,
@@ -2427,7 +2427,7 @@ impl<'db> SemanticsImpl<'db> {
             if let Some(parent) = ast::Expr::cast(parent.clone())
                 && let Some(ExprOrPatId::ExprId(expr_id)) =
                     source_map.node_expr(InFile { file_id, value: &parent })
-                && let Expr::Unsafe { .. } = body[expr_id]
+                && let Expr::Block { unsafe_: Unsafe::Yes, .. } = body[expr_id]
             {
                 break true;
             }

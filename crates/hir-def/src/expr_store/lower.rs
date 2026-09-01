@@ -52,7 +52,7 @@ use crate::{
         Array, Binding, BindingAnnotation, BindingId, BindingProblems, CaptureBy, ClosureKind,
         CoroutineKind, CoroutineSource, Expr, ExprId, Item, Label, LabelId, Literal, LoopSource,
         MatchArm, Movability, OffsetOf, Pat, PatId, RecordFieldPat, RecordLitField, RecordSpread,
-        Statement, generics::GenericParams,
+        Statement, Unsafe, generics::GenericParams,
     },
     item_scope::BuiltinShadowMode,
     lang_item::{LangItemTarget, LangItems},
@@ -1188,7 +1188,13 @@ impl<'db> ExprCollector<'db> {
         statements: Box<[Statement]>,
         tail: Option<ExprId>,
     ) -> Expr {
-        let block = self.alloc_expr_desugared(Expr::Block { label: None, id, statements, tail });
+        let block = self.alloc_expr_desugared(Expr::Block {
+            label: None,
+            id,
+            statements,
+            tail,
+            unsafe_: Unsafe::No,
+        });
         Expr::Closure {
             args: Box::default(),
             arg_types: Box::default(),
@@ -1390,10 +1396,12 @@ impl<'db> ExprCollector<'db> {
                     self.desugar_try_block(e, result_type)
                 }
                 Some(ast::BlockModifier::Unsafe(_)) => {
-                    self.collect_block_(e, |_, id, statements, tail| Expr::Unsafe {
+                    self.collect_block_(e, |_, id, statements, tail| Expr::Block {
                         id,
                         statements,
                         tail,
+                        label: None,
+                        unsafe_: Unsafe::Yes,
                     })
                 }
                 Some(ast::BlockModifier::Label(label)) => {
@@ -1405,6 +1413,7 @@ impl<'db> ExprCollector<'db> {
                             statements,
                             tail,
                             label: Some(label_id),
+                            unsafe_: Unsafe::No,
                         })
                     })
                 }
@@ -2247,7 +2256,7 @@ impl<'db> ExprCollector<'db> {
             let mut btail = None;
             let block = this.collect_block_(e, |_, id, statements, tail| {
                 btail = tail;
-                Expr::Block { id, statements, tail, label: Some(label) }
+                Expr::Block { id, statements, tail, label: Some(label), unsafe_: Unsafe::No }
             });
             (btail, block)
         });
@@ -2296,6 +2305,7 @@ impl<'db> ExprCollector<'db> {
                         }]),
                         tail: Some(tail_expr),
                         label: None,
+                        unsafe_: Unsafe::No,
                     },
                     ptr,
                 )
@@ -2429,6 +2439,7 @@ impl<'db> ExprCollector<'db> {
                 statements: Box::default(),
                 tail: Some(loop_inner),
                 label: None,
+                unsafe_: Unsafe::No,
             },
             syntax_ptr,
         );
@@ -2727,6 +2738,7 @@ impl<'db> ExprCollector<'db> {
             statements,
             tail,
             label: None,
+            unsafe_: Unsafe::No,
         })
     }
 
