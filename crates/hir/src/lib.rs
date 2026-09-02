@@ -181,7 +181,7 @@ pub use {
         find_path::PrefixKind,
         import_map,
         lang_item::{LangItemEnum as LangItem, crate_lang_items},
-        nameres::{DefMap, ModuleSource, crate_def_map},
+        nameres::{DefMap, ModuleSource, crate_def_map, crate_imported_defs},
         per_ns::Namespace,
         type_ref::{Mutability, TypeRef},
         visibility::Visibility,
@@ -308,6 +308,11 @@ impl Crate {
     pub fn modules(self, db: &dyn HirDatabase) -> Vec<Module> {
         let def_map = crate_def_map(db, self.id);
         def_map.modules().map(|(id, _)| id.into()).collect()
+    }
+
+    /// Whether any module in this crate already brings `def` into scope with a `use`.
+    pub fn imports_def(self, db: &dyn HirDatabase, def: ModuleDef) -> bool {
+        ModuleDefId::try_from(def).is_ok_and(|def| crate_imported_defs(db, self.id).contains(&def))
     }
 
     pub fn root_file(self, db: &dyn HirDatabase) -> FileId {

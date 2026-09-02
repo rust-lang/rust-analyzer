@@ -46,6 +46,7 @@ pub(crate) fn completion_item_hash(item: &CompletionItem, is_ref_completion: boo
             u8::from(relevance.is_local),
             u8::from(relevance.is_name_already_imported),
             u8::from(relevance.requires_import),
+            u8::from(relevance.is_def_already_imported),
             u8::from(relevance.is_private_editable),
         ]);
 

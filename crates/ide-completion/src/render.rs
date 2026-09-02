@@ -83,6 +83,10 @@ impl<'a, 'db> RenderContext<'a, 'db> {
         CompletionRelevance {
             is_private_editable: self.is_private_editable,
             requires_import: self.import_to_add.is_some(),
+            is_def_already_imported: is_def_already_imported(
+                self.completion,
+                self.import_to_add.as_ref(),
+            ),
             ..Default::default()
         }
     }
@@ -443,6 +447,7 @@ fn render_resolution_path<'db>(
     let db = completion.db;
     let config = completion.config;
     let requires_import = import_to_add.is_some();
+    let is_def_already_imported = is_def_already_imported(completion, import_to_add.as_ref());
 
     let name = local_name.display(db, completion.edition).to_smolstr();
     let mut item = render_resolution_simple_(ctx, &local_name, import_to_add, resolution);
@@ -491,6 +496,7 @@ fn render_resolution_path<'db>(
             exact_name_match: compute_exact_name_match(completion, &name),
             is_local: matches!(resolution, ScopeDef::Local(_)),
             requires_import,
+            is_def_already_imported,
             has_local_inherent_impl: compute_has_local_inherent_impl(db, path_ctx, &ty, module),
             ..CompletionRelevance::default()
         });
@@ -713,6 +719,20 @@ fn compute_has_local_inherent_impl(
             .any(|imp| imp.trait_(db).is_none() && imp.module(db) == curr_module)
 }
 
+/// Whether some other module in the current crate already imports the definition this completion
+/// would add an import for.
+///
+/// Used to break ties between equally-named candidates, such as the several types called `Range` in
+/// the standard library, in favour of the one the crate is already using.
+fn is_def_already_imported(
+    ctx: &CompletionContext<'_, '_>,
+    import_to_add: Option<&LocatedImport>,
+) -> bool {
+    import_to_add.is_some_and(|import| {
+        ctx.krate.imports_def(ctx.db, import.item_to_import.into_module_def())
+    })
+}
+
 fn compute_exact_name_match(ctx: &CompletionContext<'_, '_>, completion_name: &str) -> bool {
     ctx.expected_name.as_ref().is_some_and(|name| name.text() == completion_name)
 }
@@ -882,6 +902,7 @@ mod tests {
                 trait_,
                 is_name_already_imported: _,
                 requires_import,
+                is_def_already_imported,
                 is_private_editable: _,
                 postfix_match,
                 function: _,
@@ -898,6 +919,7 @@ mod tests {
                 (postfix_match == Some(CompletionRelevancePostfixMatch::Exact), "snippet"),
                 (trait_.is_some_and(|it| it.is_op_method), "op_method"),
                 (requires_import, "requires_import"),
+                (is_def_already_imported, "already_imported"),
                 (has_local_inherent_impl, "has_local_inherent_impl"),
                 (is_deprecated, "deprecated"),
             ]
@@ -966,6 +988,74 @@ fn main() {
                 fn main() fn() []
                 fn test(…) fn(Struct) []
                 st Struct Struct [requires_import]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn prefers_def_already_imported_in_crate() {
+        check_relevance(
+            r#"
+//- /lib.rs crate:dep
+
+pub mod test_mod_a {
+    pub struct Struct {}
+}
+
+pub mod test_mod_b {
+    pub struct Struct {}
+}
+
+//- /main.rs crate:main deps:dep
+mod other;
+
+fn main() {
+    Struct$0
+}
+
+//- /other.rs
+use dep::test_mod_b::Struct;
+
+pub fn takes(_: Struct) {}
+"#,
+            expect![[r#"
+                md dep::  []
+                fn main() fn() []
+                md other::  []
+                st Struct Struct [requires_import+already_imported]
+                st Struct Struct [requires_import]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn def_already_imported_tracks_the_imported_def() {
+        check_relevance(
+            r#"
+//- /lib.rs crate:dep
+
+pub struct Imported {}
+
+pub struct NotImported {}
+
+//- /main.rs crate:main deps:dep
+mod other;
+
+fn main() {
+    Imported$0
+}
+
+//- /other.rs
+use dep::Imported;
+
+pub fn takes(_: Imported) {}
+"#,
+            expect![[r#"
+                md dep::  []
+                fn main() fn() []
+                md other::  []
+                st Imported Imported [requires_import+already_imported]
+                st NotImported NotImported [requires_import]
             "#]],
         );
     }
@@ -1302,6 +1392,7 @@ fn main() { Foo::Fo$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1355,6 +1446,7 @@ fn main() { Foo::Fo$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1501,6 +1593,7 @@ fn main() { Foo::Fo$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1588,6 +1681,7 @@ fn main() { let _: m::Spam = S$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1627,6 +1721,7 @@ fn main() { let _: m::Spam = S$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1679,6 +1774,7 @@ fn main() { som$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -1739,6 +1835,7 @@ fn main() { som$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -1783,6 +1880,7 @@ fn main() { A$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -1827,6 +1925,7 @@ fn main() { A$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -1873,6 +1972,7 @@ fn main() { A::$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1910,6 +2010,7 @@ fn main() { A::$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -1961,6 +2062,7 @@ fn main() { A$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2005,6 +2107,7 @@ fn main() { A$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2046,6 +2149,7 @@ impl A$0
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2087,6 +2191,7 @@ fn main() { A$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2132,6 +2237,7 @@ fn main() { a$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2177,6 +2283,7 @@ fn main() { A { the$0 } }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2233,6 +2340,7 @@ impl S {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -2327,6 +2435,7 @@ use self::E::*;
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -2400,6 +2509,7 @@ fn foo(s: S) { s.$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -2621,6 +2731,7 @@ fn f() -> i32 {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2728,6 +2839,7 @@ fn main() {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2777,6 +2889,7 @@ fn main() {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -2889,6 +3002,7 @@ fn main() {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -3800,6 +3914,7 @@ fn foo(f: Foo) { let _: &u32 = f.b$0 }
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -3896,6 +4011,7 @@ fn foo() {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -3951,6 +4067,7 @@ fn main() {
                             trait_: None,
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: Some(
@@ -4449,6 +4566,7 @@ fn main() {
                             ),
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,
@@ -4486,6 +4604,7 @@ fn main() {
                             ),
                             is_name_already_imported: false,
                             requires_import: false,
+                            is_def_already_imported: false,
                             is_private_editable: false,
                             postfix_match: None,
                             function: None,

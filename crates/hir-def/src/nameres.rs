@@ -68,7 +68,7 @@ use hir_expand::{
 };
 use intern::{Symbol, sym};
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use span::{Edition, FileAstId, FileId, ROOT_ERASED_FILE_AST_ID};
 use stdx::format_to;
 use syntax::{AstNode, SmolStr, SyntaxNode, ToSmolStr, ast};
@@ -77,7 +77,7 @@ use tt::TextRange;
 
 use crate::{
     AstId, BlockId, BlockIdLt, BuiltinDeriveImplId, ExternCrateId, FunctionId, FxIndexMap, Lookup,
-    MacroCallStyles, MacroExpander, MacroId, ModuleId, ModuleIdLt, ProcMacroId, UseId,
+    MacroCallStyles, MacroExpander, MacroId, ModuleDefId, ModuleId, ModuleIdLt, ProcMacroId, UseId,
     item_scope::{BuiltinShadowMode, ItemScope},
     item_tree::TreeId,
     nameres::{diagnostics::DefDiagnostic, path_resolution::ResolveMode},
@@ -379,6 +379,27 @@ pub struct ModuleData {
 #[inline]
 pub fn crate_def_map(db: &dyn SourceDatabase, crate_id: Crate) -> &DefMap {
     crate_local_def_map(db, crate_id).def_map(db)
+}
+
+/// The set of items that any module in this crate brings into scope with a `use`.
+///
+/// Glob imports count, `extern crate` declarations do not.
+#[salsa::tracked(returns(ref))]
+pub fn crate_imported_defs(db: &dyn SourceDatabase, crate_id: Crate) -> FxHashSet<ModuleDefId> {
+    let _p = tracing::info_span!("crate_imported_defs_query").entered();
+    let def_map = crate_def_map(db, crate_id);
+    let mut res = FxHashSet::default();
+    for (_, module_data) in def_map.modules() {
+        let scope = &module_data.scope;
+        res.extend(
+            scope
+                .types()
+                .filter(|(_, it)| it.import.is_some_and(|it| it.import_or_glob().is_some()))
+                .map(|(_, it)| it.def),
+        );
+        res.extend(scope.values().filter(|(_, it)| it.import.is_some()).map(|(_, it)| it.def));
+    }
+    res
 }
 
 #[salsa::tracked]

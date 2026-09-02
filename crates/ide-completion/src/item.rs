@@ -190,6 +190,12 @@ pub struct CompletionRelevance {
     pub is_name_already_imported: bool,
     /// This is set for completions that will insert a `use` item.
     pub requires_import: bool,
+    /// This is set when the completed definition is already imported by some other module in the
+    /// current crate.
+    ///
+    /// It distinguishes candidates that would otherwise tie, such as the several types named
+    /// `Range` in the standard library, by favouring the one the crate already uses.
+    pub is_def_already_imported: bool,
     /// Set for item completions that are private but in the workspace.
     pub is_private_editable: bool,
     /// Set for postfix snippet item completions
@@ -292,6 +298,7 @@ impl CompletionRelevance {
             is_missing,
             is_name_already_imported,
             requires_import,
+            is_def_already_imported,
             is_private_editable,
             postfix_match,
             trait_,
@@ -338,6 +345,11 @@ impl CompletionRelevance {
         // lower rank for items that need an import
         if requires_import {
             score -= 12;
+        }
+        // partially offset that for definitions the crate already imports elsewhere, so that an
+        // ambiguous name resolves to the one the project is already using
+        if is_def_already_imported {
+            score += 10;
         }
         if exact_name_match {
             score += 40;
