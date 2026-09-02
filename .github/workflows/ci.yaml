@@ -54,7 +54,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install rustup-toolchain-install-master
-        run: cargo install rustup-toolchain-install-master@1.11.0
+        run: cargo install --locked rustup-toolchain-install-master@1.11.0
 
       # Install a pinned rustc commit to avoid surprises
       - name: Install Rust toolchain
