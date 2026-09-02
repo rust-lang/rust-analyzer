@@ -223,7 +223,7 @@ impl AbsPath {
 
     /// Equivalent of [`Utf8Path::join`] for `AbsPath`.
     pub fn join(&self, path: impl AsRef<Utf8Path>) -> AbsPathBuf {
-        Utf8Path::join(self.as_ref(), path).try_into().unwrap()
+        AbsPathBuf(Utf8Path::join(self.as_ref(), path))
     }
 
     /// Normalize the given path:
@@ -244,7 +244,7 @@ impl AbsPath {
 
     /// Equivalent of [`Utf8Path::to_path_buf`] for `AbsPath`.
     pub fn to_path_buf(&self) -> AbsPathBuf {
-        AbsPathBuf::try_from(self.0.to_path_buf()).unwrap()
+        AbsPathBuf(self.0.to_path_buf())
     }
 
     pub fn canonicalize(&self) -> ! {
@@ -396,7 +396,7 @@ impl RelPath {
 
     /// Equivalent of [`Utf8Path::to_path_buf`] for `RelPath`.
     pub fn to_path_buf(&self) -> RelPathBuf {
-        RelPathBuf::try_from(self.0.to_path_buf()).unwrap()
+        RelPathBuf(self.0.to_path_buf())
     }
 
     pub fn as_utf8_path(&self) -> &Utf8Path {
