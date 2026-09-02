@@ -3413,6 +3413,9 @@ impl<'db> ExprCollector<'db> {
     }
     // endregion: labels
 
+    /// While `expr` is a macro call, repeatedly expand it. If the end result is a string literal,
+    /// return that, along with a boolean for whether it was a direct string literal, i.e. no macro
+    /// calls were involved. In all other cases, return `None`.
     fn expand_macros_to_string(&mut self, expr: ast::Expr) -> Option<(ast::String, bool)> {
         let m = match expr {
             ast::Expr::MacroExpr(m) => m,
