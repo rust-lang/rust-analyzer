@@ -418,7 +418,7 @@ pub fn expect_fragment<'t>(
                     cursor.bump_or_end();
                 }
             }
-            parser::Step::FloatSplit { .. } => {
+            parser::Step::FloatSplit { .. } | parser::Step::FloatSplitOffsetOf { .. } => {
                 // FIXME: We need to split the tree properly here, but mutating the token trees
                 // in the buffer is somewhat tricky to pull off.
                 cursor.bump_or_end();

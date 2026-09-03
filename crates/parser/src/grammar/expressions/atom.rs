@@ -270,7 +270,14 @@ fn builtin_expr(p: &mut Parser<'_>) -> Option<CompletedMarker> {
         //     builtin#offset_of(Foo, (bar.baz.0));
         // }
         while !p.at(EOF) && !p.at(T![')']) {
-            name_ref_mod_path_or_index(p);
+            if p.at(FLOAT_NUMBER) {
+                let ends_in_dot = p.split_float_offset_of();
+                if ends_in_dot {
+                    continue;
+                }
+            } else {
+                name_ref_mod_path_or_index(p);
+            }
             if !p.at(T![')']) {
                 p.expect(T![.]);
             }

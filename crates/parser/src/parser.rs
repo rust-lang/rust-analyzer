@@ -241,6 +241,14 @@ impl<'t> Parser<'t> {
         (ends_in_dot, marker)
     }
 
+    pub(crate) fn split_float_offset_of(&mut self) -> bool {
+        assert!(self.at(SyntaxKind::FLOAT_NUMBER));
+        let ends_in_dot = !self.inp.is_joint(self.pos);
+        self.pos += 1;
+        self.push_event(Event::FloatSplitOffsetOfHack { ends_in_dot });
+        ends_in_dot
+    }
+
     /// Advances the parser by one token, remapping its kind.
     /// This is useful to create contextual keywords from
     /// identifiers. For example, the lexer creates a `union`

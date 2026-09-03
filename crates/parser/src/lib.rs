@@ -126,7 +126,7 @@ impl TopEntryPoint {
                     Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
                         depth -= 1 + !has_pseudo_dot as usize
                     }
-                    Step::Token { .. } | Step::Error { .. } => (),
+                    Step::Token { .. } | Step::Error { .. } | Step::FloatSplitOffsetOf { .. } => (),
                 }
             }
             assert!(!first, "no tree at all");

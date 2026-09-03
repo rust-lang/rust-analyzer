@@ -89,7 +89,7 @@ fn check(entry: PrefixEntryPoint, input: &str, prefix: &str) {
     for step in entry.parse(&input).iter() {
         match step {
             Step::Token { n_input_tokens, .. } => n_tokens += n_input_tokens as usize,
-            Step::FloatSplit { .. } => n_tokens += 1,
+            Step::FloatSplit { .. } | Step::FloatSplitOffsetOf { .. } => n_tokens += 1,
             Step::Enter { .. } | Step::Exit | Step::Error { .. } => (),
         }
     }

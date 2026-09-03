@@ -59,7 +59,10 @@ pub(crate) enum Event {
     /// ```
     ///
     /// See also `CompletedMarker::precede`.
-    Start { kind: SyntaxKind, forward_parent: Option<NonZeroU32> },
+    Start {
+        kind: SyntaxKind,
+        forward_parent: Option<NonZeroU32>,
+    },
 
     /// Complete the previous `Start` event
     Finish,
@@ -68,14 +71,24 @@ pub(crate) enum Event {
     /// `n_raw_tokens` is used to glue complex contextual tokens.
     /// For example, lexer tokenizes `>>` as `>`, `>`, and
     /// `n_raw_tokens = 2` is used to produced a single `>>`.
-    Token { kind: SyntaxKind, n_raw_tokens: u8 },
+    Token {
+        kind: SyntaxKind,
+        n_raw_tokens: u8,
+    },
     /// When we parse `foo.0.0` or `foo. 0. 0` the lexer will hand us a float literal
     /// instead of an integer literal followed by a dot as the lexer has no contextual knowledge.
     /// This event instructs whatever consumes the events to split the float literal into
     /// the corresponding parts.
-    FloatSplitHack { ends_in_dot: bool },
+    FloatSplitHack {
+        ends_in_dot: bool,
+    },
+    FloatSplitOffsetOfHack {
+        ends_in_dot: bool,
+    },
     /// Index into the parser's side `errors` vec.
-    Error { err: u32 },
+    Error {
+        err: u32,
+    },
 }
 
 impl Event {
@@ -130,6 +143,9 @@ pub(super) fn process(mut events: Vec<Event>, mut errors: Vec<String>) -> Output
                 res.float_split_hack(ends_in_dot);
                 let ev = mem::replace(&mut events[i + 1], Event::tombstone());
                 assert!(matches!(ev, Event::Finish), "{ev:?}");
+            }
+            Event::FloatSplitOffsetOfHack { ends_in_dot } => {
+                res.float_split_offset_of_hack(ends_in_dot);
             }
             Event::Error { err } => {
                 // Move the string out of the side table; each index is visited

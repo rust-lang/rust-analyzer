@@ -78,6 +78,9 @@ impl LexedStr<'_> {
                 Step::FloatSplit { ends_in_dot: has_pseudo_dot } => {
                     builder.float_split(has_pseudo_dot)
                 }
+                Step::FloatSplitOffsetOf { ends_in_dot: has_pseudo_dot } => {
+                    builder.float_split_offset_of(has_pseudo_dot)
+                }
                 Step::Enter { kind } => builder.enter(kind),
                 Step::Exit => builder.exit(),
                 Step::Error { msg } => {
@@ -132,6 +135,16 @@ impl Builder<'_, '_> {
         }
         self.eat_trivias();
         self.do_float_split(has_pseudo_dot);
+    }
+
+    fn float_split_offset_of(&mut self, has_pseudo_dot: bool) {
+        match mem::replace(&mut self.state, State::Normal) {
+            State::PendingEnter => unreachable!(),
+            State::PendingExit => (self.sink)(StrStep::Exit),
+            State::Normal => (),
+        }
+        self.eat_trivias();
+        self.do_float_split_offset_of(has_pseudo_dot);
     }
 
     fn enter(&mut self, kind: SyntaxKind) {
@@ -230,6 +243,38 @@ impl Builder<'_, '_> {
                 (self.sink)(StrStep::Exit);
 
                 self.state = if has_pseudo_dot { State::Normal } else { State::PendingExit };
+            }
+        }
+
+        self.pos += 1;
+    }
+
+    fn do_float_split_offset_of(&mut self, has_pseudo_dot: bool) {
+        let text = &self.lexed.range_text(self.pos..self.pos + 1);
+
+        match text.split_once('.') {
+            Some((left, right)) => {
+                assert!(!left.is_empty());
+                (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
+                (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: left });
+                (self.sink)(StrStep::Exit);
+
+                (self.sink)(StrStep::Token { kind: SyntaxKind::DOT, text: "." });
+
+                if has_pseudo_dot {
+                    assert!(right.is_empty(), "{left}.{right}");
+                } else {
+                    assert!(!right.is_empty(), "{left}.{right}");
+                    (self.sink)(StrStep::Enter { kind: SyntaxKind::NAME_REF });
+                    (self.sink)(StrStep::Token { kind: SyntaxKind::INT_NUMBER, text: right });
+                    (self.sink)(StrStep::Exit);
+                }
+            }
+            None => {
+                (self.sink)(StrStep::Error { msg: "illegal float literal", pos: self.pos });
+                (self.sink)(StrStep::Enter { kind: SyntaxKind::ERROR });
+                (self.sink)(StrStep::Token { kind: SyntaxKind::FLOAT_NUMBER, text });
+                (self.sink)(StrStep::Exit);
             }
         }
 
