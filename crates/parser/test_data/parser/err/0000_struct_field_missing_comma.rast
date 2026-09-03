@@ -31,4 +31,4 @@ SOURCE_FILE
                 IDENT "u32"
       WHITESPACE "\n"
       R_CURLY "}"
-error 21: expected COMMA
+error 21: expected `,`

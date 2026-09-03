@@ -17,7 +17,7 @@ SOURCE_FILE
     R_CURLY "}"
   WHITESPACE "\n"
 error 7: expected value parameter
-error 7: expected R_PAREN
+error 7: expected `)`
 error 7: expected a block
 error 7: unmatched `}`
 error 8: expected an item

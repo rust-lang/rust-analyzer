@@ -20,7 +20,7 @@ SOURCE_FILE
   ERROR
     SEMICOLON ";"
   WHITESPACE "\n"
-error 8: expected R_ANGLE
+error 8: expected `>`
 error 8: expected type
 error 11: expected `{`
 error 15: expected an item

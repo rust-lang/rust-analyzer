@@ -42,4 +42,4 @@ SOURCE_FILE
         R_CURLY "}"
   WHITESPACE "\n"
 error 24: expected a block
-error 24: expected SEMICOLON
+error 24: expected `;`

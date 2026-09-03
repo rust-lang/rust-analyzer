@@ -66,11 +66,11 @@ SOURCE_FILE
   ERROR
     SEMICOLON ";"
   WHITESPACE "\n\n"
-error 67: expected R_ANGLE
-error 67: expected R_ANGLE
-error 67: expected R_ANGLE
-error 67: expected R_PAREN
-error 67: expected SEMICOLON
+error 67: expected `>`
+error 67: expected `>`
+error 67: expected `>`
+error 67: expected `)`
+error 67: expected `;`
 error 67: expected an item
 error 72: expected an item
 error 72: expected an item

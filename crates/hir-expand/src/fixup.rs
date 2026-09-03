@@ -545,7 +545,6 @@ fn foo () {for bar in qux {}}
         )
     }
 
-    // FIXME: https://github.com/rust-lang/rust-analyzer/pull/12937#discussion_r937633695
     #[test]
     fn for_no_pat() {
         check(
@@ -557,7 +556,7 @@ fn foo() {
 }
 "#,
             expect![[r#"
-fn foo () {__ra_fixup}
+fn foo () {for _ in qux {}}
 "#]],
         )
     }

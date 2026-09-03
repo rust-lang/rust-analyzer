@@ -1,0 +1,76 @@
+SOURCE_FILE
+  FN
+    FN_KW "fn"
+    WHITESPACE " "
+    NAME
+      IDENT "foo"
+    PARAM_LIST
+      L_PAREN "("
+      R_PAREN ")"
+    WHITESPACE " "
+    BLOCK_EXPR
+      STMT_LIST
+        L_CURLY "{"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            MATCH_KW "match"
+            WHITESPACE " "
+            TUPLE_EXPR
+              L_PAREN "("
+              R_PAREN ")"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE "\n        "
+              MATCH_ARM
+                FAT_ARROW "=>"
+                WHITESPACE " "
+                TUPLE_EXPR
+                  L_PAREN "("
+                  R_PAREN ")"
+                COMMA ","
+              WHITESPACE "\n        "
+              MATCH_ARM
+                MATCH_GUARD
+                  IF_KW "if"
+                  WHITESPACE " "
+                  LITERAL
+                    TRUE_KW "true"
+                WHITESPACE " "
+                FAT_ARROW "=>"
+                WHITESPACE " "
+                TUPLE_EXPR
+                  L_PAREN "("
+                  R_PAREN ")"
+                COMMA ","
+              WHITESPACE "\n        "
+              MATCH_ARM
+                IDENT_PAT
+                  NAME
+                    IDENT "A"
+                WHITESPACE " "
+                PATH_EXPR
+                  PATH
+                    PATH_SEGMENT
+                      NAME_REF
+                        IDENT "A"
+              WHITESPACE " "
+              MATCH_ARM
+                FAT_ARROW "=>"
+                WHITESPACE " "
+                TUPLE_EXPR
+                  L_PAREN "("
+                  R_PAREN ")"
+                COMMA ","
+              WHITESPACE "\n    "
+              R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n"
+        R_CURLY "}"
+  WHITESPACE "\n"
+error 34: expected pattern
+error 49: expected pattern
+error 73: expected `=>`
+error 75: expected `,`
+error 76: expected pattern

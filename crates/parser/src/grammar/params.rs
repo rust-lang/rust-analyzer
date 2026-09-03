@@ -64,7 +64,7 @@ fn list_(p: &mut Parser<'_>, flavor: Flavor) {
             }
         };
 
-        if !p.at_ts(PARAM_FIRST.union(ATTRIBUTE_FIRST)) {
+        if !p.at_ts(param_first(flavor)) {
             p.error("expected value parameter");
             m.abandon(p);
             if p.eat(T![,]) {
@@ -74,7 +74,7 @@ fn list_(p: &mut Parser<'_>, flavor: Flavor) {
         }
         param(p, m, flavor);
         if !p.eat(T![,]) {
-            if p.at_ts(PARAM_FIRST.union(ATTRIBUTE_FIRST)) {
+            if p.at_ts(param_first(flavor)) {
                 p.error("expected `,`");
             } else {
                 break;
@@ -90,7 +90,13 @@ fn list_(p: &mut Parser<'_>, flavor: Flavor) {
     list_marker.complete(p, PARAM_LIST);
 }
 
-const PARAM_FIRST: TokenSet = patterns::PATTERN_FIRST.union(types::TYPE_FIRST);
+const fn param_first(flavor: Flavor) -> TokenSet {
+    match flavor {
+        Flavor::FnDef | Flavor::Closure => patterns::PATTERN_FIRST,
+        Flavor::FnPointer => patterns::PATTERN_FIRST.union(types::TYPE_FIRST),
+    }
+    .union(ATTRIBUTE_FIRST)
+}
 
 fn param(p: &mut Parser<'_>, m: Marker, flavor: Flavor) {
     match flavor {
