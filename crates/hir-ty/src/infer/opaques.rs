@@ -1,13 +1,18 @@
 //! Defining opaque types via inference.
 
-use rustc_type_ir::{TypeVisitableExt, fold_regions};
+use rustc_hash::FxHashMap;
+use rustc_type_ir::{
+    ConstKind, TyKind, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt, fold_regions,
+    inherent::{Const as _, GenericArgs as _, IntoKind, Ty as _},
+};
 use tracing::{debug, instrument};
 
 use crate::{
     Span,
     infer::InferenceContext,
     next_solver::{
-        EarlyBinder, OpaqueTypeKey, SolverDefId, TypingMode,
+        Const, DbInterner, EarlyBinder, ErrorGuaranteed, GenericArg, GenericArgKind, GenericArgs,
+        OpaqueTypeKey, Region, SolverDefId, Ty, TypingMode,
         infer::{opaque_types::OpaqueHiddenType, traits::ObligationCause},
     },
 };
@@ -146,6 +151,95 @@ impl<'db> InferenceContext<'db> {
         };
         let hidden_type =
             fold_regions(self.interner(), hidden_type, |_, _| self.types.regions.erased);
+        let hidden_type = remap_generic_params_to_declaration_params(
+            self.interner(),
+            opaque_type_key,
+            hidden_type,
+        );
         UsageKind::HasDefiningUse(hidden_type)
+    }
+}
+
+/// The hidden type is written in terms of the generic parameters of the item containing
+/// the defining use, while `type_of_opaque` has to be bound by the generic parameters of
+/// the *opaque* itself. Those two lists are not the same, neither in length nor in the
+/// position of a given parameter, e.g.
+///
+/// ```ignore
+/// impl Tr for S {
+///     // The opaque's parameters are `['a, D]`.
+///     type Fut<'a, D: 'a> = impl Sized + 'a;
+///     // The hidden type `(S, &'a mut D)` is written with the function's parameters, `[D]`.
+///     fn make<D>(self, d: &mut D) -> Self::Fut<'_, D> { (self, d) }
+/// }
+/// ```
+///
+/// Without this remapping, instantiating the hidden type with the arguments of a use would
+/// look up the function's `D` (index 0) in the opaque's arguments, whose index 0 is `'a`.
+fn remap_generic_params_to_declaration_params<'db>(
+    interner: DbInterner<'db>,
+    opaque_type_key: OpaqueTypeKey<'db>,
+    hidden_type: OpaqueHiddenType<'db>,
+) -> OpaqueHiddenType<'db> {
+    if !hidden_type.ty.has_param() {
+        return hidden_type;
+    }
+
+    let identity_args = GenericArgs::identity_for_item(interner, opaque_type_key.def_id.into());
+    // This zip may pair the same lifetime in `args` with different lifetimes from
+    // `identity_args`. Simply collecting is the correct behaviour: it keeps the last one,
+    // which is the one introduced by the opaque type itself.
+    let map: FxHashMap<GenericArg<'db>, GenericArg<'db>> =
+        opaque_type_key.args.iter().zip(identity_args.iter()).collect();
+    let ty = hidden_type.ty.fold_with(&mut ReverseMapper { interner, map });
+    OpaqueHiddenType { ty }
+}
+
+/// Converts generic parameters of a [`TypeFoldable`] from one item's generics to another's,
+/// here from the item containing the defining use to the opaque type itself.
+struct ReverseMapper<'db> {
+    interner: DbInterner<'db>,
+    map: FxHashMap<GenericArg<'db>, GenericArg<'db>>,
+}
+
+impl<'db> TypeFolder<DbInterner<'db>> for ReverseMapper<'db> {
+    fn cx(&self) -> DbInterner<'db> {
+        self.interner
+    }
+
+    fn fold_ty(&mut self, ty: Ty<'db>) -> Ty<'db> {
+        if !ty.has_param() {
+            return ty;
+        }
+
+        match ty.kind() {
+            TyKind::Param(_) => match self.map.get(&ty.into()).map(|arg| arg.kind()) {
+                Some(GenericArgKind::Type(ty)) => ty,
+                // The hidden type mentions a type parameter the opaque does not capture.
+                // rustc reports an error here, we only have the error type.
+                _ => Ty::new_error(self.interner, ErrorGuaranteed),
+            },
+            _ => ty.super_fold_with(self),
+        }
+    }
+
+    fn fold_const(&mut self, ct: Const<'db>) -> Const<'db> {
+        if !ct.has_param() {
+            return ct;
+        }
+
+        match ct.kind() {
+            ConstKind::Param(_) => match self.map.get(&ct.into()).map(|arg| arg.kind()) {
+                Some(GenericArgKind::Const(ct)) => ct,
+                // Ditto, for const parameters.
+                _ => Const::new_error(self.interner, ErrorGuaranteed),
+            },
+            _ => ct.super_fold_with(self),
+        }
+    }
+
+    fn fold_region(&mut self, r: Region<'db>) -> Region<'db> {
+        // Regions were erased before we got here, there is nothing to map them to.
+        r
     }
 }

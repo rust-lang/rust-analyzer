@@ -180,6 +180,177 @@ fn main() {
 }
 
 #[test]
+fn regression_23286() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized
+#![feature(impl_trait_in_assoc_type)]
+
+pub trait Tr: Sized {
+    type Fut<'a, D: 'a>;
+    fn make<D>(self, d: &mut D) -> Self::Fut<'_, D>;
+}
+
+pub struct S;
+
+impl Tr for S {
+    type Fut<'a, D: 'a> = impl Sized + 'a;
+    fn make<D>(self, d: &mut D) -> Self::Fut<'_, D> {
+        (self, d)
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn atpit_gat_params_in_a_different_order_than_the_defining_fn() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized, send
+#![feature(impl_trait_in_assoc_type)]
+
+pub trait Tr: Sized {
+    type Fut<'a, D: 'a, E: 'a>;
+    fn make<E, D>(self, d: &mut D, e: E) -> Self::Fut<'_, D, E>;
+}
+
+pub struct S;
+
+impl Tr for S {
+    type Fut<'a, D: 'a, E: 'a> = impl Sized + 'a;
+    fn make<E, D>(self, d: &mut D, e: E) -> Self::Fut<'_, D, E> {
+        (d, e)
+    }
+}
+
+fn is_send<T: Send>(_: T) {}
+
+fn test<D: Send, E: Send>(d: &mut D, e: E) {
+    is_send(S.make(d, e));
+}
+"#,
+    );
+}
+
+#[test]
+fn atpit_gat_with_lifetime_and_const_param() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized
+#![feature(impl_trait_in_assoc_type)]
+
+pub trait Tr: Sized {
+    type Arr<'a, const N: usize>;
+    fn make<const N: usize>(self, d: &[u8; N]) -> Self::Arr<'_, N>;
+}
+
+pub struct S;
+
+impl Tr for S {
+    type Arr<'a, const N: usize> = impl Sized + 'a;
+    fn make<const N: usize>(self, d: &[u8; N]) -> Self::Arr<'_, N> {
+        (self, d)
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn atpit_gat_hidden_type_is_remapped_to_the_opaques_params() {
+    // The hidden type is `(&mut D, E)`, so the opaque is `Send` exactly when both `D` and
+    // `E` are. Auto trait leakage is the only way to observe the recorded hidden type: had
+    // the remapping produced an error type instead, both calls below would resolve.
+    check_types(
+        r#"
+//- minicore: sized, send
+#![feature(impl_trait_in_assoc_type)]
+
+trait Marker { fn marker(&self) -> u32; }
+impl<T: Send> Marker for T { fn marker(&self) -> u32 { 0 } }
+
+pub trait Tr: Sized {
+    type Fut<'a, D: 'a, E: 'a>;
+    fn make<E, D>(self, d: &mut D, e: E) -> Self::Fut<'_, D, E>;
+}
+
+pub struct S;
+
+impl Tr for S {
+    type Fut<'a, D: 'a, E: 'a> = impl Sized + 'a;
+    fn make<E, D>(self, d: &mut D, e: E) -> Self::Fut<'_, D, E> {
+        (d, e)
+    }
+}
+
+fn sendable<D: Send, E: Send>(d: &mut D, e: E) {
+    let x = S.make(d, e).marker();
+      //^ u32
+}
+
+fn unsendable<D, E>(d: &mut D, e: E) {
+    let x = S.make(d, e).marker();
+      //^ {unknown}
+}
+"#,
+    );
+}
+
+#[test]
+fn regression_23124() {
+    // The hidden type mentions `T`, which the opaque does not capture. rustc rejects this;
+    // we settle for an error type. The point is that we do not panic while instantiating.
+    check_no_mismatches(
+        r#"
+//- minicore: copy, fn
+#![feature(impl_trait_in_assoc_type)]
+
+pub trait Bar {
+    type E: Copy;
+
+    fn foo<T>() -> Self::E;
+}
+
+impl<S> Bar for S {
+    type E = impl Copy;
+
+    fn foo<T>() -> Self::E {
+        || ()
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn regression_23125() {
+    check_no_mismatches(
+        r#"
+//- minicore: sized
+#![feature(impl_trait_in_assoc_type)]
+
+trait Foo {
+    type Item;
+
+    fn foo<T>(_: T) -> Self::Item;
+}
+
+pub struct S<T>(T);
+pub struct S2;
+
+impl Foo for S2 {
+    type Item = impl Sized;
+
+    fn foo<T>(t: T) -> Self::Item {
+        S(t)
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn regression_21455() {
     check_infer(
         r#"
