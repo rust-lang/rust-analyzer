@@ -1717,6 +1717,7 @@ dependencies = [
  "drop_bomb",
  "edition",
  "expect-test",
+ "proptest",
  "ra-ap-rustc_lexer",
  "rustc-literal-escaper",
  "stdx",
