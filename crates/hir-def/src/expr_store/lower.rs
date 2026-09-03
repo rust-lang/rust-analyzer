@@ -2376,8 +2376,11 @@ impl<'db> ExprCollector<'db> {
     ///   }
     /// }
     /// ```
-    /// FIXME: Rustc wraps the condition in a construct equivalent to `{ let _t = <cond>; _t }`
-    /// to preserve drop semantics. We should probably do the same in future.
+    /// FIXME: Rustc wraps the condition in [`DropTemps`] -- a construct equivalent to
+    /// `{ let _t = <cond>; _t }` -- to preserve drop semantics.
+    /// We should probably do the same in future.
+    ///
+    /// [`DropTemps`]: https://doc.rust-lang.org/nightly/nightly-rustc/rustc_hir/hir/enum.ExprKind.html#variant.DropTemps
     fn collect_while_loop(&mut self, syntax_ptr: AstPtr<ast::Expr>, e: ast::WhileExpr) -> ExprId {
         let label = e.label().map(|label| {
             (self.hygiene_id_for(label.syntax().text_range()), self.collect_label(label))
@@ -3461,6 +3464,9 @@ impl<'db> ExprCollector<'db> {
     }
     // endregion: labels
 
+    /// While `expr` is a macro call, repeatedly expand it. If the end result is a string literal,
+    /// return that, along with a boolean for whether it was a direct string literal, i.e. no macro
+    /// calls were involved. In all other cases, return `None`.
     fn expand_macros_to_string(&mut self, expr: ast::Expr) -> Option<(ast::String, bool)> {
         let m = match expr {
             ast::Expr::MacroExpr(m) => m,
