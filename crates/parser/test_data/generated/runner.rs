@@ -494,12 +494,12 @@ mod ok {
     #[test]
     fn not_null_pat() { run_and_expect_no_errors("test_data/parser/inline/ok/not_null_pat.rs"); }
     #[test]
-    fn offset_of_parens() {
-        run_and_expect_no_errors("test_data/parser/inline/ok/offset_of_parens.rs");
-    }
-    #[test]
     fn offset_of_nested_tuple() {
         run_and_expect_no_errors("test_data/parser/inline/ok/offset_of_nested_tuple.rs");
+    }
+    #[test]
+    fn offset_of_parens() {
+        run_and_expect_no_errors("test_data/parser/inline/ok/offset_of_parens.rs");
     }
     #[test]
     fn or_pattern() { run_and_expect_no_errors("test_data/parser/inline/ok/or_pattern.rs"); }
