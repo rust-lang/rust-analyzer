@@ -321,6 +321,15 @@ struct FormatTemplate {
     implicit_capture_to_source: FxHashMap<ExprId, InFile<(ExprPtr, TextRange)>>,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum MissingBodyItemKind {
+    AssocConst,
+    AssocType,
+    Const,
+    Static,
+    TypeAlias,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum ExpressionStoreDiagnostics {
     InactiveCode { node: InFile<SyntaxNodePtr>, cfg: CfgExpr, opts: CfgOptions },
@@ -330,6 +339,7 @@ pub enum ExpressionStoreDiagnostics {
     UndeclaredLabel { node: InFile<AstPtr<ast::Lifetime>>, name: Name },
     PatternArgInExternFn { node: InFile<AstPtr<ast::Pat>> },
     FruInDestructuringAssignment { node: InFile<AstPtr<ast::Expr>> },
+    MissingBody { node: InFile<SyntaxNodePtr>, kind: MissingBodyItemKind },
 }
 
 impl ExpressionStoreBuilder {

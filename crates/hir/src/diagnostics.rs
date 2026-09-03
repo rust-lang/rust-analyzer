@@ -62,7 +62,7 @@ use crate::{
     struct_tail_raw,
 };
 
-pub use hir_def::VariantId;
+pub use hir_def::{VariantId, expr_store::MissingBodyItemKind};
 pub use hir_ty::{
     GenericArgsProhibitedReason, IncorrectGenericsLenKind, ReturnKind,
     diagnostics::{CaseType, IncorrectCase},
@@ -141,6 +141,7 @@ diagnostics![AnyDiagnostic<'db> ->
     ExpectedFunction<'db>,
     ExplicitDropMethodUse,
     FruInDestructuringAssignment,
+    MissingBody,
     FunctionalRecordUpdateOnNonStruct,
     GenericDefaultRefersToSelf,
     InactiveCode,
@@ -399,6 +400,12 @@ pub struct ExplicitDropMethodUse {
 #[derive(Debug)]
 pub struct FruInDestructuringAssignment {
     pub node: InFile<AstPtr<ast::Expr>>,
+}
+
+#[derive(Debug)]
+pub struct MissingBody {
+    pub node: InFile<SyntaxNodePtr>,
+    pub kind: MissingBodyItemKind,
 }
 
 #[derive(Debug)]
@@ -1391,6 +1398,9 @@ impl<'a, 'db> DiagnosticsCollector<'a, 'db> {
                 }
                 ExpressionStoreDiagnostics::FruInDestructuringAssignment { node } => {
                     FruInDestructuringAssignment { node: *node }.into()
+                }
+                ExpressionStoreDiagnostics::MissingBody { node, kind } => {
+                    MissingBody { node: *node, kind: *kind }.into()
                 }
             });
         }
